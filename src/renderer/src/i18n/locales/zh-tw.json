@@ -3931,6 +3931,7 @@
       "name": "名稱",
       "newServer": "MCP 伺服器",
       "noDescriptionAvailable": "描述不存在",
+      "noLogs": "暫無日誌",
       "noServers": "未設定伺服器",
       "not_support": "不支援此模型",
       "npx_list": {
@@ -3997,8 +3998,6 @@
       "startError": "啟動失敗",
       "stdio": "標準輸入 / 輸出 (stdio)",
       "streamableHttp": "可串流的 HTTP (streamableHttp)",
-      "viewLogs": "查看日誌",
-      "noLogs": "暫無日誌",
       "sync": {
         "button": "同步",
         "discoverMcpServers": "發現 MCP 伺服器",
@@ -4060,7 +4059,8 @@
       "updateError": "更新伺服器失敗",
       "updateSuccess": "伺服器更新成功",
       "url": "URL",
-      "user": "用戶"
+      "user": "用戶",
+      "viewLogs": "查看日誌"
     },
     "messages": {
       "divider": {

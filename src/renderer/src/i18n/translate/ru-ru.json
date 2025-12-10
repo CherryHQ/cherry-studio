@@ -3931,6 +3931,7 @@
       "name": "Имя",
       "newServer": "MCP сервер",
       "noDescriptionAvailable": "Описание отсутствует",
+      "noLogs": "[to be translated]:No logs yet",
       "noServers": "Серверы не настроены",
       "not_support": "Модель не поддерживается",
       "npx_list": {
@@ -4058,7 +4059,8 @@
       "updateError": "Ошибка обновления сервера",
       "updateSuccess": "Сервер успешно обновлен",
       "url": "URL",
-      "user": "Пользователь"
+      "user": "Пользователь",
+      "viewLogs": "[to be translated]:View Logs"
     },
     "messages": {
       "divider": {

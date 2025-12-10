@@ -3931,6 +3931,7 @@
       "name": "名前",
       "newServer": "MCP サーバー",
       "noDescriptionAvailable": "説明がありません",
+      "noLogs": "[to be translated]:No logs yet",
       "noServers": "サーバーが設定されていません",
       "not_support": "モデルはサポートされていません",
       "npx_list": {
@@ -4058,7 +4059,8 @@
       "updateError": "サーバーの更新に失敗しました",
       "updateSuccess": "サーバーが正常に更新されました",
       "url": "URL",
-      "user": "ユーザー"
+      "user": "ユーザー",
+      "viewLogs": "[to be translated]:View Logs"
     },
     "messages": {
       "divider": {

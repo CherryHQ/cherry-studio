@@ -3931,6 +3931,7 @@
       "name": "Nom",
       "newServer": "Сервер MCP",
       "noDescriptionAvailable": "Aucune description disponible pour le moment",
+      "noLogs": "[to be translated]:No logs yet",
       "noServers": "Aucun serveur configuré",
       "not_support": "Модель не поддерживается",
       "npx_list": {
@@ -4058,7 +4059,8 @@
       "updateError": "Échec de la mise à jour du serveur",
       "updateSuccess": "Serveur mis à jour avec succès",
       "url": "URL",
-      "user": "Пользователь"
+      "user": "Пользователь",
+      "viewLogs": "[to be translated]:View Logs"
     },
     "messages": {
       "divider": {

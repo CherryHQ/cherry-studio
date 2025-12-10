@@ -3931,6 +3931,7 @@
       "name": "Name",
       "newServer": "MCP Server",
       "noDescriptionAvailable": "No description available",
+      "noLogs": "No logs yet",
       "noServers": "No servers configured",
       "not_support": "Model not supported",
       "npx_list": {
@@ -4059,8 +4060,7 @@
       "updateSuccess": "Server updated successfully",
       "url": "URL",
       "user": "User",
-      "viewLogs": "View Logs",
-      "noLogs": "No logs yet"
+      "viewLogs": "View Logs"
     },
     "messages": {
       "divider": {

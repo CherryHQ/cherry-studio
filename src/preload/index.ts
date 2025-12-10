@@ -5,6 +5,7 @@ import type { SpanContext } from '@opentelemetry/api'
 import type { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
+import type { MCPServerLogEntry } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
 import type {
@@ -33,7 +34,6 @@ import type {
   ThemeMode,
   WebDavConfig
 } from '@types'
-import type { MCPServerLogEntry } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'

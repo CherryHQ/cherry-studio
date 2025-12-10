@@ -33,6 +33,7 @@ import {
 import { nanoid } from '@reduxjs/toolkit'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { MCPProgressEvent } from '@shared/config/types'
+import type { MCPServerLogEntry } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
 import {
@@ -47,7 +48,6 @@ import {
   MCPToolInputSchema,
   MCPToolOutputSchema
 } from '@types'
-import type { MCPServerLogEntry } from '@shared/config/types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
