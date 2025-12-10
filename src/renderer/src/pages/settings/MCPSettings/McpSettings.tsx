@@ -866,26 +866,28 @@ const LogList = styled.div`
 `
 
 const LogItem = styled.div`
-  background: var(--color-bg-secondary, #f7f8fa);
+  background: var(--color-bg-2, #1f1f1f);
+  color: var(--color-text-1, #e6e6e6);
   border-radius: 8px;
   padding: 10px 12px;
-  border: 1px solid var(--color-border, #e6e8eb);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
 `
 
 const Timestamp = styled.span`
-  color: var(--color-text-3);
+  color: var(--color-text-3, #9aa2b1);
   font-size: 12px;
 `
 
 const PreBlock = styled.pre`
   margin: 6px 0 0;
   padding: 8px;
-  background: #0d1117;
-  color: #c9d1d9;
+  background: var(--color-bg-3, #111418);
+  color: var(--color-text-1, #e6e6e6);
   border-radius: 6px;
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
 `
 
 function mapLogLevelColor(level: MCPServerLogEntry['level']) {
