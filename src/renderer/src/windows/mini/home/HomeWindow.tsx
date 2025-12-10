@@ -41,6 +41,7 @@ import type { FeatureMenusRef } from './components/FeatureMenus'
 import FeatureMenus from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+import PastedFilesPreview from './components/PastedFilesPreview'
 
 const logger = loggerService.withContext('HomeWindow')
 
@@ -86,6 +87,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     }
     return userInputText.trim()
   }, [isFirstMessage, referenceText, userInputText])
+
+  const hasChatInput = useMemo(() => Boolean(userContent) || files.length > 0, [files.length, userContent])
 
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
@@ -171,7 +174,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           if (isLoading) return
 
           e.preventDefault()
-          if (userContent) {
+          if (userContent || files.length > 0) {
             if (route === 'home') {
               featureMenusRef.current?.useFeature()
             } else {
@@ -242,7 +245,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
-      if (isEmpty(userContent) || !currentTopic.current) {
+      if ((isEmpty(userContent) && files.length === 0) || !currentTopic.current) {
         return
       }
 
@@ -251,8 +254,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
         const uploadedFiles = files.length ? await FileManager.uploadFiles(files) : []
 
+        const content = [prompt, userContent].filter(Boolean).join('\n\n') || undefined
+
         const { message: userMessage, blocks } = getUserMessage({
-          content: [prompt, userContent].filter(Boolean).join('\n\n'),
+          content,
           assistant: currentAssistant,
           topic: currentTopic.current,
           files: uploadedFiles
@@ -481,6 +486,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     [files, userContent, currentAssistant]
   )
 
+  const handleRemoveFile = useCallback((filePath: string) => {
+    setFiles((prevFiles) => prevFiles.filter((file) => file.path !== filePath))
+  }, [])
+
   const handlePause = useCallback(() => {
     if (currentAskId.current) {
       abortCompletion(currentAskId.current)
@@ -575,6 +584,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 handlePaste={handlePaste}
                 ref={inputBarRef}
               />
+              <PastedFilesPreview files={files} onRemove={handleRemoveFile} />
               <Divider style={{ margin: '10px 0' }} />
             </>
           )}
@@ -620,6 +630,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             handlePaste={handlePaste}
             ref={inputBarRef}
           />
+          <PastedFilesPreview files={files} onRemove={handleRemoveFile} />
           <Divider style={{ margin: '10px 0' }} />
           <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
           <Main>
@@ -627,6 +638,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               setRoute={setRoute}
               onSendMessage={handleSendMessage}
               text={userContent}
+              hasChatInput={hasChatInput}
               ref={featureMenusRef}
             />
           </Main>
