@@ -31,27 +31,27 @@
       }
     },
     "gitBash": {
+      "autoDetected": "使用自动检测的 Git Bash",
+      "clear": {
+        "button": "清除自定义路径"
+      },
+      "customPath": "使用自定义路径：{{path}}",
       "error": {
         "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
         "recheck": "重新检测 Git Bash 安装",
         "title": "需要 Git Bash"
       },
-      "notFound": "未找到 Git Bash。请先安装。",
-      "success": "成功检测到 Git Bash！",
-      "pick": {
-        "title": "选择 Git Bash 可执行文件",
-        "button": "选择 Git Bash 路径",
-        "failed": "设置 Git Bash 路径失败",
-        "invalidPath": "选择的文件不是有效的 Git Bash 可执行文件（bash.exe）。"
-      },
-      "clear": {
-        "button": "清除自定义路径"
-      },
       "found": {
         "title": "已配置 Git Bash"
       },
-      "customPath": "使用自定义路径：{{path}}",
-      "autoDetected": "使用自动检测的 Git Bash"
+      "notFound": "未找到 Git Bash。请先安装。",
+      "pick": {
+        "button": "选择 Git Bash 路径",
+        "failed": "设置 Git Bash 路径失败",
+        "invalidPath": "选择的文件不是有效的 Git Bash 可执行文件（bash.exe）。",
+        "title": "选择 Git Bash 可执行文件"
+      },
+      "success": "成功检测到 Git Bash！"
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"

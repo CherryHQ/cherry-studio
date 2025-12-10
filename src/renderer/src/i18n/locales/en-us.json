@@ -31,27 +31,27 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Using auto-detected Git Bash",
+      "clear": {
+        "button": "Clear custom path"
+      },
+      "customPath": "Using custom path: {{path}}",
       "error": {
         "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
         "recheck": "Recheck Git Bash Installation",
         "title": "Git Bash Required"
       },
-      "notFound": "Git Bash not found. Please install it first.",
-      "success": "Git Bash detected successfully!",
-      "pick": {
-        "title": "Select Git Bash executable",
-        "button": "Select Git Bash Path",
-        "failed": "Failed to set Git Bash path",
-        "invalidPath": "Selected file is not a valid Git Bash executable (bash.exe)."
-      },
-      "clear": {
-        "button": "Clear custom path"
-      },
       "found": {
         "title": "Git Bash configured"
       },
-      "customPath": "Using custom path: {{path}}",
-      "autoDetected": "Using auto-detected Git Bash"
+      "notFound": "Git Bash not found. Please install it first.",
+      "pick": {
+        "button": "Select Git Bash Path",
+        "failed": "Failed to set Git Bash path",
+        "invalidPath": "Selected file is not a valid Git Bash executable (bash.exe).",
+        "title": "Select Git Bash executable"
+      },
+      "success": "Git Bash detected successfully!"
     },
     "input": {
       "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command"

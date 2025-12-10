@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "clear": {
+        "button": "[to be translated]:Clear custom path"
+      },
+      "customPath": "[to be translated]:Using custom path: {{path}}",
       "error": {
         "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
         "recheck": "Git Bashのインストールを再確認してください",
         "title": "Git Bashが必要です"
       },
+      "found": {
+        "title": "[to be translated]:Git Bash configured"
+      },
       "notFound": "Git Bash が見つかりません。先にインストールしてください。",
+      "pick": {
+        "button": "[to be translated]:Select Git Bash Path",
+        "failed": "[to be translated]:Failed to set Git Bash path",
+        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
+        "title": "[to be translated]:Select Git Bash executable"
+      },
       "success": "Git Bashが正常に検出されました！"
     },
     "input": {

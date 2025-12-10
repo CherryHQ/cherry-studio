@@ -31,27 +31,27 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Usando Git Bash detectado automaticamente",
+      "clear": {
+        "button": "Limpar caminho personalizado"
+      },
+      "customPath": "Usando caminho personalizado: {{path}}",
       "error": {
         "description": "O Git Bash é necessário para executar agentes no Windows. O agente não pode funcionar sem ele. Por favor, instale o Git para Windows a partir de",
         "recheck": "Reverificar a Instalação do Git Bash",
         "title": "Git Bash Necessário"
       },
-      "notFound": "Git Bash não encontrado. Por favor, instale-o primeiro.",
-      "success": "Git Bash detectado com sucesso!",
-      "pick": {
-        "title": "Selecionar executável do Git Bash",
-        "button": "Selecionar caminho do Git Bash",
-        "failed": "Falha ao configurar o caminho do Git Bash",
-        "invalidPath": "O arquivo selecionado não é um executável válido do Git Bash (bash.exe)."
-      },
-      "clear": {
-        "button": "Limpar caminho personalizado"
-      },
       "found": {
         "title": "Git Bash configurado"
       },
-      "customPath": "Usando caminho personalizado: {{path}}",
-      "autoDetected": "Usando Git Bash detectado automaticamente"
+      "notFound": "Git Bash não encontrado. Por favor, instale-o primeiro.",
+      "pick": {
+        "button": "Selecionar caminho do Git Bash",
+        "failed": "Falha ao configurar o caminho do Git Bash",
+        "invalidPath": "O arquivo selecionado não é um executável válido do Git Bash (bash.exe).",
+        "title": "Selecionar executável do Git Bash"
+      },
+      "success": "Git Bash detectado com sucesso!"
     },
     "input": {
       "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando"
