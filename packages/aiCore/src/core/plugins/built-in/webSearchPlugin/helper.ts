@@ -96,77 +96,84 @@ export type WebSearchToolInputSchema = {
   'openai-chat': InferToolInput<OpenAIChatWebSearchTool>
 }
 
+/**
+ * Helper function to ensure params.tools object exists
+ */
+const ensureToolsObject = (params: any) => {
+  if (!params.tools) params.tools = {}
+}
+
+/**
+ * Helper function to apply tool-based web search configuration
+ */
+const applyToolBasedSearch = (params: any, toolName: string, toolInstance: any) => {
+  ensureToolsObject(params)
+  params.tools[toolName] = toolInstance
+}
+
+/**
+ * Helper function to apply provider options-based web search configuration
+ */
+const applyProviderOptionsSearch = (params: any, searchOptions: any) => {
+  params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
+}
+
 export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, context?: AiRequestContext) => {
-  // ProviderId-first: decide by provider, then fall back to config presence
-  switch (context?.providerId) {
-    case 'openai': {
-      if (!params.tools) params.tools = {}
+  const providerId = context?.providerId
+
+  // Provider-specific configuration map
+  const providerHandlers: Record<string, () => void> = {
+    openai: () => {
       const cfg = config.openai ?? DEFAULT_WEB_SEARCH_CONFIG.openai
-      params.tools.web_search = openai.tools.webSearch(cfg)
-      break
-    }
-    case 'openai-chat': {
-      if (!params.tools) params.tools = {}
+      applyToolBasedSearch(params, 'web_search', openai.tools.webSearch(cfg))
+    },
+    'openai-chat': () => {
       const cfg = (config['openai-chat'] ?? DEFAULT_WEB_SEARCH_CONFIG['openai-chat']) as OpenAISearchPreviewConfig
-      params.tools.web_search_preview = openai.tools.webSearchPreview(cfg)
-      break
-    }
-    case 'anthropic': {
-      if (!params.tools) params.tools = {}
+      applyToolBasedSearch(params, 'web_search_preview', openai.tools.webSearchPreview(cfg))
+    },
+    anthropic: () => {
       const cfg = config.anthropic ?? DEFAULT_WEB_SEARCH_CONFIG.anthropic
-      params.tools.web_search = anthropic.tools.webSearch_20250305(cfg)
-      break
-    }
-    case 'google': {
-      if (!params.tools) params.tools = {}
+      applyToolBasedSearch(params, 'web_search', anthropic.tools.webSearch_20250305(cfg))
+    },
+    google: () => {
       const cfg = (config.google ?? DEFAULT_WEB_SEARCH_CONFIG.google) as GoogleSearchConfig
-      params.tools.web_search = google.tools.googleSearch(cfg)
-      break
-    }
-    case 'xai': {
+      applyToolBasedSearch(params, 'web_search', google.tools.googleSearch(cfg))
+    },
+    xai: () => {
       const cfg = config.xai ?? DEFAULT_WEB_SEARCH_CONFIG.xai
-      const searchOptions = createXaiOptions({
-        searchParameters: { ...cfg, mode: 'on' }
-      })
-      params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
-      break
-    }
-    case 'openrouter': {
+      const searchOptions = createXaiOptions({ searchParameters: { ...cfg, mode: 'on' } })
+      applyProviderOptionsSearch(params, searchOptions)
+    },
+    openrouter: () => {
       const cfg = (config.openrouter ?? DEFAULT_WEB_SEARCH_CONFIG.openrouter) as OpenRouterSearchConfig
       const searchOptions = createOpenRouterOptions(cfg)
-      params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
-      break
+      applyProviderOptionsSearch(params, searchOptions)
     }
-    default: {
-      // Providers not listed above either don't support web search or handle it through other mechanisms
-      // Falls through to the config-based fallback logic below
+  }
 
-      // Fallback: apply based on available config keys
-      if (config.openai) {
-        if (!params.tools) params.tools = {}
-        params.tools.web_search = openai.tools.webSearch(config.openai)
-      } else if (config['openai-chat']) {
-        if (!params.tools) params.tools = {}
-        params.tools.web_search_preview = openai.tools.webSearchPreview(
-          config['openai-chat'] as OpenAISearchPreviewConfig
-        )
-      } else if (config.anthropic) {
-        if (!params.tools) params.tools = {}
-        params.tools.web_search = anthropic.tools.webSearch_20250305(config.anthropic)
-      } else if (config.google) {
-        if (!params.tools) params.tools = {}
-        params.tools.web_search = google.tools.googleSearch(config.google as GoogleSearchConfig)
-      } else if (config.xai) {
-        const searchOptions = createXaiOptions({
-          searchParameters: { ...config.xai, mode: 'on' }
-        })
-        params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
-      } else if (config.openrouter) {
-        const searchOptions = createOpenRouterOptions(config.openrouter as OpenRouterSearchConfig)
-        params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
-      }
+  // Try provider-specific handler first
+  const handler = providerId && providerHandlers[providerId]
+  if (handler) {
+    handler()
+    return params
+  }
+
+  // Fallback: apply based on available config keys (prioritized order)
+  const fallbackOrder: Array<keyof WebSearchPluginConfig> = [
+    'openai',
+    'openai-chat',
+    'anthropic',
+    'google',
+    'xai',
+    'openrouter'
+  ]
+
+  for (const key of fallbackOrder) {
+    if (config[key]) {
+      providerHandlers[key]()
       break
     }
   }
+
   return params
 }
