@@ -330,6 +330,45 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   })
 
   describe('findGitBash', () => {
+    describe('env override', () => {
+      beforeEach(() => {
+        delete process.env.CLAUDE_CODE_GIT_BASH_PATH
+      })
+
+      it('uses CLAUDE_CODE_GIT_BASH_PATH when valid', () => {
+        const envPath = 'C:\\OverrideGit\\bin\\bash.exe'
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+
+        vi.mocked(fs.existsSync).mockImplementation((p) => p === envPath)
+
+        const result = findGitBash()
+
+        expect(result).toBe(envPath)
+        expect(execFileSync).not.toHaveBeenCalled()
+      })
+
+      it('falls back when CLAUDE_CODE_GIT_BASH_PATH is invalid', () => {
+        const envPath = 'C:\\Invalid\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+
+        vi.mocked(fs.existsSync).mockImplementation((p) => {
+          if (p === envPath) return false
+          if (p === gitPath) return true
+          if (p === bashPath) return true
+          return false
+        })
+
+        vi.mocked(execFileSync).mockReturnValue(gitPath)
+
+        const result = findGitBash()
+
+        expect(result).toBe(bashPath)
+      })
+    })
+
     describe('git.exe path derivation', () => {
       it('should derive bash.exe from standard Git installation (Git/cmd/git.exe)', () => {
         const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
