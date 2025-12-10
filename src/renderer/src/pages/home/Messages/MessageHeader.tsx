@@ -83,12 +83,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.provider, showMinappIcon])
 
-  const hideHeader = isMultiSelectMode
-
-  if (hideHeader) {
-    return null
-  }
-
   return (
     <Container className="message-header">
       {isAssistantMessage ? (
@@ -123,7 +117,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       <UserWrap>
         <HStack
           alignItems="center"
-          justifyContent={isBubbleStyle ? (isUserMessage ? 'flex-end' : 'flex-start') : 'flex-start'}>
+          justifyContent={
+            isBubbleStyle ? (isUserMessage && !isMultiSelectMode ? 'flex-end' : 'flex-start') : 'flex-start'
+          }>
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
             {username}
           </UserName>
