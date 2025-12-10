@@ -17,6 +17,8 @@ import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { app } from 'electron'
+import { ConfigKeys, configManager } from '@main/services/ConfigManager'
+import { validateGitBashPath } from '@main/utils/process'
 
 import type { GetAgentSessionResponse } from '../..'
 import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
@@ -107,6 +109,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
     ) as Record<string, string>
 
+    const customGitBashPath = validateGitBashPath(configManager.get(ConfigKeys.GitBashPath) as string | undefined)
+
     const env = {
       ...loginShellEnvWithoutProxies,
       // TODO: fix the proxy api server
@@ -126,7 +130,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
       // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
       // This prevents the SDK from using the user's home directory which may have encoding problems
-      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude')
+      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
     }
 
     const errorChunks: string[] = []

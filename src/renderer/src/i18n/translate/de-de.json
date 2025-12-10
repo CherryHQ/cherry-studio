@@ -37,7 +37,21 @@
         "title": "Git Bash erforderlich"
       },
       "notFound": "Git Bash nicht gefunden. Bitte installieren Sie es zuerst.",
-      "success": "Git Bash erfolgreich erkannt!"
+      "success": "Git Bash erfolgreich erkannt!",
+      "pick": {
+        "title": "Git Bash ausführbare Datei auswählen",
+        "button": "Git Bash Pfad auswählen",
+        "failed": "Git Bash Pfad konnte nicht gesetzt werden",
+        "invalidPath": "Die ausgewählte Datei ist keine gültige Git Bash ausführbare Datei (bash.exe)."
+      },
+      "clear": {
+        "button": "Benutzerdefinierten Pfad löschen"
+      },
+      "found": {
+        "title": "Git Bash konfiguriert"
+      },
+      "customPath": "Benutzerdefinierter Pfad: {{path}}",
+      "autoDetected": "Automatisch ermitteltes Git Bash wird verwendet"
     },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"

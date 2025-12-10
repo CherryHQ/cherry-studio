@@ -5,8 +5,11 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
+import { loggerService } from '@logger'
 import { isWin } from '../constant'
 import { getResourcePath } from '.'
+
+const logger = loggerService.withContext('Utils:Process')
 
 const logger = loggerService.withContext('Utils:Process')
 
@@ -139,6 +142,16 @@ export function findGitBash(): string | null {
     return null
   }
 
+  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  if (envOverride) {
+    const resolvedEnv = path.resolve(envOverride)
+    if (fs.existsSync(resolvedEnv)) {
+      logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override for bash.exe', { path: resolvedEnv })
+      return resolvedEnv
+    }
+    logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path does not exist', { path: envOverride })
+  }
+
   // 1. Find git.exe and derive bash.exe path
   const gitPath = findExecutable('git')
   if (gitPath) {
@@ -180,4 +193,26 @@ export function findGitBash(): string | null {
 
   logger.debug('Git Bash not found - checked git derivation and common paths')
   return null
+}
+
+export function validateGitBashPath(customPath?: string | null): string | null {
+  if (!customPath) {
+    return null
+  }
+
+  const resolved = path.resolve(customPath)
+
+  if (!fs.existsSync(resolved)) {
+    logger.warn('Custom Git Bash path does not exist', { path: resolved })
+    return null
+  }
+
+  const isExe = resolved.toLowerCase().endsWith('bash.exe')
+  if (!isExe) {
+    logger.warn('Custom Git Bash path is not bash.exe', { path: resolved })
+    return null
+  }
+
+  logger.info('Validated custom Git Bash path', { path: resolved })
+  return resolved
 }

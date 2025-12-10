@@ -37,7 +37,21 @@
         "title": "Git Bash Requerido"
       },
       "notFound": "Git Bash no encontrado. Por favor, instálalo primero.",
-      "success": "¡Git Bash detectado con éxito!"
+      "success": "¡Git Bash detectado con éxito!",
+      "pick": {
+        "title": "Seleccionar ejecutable de Git Bash",
+        "button": "Seleccionar ruta de Git Bash",
+        "failed": "No se pudo configurar la ruta de Git Bash",
+        "invalidPath": "El archivo seleccionado no es un ejecutable válido de Git Bash (bash.exe)."
+      },
+      "clear": {
+        "button": "Borrar ruta personalizada"
+      },
+      "found": {
+        "title": "Git Bash configurado"
+      },
+      "customPath": "Usando ruta personalizada: {{path}}",
+      "autoDetected": "Usando Git Bash detectado automáticamente"
     },
     "input": {
       "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando"

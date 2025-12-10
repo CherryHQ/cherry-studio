@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
-import { findGitBash, getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { findGitBash, getBinaryPath, isBinaryExists, runInstallScript, validateGitBashPath } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { UpgradeChannel } from '@shared/config/constant'
@@ -35,7 +35,7 @@ import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { codeToolsService } from './services/CodeToolsService'
-import { configManager } from './services/ConfigManager'
+import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
@@ -499,6 +499,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
 
     try {
+      const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
+      const validCustom = validateGitBashPath(customPath)
+
+      if (validCustom) {
+        logger.info('Git Bash available via custom path', { path: validCustom })
+        return true
+      }
+
+      const envOverride = validateGitBashPath(process.env.CLAUDE_CODE_GIT_BASH_PATH)
+      if (envOverride) {
+        logger.info('Git Bash available via env override', { path: envOverride })
+        return true
+      }
+
       const bashPath = findGitBash()
 
       if (bashPath) {
@@ -512,6 +526,30 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       logger.error('Unexpected error checking Git Bash', error as Error)
       return false
     }
+  })
+
+  ipcMain.handle(IpcChannel.System_GetGitBashPath, () => {
+    const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
+    return customPath ?? null
+  })
+
+  ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
+    if (!isWin) {
+      return false
+    }
+
+    if (!newPath) {
+      configManager.set(ConfigKeys.GitBashPath, null)
+      return true
+    }
+
+    const validated = validateGitBashPath(newPath)
+    if (!validated) {
+      return false
+    }
+
+    configManager.set(ConfigKeys.GitBashPath, validated)
+    return true
   })
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)

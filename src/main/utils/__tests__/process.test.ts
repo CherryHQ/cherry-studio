@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { findExecutable, findGitBash } from '../process'
+import { findExecutable, findGitBash, validateGitBashPath } from '../process'
 
 // Mock dependencies
 vi.mock('child_process')
@@ -286,6 +286,34 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         // Should not check common Git paths
         expect(fs.existsSync).not.toHaveBeenCalledWith(expect.stringContaining('Git\\cmd\\node.exe'))
       })
+    })
+  })
+
+  describe('validateGitBashPath', () => {
+    it('returns normalized path when valid bash.exe exists', () => {
+      const customPath = 'C:\\PortableGit\\bin\\bash.exe'
+      vi.mocked(fs.existsSync).mockImplementation((p) => p === 'C:\\PortableGit\\bin\\bash.exe')
+
+      const result = validateGitBashPath(customPath)
+
+      expect(result).toBe('C:\\PortableGit\\bin\\bash.exe')
+    })
+
+    it('returns null when file does not exist', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+
+      const result = validateGitBashPath('C:\\missing\\bash.exe')
+
+      expect(result).toBeNull()
+    })
+
+    it('returns null when path is not bash.exe', () => {
+      const customPath = 'C:\\PortableGit\\bin\\git.exe'
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+
+      const result = validateGitBashPath(customPath)
+
+      expect(result).toBeNull()
     })
   })
 
