@@ -1785,5 +1785,22 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'cerebras',
       group: 'qwen'
     }
+  ],
+  memorylake: [
+    { id: 'gpt-5', name: 'GPT-5', provider: 'memorylake', group: 'GPT 5' },
+    { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'memorylake', group: 'GPT 5' },
+    { id: 'gpt-4o', name: 'GPT 4o', provider: 'memorylake', group: 'GPT 4o' },
+    { id: 'gpt-4o-mini', name: 'GPT 4o Mini', provider: 'memorylake', group: 'GPT 4o' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'memorylake', group: 'Gemini 2.5' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'memorylake', group: 'Gemini 2.5' },
+    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'memorylake', group: 'Claude 4.5' },
+    { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', provider: 'memorylake', group: 'Claude 4.5' },
+    { id: 'glm-4.5', name: 'GLM 4.5', provider: 'memorylake', group: 'GLM 4.5' },
+    { id: 'glm-4.5-air', name: 'GLM 4.5 Air', provider: 'memorylake', group: 'GLM 4.5' },
+    { id: 'grok-4', name: 'Grok 4', provider: 'memorylake', group: 'Grok' },
+    { id: 'grok-4-fast-non-reasoning', name: 'Grok 4 Fast', provider: 'memorylake', group: 'Grok' },
+    { id: 'qwen-flash', name: 'Qwen Flash', provider: 'memorylake', group: 'Qwen' },
+    { id: 'qwen-max', name: 'Qwen Max', provider: 'memorylake', group: 'Qwen' },
+    { id: 'qwen-plus', name: 'Qwen Plus', provider: 'memorylake', group: 'Qwen' }
   ]
 }
