@@ -831,9 +831,7 @@ const McpSettings: React.FC = () => {
                 <Text>{log.message}</Text>
               </Flex>
               {log.data && (
-                <PreBlock>
-                  {typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}
-                </PreBlock>
+                <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
               )}
             </LogItem>
           ))}

@@ -34,4 +34,3 @@ export class ServerLogBuffer {
     this.logs.delete(serverKey)
   }
 }
-

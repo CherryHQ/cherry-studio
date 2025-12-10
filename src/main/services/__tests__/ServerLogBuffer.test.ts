@@ -27,4 +27,3 @@ describe('ServerLogBuffer', () => {
     expect(buffer.get('two')).toHaveLength(1)
   })
 })
-
