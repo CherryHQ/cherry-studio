@@ -1393,6 +1393,19 @@
         "plain_text": "复制为纯文本（去除 Markdown）",
         "title": "复制"
       },
+      "multi_select": {
+        "label": "多选",
+        "exit": "退出多选",
+        "select": "选中",
+        "unselect": "取消选中",
+        "select_all": "全选",
+        "clear": "清空选择",
+        "move": "批量移动",
+        "delete": "批量删除",
+        "export": "导出为 ChatGPT JSON",
+        "selected_count": "已选 {{count}} 条",
+        "empty": "请先选择话题"
+      },
       "delete": {
         "shortcut": "按住 {{key}} 可直接删除"
       },

@@ -1393,6 +1393,19 @@
         "plain_text": "Copy as plain text (remove Markdown)",
         "title": "Copy"
       },
+      "multi_select": {
+        "label": "Multi-select",
+        "exit": "Exit Multi-select",
+        "select": "Select",
+        "unselect": "Unselect",
+        "select_all": "Select All",
+        "clear": "Clear",
+        "move": "Move Selected",
+        "delete": "Delete Selected",
+        "export": "Export as ChatGPT JSON",
+        "selected_count": "{{count}} selected",
+        "empty": "Please select topics first"
+      },
       "delete": {
         "shortcut": "Hold {{key}} to delete directly"
       },
