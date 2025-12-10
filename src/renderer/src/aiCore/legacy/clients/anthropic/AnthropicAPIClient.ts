@@ -124,7 +124,8 @@ export class AnthropicAPIClient extends BaseApiClient<
 
   override async listModels(): Promise<Anthropic.ModelInfo[]> {
     const sdk = (await this.getSdkInstance()) as Anthropic
-    const response = await sdk.models.list()
+    // prevent auto appended /v1. It's included in baseUrl.
+    const response = await sdk.models.list({ path: '/models' })
     return response.data
   }
 

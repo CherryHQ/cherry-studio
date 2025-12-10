@@ -63,6 +63,23 @@ export function withoutTrailingSlash<T extends string>(url: T): T {
 }
 
 /**
+ * Checks if a URL string ends with a trailing '#' character.
+ *
+ * @template T - The string type to preserve type safety
+ * @param {T} url - The URL string to check
+ * @returns {boolean} True if the URL ends with '#', false otherwise
+ *
+ * @example
+ * ```ts
+ * isWithTrailingSharp('https://example.com#') // true
+ * isWithTrailingSharp('https://example.com')  // false
+ * ```
+ */
+export function isWithTrailingSharp<T extends string>(url: T): boolean {
+  return url.endsWith('#')
+}
+
+/**
  * Removes the trailing '#' from a URL string if it exists.
  *
  * @template T - The string type to preserve type safety
