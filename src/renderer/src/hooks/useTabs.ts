@@ -5,8 +5,8 @@ import { uuid } from '../utils'
 import { getDefaultRouteTitle } from '../utils/routeTitle'
 
 // Re-export types from shared schema
-export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheSchemas'
-import type { Tab, TabType } from '@shared/data/cache/cacheSchemas'
+export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheValueTypes'
+import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
 
 const DEFAULT_TAB: Tab = {
   id: 'home',

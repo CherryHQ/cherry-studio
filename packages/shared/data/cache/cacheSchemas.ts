@@ -1,4 +1,5 @@
 import type * as CacheValueTypes from './cacheValueTypes'
+import type { TabsState } from './cacheValueTypes'
 
 /**
  * Cache Schema Definitions
@@ -95,30 +96,6 @@ export type UseSharedCacheSchema = {
 
 export const DefaultUseSharedCache: UseSharedCacheSchema = {
   'example_scope.example_key': 'example default value'
-}
-
-/**
- * Tab type for browser-like tabs
- *
- * - 'route': Internal app routes rendered via MemoryRouter
- * - 'webview': External web content rendered via Electron webview
- */
-export type TabType = 'route' | 'webview'
-
-export interface Tab {
-  id: string
-  type: TabType
-  url: string
-  title: string
-  icon?: string
-  metadata?: Record<string, unknown>
-  // TODO: LRU 优化字段，后续添加
-  // lastAccessTime?: number
-}
-
-export interface TabsState {
-  tabs: Tab[]
-  activeTabId: string
 }
 
 /**

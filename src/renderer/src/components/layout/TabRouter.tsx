@@ -1,4 +1,4 @@
-import type { Tab } from '@shared/data/cache/cacheSchemas'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'
 import { useEffect, useMemo } from 'react'
