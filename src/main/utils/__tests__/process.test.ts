@@ -290,6 +290,18 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   })
 
   describe('validateGitBashPath', () => {
+    it('returns null when path is null', () => {
+      const result = validateGitBashPath(null)
+
+      expect(result).toBeNull()
+    })
+
+    it('returns null when path is undefined', () => {
+      const result = validateGitBashPath(undefined)
+
+      expect(result).toBeNull()
+    })
+
     it('returns normalized path when valid bash.exe exists', () => {
       const customPath = 'C:\\PortableGit\\bin\\bash.exe'
       vi.mocked(fs.existsSync).mockImplementation((p) => p === 'C:\\PortableGit\\bin\\bash.exe')
