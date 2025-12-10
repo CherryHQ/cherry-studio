@@ -3931,7 +3931,7 @@
       "name": "Όνομα",
       "newServer": "Διακομιστής MCP",
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
-      "noLogs": "[to be translated]:No logs yet",
+      "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {
@@ -4060,7 +4060,7 @@
       "updateSuccess": "Ο διακομιστής ενημερώθηκε επιτυχώς",
       "url": "URL",
       "user": "Χρήστης",
-      "viewLogs": "[to be translated]:View Logs"
+      "viewLogs": "Προβολή αρχείων καταγραφής"
     },
     "messages": {
       "divider": {

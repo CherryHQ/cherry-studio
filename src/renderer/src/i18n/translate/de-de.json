@@ -3931,7 +3931,7 @@
       "name": "Name",
       "newServer": "MCP-Server",
       "noDescriptionAvailable": "Keine Beschreibung",
-      "noLogs": "[to be translated]:No logs yet",
+      "noLogs": "Noch keine Protokolle",
       "noServers": "Server nicht konfiguriert",
       "not_support": "Modell nicht unterstützt",
       "npx_list": {
@@ -4060,7 +4060,7 @@
       "updateSuccess": "Server erfolgreich aktualisiert",
       "url": "URL",
       "user": "Benutzer",
-      "viewLogs": "[to be translated]:View Logs"
+      "viewLogs": "Protokolle anzeigen"
     },
     "messages": {
       "divider": {

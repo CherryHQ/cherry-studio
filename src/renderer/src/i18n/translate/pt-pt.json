@@ -3931,7 +3931,7 @@
       "name": "Nome",
       "newServer": "Servidor MCP",
       "noDescriptionAvailable": "Nenhuma descrição disponível no momento",
-      "noLogs": "[to be translated]:No logs yet",
+      "noLogs": "Ainda sem registos",
       "noServers": "Nenhum servidor configurado",
       "not_support": "Modelo Não Suportado",
       "npx_list": {
@@ -4060,7 +4060,7 @@
       "updateSuccess": "Servidor atualizado com sucesso",
       "url": "URL",
       "user": "Usuário",
-      "viewLogs": "[to be translated]:View Logs"
+      "viewLogs": "Ver registos"
     },
     "messages": {
       "divider": {
