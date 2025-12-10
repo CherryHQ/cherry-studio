@@ -114,7 +114,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       const ok = await window.api.system.setGitBashPath(pickedPath)
       if (!ok) {
         window.toast.error(
-          t('agent.gitBash.invalidPath', 'Selected file is not a valid Git Bash executable (bash.exe).')
+          t('agent.gitBash.pick.invalidPath', 'Selected file is not a valid Git Bash executable (bash.exe).')
         )
         return
       }
