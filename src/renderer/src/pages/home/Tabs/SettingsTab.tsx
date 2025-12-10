@@ -10,6 +10,7 @@ import {
   SelectValue,
   Switch
 } from '@cherrystudio/ui'
+import { Slider } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -41,7 +42,7 @@ import {
 } from '@renderer/utils/provider'
 import type { MultiModelMessageStyle, SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Col, InputNumber, Row, Slider } from 'antd'
+import { Col, InputNumber, Row } from 'antd'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -290,10 +291,11 @@ const SettingsTab: FC<Props> = (props) => {
                   <Slider
                     min={0}
                     max={2}
-                    onChange={setTemperature}
-                    onChangeComplete={onTemperatureChange}
-                    value={typeof temperature === 'number' ? temperature : 0}
+                    onValueChange={(values) => setTemperature(values[0])}
+                    onValueCommit={(values) => onTemperatureChange(values[0])}
+                    value={[typeof temperature === 'number' ? temperature : 0]}
                     step={0.1}
+                    showValueLabel
                   />
                 </Col>
               </Row>
@@ -328,16 +330,16 @@ const SettingsTab: FC<Props> = (props) => {
                 <Slider
                   min={0}
                   max={20}
-                  onChange={setContextCount}
-                  onChangeComplete={onContextCountChange}
-                  value={Math.min(contextCount, 20)}
-                  tooltip={{ open: false }}
+                  onValueChange={(values) => setContextCount(values[0])}
+                  onValueCommit={(values) => onContextCountChange(values[0])}
+                  value={[Math.min(contextCount, 20)]}
                   step={1}
-                  marks={{
-                    0: '0',
-                    10: '10',
-                    20: '20'
-                  }}
+                  marks={[
+                    { value: 0, label: '0' },
+                    { value: 10, label: '10' },
+                    { value: 20, label: '20' }
+                  ]}
+                  showValueLabel
                 />
               </Col>
             </Row>
@@ -499,17 +501,19 @@ const SettingsTab: FC<Props> = (props) => {
           <Row align="middle" gutter={10}>
             <Col span={24}>
               <Slider
-                value={fontSizeValue}
-                onChange={(value) => setFontSizeValue(value)}
-                onChangeComplete={(value) => setFontSize(value)}
+                value={[fontSizeValue]}
+                onValueChange={(values) => setFontSizeValue(values[0])}
+                onValueCommit={(values) => setFontSize(values[0])}
                 min={12}
                 max={22}
                 step={1}
-                marks={{
-                  12: <span style={{ fontSize: '12px' }}>A</span>,
-                  14: <span style={{ fontSize: '14px' }}>{t('common.default')}</span>,
-                  22: <span style={{ fontSize: '18px' }}>A</span>
-                }}
+                marks={[
+                  { value: 12, label: 'A' },
+                  { value: 14, label: t('common.default') },
+                  { value: 22, label: 'A' }
+                ]}
+                showValueLabel
+                formatValueLabel={(v) => `${v}px`}
               />
             </Col>
           </Row>

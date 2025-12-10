@@ -1,4 +1,5 @@
 import { InfoTooltip } from '@cherrystudio/ui'
+import { Slider } from '@cherrystudio/ui'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
@@ -9,7 +10,6 @@ import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
-import { Slider } from 'antd'
 import { find } from 'lodash'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -117,16 +117,17 @@ const RagSettings = () => {
         </SettingRowTitle>
         <div style={{ width: INPUT_BOX_WIDTH }}>
           <Slider
-            value={compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT}
+            value={[compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT]}
             min={1}
             max={10}
             step={1}
-            onChange={handleDocumentCountChange}
-            marks={{
-              1: t('common.default'),
-              3: '3',
-              10: '10'
-            }}
+            onValueChange={(values) => handleDocumentCountChange(values[0])}
+            marks={[
+              { value: 1, label: t('common.default') },
+              { value: 3, label: '3' },
+              { value: 10, label: '10' }
+            ]}
+            showValueLabel
           />
         </div>
       </SettingRow>

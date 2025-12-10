@@ -1,10 +1,10 @@
 import { SettingOutlined } from '@ant-design/icons'
+import { Slider } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { SettingDivider } from '@renderer/pages/settings'
 import { SettingRow } from '@renderer/pages/settings'
-import { Col, Row, Slider } from 'antd'
-import { Popover } from 'antd'
+import { Col, Popover, Row } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,13 +41,18 @@ const MessageGroupSettings: FC = () => {
           <Row align="middle" gutter={10}>
             <Col span={24}>
               <Slider
-                value={gridColumnsValue}
-                style={{ width: '100%' }}
-                onChange={(value) => setGridColumnsValue(value)}
-                onChangeComplete={(value) => setGridColumns(value)}
+                value={[gridColumnsValue]}
+                onValueChange={(values) => setGridColumnsValue(values[0])}
+                onValueCommit={(values) => setGridColumns(values[0])}
                 min={2}
                 max={6}
                 step={1}
+                marks={[
+                  { value: 2, label: '2' },
+                  { value: 4, label: '4' },
+                  { value: 6, label: '6' }
+                ]}
+                showValueLabel
               />
             </Col>
           </Row>

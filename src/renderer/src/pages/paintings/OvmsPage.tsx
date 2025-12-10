@@ -1,5 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Slider } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -15,7 +16,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Input, InputNumber, Select, Slider } from 'antd'
+import { Avatar, Input, InputNumber, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -372,11 +373,13 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
         return (
           <SliderContainer>
             <Slider
+              className="flex-1"
               min={item.min}
               max={item.max}
               step={item.step}
-              value={(painting[item.key!] || item.initialValue) as number}
-              onChange={(v) => updatePaintingState({ [item.key!]: v })}
+              value={[(painting[item.key!] || item.initialValue) as number]}
+              onValueChange={(values) => updatePaintingState({ [item.key!]: values[0] })}
+              showValueLabel
             />
             <StyledInputNumber
               min={item.min}
