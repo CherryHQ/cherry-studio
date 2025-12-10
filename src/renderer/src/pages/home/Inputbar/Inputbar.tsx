@@ -10,6 +10,7 @@ import {
   isVisionModels,
   isWebSearchModel
 } from '@renderer/config/models'
+import { useCache } from '@renderer/data/hooks/useCache'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
@@ -30,7 +31,7 @@ import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesServi
 import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { type Assistant, type FileType, type KnowledgeBase, type Model, type Topic, TopicType } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
@@ -165,7 +166,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const { setTimeoutTimer } = useTimer()
-  const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
+  const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
   const isVisionSupported = useMemo(
     () =>

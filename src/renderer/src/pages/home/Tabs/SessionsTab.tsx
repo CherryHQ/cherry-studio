@@ -1,4 +1,4 @@
-import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { cn } from '@renderer/utils'
 import { Alert } from 'antd'
@@ -11,8 +11,7 @@ import Sessions from './components/Sessions'
 interface SessionsTabProps {}
 
 const SessionsTab: FC<SessionsTabProps> = () => {
-  const { chat } = useRuntime()
-  const { activeAgentId } = chat
+  const [activeAgentId] = useCache('agent.active_id')
   const { t } = useTranslation()
   const { apiServer } = useSettings()
 

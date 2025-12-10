@@ -5,11 +5,11 @@ import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
@@ -43,8 +43,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
   const showMinappIcon = useSidebarIconShow('minapp')
-  const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId } = chat
+  const [activeAgentId] = useCache('agent.active_id')
+  const [activeTopicOrSession] = useCache('chat.active_view')
   const { agent } = useAgent(activeAgentId)
   const isAgentView = activeTopicOrSession === 'session'
   const { t } = useTranslation()

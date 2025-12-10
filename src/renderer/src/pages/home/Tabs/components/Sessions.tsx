@@ -1,14 +1,10 @@
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { cacheService } from '@renderer/data/CacheService'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import {
-  setActiveSessionIdAction,
-  setActiveTopicOrSessionAction,
-  setSessionWaitingAction
-} from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { motion } from 'framer-motion'
@@ -28,18 +24,15 @@ interface SessionsProps {
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
   const { sessions, isLoading, error, deleteSession } = useSessions(agentId)
-  const { chat } = useRuntime()
-  const { activeSessionIdMap } = chat
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
 
-  const setActiveSessionId = useCallback(
-    (agentId: string, sessionId: string | null) => {
-      dispatch(setActiveSessionIdAction({ agentId, sessionId }))
-      dispatch(setActiveTopicOrSessionAction('session'))
-    },
-    [dispatch]
-  )
+  const setActiveSessionId = useCallback((agentId: string, sessionId: string | null) => {
+    const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+    cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: sessionId })
+    cacheService.set('chat.active_view', 'session')
+  }, [])
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -47,19 +40,22 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         window.toast.error(t('agent.session.delete.error.last'))
         return
       }
-      dispatch(setSessionWaitingAction({ id, value: true }))
+      const waitingMap = cacheService.get('agent.session.waiting_id_map') ?? {}
+      cacheService.set('agent.session.waiting_id_map', { ...waitingMap, [id]: true })
       const success = await deleteSession(id)
       if (success) {
         const newSessionId = sessions.find((s) => s.id !== id)?.id
         if (newSessionId) {
-          dispatch(setActiveSessionIdAction({ agentId, sessionId: newSessionId }))
+          const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+          cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: newSessionId })
         } else {
           // may clear messages instead of forbidden deletion
         }
       }
-      dispatch(setSessionWaitingAction({ id, value: false }))
+      const updatedMap = cacheService.get('agent.session.waiting_id_map') ?? {}
+      cacheService.set('agent.session.waiting_id_map', { ...updatedMap, [id]: false })
     },
-    [agentId, deleteSession, dispatch, sessions, t]
+    [agentId, deleteSession, sessions, t]
   )
 
   const activeSessionId = activeSessionIdMap[agentId]

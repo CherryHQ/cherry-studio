@@ -74,10 +74,10 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
 
   const [, setGenerating] = useCache('chat.generating')
 
-  const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
+  const [renamingTopics] = useCache('topic.renaming')
   const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
   const topicFulfilledQuery = useSelector((state: RootState) => state.messages.fulfilledByTopic)
-  const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
+  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 

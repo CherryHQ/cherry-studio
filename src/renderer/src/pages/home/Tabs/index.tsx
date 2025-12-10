@@ -1,14 +1,12 @@
 import { usePreference } from '@data/hooks/usePreference'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch } from '@renderer/store'
-import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Tab } from '@renderer/types/chat'
 import { classNames, getErrorMessage, uuid } from '@renderer/utils'
@@ -50,11 +48,10 @@ const HomeTabs: FC<Props> = ({
   const { toggleShowTopics } = useShowTopics()
   const { isLeftNavbar } = useNavbarPosition()
   const { t } = useTranslation()
-  const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId } = chat
+  const [activeAgentId, setActiveAgentId] = useCache('agent.active_id')
+  const [activeTopicOrSession, setActiveTopicOrSession] = useCache('chat.active_view')
   const { session, isLoading: isSessionLoading, error: sessionError } = useActiveSession()
   const { updateSession } = useUpdateSession(activeAgentId)
-  const dispatch = useAppDispatch()
 
   const isSessionView = activeTopicOrSession === 'session'
   const isTopicView = activeTopicOrSession === 'topic'
@@ -76,8 +73,8 @@ const HomeTabs: FC<Props> = ({
     const assistant = await AddAssistantPopup.show()
     if (assistant) {
       setActiveAssistant(assistant)
-      dispatch(setActiveAgentId(null))
-      dispatch(setActiveTopicOrSessionAction('topic'))
+      setActiveAgentId(null)
+      setActiveTopicOrSession('topic')
     }
   }
 
@@ -85,8 +82,8 @@ const HomeTabs: FC<Props> = ({
     const assistant = { ...defaultAssistant, id: uuid() }
     addAssistant(assistant)
     setActiveAssistant(assistant)
-    dispatch(setActiveAgentId(null))
-    dispatch(setActiveTopicOrSessionAction('topic'))
+    setActiveAgentId(null)
+    setActiveTopicOrSession('topic')
   }
 
   useEffect(() => {
