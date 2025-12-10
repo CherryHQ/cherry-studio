@@ -38,7 +38,6 @@ import { defaultAppHeaders } from '@shared/utils'
 import {
   BuiltinMCPServerNames,
   type GetResourceResponse,
-  type MCPServerLogEntry,
   isBuiltinMCPServer,
   type MCPCallToolResponse,
   type MCPPrompt,
@@ -48,6 +47,7 @@ import {
   MCPToolInputSchema,
   MCPToolOutputSchema
 } from '@types'
+import type { MCPServerLogEntry } from '@shared/config/types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
@@ -392,7 +392,7 @@ class McpService {
                 source: 'stdio'
               })
             })
-            stdioTransport.stdout?.on('data', (data) => {
+            ;(stdioTransport as any).stdout?.on('data', (data: any) => {
               const msg = data.toString()
               this.emitServerLog(server, {
                 timestamp: Date.now(),

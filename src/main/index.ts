@@ -20,6 +20,7 @@ import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
 import { configManager } from './services/ConfigManager'
 import { nodeTraceService } from './services/NodeTraceService'
+import mcpService from './services/MCPService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
