@@ -134,19 +134,19 @@ const SettingsTab: FC<Props> = (props) => {
 
   const onTemperatureChange = (value) => {
     if (!isNaN(value as number)) {
-      onUpdateAssistantSettings({ temperature: Number(value) })
+      onUpdateAssistantSettings({ temperature: value })
     }
   }
 
   const onContextCountChange = (value) => {
     if (!isNaN(value as number)) {
-      onUpdateAssistantSettings({ contextCount: Number(value) })
+      onUpdateAssistantSettings({ contextCount: value })
     }
   }
 
   const onMaxTokensChange = (value) => {
     if (!isNaN(value as number)) {
-      onUpdateAssistantSettings({ maxTokens: Number(value) })
+      onUpdateAssistantSettings({ maxTokens: value })
     }
   }
 
