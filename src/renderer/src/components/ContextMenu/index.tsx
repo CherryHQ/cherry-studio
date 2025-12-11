@@ -6,6 +6,30 @@ interface ContextMenuProps {
   children: React.ReactNode
 }
 
+/**
+ * Extract text content from selection, filtering out line numbers in code viewers.
+ * This ensures right-click copy in code blocks doesn't include line numbers.
+ */
+function extractSelectedText(selection: Selection): string {
+  const range = selection.getRangeAt(0)
+  const fragment = range.cloneContents()
+
+  // Remove all line number elements from the selection
+  const lineNumbers = fragment.querySelectorAll('.line-number')
+  lineNumbers.forEach((el) => el.remove())
+
+  // Get the remaining text content
+  const result = fragment.textContent || ''
+
+  // If we removed line numbers, return the cleaned text
+  // Otherwise, return the original selection
+  if (lineNumbers.length > 0) {
+    return result
+  }
+
+  return selection.toString()
+}
+
 // FIXME: Why does this component name look like a generic component but is not customizable at all?
 const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
   const { t } = useTranslation()
@@ -45,8 +69,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
 
   const onOpenChange = (open: boolean) => {
     if (open) {
-      const selectedText = window.getSelection()?.toString()
-      setSelectedText(selectedText)
+      const selection = window.getSelection()
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        setSelectedText(undefined)
+        return
+      }
+      setSelectedText(extractSelectedText(selection) || undefined)
     }
   }
 
