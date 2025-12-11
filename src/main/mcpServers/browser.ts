@@ -3,6 +3,7 @@ import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { Server as MCServer } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { app, BrowserWindow } from 'electron'
+import TurndownService from 'turndown'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('MCPBrowserCDP')
@@ -26,6 +27,13 @@ const OpenSchema = z.object({
     .string()
     .optional()
     .describe('Session identifier; separate sessions keep separate pages (default: default)')
+})
+
+const FetchSchema = z.object({
+  url: z.url().describe('URL to fetch'),
+  format: z.enum(['html', 'txt', 'markdown', 'json']).default('markdown').describe('Output format (default: markdown)'),
+  timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)'),
+  sessionId: z.string().optional().describe('Session identifier (default: default)')
 })
 
 export class CdpBrowserController {
@@ -262,6 +270,47 @@ export class CdpBrowserController {
     }
     logger.info('Browser CDP context reset (all sessions)')
   }
+
+  public async fetch(
+    url: string,
+    format: 'html' | 'txt' | 'markdown' | 'json' = 'markdown',
+    timeout = 10000,
+    sessionId = 'default'
+  ) {
+    await this.open(url, timeout, false, sessionId)
+
+    const win = await this.getWindow(sessionId)
+    const dbg = win.webContents.debugger
+
+    if (!dbg.isAttached()) {
+      dbg.attach('1.3')
+      await dbg.sendCommand('Page.enable')
+      await dbg.sendCommand('Runtime.enable')
+    }
+
+    let expression: string
+    if (format === 'json' || format === 'txt') {
+      expression = 'document.body.innerText'
+    } else {
+      expression = 'document.documentElement.outerHTML'
+    }
+
+    const result = (await dbg.sendCommand('Runtime.evaluate', {
+      expression,
+      returnByValue: true
+    })) as { result?: { value?: string } }
+
+    const content = result?.result?.value ?? ''
+
+    if (format === 'markdown') {
+      const turndownService = new TurndownService()
+      return turndownService.turndown(content)
+    }
+    if (format === 'json') {
+      return JSON.parse(content)
+    }
+    return content
+  }
 }
 
 export class BrowserServer {
@@ -346,6 +395,34 @@ export class BrowserServer {
                 }
               }
             }
+          },
+          {
+            name: 'fetch',
+            description:
+              'Fetch a URL using the browser and return content in specified format (html, txt, markdown, json)',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                url: {
+                  type: 'string',
+                  description: 'URL to fetch'
+                },
+                format: {
+                  type: 'string',
+                  enum: ['html', 'txt', 'markdown', 'json'],
+                  description: 'Output format (default: markdown)'
+                },
+                timeout: {
+                  type: 'number',
+                  description: 'Navigation timeout in milliseconds (default: 10000)'
+                },
+                sessionId: {
+                  type: 'string',
+                  description: 'Session identifier (default: default)'
+                }
+              },
+              required: ['url']
+            }
           }
         ]
       }
@@ -405,6 +482,32 @@ export class BrowserServer {
             }
           ],
           isError: false
+        }
+      }
+
+      if (name === 'fetch') {
+        const { url, format, timeout, sessionId } = FetchSchema.parse(args)
+        try {
+          const content = await this.controller.fetch(url, format, timeout ?? 10000, sessionId ?? 'default')
+          return {
+            content: [
+              {
+                type: 'text',
+                text: typeof content === 'string' ? content : JSON.stringify(content)
+              }
+            ],
+            isError: false
+          }
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: (error as Error).message
+              }
+            ],
+            isError: true
+          }
         }
       }
 

@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => {
-  const sendCommand = vi.fn(async (command: string) => {
+  const sendCommand = vi.fn(async (command: string, params?: { expression?: string }) => {
     if (command === 'Runtime.evaluate') {
+      if (params?.expression === 'document.documentElement.outerHTML') {
+        return { result: { value: '<html><body><h1>Test</h1><p>Content</p></body></html>' } }
+      }
+      if (params?.expression === 'document.body.innerText') {
+        return { result: { value: 'Test\nContent' } }
+      }
       return { result: { value: 'ok' } }
     }
     return {}
@@ -105,5 +111,24 @@ describe('CdpBrowserController', () => {
       (w: any) => w.destroy.mock.calls.length > 0 || w.close.mock.calls.length > 0
     ).length
     expect(destroyedCount).toBeGreaterThanOrEqual(1)
+  })
+
+  it('fetches URL and returns html format', async () => {
+    const controller = new CdpBrowserController()
+    const result = await controller.fetch('https://example.com/', 'html')
+    expect(result).toBe('<html><body><h1>Test</h1><p>Content</p></body></html>')
+  })
+
+  it('fetches URL and returns txt format', async () => {
+    const controller = new CdpBrowserController()
+    const result = await controller.fetch('https://example.com/', 'txt')
+    expect(result).toBe('Test\nContent')
+  })
+
+  it('fetches URL and returns markdown format (default)', async () => {
+    const controller = new CdpBrowserController()
+    const result = await controller.fetch('https://example.com/')
+    expect(typeof result).toBe('string')
+    expect(result).toContain('Test')
   })
 })
