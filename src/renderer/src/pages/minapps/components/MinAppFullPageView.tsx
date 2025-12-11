@@ -1,12 +1,14 @@
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MinApp/WebviewContainer'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { MinAppExportService, minAppExportService, type SupportedMinApp } from '@renderer/services/export'
 import type { MinAppType } from '@renderer/types'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { Avatar } from 'antd'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
@@ -19,8 +21,10 @@ interface Props {
 }
 
 const MinAppFullPageView: FC<Props> = ({ app }) => {
+  const { t } = useTranslation()
   const webviewRef = useRef<WebviewTag | null>(null)
   const [isReady, setIsReady] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [currentUrl, setCurrentUrl] = useState<string | null>(null)
   const { minappsOpenLinkExternal } = useSettings()
 
@@ -90,6 +94,35 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
     }
   }, [app.url, app.id])
 
+  const handleExport = useCallback(async () => {
+    if (isExporting) return
+    const webviewId = webviewRef.current?.getWebContentsId?.()
+    if (!webviewId) {
+      window.toast?.error(
+        t('minapp.export.error', {
+          error: t('minapp.export.no_webview', { defaultValue: 'WebView not ready' })
+        })
+      )
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const exportPayload = await minAppExportService.exportConversations(webviewId, app.id)
+      const targetAppId: SupportedMinApp = MinAppExportService.isExportSupported(app.id) ? app.id : exportPayload.appId
+      const importResult = await minAppExportService.importToApp(exportPayload, targetAppId)
+      const assistantName = importResult.assistant?.name || exportPayload.appId
+
+      window.toast?.success(t('minapp.export.success', { name: assistantName, count: importResult.topicsCount }))
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : t('minapp.export.unknown', { defaultValue: 'Unknown error' })
+      window.toast?.error(t('minapp.export.error', { error: errorMessage }))
+    } finally {
+      setIsExporting(false)
+    }
+  }, [app.id, isExporting, t])
+
   const handleOpenDevTools = useCallback(() => {
     if (webviewRef.current) {
       webviewRef.current.openDevTools()
@@ -104,6 +137,8 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
         currentUrl={currentUrl}
         onReload={handleReload}
         onOpenDevTools={handleOpenDevTools}
+        onExport={handleExport}
+        isExporting={isExporting}
       />
 
       <WebviewArea>

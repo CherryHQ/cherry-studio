@@ -2,8 +2,10 @@ import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
   CodeOutlined,
+  DownloadOutlined,
   ExportOutlined,
   LinkOutlined,
+  LoadingOutlined,
   MinusOutlined,
   PushpinOutlined,
   ReloadOutlined
@@ -40,9 +42,19 @@ interface Props {
   currentUrl: string | null
   onReload: () => void
   onOpenDevTools: () => void
+  onExport?: () => void
+  isExporting?: boolean
 }
 
-const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
+const MinimalToolbar: FC<Props> = ({
+  app,
+  webviewRef,
+  currentUrl,
+  onReload,
+  onOpenDevTools,
+  onExport,
+  isExporting
+}) => {
   const { t } = useTranslation()
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { minappsOpenLinkExternal } = useSettings()
@@ -267,6 +279,13 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
       <RightSection>
         <ButtonGroup>
+          {onExport && (
+            <Tooltip title={isExporting ? t('minapp.popup.exporting') : t('minapp.popup.export')} placement="bottom">
+              <ToolbarButton onClick={onExport} $disabled={Boolean(isExporting)} aria-label={t('minapp.popup.export')}>
+                {isExporting ? <LoadingOutlined /> : <DownloadOutlined />}
+              </ToolbarButton>
+            </Tooltip>
+          )}
           {canOpenExternalLink && (
             <Tooltip title={t('minapp.popup.openExternal')} placement="bottom">
               <ToolbarButton onClick={handleOpenLink} aria-label={t('minapp.popup.openExternal')}>

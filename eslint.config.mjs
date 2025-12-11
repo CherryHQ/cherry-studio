@@ -14,6 +14,9 @@ export default defineConfig([
   eslintReact.configs['recommended-typescript'],
   reactHooks.configs['recommended-latest'],
   {
+    ignores: ['**/*.user.js', '**/*.user.js*']
+  },
+  {
     plugins: {
       'simple-import-sort': simpleImportSort,
       'unused-imports': unusedImports,
@@ -67,7 +70,9 @@ export default defineConfig([
       'src/main/integration/cherryai/index.js',
       'src/main/integration/nutstore/sso/lib/**',
       'src/renderer/src/ui/**',
-      'packages/**/dist'
+      'packages/**/dist',
+      '*.user.js',
+      '**/*.user.js'
     ]
   },
   // turn off oxlint supported rules.

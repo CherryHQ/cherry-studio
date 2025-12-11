@@ -911,6 +911,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     if (!webview) return
     webview.session.setSpellCheckerEnabled(isEnable)
   })
+  ipcMain.handle(IpcChannel.Webview_ExecuteScript, async (_, webviewId: number, script: string) => {
+    const webview = webContents.fromId(webviewId)
+    if (!webview) {
+      throw new Error('WebView not found')
+    }
+    return await webview.executeJavaScript(script)
+  })
 
   // Webview print and save handlers
   ipcMain.handle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {

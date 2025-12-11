@@ -3,12 +3,14 @@ import { allMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { MinAppExportService, minAppExportService, type SupportedMinApp } from '@renderer/services/export'
 import TabsService from '@renderer/services/TabsService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { Avatar } from 'antd'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
@@ -24,6 +26,7 @@ const MinAppPage: FC = () => {
   const { isTopNavbar } = useNavbarPosition()
   const { openMinappKeepAlive, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
+  const { t } = useTranslation()
   // openedKeepAliveMinapps 不再需要作为依赖参与 webview 选择，已通过 MutationObserver 动态发现
   // const { openedKeepAliveMinapps } = useRuntime()
   const navigate = useNavigate()
@@ -91,6 +94,7 @@ const MinAppPage: FC = () => {
   // 注意：Hooks 必须在任何 return 之前调用，因此提前定义，并在内部判空
   const webviewRef = useRef<WebviewTag | null>(null)
   const [isReady, setIsReady] = useState<boolean>(() => (app ? getWebviewLoaded(app.id) : false))
+  const [isExporting, setIsExporting] = useState(false)
   const [currentUrl, setCurrentUrl] = useState<string | null>(app?.url ?? null)
 
   // 获取池中的 webview 元素（避免因为 openedKeepAliveMinapps.length 变化而频繁重跑）
@@ -155,11 +159,6 @@ const MinAppPage: FC = () => {
     }
   }, [app, isReady])
 
-  // 如果条件不满足，提前返回（所有 hooks 已调用）
-  if (!app || !initialIsTopNavbar.current) {
-    return null
-  }
-
   const handleReload = () => {
     if (!app) return
     if (webviewRef.current) {
@@ -170,8 +169,43 @@ const MinAppPage: FC = () => {
     }
   }
 
+  const handleExport = useCallback(async () => {
+    if (!app || isExporting) return
+
+    const webviewId = webviewRef.current?.getWebContentsId?.()
+    if (!webviewId) {
+      window.toast?.error(
+        t('minapp.export.error', {
+          error: t('minapp.export.no_webview', { defaultValue: 'WebView not ready' })
+        })
+      )
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const exportPayload = await minAppExportService.exportConversations(webviewId, app.id)
+      const targetAppId: SupportedMinApp = MinAppExportService.isExportSupported(app.id) ? app.id : exportPayload.appId
+      const importResult = await minAppExportService.importToApp(exportPayload, targetAppId)
+      const assistantName = importResult.assistant?.name || exportPayload.appId
+
+      window.toast?.success(t('minapp.export.success', { name: assistantName, count: importResult.topicsCount }))
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : t('minapp.export.unknown', { defaultValue: 'Unknown error' })
+      window.toast?.error(t('minapp.export.error', { error: errorMessage }))
+    } finally {
+      setIsExporting(false)
+    }
+  }, [app, isExporting, t])
+
   const handleOpenDevTools = () => {
     webviewRef.current?.openDevTools()
+  }
+
+  // 如果条件不满足，提前返回（所有 hooks 已调用）
+  if (!app || !initialIsTopNavbar.current) {
+    return null
   }
 
   return (
@@ -184,6 +218,8 @@ const MinAppPage: FC = () => {
           currentUrl={currentUrl}
           onReload={handleReload}
           onOpenDevTools={handleOpenDevTools}
+          onExport={handleExport}
+          isExporting={isExporting}
         />
       </ToolbarWrapper>
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.id} />

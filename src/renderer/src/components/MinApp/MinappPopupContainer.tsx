@@ -4,8 +4,10 @@ import {
   CloseOutlined,
   CodeOutlined,
   CopyOutlined,
+  DownloadOutlined,
   ExportOutlined,
   LinkOutlined,
+  LoadingOutlined,
   MinusOutlined,
   PushpinOutlined,
   ReloadOutlined
@@ -21,6 +23,7 @@ import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { MinAppExportService, minAppExportService, type SupportedMinApp } from '@renderer/services/export'
 import { useAppDispatch } from '@renderer/store'
 import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import type { MinAppType } from '@renderer/types'
@@ -154,6 +157,8 @@ const MinappPopupContainer: React.FC = () => {
   const [isPopupShow, setIsPopupShow] = useState(true)
   /** whether the current minapp is ready */
   const [isReady, setIsReady] = useState(false)
+  /** 当前是否正在导出 */
+  const [isExporting, setIsExporting] = useState(false)
   /** the current REAL url of the minapp
    * different from the app preset url, because user may navigate in minapp */
   const [currentUrl, setCurrentUrl] = useState<string | null>(null)
@@ -354,6 +359,39 @@ const MinappPopupContainer: React.FC = () => {
     dispatch(setMinappsOpenLinkExternal(!minappsOpenLinkExternal))
   }
 
+  /** 导出当前小程序对话并导入应用 */
+  const handleExport = async (appid: string) => {
+    if (isExporting) return
+
+    const webview = webviewRefs.current.get(appid)
+    const webviewId = webview?.getWebContentsId?.()
+
+    if (!webviewId) {
+      window.toast?.error(
+        t('minapp.export.error', {
+          error: t('minapp.export.no_webview', { defaultValue: 'WebView not ready' })
+        })
+      )
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const exportPayload = await minAppExportService.exportConversations(webviewId, appid)
+      const targetAppId: SupportedMinApp = MinAppExportService.isExportSupported(appid) ? appid : exportPayload.appId
+      const importResult = await minAppExportService.importToApp(exportPayload, targetAppId)
+      const assistantName = importResult.assistant?.name || exportPayload.appId
+
+      window.toast?.success(t('minapp.export.success', { name: assistantName, count: importResult.topicsCount }))
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : t('minapp.export.unknown', { defaultValue: 'Unknown error' })
+      window.toast?.error(t('minapp.export.error', { error: errorMessage }))
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   /** navigate back in webview history */
   const handleGoBack = (appid: string) => {
     const webview = webviewRefs.current.get(appid)
@@ -445,6 +483,18 @@ const MinappPopupContainer: React.FC = () => {
               <ReloadOutlined />
             </TitleButton>
           </Tooltip>
+          {MinAppExportService.isExportSupported(appInfo.id) && (
+            <Tooltip
+              title={isExporting ? t('minapp.popup.exporting') : t('minapp.popup.export')}
+              mouseEnterDelay={0.8}
+              placement="bottom">
+              <TitleButton
+                onClick={() => handleExport(appInfo.id)}
+                style={{ pointerEvents: isExporting ? 'none' : 'auto', opacity: isExporting ? 0.6 : 1 }}>
+                {isExporting ? <LoadingOutlined /> : <DownloadOutlined />}
+              </TitleButton>
+            </Tooltip>
+          )}
           {appInfo.canPinned && (
             <Tooltip
               title={
