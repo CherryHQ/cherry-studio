@@ -799,6 +799,7 @@
     },
     "move_all": {
       "confirm": "[to be translated]:Move all topics from \"{{from}}\" to \"{{to}}\" and merge?",
+      "dedupe": "[to be translated]:Deduplicate (by topic name)",
       "title": "[to be translated]:Move all topics to"
     },
     "presets": {
@@ -1382,6 +1383,8 @@
       "title": "Προτεινόμενες ερωτήσεις"
     },
     "thinking": "Σκέψη",
+    "thinking_effort_in_progress": "Σκέψη ({{effort}}) ({{seconds}} δευτερόλεπτα)",
+    "thought_done": "Σκέψη ({{effort}}) ({{seconds}} δευτερόλεπτα)",
     "topics": {
       "auto_rename": "Δημιουργία θέματος",
       "clear": {
@@ -1478,6 +1481,10 @@
       },
       "move_to": "Μετακίνηση στο",
       "multi_select": {
+        "batch_rename": "[to be translated]:Batch rename topics",
+        "batch_rename_failed": "[to be translated]:Rename failed: {{name}}",
+        "batch_rename_skip_empty": "[to be translated]:Skipped {{name}} (no messages)",
+        "batch_rename_success": "[to be translated]:Renamed: {{name}}",
         "clear": "[to be translated]:Clear",
         "delete": "[to be translated]:Delete Selected",
         "empty": "[to be translated]:Please select topics first",
@@ -1487,6 +1494,7 @@
         "move": "[to be translated]:Move Selected",
         "select": "[to be translated]:Select",
         "select_all": "[to be translated]:Select All",
+        "select_all_unique": "[to be translated]:Select all (dedup titles)",
         "selected_count": "[to be translated]:{{count}} selected",
         "unselect": "[to be translated]:Unselect"
       },
@@ -1502,6 +1510,12 @@
       "search": {
         "placeholder": "Αναζήτηση θεμάτων...",
         "title": "Αναζήτηση"
+      },
+      "sort": {
+        "created": "[to be translated]:By created time",
+        "label": "[to be translated]:Sort",
+        "name": "[to be translated]:By name",
+        "updated": "[to be translated]:By updated time"
       },
       "title": "Θέματα",
       "unpin": "Ξεκαρφίτσωμα"
@@ -1985,6 +1999,15 @@
       "label": "Είστε σίγουροι ότι θέλετε να εισάγετε εξωτερικά δεδομένα;"
     },
     "content": "Επιλέξτε εξωτερικό αρχείο συνομιλίας εφαρμογής για εισαγωγή, προς το παρόν υποστηρίζονται μόνο αρχεία μορφής JSON του ChatGPT",
+    "gemini": {
+      "assistant_name": "[to be translated]:Gemini Import",
+      "error": {
+        "no_conversations": "[to be translated]:No Gemini conversations found",
+        "no_valid_conversations": "[to be translated]:No valid Gemini conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "title": "Εισαγωγή Εξωτερικών Συνομιλιών"
   },
   "knowledge": {
@@ -2136,7 +2159,9 @@
   },
   "launchpad": {
     "apps": "Εφαρμογές",
-    "minapps": "Μικρές εφαρμογές"
+    "assistant": "[to be translated]:Assistant",
+    "minapps": "Μικρές εφαρμογές",
+    "topic": "[to be translated]:Topic"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2600,9 +2625,18 @@
   "minapp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
     "add_to_sidebar": "Προσθήκη στην πλευρική μπάρα",
+    "export": {
+      "error": "[to be translated]:Export failed: {{error}}",
+      "no_conversations": "[to be translated]:No conversations found",
+      "no_webview": "[to be translated]:WebView is not ready, please try again",
+      "success": "[to be translated]:Exported successfully! Assistant \"{{name}}\" created with {{count}} conversations",
+      "unknown": "[to be translated]:Unknown error"
+    },
     "popup": {
       "close": "Κλείσιμο της εφαρμογής",
       "devtools": "Εργαλεία προγραμματιστή",
+      "export": "[to be translated]:Export chats",
+      "exporting": "[to be translated]:Exporting...",
       "goBack": "Πίσω",
       "goForward": "Μπροστά",
       "minimize": "Ελαχιστοποίηση της εφαρμογής",
@@ -5572,6 +5606,7 @@
       "actions": "Λειτουργία",
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
+      "close_tab": "[to be translated]:Close tab",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
       "enabled": "ενεργοποίηση",

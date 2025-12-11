@@ -799,6 +799,7 @@
     },
     "move_all": {
       "confirm": "[to be translated]:Move all topics from \"{{from}}\" to \"{{to}}\" and merge?",
+      "dedupe": "[to be translated]:Deduplicate (by topic name)",
       "title": "[to be translated]:Move all topics to"
     },
     "presets": {
@@ -1382,6 +1383,8 @@
       "title": "提案された質問"
     },
     "thinking": "思考中（用時 {{seconds}} 秒）",
+    "thinking_effort_in_progress": "{{effort}}中（用時 {{seconds}} 秒）",
+    "thought_done": "思考済み（{{effort}}）（用時 {{seconds}} 秒）",
     "topics": {
       "auto_rename": "自動リネーム",
       "clear": {
@@ -1478,6 +1481,10 @@
       },
       "move_to": "移動先",
       "multi_select": {
+        "batch_rename": "[to be translated]:Batch rename topics",
+        "batch_rename_failed": "[to be translated]:Rename failed: {{name}}",
+        "batch_rename_skip_empty": "[to be translated]:Skipped {{name}} (no messages)",
+        "batch_rename_success": "[to be translated]:Renamed: {{name}}",
         "clear": "[to be translated]:Clear",
         "delete": "[to be translated]:Delete Selected",
         "empty": "[to be translated]:Please select topics first",
@@ -1487,6 +1494,7 @@
         "move": "[to be translated]:Move Selected",
         "select": "[to be translated]:Select",
         "select_all": "[to be translated]:Select All",
+        "select_all_unique": "[to be translated]:Select all (dedup titles)",
         "selected_count": "[to be translated]:{{count}} selected",
         "unselect": "[to be translated]:Unselect"
       },
@@ -1502,6 +1510,12 @@
       "search": {
         "placeholder": "トピックを検索...",
         "title": "検索"
+      },
+      "sort": {
+        "created": "[to be translated]:By created time",
+        "label": "[to be translated]:Sort",
+        "name": "[to be translated]:By name",
+        "updated": "[to be translated]:By updated time"
       },
       "title": "トピック",
       "unpin": "固定解除"
@@ -1985,6 +1999,15 @@
       "label": "外部データをインポートしてもよろしいですか？"
     },
     "content": "外部アプリケーションの会話ファイルを選択してインポートします。現在、ChatGPT JSON形式ファイルのみサポートしています。",
+    "gemini": {
+      "assistant_name": "[to be translated]:Gemini Import",
+      "error": {
+        "no_conversations": "[to be translated]:No Gemini conversations found",
+        "no_valid_conversations": "[to be translated]:No valid Gemini conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "title": "外部会話をインポート"
   },
   "knowledge": {
@@ -2136,7 +2159,9 @@
   },
   "launchpad": {
     "apps": "アプリ",
-    "minapps": "アプリ"
+    "assistant": "[to be translated]:Assistant",
+    "minapps": "アプリ",
+    "topic": "[to be translated]:Topic"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2600,9 +2625,18 @@
   "minapp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
+    "export": {
+      "error": "[to be translated]:Export failed: {{error}}",
+      "no_conversations": "[to be translated]:No conversations found",
+      "no_webview": "[to be translated]:WebView is not ready, please try again",
+      "success": "[to be translated]:Exported successfully! Assistant \"{{name}}\" created with {{count}} conversations",
+      "unknown": "[to be translated]:Unknown error"
+    },
     "popup": {
       "close": "ミニアプリを閉じる",
       "devtools": "開発者ツール",
+      "export": "[to be translated]:Export chats",
+      "exporting": "[to be translated]:Exporting...",
       "goBack": "戻る",
       "goForward": "進む",
       "minimize": "ミニアプリを最小化",
@@ -5572,6 +5606,7 @@
       "actions": "操作",
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
+      "close_tab": "[to be translated]:Close tab",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
       "enabled": "有効化",
