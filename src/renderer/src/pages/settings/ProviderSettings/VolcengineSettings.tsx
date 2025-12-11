@@ -76,6 +76,7 @@ const VolcengineSettings: FC = () => {
       setHasCredentials(false)
       window.toast.success(t('settings.provider.volcengine.credentials_cleared'))
     } catch (error) {
+      loggerService.withContext('VolcengineSettings').error('Failed to clear credentials:', error as Error)
       window.toast.error(String(error))
     }
   }, [t])
