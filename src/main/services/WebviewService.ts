@@ -148,9 +148,10 @@ export async function printWebviewToPDF(webviewId: number): Promise<string | nul
 
     // Generate PDF with settings to capture full page
     const pdfData = await webview.printToPDF({
-      marginsType: 0,
+      margins: {
+        marginType: 'default'
+      },
       printBackground: true,
-      printSelectionOnly: false,
       landscape: false,
       pageSize: 'A4',
       preferCSSPageSize: true
@@ -206,13 +207,13 @@ export async function saveWebviewAsHTML(webviewId: number): Promise<string | nul
           if (document.doctype) {
             const dt = document.doctype;
             doctype = '<!DOCTYPE ' + (dt.name || 'html');
-            
+
             // Add PUBLIC identifier if publicId is present
             if (dt.publicId) {
               // Escape single quotes in publicId
               const escapedPublicId = String(dt.publicId).replace(/'/g, "\\'");
               doctype += " PUBLIC '" + escapedPublicId + "'";
-              
+
               // Add systemId if present (required when publicId is present)
               if (dt.systemId) {
                 const escapedSystemId = String(dt.systemId).replace(/'/g, "\\'");
@@ -223,7 +224,7 @@ export async function saveWebviewAsHTML(webviewId: number): Promise<string | nul
               const escapedSystemId = String(dt.systemId).replace(/'/g, "\\'");
               doctype += " SYSTEM '" + escapedSystemId + "'";
             }
-            
+
             doctype += '>';
           }
           return doctype + (document.documentElement?.outerHTML || '');

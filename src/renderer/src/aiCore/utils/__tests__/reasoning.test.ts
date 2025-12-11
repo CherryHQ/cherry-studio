@@ -754,7 +754,8 @@ describe('reasoning utils', () => {
       const result = getGeminiReasoningParams(assistant, model)
       expect(result).toEqual({
         thinkingConfig: {
-          includeThoughts: true
+          includeThoughts: true,
+          thinkingBudget: -1
         }
       })
     })
