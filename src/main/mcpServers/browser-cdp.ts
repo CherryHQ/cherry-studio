@@ -6,6 +6,7 @@ import { app, BrowserWindow } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('MCPBrowserCDP')
+const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0) Gecko/20100101 Firefox/145.0'
 
 const ExecuteSchema = z.object({
   code: z
@@ -21,7 +22,10 @@ const OpenSchema = z.object({
   url: z.url().describe('URL to open in the controlled Electron window'),
   timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)'),
   show: z.boolean().optional().describe('Whether to show the browser window (default: false)'),
-  sessionId: z.string().optional().describe('Session identifier; separate sessions keep separate pages (default: default)')
+  sessionId: z
+    .string()
+    .optional()
+    .describe('Session identifier; separate sessions keep separate pages (default: default)')
 })
 
 export class CdpBrowserController {
@@ -128,17 +132,13 @@ export class CdpBrowserController {
     })
 
     // Use a standard Chrome UA to avoid some anti-bot blocks
-    win.webContents.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    )
+    win.webContents.setUserAgent(userAgent)
 
     // Log navigation lifecycle to help diagnose slow loads
     win.webContents.on('did-start-loading', () => logger.info(`did-start-loading`, { sessionId }))
     win.webContents.on('dom-ready', () => logger.info(`dom-ready`, { sessionId }))
     win.webContents.on('did-finish-load', () => logger.info(`did-finish-load`, { sessionId }))
-    win.webContents.on('did-fail-load', (_e, code, desc) =>
-      logger.warn('Navigation failed', { code, desc })
-    )
+    win.webContents.on('did-fail-load', (_e, code, desc) => logger.warn('Navigation failed', { code, desc }))
 
     win.on('closed', () => {
       this.windows.delete(sessionId)
@@ -285,36 +285,36 @@ export class BrowserCdpServer {
     server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: [
-      {
-        name: 'open',
-        description: 'Open a URL in a hidden Electron window controlled via Chrome DevTools Protocol',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            url: {
-              type: 'string',
-              description: 'URL to load'
-            },
-            timeout: {
-              type: 'number',
-              description: 'Navigation timeout in milliseconds (default 10000)'
-            },
-            show: {
-              type: 'boolean',
-              description: 'Whether to show the browser window (default false)'
-            },
-            sessionId: {
-              type: 'string',
-              description: 'Session identifier; separate sessions keep separate pages (default: default)'
+          {
+            name: 'open',
+            description: 'Open a URL in a hidden Electron window controlled via Chrome DevTools Protocol',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                url: {
+                  type: 'string',
+                  description: 'URL to load'
+                },
+                timeout: {
+                  type: 'number',
+                  description: 'Navigation timeout in milliseconds (default 10000)'
+                },
+                show: {
+                  type: 'boolean',
+                  description: 'Whether to show the browser window (default false)'
+                },
+                sessionId: {
+                  type: 'string',
+                  description: 'Session identifier; separate sessions keep separate pages (default: default)'
+                }
+              },
+              required: ['url']
             }
           },
-          required: ['url']
-        }
-      },
           {
-        name: 'execute',
-        description:
-          'Run JavaScript in the current page via Runtime.evaluate. Prefer short, single-line snippets; use semicolons for multiple statements.',
+            name: 'execute',
+            description:
+              'Run JavaScript in the current page via Runtime.evaluate. Prefer short, single-line snippets; use semicolons for multiple statements.',
             inputSchema: {
               type: 'object',
               properties: {
