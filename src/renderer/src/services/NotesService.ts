@@ -15,6 +15,13 @@ export interface UploadResult {
   folderCount: number
 }
 
+export interface FileEntryData {
+  fullPath: string
+  isFile: boolean
+  isDirectory: boolean
+  systemPath: string
+}
+
 export async function loadTree(rootPath: string): Promise<NotesTreeNode[]> {
   return window.api.file.getDirectoryStructure(normalizePath(rootPath))
 }
@@ -83,13 +90,16 @@ export async function renameNode(node: NotesTreeNode, newName: string): Promise<
   return { path: `${parentDir}/${safeName}`, name: safeName }
 }
 
+// Function overloads for type safety
+export async function uploadNotes(files: File[], targetPath: string): Promise<UploadResult>
+export async function uploadNotes(entries: FileEntryData[], targetPath: string): Promise<UploadResult>
+
+// Implementation signature
 export async function uploadNotes(
-  files: File[] | Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
+  filesOrEntries: File[] | FileEntryData[],
   targetPath: string
 ): Promise<UploadResult> {
-  const basePath = normalizePath(targetPath)
-
-  if (files.length === 0) {
+  if (filesOrEntries.length === 0) {
     return {
       uploadedNodes: [],
       totalFiles: 0,
@@ -99,23 +109,26 @@ export async function uploadNotes(
     }
   }
 
-  const firstItem = files[0]
-  const isEntryDataList =
-    typeof firstItem === 'object' && 'fullPath' in firstItem && 'systemPath' in firstItem && 'isFile' in firstItem
-
-  if (isEntryDataList) {
-    const entries = files as Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>
-    return uploadNotesRecursive(entries, targetPath)
+  // Check if we're dealing with FileEntryData by looking at the first item
+  const firstItem = filesOrEntries[0]
+  if ('fullPath' in firstItem && 'systemPath' in firstItem) {
+    return uploadNotesFromEntries(filesOrEntries as FileEntryData[], targetPath)
   }
 
-  // Legacy approach: File objects (for browser File API compatibility)
-  const fileList = files as File[]
-  const totalFiles = fileList.length
+  return uploadNotesFromFiles(filesOrEntries as File[], targetPath)
+}
+
+/**
+ * Upload notes from File objects (browser File API)
+ */
+async function uploadNotesFromFiles(files: File[], targetPath: string): Promise<UploadResult> {
+  const basePath = normalizePath(targetPath)
+  const totalFiles = files.length
 
   try {
     const filePaths: string[] = []
 
-    for (const file of fileList) {
+    for (const file of files) {
       const filePath = window.api.file.getPathForFile(file)
 
       if (filePath) {
@@ -156,7 +169,7 @@ export async function uploadNotes(
       folderCount: result.folderCount
     }
   } catch (error) {
-    logger.error('Legacy file upload failed:', error as Error)
+    logger.error('File upload failed:', error as Error)
     return {
       uploadedNodes: [],
       totalFiles,
@@ -168,13 +181,17 @@ export async function uploadNotes(
 }
 
 /**
+ * Upload notes from FileEntryData (drag-and-drop with directory structure)
+ */
+async function uploadNotesFromEntries(entries: FileEntryData[], targetPath: string): Promise<UploadResult> {
+  return uploadNotesRecursive(entries, targetPath)
+}
+
+/**
  * Recursive upload for drag-and-drop with fullPath preserved (VS Code approach)
  * Uses batch processing for better performance
  */
-async function uploadNotesRecursive(
-  entryDataList: Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
-  targetPath: string
-): Promise<UploadResult> {
+async function uploadNotesRecursive(entryDataList: FileEntryData[], targetPath: string): Promise<UploadResult> {
   const basePath = normalizePath(targetPath)
 
   try {

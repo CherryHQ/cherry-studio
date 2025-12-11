@@ -2,6 +2,7 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { findNode, findParent } from '@renderer/services/NotesTreeService'
+import { type FileEntryData } from '@renderer/services/NotesService'
 import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
@@ -38,10 +39,7 @@ interface NotesSidebarProps {
   onToggleStar: (nodeId: string) => void
   onMoveNode: (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => void
   onSortNodes: (sortType: NotesSortType) => void
-  onUploadFiles: (
-    files: File[] | Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
-    targetFolderPath?: string
-  ) => void
+  onUploadFiles: (files: File[] | FileEntryData[], targetFolderPath?: string) => void
   notesTree: NotesTreeNode[]
   selectedFolderId?: string | null
   notesPath?: string

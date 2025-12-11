@@ -13,7 +13,8 @@ import {
   loadTree,
   renameNode as renameEntry,
   sortTree,
-  uploadNotes
+  uploadNotes,
+  type FileEntryData
 } from '@renderer/services/NotesService'
 import {
   addUniquePath,
@@ -652,10 +653,7 @@ const NotesPage: FC = () => {
 
   // 处理文件上传
   const handleUploadFiles = useCallback(
-    async (
-      files: File[] | Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
-      overrideTargetFolderPath?: string
-    ) => {
+    async (files: File[] | FileEntryData[], overrideTargetFolderPath?: string) => {
       try {
         if (!files || files.length === 0) {
           window.toast.warning(t('notes.no_file_selected'))
