@@ -205,7 +205,9 @@ export abstract class BaseApiClient<
       return undefined
     }
     const assistantSettings = getAssistantSettings(assistant)
-    return assistantSettings?.enableTemperature ? assistantSettings?.temperature : undefined
+    const temperature = assistantSettings?.temperature
+    // Ensure temperature is always returned as a number (not a string)
+    return assistantSettings?.enableTemperature && temperature !== undefined ? Number(temperature) : undefined
   }
 
   public getTopP(assistant: Assistant, model: Model): number | undefined {
@@ -213,7 +215,9 @@ export abstract class BaseApiClient<
       return undefined
     }
     const assistantSettings = getAssistantSettings(assistant)
-    return assistantSettings?.enableTopP ? assistantSettings?.topP : undefined
+    const topP = assistantSettings?.topP
+    // Ensure topP is always returned as a number (not a string)
+    return assistantSettings?.enableTopP && topP !== undefined ? Number(topP) : undefined
   }
 
   // NOTE: 这个也许可以迁移到OpenAIBaseClient
