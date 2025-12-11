@@ -34,18 +34,14 @@ const HomePage: FC = () => {
   const search = useSearch({ strict: false }) as { assistantId?: string; topicId?: string }
 
   // 根据 search params 中的 ID 查找对应的 assistant
-  const assistantFromSearch = search.assistantId
-    ? assistants.find((a) => a.id === search.assistantId)
-    : undefined
+  const assistantFromSearch = search.assistantId ? assistants.find((a) => a.id === search.assistantId) : undefined
 
   const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
     assistantFromSearch || _activeAssistant || assistants[0]
   )
 
   // 根据 search params 中的 topicId 查找对应的 topic
-  const topicFromSearch = search.topicId
-    ? activeAssistant?.topics?.find((t) => t.id === search.topicId)
-    : undefined
+  const topicFromSearch = search.topicId ? activeAssistant?.topics?.find((t) => t.id === search.topicId) : undefined
 
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', topicFromSearch)
   const [showAssistants] = usePreference('assistant.tab.show')

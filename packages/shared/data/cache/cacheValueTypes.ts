@@ -26,6 +26,14 @@ export type CacheTopic = Topic
  */
 export type TabType = 'route' | 'webview'
 
+/**
+ * Tab saved state for hibernation recovery
+ */
+export interface TabSavedState {
+  scrollPosition?: number
+  // 其他必要草稿字段可在此扩展
+}
+
 export interface Tab {
   id: string
   type: TabType
@@ -33,8 +41,11 @@ export interface Tab {
   title: string
   icon?: string
   metadata?: Record<string, unknown>
-  // TODO: LRU 优化字段，后续添加
-  // lastAccessTime?: number
+  // LRU 字段
+  lastAccessTime?: number // open/switch 时更新
+  isDormant?: boolean // 是否已休眠
+  isPinned?: boolean // 是否置顶（豁免 LRU）
+  savedState?: TabSavedState // 休眠前保存的状态
 }
 
 export interface TabsState {

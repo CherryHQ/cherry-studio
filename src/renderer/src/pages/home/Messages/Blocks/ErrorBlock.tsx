@@ -68,11 +68,7 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
           values={{ provider: getProviderLabel(providerId) }}
           components={{
             provider: (
-              <Link
-                style={{ color: 'var(--color-link)' }}
-                to="/settings/provider"
-                search={{ id: providerId }}
-              />
+              <Link style={{ color: 'var(--color-link)' }} to="/settings/provider" search={{ id: providerId }} />
             )
           }}
         />

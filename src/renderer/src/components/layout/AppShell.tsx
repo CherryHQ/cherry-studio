@@ -43,20 +43,21 @@ export const AppShell = () => {
       {/* Zone 1: Sidebar */}
       <Sidebar />
 
-      <div className="flex h-full min-w-0 flex-1 flex-col">
+      <div className="flex h-full w-full flex-1 flex-col overflow-hidden">
         {/* Zone 2: Tab Bar */}
         <Tabs value={activeTabId} onValueChange={setActiveTab} variant="line" className="w-full">
           <header className="flex h-10 w-full items-center border-b bg-muted/5">
-            <TabsList className="hide-scrollbar h-full flex-1 justify-start gap-0 overflow-x-auto">
+            <TabsList className="flex h-full min-w-0 flex-1 justify-start gap-0 overflow-hidden">
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
                   className={cn(
-                    'group relative flex h-full min-w-[120px] max-w-[200px] items-center justify-between gap-2 rounded-none border-r px-3 text-sm',
+                    'group relative flex h-full min-w-0 max-w-[200px] flex-1 items-center justify-between gap-2 rounded-none border-r px-3 text-sm',
                     tab.id === activeTabId ? 'bg-background' : 'bg-transparent'
                   )}>
-                  <span className="truncate text-xs">{tab.title}</span>
+                  {/* TODO: pin功能,形式还未确定 */}
+                  <span className={cn('truncate text-xs', tab.isDormant && 'opacity-60')}>{tab.title}</span>
                   {tabs.length > 1 && (
                     <div
                       role="button"
@@ -84,9 +85,9 @@ export const AppShell = () => {
 
         {/* Zone 3: Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">
-          {/* Route Tabs: Each has independent MemoryRouter */}
+          {/* Route Tabs: Only render non-dormant tabs */}
           {tabs
-            .filter((t) => t.type === 'route')
+            .filter((t) => t.type === 'route' && !t.isDormant)
             .map((tab) => (
               <TabRouter
                 key={tab.id}
@@ -96,9 +97,9 @@ export const AppShell = () => {
               />
             ))}
 
-          {/* Webview Tabs */}
+          {/* Webview Tabs: Only render non-dormant tabs */}
           {tabs
-            .filter((t) => t.type === 'webview')
+            .filter((t) => t.type === 'webview' && !t.isDormant)
             .map((tab) => (
               <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
             ))}
