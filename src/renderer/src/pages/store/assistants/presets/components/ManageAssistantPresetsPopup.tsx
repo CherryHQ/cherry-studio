@@ -41,10 +41,26 @@ const PopupContainer: React.FC = () => {
   }
 
   const handleSelectNext100 = () => {
-    const unselectedPresets = presets.filter((p) => !selectedIds.has(p.id))
-    const next100 = unselectedPresets.slice(0, 100)
+    // Find the last selected preset's index
+    let startIndex = 0
+    if (selectedIds.size > 0) {
+      for (let i = presets.length - 1; i >= 0; i--) {
+        if (selectedIds.has(presets[i].id)) {
+          startIndex = i + 1
+          break
+        }
+      }
+    }
+
+    // Select next 100 unselected presets starting from startIndex
     const newSelected = new Set(selectedIds)
-    next100.forEach((p) => newSelected.add(p.id))
+    let count = 0
+    for (let i = startIndex; i < presets.length && count < 100; i++) {
+      if (!newSelected.has(presets[i].id)) {
+        newSelected.add(presets[i].id)
+        count++
+      }
+    }
     setSelectedIds(newSelected)
   }
 
