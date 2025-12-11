@@ -589,6 +589,7 @@ export function getGeminiReasoningParams(
     if (effortRatio > 1) {
       return {
         thinkingConfig: {
+          thinkingBudget: -1,
           includeThoughts: true
         }
       }
