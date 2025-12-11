@@ -187,11 +187,8 @@ class VolcengineService {
 
     // RFC3986 unreserved: A-Z a-z 0-9 - _ . ~
     // If encodeSlash is false, / is also unencoded
-    const unreserved = encodeSlash ? /[A-Za-z0-9_\-\.~]/ : /[A-Za-z0-9_\-\.~\/]/;
-    return str.replace(
-      new RegExp(`[^${encodeSlash ? 'A-Za-z0-9_\\-\\.~' : 'A-Za-z0-9_\\-\\.~/'}]`, 'g'),
-      (char) => encodeURIComponent(char)
-    );
+    const pattern = encodeSlash ? /[^A-Za-z0-9_\-.~]/g : /[^A-Za-z0-9_\-.~/]/g
+    return str.replace(pattern, (char) => encodeURIComponent(char))
   }
 
   // ============= Signing Implementation =============
