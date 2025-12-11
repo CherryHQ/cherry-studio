@@ -63,7 +63,10 @@ const Prompt: FC<Props> = ({ assistant, topic }) => {
   }
 
   return (
-    <Container className="system-prompt" onClick={() => AssistantSettingsPopup.show({ assistant })} $isDark={isDark}>
+    <Container
+      className="system-prompt"
+      onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'prompt' })}
+      $isDark={isDark}>
       <Text $isVisible={isVisible}>{displayText}</Text>
     </Container>
   )

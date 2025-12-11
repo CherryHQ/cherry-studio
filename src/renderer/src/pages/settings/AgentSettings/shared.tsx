@@ -29,14 +29,15 @@ export type AgentLabelProps = {
     avatar?: string
     name?: string
   }
+  hideIcon?: boolean
 }
 
-export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames }) => {
+export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames, hideIcon }) => {
   const emoji = agent?.configuration?.avatar
 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
-      <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} />
+      {!hideIcon && <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} size={24} />}
       <span className={cn('truncate', 'text-[var(--color-text)]', classNames?.name)}>
         {agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}
       </span>

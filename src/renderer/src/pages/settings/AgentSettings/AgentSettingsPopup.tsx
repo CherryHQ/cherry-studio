@@ -119,7 +119,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       onOk={onOk}
       onCancel={onCancel}
       afterClose={afterClose}
-      maskClosable={false}
+      maskClosable={menu !== 'prompt'}
       footer={null}
       title={<AgentLabel agent={agent} />}
       transitionName="animation-move-down"
