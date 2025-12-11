@@ -4,6 +4,7 @@ import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import { updateOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
@@ -102,6 +103,25 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
         }
         blockManager.smartBlockUpdate(possibleBlockId, changes, blockManager.lastBlockType!, true)
+      }
+
+      // Fix: 更新所有仍处于 STREAMING 状态的 blocks 为 PAUSED/ERROR
+      // 这修复了停止回复时思考计时器继续运行的问题
+      const currentMessage = getState().messages.entities[assistantMsgId]
+      if (currentMessage) {
+        const allBlockRefs = findAllBlocks(currentMessage)
+        const blockState = getState().messageBlocks
+        for (const blockRef of allBlockRefs) {
+          const block = blockState.entities[blockRef.id]
+          if (block && block.status === MessageBlockStatus.STREAMING && block.id !== possibleBlockId) {
+            dispatch(
+              updateOneBlock({
+                id: block.id,
+                changes: { status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR }
+              })
+            )
+          }
+        }
       }
 
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
