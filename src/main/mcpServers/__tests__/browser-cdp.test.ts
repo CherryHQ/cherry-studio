@@ -62,7 +62,7 @@ describe('CdpBrowserController', () => {
 
   it('opens a URL and returns current page info', async () => {
     const controller = new CdpBrowserController()
-    const result = await controller.open('https://foo.bar/')
+    const result = await controller.open('https://foo.bar/', 5000)
     expect(result.currentUrl).toBe('https://example.com/')
     expect(result.title).toBe('Example Title')
   })

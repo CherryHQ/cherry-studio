@@ -17,7 +17,8 @@ const ExecuteSchema = z.object({
 })
 
 const OpenSchema = z.object({
-  url: z.string().url().describe('URL to open in the controlled Electron window')
+  url: z.string().url().describe('URL to open in the controlled Electron window'),
+  timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)')
 })
 
 export class CdpBrowserController {
@@ -37,7 +38,7 @@ export class CdpBrowserController {
     }
 
     this.win = new BrowserWindow({
-      show: false,
+      show: true,
       webPreferences: {
         contextIsolation: true,
         sandbox: true,
@@ -65,12 +66,36 @@ export class CdpBrowserController {
     return this.win
   }
 
-  public async open(url: string) {
+  public async open(url: string, timeout = 10000) {
     const win = await this.getWindow()
     logger.info('Loading URL', { url })
-    await win.loadURL(url)
-    const currentUrl = win.webContents.getURL()
-    const title = await win.webContents.getTitle()
+    const { webContents } = win
+
+    const loadPromise = new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        webContents.removeListener('did-finish-load', onFinish)
+        webContents.removeListener('did-fail-load', onFail)
+      }
+      const onFinish = () => {
+        cleanup()
+        resolve()
+      }
+      const onFail = (_event: Electron.Event, code: number, desc: string) => {
+        cleanup()
+        reject(new Error(`Navigation failed (${code}): ${desc}`))
+      }
+      webContents.once('did-finish-load', onFinish)
+      webContents.once('did-fail-load', onFail)
+    })
+
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error('Navigation timed out')), timeout)
+    })
+
+    await Promise.race([win.loadURL(url), loadPromise, timeoutPromise])
+
+    const currentUrl = webContents.getURL()
+    const title = await webContents.getTitle()
     return { currentUrl, title }
   }
 
@@ -151,6 +176,10 @@ export class BrowserCdpServer {
                 url: {
                   type: 'string',
                   description: 'URL to load'
+                },
+                timeout: {
+                  type: 'number',
+                  description: 'Navigation timeout in milliseconds (default 10000)'
                 }
               },
               required: ['url']
@@ -191,8 +220,8 @@ export class BrowserCdpServer {
       const { name, arguments: args } = request.params
 
       if (name === 'open') {
-        const { url } = OpenSchema.parse(args)
-        const res = await this.controller.open(url)
+        const { url, timeout } = OpenSchema.parse(args)
+        const res = await this.controller.open(url, timeout ?? 10000)
         return {
           content: [
             {
