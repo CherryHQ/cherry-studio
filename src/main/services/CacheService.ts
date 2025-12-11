@@ -1,7 +1,17 @@
+import type { ReasoningDetailUnion } from '@main/apiServer/adapters/openrouter'
+
 interface CacheItem<T> {
   data: T
   timestamp: number
   duration: number
+}
+
+/**
+ * Interface for reasoning cache
+ */
+export interface IReasoningCache<T> {
+  set(key: string, value: T): void
+  get(key: string): T | undefined
 }
 
 export class CacheService {
@@ -71,4 +81,15 @@ export class CacheService {
 
     return true
   }
+}
+
+// Singleton cache instances using CacheService
+export const googleReasoningCache: IReasoningCache<string> = {
+  set: (key, value) => CacheService.set(`google-reasoning:${key}`, value, 30 * 60 * 1000),
+  get: (key) => CacheService.get(`google-reasoning:${key}`) || undefined
+}
+
+export const openRouterReasoningCache: IReasoningCache<ReasoningDetailUnion[]> = {
+  set: (key, value) => CacheService.set(`openrouter-reasoning:${key}`, value, 30 * 60 * 1000),
+  get: (key) => CacheService.get(`openrouter-reasoning:${key}`) || undefined
 }

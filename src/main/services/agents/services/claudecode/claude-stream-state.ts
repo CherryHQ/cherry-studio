@@ -87,6 +87,7 @@ export class ClaudeStreamState {
   private pendingUsage: PendingUsageState = {}
   private pendingToolCalls = new Map<string, PendingToolCall>()
   private stepActive = false
+  private _streamFinished = false
 
   constructor(options: ClaudeStreamStateOptions) {
     this.logger = loggerService.withContext('ClaudeStreamState')
@@ -288,6 +289,16 @@ export class ClaudeStreamState {
 
   getNamespacedToolCallId(rawToolCallId: string): string {
     return buildNamespacedToolCallId(this.agentSessionId, rawToolCallId)
+  }
+
+  /** Marks the stream as finished (either completed or errored). */
+  markFinished(): void {
+    this._streamFinished = true
+  }
+
+  /** Returns true if the stream has already emitted a terminal event. */
+  isFinished(): boolean {
+    return this._streamFinished
   }
 }
 
