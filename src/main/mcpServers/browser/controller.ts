@@ -24,20 +24,39 @@ export class CdpBrowserController {
     if (entry) entry.lastActive = Date.now()
   }
 
+  private closeWindow(win: BrowserWindow, sessionId: string) {
+    try {
+      if (!win.isDestroyed()) {
+        if (win.webContents.debugger.isAttached()) {
+          win.webContents.debugger.detach()
+        }
+        win.close()
+      }
+    } catch (error) {
+      logger.warn('Error closing window', { error, sessionId })
+    }
+  }
+
+  private async ensureDebuggerAttached(dbg: Electron.Debugger, sessionId: string) {
+    if (!dbg.isAttached()) {
+      try {
+        logger.info('Attaching debugger', { sessionId })
+        dbg.attach('1.3')
+        await dbg.sendCommand('Page.enable')
+        await dbg.sendCommand('Runtime.enable')
+        logger.info('Debugger attached and domains enabled')
+      } catch (error) {
+        logger.error('Failed to attach debugger', { error })
+        throw error
+      }
+    }
+  }
+
   private sweepIdle() {
     const now = Date.now()
     for (const [id, entry] of this.windows.entries()) {
       if (now - entry.lastActive > this.idleTimeoutMs) {
-        try {
-          if (!entry.win.isDestroyed()) {
-            if (entry.win.webContents.debugger.isAttached()) {
-              entry.win.webContents.debugger.detach()
-            }
-            entry.win.close()
-          }
-        } catch (error) {
-          logger.warn('Error closing idle session', { error, sessionId: id })
-        }
+        this.closeWindow(entry.win, id)
         this.windows.delete(id)
       }
     }
@@ -56,15 +75,8 @@ export class CdpBrowserController {
     }
     if (lruId) {
       const entry = this.windows.get(lruId)
-      if (entry && !entry.win.isDestroyed()) {
-        try {
-          if (entry.win.webContents.debugger.isAttached()) {
-            entry.win.webContents.debugger.detach()
-          }
-          entry.win.close()
-        } catch (error) {
-          logger.warn('Error evicting session', { error, sessionId: lruId })
-        }
+      if (entry) {
+        this.closeWindow(entry.win, lruId)
       }
       this.windows.delete(lruId)
       logger.info('Evicted session to respect maxSessions', { evicted: lruId })
@@ -168,18 +180,7 @@ export class CdpBrowserController {
     this.touch(sessionId)
     const dbg = win.webContents.debugger
 
-    if (!dbg.isAttached()) {
-      try {
-        logger.info('Attaching debugger for execute', { sessionId })
-        dbg.attach('1.3')
-        await dbg.sendCommand('Page.enable')
-        await dbg.sendCommand('Runtime.enable')
-        logger.info('Debugger attached and domains enabled')
-      } catch (error) {
-        logger.error('Failed to attach debugger', { error })
-        throw error
-      }
-    }
+    await this.ensureDebuggerAttached(dbg, sessionId)
 
     const evalPromise = dbg.sendCommand('Runtime.evaluate', {
       expression: code,
@@ -207,15 +208,8 @@ export class CdpBrowserController {
   public async reset(sessionId?: string) {
     if (sessionId) {
       const entry = this.windows.get(sessionId)
-      if (entry && !entry.win.isDestroyed()) {
-        try {
-          if (entry.win.webContents.debugger.isAttached()) {
-            entry.win.webContents.debugger.detach()
-          }
-          entry.win.close()
-        } catch (error) {
-          logger.warn('Error while resetting window', { error, sessionId })
-        }
+      if (entry) {
+        this.closeWindow(entry.win, sessionId)
       }
       this.windows.delete(sessionId)
       logger.info('Browser CDP context reset', { sessionId })
@@ -223,16 +217,7 @@ export class CdpBrowserController {
     }
 
     for (const [id, entry] of this.windows.entries()) {
-      if (entry && !entry.win.isDestroyed()) {
-        try {
-          if (entry.win.webContents.debugger.isAttached()) {
-            entry.win.webContents.debugger.detach()
-          }
-          entry.win.close()
-        } catch (error) {
-          logger.warn('Error while resetting window', { error, sessionId: id })
-        }
-      }
+      this.closeWindow(entry.win, id)
       this.windows.delete(id)
     }
     logger.info('Browser CDP context reset (all sessions)')
@@ -249,11 +234,7 @@ export class CdpBrowserController {
     const win = await this.getWindow(sessionId)
     const dbg = win.webContents.debugger
 
-    if (!dbg.isAttached()) {
-      dbg.attach('1.3')
-      await dbg.sendCommand('Page.enable')
-      await dbg.sendCommand('Runtime.enable')
-    }
+    await this.ensureDebuggerAttached(dbg, sessionId)
 
     let expression: string
     if (format === 'json' || format === 'txt') {

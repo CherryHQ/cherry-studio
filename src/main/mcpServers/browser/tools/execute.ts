@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
+import { errorResponse, successResponse } from './utils'
 
 export const ExecuteSchema = z.object({
   code: z
@@ -40,24 +41,8 @@ export async function handleExecute(controller: CdpBrowserController, args: unkn
   const { code, timeout, sessionId } = ExecuteSchema.parse(args)
   try {
     const value = await controller.execute(code, timeout, sessionId ?? 'default')
-    return {
-      content: [
-        {
-          type: 'text',
-          text: typeof value === 'string' ? value : JSON.stringify(value)
-        }
-      ],
-      isError: false
-    }
+    return successResponse(typeof value === 'string' ? value : JSON.stringify(value))
   } catch (error) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: (error as Error).message
-        }
-      ],
-      isError: true
-    }
+    return errorResponse(error as Error)
   }
 }

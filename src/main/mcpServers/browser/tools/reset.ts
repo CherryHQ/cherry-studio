@@ -1,4 +1,5 @@
 import type { CdpBrowserController } from '../controller'
+import { successResponse } from './utils'
 
 export const resetToolDefinition = {
   name: 'reset',
@@ -17,13 +18,5 @@ export const resetToolDefinition = {
 export async function handleReset(controller: CdpBrowserController, args: unknown) {
   const { sessionId } = args as { sessionId?: string }
   await controller.reset(sessionId)
-  return {
-    content: [
-      {
-        type: 'text',
-        text: 'reset'
-      }
-    ],
-    isError: false
-  }
+  return successResponse('reset')
 }

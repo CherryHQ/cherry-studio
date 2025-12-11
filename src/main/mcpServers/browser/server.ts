@@ -4,7 +4,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { app } from 'electron'
 
 import { CdpBrowserController } from './controller'
-import { handleExecute, handleFetch, handleOpen, handleReset, toolDefinitions } from './tools'
+import { toolDefinitions, toolHandlers } from './tools'
 
 export class BrowserServer {
   public server: Server
@@ -32,19 +32,11 @@ export class BrowserServer {
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params
-
-      switch (name) {
-        case 'open':
-          return handleOpen(this.controller, args)
-        case 'execute':
-          return handleExecute(this.controller, args)
-        case 'reset':
-          return handleReset(this.controller, args)
-        case 'fetch':
-          return handleFetch(this.controller, args)
-        default:
-          throw new Error('Tool not found')
+      const handler = toolHandlers[name]
+      if (!handler) {
+        throw new Error('Tool not found')
       }
+      return handler(this.controller, args)
     })
 
     app.on('before-quit', () => {

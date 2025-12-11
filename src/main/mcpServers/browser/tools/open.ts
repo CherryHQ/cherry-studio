@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
+import { successResponse } from './utils'
 
 export const OpenSchema = z.object({
   url: z.url().describe('URL to open in the controlled Electron window'),
@@ -42,13 +43,5 @@ export const openToolDefinition = {
 export async function handleOpen(controller: CdpBrowserController, args: unknown) {
   const { url, timeout, show, sessionId } = OpenSchema.parse(args)
   const res = await controller.open(url, timeout ?? 10000, show ?? false, sessionId ?? 'default')
-  return {
-    content: [
-      {
-        type: 'text',
-        text: JSON.stringify(res)
-      }
-    ],
-    isError: false
-  }
+  return successResponse(JSON.stringify(res))
 }

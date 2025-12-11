@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
+import { errorResponse, successResponse } from './utils'
 
 export const FetchSchema = z.object({
   url: z.url().describe('URL to fetch'),
@@ -41,24 +42,8 @@ export async function handleFetch(controller: CdpBrowserController, args: unknow
   const { url, format, timeout, sessionId } = FetchSchema.parse(args)
   try {
     const content = await controller.fetch(url, format, timeout ?? 10000, sessionId ?? 'default')
-    return {
-      content: [
-        {
-          type: 'text',
-          text: typeof content === 'string' ? content : JSON.stringify(content)
-        }
-      ],
-      isError: false
-    }
+    return successResponse(typeof content === 'string' ? content : JSON.stringify(content))
   } catch (error) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: (error as Error).message
-        }
-      ],
-      isError: true
-    }
+    return errorResponse(error as Error)
   }
 }
