@@ -6,6 +6,7 @@ export {
   getAiSdkBaseUrl,
   getTrailingApiVersion,
   hasAPIVersion,
+  isWithTrailingSharp,
   routeToEndpoint,
   SUPPORTED_ENDPOINT_LIST,
   SUPPORTED_IMAGE_ENDPOINT_LIST,
