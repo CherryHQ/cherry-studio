@@ -485,6 +485,14 @@
         "url_placeholder": "Introducir URL JSON"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Eliminación por lotes",
+          "confirm": "¿Estás seguro de que quieres eliminar los {{count}} asistentes seleccionados?"
+        },
+        "mode": {
+          "delete": "Eliminar",
+          "sort": "Ordenar"
+        },
         "title": "Gestionar asistentes"
       },
       "my_agents": "Mis asistentes",
@@ -1199,6 +1207,7 @@
     "saved": "Guardado",
     "search": "Buscar",
     "select": "Seleccionar",
+    "select_all": "Seleccionar todo",
     "selected": "Seleccionado",
     "selectedItems": "{{count}} elementos seleccionados",
     "selectedMessages": "{{count}} mensajes seleccionados",

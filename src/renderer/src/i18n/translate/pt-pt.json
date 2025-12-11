@@ -485,6 +485,14 @@
         "url_placeholder": "Inserir URL JSON"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Exclusão em Lote",
+          "confirm": "Tem certeza de que deseja excluir os {{count}} assistentes selecionados?"
+        },
+        "mode": {
+          "delete": "Excluir",
+          "sort": "Ordenar"
+        },
         "title": "Gerir assistentes"
       },
       "my_agents": "Os meus assistentes",
@@ -1199,6 +1207,7 @@
     "saved": "Guardado",
     "search": "Pesquisar",
     "select": "Selecionar",
+    "select_all": "Selecionar Tudo",
     "selected": "Selecionado",
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",

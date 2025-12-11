@@ -485,6 +485,14 @@
         "url_placeholder": "Введите JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Массовое удаление",
+          "confirm": "Вы уверены, что хотите удалить выбранных {{count}} ассистентов?"
+        },
+        "mode": {
+          "delete": "Удалить",
+          "sort": "Сортировать"
+        },
         "title": "Управление помощниками"
       },
       "my_agents": "Мои помощники",
@@ -1199,6 +1207,7 @@
     "saved": "Сохранено",
     "search": "Поиск",
     "select": "Выбрать",
+    "select_all": "Выбрать все",
     "selected": "Выбрано",
     "selectedItems": "Выбрано {{count}} элементов",
     "selectedMessages": "Выбрано {{count}} сообщений",
