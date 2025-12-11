@@ -500,14 +500,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
     try {
       const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
-      const validCustom = validateGitBashPath(customPath)
-
-      if (validCustom) {
-        logger.info('Git Bash available via custom path', { path: validCustom })
-        return true
-      }
-
-      const bashPath = findGitBash()
+      const bashPath = findGitBash(customPath)
 
       if (bashPath) {
         logger.info('Git Bash is available', { path: bashPath })
@@ -549,6 +542,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.set(ConfigKeys.GitBashPath, validated)
     return true
   })
+
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     win && win.webContents.toggleDevTools()

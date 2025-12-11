@@ -380,28 +380,24 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               />
             )}
 
-            {hasGitBash && (
+            {hasGitBash && customGitBashPath && (
               <Alert
                 message={t('agent.gitBash.found.title', 'Git Bash configured')}
                 description={
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div>
-                      {customGitBashPath
-                        ? t('agent.gitBash.customPath', {
-                            defaultValue: 'Using custom path: {{path}}',
-                            path: customGitBashPath
-                          })
-                        : t('agent.gitBash.autoDetected', 'Using auto-detected Git Bash')}
+                      {t('agent.gitBash.customPath', {
+                        defaultValue: 'Using custom path: {{path}}',
+                        path: customGitBashPath
+                      })}
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <Button size="small" onClick={handlePickGitBash}>
                         {t('agent.gitBash.pick.button', 'Select Git Bash Path')}
                       </Button>
-                      {customGitBashPath && (
-                        <Button size="small" onClick={handleClearGitBash}>
-                          {t('agent.gitBash.clear.button', 'Clear custom path')}
-                        </Button>
-                      )}
+                      <Button size="small" onClick={handleClearGitBash}>
+                        {t('agent.gitBash.clear.button', 'Clear custom path')}
+                      </Button>
                     </div>
                   </div>
                 }

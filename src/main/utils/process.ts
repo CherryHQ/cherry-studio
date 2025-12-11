@@ -131,14 +131,26 @@ export function findExecutable(name: string): string | null {
 
 /**
  * Find Git Bash executable on Windows
+ * @param customPath - Optional custom path from config
  * @returns Full path to bash.exe or null if not found
  */
-export function findGitBash(): string | null {
+export function findGitBash(customPath?: string | null): string | null {
   // Git Bash is Windows-only
   if (!isWin) {
     return null
   }
 
+  // 1. Check custom path from config first
+  if (customPath) {
+    const validated = validateGitBashPath(customPath)
+    if (validated) {
+      logger.debug('Using custom Git Bash path from config', { path: validated })
+      return validated
+    }
+    logger.warn('Custom Git Bash path provided but invalid', { path: customPath })
+  }
+
+  // 2. Check environment variable override
   const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
   if (envOverride) {
     const validated = validateGitBashPath(envOverride)
@@ -149,7 +161,7 @@ export function findGitBash(): string | null {
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
-  // 1. Find git.exe and derive bash.exe path
+  // 3. Find git.exe and derive bash.exe path
   const gitPath = findExecutable('git')
   if (gitPath) {
     // Try multiple possible locations for bash.exe relative to git.exe
@@ -174,7 +186,7 @@ export function findGitBash(): string | null {
     })
   }
 
-  // 2. Fallback: check common Git Bash paths directly
+  // 4. Fallback: check common Git Bash paths directly
   const commonBashPaths = [
     path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
     path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
@@ -210,6 +222,6 @@ export function validateGitBashPath(customPath?: string | null): string | null {
     return null
   }
 
-  logger.info('Validated custom Git Bash path', { path: resolved })
+  logger.debug('Validated custom Git Bash path', { path: resolved })
   return resolved
 }
