@@ -38,7 +38,7 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
   const handleMoreClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      AgentSettingsPopup.show({ agentId: agent.id })
+      agent.id && AgentSettingsPopup.show({ agentId: agent.id })
     },
     [agent.id]
   )
