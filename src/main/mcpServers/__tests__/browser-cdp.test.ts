@@ -53,11 +53,6 @@ vi.mock('electron', () => {
 import { CdpBrowserController } from '../browser-cdp'
 
 describe('CdpBrowserController', () => {
-  it('rejects multiline code', async () => {
-    const controller = new CdpBrowserController()
-    await expect(controller.execute('line1\nline2')).rejects.toThrow(/single line/i)
-  })
-
   it('executes single-line code via Runtime.evaluate', async () => {
     const controller = new CdpBrowserController()
     const result = await controller.execute('1+1')
@@ -73,8 +68,15 @@ describe('CdpBrowserController', () => {
 
   it('opens a URL (visible) when show=true', async () => {
     const controller = new CdpBrowserController()
-    const result = await controller.open('https://foo.bar/', 5000, true)
+    const result = await controller.open('https://foo.bar/', 5000, true, 'session-a')
     expect(result.currentUrl).toBe('https://example.com/')
     expect(result.title).toBe('Example Title')
+  })
+
+  it('reuses session for execute and supports multiline', async () => {
+    const controller = new CdpBrowserController()
+    await controller.open('https://foo.bar/', 5000, false, 'session-b')
+    const result = await controller.execute('const a=1; const b=2; a+b;', 5000, 'session-b')
+    expect(result).toBe('ok')
   })
 })

@@ -13,17 +13,19 @@ const ExecuteSchema = z.object({
     .describe(
       'JavaScript evaluated via Chrome DevTools Runtime.evaluate. Keep it short; prefer one-line with semicolons for multiple statements.'
     ),
-  timeout: z.number().default(5000).describe('Timeout in milliseconds for code execution (default: 5000ms)')
+  timeout: z.number().default(5000).describe('Timeout in milliseconds for code execution (default: 5000ms)'),
+  sessionId: z.string().optional().describe('Session identifier to target a specific page (default: default)')
 })
 
 const OpenSchema = z.object({
   url: z.string().url().describe('URL to open in the controlled Electron window'),
   timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)'),
-  show: z.boolean().optional().describe('Whether to show the browser window (default: false)')
+  show: z.boolean().optional().describe('Whether to show the browser window (default: false)'),
+  sessionId: z.string().optional().describe('Session identifier; separate sessions keep separate pages (default: default)')
 })
 
 export class CdpBrowserController {
-  private win?: BrowserWindow
+  private windows: Map<string, BrowserWindow> = new Map()
 
   private async ensureAppReady() {
     if (!app.isReady()) {
@@ -31,18 +33,19 @@ export class CdpBrowserController {
     }
   }
 
-  private async getWindow(forceNew = false, show = false): Promise<BrowserWindow> {
+  private async getWindow(sessionId = 'default', forceNew = false, show = false): Promise<BrowserWindow> {
     await this.ensureAppReady()
 
-    if (this.win && !this.win.isDestroyed() && !forceNew) {
-      return this.win
+    const existing = this.windows.get(sessionId)
+    if (existing && !existing.isDestroyed() && !forceNew) {
+      return existing
     }
 
-    if (this.win && !this.win.isDestroyed() && forceNew) {
-      this.win.destroy()
+    if (existing && !existing.isDestroyed() && forceNew) {
+      existing.destroy()
     }
 
-    this.win = new BrowserWindow({
+    const win = new BrowserWindow({
       show,
       webPreferences: {
         contextIsolation: true,
@@ -53,28 +56,29 @@ export class CdpBrowserController {
     })
 
     // Use a standard Chrome UA to avoid some anti-bot blocks
-    this.win.webContents.setUserAgent(
+    win.webContents.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     )
 
     // Log navigation lifecycle to help diagnose slow loads
-    this.win.webContents.on('did-start-loading', () => logger.info('did-start-loading'))
-    this.win.webContents.on('dom-ready', () => logger.info('dom-ready'))
-    this.win.webContents.on('did-finish-load', () => logger.info('did-finish-load'))
-    this.win.webContents.on('did-fail-load', (_e, code, desc) =>
+    win.webContents.on('did-start-loading', () => logger.info(`did-start-loading`, { sessionId }))
+    win.webContents.on('dom-ready', () => logger.info(`dom-ready`, { sessionId }))
+    win.webContents.on('did-finish-load', () => logger.info(`did-finish-load`, { sessionId }))
+    win.webContents.on('did-fail-load', (_e, code, desc) =>
       logger.warn('Navigation failed', { code, desc })
     )
 
-    this.win.on('closed', () => {
-      this.win = undefined
+    win.on('closed', () => {
+      this.windows.delete(sessionId)
     })
 
-    return this.win
+    this.windows.set(sessionId, win)
+    return win
   }
 
-  public async open(url: string, timeout = 10000, show = false) {
-    const win = await this.getWindow(true, show)
-    logger.info('Loading URL', { url })
+  public async open(url: string, timeout = 10000, show = false, sessionId = 'default') {
+    const win = await this.getWindow(sessionId, true, show)
+    logger.info('Loading URL', { url, sessionId })
     const { webContents } = win
 
     const loadPromise = new Promise<void>((resolve, reject) => {
@@ -111,17 +115,13 @@ export class CdpBrowserController {
     return { currentUrl, title }
   }
 
-  public async execute(code: string, timeout = 5000) {
-    if (/\n/.test(code)) {
-      throw new Error('Code must be a single line; use semicolons to separate statements.')
-    }
-
-    const win = await this.getWindow()
+  public async execute(code: string, timeout = 5000, sessionId = 'default') {
+    const win = await this.getWindow(sessionId)
     const dbg = win.webContents.debugger
 
     if (!dbg.isAttached()) {
       try {
-        logger.info('Attaching debugger for execute')
+        logger.info('Attaching debugger for execute', { sessionId })
         dbg.attach('1.3')
         await dbg.sendCommand('Page.enable')
         await dbg.sendCommand('Runtime.enable')
@@ -155,19 +155,38 @@ export class CdpBrowserController {
     return value
   }
 
-  public async reset() {
-    if (this.win && !this.win.isDestroyed()) {
-      try {
-        if (this.win.webContents.debugger.isAttached()) {
-          this.win.webContents.debugger.detach()
+  public async reset(sessionId?: string) {
+    if (sessionId) {
+      const win = this.windows.get(sessionId)
+      if (win && !win.isDestroyed()) {
+        try {
+          if (win.webContents.debugger.isAttached()) {
+            win.webContents.debugger.detach()
+          }
+          win.close()
+        } catch (error) {
+          logger.warn('Error while resetting window', { error, sessionId })
         }
-        this.win.close()
-      } catch (error) {
-        logger.warn('Error while resetting window', { error })
       }
+      this.windows.delete(sessionId)
+      logger.info('Browser CDP context reset', { sessionId })
+      return
     }
-    this.win = undefined
-    logger.info('Browser CDP context reset')
+
+    for (const [id, win] of this.windows.entries()) {
+      if (win && !win.isDestroyed()) {
+        try {
+          if (win.webContents.debugger.isAttached()) {
+            win.webContents.debugger.detach()
+          }
+          win.close()
+        } catch (error) {
+          logger.warn('Error while resetting window', { error, sessionId: id })
+        }
+      }
+      this.windows.delete(id)
+    }
+    logger.info('Browser CDP context reset (all sessions)')
   }
 }
 
@@ -209,6 +228,10 @@ export class BrowserCdpServer {
             show: {
               type: 'boolean',
               description: 'Whether to show the browser window (default false)'
+            },
+            sessionId: {
+              type: 'string',
+              description: 'Session identifier; separate sessions keep separate pages (default: default)'
             }
           },
           required: ['url']
@@ -228,6 +251,10 @@ export class BrowserCdpServer {
                 timeout: {
                   type: 'number',
                   description: 'Timeout in milliseconds (default 5000)'
+                },
+                sessionId: {
+                  type: 'string',
+                  description: 'Session identifier; targets a specific page (default: default)'
                 }
               },
               required: ['code']
@@ -238,7 +265,12 @@ export class BrowserCdpServer {
             description: 'Reset the controlled window and detach debugger',
             inputSchema: {
               type: 'object',
-              properties: {}
+              properties: {
+                sessionId: {
+                  type: 'string',
+                  description: 'Session identifier to reset; omit to reset all sessions'
+                }
+              }
             }
           }
         ]
@@ -249,8 +281,8 @@ export class BrowserCdpServer {
       const { name, arguments: args } = request.params
 
       if (name === 'open') {
-        const { url, timeout, show } = OpenSchema.parse(args)
-        const res = await this.controller.open(url, timeout ?? 10000, show ?? false)
+        const { url, timeout, show, sessionId } = OpenSchema.parse(args)
+        const res = await this.controller.open(url, timeout ?? 10000, show ?? false, sessionId ?? 'default')
         return {
           content: [
             {
@@ -263,9 +295,9 @@ export class BrowserCdpServer {
       }
 
       if (name === 'execute') {
-        const { code, timeout } = ExecuteSchema.parse(args)
+        const { code, timeout, sessionId } = ExecuteSchema.parse(args)
         try {
-          const value = await this.controller.execute(code, timeout)
+          const value = await this.controller.execute(code, timeout, sessionId ?? 'default')
           return {
             content: [
               {
@@ -289,7 +321,8 @@ export class BrowserCdpServer {
       }
 
       if (name === 'reset') {
-        await this.controller.reset()
+        const { sessionId } = args as { sessionId?: string }
+        await this.controller.reset(sessionId)
         return {
           content: [
             {
