@@ -162,6 +162,7 @@ class McpService {
     this.cleanup = this.cleanup.bind(this)
     this.checkMcpConnectivity = this.checkMcpConnectivity.bind(this)
     this.getServerVersion = this.getServerVersion.bind(this)
+    this.getServerLogs = this.getServerLogs.bind(this)
   }
 
   private getServerKey(server: MCPServer): string {
@@ -392,15 +393,8 @@ class McpService {
                 source: 'stdio'
               })
             })
-            ;(stdioTransport as any).stdout?.on('data', (data: any) => {
-              const msg = data.toString()
-              this.emitServerLog(server, {
-                timestamp: Date.now(),
-                level: 'stdout',
-                message: msg.trim(),
-                source: 'stdio'
-              })
-            })
+            // StdioClientTransport does not expose stdout as a readable stream for raw logging
+            // (stdout is reserved for JSON-RPC). Avoid attaching a listener that would never fire.
             return stdioTransport
           } else {
             throw new Error('Either baseUrl or command must be provided')
