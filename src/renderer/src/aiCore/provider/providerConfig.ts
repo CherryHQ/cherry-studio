@@ -9,6 +9,7 @@ import {
 } from '@renderer/hooks/useAwsBedrock'
 import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
+import { getProviderById } from '@renderer/services/ProviderService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { OpenAICompletionsStreamOptions } from '@renderer/types/aiCoreTypes'
@@ -247,6 +248,12 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   if (aiSdkProviderId === 'cherryin') {
     if (model.endpoint_type) {
       extraOptions.endpointType = model.endpoint_type
+    }
+    // CherryIN API Host
+    const cherryinProvider = getProviderById(SystemProviderIds.cherryin)
+    if (cherryinProvider) {
+      extraOptions.anthropicBaseURL = cherryinProvider.anthropicApiHost
+      extraOptions.geminiBaseURL = cherryinProvider.apiHost + '/gemini/v1beta'
     }
   }
 
