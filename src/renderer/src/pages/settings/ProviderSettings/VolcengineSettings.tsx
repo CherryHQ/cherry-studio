@@ -61,7 +61,8 @@ const VolcengineSettings: FC = () => {
       setLocalSecretAccessKey('')
       window.toast.success(t('settings.provider.volcengine.credentials_saved'))
     } catch (error) {
-      window.toast.error(String(error))
+      loggerService.withContext('VolcengineSettings').error('Failed to save credentials:', error as Error)
+      window.toast.error(t('settings.provider.volcengine.credentials_save_failed'))
     } finally {
       setSaving(false)
     }
