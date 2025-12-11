@@ -135,10 +135,8 @@ export class StreamEventManager {
     // 构建新的对话消息
     const newMessages: ModelMessage[] = [
       ...(context.originalParams.messages || []),
-      {
-        role: 'assistant',
-        content: textBuffer
-      },
+      // 只有当 textBuffer 有内容时才添加 assistant 消息，避免空消息导致 API 错误
+      ...(textBuffer ? [{ role: 'assistant' as const, content: textBuffer }] : []),
       {
         role: 'user',
         content: toolResultsText
