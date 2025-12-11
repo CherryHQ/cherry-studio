@@ -33,23 +33,18 @@ export class BrowserServer {
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params
 
-      if (name === 'open') {
-        return handleOpen(this.controller, args)
+      switch (name) {
+        case 'open':
+          return handleOpen(this.controller, args)
+        case 'execute':
+          return handleExecute(this.controller, args)
+        case 'reset':
+          return handleReset(this.controller, args)
+        case 'fetch':
+          return handleFetch(this.controller, args)
+        default:
+          throw new Error('Tool not found')
       }
-
-      if (name === 'execute') {
-        return handleExecute(this.controller, args)
-      }
-
-      if (name === 'reset') {
-        return handleReset(this.controller, args)
-      }
-
-      if (name === 'fetch') {
-        return handleFetch(this.controller, args)
-      }
-
-      throw new Error('Tool not found')
     })
 
     app.on('before-quit', () => {
