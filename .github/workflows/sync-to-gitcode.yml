@@ -1,0 +1,293 @@
+name: Sync Release to GitCode
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.0.0)'
+        required: true
+      clean:
+        description: 'Clean node_modules before build'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-sync-to-gitcode:
+    runs-on: [self-hosted, windows-signing]
+    steps:
+      - name: Get tag name
+        id: get-tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.get-tag.outputs.tag }}
+
+      - name: Set package.json version
+        shell: bash
+        run: |
+          TAG="${{ steps.get-tag.outputs.tag }}"
+          VERSION="${TAG#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install corepack
+        shell: bash
+        run: corepack enable && corepack prepare yarn@4.9.1 --activate
+
+      - name: Clean node_modules
+        if: ${{ github.event.inputs.clean == 'true' }}
+        shell: bash
+        run: rm -rf node_modules
+
+      - name: Install Dependencies
+        shell: bash
+        run: yarn install
+
+      - name: Build Windows with code signing
+        shell: bash
+        run: yarn build:win
+        env:
+          WIN_SIGN: true
+          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
+          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
+          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - name: List built Windows artifacts
+        shell: bash
+        run: |
+          echo "Built Windows artifacts:"
+          ls -la dist/*.exe dist/*.blockmap dist/latest*.yml
+
+      - name: Download GitHub release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.get-tag.outputs.tag }}
+        run: |
+          echo "Downloading release assets for $TAG_NAME..."
+          mkdir -p release-assets
+          cd release-assets
+
+          # Download all assets from the release
+          gh release download "$TAG_NAME" \
+            --repo "${{ github.repository }}" \
+            --pattern "*" \
+            --skip-existing
+
+          echo "Downloaded GitHub release assets:"
+          ls -la
+
+      - name: Replace Windows files with signed versions
+        shell: bash
+        run: |
+          echo "Replacing Windows files with signed versions..."
+
+          # Verify signed files exist first
+          if ! ls dist/*.exe 1>/dev/null 2>&1; then
+            echo "ERROR: No signed .exe files found in dist/"
+            exit 1
+          fi
+
+          # Remove unsigned Windows files from downloaded assets
+          # *.exe, *.exe.blockmap, latest.yml (Windows only)
+          rm -f release-assets/*.exe release-assets/*.exe.blockmap release-assets/latest.yml 2>/dev/null || true
+
+          # Copy signed Windows files with error checking
+          cp dist/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
+          cp dist/*.exe.blockmap release-assets/ || { echo "ERROR: Failed to copy .blockmap files"; exit 1; }
+          cp dist/latest.yml release-assets/ || { echo "ERROR: Failed to copy latest.yml"; exit 1; }
+
+          echo "Final release assets:"
+          ls -la release-assets/
+
+      - name: Get release info
+        id: release-info
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.get-tag.outputs.tag }}
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
+        run: |
+          # Always use gh cli to avoid special character issues
+          RELEASE_NAME=$(gh release view "$TAG_NAME" --repo "${{ github.repository }}" --json name -q '.name')
+          # Use delimiter to safely handle special characters in release name
+          {
+            echo 'name<<EOF'
+            echo "$RELEASE_NAME"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+          # Extract releaseNotes from electron-builder.yml (from releaseNotes: | to end of file, remove 4-space indent)
+          sed -n '/releaseNotes: |/,$ { /releaseNotes: |/d; s/^    //; p }' electron-builder.yml > release_body.txt
+
+      - name: Create GitCode release and upload files
+        shell: bash
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
+          GITCODE_REPO: ${{ vars.GITCODE_REPO }}
+          GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
+          TAG_NAME: ${{ steps.get-tag.outputs.tag }}
+          RELEASE_NAME: ${{ steps.release-info.outputs.name }}
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
+        run: |
+          # Validate required environment variables
+          if [ -z "$GITCODE_TOKEN" ]; then
+            echo "ERROR: GITCODE_TOKEN is not set"
+            exit 1
+          fi
+          if [ -z "$GITCODE_OWNER" ]; then
+            echo "ERROR: GITCODE_OWNER is not set"
+            exit 1
+          fi
+          if [ -z "$GITCODE_REPO" ]; then
+            echo "ERROR: GITCODE_REPO is not set"
+            exit 1
+          fi
+
+          API_URL="${GITCODE_API_URL:-https://api.gitcode.com/api/v5}"
+
+          echo "Creating GitCode release..."
+          echo "Tag: $TAG_NAME"
+          echo "Repo: $GITCODE_OWNER/$GITCODE_REPO"
+
+          # Step 1: Create release
+          # Use --rawfile to read body directly from file, avoiding shell variable encoding issues
+          jq -n \
+            --arg tag "$TAG_NAME" \
+            --arg name "$RELEASE_NAME" \
+            --rawfile body release_body.txt \
+            '{
+              tag_name: $tag,
+              name: $name,
+              body: $body,
+              target_commitish: "main"
+            }' > /tmp/release_payload.json
+
+          RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            --connect-timeout 30 --max-time 60 \
+            "${API_URL}/repos/${GITCODE_OWNER}/${GITCODE_REPO}/releases" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -H "Authorization: Bearer ${GITCODE_TOKEN}" \
+            --data-binary "@/tmp/release_payload.json")
+
+          HTTP_CODE=$(echo "$RELEASE_RESPONSE" | tail -n1)
+          RESPONSE_BODY=$(echo "$RELEASE_RESPONSE" | sed '$d')
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "Release created successfully"
+          else
+            echo "Warning: Release creation returned HTTP $HTTP_CODE"
+            echo "$RESPONSE_BODY"
+            exit 1
+          fi
+
+          # Step 2: Upload files to release
+          echo "Uploading files to GitCode release..."
+
+          # Function to upload a single file with retry
+          upload_file() {
+            local file="$1"
+            local filename=$(basename "$file")
+            local max_retries=3
+            local retry=0
+
+            echo "Uploading: $filename"
+
+            # URL encode the filename
+            encoded_filename=$(printf '%s' "$filename" | jq -sRr @uri)
+
+            while [ $retry -lt $max_retries ]; do
+              # Get upload URL
+              UPLOAD_INFO=$(curl -s --connect-timeout 30 --max-time 60 \
+                -H "Authorization: Bearer ${GITCODE_TOKEN}" \
+                "${API_URL}/repos/${GITCODE_OWNER}/${GITCODE_REPO}/releases/${TAG_NAME}/upload_url?file_name=${encoded_filename}")
+
+              UPLOAD_URL=$(echo "$UPLOAD_INFO" | jq -r '.url // empty')
+
+              if [ -n "$UPLOAD_URL" ]; then
+                # Write headers to temp file to avoid shell escaping issues
+                echo "$UPLOAD_INFO" | jq -r '.headers | to_entries[] | "header = \"" + .key + ": " + .value + "\""' > /tmp/upload_headers.txt
+
+                # Upload file using PUT with headers from file
+                UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT \
+                  -K /tmp/upload_headers.txt \
+                  --data-binary "@${file}" \
+                  "$UPLOAD_URL")
+
+                HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
+                RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
+
+                if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                  echo "  Uploaded: $filename"
+                  return 0
+                else
+                  echo "  Failed (HTTP $HTTP_CODE), retry $((retry + 1))/$max_retries"
+                  echo "  Response: $RESPONSE_BODY"
+                fi
+              else
+                echo "  Failed to get upload URL, retry $((retry + 1))/$max_retries"
+                echo "  Response: $UPLOAD_INFO"
+              fi
+
+              retry=$((retry + 1))
+              [ $retry -lt $max_retries ] && sleep 3
+            done
+
+            echo "  Failed: $filename after $max_retries retries"
+            exit 1
+          }
+
+          # Upload non-yml/json files first
+          for file in release-assets/*; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              if [[ ! "$filename" =~ \.(yml|yaml|json)$ ]]; then
+                upload_file "$file"
+              fi
+            fi
+          done
+
+          # Upload yml/json files last
+          for file in release-assets/*; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              if [[ "$filename" =~ \.(yml|yaml|json)$ ]]; then
+                upload_file "$file"
+              fi
+            fi
+          done
+
+          echo "GitCode release sync completed!"
+
+      - name: Cleanup temp files
+        if: always()
+        shell: bash
+        run: |
+          rm -f /tmp/release_payload.json /tmp/upload_headers.txt release_body.txt
+          rm -rf release-assets/
