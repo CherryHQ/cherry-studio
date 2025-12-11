@@ -11,7 +11,7 @@ import type { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Button, Empty, Flex, Input } from 'antd'
 import { omit } from 'lodash'
-import { Import, Plus, Rss, Search } from 'lucide-react'
+import { Import, Plus, Rss, Search, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,6 +25,7 @@ import AssistantPresetCard from './components/AssistantPresetCard'
 import { AssistantPresetGroupIcon } from './components/AssistantPresetGroupIcon'
 import AssistantsSubscribeUrlSettings from './components/AssistantsSubscribeUrlSettings'
 import ImportAssistantPresetPopup from './components/ImportAssistantPresetPopup'
+import ManageAssistantPresetsPopup from './components/ManageAssistantPresetsPopup'
 
 const AssistantPresetsPage: FC = () => {
   const [search, setSearch] = useState('')
@@ -185,6 +186,10 @@ const AssistantPresetsPage: FC = () => {
     })
   }
 
+  const handleManageAgents = () => {
+    ManageAssistantPresetsPopup.show()
+  }
+
   return (
     <Container>
       <Navbar>
@@ -289,6 +294,9 @@ const AssistantPresetsPage: FC = () => {
               </Button>
               <Button type="text" onClick={handleSubscribeSettings} icon={<Rss size={18} color="var(--color-icon)" />}>
                 {t('assistants.presets.settings.title')}
+              </Button>
+              <Button type="text" onClick={handleManageAgents} icon={<Settings2 size={18} color="var(--color-icon)" />}>
+                {t('assistants.presets.manage.title')}
               </Button>
               <Button type="text" onClick={handleAddAgent} icon={<Plus size={18} color="var(--color-icon)" />}>
                 {t('assistants.presets.add.title')}

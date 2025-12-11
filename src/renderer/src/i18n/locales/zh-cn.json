@@ -485,6 +485,14 @@
         "url_placeholder": "输入 JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "批量删除",
+          "confirm": "确定要删除选中的 {{count}} 个助手吗？"
+        },
+        "mode": {
+          "delete": "删除",
+          "sort": "排序"
+        },
         "title": "管理助手"
       },
       "my_agents": "我的助手",
@@ -1199,6 +1207,7 @@
     "saved": "已保存",
     "search": "搜索",
     "select": "选择",
+    "select_all": "全选",
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",

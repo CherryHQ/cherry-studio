@@ -8,7 +8,7 @@ import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Dropdown } from 'antd'
 import { t } from 'i18next'
 import { isArray } from 'lodash'
-import { ArrowDownAZ, Ellipsis, PlusIcon, SquareArrowOutUpRight } from 'lucide-react'
+import { Ellipsis, PlusIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { type FC, memo, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
@@ -77,9 +77,9 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       }
     },
     {
-      key: 'sort',
-      label: t('assistants.presets.sorting.title'),
-      icon: <ArrowDownAZ size={14} />,
+      key: 'manage',
+      label: t('assistants.presets.manage.title'),
+      icon: <Settings2 size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
         ManageAssistantPresetsPopup.show()
