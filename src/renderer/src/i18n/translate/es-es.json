@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Usando Git Bash detectado automáticamente",
+      "clear": {
+        "button": "Borrar ruta personalizada"
+      },
+      "customPath": "Usando ruta personalizada: {{path}}",
       "error": {
         "description": "Se requiere Git Bash para ejecutar agentes en Windows. El agente no puede funcionar sin él. Instale Git para Windows desde",
         "recheck": "Volver a verificar la instalación de Git Bash",
         "title": "Git Bash Requerido"
       },
+      "found": {
+        "title": "Git Bash configurado"
+      },
       "notFound": "Git Bash no encontrado. Por favor, instálalo primero.",
+      "pick": {
+        "button": "Seleccionar ruta de Git Bash",
+        "failed": "No se pudo configurar la ruta de Git Bash",
+        "invalidPath": "El archivo seleccionado no es un ejecutable válido de Git Bash (bash.exe).",
+        "title": "Seleccionar ejecutable de Git Bash"
+      },
       "success": "¡Git Bash detectado con éxito!"
     },
     "input": {
