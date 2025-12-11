@@ -16,7 +16,7 @@ const PopupContainer: React.FC = () => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
   const { presets, setAssistantPresets } = useAssistantPresets()
-  const [mode, setMode] = useState<Mode>('sort')
+  const [mode, setMode] = useState<Mode>(() => (presets.length > 50 ? 'delete' : 'sort'))
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const onCancel = () => {
