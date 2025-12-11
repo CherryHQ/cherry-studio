@@ -3883,7 +3883,7 @@
       "builtinServers": "內置伺服器",
       "builtinServersDescriptions": {
         "brave_search": "一個集成了Brave 搜索 API 的 MCP 伺服器實現，提供網頁與本地搜尋雙重功能。需要配置 BRAVE_API_KEY 環境變數",
-        "browser_cdp": "透過 Chrome DevTools 協議控制隱藏的 Electron 視窗，支援開啟 URL、執行單行 JS、重置會話",
+        "browser": "透過 Chrome DevTools 協議控制隱藏的 Electron 視窗，支援開啟 URL、執行單行 JS、重置會話",
         "didi_mcp": "一個集成了滴滴 MCP 伺服器實現，提供網約車服務包括地圖搜尋、價格預估、訂單管理和司機追蹤。僅支援中國大陸地區。需要配置 DIDI_API_KEY 環境變數",
         "dify_knowledge": "Dify 的 MCP 伺服器實現，提供了一個簡單的 API 來與 Dify 進行互動。需要配置 Dify Key",
         "fetch": "用於獲取 URL 網頁內容的 MCP 伺服器",

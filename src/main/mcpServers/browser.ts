@@ -264,14 +264,14 @@ export class CdpBrowserController {
   }
 }
 
-export class BrowserCdpServer {
+export class BrowserServer {
   public server: Server
   private controller = new CdpBrowserController()
 
   constructor() {
     const server = new MCServer(
       {
-        name: '@cherry/browser-cdp',
+        name: 'browser',
         version: '0.1.0'
       },
       {
@@ -419,4 +419,4 @@ export class BrowserCdpServer {
   }
 }
 
-export default BrowserCdpServer
+export default BrowserServer

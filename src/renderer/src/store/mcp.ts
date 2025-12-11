@@ -177,7 +177,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.browserCdp,
+    name: BuiltinMCPServerNames.browser,
     type: 'inMemory',
     isActive: false,
     provider: 'CherryAI',

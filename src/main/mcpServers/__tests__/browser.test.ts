@@ -66,7 +66,7 @@ vi.mock('electron', () => {
 import * as electron from 'electron'
 const { __mockWindows } = electron as typeof electron & { __mockWindows: any[] }
 
-import { CdpBrowserController } from '../browser-cdp'
+import { CdpBrowserController } from '../browser'
 
 describe('CdpBrowserController', () => {
   it('executes single-line code via Runtime.evaluate', async () => {
