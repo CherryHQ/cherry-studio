@@ -17,8 +17,12 @@ vi.mock('electron', () => {
 
   const webContents = {
     debugger: debuggerObj,
+    setUserAgent: vi.fn(),
     getURL: vi.fn(() => 'https://example.com/'),
-    getTitle: vi.fn(async () => 'Example Title')
+    getTitle: vi.fn(async () => 'Example Title'),
+    once: vi.fn(),
+    removeListener: vi.fn(),
+    on: vi.fn()
   }
 
   const loadURL = vi.fn(async () => {})

@@ -30,34 +30,39 @@ export class CdpBrowserController {
     }
   }
 
-  private async getWindow(): Promise<BrowserWindow> {
+  private async getWindow(forceNew = false): Promise<BrowserWindow> {
     await this.ensureAppReady()
 
-    if (this.win && !this.win.isDestroyed()) {
+    if (this.win && !this.win.isDestroyed() && !forceNew) {
       return this.win
     }
 
+    if (this.win && !this.win.isDestroyed() && forceNew) {
+      this.win.destroy()
+    }
+
     this.win = new BrowserWindow({
-      show: true,
+      show: false,
       webPreferences: {
         contextIsolation: true,
         sandbox: true,
-        nodeIntegration: false
+        nodeIntegration: false,
+        devTools: true
       }
     })
 
-    const dbg = this.win.webContents.debugger
-    if (!dbg.isAttached()) {
-      try {
-        dbg.attach('1.3')
-        await dbg.sendCommand('Page.enable')
-        await dbg.sendCommand('Runtime.enable')
-        logger.debug('Debugger attached and domains enabled')
-      } catch (error) {
-        logger.error('Failed to attach debugger', { error })
-        throw error
-      }
-    }
+    // Use a standard Chrome UA to avoid some anti-bot blocks
+    this.win.webContents.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    )
+
+    // Log navigation lifecycle to help diagnose slow loads
+    this.win.webContents.on('did-start-loading', () => logger.info('did-start-loading'))
+    this.win.webContents.on('dom-ready', () => logger.info('dom-ready'))
+    this.win.webContents.on('did-finish-load', () => logger.info('did-finish-load'))
+    this.win.webContents.on('did-fail-load', (_e, code, desc) =>
+      logger.warn('Navigation failed', { code, desc })
+    )
 
     this.win.on('closed', () => {
       this.win = undefined
@@ -67,7 +72,7 @@ export class CdpBrowserController {
   }
 
   public async open(url: string, timeout = 10000) {
-    const win = await this.getWindow()
+    const win = await this.getWindow(true)
     logger.info('Loading URL', { url })
     const { webContents } = win
 
@@ -75,8 +80,13 @@ export class CdpBrowserController {
       const cleanup = () => {
         webContents.removeListener('did-finish-load', onFinish)
         webContents.removeListener('did-fail-load', onFail)
+        webContents.removeListener('dom-ready', onDomReady)
       }
       const onFinish = () => {
+        cleanup()
+        resolve()
+      }
+      const onDomReady = () => {
         cleanup()
         resolve()
       }
@@ -85,6 +95,7 @@ export class CdpBrowserController {
         reject(new Error(`Navigation failed (${code}): ${desc}`))
       }
       webContents.once('did-finish-load', onFinish)
+      webContents.once('dom-ready', onDomReady)
       webContents.once('did-fail-load', onFail)
     })
 
@@ -106,6 +117,19 @@ export class CdpBrowserController {
 
     const win = await this.getWindow()
     const dbg = win.webContents.debugger
+
+    if (!dbg.isAttached()) {
+      try {
+        logger.info('Attaching debugger for execute')
+        dbg.attach('1.3')
+        await dbg.sendCommand('Page.enable')
+        await dbg.sendCommand('Runtime.enable')
+        logger.info('Debugger attached and domains enabled')
+      } catch (error) {
+        logger.error('Failed to attach debugger', { error })
+        throw error
+      }
+    }
 
     const evalPromise = dbg.sendCommand('Runtime.evaluate', {
       expression: code,
