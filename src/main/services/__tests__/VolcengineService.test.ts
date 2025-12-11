@@ -467,19 +467,21 @@ describe('VolcengineService', () => {
           secretAccessKey: 'testSecretKey'
         }
 
-        // Mock Date to ensure consistent timestamp
-        const mockDate = new Date('2024-01-01T12:00:00Z')
-        vi.useFakeTimers()
-        vi.setSystemTime(mockDate)
+        try {
+          // Mock Date to ensure consistent timestamp
+          const mockDate = new Date('2024-01-01T12:00:00Z')
+          vi.useFakeTimers()
+          vi.setSystemTime(mockDate)
 
-        const result1 = service.generateSignature(params, credentials)
-        const result2 = service.generateSignature(params, credentials)
+          const result1 = service.generateSignature(params, credentials)
+          const result2 = service.generateSignature(params, credentials)
 
-        expect(result1.Authorization).toBe(result2.Authorization)
-        expect(result1['X-Date']).toBe(result2['X-Date'])
-        expect(result1['X-Content-Sha256']).toBe(result2['X-Content-Sha256'])
-
-        vi.useRealTimers()
+          expect(result1.Authorization).toBe(result2.Authorization)
+          expect(result1['X-Date']).toBe(result2['X-Date'])
+          expect(result1['X-Content-Sha256']).toBe(result2['X-Content-Sha256'])
+        } finally {
+          vi.useRealTimers()
+        }
       })
     })
   })
