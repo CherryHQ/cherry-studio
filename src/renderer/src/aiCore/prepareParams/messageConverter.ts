@@ -60,7 +60,11 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
           mediaType: image.mime
         })
       } catch (error) {
-        logger.warn('Failed to load image:', error as Error)
+        logger.error('Failed to load image file, image will be excluded from message:', {
+          fileId: imageBlock.file.id,
+          fileName: imageBlock.file.origin_name,
+          error: error as Error
+        })
       }
     } else if (imageBlock.url) {
       const url = imageBlock.url
@@ -191,17 +195,20 @@ async function convertMessageToAssistantModelMessage(
  * This function processes messages and transforms them into the format required by the SDK.
  * It handles special cases for vision models and image enhancement models.
  *
- * @param messages - Array of messages to convert. Must contain at least 3 messages when using image enhancement models for special handling.
+ * @param messages - Array of messages to convert.
  * @param model - The model configuration that determines conversion behavior
  *
  * @returns A promise that resolves to an array of SDK-compatible model messages
  *
  * @remarks
- * For image enhancement models with 3+ messages:
- * - Examines the last 2 messages to find an assistant message containing image blocks
- * - If found, extracts images from the assistant message and appends them to the last user message content
- * - Returns all converted messages (not just the last two) with the images merged into the user message
- * - Typical pattern: [system?, assistant(image), user] -> [system?, user(image)]
+ * For image enhancement models:
+ * - Collapses the conversation into [system?, user(image)] format
+ * - Searches backwards through all messages to find the most recent assistant message with images
+ * - Preserves all system messages (including ones generated from file uploads like 'fileid://...')
+ * - Extracts the last user message content and merges images from the previous assistant message
+ * - Returns only the collapsed messages: system messages (if any) followed by a single user message
+ * - If no user message is found, returns only system messages
+ * - Typical pattern: [system?, user, assistant(image), user] -> [system?, user(image)]
  *
  * For other models:
  * - Returns all converted messages in order without special image handling

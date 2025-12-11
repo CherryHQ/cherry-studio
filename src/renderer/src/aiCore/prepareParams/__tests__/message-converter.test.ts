@@ -137,6 +137,59 @@ describe('messageConverter', () => {
       })
     })
 
+    it('extracts base64 data from data URLs and preserves mediaType', async () => {
+      const model = createModel()
+      const message = createMessage('user')
+      message.__mockContent = 'Check this image'
+      message.__mockImageBlocks = [createImageBlock(message.id, { url: 'data:image/png;base64,iVBORw0KGgoAAAANS' })]
+
+      const result = await convertMessageToSdkParam(message, true, model)
+
+      expect(result).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Check this image' },
+          { type: 'image', image: 'iVBORw0KGgoAAAANS', mediaType: 'image/png' }
+        ]
+      })
+    })
+
+    it('handles data URLs without mediaType gracefully', async () => {
+      const model = createModel()
+      const message = createMessage('user')
+      message.__mockContent = 'Check this'
+      message.__mockImageBlocks = [createImageBlock(message.id, { url: 'data:;base64,AAABBBCCC' })]
+
+      const result = await convertMessageToSdkParam(message, true, model)
+
+      expect(result).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Check this' },
+          { type: 'image', image: 'AAABBBCCC' }
+        ]
+      })
+    })
+
+    it('handles malformed data URLs without comma separator', async () => {
+      const model = createModel()
+      const message = createMessage('user')
+      message.__mockContent = 'Malformed data url'
+      message.__mockImageBlocks = [createImageBlock(message.id, { url: 'data:image/pngAAABBB' })]
+
+      const result = await convertMessageToSdkParam(message, true, model)
+
+      expect(result).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Malformed data url' },
+          // Falls back to using the whole URL as image data when comma is not found
+          // Note: mediaType is still extracted but won't be set if parseDataUrlMediaType returns undefined
+          { type: 'image', image: 'data:image/pngAAABBB' }
+        ]
+      })
+    })
+
     it('returns file instructions as a system message when native uploads succeed', async () => {
       const model = createModel()
       const message = createMessage('user')
@@ -219,6 +272,121 @@ describe('messageConverter', () => {
             { type: 'text', text: 'Apply the edits' },
             { type: 'image', image: 'https://example.com/reference.png' }
           ]
+        }
+      ])
+    })
+
+    it('handles no previous assistant message with images', async () => {
+      const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
+      const user1 = createMessage('user')
+      user1.__mockContent = 'Start'
+
+      const user2 = createMessage('user')
+      user2.__mockContent = 'Continue without images'
+
+      const result = await convertMessagesToSdkMessages([user1, user2], model)
+
+      expect(result).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Continue without images' }]
+        }
+      ])
+    })
+
+    it('handles assistant message without images', async () => {
+      const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
+      const user1 = createMessage('user')
+      user1.__mockContent = 'Start'
+
+      const assistant = createMessage('assistant')
+      assistant.__mockContent = 'Text only response'
+      assistant.__mockImageBlocks = []
+
+      const user2 = createMessage('user')
+      user2.__mockContent = 'Follow up'
+
+      const result = await convertMessagesToSdkMessages([user1, assistant, user2], model)
+
+      expect(result).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Follow up' }]
+        }
+      ])
+    })
+
+    it('handles multiple assistant messages by using the most recent one', async () => {
+      const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
+      const user1 = createMessage('user')
+      user1.__mockContent = 'Start'
+
+      const assistant1 = createMessage('assistant')
+      assistant1.__mockContent = 'First response'
+      assistant1.__mockImageBlocks = [createImageBlock(assistant1.id, { url: 'https://example.com/old.png' })]
+
+      const user2 = createMessage('user')
+      user2.__mockContent = 'Continue'
+
+      const assistant2 = createMessage('assistant')
+      assistant2.__mockContent = 'Second response'
+      assistant2.__mockImageBlocks = [createImageBlock(assistant2.id, { url: 'https://example.com/new.png' })]
+
+      const user3 = createMessage('user')
+      user3.__mockContent = 'Final request'
+
+      const result = await convertMessagesToSdkMessages([user1, assistant1, user2, assistant2, user3], model)
+
+      expect(result).toEqual([
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Final request' },
+            { type: 'image', image: 'https://example.com/new.png' }
+          ]
+        }
+      ])
+    })
+
+    it('handles conversation ending with assistant message', async () => {
+      const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
+      const user = createMessage('user')
+      user.__mockContent = 'Start'
+
+      const assistant = createMessage('assistant')
+      assistant.__mockContent = 'Response with image'
+      assistant.__mockImageBlocks = [createImageBlock(assistant.id, { url: 'https://example.com/image.png' })]
+
+      const result = await convertMessagesToSdkMessages([user, assistant], model)
+
+      // The user message is the last user message, but since the assistant comes after,
+      // there's no "previous" assistant message (search starts from messages.length-2 backwards)
+      expect(result).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Start' }]
+        }
+      ])
+    })
+
+    it('handles empty content in last user message', async () => {
+      const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
+      const user1 = createMessage('user')
+      user1.__mockContent = 'Start'
+
+      const assistant = createMessage('assistant')
+      assistant.__mockContent = 'Here is the preview'
+      assistant.__mockImageBlocks = [createImageBlock(assistant.id, { url: 'https://example.com/preview.png' })]
+
+      const user2 = createMessage('user')
+      user2.__mockContent = ''
+
+      const result = await convertMessagesToSdkMessages([user1, assistant, user2], model)
+
+      expect(result).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'image', image: 'https://example.com/preview.png' }]
         }
       ])
     })
