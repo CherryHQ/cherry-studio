@@ -11,22 +11,42 @@ interface ContextMenuProps {
  * This ensures right-click copy in code blocks doesn't include line numbers.
  */
 function extractSelectedText(selection: Selection): string {
+  // First check if the selection contains code viewer elements
   const range = selection.getRangeAt(0)
   const fragment = range.cloneContents()
-
-  // Remove all line number elements from the selection
   const lineNumbers = fragment.querySelectorAll('.line-number')
-  lineNumbers.forEach((el) => el.remove())
 
-  // Get the remaining text content
-  const result = fragment.textContent || ''
-
-  // If we removed line numbers, return the cleaned text
-  // Otherwise, return the original selection
+  // If there are line numbers, we need to clean them up
   if (lineNumbers.length > 0) {
-    return result
+    // Get the raw selected text to preserve formatting
+    const rawText = selection.toString()
+
+    // Split into lines and filter out lines that are just line numbers
+    const lines = rawText.split('\n')
+    const cleanedLines = lines.filter((line) => {
+      // Check if this line looks like a line number (digits at the start, optional whitespace)
+      const lineNumberPattern = /^\s*\d+\s*$/
+      return !lineNumberPattern.test(line)
+    })
+
+    // If we filtered out some lines, it's likely line numbers were included
+    if (cleanedLines.length !== lines.length) {
+      return cleanedLines.join('\n')
+    }
+
+    // If the pattern doesn't match, try to remove line numbers from the beginning of lines
+    const cleanedText = rawText.replace(/^\s*\d+\s+/gm, '')
+
+    // Only use cleaned text if it's different and has content
+    if (cleanedText !== rawText && cleanedText.trim().length > 0) {
+      return cleanedText
+    }
+
+    // Fallback to the original text
+    return rawText
   }
 
+  // No line numbers detected, return the original selection
   return selection.toString()
 }
 
