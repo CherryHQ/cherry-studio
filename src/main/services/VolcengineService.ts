@@ -9,6 +9,113 @@ import { getConfigDir } from '../utils/file'
 
 const logger = loggerService.withContext('VolcengineService')
 
+/**
+ * Calculate SHA256 hash of data and return hex encoded string
+ * @internal
+ */
+export function _sha256Hash(data: string | Buffer): string {
+  return crypto.createHash('sha256').update(data).digest('hex')
+}
+
+/**
+ * Calculate HMAC-SHA256 and return buffer
+ * @internal
+ */
+export function _hmacSha256(key: Buffer | string, data: string): Buffer {
+  return crypto.createHmac('sha256', key).update(data, 'utf8').digest()
+}
+
+/**
+ * Calculate HMAC-SHA256 and return hex encoded string
+ * @internal
+ */
+export function _hmacSha256Hex(key: Buffer | string, data: string): string {
+  return crypto.createHmac('sha256', key).update(data, 'utf8').digest('hex')
+}
+
+/**
+ * URL encode according to RFC3986
+ * @internal
+ */
+export function _uriEncode(str: string, encodeSlash: boolean = true): string {
+  if (!str) return ''
+
+  // RFC3986 unreserved: A-Z a-z 0-9 - _ . ~
+  // If encodeSlash is false, / is also unencoded
+  const pattern = encodeSlash ? /[^A-Za-z0-9_\-.~]/g : /[^A-Za-z0-9_\-.~/]/g
+  return str.replace(pattern, (char) => encodeURIComponent(char))
+}
+
+/**
+ * Build canonical query string from query parameters
+ * @internal
+ */
+export function _buildCanonicalQueryString(query: Record<string, string>): string {
+  if (!query || Object.keys(query).length === 0) {
+    return ''
+  }
+
+  return Object.keys(query)
+    .sort()
+    .map((key) => `${_uriEncode(key)}=${_uriEncode(query[key])}`)
+    .join('&')
+}
+
+/**
+ * Build canonical headers string
+ * @internal
+ */
+export function _buildCanonicalHeaders(headers: Record<string, string>): {
+  canonicalHeaders: string
+  signedHeaders: string
+} {
+  const sortedKeys = Object.keys(headers)
+    .map((k) => k.toLowerCase())
+    .sort()
+
+  const canonicalHeaders = sortedKeys.map((key) => `${key}:${headers[key]?.trim() || ''}`).join('\n') + '\n'
+
+  const signedHeaders = sortedKeys.join(';')
+
+  return { canonicalHeaders, signedHeaders }
+}
+
+/**
+ * Create the signing key through a series of HMAC operations
+ * @internal
+ */
+export function _deriveSigningKey(secretKey: string, date: string, region: string, service: string): Buffer {
+  const kDate = _hmacSha256(secretKey, date)
+  const kRegion = _hmacSha256(kDate, region)
+  const kService = _hmacSha256(kRegion, service)
+  const kSigning = _hmacSha256(kService, 'request')
+  return kSigning
+}
+
+/**
+ * Create canonical request string
+ * @internal
+ */
+export function _createCanonicalRequest(
+  method: string,
+  canonicalUri: string,
+  canonicalQueryString: string,
+  canonicalHeaders: string,
+  signedHeaders: string,
+  payloadHash: string
+): string {
+  return [method, canonicalUri, canonicalQueryString, canonicalHeaders, signedHeaders, payloadHash].join('\n')
+}
+
+/**
+ * Create string to sign
+ * @internal
+ */
+export function _createStringToSign(dateTime: string, credentialScope: string, canonicalRequest: string): string {
+  const hashedCanonicalRequest = _sha256Hash(canonicalRequest)
+  return ['HMAC-SHA256', dateTime, credentialScope, hashedCanonicalRequest].join('\n')
+}
+
 // Configuration constants
 const CONFIG = {
   ALGORITHM: 'HMAC-SHA256',
@@ -157,38 +264,16 @@ class VolcengineService {
   }
 
   // ============= Cryptographic Helper Methods =============
-
-  /**
-   * Calculate SHA256 hash of data and return hex encoded string
-   */
   private sha256Hash(data: string | Buffer): string {
-    return crypto.createHash('sha256').update(data).digest('hex')
+    return _sha256Hash(data)
   }
 
-  /**
-   * Calculate HMAC-SHA256 and return buffer
-   */
-  private hmacSha256(key: Buffer | string, data: string): Buffer {
-    return crypto.createHmac('sha256', key).update(data, 'utf8').digest()
-  }
-
-  /**
-   * Calculate HMAC-SHA256 and return hex encoded string
-   */
   private hmacSha256Hex(key: Buffer | string, data: string): string {
-    return crypto.createHmac('sha256', key).update(data, 'utf8').digest('hex')
+    return _hmacSha256Hex(key, data)
   }
 
-  /**
-   * URL encode according to RFC3986
-   */
   private uriEncode(str: string, encodeSlash: boolean = true): string {
-    if (!str) return ''
-
-    // RFC3986 unreserved: A-Z a-z 0-9 - _ . ~
-    // If encodeSlash is false, / is also unencoded
-    const pattern = encodeSlash ? /[^A-Za-z0-9_\-.~]/g : /[^A-Za-z0-9_\-.~/]/g
-    return str.replace(pattern, (char) => encodeURIComponent(char))
+    return _uriEncode(str, encodeSlash)
   }
 
   // ============= Signing Implementation =============
@@ -211,66 +296,21 @@ class VolcengineService {
     return dateTime.substring(0, 8)
   }
 
-  /**
-   * Build canonical query string from query parameters
-   */
   private buildCanonicalQueryString(query: Record<string, string>): string {
-    if (!query || Object.keys(query).length === 0) {
-      return ''
-    }
-
-    return Object.keys(query)
-      .sort()
-      .map((key) => `${this.uriEncode(key)}=${this.uriEncode(query[key])}`)
-      .join('&')
+    return _buildCanonicalQueryString(query)
   }
 
-  /**
-   * Build canonical headers string
-   */
   private buildCanonicalHeaders(headers: Record<string, string>): {
     canonicalHeaders: string
     signedHeaders: string
   } {
-    const sortedKeys = Object.keys(headers)
-      .map((k) => k.toLowerCase())
-      .sort()
-
-    const canonicalHeaders = sortedKeys.map((key) => `${key}:${headers[key]?.trim() || ''}`).join('\n') + '\n'
-
-    const signedHeaders = sortedKeys.join(';')
-
-    return { canonicalHeaders, signedHeaders }
+    return _buildCanonicalHeaders(headers)
   }
 
-  /**
-   * Create the signing key through a series of HMAC operations
-   *
-   * kSecret = SecretAccessKey
-   * kDate = HMAC(kSecret, Date)
-   * kRegion = HMAC(kDate, Region)
-   * kService = HMAC(kRegion, Service)
-   * kSigning = HMAC(kService, "request")
-   */
   private deriveSigningKey(secretKey: string, date: string, region: string, service: string): Buffer {
-    const kDate = this.hmacSha256(secretKey, date)
-    const kRegion = this.hmacSha256(kDate, region)
-    const kService = this.hmacSha256(kRegion, service)
-    const kSigning = this.hmacSha256(kService, CONFIG.REQUEST_TYPE)
-    return kSigning
+    return _deriveSigningKey(secretKey, date, region, service)
   }
 
-  /**
-   * Create canonical request string
-   *
-   * CanonicalRequest =
-   *   HTTPRequestMethod + '\n' +
-   *   CanonicalURI + '\n' +
-   *   CanonicalQueryString + '\n' +
-   *   CanonicalHeaders + '\n' +
-   *   SignedHeaders + '\n' +
-   *   HexEncode(Hash(RequestPayload))
-   */
   private createCanonicalRequest(
     method: string,
     canonicalUri: string,
@@ -279,21 +319,18 @@ class VolcengineService {
     signedHeaders: string,
     payloadHash: string
   ): string {
-    return [method, canonicalUri, canonicalQueryString, canonicalHeaders, signedHeaders, payloadHash].join('\n')
+    return _createCanonicalRequest(
+      method,
+      canonicalUri,
+      canonicalQueryString,
+      canonicalHeaders,
+      signedHeaders,
+      payloadHash
+    )
   }
 
-  /**
-   * Create string to sign
-   *
-   * StringToSign =
-   *   Algorithm + '\n' +
-   *   RequestDateTime + '\n' +
-   *   CredentialScope + '\n' +
-   *   HexEncode(Hash(CanonicalRequest))
-   */
   private createStringToSign(dateTime: string, credentialScope: string, canonicalRequest: string): string {
-    const hashedCanonicalRequest = this.sha256Hash(canonicalRequest)
-    return [CONFIG.ALGORITHM, dateTime, credentialScope, hashedCanonicalRequest].join('\n')
+    return _createStringToSign(dateTime, credentialScope, canonicalRequest)
   }
 
   /**
