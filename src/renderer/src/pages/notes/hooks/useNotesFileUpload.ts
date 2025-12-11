@@ -1,14 +1,12 @@
 import { loggerService } from '@logger'
+import { type FileEntryData } from '@renderer/services/NotesService'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useNotesFileUpload')
 
 interface UseNotesFileUploadProps {
-  onUploadFiles: (
-    files: File[] | Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
-    targetFolderPath?: string
-  ) => void
+  onUploadFiles: (files: File[] | FileEntryData[], targetFolderPath?: string) => void
   setIsDragOverSidebar: (isDragOver: boolean) => void
   getTargetFolderPath?: () => string | null
   refreshTree?: () => Promise<void>
@@ -36,12 +34,7 @@ export const useNotesFileUpload = ({
       if (items.length === 0) return
 
       // Collect all entries with their fullPath preserved
-      const entryDataList: Array<{
-        fullPath: string
-        isFile: boolean
-        isDirectory: boolean
-        systemPath: string
-      }> = []
+      const entryDataList: FileEntryData[] = []
 
       const processEntry = async (entry: FileSystemEntry): Promise<void> => {
         if (entry.isFile) {
@@ -117,7 +110,7 @@ export const useNotesFileUpload = ({
 
         if (entryDataList.length > 0) {
           // Pass entry data list to parent for recursive upload with optional target override
-          onUploadFiles(entryDataList as any, overrideTargetFolderPath)
+          onUploadFiles(entryDataList, overrideTargetFolderPath)
         }
       } else {
         // Fallback for browsers without FileSystemEntry API
