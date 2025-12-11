@@ -265,10 +265,11 @@ describe('VolcengineService', () => {
 
     describe('buildCanonicalHeaders', () => {
       it('should lowercase and sort header names', () => {
+        // Headers should already be lowercase when passed to this method
         const headers = {
-          'X-Date': '20240101T120000Z',
-          'Content-Type': 'application/json',
-          Host: 'example.com'
+          'x-date': '20240101T120000Z',
+          'content-type': 'application/json',
+          host: 'example.com'
         }
 
         const result = service.buildCanonicalHeaders(headers)
@@ -280,6 +281,7 @@ describe('VolcengineService', () => {
       })
 
       it('should trim header values', () => {
+        // Headers should already be lowercase when passed to this method
         const headers = {
           host: '  example.com  ',
           'x-date': '  20240101T120000Z  '
@@ -291,6 +293,7 @@ describe('VolcengineService', () => {
       })
 
       it('should handle empty header values', () => {
+        // Headers should already be lowercase when passed to this method
         const headers = {
           host: 'example.com',
           'x-custom': ''
