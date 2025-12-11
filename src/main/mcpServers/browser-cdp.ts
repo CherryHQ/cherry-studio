@@ -18,14 +18,21 @@ const ExecuteSchema = z.object({
 })
 
 const OpenSchema = z.object({
-  url: z.string().url().describe('URL to open in the controlled Electron window'),
+  url: z.url().describe('URL to open in the controlled Electron window'),
   timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)'),
   show: z.boolean().optional().describe('Whether to show the browser window (default: false)'),
   sessionId: z.string().optional().describe('Session identifier; separate sessions keep separate pages (default: default)')
 })
 
 export class CdpBrowserController {
-  private windows: Map<string, BrowserWindow> = new Map()
+  private windows: Map<string, { win: BrowserWindow; lastActive: number }> = new Map()
+  private readonly maxSessions: number
+  private readonly idleTimeoutMs: number
+
+  constructor(options?: { maxSessions?: number; idleTimeoutMs?: number }) {
+    this.maxSessions = options?.maxSessions ?? 5
+    this.idleTimeoutMs = options?.idleTimeoutMs ?? 5 * 60 * 1000
+  }
 
   private async ensureAppReady() {
     if (!app.isReady()) {
@@ -33,17 +40,82 @@ export class CdpBrowserController {
     }
   }
 
+  private touch(sessionId: string) {
+    const entry = this.windows.get(sessionId)
+    if (entry) entry.lastActive = Date.now()
+  }
+
+  private sweepIdle() {
+    const now = Date.now()
+    for (const [id, entry] of this.windows.entries()) {
+      if (now - entry.lastActive > this.idleTimeoutMs) {
+        try {
+          if (!entry.win.isDestroyed()) {
+            if (entry.win.webContents.debugger.isAttached()) {
+              entry.win.webContents.debugger.detach()
+            }
+            entry.win.close()
+          }
+        } catch (error) {
+          logger.warn('Error closing idle session', { error, sessionId: id })
+        }
+        this.windows.delete(id)
+      }
+    }
+  }
+
+  private evictIfNeeded(newSessionId: string) {
+    if (this.windows.size < this.maxSessions) return
+    let lruId: string | null = null
+    let lruTime = Number.POSITIVE_INFINITY
+    for (const [id, entry] of this.windows.entries()) {
+      if (id === newSessionId) continue
+      if (entry.lastActive < lruTime) {
+        lruTime = entry.lastActive
+        lruId = id
+      }
+    }
+    if (lruId) {
+      const entry = this.windows.get(lruId)
+      if (entry && !entry.win.isDestroyed()) {
+        try {
+          if (entry.win.webContents.debugger.isAttached()) {
+            entry.win.webContents.debugger.detach()
+          }
+          entry.win.close()
+        } catch (error) {
+          logger.warn('Error evicting session', { error, sessionId: lruId })
+        }
+      }
+      this.windows.delete(lruId)
+      logger.info('Evicted session to respect maxSessions', { evicted: lruId })
+    }
+  }
+
   private async getWindow(sessionId = 'default', forceNew = false, show = false): Promise<BrowserWindow> {
     await this.ensureAppReady()
 
+    this.sweepIdle()
+
     const existing = this.windows.get(sessionId)
-    if (existing && !existing.isDestroyed() && !forceNew) {
-      return existing
+    if (existing && !existing.win.isDestroyed() && !forceNew) {
+      this.touch(sessionId)
+      return existing.win
     }
 
-    if (existing && !existing.isDestroyed() && forceNew) {
-      existing.destroy()
+    if (existing && !existing.win.isDestroyed() && forceNew) {
+      try {
+        if (existing.win.webContents.debugger.isAttached()) {
+          existing.win.webContents.debugger.detach()
+        }
+      } catch (error) {
+        logger.warn('Error detaching debugger before recreate', { error, sessionId })
+      }
+      existing.win.destroy()
+      this.windows.delete(sessionId)
     }
+
+    this.evictIfNeeded(sessionId)
 
     const win = new BrowserWindow({
       show,
@@ -72,7 +144,7 @@ export class CdpBrowserController {
       this.windows.delete(sessionId)
     })
 
-    this.windows.set(sessionId, win)
+    this.windows.set(sessionId, { win, lastActive: Date.now() })
     return win
   }
 
@@ -80,6 +152,7 @@ export class CdpBrowserController {
     const win = await this.getWindow(sessionId, true, show)
     logger.info('Loading URL', { url, sessionId })
     const { webContents } = win
+    this.touch(sessionId)
 
     const loadPromise = new Promise<void>((resolve, reject) => {
       const cleanup = () => {
@@ -117,6 +190,7 @@ export class CdpBrowserController {
 
   public async execute(code: string, timeout = 5000, sessionId = 'default') {
     const win = await this.getWindow(sessionId)
+    this.touch(sessionId)
     const dbg = win.webContents.debugger
 
     if (!dbg.isAttached()) {
@@ -157,13 +231,13 @@ export class CdpBrowserController {
 
   public async reset(sessionId?: string) {
     if (sessionId) {
-      const win = this.windows.get(sessionId)
-      if (win && !win.isDestroyed()) {
+      const entry = this.windows.get(sessionId)
+      if (entry && !entry.win.isDestroyed()) {
         try {
-          if (win.webContents.debugger.isAttached()) {
-            win.webContents.debugger.detach()
+          if (entry.win.webContents.debugger.isAttached()) {
+            entry.win.webContents.debugger.detach()
           }
-          win.close()
+          entry.win.close()
         } catch (error) {
           logger.warn('Error while resetting window', { error, sessionId })
         }
@@ -173,13 +247,13 @@ export class CdpBrowserController {
       return
     }
 
-    for (const [id, win] of this.windows.entries()) {
-      if (win && !win.isDestroyed()) {
+    for (const [id, entry] of this.windows.entries()) {
+      if (entry && !entry.win.isDestroyed()) {
         try {
-          if (win.webContents.debugger.isAttached()) {
-            win.webContents.debugger.detach()
+          if (entry.win.webContents.debugger.isAttached()) {
+            entry.win.webContents.debugger.detach()
           }
-          win.close()
+          entry.win.close()
         } catch (error) {
           logger.warn('Error while resetting window', { error, sessionId: id })
         }

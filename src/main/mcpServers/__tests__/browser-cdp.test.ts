@@ -27,12 +27,24 @@ vi.mock('electron', () => {
 
   const loadURL = vi.fn(async () => {})
 
+  const windows: any[] = []
+
   class MockBrowserWindow {
+    private destroyed = false
     public webContents = webContents
     public loadURL = loadURL
-    public isDestroyed = vi.fn(() => false)
-    public close = vi.fn()
+    public isDestroyed = vi.fn(() => this.destroyed)
+    public close = vi.fn(() => {
+      this.destroyed = true
+    })
+    public destroy = vi.fn(() => {
+      this.destroyed = true
+    })
     public on = vi.fn()
+
+    constructor() {
+      windows.push(this)
+    }
   }
 
   const app = {
@@ -46,10 +58,12 @@ vi.mock('electron', () => {
     app,
     __mockDebugger: debuggerObj,
     __mockSendCommand: sendCommand,
-    __mockLoadURL: loadURL
+    __mockLoadURL: loadURL,
+    __mockWindows: windows
   }
 })
 
+import { __mockWindows } from 'electron'
 import { CdpBrowserController } from '../browser-cdp'
 
 describe('CdpBrowserController', () => {
@@ -78,5 +92,14 @@ describe('CdpBrowserController', () => {
     await controller.open('https://foo.bar/', 5000, false, 'session-b')
     const result = await controller.execute('const a=1; const b=2; a+b;', 5000, 'session-b')
     expect(result).toBe('ok')
+  })
+
+  it('evicts least recently used session when exceeding maxSessions', async () => {
+    const controller = new CdpBrowserController({ maxSessions: 2, idleTimeoutMs: 1000 * 60 })
+    await controller.open('https://foo.bar/', 5000, false, 's1')
+    await controller.open('https://foo.bar/', 5000, false, 's2')
+    await controller.open('https://foo.bar/', 5000, false, 's3')
+    const destroyedCount = __mockWindows.filter((w: any) => w.destroy.mock.calls.length > 0 || w.close.mock.calls.length > 0).length
+    expect(destroyedCount).toBeGreaterThanOrEqual(1)
   })
 })
