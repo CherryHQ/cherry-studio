@@ -4529,21 +4529,21 @@
         }
       },
       "volcengine": {
-        "access_key_id": "[to be translated]:Access Key ID",
-        "access_key_id_help": "[to be translated]:Your Volcengine Access Key ID",
-        "clear_credentials": "[to be translated]:Clear Credentials",
-        "credentials_cleared": "[to be translated]:Credentials cleared",
-        "credentials_required": "[to be translated]:Please fill in Access Key ID and Secret Access Key",
-        "credentials_saved": "[to be translated]:Credentials saved",
-        "description": "[to be translated]:Volcengine is ByteDance's cloud service platform, providing Doubao and other large language model services. Use Access Key for authentication to fetch model list.",
-        "project_name": "[to be translated]:Project Name",
-        "project_name_help": "[to be translated]:Project name for endpoint filtering, default is 'default'",
-        "region": "[to be translated]:Region",
-        "region_help": "[to be translated]:Service region, e.g., cn-beijing",
-        "save_credentials": "[to be translated]:Save Credentials",
-        "secret_access_key": "[to be translated]:Secret Access Key",
-        "secret_access_key_help": "[to be translated]:Your Volcengine Secret Access Key, please keep it secure",
-        "title": "[to be translated]:Volcengine Configuration"
+        "access_key_id": "Αναγνωριστικό Κλειδιού Πρόσβασης",
+        "access_key_id_help": "Το Αναγνωριστικό Κλειδιού Πρόσβασης του Volcengine σας",
+        "clear_credentials": "Καθαρά Διαπιστευτήρια",
+        "credentials_cleared": "Τα διαπιστευτήρια διαγράφηκαν",
+        "credentials_required": "Παρακαλούμε συμπληρώστε το Access Key ID και το Secret Access Key",
+        "credentials_saved": "Τα διαπιστευτήρια αποθηκεύτηκαν",
+        "description": "Η Volcengine είναι η πλατφόρμα υπηρεσιών cloud της ByteDance, παρέχοντας το Doubao και άλλες υπηρεσίες μεγάλων γλωσσικών μοντέλων. Χρησιμοποιήστε το Access Key για πιστοποίηση για να ανακτήσετε τη λίστα μοντέλων.",
+        "project_name": "Όνομα Έργου",
+        "project_name_help": "Όνομα έργου για φιλτράρισμα τελικού σημείου, προεπιλογή είναι 'default'",
+        "region": "Περιοχή",
+        "region_help": "Περιοχή υπηρεσίας, π.χ. cn-beijing",
+        "save_credentials": "Αποθήκευση Διαπιστευτηρίων",
+        "secret_access_key": "Μυστικό Κλειδί Πρόσβασης",
+        "secret_access_key_help": "Το μυστικό κλειδί πρόσβασής σας στο Volcengine, παρακαλώ διατηρήστε το ασφαλές",
+        "title": "Διαμόρφωση Volcengine"
       }
     },
     "proxy": {

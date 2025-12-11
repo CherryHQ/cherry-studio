@@ -4529,21 +4529,21 @@
         }
       },
       "volcengine": {
-        "access_key_id": "[to be translated]:Access Key ID",
-        "access_key_id_help": "[to be translated]:Your Volcengine Access Key ID",
-        "clear_credentials": "[to be translated]:Clear Credentials",
-        "credentials_cleared": "[to be translated]:Credentials cleared",
-        "credentials_required": "[to be translated]:Please fill in Access Key ID and Secret Access Key",
-        "credentials_saved": "[to be translated]:Credentials saved",
-        "description": "[to be translated]:Volcengine is ByteDance's cloud service platform, providing Doubao and other large language model services. Use Access Key for authentication to fetch model list.",
-        "project_name": "[to be translated]:Project Name",
-        "project_name_help": "[to be translated]:Project name for endpoint filtering, default is 'default'",
-        "region": "[to be translated]:Region",
-        "region_help": "[to be translated]:Service region, e.g., cn-beijing",
-        "save_credentials": "[to be translated]:Save Credentials",
-        "secret_access_key": "[to be translated]:Secret Access Key",
-        "secret_access_key_help": "[to be translated]:Your Volcengine Secret Access Key, please keep it secure",
-        "title": "[to be translated]:Volcengine Configuration"
+        "access_key_id": "Zugangsschlüssel-ID",
+        "access_key_id_help": "Ihre Volcengine-Zugriffsschlüssel-ID",
+        "clear_credentials": "Berechtigungen löschen",
+        "credentials_cleared": "Anmeldeinformationen gelöscht",
+        "credentials_required": "Bitte geben Sie die Access-Key-ID und den Secret Access Key ein.",
+        "credentials_saved": "Anmeldedaten gespeichert",
+        "description": "Volcengine ist die Cloud-Service-Plattform von ByteDance und bietet Doubao sowie weitere große Sprachmodell-Dienste an. Verwenden Sie den Access Key zur Authentifizierung, um die Modellliste abzurufen.",
+        "project_name": "Projektname",
+        "project_name_help": "Projektname für Endpunktfilterung, Standardwert ist 'default'",
+        "region": "Region",
+        "region_help": "Service-Region, z. B. cn-beijing",
+        "save_credentials": "Anmeldedaten speichern",
+        "secret_access_key": "Geheimer Zugangsschlüssel",
+        "secret_access_key_help": "Ihr Volcengine Secret Access Key, bitte bewahren Sie ihn sicher auf.",
+        "title": "Volcengine-Konfiguration"
       }
     },
     "proxy": {

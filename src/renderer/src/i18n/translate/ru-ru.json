@@ -4529,21 +4529,21 @@
         }
       },
       "volcengine": {
-        "access_key_id": "[to be translated]:Access Key ID",
-        "access_key_id_help": "[to be translated]:Your Volcengine Access Key ID",
-        "clear_credentials": "[to be translated]:Clear Credentials",
-        "credentials_cleared": "[to be translated]:Credentials cleared",
-        "credentials_required": "[to be translated]:Please fill in Access Key ID and Secret Access Key",
-        "credentials_saved": "[to be translated]:Credentials saved",
-        "description": "[to be translated]:Volcengine is ByteDance's cloud service platform, providing Doubao and other large language model services. Use Access Key for authentication to fetch model list.",
-        "project_name": "[to be translated]:Project Name",
-        "project_name_help": "[to be translated]:Project name for endpoint filtering, default is 'default'",
-        "region": "[to be translated]:Region",
-        "region_help": "[to be translated]:Service region, e.g., cn-beijing",
-        "save_credentials": "[to be translated]:Save Credentials",
-        "secret_access_key": "[to be translated]:Secret Access Key",
-        "secret_access_key_help": "[to be translated]:Your Volcengine Secret Access Key, please keep it secure",
-        "title": "[to be translated]:Volcengine Configuration"
+        "access_key_id": "Идентификатор ключа доступа",
+        "access_key_id_help": "Ваш идентификатор ключа доступа Volcengine",
+        "clear_credentials": "Очистить учетные данные",
+        "credentials_cleared": "Учетные данные очищены",
+        "credentials_required": "Пожалуйста, введите идентификатор ключа доступа и секретный ключ доступа",
+        "credentials_saved": "Учетные данные сохранены",
+        "description": "Volcengine — это облачная платформа ByteDance, предоставляющая Doubao и другие сервисы крупных языковых моделей. Для аутентификации используйте Access Key, чтобы получить список моделей.",
+        "project_name": "Название проекта",
+        "project_name_help": "Имя проекта для фильтрации конечных точек, по умолчанию — «default»",
+        "region": "Регион",
+        "region_help": "Регион обслуживания, например, cn-beijing",
+        "save_credentials": "Сохранить учетные данные",
+        "secret_access_key": "Секретный ключ доступа",
+        "secret_access_key_help": "Ваш секретный ключ доступа Volcengine, пожалуйста, храните его в безопасности",
+        "title": "Конфигурация Volcengine"
       }
     },
     "proxy": {

@@ -4529,21 +4529,21 @@
         }
       },
       "volcengine": {
-        "access_key_id": "[to be translated]:Access Key ID",
-        "access_key_id_help": "[to be translated]:Your Volcengine Access Key ID",
-        "clear_credentials": "[to be translated]:Clear Credentials",
-        "credentials_cleared": "[to be translated]:Credentials cleared",
-        "credentials_required": "[to be translated]:Please fill in Access Key ID and Secret Access Key",
-        "credentials_saved": "[to be translated]:Credentials saved",
-        "description": "[to be translated]:Volcengine is ByteDance's cloud service platform, providing Doubao and other large language model services. Use Access Key for authentication to fetch model list.",
-        "project_name": "[to be translated]:Project Name",
-        "project_name_help": "[to be translated]:Project name for endpoint filtering, default is 'default'",
-        "region": "[to be translated]:Region",
-        "region_help": "[to be translated]:Service region, e.g., cn-beijing",
-        "save_credentials": "[to be translated]:Save Credentials",
-        "secret_access_key": "[to be translated]:Secret Access Key",
-        "secret_access_key_help": "[to be translated]:Your Volcengine Secret Access Key, please keep it secure",
-        "title": "[to be translated]:Volcengine Configuration"
+        "access_key_id": "アクセスキーID",
+        "access_key_id_help": "あなたのVolcengineアクセスキーID",
+        "clear_credentials": "資格証明書をクリア",
+        "credentials_cleared": "資格情報がクリアされました",
+        "credentials_required": "アクセスキーIDとシークレットアクセスキーを入力してください",
+        "credentials_saved": "認証情報が保存されました",
+        "description": "VolcengineはByteDanceのクラウドサービスプラットフォームで、Doubaoやその他の大規模言語モデルサービスを提供しています。認証にはアクセスキーを使用してモデルリストを取得します。",
+        "project_name": "プロジェクト名",
+        "project_name_help": "エンドポイントフィルタリング用のプロジェクト名、デフォルトは「default」",
+        "region": "地域",
+        "region_help": "サービスリージョン、例: cn-beijing",
+        "save_credentials": "資格情報を保存",
+        "secret_access_key": "シークレットアクセスキー",
+        "secret_access_key_help": "あなたの Volcengine シークレットアクセスキーは、安全に保管してください。",
+        "title": "Volcengine設定"
       }
     },
     "proxy": {
