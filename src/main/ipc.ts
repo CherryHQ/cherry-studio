@@ -874,6 +874,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     webview.session.setSpellCheckerEnabled(isEnable)
   })
 
+  // Webview print and save handlers
+  ipcMain.handle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
+    const { printWebviewToPDF } = await import('./services/WebviewService')
+    return await printWebviewToPDF(webviewId)
+  })
+
+  ipcMain.handle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
+    const { saveWebviewAsHTML } = await import('./services/WebviewService')
+    return await saveWebviewAsHTML(webviewId)
+  })
+
   // store sync
   storeSyncService.registerIpcHandler()
 
