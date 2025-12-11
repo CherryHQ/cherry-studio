@@ -772,7 +772,7 @@ const McpSettings: React.FC = () => {
                 {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
               </Flex>
               <Button size="small" onClick={() => setLogModalOpen(true)}>
-                {t('settings.mcp.viewLogs', 'View Logs')}
+                {t('settings.mcp.logs', 'View Logs')}
               </Button>
               <Button
                 danger
@@ -810,12 +810,14 @@ const McpSettings: React.FC = () => {
       </SettingContainer>
 
       <Modal
-        title={t('settings.mcp.viewLogs', 'Server Logs')}
+        title={t('settings.mcp.logs', 'Server Logs')}
         open={logModalOpen}
         onCancel={() => setLogModalOpen(false)}
         footer={null}
         width={720}
-        bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }}
+        centered
+        transitionName="animation-move-down"
+        bodyStyle={{ maxHeight: '60vh', minHeight: '40vh', overflowY: 'auto' }}
         afterOpenChange={(open) => {
           if (open) {
             fetchServerLogs()

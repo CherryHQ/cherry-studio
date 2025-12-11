@@ -3912,6 +3912,7 @@
       "jsonSaveError": "JSON設定の保存に失敗しました",
       "jsonSaveSuccess": "JSON設定が保存されました。",
       "logoUrl": "ロゴURL",
+      "logs": "ログ",
       "longRunning": "長時間運行モード",
       "longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
       "marketplaces": "マーケットプレイス",
@@ -4059,8 +4060,7 @@
       "updateError": "サーバーの更新に失敗しました",
       "updateSuccess": "サーバーが正常に更新されました",
       "url": "URL",
-      "user": "ユーザー",
-      "viewLogs": "ログを表示"
+      "user": "ユーザー"
     },
     "messages": {
       "divider": {

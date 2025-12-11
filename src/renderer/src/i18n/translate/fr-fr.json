@@ -3912,6 +3912,7 @@
       "jsonSaveError": "Échec de la sauvegarde de la configuration JSON",
       "jsonSaveSuccess": "Configuration JSON sauvegardée",
       "logoUrl": "Адрес логотипа",
+      "logs": "Journaux",
       "longRunning": "Mode d'exécution prolongée",
       "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
       "marketplaces": "Places de marché",
@@ -4059,8 +4060,7 @@
       "updateError": "Échec de la mise à jour du serveur",
       "updateSuccess": "Serveur mis à jour avec succès",
       "url": "URL",
-      "user": "Пользователь",
-      "viewLogs": "Voir les journaux"
+      "user": "Пользователь"
     },
     "messages": {
       "divider": {

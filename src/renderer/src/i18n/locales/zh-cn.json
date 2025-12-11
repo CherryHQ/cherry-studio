@@ -3912,6 +3912,7 @@
       "jsonSaveError": "保存 JSON 配置失败",
       "jsonSaveSuccess": "JSON 配置已保存",
       "logoUrl": "标志网址",
+      "logs": "日志",
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "marketplaces": "市场",
@@ -4059,8 +4060,7 @@
       "updateError": "更新服务器失败",
       "updateSuccess": "服务器更新成功",
       "url": "URL",
-      "user": "用户",
-      "viewLogs": "查看日志"
+      "user": "用户"
     },
     "messages": {
       "divider": {

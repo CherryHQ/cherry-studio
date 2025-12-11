@@ -3912,6 +3912,7 @@
       "jsonSaveError": "Falha ao salvar configuração JSON",
       "jsonSaveSuccess": "Configuração JSON salva com sucesso",
       "logoUrl": "URL do Logotipo",
+      "logs": "Registros",
       "longRunning": "Modo de execução prolongada",
       "longRunningTooltip": "Quando ativado, o servidor suporta tarefas de longa duração, redefinindo o temporizador de tempo limite ao receber notificações de progresso e estendendo o tempo máximo de tempo limite para 10 minutos.",
       "marketplaces": "Mercados",
@@ -4059,8 +4060,7 @@
       "updateError": "Falha ao atualizar servidor",
       "updateSuccess": "Servidor atualizado com sucesso",
       "url": "URL",
-      "user": "Usuário",
-      "viewLogs": "Ver registos"
+      "user": "Usuário"
     },
     "messages": {
       "divider": {

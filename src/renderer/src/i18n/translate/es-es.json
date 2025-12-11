@@ -3912,6 +3912,7 @@
       "jsonSaveError": "Fallo al guardar la configuración JSON",
       "jsonSaveSuccess": "Configuración JSON guardada exitosamente",
       "logoUrl": "URL del logotipo",
+      "logs": "Registros",
       "longRunning": "Modo de ejecución prolongada",
       "longRunningTooltip": "Una vez habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de tiempo de espera al recibir notificaciones de progreso y amplía el tiempo máximo de espera hasta 10 minutos.",
       "marketplaces": "Mercados",
@@ -4059,8 +4060,7 @@
       "updateError": "Fallo al actualizar servidor",
       "updateSuccess": "Servidor actualizado exitosamente",
       "url": "URL",
-      "user": "Usuario",
-      "viewLogs": "Ver registros"
+      "user": "Usuario"
     },
     "messages": {
       "divider": {

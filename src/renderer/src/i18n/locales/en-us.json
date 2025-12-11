@@ -3912,6 +3912,7 @@
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
       "logoUrl": "Logo URL",
+      "logs": "Logs",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
       "marketplaces": "Marketplaces",
@@ -4059,8 +4060,7 @@
       "updateError": "Failed to update server",
       "updateSuccess": "Server updated successfully",
       "url": "URL",
-      "user": "User",
-      "viewLogs": "View Logs"
+      "user": "User"
     },
     "messages": {
       "divider": {
