@@ -11,14 +11,15 @@ const ExecuteSchema = z.object({
   code: z
     .string()
     .describe(
-      'js code evaluated via Chrome DevTools Runtime.evaluate. Must be one line; use semicolons for multiple statements.'
+      'JavaScript evaluated via Chrome DevTools Runtime.evaluate. Keep it short; prefer one-line with semicolons for multiple statements.'
     ),
   timeout: z.number().default(5000).describe('Timeout in milliseconds for code execution (default: 5000ms)')
 })
 
 const OpenSchema = z.object({
   url: z.string().url().describe('URL to open in the controlled Electron window'),
-  timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)')
+  timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)'),
+  show: z.boolean().optional().describe('Whether to show the browser window (default: false)')
 })
 
 export class CdpBrowserController {
@@ -30,7 +31,7 @@ export class CdpBrowserController {
     }
   }
 
-  private async getWindow(forceNew = false): Promise<BrowserWindow> {
+  private async getWindow(forceNew = false, show = false): Promise<BrowserWindow> {
     await this.ensureAppReady()
 
     if (this.win && !this.win.isDestroyed() && !forceNew) {
@@ -42,7 +43,7 @@ export class CdpBrowserController {
     }
 
     this.win = new BrowserWindow({
-      show: false,
+      show,
       webPreferences: {
         contextIsolation: true,
         sandbox: true,
@@ -71,8 +72,8 @@ export class CdpBrowserController {
     return this.win
   }
 
-  public async open(url: string, timeout = 10000) {
-    const win = await this.getWindow(true)
+  public async open(url: string, timeout = 10000, show = false) {
+    const win = await this.getWindow(true, show)
     logger.info('Loading URL', { url })
     const { webContents } = win
 
@@ -191,28 +192,32 @@ export class BrowserCdpServer {
     server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: [
-          {
-            name: 'open',
-            description: 'Open a URL in a hidden Electron window controlled via Chrome DevTools Protocol',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                url: {
-                  type: 'string',
-                  description: 'URL to load'
-                },
-                timeout: {
-                  type: 'number',
-                  description: 'Navigation timeout in milliseconds (default 10000)'
-                }
-              },
-              required: ['url']
+      {
+        name: 'open',
+        description: 'Open a URL in a hidden Electron window controlled via Chrome DevTools Protocol',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            url: {
+              type: 'string',
+              description: 'URL to load'
+            },
+            timeout: {
+              type: 'number',
+              description: 'Navigation timeout in milliseconds (default 10000)'
+            },
+            show: {
+              type: 'boolean',
+              description: 'Whether to show the browser window (default false)'
             }
           },
+          required: ['url']
+        }
+      },
           {
-            name: 'execute',
-            description:
-              'Run a single-line JavaScript snippet in the current page via Runtime.evaluate. Use semicolons for multiple statements.',
+        name: 'execute',
+        description:
+          'Run JavaScript in the current page via Runtime.evaluate. Prefer short, single-line snippets; use semicolons for multiple statements.',
             inputSchema: {
               type: 'object',
               properties: {
@@ -244,8 +249,8 @@ export class BrowserCdpServer {
       const { name, arguments: args } = request.params
 
       if (name === 'open') {
-        const { url, timeout } = OpenSchema.parse(args)
-        const res = await this.controller.open(url, timeout ?? 10000)
+        const { url, timeout, show } = OpenSchema.parse(args)
+        const res = await this.controller.open(url, timeout ?? 10000, show ?? false)
         return {
           content: [
             {

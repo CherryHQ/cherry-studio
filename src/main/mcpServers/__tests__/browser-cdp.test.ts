@@ -64,9 +64,16 @@ describe('CdpBrowserController', () => {
     expect(result).toBe('ok')
   })
 
-  it('opens a URL and returns current page info', async () => {
+  it('opens a URL (hidden) and returns current page info', async () => {
     const controller = new CdpBrowserController()
-    const result = await controller.open('https://foo.bar/', 5000)
+    const result = await controller.open('https://foo.bar/', 5000, false)
+    expect(result.currentUrl).toBe('https://example.com/')
+    expect(result.title).toBe('Example Title')
+  })
+
+  it('opens a URL (visible) when show=true', async () => {
+    const controller = new CdpBrowserController()
+    const result = await controller.open('https://foo.bar/', 5000, true)
     expect(result.currentUrl).toBe('https://example.com/')
     expect(result.title).toBe('Example Title')
   })
