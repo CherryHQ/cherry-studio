@@ -382,6 +382,10 @@ class VolcengineService {
         throw new VolcengineServiceError('Access Key ID and Secret Access Key are required')
       }
 
+      if (!safeStorage.isEncryptionAvailable()) {
+        throw new VolcengineServiceError('Secure storage is not available on this platform')
+      }
+
       const credentials: VolcengineCredentials = { accessKeyId, secretAccessKey }
       const credentialsJson = JSON.stringify(credentials)
       const encryptedData = safeStorage.encryptString(credentialsJson)
@@ -393,6 +397,7 @@ class VolcengineService {
       }
 
       await fs.promises.writeFile(this.credentialsFilePath, encryptedData)
+      await fs.promises.chmod(this.credentialsFilePath, 0o600) // Read/write for owner only
       logger.info('Volcengine credentials saved successfully')
     } catch (error) {
       logger.error('Failed to save Volcengine credentials:', error as Error)

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useVolcengineSettings } from '@renderer/hooks/useVolcengine'
@@ -24,7 +25,13 @@ const VolcengineSettings: FC = () => {
 
   // Check if credentials exist on mount
   useEffect(() => {
-    window.api.volcengine.hasCredentials().then(setHasCredentials)
+    window.api.volcengine
+      .hasCredentials()
+      .then(setHasCredentials)
+      .catch((error) => {
+        loggerService.withContext('VolcengineSettings').error('Failed to check credentials:', error as Error)
+        window.toast?.error('Failed to check Volcengine credentials')
+      })
   }, [])
 
   // Sync local state with store (only for region and projectName)

@@ -64,9 +64,23 @@ export class VolcengineAPIClient extends OpenAIAPIClient {
       return models
     } catch (error) {
       logger.error('Failed to list Volcengine models:', error as Error)
-      // Notify user before falling back
-      window.toast?.warning('Failed to fetch Volcengine models. Check credentials if this persists.')
-      // Fall back to standard OpenAI-compatible API on error
+
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Credential errors should not fall back - user must fix
+      if (errorMessage.includes('could not be loaded') || errorMessage.includes('credentials')) {
+        window.toast?.error('Volcengine credentials error. Please re-enter your credentials in settings.')
+        throw error
+      }
+
+      // Auth errors should not fall back
+      if (errorMessage.includes('401') || errorMessage.includes('403')) {
+        window.toast?.error('Volcengine authentication failed. Please verify your Access Key.')
+        throw error
+      }
+
+      // Only fall back for transient network errors
+      window.toast?.warning('Temporarily unable to fetch Volcengine models. Using fallback.')
       logger.info('Falling back to OpenAI-compatible model list')
       return super.listModels()
     }
