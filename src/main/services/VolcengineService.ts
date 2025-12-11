@@ -185,26 +185,13 @@ class VolcengineService {
   private uriEncode(str: string, encodeSlash: boolean = true): string {
     if (!str) return ''
 
-    return str
-      .split('')
-      .map((char) => {
-        if (
-          (char >= 'A' && char <= 'Z') ||
-          (char >= 'a' && char <= 'z') ||
-          (char >= '0' && char <= '9') ||
-          char === '_' ||
-          char === '-' ||
-          char === '~' ||
-          char === '.'
-        ) {
-          return char
-        }
-        if (char === '/' && !encodeSlash) {
-          return char
-        }
-        return encodeURIComponent(char)
-      })
-      .join('')
+    // RFC3986 unreserved: A-Z a-z 0-9 - _ . ~
+    // If encodeSlash is false, / is also unencoded
+    const unreserved = encodeSlash ? /[A-Za-z0-9_\-\.~]/ : /[A-Za-z0-9_\-\.~\/]/;
+    return str.replace(
+      new RegExp(`[^${encodeSlash ? 'A-Za-z0-9_\\-\\.~' : 'A-Za-z0-9_\\-\\.~/'}]`, 'g'),
+      (char) => encodeURIComponent(char)
+    );
   }
 
   // ============= Signing Implementation =============
