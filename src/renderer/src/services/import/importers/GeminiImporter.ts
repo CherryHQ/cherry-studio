@@ -104,7 +104,10 @@ export class GeminiImporter implements ConversationImporter {
     const createdAt = new Date().toISOString()
 
     conversation.messages.forEach((msg) => {
-      const normalizedContent = (msg.content || '').trim()
+      const normalizedContent = (msg.content || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
       if (!normalizedContent) return
 
       const messageId = msg.id || uuid()
