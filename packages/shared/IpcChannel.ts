@@ -90,6 +90,8 @@ export enum IpcChannel {
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
+  Mcp_GetServerLogs = 'mcp:get-server-logs',
+  Mcp_ServerLog = 'mcp:server-log',
   // Python
   Python_Execute = 'python:execute',
 

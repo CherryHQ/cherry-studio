@@ -3912,6 +3912,7 @@
       "jsonSaveError": "JSON-Konfiguration speichern fehlgeschlagen",
       "jsonSaveSuccess": "JSON-Konfiguration erfolgreich gespeichert",
       "logoUrl": "Logo-URL",
+      "logs": "Protokolle",
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
       "marketplaces": "Marktplätze",
@@ -3931,6 +3932,7 @@
       "name": "Name",
       "newServer": "MCP-Server",
       "noDescriptionAvailable": "Keine Beschreibung",
+      "noLogs": "Noch keine Protokolle",
       "noServers": "Server nicht konfiguriert",
       "not_support": "Modell nicht unterstützt",
       "npx_list": {
