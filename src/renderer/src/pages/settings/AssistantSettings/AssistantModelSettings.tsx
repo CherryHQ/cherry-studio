@@ -52,19 +52,19 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const onTemperatureChange = (value) => {
     if (!isNaN(value as number)) {
-      updateAssistantSettings({ temperature: value })
+      updateAssistantSettings({ temperature: Number(value) })
     }
   }
 
   const onContextCountChange = (value) => {
     if (!isNaN(value as number)) {
-      updateAssistantSettings({ contextCount: value })
+      updateAssistantSettings({ contextCount: Number(value) })
     }
   }
 
   const onTopPChange = (value) => {
     if (!isNaN(value as number)) {
-      updateAssistantSettings({ topP: value })
+      updateAssistantSettings({ topP: Number(value) })
     }
   }
 
@@ -114,7 +114,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <InputNumber
             style={{ width: '100%' }}
             value={param.value as number}
-            onChange={(value) => onUpdateCustomParameter(index, 'value', value || 0)}
+            onChange={(value) => onUpdateCustomParameter(index, 'value', Number(value) || 0)}
             step={0.01}
           />
         )
@@ -278,7 +278,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               onChange={(value) => {
                 if (!isNull(value)) {
                   setTemperature(value)
-                  setTimeoutTimer('temperature_onChange', () => updateAssistantSettings({ temperature: value }), 500)
+                  setTimeoutTimer('temperature_onChange', () => updateAssistantSettings({ temperature: Number(value) }), 500)
                 }
               }}
               style={{ width: '100%' }}
@@ -326,7 +326,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               onChange={(value) => {
                 if (!isNull(value)) {
                   setTopP(value)
-                  setTimeoutTimer('topP_onChange', () => updateAssistantSettings({ topP: value }), 500)
+                  setTimeoutTimer('topP_onChange', () => updateAssistantSettings({ topP: Number(value) }), 500)
                 }
               }}
               style={{ width: '100%' }}
@@ -355,7 +355,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChange={(value) => {
               if (!isNull(value)) {
                 setContextCount(value)
-                setTimeoutTimer('contextCount_onChange', () => updateAssistantSettings({ contextCount: value }), 500)
+                setTimeoutTimer('contextCount_onChange', () => updateAssistantSettings({ contextCount: Number(value) }), 500)
               }
             }}
             formatter={(value) => (value === MAX_CONTEXT_COUNT ? t('chat.settings.max') : (value ?? ''))}
@@ -417,7 +417,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               onChange={(value) => {
                 if (!isNull(value)) {
                   setMaxTokens(value)
-                  setTimeoutTimer('maxTokens_onChange', () => updateAssistantSettings({ maxTokens: value }), 1000)
+                  setTimeoutTimer('maxTokens_onChange', () => updateAssistantSettings({ maxTokens: Number(value) }), 1000)
                 }
               }}
               style={{ width: '100%' }}

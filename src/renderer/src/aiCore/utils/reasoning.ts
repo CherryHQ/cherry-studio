@@ -702,6 +702,13 @@ export function getCustomParameters(assistant: Assistant): Record<string, any> {
           return { ...acc, [param.name]: value }
         }
       }
+      // Ensure number type parameters are always numbers (not strings)
+      if (param.type === 'number') {
+        return {
+          ...acc,
+          [param.name]: Number(param.value)
+        }
+      }
       return {
         ...acc,
         [param.name]: param.value

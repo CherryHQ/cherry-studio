@@ -55,7 +55,7 @@ const AssistantSettings: FC = () => {
     (setter: Dispatch<SetStateAction<number>>, updater: (value: number) => void) => (value: number | null) => {
       if (value !== null) {
         setter(value)
-        updater(value)
+        updater(Number(value))
       }
     }
   const onTemperatureChange = handleChange(setTemperature, (value) => onUpdateAssistantSettings({ temperature: value }))

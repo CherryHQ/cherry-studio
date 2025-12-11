@@ -54,7 +54,8 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
 
   // FIXME: assistant.settings.enableTemperature should be always a boolean value.
   const enableTemperature = assistantSettings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
-  return enableTemperature ? temperature : undefined
+  // Ensure temperature is always returned as a number (not a string)
+  return enableTemperature && temperature !== undefined ? Number(temperature) : undefined
 }
 
 /**
@@ -78,7 +79,9 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
   const assistantSettings = getAssistantSettings(assistant)
   // FIXME: assistant.settings.enableTopP should be always a boolean value.
   const enableTopP = assistantSettings.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
-  return enableTopP ? assistantSettings?.topP : undefined
+  const topP = assistantSettings?.topP
+  // Ensure topP is always returned as a number (not a string)
+  return enableTopP && topP !== undefined ? Number(topP) : undefined
 }
 
 /**
@@ -102,6 +105,9 @@ export function getMaxTokens(assistant: Assistant, model: Model): number | undef
   if (!enabledMaxTokens || maxTokens === undefined) {
     return undefined
   }
+
+  // Ensure maxTokens is a number
+  maxTokens = Number(maxTokens)
 
   const provider = getProviderByModel(model)
   if (isSupportedThinkingTokenClaudeModel(model) && ['anthropic', 'aws-bedrock'].includes(provider.type)) {
