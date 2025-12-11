@@ -7,7 +7,6 @@ import {
   captureScrollableAsDataURL,
   compressImage,
   convertToBase64,
-  guessMediaTypeFromUrl,
   makeSvgSizeAdaptive,
   parseDataUrlMediaType
 } from '../image'
@@ -233,26 +232,6 @@ describe('utils/image', () => {
       const r = parseDataUrlMediaType('https://example.com/x.png')
       expect(r.mediaType).toBeUndefined()
       expect(r.isBase64).toBe(false)
-    })
-  })
-
-  describe('guessMediaTypeFromUrl', () => {
-    it('infers png from extension', () => {
-      expect(guessMediaTypeFromUrl('https://example.com/image.png')).toBe('image/png')
-    })
-
-    it('infers jpeg variants from extension (case-insensitive)', () => {
-      expect(guessMediaTypeFromUrl('/path/to/photo.JPG')).toBe('image/jpeg')
-      expect(guessMediaTypeFromUrl('avatar.jpeg')).toBe('image/jpeg')
-    })
-
-    it('infers svg+xml and ico', () => {
-      expect(guessMediaTypeFromUrl('icon.svg')).toBe('image/svg+xml')
-      expect(guessMediaTypeFromUrl('favicon.ICO')).toBe('image/x-icon')
-    })
-
-    it('returns undefined when no extension', () => {
-      expect(guessMediaTypeFromUrl('https://example.com/resource')).toBeUndefined()
     })
   })
 })
