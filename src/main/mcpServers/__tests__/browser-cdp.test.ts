@@ -63,7 +63,8 @@ vi.mock('electron', () => {
   }
 })
 
-import { __mockWindows } from 'electron'
+import * as electron from 'electron'
+const { __mockWindows } = electron as typeof electron & { __mockWindows: any[] }
 
 import { CdpBrowserController } from '../browser-cdp'
 
