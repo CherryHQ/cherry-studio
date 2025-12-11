@@ -6,6 +6,9 @@
         "failed": "Не удалось добавить агента",
         "invalid_agent": "Недействительный агент"
       },
+      "model": {
+        "tooltip": "В настоящее время для функции агента доступны только модели, поддерживающие конечные точки Anthropic."
+      },
       "title": "Добавить агента",
       "type": {
         "placeholder": "Выбор типа агента"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "Новая папка",
     "untitled_note": "Незаглавленная заметка",
     "upload_failed": "Не удалось загрузить заметку",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "Загрузить файлы",
+    "upload_folder": "Загрузить папку",
     "upload_success": "Заметка успешно загружена",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "Загрузка {{count}} файлов..."
   },
   "notification": {
     "assistant": "Ответ ассистента",
@@ -2514,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Скопировать как изображение"
+      "image": "Скопировать как изображение",
+      "src": "Копировать источник изображения"
     },
     "dialog": "Открыть диалог",
     "label": "Предварительный просмотр",
@@ -3908,6 +3912,7 @@
       "jsonSaveError": "Не удалось сохранить конфигурацию JSON",
       "jsonSaveSuccess": "JSON конфигурация сохранена",
       "logoUrl": "URL логотипа",
+      "logs": "Журналы",
       "longRunning": "Длительный режим работы",
       "longRunningTooltip": "Включив эту опцию, сервер будет поддерживать длительные задачи. При получении уведомлений о ходе выполнения будет сброшен тайм-аут и максимальное время выполнения будет увеличено до 10 минут.",
       "marketplaces": "Торговые площадки",
@@ -3927,6 +3932,7 @@
       "name": "Имя",
       "newServer": "MCP сервер",
       "noDescriptionAvailable": "Описание отсутствует",
+      "noLogs": "Логов пока нет",
       "noServers": "Серверы не настроены",
       "not_support": "Модель не поддерживается",
       "npx_list": {

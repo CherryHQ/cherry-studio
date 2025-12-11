@@ -6,6 +6,9 @@
         "failed": "Échec de l'ajout de l'agent",
         "invalid_agent": "Agent invalide"
       },
+      "model": {
+        "tooltip": "Actuellement, seuls les modèles qui prennent en charge les points de terminaison Anthropic sont disponibles pour la fonctionnalité Agent."
+      },
       "title": "Ajouter un agent",
       "type": {
         "placeholder": "Sélectionner le type d'Agent"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "nouveau dossier",
     "untitled_note": "Note sans titre",
     "upload_failed": "Échec du téléchargement de la note",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "Télécharger des fichiers",
+    "upload_folder": "Puis dossier de téléchargement",
     "upload_success": "Note téléchargée avec succès",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "Téléchargement de {{count}} fichiers..."
   },
   "notification": {
     "assistant": "Réponse de l'assistant",
@@ -2514,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Copier en tant qu'image"
+      "image": "Copier en tant qu'image",
+      "src": "Copier la source de l'image"
     },
     "dialog": "Ouvrir la fenêtre d'aperçu",
     "label": "Aperçu",
@@ -3908,6 +3912,7 @@
       "jsonSaveError": "Échec de la sauvegarde de la configuration JSON",
       "jsonSaveSuccess": "Configuration JSON sauvegardée",
       "logoUrl": "Адрес логотипа",
+      "logs": "Journaux",
       "longRunning": "Mode d'exécution prolongée",
       "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
       "marketplaces": "Places de marché",
@@ -3927,6 +3932,7 @@
       "name": "Nom",
       "newServer": "Сервер MCP",
       "noDescriptionAvailable": "Aucune description disponible pour le moment",
+      "noLogs": "Aucun journal pour le moment",
       "noServers": "Aucun serveur configuré",
       "not_support": "Модель не поддерживается",
       "npx_list": {

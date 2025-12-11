@@ -33,6 +33,7 @@ import {
 import { nanoid } from '@reduxjs/toolkit'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { MCPProgressEvent } from '@shared/config/types'
+import type { MCPServerLogEntry } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
 import {
@@ -56,6 +57,7 @@ import { CacheService } from './CacheService'
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
+import { ServerLogBuffer } from './mcp/ServerLogBuffer'
 import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
@@ -142,6 +144,7 @@ class McpService {
   private pendingClients: Map<string, Promise<Client>> = new Map()
   private dxtService = new DxtService()
   private activeToolCalls: Map<string, AbortController> = new Map()
+  private serverLogs = new ServerLogBuffer(200)
 
   constructor() {
     this.initClient = this.initClient.bind(this)
@@ -170,6 +173,19 @@ class McpService {
       env: server.env,
       id: server.id
     })
+  }
+
+  private emitServerLog(server: MCPServer, entry: MCPServerLogEntry) {
+    const serverKey = this.getServerKey(server)
+    this.serverLogs.append(serverKey, entry)
+    const mainWindow = windowService.getMainWindow()
+    if (mainWindow) {
+      mainWindow.webContents.send(IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
+    }
+  }
+
+  public getServerLogs(_: Electron.IpcMainInvokeEvent, server: MCPServer): MCPServerLogEntry[] {
+    return this.serverLogs.get(this.getServerKey(server))
   }
 
   async initClient(server: MCPServer): Promise<Client> {
@@ -366,9 +382,25 @@ class McpService {
             }
 
             const stdioTransport = new StdioClientTransport(transportOptions)
-            stdioTransport.stderr?.on('data', (data) =>
-              getServerLogger(server).debug(`Stdio stderr`, { data: data.toString() })
-            )
+            stdioTransport.stderr?.on('data', (data) => {
+              const msg = data.toString()
+              getServerLogger(server).debug(`Stdio stderr`, { data: msg })
+              this.emitServerLog(server, {
+                timestamp: Date.now(),
+                level: 'stderr',
+                message: msg.trim(),
+                source: 'stdio'
+              })
+            })
+            ;(stdioTransport as any).stdout?.on('data', (data: any) => {
+              const msg = data.toString()
+              this.emitServerLog(server, {
+                timestamp: Date.now(),
+                level: 'stdout',
+                message: msg.trim(),
+                source: 'stdio'
+              })
+            })
             return stdioTransport
           } else {
             throw new Error('Either baseUrl or command must be provided')
@@ -436,6 +468,13 @@ class McpService {
             }
           }
 
+          this.emitServerLog(server, {
+            timestamp: Date.now(),
+            level: 'info',
+            message: 'Server connected',
+            source: 'client'
+          })
+
           // Store the new client in the cache
           this.clients.set(serverKey, client)
 
@@ -446,9 +485,22 @@ class McpService {
           this.clearServerCache(serverKey)
 
           logger.debug(`Activated server: ${server.name}`)
+          this.emitServerLog(server, {
+            timestamp: Date.now(),
+            level: 'info',
+            message: 'Server activated',
+            source: 'client'
+          })
           return client
         } catch (error) {
           getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
+          this.emitServerLog(server, {
+            timestamp: Date.now(),
+            level: 'error',
+            message: `Error activating server: ${(error as Error)?.message}`,
+            data: redactSensitive(error),
+            source: 'client'
+          })
           throw error
         }
       } finally {
@@ -506,6 +558,16 @@ class McpService {
       // Set up logging message notification handler
       client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
         logger.debug(`Message from server ${server.name}:`, notification.params)
+        const msg = notification.params?.message
+        if (msg) {
+          this.emitServerLog(server, {
+            timestamp: Date.now(),
+            level: (notification.params?.level as MCPServerLogEntry['level']) || 'info',
+            message: typeof msg === 'string' ? msg : JSON.stringify(msg),
+            data: redactSensitive(notification.params?.data),
+            source: notification.params?.logger || 'server'
+          })
+        }
       })
 
       getServerLogger(server).debug(`Set up notification handlers`)
@@ -540,6 +602,7 @@ class McpService {
       this.clients.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
+      this.serverLogs.remove(serverKey)
     } else {
       logger.warn(`No client found for server`, { serverKey })
     }
@@ -548,6 +611,12 @@ class McpService {
   async stopServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     const serverKey = this.getServerKey(server)
     getServerLogger(server).debug(`Stopping server`)
+    this.emitServerLog(server, {
+      timestamp: Date.now(),
+      level: 'info',
+      message: 'Stopping server',
+      source: 'client'
+    })
     await this.closeClient(serverKey)
   }
 
@@ -574,6 +643,12 @@ class McpService {
   async restartServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     getServerLogger(server).debug(`Restarting server`)
     const serverKey = this.getServerKey(server)
+    this.emitServerLog(server, {
+      timestamp: Date.now(),
+      level: 'info',
+      message: 'Restarting server',
+      source: 'client'
+    })
     await this.closeClient(serverKey)
     // Clear cache before restarting to ensure fresh data
     this.clearServerCache(serverKey)
@@ -606,9 +681,22 @@ class McpService {
       // Attempt to list tools as a way to check connectivity
       await client.listTools()
       getServerLogger(server).debug(`Connectivity check successful`)
+      this.emitServerLog(server, {
+        timestamp: Date.now(),
+        level: 'info',
+        message: 'Connectivity check successful',
+        source: 'connectivity'
+      })
       return true
     } catch (error) {
       getServerLogger(server).error(`Connectivity check failed`, error as Error)
+      this.emitServerLog(server, {
+        timestamp: Date.now(),
+        level: 'error',
+        message: `Connectivity check failed: ${(error as Error).message}`,
+        data: redactSensitive(error),
+        source: 'connectivity'
+      })
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
       const serverKey = this.getServerKey(server)
       await this.closeClient(serverKey)

@@ -1,5 +1,5 @@
 diff --git a/sdk.mjs b/sdk.mjs
-index bf429a344b7d59f70aead16b639f949b07688a81..f77d50cc5d3fb04292cb3ac7fa7085d02dcc628f 100755
+index dea7766a3432a1e809f12d6daba4f2834a219689..e0b02ef73da177ba32b903887d7bbbeaa08cc6d3 100755
 --- a/sdk.mjs
 +++ b/sdk.mjs
 @@ -6250,7 +6250,7 @@ function createAbortController(maxListeners = DEFAULT_MAX_LISTENERS) {
@@ -11,7 +11,7 @@ index bf429a344b7d59f70aead16b639f949b07688a81..f77d50cc5d3fb04292cb3ac7fa7085d0
  import { createInterface } from "readline";
  
  // ../src/utils/fsOperations.ts
-@@ -6619,18 +6619,11 @@ class ProcessTransport {
+@@ -6644,18 +6644,11 @@ class ProcessTransport {
          const errorMessage = isNativeBinary(pathToClaudeCodeExecutable) ? `Claude Code native binary not found at ${pathToClaudeCodeExecutable}. Please ensure Claude Code is installed via native installer or specify a valid path with options.pathToClaudeCodeExecutable.` : `Claude Code executable not found at ${pathToClaudeCodeExecutable}. Is options.pathToClaudeCodeExecutable set?`;
          throw new ReferenceError(errorMessage);
        }

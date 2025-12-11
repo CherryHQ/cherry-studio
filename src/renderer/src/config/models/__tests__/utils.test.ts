@@ -26,11 +26,13 @@ import {
   isGenerateImageModels,
   isMaxTemperatureOneModel,
   isNotSupportSystemMessageModel,
-  isNotSupportTemperatureAndTopP,
   isNotSupportTextDeltaModel,
   isSupportedFlexServiceTier,
   isSupportedModel,
   isSupportFlexServiceTierModel,
+  isSupportTemperatureModel,
+  isSupportTopPModel,
+  isTemperatureTopPMutuallyExclusiveModel,
   isVisionModels,
   isZhipuModel
 } from '../utils'
@@ -303,27 +305,104 @@ describe('model utils', () => {
   })
 
   describe('Temperature and top-p support', () => {
-    describe('isNotSupportTemperatureAndTopP', () => {
-      it('returns true for reasoning models', () => {
+    describe('isSupportTemperatureModel', () => {
+      it('returns false for reasoning models (non-open weight)', () => {
         const model = createModel({ id: 'o1' })
         reasoningMock.mockReturnValue(true)
-        expect(isNotSupportTemperatureAndTopP(model)).toBe(true)
+        expect(isSupportTemperatureModel(model)).toBe(false)
       })
 
-      it('returns false for open weight models', () => {
+      it('returns true for open weight models', () => {
         const openWeight = createModel({ id: 'gpt-oss-debug' })
-        expect(isNotSupportTemperatureAndTopP(openWeight)).toBe(false)
+        expect(isSupportTemperatureModel(openWeight)).toBe(true)
       })
 
-      it('returns true for chat-only models without reasoning', () => {
+      it('returns false for chat-only models', () => {
         const chatOnly = createModel({ id: 'o1-preview' })
-        reasoningMock.mockReturnValue(false)
-        expect(isNotSupportTemperatureAndTopP(chatOnly)).toBe(true)
+        expect(isSupportTemperatureModel(chatOnly)).toBe(false)
       })
 
-      it('returns true for Qwen MT models', () => {
+      it('returns false for Qwen MT models', () => {
         const qwenMt = createModel({ id: 'qwen-mt-large', provider: 'aliyun' })
-        expect(isNotSupportTemperatureAndTopP(qwenMt)).toBe(true)
+        expect(isSupportTemperatureModel(qwenMt)).toBe(false)
+      })
+
+      it('returns false for null/undefined models', () => {
+        expect(isSupportTemperatureModel(null)).toBe(false)
+        expect(isSupportTemperatureModel(undefined)).toBe(false)
+      })
+
+      it('returns true for regular GPT models', () => {
+        const model = createModel({ id: 'gpt-4' })
+        expect(isSupportTemperatureModel(model)).toBe(true)
+      })
+    })
+
+    describe('isSupportTopPModel', () => {
+      it('returns false for reasoning models (non-open weight)', () => {
+        const model = createModel({ id: 'o1' })
+        reasoningMock.mockReturnValue(true)
+        expect(isSupportTopPModel(model)).toBe(false)
+      })
+
+      it('returns true for open weight models', () => {
+        const openWeight = createModel({ id: 'gpt-oss-debug' })
+        expect(isSupportTopPModel(openWeight)).toBe(true)
+      })
+
+      it('returns false for chat-only models', () => {
+        const chatOnly = createModel({ id: 'o1-preview' })
+        expect(isSupportTopPModel(chatOnly)).toBe(false)
+      })
+
+      it('returns false for Qwen MT models', () => {
+        const qwenMt = createModel({ id: 'qwen-mt-large', provider: 'aliyun' })
+        expect(isSupportTopPModel(qwenMt)).toBe(false)
+      })
+
+      it('returns false for null/undefined models', () => {
+        expect(isSupportTopPModel(null)).toBe(false)
+        expect(isSupportTopPModel(undefined)).toBe(false)
+      })
+
+      it('returns true for regular GPT models', () => {
+        const model = createModel({ id: 'gpt-4' })
+        expect(isSupportTopPModel(model)).toBe(true)
+      })
+    })
+
+    describe('isTemperatureTopPMutuallyExclusiveModel', () => {
+      it('returns true for Claude 4.5 reasoning models', () => {
+        const claude45Sonnet = createModel({ id: 'claude-sonnet-4.5-20250514' })
+        expect(isTemperatureTopPMutuallyExclusiveModel(claude45Sonnet)).toBe(true)
+
+        const claude45Opus = createModel({ id: 'claude-opus-4.5-20250514' })
+        expect(isTemperatureTopPMutuallyExclusiveModel(claude45Opus)).toBe(true)
+      })
+
+      it('returns false for Claude 4 models', () => {
+        const claude4Sonnet = createModel({ id: 'claude-sonnet-4-20250514' })
+        expect(isTemperatureTopPMutuallyExclusiveModel(claude4Sonnet)).toBe(false)
+      })
+
+      it('returns false for Claude 3.x models', () => {
+        const claude35Sonnet = createModel({ id: 'claude-3-5-sonnet-20241022' })
+        expect(isTemperatureTopPMutuallyExclusiveModel(claude35Sonnet)).toBe(false)
+
+        const claude3Opus = createModel({ id: 'claude-3-opus-20240229' })
+        expect(isTemperatureTopPMutuallyExclusiveModel(claude3Opus)).toBe(false)
+      })
+
+      it('returns false for other AI models', () => {
+        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'o1' }))).toBe(false)
+        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'gemini-2.0-flash' }))).toBe(false)
+        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'qwen-max' }))).toBe(false)
+      })
+
+      it('returns false for null/undefined models', () => {
+        expect(isTemperatureTopPMutuallyExclusiveModel(null)).toBe(false)
+        expect(isTemperatureTopPMutuallyExclusiveModel(undefined)).toBe(false)
       })
     })
   })

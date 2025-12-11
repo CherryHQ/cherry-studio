@@ -6,6 +6,9 @@
         "failed": "添加 Agent 失败",
         "invalid_agent": "无效的 Agent"
       },
+      "model": {
+        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。"
+      },
       "title": "添加 Agent",
       "type": {
         "placeholder": "选择 Agent 类型"
@@ -2514,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "复制为图片"
+      "image": "复制为图片",
+      "src": "复制图片源"
     },
     "dialog": "打开预览窗口",
     "label": "预览",
@@ -3908,6 +3912,7 @@
       "jsonSaveError": "保存 JSON 配置失败",
       "jsonSaveSuccess": "JSON 配置已保存",
       "logoUrl": "标志网址",
+      "logs": "日志",
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "marketplaces": "市场",
@@ -3927,6 +3932,7 @@
       "name": "名称",
       "newServer": "MCP 服务器",
       "noDescriptionAvailable": "暂无描述",
+      "noLogs": "暂无日志",
       "noServers": "未配置服务器",
       "not_support": "模型不支持",
       "npx_list": {

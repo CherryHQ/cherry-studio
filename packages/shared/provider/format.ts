@@ -11,6 +11,7 @@ import {
   formatAzureOpenAIApiHost,
   formatOllamaApiHost,
   formatVertexApiHost,
+  isWithTrailingSharp,
   routeToEndpoint,
   withoutTrailingSlash
 } from '../api'
@@ -63,17 +64,17 @@ export function defaultFormatAzureOpenAIApiHost(host: string): string {
  */
 export function formatProviderApiHost<T extends MinimalProvider>(provider: T, context: ProviderFormatContext): T {
   const formatted = { ...provider }
-
+  const appendApiVersion = !isWithTrailingSharp(provider.apiHost)
   // Format anthropicApiHost if present
   if (formatted.anthropicApiHost) {
-    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost)
+    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost, appendApiVersion)
   }
 
   // Format based on provider type
   if (isAnthropicProvider(provider)) {
     const baseHost = formatted.anthropicApiHost || formatted.apiHost
     // AI SDK needs /v1 in baseURL
-    formatted.apiHost = formatApiHost(baseHost)
+    formatted.apiHost = formatApiHost(baseHost, appendApiVersion)
     if (!formatted.anthropicApiHost) {
       formatted.anthropicApiHost = formatted.apiHost
     }
@@ -82,7 +83,7 @@ export function formatProviderApiHost<T extends MinimalProvider>(provider: T, co
   } else if (isOllamaProvider(formatted)) {
     formatted.apiHost = formatOllamaApiHost(formatted.apiHost)
   } else if (isGeminiProvider(formatted)) {
-    formatted.apiHost = formatApiHost(formatted.apiHost, true, 'v1beta')
+    formatted.apiHost = formatApiHost(formatted.apiHost, appendApiVersion, 'v1beta')
   } else if (isAzureOpenAIProvider(formatted)) {
     formatted.apiHost = formatAzureOpenAIApiHost(formatted.apiHost)
   } else if (isVertexProvider(formatted)) {
@@ -92,7 +93,7 @@ export function formatProviderApiHost<T extends MinimalProvider>(provider: T, co
   } else if (isPerplexityProvider(formatted)) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else {
-    formatted.apiHost = formatApiHost(formatted.apiHost)
+    formatted.apiHost = formatApiHost(formatted.apiHost, appendApiVersion)
   }
 
   return formatted

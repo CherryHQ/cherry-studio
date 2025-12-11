@@ -6,6 +6,9 @@
         "failed": "Error al añadir agente",
         "invalid_agent": "Agent inválido"
       },
+      "model": {
+        "tooltip": "Actualmente, solo los modelos que admiten puntos finales de Anthropic están disponibles para la función Agente."
+      },
       "title": "Agregar Agente",
       "type": {
         "placeholder": "Seleccionar tipo de Agente"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "Nueva carpeta",
     "untitled_note": "Nota sin título",
     "upload_failed": "Error al cargar la nota",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "Subir archivos",
+    "upload_folder": "Carpeta de subida",
     "upload_success": "Nota cargada con éxito",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "Subiendo {{count}} archivos..."
   },
   "notification": {
     "assistant": "Respuesta del asistente",
@@ -2514,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Copiar como imagen"
+      "image": "Copiar como imagen",
+      "src": "Copia la fuente de la imagen"
     },
     "dialog": "Abrir la ventana de vista previa",
     "label": "Vista previa",
@@ -3908,6 +3912,7 @@
       "jsonSaveError": "Fallo al guardar la configuración JSON",
       "jsonSaveSuccess": "Configuración JSON guardada exitosamente",
       "logoUrl": "URL del logotipo",
+      "logs": "Registros",
       "longRunning": "Modo de ejecución prolongada",
       "longRunningTooltip": "Una vez habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de tiempo de espera al recibir notificaciones de progreso y amplía el tiempo máximo de espera hasta 10 minutos.",
       "marketplaces": "Mercados",
@@ -3927,6 +3932,7 @@
       "name": "Nombre",
       "newServer": "Servidor MCP",
       "noDescriptionAvailable": "Sin descripción disponible por ahora",
+      "noLogs": "Aún no hay registros",
       "noServers": "No se han configurado servidores",
       "not_support": "El modelo no es compatible",
       "npx_list": {

@@ -6,6 +6,9 @@
         "failed": "Αποτυχία προσθήκης πράκτορα",
         "invalid_agent": "Μη έγκυρος Agent"
       },
+      "model": {
+        "tooltip": "Προς το παρόν, μόνο μοντέλα που υποστηρίζουν τελικά σημεία Anthropic είναι διαθέσιμα για τη λειτουργία Agent."
+      },
       "title": "Προσθήκη Agent",
       "type": {
         "placeholder": "Επιλέξτε τύπο Agent"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "Νέος φάκελος",
     "untitled_note": "σημείωση χωρίς τίτλο",
     "upload_failed": "Η σημείωση δεν ανέβηκε",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "Ανέβασμα Αρχείων",
+    "upload_folder": "Ανέβασμα Φακέλου",
     "upload_success": "Οι σημειώσεις μεταφορτώθηκαν με επιτυχία",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "Ανεβάζονται {{count}} αρχεία..."
   },
   "notification": {
     "assistant": "Απάντηση Βοηθού",
@@ -2514,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Αντιγραφή ως εικόνα"
+      "image": "Αντιγραφή ως εικόνα",
+      "src": "Αντιγραφή πηγής εικόνας"
     },
     "dialog": "Άνοιγμα παραθύρου προεπισκόπησης",
     "label": "Προεπισκόπηση",
@@ -3908,6 +3912,7 @@
       "jsonSaveError": "Αποτυχία αποθήκευσης της διαμορφωτικής ρύθμισης JSON",
       "jsonSaveSuccess": "Η διαμορφωτική ρύθμιση JSON αποθηκεύτηκε επιτυχώς",
       "logoUrl": "URL Λογότυπου",
+      "logs": "Αρχεία καταγραφής",
       "longRunning": "Μακροχρόνια λειτουργία",
       "longRunningTooltip": "Όταν ενεργοποιηθεί, ο διακομιστής υποστηρίζει μακροχρόνιες εργασίες, επαναφέρει το χρονικό όριο μετά από λήψη ειδοποίησης προόδου και επεκτείνει το μέγιστο χρονικό όριο σε 10 λεπτά.",
       "marketplaces": "Αγορές",
@@ -3927,6 +3932,7 @@
       "name": "Όνομα",
       "newServer": "Διακομιστής MCP",
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
+      "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {

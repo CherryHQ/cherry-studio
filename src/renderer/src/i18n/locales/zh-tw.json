@@ -6,6 +6,9 @@
         "failed": "無法新增代理人",
         "invalid_agent": "無效的 Agent"
       },
+      "model": {
+        "tooltip": "目前，僅支援 Anthropic 端點的模型可供代理功能使用。"
+      },
       "title": "新增代理",
       "type": {
         "placeholder": "選擇 Agent 類型"
@@ -2220,8 +2223,8 @@
     "untitled_folder": "新資料夾",
     "untitled_note": "無標題筆記",
     "upload_failed": "筆記上傳失敗",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "上傳檔案",
+    "upload_folder": "上傳資料夾",
     "upload_success": "筆記上傳成功",
     "uploading_files": "正在上傳 {{count}} 個檔案..."
   },
@@ -2514,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "複製為圖片"
+      "image": "複製為圖片",
+      "src": "複製圖片來源"
     },
     "dialog": "開啟預覽窗口",
     "label": "預覽",
@@ -3908,6 +3912,7 @@
       "jsonSaveError": "保存 JSON 配置失敗",
       "jsonSaveSuccess": "JSON 配置已儲存",
       "logoUrl": "標誌網址",
+      "logs": "日誌",
       "longRunning": "長時間運行模式",
       "longRunningTooltip": "啟用後，伺服器支援長時間任務，接收到進度通知時會重置超時計時器，並延長最大超時時間至10分鐘",
       "marketplaces": "市場",
@@ -3927,6 +3932,7 @@
       "name": "名稱",
       "newServer": "MCP 伺服器",
       "noDescriptionAvailable": "描述不存在",
+      "noLogs": "暫無日誌",
       "noServers": "未設定伺服器",
       "not_support": "不支援此模型",
       "npx_list": {

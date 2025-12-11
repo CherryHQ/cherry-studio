@@ -6,6 +6,9 @@
         "failed": "エージェントの追加に失敗しました",
         "invalid_agent": "無効なエージェント"
       },
+      "model": {
+        "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。"
+      },
       "title": "エージェントを追加",
       "type": {
         "placeholder": "エージェントタイプを選択"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "新ファイル夹",
     "untitled_note": "無題のメモ",
     "upload_failed": "ノートのアップロードに失敗しました",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "ファイルをアップロード",
+    "upload_folder": "アップロードフォルダ",
     "upload_success": "ノートのアップロードが成功しました",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "{{count}} 個のファイルをアップロード中..."
   },
   "notification": {
     "assistant": "助手回應",
@@ -2514,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "画像としてコピー"
+      "image": "画像としてコピー",
+      "src": "画像ソースをコピー"
     },
     "dialog": "ダイアログを開く",
     "label": "プレビュー",
@@ -3908,6 +3912,7 @@
       "jsonSaveError": "JSON設定の保存に失敗しました",
       "jsonSaveSuccess": "JSON設定が保存されました。",
       "logoUrl": "ロゴURL",
+      "logs": "ログ",
       "longRunning": "長時間運行モード",
       "longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
       "marketplaces": "マーケットプレイス",
@@ -3927,6 +3932,7 @@
       "name": "名前",
       "newServer": "MCP サーバー",
       "noDescriptionAvailable": "説明がありません",
+      "noLogs": "ログはまだありません",
       "noServers": "サーバーが設定されていません",
       "not_support": "モデルはサポートされていません",
       "npx_list": {

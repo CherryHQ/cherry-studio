@@ -6,6 +6,9 @@
         "failed": "Failed to add a agent",
         "invalid_agent": "Invalid Agent"
       },
+      "model": {
+        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature."
+      },
       "title": "Add Agent",
       "type": {
         "placeholder": "Select an agent type"
@@ -2514,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Copy as image"
+      "image": "Copy as image",
+      "src": "Copy Image Source"
     },
     "dialog": "Open Dialog",
     "label": "Preview",
@@ -3908,6 +3912,7 @@
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
       "logoUrl": "Logo URL",
+      "logs": "Logs",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
       "marketplaces": "Marketplaces",
@@ -3927,6 +3932,7 @@
       "name": "Name",
       "newServer": "MCP Server",
       "noDescriptionAvailable": "No description available",
+      "noLogs": "No logs yet",
       "noServers": "No servers configured",
       "not_support": "Model not supported",
       "npx_list": {

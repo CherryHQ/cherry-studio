@@ -44,6 +44,23 @@ export function withoutTrailingSharp<T extends string>(url: T): T {
 }
 
 /**
+ * Checks if a URL string ends with a trailing '#' character.
+ *
+ * @template T - The string type to preserve type safety
+ * @param {T} url - The URL string to check
+ * @returns {boolean} True if the URL ends with '#', false otherwise
+ *
+ * @example
+ * ```ts
+ * isWithTrailingSharp('https://example.com#') // true
+ * isWithTrailingSharp('https://example.com')  // false
+ * ```
+ */
+export function isWithTrailingSharp<T extends string>(url: T): boolean {
+  return url.endsWith('#')
+}
+
+/**
  * Matches a version segment in a path that starts with `/v<number>` and optionally
  * continues with `alpha` or `beta`. The segment may be followed by `/` or the end
  * of the string (useful for cases like `/v3alpha/resources`).
