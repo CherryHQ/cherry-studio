@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "clear": {
+        "button": "[to be translated]:Clear custom path"
+      },
+      "customPath": "[to be translated]:Using custom path: {{path}}",
       "error": {
         "description": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Ο πράκτορας δεν μπορεί να λειτουργήσει χωρίς αυτό. Παρακαλούμε εγκαταστήστε το Git για Windows από",
         "recheck": "Επανέλεγχος Εγκατάστασης του Git Bash",
         "title": "Απαιτείται Git Bash"
       },
+      "found": {
+        "title": "[to be translated]:Git Bash configured"
+      },
       "notFound": "Το Git Bash δεν βρέθηκε. Παρακαλώ εγκαταστήστε το πρώτα.",
+      "pick": {
+        "button": "[to be translated]:Select Git Bash Path",
+        "failed": "[to be translated]:Failed to set Git Bash path",
+        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
+        "title": "[to be translated]:Select Git Bash executable"
+      },
       "success": "Το Git Bash εντοπίστηκε με επιτυχία!"
     },
     "input": {
@@ -3912,6 +3926,7 @@
       "jsonSaveError": "Αποτυχία αποθήκευσης της διαμορφωτικής ρύθμισης JSON",
       "jsonSaveSuccess": "Η διαμορφωτική ρύθμιση JSON αποθηκεύτηκε επιτυχώς",
       "logoUrl": "URL Λογότυπου",
+      "logs": "Αρχεία καταγραφής",
       "longRunning": "Μακροχρόνια λειτουργία",
       "longRunningTooltip": "Όταν ενεργοποιηθεί, ο διακομιστής υποστηρίζει μακροχρόνιες εργασίες, επαναφέρει το χρονικό όριο μετά από λήψη ειδοποίησης προόδου και επεκτείνει το μέγιστο χρονικό όριο σε 10 λεπτά.",
       "marketplaces": "Αγορές",
@@ -3931,6 +3946,7 @@
       "name": "Όνομα",
       "newServer": "Διακομιστής MCP",
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
+      "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {

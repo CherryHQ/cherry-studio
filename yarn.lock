@@ -503,9 +503,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@anthropic-ai/claude-agent-sdk@npm:0.1.53":
-  version: 0.1.53
-  resolution: "@anthropic-ai/claude-agent-sdk@npm:0.1.53"
+"@anthropic-ai/claude-agent-sdk@npm:0.1.62":
+  version: 0.1.62
+  resolution: "@anthropic-ai/claude-agent-sdk@npm:0.1.62"
   dependencies:
     "@img/sharp-darwin-arm64": "npm:^0.33.5"
     "@img/sharp-darwin-x64": "npm:^0.33.5"
@@ -534,13 +534,13 @@ __metadata:
       optional: true
     "@img/sharp-win32-x64":
       optional: true
-  checksum: 10c0/9b8e444f113e1f6a425d87287c653a5a441836c6100e954fdc33ce9149c8d87ca1a7d495563f4fac583cbaf14946fe18c321eb555b3f0e44a5de8433ba06bdaf
+  checksum: 10c0/bca0978651cd28798cd71a0071618eca37253905841fa0e20ec59f69ac4865e2c6c4e5fec034bc7b85a5748df5c3c37e3193d6adbd1cad73668f112d049390a3
   languageName: node
   linkType: hard
 
-"@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.53#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.53-4b77f4cf29.patch":
-  version: 0.1.53
-  resolution: "@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.53#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.53-4b77f4cf29.patch::version=0.1.53&hash=b05505"
+"@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.62#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.62-23ae56f8c8.patch":
+  version: 0.1.62
+  resolution: "@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.62#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.62-23ae56f8c8.patch::version=0.1.62&hash=b8fdbe"
   dependencies:
     "@img/sharp-darwin-arm64": "npm:^0.33.5"
     "@img/sharp-darwin-x64": "npm:^0.33.5"
@@ -569,7 +569,7 @@ __metadata:
       optional: true
     "@img/sharp-win32-x64":
       optional: true
-  checksum: 10c0/54abfc37ca1e1617503b1a70d31a165b95cb898e6192637d3ab450be081bc8c89933714d1b150f5c3ef3948b3c481f81b9dfaf45fa1edff745477edf3e3c58e5
+  checksum: 10c0/6c59cfc3d3b7d903d946c5da6e0c2ad6798ae837b67c2a9e679df2803d7577823f8feec26e48fa9f815b9ff19612c66e2682fdd182be0344b60febb6e64ac85e
   languageName: node
   linkType: hard
 
@@ -10046,7 +10046,7 @@ __metadata:
     "@ai-sdk/perplexity": "npm:^2.0.20"
     "@ai-sdk/test-server": "npm:^0.0.1"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
-    "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.53#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.53-4b77f4cf29.patch"
+    "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.62#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.62-23ae56f8c8.patch"
     "@anthropic-ai/sdk": "npm:^0.41.0"
     "@anthropic-ai/vertex-sdk": "patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch"
     "@aws-sdk/client-bedrock": "npm:^3.910.0"
@@ -10187,6 +10187,7 @@ __metadata:
     clsx: "npm:^2.1.1"
     code-inspector-plugin: "npm:^0.20.14"
     color: "npm:^5.0.0"
+    concurrently: "npm:^9.2.1"
     country-flag-emoji-polyfill: "npm:0.1.8"
     dayjs: "npm:^1.11.11"
     dexie: "npm:^4.0.8"
@@ -11503,6 +11504,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"chalk@npm:4.1.2, chalk@npm:^4.0.0, chalk@npm:^4.0.2, chalk@npm:^4.1.0, chalk@npm:^4.1.1, chalk@npm:^4.1.2":
+  version: 4.1.2
+  resolution: "chalk@npm:4.1.2"
+  dependencies:
+    ansi-styles: "npm:^4.1.0"
+    supports-color: "npm:^7.1.0"
+  checksum: 10c0/4a3fef5cc34975c898ffe77141450f679721df9dde00f6c304353fa9c8b571929123b26a0e4617bde5018977eb655b31970c297b91b63ee83bb82aeb04666880
+  languageName: node
+  linkType: hard
+
 "chalk@npm:^3.0.0":
   version: 3.0.0
   resolution: "chalk@npm:3.0.0"
@@ -11510,16 +11521,6 @@ __metadata:
     ansi-styles: "npm:^4.1.0"
     supports-color: "npm:^7.1.0"
   checksum: 10c0/ee650b0a065b3d7a6fda258e75d3a86fc8e4effa55871da730a9e42ccb035bf5fd203525e5a1ef45ec2582ecc4f65b47eb11357c526b84dd29a14fb162c414d2
-  languageName: node
-  linkType: hard
-
-"chalk@npm:^4.0.0, chalk@npm:^4.0.2, chalk@npm:^4.1.0, chalk@npm:^4.1.1, chalk@npm:^4.1.2":
-  version: 4.1.2
-  resolution: "chalk@npm:4.1.2"
-  dependencies:
-    ansi-styles: "npm:^4.1.0"
-    supports-color: "npm:^7.1.0"
-  checksum: 10c0/4a3fef5cc34975c898ffe77141450f679721df9dde00f6c304353fa9c8b571929123b26a0e4617bde5018977eb655b31970c297b91b63ee83bb82aeb04666880
   languageName: node
   linkType: hard
 
@@ -12142,6 +12143,23 @@ __metadata:
   version: 0.0.1
   resolution: "concat-map@npm:0.0.1"
   checksum: 10c0/c996b1cfdf95b6c90fee4dae37e332c8b6eb7d106430c17d538034c0ad9a1630cb194d2ab37293b1bdd4d779494beee7786d586a50bd9376fd6f7bcc2bd4c98f
+  languageName: node
+  linkType: hard
+
+"concurrently@npm:^9.2.1":
+  version: 9.2.1
+  resolution: "concurrently@npm:9.2.1"
+  dependencies:
+    chalk: "npm:4.1.2"
+    rxjs: "npm:7.8.2"
+    shell-quote: "npm:1.8.3"
+    supports-color: "npm:8.1.1"
+    tree-kill: "npm:1.2.2"
+    yargs: "npm:17.7.2"
+  bin:
+    conc: dist/bin/concurrently.js
+    concurrently: dist/bin/concurrently.js
+  checksum: 10c0/da37f239f82eb7ac24f5ddb56259861e5f1d6da2ade7602b6ea7ad3101b13b5ccec02a77b7001402d1028ff2fdc38eed55644b32853ad5abf30e057002a963aa
   languageName: node
   linkType: hard
 
@@ -23008,6 +23026,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"rxjs@npm:7.8.2":
+  version: 7.8.2
+  resolution: "rxjs@npm:7.8.2"
+  dependencies:
+    tslib: "npm:^2.1.0"
+  checksum: 10c0/1fcd33d2066ada98ba8f21fcbbcaee9f0b271de1d38dc7f4e256bfbc6ffcdde68c8bfb69093de7eeb46f24b1fb820620bf0223706cff26b4ab99a7ff7b2e2c45
+  languageName: node
+  linkType: hard
+
 "safe-buffer@npm:5.2.1, safe-buffer@npm:^5.0.1, safe-buffer@npm:^5.1.1, safe-buffer@npm:~5.2.0":
   version: 5.2.1
   resolution: "safe-buffer@npm:5.2.1"
@@ -23337,6 +23364,13 @@ __metadata:
   version: 3.0.0
   resolution: "shebang-regex@npm:3.0.0"
   checksum: 10c0/1dbed0726dd0e1152a92696c76c7f06084eb32a90f0528d11acd764043aacf76994b2fb30aa1291a21bd019d6699164d048286309a278855ee7bec06cf6fb690
+  languageName: node
+  linkType: hard
+
+"shell-quote@npm:1.8.3":
+  version: 1.8.3
+  resolution: "shell-quote@npm:1.8.3"
+  checksum: 10c0/bee87c34e1e986cfb4c30846b8e6327d18874f10b535699866f368ade11ea4ee45433d97bf5eada22c4320c27df79c3a6a7eb1bf3ecfc47f2c997d9e5e2672fd
   languageName: node
   linkType: hard
 
@@ -24065,6 +24099,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"supports-color@npm:8.1.1":
+  version: 8.1.1
+  resolution: "supports-color@npm:8.1.1"
+  dependencies:
+    has-flag: "npm:^4.0.0"
+  checksum: 10c0/ea1d3c275dd604c974670f63943ed9bd83623edc102430c05adb8efc56ba492746b6e95386e7831b872ec3807fd89dd8eb43f735195f37b5ec343e4234cc7e89
+  languageName: node
+  linkType: hard
+
 "supports-color@npm:^7.1.0":
   version: 7.2.0
   resolution: "supports-color@npm:7.2.0"
@@ -24602,7 +24645,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tree-kill@npm:^1.2.2":
+"tree-kill@npm:1.2.2, tree-kill@npm:^1.2.2":
   version: 1.2.2
   resolution: "tree-kill@npm:1.2.2"
   bin:
@@ -26271,7 +26314,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yargs@npm:^17.0.1, yargs@npm:^17.5.1, yargs@npm:^17.6.2, yargs@npm:^17.7.2":
+"yargs@npm:17.7.2, yargs@npm:^17.0.1, yargs@npm:^17.5.1, yargs@npm:^17.6.2, yargs@npm:^17.7.2":
   version: 17.7.2
   resolution: "yargs@npm:17.7.2"
   dependencies:

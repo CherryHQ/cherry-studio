@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Automatisch ermitteltes Git Bash wird verwendet",
+      "clear": {
+        "button": "Benutzerdefinierten Pfad löschen"
+      },
+      "customPath": "Benutzerdefinierter Pfad: {{path}}",
       "error": {
         "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
         "recheck": "Überprüfe die Git Bash-Installation erneut",
         "title": "Git Bash erforderlich"
       },
+      "found": {
+        "title": "Git Bash konfiguriert"
+      },
       "notFound": "Git Bash nicht gefunden. Bitte installieren Sie es zuerst.",
+      "pick": {
+        "button": "Git Bash Pfad auswählen",
+        "failed": "Git Bash Pfad konnte nicht gesetzt werden",
+        "invalidPath": "Die ausgewählte Datei ist keine gültige Git Bash ausführbare Datei (bash.exe).",
+        "title": "Git Bash ausführbare Datei auswählen"
+      },
       "success": "Git Bash erfolgreich erkannt!"
     },
     "input": {
@@ -3912,6 +3926,7 @@
       "jsonSaveError": "JSON-Konfiguration speichern fehlgeschlagen",
       "jsonSaveSuccess": "JSON-Konfiguration erfolgreich gespeichert",
       "logoUrl": "Logo-URL",
+      "logs": "Protokolle",
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
       "marketplaces": "Marktplätze",
@@ -3931,6 +3946,7 @@
       "name": "Name",
       "newServer": "MCP-Server",
       "noDescriptionAvailable": "Keine Beschreibung",
+      "noLogs": "Noch keine Protokolle",
       "noServers": "Server nicht konfiguriert",
       "not_support": "Modell nicht unterstützt",
       "npx_list": {

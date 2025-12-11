@@ -131,15 +131,37 @@ export function findExecutable(name: string): string | null {
 
 /**
  * Find Git Bash executable on Windows
+ * @param customPath - Optional custom path from config
  * @returns Full path to bash.exe or null if not found
  */
-export function findGitBash(): string | null {
+export function findGitBash(customPath?: string | null): string | null {
   // Git Bash is Windows-only
   if (!isWin) {
     return null
   }
 
-  // 1. Find git.exe and derive bash.exe path
+  // 1. Check custom path from config first
+  if (customPath) {
+    const validated = validateGitBashPath(customPath)
+    if (validated) {
+      logger.debug('Using custom Git Bash path from config', { path: validated })
+      return validated
+    }
+    logger.warn('Custom Git Bash path provided but invalid', { path: customPath })
+  }
+
+  // 2. Check environment variable override
+  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  if (envOverride) {
+    const validated = validateGitBashPath(envOverride)
+    if (validated) {
+      logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override for bash.exe', { path: validated })
+      return validated
+    }
+    logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
+  }
+
+  // 3. Find git.exe and derive bash.exe path
   const gitPath = findExecutable('git')
   if (gitPath) {
     // Try multiple possible locations for bash.exe relative to git.exe
@@ -164,7 +186,7 @@ export function findGitBash(): string | null {
     })
   }
 
-  // 2. Fallback: check common Git Bash paths directly
+  // 4. Fallback: check common Git Bash paths directly
   const commonBashPaths = [
     path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
     path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
@@ -180,4 +202,26 @@ export function findGitBash(): string | null {
 
   logger.debug('Git Bash not found - checked git derivation and common paths')
   return null
+}
+
+export function validateGitBashPath(customPath?: string | null): string | null {
+  if (!customPath) {
+    return null
+  }
+
+  const resolved = path.resolve(customPath)
+
+  if (!fs.existsSync(resolved)) {
+    logger.warn('Custom Git Bash path does not exist', { path: resolved })
+    return null
+  }
+
+  const isExe = resolved.toLowerCase().endsWith('bash.exe')
+  if (!isExe) {
+    logger.warn('Custom Git Bash path is not bash.exe', { path: resolved })
+    return null
+  }
+
+  logger.debug('Validated custom Git Bash path', { path: resolved })
+  return resolved
 }

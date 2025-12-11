@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "使用自动检测的 Git Bash",
+      "clear": {
+        "button": "清除自定义路径"
+      },
+      "customPath": "使用自定义路径：{{path}}",
       "error": {
         "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
         "recheck": "重新检测 Git Bash 安装",
         "title": "需要 Git Bash"
       },
+      "found": {
+        "title": "已配置 Git Bash"
+      },
       "notFound": "未找到 Git Bash。请先安装。",
+      "pick": {
+        "button": "选择 Git Bash 路径",
+        "failed": "设置 Git Bash 路径失败",
+        "invalidPath": "选择的文件不是有效的 Git Bash 可执行文件（bash.exe）。",
+        "title": "选择 Git Bash 可执行文件"
+      },
       "success": "成功检测到 Git Bash！"
     },
     "input": {
@@ -3912,6 +3926,7 @@
       "jsonSaveError": "保存 JSON 配置失败",
       "jsonSaveSuccess": "JSON 配置已保存",
       "logoUrl": "标志网址",
+      "logs": "日志",
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "marketplaces": "市场",
@@ -3931,6 +3946,7 @@
       "name": "名称",
       "newServer": "MCP 服务器",
       "noDescriptionAvailable": "暂无描述",
+      "noLogs": "暂无日志",
       "noServers": "未配置服务器",
       "not_support": "模型不支持",
       "npx_list": {
