@@ -158,6 +158,29 @@ describe('modelParameters', () => {
 
       expect(getTemperature(assistant, model)).toBe(0.8)
     })
+
+    it('converts string temperature values to numbers', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: '2.0' as any })
+      const model = createModel({ id: 'gpt-4o', provider: 'openai', group: 'openai' })
+
+      const result = getTemperature(assistant, model)
+      expect(result).toBe(2.0)
+      expect(typeof result).toBe('number')
+    })
+
+    it('converts string temperature values to numbers and clamps when necessary', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: '1.5' as any })
+      const model = createModel({
+        id: 'claude-sonnet-3.5',
+        name: 'Claude 3.5 Sonnet',
+        provider: 'anthropic',
+        group: 'claude'
+      })
+
+      const result = getTemperature(assistant, model)
+      expect(result).toBe(1.0)
+      expect(typeof result).toBe('number')
+    })
   })
 
   describe('getTopP', () => {
@@ -199,6 +222,15 @@ describe('modelParameters', () => {
       const model = createModel({ id: 'gpt-4o', provider: 'openai', group: 'openai' })
 
       expect(getTopP(assistant, model)).toBeUndefined()
+    })
+
+    it('converts string topP values to numbers', () => {
+      const assistant = createAssistant({ enableTopP: true, topP: '0.9' as any })
+      const model = createModel({ id: 'gpt-4o', provider: 'openai', group: 'openai' })
+
+      const result = getTopP(assistant, model)
+      expect(result).toBe(0.9)
+      expect(typeof result).toBe('number')
     })
   })
 

@@ -988,5 +988,29 @@ describe('reasoning utils', () => {
         valid: 'value3'
       })
     })
+
+    it('should convert string number values to actual numbers for number type parameters', async () => {
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          customParameters: [
+            { name: 'temperature', value: '2.0' as any, type: 'number' },
+            { name: 'maxTokens', value: '1000' as any, type: 'number' },
+            { name: 'topP', value: '0.9' as any, type: 'number' }
+          ]
+        }
+      } as Assistant
+
+      const result = getCustomParameters(assistant)
+      expect(result).toEqual({
+        temperature: 2.0,
+        maxTokens: 1000,
+        topP: 0.9
+      })
+      expect(typeof result.temperature).toBe('number')
+      expect(typeof result.maxTokens).toBe('number')
+      expect(typeof result.topP).toBe('number')
+    })
   })
 })
