@@ -798,7 +798,8 @@
       "showByTags": "標籤顯示"
     },
     "move_all": {
-      "confirm": "要將「{{from}}」的所有話題移動到「{{to}}」並合併嗎？",
+      "confirm": "將「{{from}}」的所有話題移動到「{{to}}」並合併嗎？",
+      "dedupe": "去重（按話題名稱）",
       "title": "移動所有話題到"
     },
     "presets": {
@@ -1382,6 +1383,8 @@
       "title": "建議的問題"
     },
     "thinking": "思考中（用時 {{seconds}} 秒）",
+    "thinking_effort_in_progress": "{{effort}}中（用時 {{seconds}} 秒）",
+    "thought_done": "已{{effort}}（用時 {{seconds}} 秒）",
     "topics": {
       "auto_rename": "自動重新命名",
       "clear": {
@@ -1478,6 +1481,10 @@
       },
       "move_to": "移動到",
       "multi_select": {
+        "batch_rename": "批次產生話題名稱",
+        "batch_rename_failed": "重新命名失敗：{{name}}",
+        "batch_rename_skip_empty": "【{{name}}】無訊息，已跳過",
+        "batch_rename_success": "已重新命名：{{name}}",
         "clear": "清空選擇",
         "delete": "批次刪除",
         "empty": "請先選擇話題",
@@ -1485,10 +1492,11 @@
         "export": "匯出為 ChatGPT JSON",
         "label": "多選",
         "move": "批次移動",
-        "select": "選中",
+        "select": "選取",
         "select_all": "全選",
+        "select_all_unique": "全選去重（按標題）",
         "selected_count": "已選 {{count}} 條",
-        "unselect": "取消選中"
+        "unselect": "取消選取"
       },
       "new": "開始新對話",
       "pin": "固定話題",
@@ -1502,6 +1510,12 @@
       "search": {
         "placeholder": "搜尋話題...",
         "title": "搜尋"
+      },
+      "sort": {
+        "created": "[to be translated]:By created time",
+        "label": "[to be translated]:Sort",
+        "name": "[to be translated]:By name",
+        "updated": "[to be translated]:By updated time"
       },
       "title": "話題",
       "unpin": "取消固定"
@@ -1985,6 +1999,15 @@
       "label": "確定要匯入外部資料嗎？"
     },
     "content": "選擇要匯入的外部應用對話檔案，暫時僅支援 ChatGPT 的 JSON 格式檔案",
+    "gemini": {
+      "assistant_name": "[to be translated]:Gemini Import",
+      "error": {
+        "no_conversations": "[to be translated]:No Gemini conversations found",
+        "no_valid_conversations": "[to be translated]:No valid Gemini conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "title": "匯入外部對話"
   },
   "knowledge": {
@@ -2136,7 +2159,9 @@
   },
   "launchpad": {
     "apps": "應用",
-    "minapps": "小程式"
+    "assistant": "[to be translated]:Assistant",
+    "minapps": "小程式",
+    "topic": "[to be translated]:Topic"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2600,9 +2625,18 @@
   "minapp": {
     "add_to_launchpad": "新增到啟動台",
     "add_to_sidebar": "新增到側邊欄",
+    "export": {
+      "error": "[to be translated]:Export failed: {{error}}",
+      "no_conversations": "[to be translated]:No conversations found",
+      "no_webview": "[to be translated]:WebView is not ready, please try again",
+      "success": "[to be translated]:Exported successfully! Assistant \"{{name}}\" created with {{count}} conversations",
+      "unknown": "[to be translated]:Unknown error"
+    },
     "popup": {
       "close": "關閉小工具",
       "devtools": "開發者工具",
+      "export": "[to be translated]:Export chats",
+      "exporting": "[to be translated]:Exporting...",
       "goBack": "上一頁",
       "goForward": "下一頁",
       "minimize": "最小化小工具",
@@ -5572,6 +5606,7 @@
       "actions": "操作",
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
+      "close_tab": "關閉分頁",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
       "enabled": "啟用",

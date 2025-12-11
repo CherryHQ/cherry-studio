@@ -799,6 +799,7 @@
     },
     "move_all": {
       "confirm": "将「{{from}}」的所有话题移动到「{{to}}」并合并吗？",
+      "dedupe": "去重（按话题名称）",
       "title": "移动所有话题到"
     },
     "presets": {
@@ -1382,6 +1383,8 @@
       "title": "建议的问题"
     },
     "thinking": "思考中（用时 {{seconds}} 秒）",
+    "thinking_effort_in_progress": "{{effort}}中（用时 {{seconds}} 秒）",
+    "thought_done": "已{{effort}}（用时 {{seconds}} 秒）",
     "topics": {
       "auto_rename": "生成话题名",
       "clear": {
@@ -1478,6 +1481,10 @@
       },
       "move_to": "移动到",
       "multi_select": {
+        "batch_rename": "批量生成话题名",
+        "batch_rename_failed": "重命名失败：{{name}}",
+        "batch_rename_skip_empty": "【{{name}}】无消息，已跳过",
+        "batch_rename_success": "已重命名：{{name}}",
         "clear": "清空选择",
         "delete": "批量删除",
         "empty": "请先选择话题",
@@ -1487,6 +1494,7 @@
         "move": "批量移动",
         "select": "选中",
         "select_all": "全选",
+        "select_all_unique": "全选去重（按标题）",
         "selected_count": "已选 {{count}} 条",
         "unselect": "取消选中"
       },
@@ -1502,6 +1510,12 @@
       "search": {
         "placeholder": "搜索话题...",
         "title": "搜索"
+      },
+      "sort": {
+        "created": "按创建时间",
+        "label": "排序",
+        "name": "按名称",
+        "updated": "按更新时间"
       },
       "title": "话题",
       "unpin": "取消固定"
@@ -1985,6 +1999,15 @@
       "label": "确定要导入外部数据吗？"
     },
     "content": "选择要导入的外部应用对话文件，暂时仅支持ChatGPT的JSON格式文件",
+    "gemini": {
+      "assistant_name": "Gemini 导入",
+      "error": {
+        "no_conversations": "未找到任何 Gemini 对话",
+        "no_valid_conversations": "没有可导入的有效 Gemini 对话",
+        "unknown": "导入失败，请检查文件格式"
+      },
+      "untitled_conversation": "未命名对话"
+    },
     "title": "导入外部对话"
   },
   "knowledge": {
@@ -2136,7 +2159,9 @@
   },
   "launchpad": {
     "apps": "应用",
-    "minapps": "小程序"
+    "assistant": "助手",
+    "minapps": "小程序",
+    "topic": "话题"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2600,9 +2625,18 @@
   "minapp": {
     "add_to_launchpad": "添加到启动台",
     "add_to_sidebar": "添加到侧边栏",
+    "export": {
+      "error": "导出失败：{{error}}",
+      "no_conversations": "未找到任何对话记录",
+      "no_webview": "WebView 未就绪，请稍后重试",
+      "success": "导出成功！已创建助手 \"{{name}}\"，包含 {{count}} 个对话",
+      "unknown": "未知错误"
+    },
     "popup": {
       "close": "关闭小程序",
       "devtools": "开发者工具",
+      "export": "导出聊天记录",
+      "exporting": "正在导出...",
       "goBack": "后退",
       "goForward": "前进",
       "minimize": "最小化小程序",
@@ -5572,6 +5606,7 @@
       "actions": "操作",
       "clear_shortcut": "清除快捷键",
       "clear_topic": "清空消息",
+      "close_tab": "关闭标签页",
       "copy_last_message": "复制上一条消息",
       "edit_last_user_message": "编辑最后一条用户消息",
       "enabled": "启用",

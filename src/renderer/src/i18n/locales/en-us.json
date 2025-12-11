@@ -799,6 +799,7 @@
     },
     "move_all": {
       "confirm": "Move all topics from \"{{from}}\" to \"{{to}}\" and merge?",
+      "dedupe": "Deduplicate (by topic name)",
       "title": "Move all topics to"
     },
     "presets": {
@@ -1382,6 +1383,8 @@
       "title": "Suggested Questions"
     },
     "thinking": "Thinking ({{seconds}} seconds)",
+    "thinking_effort_in_progress": "Thinking ({{effort}}) ({{seconds}} seconds)",
+    "thought_done": "Thought ({{effort}}) ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "Auto Rename",
       "clear": {
@@ -1478,6 +1481,10 @@
       },
       "move_to": "Move to",
       "multi_select": {
+        "batch_rename": "Batch rename topics",
+        "batch_rename_failed": "Rename failed: {{name}}",
+        "batch_rename_skip_empty": "Skipped {{name}} (no messages)",
+        "batch_rename_success": "Renamed: {{name}}",
         "clear": "Clear",
         "delete": "Delete Selected",
         "empty": "Please select topics first",
@@ -1487,6 +1494,7 @@
         "move": "Move Selected",
         "select": "Select",
         "select_all": "Select All",
+        "select_all_unique": "Select all (dedup titles)",
         "selected_count": "{{count}} selected",
         "unselect": "Unselect"
       },
@@ -1502,6 +1510,12 @@
       "search": {
         "placeholder": "Search topics...",
         "title": "Search"
+      },
+      "sort": {
+        "created": "By created time",
+        "label": "Sort",
+        "name": "By name",
+        "updated": "By updated time"
       },
       "title": "Topics",
       "unpin": "Unpin Topic"
@@ -1985,6 +1999,15 @@
       "label": "Are you sure you want to import external data?"
     },
     "content": "Select external application conversation file to import, currently only supports ChatGPT JSON format files",
+    "gemini": {
+      "assistant_name": "Gemini Import",
+      "error": {
+        "no_conversations": "No Gemini conversations found",
+        "no_valid_conversations": "No valid Gemini conversations to import",
+        "unknown": "Import failed, please check file format"
+      },
+      "untitled_conversation": "Untitled Conversation"
+    },
     "title": "Import External Conversations"
   },
   "knowledge": {
@@ -2136,7 +2159,9 @@
   },
   "launchpad": {
     "apps": "Apps",
-    "minapps": "Minapps"
+    "assistant": "Assistant",
+    "minapps": "Minapps",
+    "topic": "Topic"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2600,9 +2625,18 @@
   "minapp": {
     "add_to_launchpad": "Add to Launchpad",
     "add_to_sidebar": "Add to Sidebar",
+    "export": {
+      "error": "Export failed: {{error}}",
+      "no_conversations": "No conversations found",
+      "no_webview": "WebView is not ready, please try again",
+      "success": "Exported successfully! Assistant \"{{name}}\" created with {{count}} conversations",
+      "unknown": "Unknown error"
+    },
     "popup": {
       "close": "Close MinApp",
       "devtools": "Developer Tools",
+      "export": "Export chats",
+      "exporting": "Exporting...",
       "goBack": "Go Back",
       "goForward": "Go Forward",
       "minimize": "Minimize MinApp",
@@ -5572,6 +5606,7 @@
       "actions": "operation",
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
+      "close_tab": "Close tab",
       "copy_last_message": "Copy Last Message",
       "edit_last_user_message": "Edit Last User Message",
       "enabled": "Enable",
