@@ -1,5 +1,4 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
@@ -24,7 +23,6 @@ interface AgentItemProps {
 
 const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
   const { t } = useTranslation()
-  useSessions(agent.id)
   const { clickAssistantToShowTopic, topicPosition, assistantIconType } = useSettings()
 
   const handlePress = useCallback(() => {
