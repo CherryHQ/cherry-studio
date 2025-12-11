@@ -471,6 +471,14 @@
         "url_placeholder": "JSON-URL eingeben"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Stapel löschen",
+          "confirm": "Sind Sie sicher, dass Sie die ausgewählten {{count}} Assistenten löschen möchten?"
+        },
+        "mode": {
+          "delete": "Löschen",
+          "sort": "Sortieren"
+        },
         "title": "Assistenten verwalten"
       },
       "my_agents": "Meine Assistenten",
@@ -1185,6 +1193,7 @@
     "saved": "Gespeichert",
     "search": "Suchen",
     "select": "Auswählen",
+    "select_all": "Alle auswählen",
     "selected": "Ausgewählt",
     "selectedItems": "{{count}} Elemente ausgewählt",
     "selectedMessages": "{{count}} Nachrichten ausgewählt",

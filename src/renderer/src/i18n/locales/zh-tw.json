@@ -471,6 +471,14 @@
         "url_placeholder": "輸入 JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "批次刪除",
+          "confirm": "您確定要刪除所選的 {{count}} 個助理嗎？"
+        },
+        "mode": {
+          "delete": "刪除",
+          "sort": "排序"
+        },
         "title": "管理助手"
       },
       "my_agents": "我的助手",
@@ -1185,6 +1193,7 @@
     "saved": "已儲存",
     "search": "搜尋",
     "select": "選擇",
+    "select_all": "全選",
     "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "選中 {{count}} 條訊息",

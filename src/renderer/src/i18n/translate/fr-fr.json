@@ -471,6 +471,14 @@
         "url_placeholder": "Saisir l'URL JSON"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Suppression par lot",
+          "confirm": "Êtes-vous sûr de vouloir supprimer les {{count}} assistants sélectionnés ?"
+        },
+        "mode": {
+          "delete": "Supprimer",
+          "sort": "Trier"
+        },
         "title": "Gérer les assistants"
       },
       "my_agents": "Mes assistants",
@@ -1185,6 +1193,7 @@
     "saved": "enregistré",
     "search": "Rechercher",
     "select": "Sélectionner",
+    "select_all": "Tout sélectionner",
     "selected": "Sélectionné",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",

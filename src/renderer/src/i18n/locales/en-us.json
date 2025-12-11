@@ -471,6 +471,14 @@
         "url_placeholder": "Enter JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Batch Delete",
+          "confirm": "Are you sure you want to delete the selected {{count}} assistants?"
+        },
+        "mode": {
+          "delete": "Delete",
+          "sort": "Sort"
+        },
         "title": "Manage Assistants"
       },
       "my_agents": "My Assistants",
@@ -1185,6 +1193,7 @@
     "saved": "Saved",
     "search": "Search",
     "select": "Select",
+    "select_all": "Select All",
     "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",

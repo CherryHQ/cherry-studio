@@ -471,6 +471,14 @@
         "url_placeholder": "JSON URLを入力"
       },
       "manage": {
+        "batch_delete": {
+          "button": "バッチ削除",
+          "confirm": "選択した{{count}}件のアシスタントを削除してもよろしいですか？"
+        },
+        "mode": {
+          "delete": "削除",
+          "sort": "並べ替え"
+        },
         "title": "アシスタントを管理"
       },
       "my_agents": "マイアシスタント",
@@ -1185,6 +1193,7 @@
     "saved": "保存されました",
     "search": "検索",
     "select": "選択",
+    "select_all": "すべて選択",
     "selected": "選択済み",
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
