@@ -7,7 +7,6 @@ import {
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
-import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
@@ -27,7 +26,7 @@ import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('AssistantService')
 
-export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
+export const DEFAULT_ASSISTANT_SETTINGS = {
   temperature: DEFAULT_TEMPERATURE,
   enableTemperature: true,
   contextCount: DEFAULT_CONTEXTCOUNT,
@@ -39,7 +38,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   // It would gracefully fallback to prompt if not supported by model.
   toolUseMode: 'function',
   customParameters: []
-} as const
+} as const satisfies AssistantSettings
 
 export function getDefaultAssistant(): Assistant {
   return {
@@ -142,7 +141,7 @@ export function getProviderByModel(model?: Model): Provider {
 
   if (!provider) {
     const defaultProvider = providers.find((p) => p.id === getDefaultModel()?.provider)
-    return defaultProvider || CHERRYAI_PROVIDER || providers[0]
+    return defaultProvider || providers[0]
   }
 
   return provider

@@ -4,6 +4,7 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
+import { db } from '@renderer/databases'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -11,6 +12,7 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RootState } from '@renderer/store'
 import store from '@renderer/store'
@@ -65,7 +67,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
   const { assistants } = useAssistants()
-  const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
+  const { assistant, addTopic, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
@@ -79,7 +81,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
 
-  const topicEdit = useInPlaceEdit({
+  const { startEdit, isEditing, inputProps } = useInPlaceEdit({
     onSave: (name: string) => {
       const topic = assistant.topics.find((t) => t.id === editingTopicId)
       if (topic && name !== topic.name) {
@@ -138,17 +140,21 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     async (topic: Topic, e: React.MouseEvent) => {
       e.stopPropagation()
       if (assistant.topics.length === 1) {
-        return onClearMessages(topic)
+        const newTopic = getDefaultTopic(assistant.id)
+        await db.topics.add({ id: newTopic.id, messages: [] })
+        addTopic(newTopic)
+        setActiveTopic(newTopic)
+      } else {
+        const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+        if (topic.id === activeTopic.id) {
+          setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+        }
       }
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      if (topic.id === activeTopic.id) {
-        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
-      }
       removeTopic(topic)
       setDeletingTopicId(null)
     },
-    [activeTopic.id, assistant.topics, onClearMessages, removeTopic, setActiveTopic]
+    [activeTopic.id, addTopic, assistant.id, assistant.topics, removeTopic, setActiveTopic]
   )
 
   const onPinTopic = useCallback(
@@ -520,29 +526,23 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             <TopicListItem
               onContextMenu={() => setTargetTopic(topic)}
               className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-              onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}
+              onClick={editingTopicId === topic.id && isEditing ? undefined : () => onSwitchTopic(topic)}
               style={{
                 borderRadius,
-                cursor: editingTopicId === topic.id && topicEdit.isEditing ? 'default' : 'pointer'
+                cursor: editingTopicId === topic.id && isEditing ? 'default' : 'pointer'
               }}>
               {isPending(topic.id) && !isActive && <PendingIndicator />}
               {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
-                {editingTopicId === topic.id && topicEdit.isEditing ? (
-                  <TopicEditInput
-                    ref={topicEdit.inputRef}
-                    value={topicEdit.editValue}
-                    onChange={topicEdit.handleInputChange}
-                    onKeyDown={topicEdit.handleKeyDown}
-                    onClick={(e) => e.stopPropagation()}
-                  />
+                {editingTopicId === topic.id && isEditing ? (
+                  <TopicEditInput {...inputProps} onClick={(e) => e.stopPropagation()} />
                 ) : (
                   <TopicName
                     className={getTopicNameClassName()}
                     title={topicName}
                     onDoubleClick={() => {
                       setEditingTopicId(topic.id)
-                      topicEdit.startEdit(topic.name)
+                      startEdit(topic.name)
                     }}>
                     {topicName}
                   </TopicName>

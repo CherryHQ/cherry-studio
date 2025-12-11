@@ -1,14 +1,15 @@
+import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
+import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import i18n from '@renderer/i18n'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
@@ -19,14 +20,7 @@ import type { SystemProviderId } from '@renderer/types'
 import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
-import {
-  formatApiHost,
-  formatApiKeys,
-  formatAzureOpenAIApiHost,
-  formatVertexApiHost,
-  getFancyProviderName,
-  validateApiHost
-} from '@renderer/utils'
+import { formatApiHost, formatApiKeys, getFancyProviderName, validateApiHost } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import {
   isAIGatewayProvider,
@@ -34,9 +28,9 @@ import {
   isAzureOpenAIProvider,
   isGeminiProvider,
   isNewApiProvider,
+  isOllamaProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider,
-  isSupportAPIVersionProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
@@ -58,6 +52,7 @@ import {
 } from '..'
 import ApiOptionsSettingsPopup from './ApiOptionsSettings/ApiOptionsSettingsPopup'
 import AwsBedrockSettings from './AwsBedrockSettings'
+import CherryINSettings from './CherryINSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
@@ -105,13 +100,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const [anthropicApiHost, setAnthropicHost] = useState<string | undefined>(provider.anthropicApiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [activeHostField, setActiveHostField] = useState<HostField>('apiHost')
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const dispatch = useAppDispatch()
 
   const isAzureOpenAI = isAzureOpenAIProvider(provider)
   const isDmxapi = provider.id === 'dmxapi'
+  const isCherryIN = provider.id === 'cherryin'
+  const isChineseUser = i18n.language.startsWith('zh')
   const noAPIInputProviders = ['aws-bedrock'] as const satisfies SystemProviderId[]
   const hideApiInput = noAPIInputProviders.some((id) => id === provider.id)
   const noAPIKeyInputProviders = ['copilot', 'vertexai'] as const satisfies SystemProviderId[]
@@ -282,12 +279,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   }, [configuredApiHost, apiHost])
 
   const hostPreview = () => {
-    if (apiHost.endsWith('#')) {
-      return apiHost.replace('#', '')
+    const formattedApiHost = adaptProvider({ provider: { ...provider, apiHost } }).apiHost
+
+    if (isOllamaProvider(provider)) {
+      return formattedApiHost + '/chat'
     }
 
     if (isOpenAICompatibleProvider(provider)) {
-      return formatApiHost(apiHost, isSupportAPIVersionProvider(provider)) + '/chat/completions'
+      return formattedApiHost + '/chat/completions'
     }
 
     if (isAzureOpenAIProvider(provider)) {
@@ -295,29 +294,26 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       const path = !['preview', 'v1'].includes(apiVersion)
         ? `/v1/chat/completion?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`
-      return formatAzureOpenAIApiHost(apiHost) + path
+      return formattedApiHost + path
     }
 
     if (isAnthropicProvider(provider)) {
-      // AI SDK uses the baseURL with /v1, then appends /messages
-      // formatApiHost adds /v1 automatically if not present
-      const normalizedHost = formatApiHost(apiHost)
-      return normalizedHost + '/messages'
+      return formattedApiHost + '/messages'
     }
 
     if (isGeminiProvider(provider)) {
-      return formatApiHost(apiHost, true, 'v1beta') + '/models'
+      return formattedApiHost + '/models'
     }
     if (isOpenAIProvider(provider)) {
-      return formatApiHost(apiHost) + '/responses'
+      return formattedApiHost + '/responses'
     }
     if (isVertexProvider(provider)) {
-      return formatVertexApiHost(provider) + '/publishers/google'
+      return formattedApiHost + '/publishers/google'
     }
     if (isAIGatewayProvider(provider)) {
-      return formatApiHost(apiHost) + '/language-model'
+      return formattedApiHost + '/language-model'
     }
-    return formatApiHost(apiHost)
+    return formattedApiHost
   }
 
   // API key 连通性检查状态指示器，目前仅在失败时显示
@@ -345,13 +341,16 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   }, [provider.anthropicApiHost])
 
   const canConfigureAnthropicHost = useMemo(() => {
+    if (isCherryIN) {
+      return false
+    }
     if (isNewApiProvider(provider)) {
       return true
     }
     return (
       provider.type !== 'anthropic' && isSystemProviderId(provider.id) && isAnthropicCompatibleProviderId(provider.id)
     )
-  }, [provider])
+  }, [isCherryIN, provider])
 
   const anthropicHostPreview = useMemo(() => {
     const rawHost = anthropicApiHost ?? provider.anthropicApiHost
@@ -495,16 +494,21 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           {!isDmxapi && (
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Tooltip title={hostSelectorTooltip} mouseEnterDelay={0.3}>
-                  <Selector
-                    size={14}
-                    value={activeHostField}
-                    onChange={(value) => setActiveHostField(value as HostField)}
-                    options={hostSelectorOptions}
-                    style={{ paddingLeft: 1, fontWeight: 'bold' }}
-                    placement="bottomLeft"
-                  />
-                </Tooltip>
+                <div className="flex items-center gap-1">
+                  <Tooltip title={hostSelectorTooltip} mouseEnterDelay={0.3}>
+                    <div>
+                      <Selector
+                        size={14}
+                        value={activeHostField}
+                        onChange={(value) => setActiveHostField(value as HostField)}
+                        options={hostSelectorOptions}
+                        style={{ paddingLeft: 1, fontWeight: 'bold' }}
+                        placement="bottomLeft"
+                      />
+                    </div>
+                  </Tooltip>
+                  <HelpTooltip title={t('settings.provider.api.url.tip')}></HelpTooltip>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Button
                     type="text"
@@ -515,19 +519,23 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               </SettingSubtitle>
               {activeHostField === 'apiHost' && (
                 <>
-                  <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-                    <Input
-                      value={apiHost}
-                      placeholder={t('settings.provider.api_host')}
-                      onChange={(e) => setApiHost(e.target.value)}
-                      onBlur={onUpdateApiHost}
-                    />
-                    {isApiHostResettable && (
-                      <Button danger onClick={onReset}>
-                        {t('settings.provider.api.url.reset')}
-                      </Button>
-                    )}
-                  </Space.Compact>
+                  {isCherryIN && isChineseUser ? (
+                    <CherryINSettings providerId={provider.id} apiHost={apiHost} setApiHost={setApiHost} />
+                  ) : (
+                    <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+                      <Input
+                        value={apiHost}
+                        placeholder={t('settings.provider.api_host')}
+                        onChange={(e) => setApiHost(e.target.value)}
+                        onBlur={onUpdateApiHost}
+                      />
+                      {isApiHostResettable && (
+                        <Button danger onClick={onReset}>
+                          {t('settings.provider.api.url.reset')}
+                        </Button>
+                      )}
+                    </Space.Compact>
+                  )}
                   {isVertexProvider(provider) && (
                     <SettingHelpTextRow>
                       <SettingHelpText>{t('settings.provider.vertex_ai.api_host_help')}</SettingHelpText>

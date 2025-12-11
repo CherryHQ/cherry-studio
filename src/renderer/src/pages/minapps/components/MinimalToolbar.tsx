@@ -238,19 +238,27 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       <LeftSection>
         <ButtonGroup>
           <Tooltip title={t('minapp.popup.goBack')} placement="bottom">
-            <ToolbarButton onClick={handleGoBack} $disabled={!canGoBack}>
+            <ToolbarButton
+              onClick={handleGoBack}
+              $disabled={!canGoBack}
+              aria-label={t('minapp.popup.goBack')}
+              aria-disabled={!canGoBack}>
               <ArrowLeftOutlined />
             </ToolbarButton>
           </Tooltip>
 
           <Tooltip title={t('minapp.popup.goForward')} placement="bottom">
-            <ToolbarButton onClick={handleGoForward} $disabled={!canGoForward}>
+            <ToolbarButton
+              onClick={handleGoForward}
+              $disabled={!canGoForward}
+              aria-label={t('minapp.popup.goForward')}
+              aria-disabled={!canGoForward}>
               <ArrowRightOutlined />
             </ToolbarButton>
           </Tooltip>
 
           <Tooltip title={t('minapp.popup.refresh')} placement="bottom">
-            <ToolbarButton onClick={onReload}>
+            <ToolbarButton onClick={onReload} aria-label={t('minapp.popup.refresh')}>
               <ReloadOutlined />
             </ToolbarButton>
           </Tooltip>
@@ -261,7 +269,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
         <ButtonGroup>
           {canOpenExternalLink && (
             <Tooltip title={t('minapp.popup.openExternal')} placement="bottom">
-              <ToolbarButton onClick={handleOpenLink}>
+              <ToolbarButton onClick={handleOpenLink} aria-label={t('minapp.popup.openExternal')}>
                 <ExportOutlined />
               </ToolbarButton>
             </Tooltip>
@@ -271,7 +279,11 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
             <Tooltip
               title={isPinned ? t('minapp.remove_from_launchpad') : t('minapp.add_to_launchpad')}
               placement="bottom">
-              <ToolbarButton onClick={handleTogglePin} $active={isPinned}>
+              <ToolbarButton
+                onClick={handleTogglePin}
+                $active={isPinned}
+                aria-label={isPinned ? t('minapp.remove_from_launchpad') : t('minapp.add_to_launchpad')}
+                aria-pressed={isPinned}>
                 <PushpinOutlined />
               </ToolbarButton>
             </Tooltip>
@@ -284,21 +296,29 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                 : t('minapp.popup.open_link_external_off')
             }
             placement="bottom">
-            <ToolbarButton onClick={handleToggleOpenExternal} $active={minappsOpenLinkExternal}>
+            <ToolbarButton
+              onClick={handleToggleOpenExternal}
+              $active={minappsOpenLinkExternal}
+              aria-label={
+                minappsOpenLinkExternal
+                  ? t('minapp.popup.open_link_external_on')
+                  : t('minapp.popup.open_link_external_off')
+              }
+              aria-pressed={minappsOpenLinkExternal}>
               <LinkOutlined />
             </ToolbarButton>
           </Tooltip>
 
           {isDev && (
             <Tooltip title={t('minapp.popup.devtools')} placement="bottom">
-              <ToolbarButton onClick={onOpenDevTools}>
+              <ToolbarButton onClick={onOpenDevTools} aria-label={t('minapp.popup.devtools')}>
                 <CodeOutlined />
               </ToolbarButton>
             </Tooltip>
           )}
 
           <Tooltip title={t('minapp.popup.minimize')} placement="bottom">
-            <ToolbarButton onClick={handleMinimize}>
+            <ToolbarButton onClick={handleMinimize} aria-label={t('minapp.popup.minimize')}>
               <MinusOutlined />
             </ToolbarButton>
           </Tooltip>

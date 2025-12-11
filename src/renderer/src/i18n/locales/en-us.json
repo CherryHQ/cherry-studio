@@ -6,6 +6,9 @@
         "failed": "Failed to add a agent",
         "invalid_agent": "Invalid Agent"
       },
+      "model": {
+        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature."
+      },
       "title": "Add Agent",
       "type": {
         "placeholder": "Select an agent type"
@@ -280,6 +283,7 @@
         "denied": "Tool request was denied.",
         "timeout": "Tool request timed out before receiving approval."
       },
+      "toolPendingFallback": "Tool",
       "waiting": "Waiting for tool permission decision..."
     },
     "type": {
@@ -1161,6 +1165,7 @@
     "no_results": "No results",
     "none": "None",
     "off": "Off",
+    "on": "On",
     "open": "Open",
     "paste": "Paste",
     "placeholders": {
@@ -1208,7 +1213,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Image Generation",
+    "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -2218,7 +2223,10 @@
     "untitled_folder": "New Folder",
     "untitled_note": "Untitled Note",
     "upload_failed": "Note upload failed",
-    "upload_success": "Note uploaded success"
+    "upload_files": "Upload Files",
+    "upload_folder": "Upload Folder",
+    "upload_success": "Note uploaded success",
+    "uploading_files": "Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Assistant Response",
@@ -2509,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Copy as image"
+      "image": "Copy as image",
+      "src": "Copy Image Source"
     },
     "dialog": "Open Dialog",
     "label": "Preview",
@@ -2530,7 +2539,7 @@
   },
   "provider": {
     "302ai": "302.AI",
-    "ai-gateway": "AI Gateway",
+    "ai-gateway": "Vercel AI Gateway",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -3903,6 +3912,7 @@
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
       "logoUrl": "Logo URL",
+      "logs": "Logs",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
       "marketplaces": "Marketplaces",
@@ -3922,6 +3932,7 @@
       "name": "Name",
       "newServer": "MCP Server",
       "noDescriptionAvailable": "No description available",
+      "noLogs": "No logs yet",
       "noServers": "No servers configured",
       "not_support": "Model not supported",
       "npx_list": {
@@ -4270,6 +4281,12 @@
         "tip": "Specifies the latency tier to use for processing the request",
         "title": "Service Tier"
       },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Whether token usage is included (applicable only to the OpenAI Chat Completions API)",
+          "title": "Include usage"
+        }
+      },
       "summary_text_mode": {
         "auto": "auto",
         "concise": "concise",
@@ -4371,7 +4388,7 @@
         "url": {
           "preview": "Preview: {{url}}",
           "reset": "Reset",
-          "tip": "ending with # forces use of input address"
+          "tip": "Add # at the end to disable the automatically appended API version."
         }
       },
       "api_host": "API Host",

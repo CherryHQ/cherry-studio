@@ -6,6 +6,9 @@
         "failed": "無法新增代理人",
         "invalid_agent": "無效的 Agent"
       },
+      "model": {
+        "tooltip": "目前，僅支援 Anthropic 端點的模型可供代理功能使用。"
+      },
       "title": "新增代理",
       "type": {
         "placeholder": "選擇 Agent 類型"
@@ -280,6 +283,7 @@
         "denied": "工具請求已被拒絕。",
         "timeout": "工具請求在收到核准前逾時。"
       },
+      "toolPendingFallback": "工具",
       "waiting": "等待工具權限決定..."
     },
     "type": {
@@ -1161,6 +1165,7 @@
     "no_results": "沒有結果",
     "none": "無",
     "off": "關閉",
+    "on": "開啟",
     "open": "開啟",
     "paste": "貼上",
     "placeholders": {
@@ -1208,7 +1213,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "圖片生成",
+    "image-generation": "圖像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -2218,7 +2223,10 @@
     "untitled_folder": "新資料夾",
     "untitled_note": "無標題筆記",
     "upload_failed": "筆記上傳失敗",
-    "upload_success": "筆記上傳成功"
+    "upload_files": "上傳檔案",
+    "upload_folder": "上傳資料夾",
+    "upload_success": "筆記上傳成功",
+    "uploading_files": "正在上傳 {{count}} 個檔案..."
   },
   "notification": {
     "assistant": "助手回應",
@@ -2509,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "複製為圖片"
+      "image": "複製為圖片",
+      "src": "複製圖片來源"
     },
     "dialog": "開啟預覽窗口",
     "label": "預覽",
@@ -3903,6 +3912,7 @@
       "jsonSaveError": "保存 JSON 配置失敗",
       "jsonSaveSuccess": "JSON 配置已儲存",
       "logoUrl": "標誌網址",
+      "logs": "日誌",
       "longRunning": "長時間運行模式",
       "longRunningTooltip": "啟用後，伺服器支援長時間任務，接收到進度通知時會重置超時計時器，並延長最大超時時間至10分鐘",
       "marketplaces": "市場",
@@ -3922,6 +3932,7 @@
       "name": "名稱",
       "newServer": "MCP 伺服器",
       "noDescriptionAvailable": "描述不存在",
+      "noLogs": "暫無日誌",
       "noServers": "未設定伺服器",
       "not_support": "不支援此模型",
       "npx_list": {
@@ -4270,6 +4281,12 @@
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"
       },
+      "stream_options": {
+        "include_usage": {
+          "tip": "是否請求 Tokens 用量（僅 OpenAI Chat Completions API 可用）",
+          "title": "包含用量"
+        }
+      },
       "summary_text_mode": {
         "auto": "自動",
         "concise": "簡潔",
@@ -4371,7 +4388,7 @@
         "url": {
           "preview": "預覽：{{url}}",
           "reset": "重設",
-          "tip": "# 結尾強制使用輸入位址"
+          "tip": "在末尾添加 # 以停用自動附加的 API 版本。"
         }
       },
       "api_host": "API 主機地址",

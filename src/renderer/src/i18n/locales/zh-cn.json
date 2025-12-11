@@ -6,6 +6,9 @@
         "failed": "添加 Agent 失败",
         "invalid_agent": "无效的 Agent"
       },
+      "model": {
+        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。"
+      },
       "title": "添加 Agent",
       "type": {
         "placeholder": "选择 Agent 类型"
@@ -280,6 +283,7 @@
         "denied": "工具请求已被拒绝。",
         "timeout": "工具请求在收到批准前超时。"
       },
+      "toolPendingFallback": "工具",
       "waiting": "等待工具权限决定..."
     },
     "type": {
@@ -1161,6 +1165,7 @@
     "no_results": "无结果",
     "none": "无",
     "off": "关闭",
+    "on": "启用",
     "open": "打开",
     "paste": "粘贴",
     "placeholders": {
@@ -1208,7 +1213,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "图片生成",
+    "image-generation": "图像生成 (OpenAI)",
     "jina-rerank": "Jina 重排序",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -2218,7 +2223,10 @@
     "untitled_folder": "新文件夹",
     "untitled_note": "无标题笔记",
     "upload_failed": "笔记上传失败",
-    "upload_success": "笔记上传成功"
+    "upload_files": "上传文件",
+    "upload_folder": "上传文件夹",
+    "upload_success": "笔记上传成功",
+    "uploading_files": "正在上传 {{count}} 个文件..."
   },
   "notification": {
     "assistant": "助手响应",
@@ -2509,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "复制为图片"
+      "image": "复制为图片",
+      "src": "复制图片源"
     },
     "dialog": "打开预览窗口",
     "label": "预览",
@@ -2530,7 +2539,7 @@
   },
   "provider": {
     "302ai": "302.AI",
-    "ai-gateway": "AI Gateway",
+    "ai-gateway": "Vercel AI Gateway",
     "aihubmix": "AiHubMix",
     "aionly": "唯一AI (AiOnly)",
     "alayanew": "Alaya NeW",
@@ -3903,6 +3912,7 @@
       "jsonSaveError": "保存 JSON 配置失败",
       "jsonSaveSuccess": "JSON 配置已保存",
       "logoUrl": "标志网址",
+      "logs": "日志",
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "marketplaces": "市场",
@@ -3922,6 +3932,7 @@
       "name": "名称",
       "newServer": "MCP 服务器",
       "noDescriptionAvailable": "暂无描述",
+      "noLogs": "暂无日志",
       "noServers": "未配置服务器",
       "not_support": "模型不支持",
       "npx_list": {
@@ -4270,6 +4281,12 @@
         "tip": "指定用于处理请求的延迟层级",
         "title": "服务层级"
       },
+      "stream_options": {
+        "include_usage": {
+          "tip": "是否请求 Tokens 用量（仅 OpenAI Chat Completions API 可用）",
+          "title": "包含用量"
+        }
+      },
       "summary_text_mode": {
         "auto": "自动",
         "concise": "简洁",
@@ -4371,7 +4388,7 @@
         "url": {
           "preview": "预览: {{url}}",
           "reset": "重置",
-          "tip": "# 结尾强制使用输入地址"
+          "tip": "在末尾添加 # 以禁用自动附加的API版本。"
         }
       },
       "api_host": "API 地址",

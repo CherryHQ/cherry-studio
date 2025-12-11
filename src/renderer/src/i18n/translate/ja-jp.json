@@ -6,6 +6,9 @@
         "failed": "エージェントの追加に失敗しました",
         "invalid_agent": "無効なエージェント"
       },
+      "model": {
+        "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。"
+      },
       "title": "エージェントを追加",
       "type": {
         "placeholder": "エージェントタイプを選択"
@@ -280,6 +283,7 @@
         "denied": "ツールリクエストは拒否されました。",
         "timeout": "ツールリクエストは承認を受ける前にタイムアウトしました。"
       },
+      "toolPendingFallback": "ツール",
       "waiting": "ツールの許可決定を待っています..."
     },
     "type": {
@@ -1161,6 +1165,7 @@
     "no_results": "検索結果なし",
     "none": "無",
     "off": "オフ",
+    "on": "オン",
     "open": "開く",
     "paste": "貼り付け",
     "placeholders": {
@@ -1208,7 +1213,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "画像生成",
+    "image-generation": "画像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -2218,7 +2223,10 @@
     "untitled_folder": "新ファイル夹",
     "untitled_note": "無題のメモ",
     "upload_failed": "ノートのアップロードに失敗しました",
-    "upload_success": "ノートのアップロードが成功しました"
+    "upload_files": "ファイルをアップロード",
+    "upload_folder": "アップロードフォルダ",
+    "upload_success": "ノートのアップロードが成功しました",
+    "uploading_files": "{{count}} 個のファイルをアップロード中..."
   },
   "notification": {
     "assistant": "助手回應",
@@ -2509,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "画像としてコピー"
+      "image": "画像としてコピー",
+      "src": "画像ソースをコピー"
     },
     "dialog": "ダイアログを開く",
     "label": "プレビュー",
@@ -3903,6 +3912,7 @@
       "jsonSaveError": "JSON設定の保存に失敗しました",
       "jsonSaveSuccess": "JSON設定が保存されました。",
       "logoUrl": "ロゴURL",
+      "logs": "ログ",
       "longRunning": "長時間運行モード",
       "longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
       "marketplaces": "マーケットプレイス",
@@ -3922,6 +3932,7 @@
       "name": "名前",
       "newServer": "MCP サーバー",
       "noDescriptionAvailable": "説明がありません",
+      "noLogs": "ログはまだありません",
       "noServers": "サーバーが設定されていません",
       "not_support": "モデルはサポートされていません",
       "npx_list": {
@@ -4270,6 +4281,12 @@
         "tip": "リクエスト処理に使用するレイテンシティアを指定します",
         "title": "サービスティア"
       },
+      "stream_options": {
+        "include_usage": {
+          "tip": "トークン使用量が含まれるかどうか (OpenAI Chat Completions APIのみに適用)",
+          "title": "使用法を含める"
+        }
+      },
       "summary_text_mode": {
         "auto": "自動",
         "concise": "簡潔",
@@ -4371,7 +4388,7 @@
         "url": {
           "preview": "プレビュー: {{url}}",
           "reset": "リセット",
-          "tip": "#で終わる場合、入力されたアドレスを強制的に使用します"
+          "tip": "自動的に付加されるAPIバージョンを無効にするには、末尾に#を追加します。"
         }
       },
       "api_host": "APIホスト",

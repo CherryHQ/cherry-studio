@@ -6,6 +6,9 @@
         "failed": "Agent hinzufügen fehlgeschlagen",
         "invalid_agent": "Ungültiger Agent"
       },
+      "model": {
+        "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen."
+      },
       "title": "Agent hinzufügen",
       "type": {
         "placeholder": "Agent-Typ auswählen"
@@ -280,6 +283,7 @@
         "denied": "Tool-Anfrage wurde abgelehnt.",
         "timeout": "Tool-Anfrage ist abgelaufen, bevor eine Genehmigung eingegangen ist."
       },
+      "toolPendingFallback": "Werkzeug",
       "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
     },
     "type": {
@@ -1161,6 +1165,7 @@
     "no_results": "Keine Ergebnisse",
     "none": "Keine",
     "off": "Aus",
+    "on": "An",
     "open": "Öffnen",
     "paste": "Einfügen",
     "placeholders": {
@@ -1208,7 +1213,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Bildgenerierung",
+    "image-generation": "Bilderzeugung (OpenAI)",
     "jina-rerank": "Jina Reranking",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -2218,7 +2223,10 @@
     "untitled_folder": "Neuer Ordner",
     "untitled_note": "Unbenannte Notiz",
     "upload_failed": "Notizen-Upload fehlgeschlagen",
-    "upload_success": "Notizen erfolgreich hochgeladen"
+    "upload_files": "Dateien hochladen",
+    "upload_folder": "Ordner hochladen",
+    "upload_success": "Notizen erfolgreich hochgeladen",
+    "uploading_files": "Lade {{count}} Dateien hoch..."
   },
   "notification": {
     "assistant": "Assistenten-Antwort",
@@ -2509,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Als Bild kopieren"
+      "image": "Als Bild kopieren",
+      "src": "Bildquelle kopieren"
     },
     "dialog": "Vorschaufenster öffnen",
     "label": "Vorschau",
@@ -3903,6 +3912,7 @@
       "jsonSaveError": "JSON-Konfiguration speichern fehlgeschlagen",
       "jsonSaveSuccess": "JSON-Konfiguration erfolgreich gespeichert",
       "logoUrl": "Logo-URL",
+      "logs": "Protokolle",
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
       "marketplaces": "Marktplätze",
@@ -3922,6 +3932,7 @@
       "name": "Name",
       "newServer": "MCP-Server",
       "noDescriptionAvailable": "Keine Beschreibung",
+      "noLogs": "Noch keine Protokolle",
       "noServers": "Server nicht konfiguriert",
       "not_support": "Modell nicht unterstützt",
       "npx_list": {
@@ -4270,6 +4281,12 @@
         "tip": "Latenz-Ebene für Anfrageverarbeitung festlegen",
         "title": "Service-Tier"
       },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Ob die Token-Nutzung enthalten ist (gilt nur für die OpenAI Chat Completions API)",
+          "title": "Nutzung einbeziehen"
+        }
+      },
       "summary_text_mode": {
         "auto": "Automatisch",
         "concise": "Kompakt",
@@ -4371,7 +4388,7 @@
         "url": {
           "preview": "Vorschau: {{url}}",
           "reset": "Zurücksetzen",
-          "tip": "# am Ende erzwingt die Verwendung der Eingabe-Adresse"
+          "tip": "Fügen Sie am Ende ein # hinzu, um die automatisch angehängte API-Version zu deaktivieren."
         }
       },
       "api_host": "API-Adresse",

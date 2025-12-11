@@ -1,16 +1,16 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
   "include": [
-    "src/renderer/src/**/*",
-    "src/preload/*.d.ts",
     "local/src/renderer/**/*",
-    "packages/shared/**/*",
-    "tests/__mocks__/**/*",
-    "packages/mcp-trace/**/*",
-    "packages/aiCore/src/**/*",
+    "src/renderer/src/**/*",
     "src/main/integration/cherryai/index.js",
+    "src/preload/*.d.ts",
+    "tests/__mocks__/**/*",
+    "packages/aiCore/src/**/*",
+    "packages/ai-sdk-provider/**/*",
     "packages/extension-table-plus/**/*",
-    "packages/ai-sdk-provider/**/*"
+    "packages/mcp-trace/**/*",
+    "packages/shared/**/*",
   ],
   "compilerOptions": {
     "composite": true,

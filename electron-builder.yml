@@ -134,56 +134,66 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-rc.3
+    Cherry Studio 1.7.2 - Stability & Enhancement Update
 
-    ✨ New Features:
-    - Provider: Added Silicon provider support for Anthropic API compatibility
-    - Provider: AIHubMix support for nano banana
+    This release focuses on stability improvements, bug fixes, and quality-of-life enhancements.
 
-    🐛 Bug Fixes:
-    - i18n: Clean up translation tags and untranslated strings
-    - Provider: Fixed Silicon provider code list
-    - Provider: Fixed Poe API reasoning parameters for GPT-5 and reasoning models
-    - Provider: Fixed duplicate /v1 in Anthropic API endpoints
-    - Provider: Fixed Azure provider handling in AI SDK integration
-    - Models: Added Claude Opus 4.5 pattern to THINKING_TOKEN_MAP
-    - Models: Improved Gemini reasoning and message handling
-    - Models: Fixed custom parameters for Gemini models
-    - Models: Fixed qwen-mt-flash text delta support
-    - Models: Fixed Groq verbosity setting
-    - UI: Fixed quota display and quota tips
-    - UI: Fixed web search button condition
-    - Settings: Fixed updateAssistantPreset reducer to properly update preset
-    - Settings: Respect enableMaxTokens setting when maxTokens is not configured
-    - SDK: Fixed header merging logic in AI SDK
+    🔧 Improvements
+    - Enhanced update dialog functionality and state management
+    - Improved ImageViewer context menu UX
+    - Better temperature and top_p parameter handling
+    - User-configurable stream options for OpenAI API
+    - Translation feature now supports document files
 
-    ⚡ Improvements:
-    - SDK: Upgraded @anthropic-ai/claude-agent-sdk to 0.1.53
+    🤖 AI & Models
+    - Added explicit thinking token support for Gemini 3 Pro Image
+    - Updated DeepSeek logic to match DeepSeek v3.2
+    - Updated AiOnly default models
+    - Updated AI model configurations to latest versions
+
+    ♿ Accessibility
+    - Improved screen reader (NVDA) support with aria-label attributes
+    - Added Slovak language support for spell check
+
+    🐛 Bug Fixes
+    - Fixed Quick Assistant shortcut registration issue
+    - Fixed UI freeze on multi-file selection via batch processing
+    - Fixed assistant default model update when editing model capabilities
+    - Fixed provider handling and API key rotation logic
+    - Fixed OVMS API URL path formation
+    - Fixed custom parameters placement for Vercel AI Gateway
+    - Fixed topic message blocks clearing
+    - Fixed input bar blocking enter send while generating
 
     <!--LANG:zh-CN-->
-    v1.7.0-rc.3 更新内容
+    Cherry Studio 1.7.2 - 稳定性与功能增强更新
 
-    ✨ 新功能:
-    - 提供商：新增 Silicon 提供商对 Anthropic API 的兼容性支持
-    - 提供商：AIHubMix 支持 nano banana
+    本次更新专注于稳定性改进、问题修复和用户体验提升。
 
-    🐛 问题修复:
-    - 国际化：清理翻译标签和未翻译字符串
-    - 提供商：修复 Silicon 提供商代码列表
-    - 提供商：修复 Poe API 对 GPT-5 和推理模型的推理参数
-    - 提供商：修复 Anthropic API 端点重复 /v1 问题
-    - 提供商：修复 Azure 提供商在 AI SDK 集成中的处理
-    - 模型：Claude Opus 4.5 添加到 THINKING_TOKEN_MAP
-    - 模型：改进 Gemini 推理和消息处理
-    - 模型：修复 Gemini 模型自定义参数
-    - 模型：修复 qwen-mt-flash text delta 支持
-    - 模型：修复 Groq verbosity 设置
-    - 界面：修复配额显示和配额提示
-    - 界面：修复 Web 搜索按钮条件
-    - 设置：修复 updateAssistantPreset reducer 正确更新 preset
-    - 设置：尊重 enableMaxTokens 设置
-    - SDK：修复 AI SDK 中 header 合并逻辑
+    🔧 功能改进
+    - 增强更新对话框功能和状态管理
+    - 优化图片查看器右键菜单体验
+    - 改进温度和 top_p 参数处理逻辑
+    - 支持用户自定义 OpenAI API 流式选项
+    - 翻译功能现已支持文档文件
 
-    ⚡ 改进:
-    - SDK：升级 @anthropic-ai/claude-agent-sdk 到 0.1.53
+    🤖 AI 与模型
+    - 为 Gemini 3 Pro Image 添加显式思考 token 支持
+    - 更新 DeepSeek 逻辑以适配 DeepSeek v3.2
+    - 更新 AiOnly 默认模型
+    - 更新 AI 模型配置至最新版本
+
+    ♿ 无障碍支持
+    - 改进屏幕阅读器 (NVDA) 支持，添加 aria-label 属性
+    - 新增斯洛伐克语拼写检查支持
+
+    🐛 问题修复
+    - 修复快捷助手无法注册快捷键的问题
+    - 修复多文件选择时 UI 冻结问题（通过批处理优化）
+    - 修复编辑模型能力时助手默认模型更新问题
+    - 修复服务商处理和 API 密钥轮换逻辑
+    - 修复 OVMS API URL 路径格式问题
+    - 修复 Vercel AI Gateway 自定义参数位置问题
+    - 修复话题消息块清理问题
+    - 修复生成时输入框阻止回车发送的问题
     <!--LANG:END-->

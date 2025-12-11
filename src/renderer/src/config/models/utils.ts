@@ -4,8 +4,17 @@ import { type Model, SystemProviderIds } from '@renderer/types'
 import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 
-import { isOpenAIChatCompletionOnlyModel, isOpenAIOpenWeightModel, isOpenAIReasoningModel } from './openai'
+import {
+  isGPT5ProModel,
+  isGPT5SeriesModel,
+  isGPT51SeriesModel,
+  isOpenAIChatCompletionOnlyModel,
+  isOpenAIOpenWeightModel,
+  isOpenAIReasoningModel,
+  isSupportVerbosityModel
+} from './openai'
 import { isQwenMTModel } from './qwen'
+import { isClaude45ReasoningModel } from './reasoning'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
@@ -34,20 +43,71 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
   return !NOT_SUPPORTED_REGEX.test(modelId)
 }
 
-export function isNotSupportTemperatureAndTopP(model: Model): boolean {
+/**
+ * Check if the model supports temperature parameter
+ * @param model - The model to check
+ * @returns true if the model supports temperature parameter
+ */
+export function isSupportTemperatureModel(model: Model | undefined | null): boolean {
   if (!model) {
-    return true
+    return false
   }
 
-  if (
-    (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) ||
-    isOpenAIChatCompletionOnlyModel(model) ||
-    isQwenMTModel(model)
-  ) {
-    return true
+  // OpenAI reasoning models (except open weight) don't support temperature
+  if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
+    return false
   }
 
-  return false
+  // OpenAI chat completion only models don't support temperature
+  if (isOpenAIChatCompletionOnlyModel(model)) {
+    return false
+  }
+
+  // Qwen MT models don't support temperature
+  if (isQwenMTModel(model)) {
+    return false
+  }
+
+  return true
+}
+
+/**
+ * Check if the model supports top_p parameter
+ * @param model - The model to check
+ * @returns true if the model supports top_p parameter
+ */
+export function isSupportTopPModel(model: Model | undefined | null): boolean {
+  if (!model) {
+    return false
+  }
+
+  // OpenAI reasoning models (except open weight) don't support top_p
+  if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
+    return false
+  }
+
+  // OpenAI chat completion only models don't support top_p
+  if (isOpenAIChatCompletionOnlyModel(model)) {
+    return false
+  }
+
+  // Qwen MT models don't support top_p
+  if (isQwenMTModel(model)) {
+    return false
+  }
+
+  return true
+}
+
+/**
+ * Check if the model enforces mutual exclusivity between temperature and top_p parameters.
+ * Currently only Claude 4.5 reasoning models require this constraint.
+ * @param model - The model to check
+ * @returns true if temperature and top_p are mutually exclusive for this model
+ */
+export function isTemperatureTopPMutuallyExclusiveModel(model: Model | undefined | null): boolean {
+  if (!model) return false
+  return isClaude45ReasoningModel(model)
 }
 
 export function isGemmaModel(model?: Model): boolean {
@@ -123,27 +183,57 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => {
   return isQwenMTModel(model) || isGemmaModel(model)
 }
 
-// GPT-5 verbosity configuration
+// Verbosity settings is only supported by GPT-5 and newer models
+// Specifically, GPT-5 and GPT-5.1 for now
 // gpt-5-pro only supports 'high', other GPT-5 models support all levels
-export const MODEL_SUPPORTED_VERBOSITY: Record<string, ValidOpenAIVerbosity[]> = {
-  'gpt-5-pro': ['high'],
-  default: ['low', 'medium', 'high']
-} as const
+const MODEL_SUPPORTED_VERBOSITY: readonly {
+  readonly validator: (model: Model) => boolean
+  readonly values: readonly ValidOpenAIVerbosity[]
+}[] = [
+  // gpt-5-pro
+  { validator: isGPT5ProModel, values: ['high'] },
+  // gpt-5 except gpt-5-pro
+  {
+    validator: (model: Model) => isGPT5SeriesModel(model) && !isGPT5ProModel(model),
+    values: ['low', 'medium', 'high']
+  },
+  // gpt-5.1
+  { validator: isGPT51SeriesModel, values: ['low', 'medium', 'high'] }
+]
 
-export const getModelSupportedVerbosity = (model: Model): OpenAIVerbosity[] => {
-  const modelId = getLowerBaseModelName(model.id)
-  let supportedValues: ValidOpenAIVerbosity[]
-  if (modelId.includes('gpt-5-pro')) {
-    supportedValues = MODEL_SUPPORTED_VERBOSITY['gpt-5-pro']
-  } else {
-    supportedValues = MODEL_SUPPORTED_VERBOSITY.default
+/**
+ * Returns the list of supported verbosity levels for the given model.
+ * If the model is not recognized as a GPT-5 series model, only `undefined` is returned.
+ * For GPT-5-pro, only 'high' is supported; for other GPT-5 models, 'low', 'medium', and 'high' are supported.
+ * For GPT-5.1 series models, 'low', 'medium', and 'high' are supported.
+ * @param model - The model to check
+ * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
+ */
+export const getModelSupportedVerbosity = (model: Model | undefined | null): OpenAIVerbosity[] => {
+  if (!model || !isSupportVerbosityModel(model)) {
+    return [undefined]
   }
+
+  let supportedValues: ValidOpenAIVerbosity[] = []
+
+  for (const { validator, values } of MODEL_SUPPORTED_VERBOSITY) {
+    if (validator(model)) {
+      supportedValues = [null, ...values]
+      break
+    }
+  }
+
   return [undefined, ...supportedValues]
 }
 
 export const isGeminiModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini')
+}
+
+export const isGrokModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('grok')
 }
 
 // zhipu 视觉推理模型用这组 special token 标记推理结果
