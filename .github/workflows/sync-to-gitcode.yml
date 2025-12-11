@@ -80,7 +80,7 @@ jobs:
         shell: bash
         run: |
           echo "Built Windows artifacts:"
-          ls -la dist/*.exe dist/*.blockmap dist/latest*.yml 2>/dev/null || true
+          ls -la dist/*.exe dist/*.blockmap dist/latest*.yml
 
       - name: Download GitHub release assets
         shell: bash
@@ -106,14 +106,20 @@ jobs:
         run: |
           echo "Replacing Windows files with signed versions..."
 
+          # Verify signed files exist first
+          if ! ls dist/*.exe 1>/dev/null 2>&1; then
+            echo "ERROR: No signed .exe files found in dist/"
+            exit 1
+          fi
+
           # Remove unsigned Windows files from downloaded assets
           # *.exe, *.exe.blockmap, latest.yml (Windows only)
           rm -f release-assets/*.exe release-assets/*.exe.blockmap release-assets/latest.yml 2>/dev/null || true
 
-          # Copy signed Windows files
-          cp dist/*.exe release-assets/ 2>/dev/null || true
-          cp dist/*.exe.blockmap release-assets/ 2>/dev/null || true
-          cp dist/latest.yml release-assets/ 2>/dev/null || true
+          # Copy signed Windows files with error checking
+          cp dist/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
+          cp dist/*.exe.blockmap release-assets/ || { echo "ERROR: Failed to copy .blockmap files"; exit 1; }
+          cp dist/latest.yml release-assets/ || { echo "ERROR: Failed to copy latest.yml"; exit 1; }
 
           echo "Final release assets:"
           ls -la release-assets/
@@ -129,7 +135,12 @@ jobs:
         run: |
           # Always use gh cli to avoid special character issues
           RELEASE_NAME=$(gh release view "$TAG_NAME" --repo "${{ github.repository }}" --json name -q '.name')
-          echo "name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+          # Use delimiter to safely handle special characters in release name
+          {
+            echo 'name<<EOF'
+            echo "$RELEASE_NAME"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
           # Extract releaseNotes from electron-builder.yml (from releaseNotes: | to end of file, remove 4-space indent)
           sed -n '/releaseNotes: |/,$ { /releaseNotes: |/d; s/^    //; p }' electron-builder.yml > release_body.txt
 
@@ -145,6 +156,20 @@ jobs:
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
         run: |
+          # Validate required environment variables
+          if [ -z "$GITCODE_TOKEN" ]; then
+            echo "ERROR: GITCODE_TOKEN is not set"
+            exit 1
+          fi
+          if [ -z "$GITCODE_OWNER" ]; then
+            echo "ERROR: GITCODE_OWNER is not set"
+            exit 1
+          fi
+          if [ -z "$GITCODE_REPO" ]; then
+            echo "ERROR: GITCODE_REPO is not set"
+            exit 1
+          fi
+
           API_URL="${GITCODE_API_URL:-https://api.gitcode.com/api/v5}"
 
           echo "Creating GitCode release..."
@@ -165,6 +190,7 @@ jobs:
             }' > /tmp/release_payload.json
 
           RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            --connect-timeout 30 --max-time 60 \
             "${API_URL}/repos/${GITCODE_OWNER}/${GITCODE_REPO}/releases" \
             -H "Content-Type: application/json; charset=utf-8" \
             -H "Authorization: Bearer ${GITCODE_TOKEN}" \
@@ -198,8 +224,9 @@ jobs:
 
             while [ $retry -lt $max_retries ]; do
               # Get upload URL
-              UPLOAD_INFO=$(curl -s \
-                "${API_URL}/repos/${GITCODE_OWNER}/${GITCODE_REPO}/releases/${TAG_NAME}/upload_url?access_token=${GITCODE_TOKEN}&file_name=${encoded_filename}")
+              UPLOAD_INFO=$(curl -s --connect-timeout 30 --max-time 60 \
+                -H "Authorization: Bearer ${GITCODE_TOKEN}" \
+                "${API_URL}/repos/${GITCODE_OWNER}/${GITCODE_REPO}/releases/${TAG_NAME}/upload_url?file_name=${encoded_filename}")
 
               UPLOAD_URL=$(echo "$UPLOAD_INFO" | jq -r '.url // empty')
 
@@ -214,15 +241,18 @@ jobs:
                   "$UPLOAD_URL")
 
                 HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
+                RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
 
                 if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
                   echo "  Uploaded: $filename"
                   return 0
                 else
                   echo "  Failed (HTTP $HTTP_CODE), retry $((retry + 1))/$max_retries"
+                  echo "  Response: $RESPONSE_BODY"
                 fi
               else
                 echo "  Failed to get upload URL, retry $((retry + 1))/$max_retries"
+                echo "  Response: $UPLOAD_INFO"
               fi
 
               retry=$((retry + 1))
@@ -254,3 +284,10 @@ jobs:
           done
 
           echo "GitCode release sync completed!"
+
+      - name: Cleanup temp files
+        if: always()
+        shell: bash
+        run: |
+          rm -f /tmp/release_payload.json /tmp/upload_headers.txt release_body.txt
+          rm -rf release-assets/
