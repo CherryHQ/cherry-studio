@@ -31,6 +31,7 @@ import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
 import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
 import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
 import LongCatProviderLogo from '@renderer/assets/images/providers/longcat.png'
+import MemoryLakeProviderLogo from '@renderer/assets/images/providers/memorylake.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
@@ -695,6 +696,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.cerebras,
     isSystem: true,
     enabled: false
+  },
+  memorylake: {
+    id: 'memorylake',
+    name: 'MemoryLake',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://memorylake.data.cloud',
+    models: SYSTEM_MODELS.memorylake,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -763,7 +774,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   huggingface: HuggingfaceProviderLogo,
   sophnet: SophnetProviderLogo,
   gateway: AIGatewayProviderLogo,
-  cerebras: CerebrasProviderLogo
+  cerebras: CerebrasProviderLogo,
+  memorylake: MemoryLakeProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1433,6 +1445,16 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://cloud.cerebras.ai',
       docs: 'https://inference-docs.cerebras.ai/introduction',
       models: 'https://inference-docs.cerebras.ai/models/overview'
+    }
+  },
+  memorylake: {
+    api: {
+      url: 'https://memorylake.data.cloud'
+    },
+    websites: {
+      official: 'https://memorylake.ai',
+      apiKey: 'https://memorylake.data.cloud/panel/token',
+      docs: 'https://docs.memorylake.ai'
     }
   }
 }

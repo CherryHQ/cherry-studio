@@ -2976,6 +2976,16 @@ const migrateConfig = {
       logger.error('migrate 182 error', error as Error)
       return state
     }
+  },
+  '183': (state: RootState) => {
+    try {
+      addProvider(state, SystemProviderIds.memorylake)
+      logger.info('migrate 183 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 183 error', error as Error)
+      return state
+    }
   }
 }
 
