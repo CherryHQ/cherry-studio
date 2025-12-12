@@ -2123,9 +2123,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@cherrystudio/openai@npm:^6.9.0":
-  version: 6.9.0
-  resolution: "@cherrystudio/openai@npm:6.9.0"
+"@cherrystudio/openai@npm:^6.12.0":
+  version: 6.12.0
+  resolution: "@cherrystudio/openai@npm:6.12.0"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.25 || ^4.0
@@ -2136,7 +2136,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/9c51ef33c5b9d08041a115e3d6a8158412a379998a0eae186923d5bdcc808b634c1fef4471a1d499bb8c624b04c075167bc90a1a60a805005c0657ecebbb58d0
+  checksum: 10c0/6831a603141b05508e11ea365279b57311424f9db578028d72d9bae8473e09d5fe12b1fbc0b471cabc0b3adb67339d845b6b8f6f8be4cded0e98e5a6ea25efc8
   languageName: node
   linkType: hard
 
@@ -10080,7 +10080,7 @@ __metadata:
     "@cherrystudio/embedjs-ollama": "npm:^0.1.31"
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
     "@cherrystudio/extension-table-plus": "workspace:^"
-    "@cherrystudio/openai": "npm:^6.9.0"
+    "@cherrystudio/openai": "npm:^6.12.0"
     "@dnd-kit/core": "npm:^6.3.1"
     "@dnd-kit/modifiers": "npm:^9.0.0"
     "@dnd-kit/sortable": "npm:^10.0.0"
