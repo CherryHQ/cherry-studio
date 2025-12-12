@@ -7,13 +7,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 
+import { AppShell } from './components/layout/AppShell'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
 import { NotificationProvider } from './context/NotificationProvider'
 import StyleSheetManager from './context/StyleSheetManager'
 import { ThemeProvider } from './context/ThemeProvider'
-import Router from './Router'
 
 const logger = loggerService.withContext('App.tsx')
 
@@ -42,7 +42,7 @@ function App(): React.ReactElement {
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
                     <TopViewContainer>
-                      <Router />
+                      <AppShell />
                     </TopViewContainer>
                   </PersistGate>
                 </CodeStyleProvider>

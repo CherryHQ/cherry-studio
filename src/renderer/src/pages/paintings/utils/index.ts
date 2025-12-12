@@ -15,7 +15,7 @@ export function checkProviderEnabled(provider: Provider, t: TFunction): Promise<
       closable: true,
       okText: t('common.go_to_settings'),
       onOk: () => {
-        window.navigate?.(`/settings/provider?id=${provider.id}`)
+        window.navigate?.({ to: `/settings/provider`, search: { id: provider.id } })
         reject('Provider disabled')
       },
       onCancel: () => reject('Provider disabled')

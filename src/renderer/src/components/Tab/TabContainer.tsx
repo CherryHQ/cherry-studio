@@ -17,6 +17,7 @@ import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import type { MinAppType } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { LRUCache } from 'lru-cache'
 import {
   FileSearch,
@@ -37,7 +38,6 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import MinAppIcon from '../Icons/MinAppIcon'
@@ -203,17 +203,17 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
 
   const handleAddTab = () => {
     hideMinappPopup()
-    navigate('/launchpad')
+    navigate({ to: '/launchpad' })
   }
 
   const handleSettingsClick = () => {
     hideMinappPopup()
-    navigate(lastSettingsPath)
+    navigate({ to: lastSettingsPath })
   }
 
   const handleTabClick = (tab: Tab) => {
     hideMinappPopup()
-    navigate(tab.path)
+    navigate({ to: tab.path })
   }
 
   const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])

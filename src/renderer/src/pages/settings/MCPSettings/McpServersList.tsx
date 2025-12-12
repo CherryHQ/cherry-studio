@@ -9,12 +9,12 @@ import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import type { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { matchKeywordsInString } from '@renderer/utils/match'
+import { useNavigate } from '@tanstack/react-router'
 import { Button, Dropdown, Empty } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingTitle } from '..'
@@ -115,7 +115,7 @@ const McpServersList: FC = () => {
       isActive: false
     }
     addMCPServer(newServer)
-    navigate(`/settings/mcp/settings/${encodeURIComponent(newServer.id)}`)
+    navigate({ to: `/settings/mcp/settings/${encodeURIComponent(newServer.id)}` })
     window.toast.success(t('settings.mcp.addSuccess'))
   }, [addMCPServer, navigate, t])
 
@@ -260,7 +260,7 @@ const McpServersList: FC = () => {
             isLoading={loadingServerIds.has(server.id)}
             onToggle={async (active) => await handleToggleActive(server, active)}
             onDelete={() => onDeleteMcpServer(server)}
-            onEdit={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
+            onEdit={() => navigate({ to: `/settings/mcp/settings/${encodeURIComponent(server.id)}` })}
             onOpenUrl={(url) => window.open(url, '_blank')}
           />
         )}

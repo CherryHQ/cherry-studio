@@ -4803,6 +4803,9 @@
       "title": "ページズーム"
     }
   },
+  "tab": {
+    "new": "[to be translated]:New Tab"
+  },
   "title": {
     "apps": "アプリ",
     "code": "Code",
