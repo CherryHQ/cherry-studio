@@ -88,6 +88,7 @@ const ThinkModelTypes = [
   'gpt5_1',
   'gpt5_codex',
   'gpt5_1_codex',
+  'gpt5_1_codex_max',
   'gpt5_2',
   'gpt5pro',
   'gpt52pro',

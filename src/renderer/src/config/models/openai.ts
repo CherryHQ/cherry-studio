@@ -40,6 +40,11 @@ export const isGPT52ProModel = (model: Model) => {
   return modelId.includes('gpt-5.2-pro')
 }
 
+export const isGPT51CodexMaxModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5.1-codex-max')
+}
+
 export const isOpenAIOpenWeightModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-oss')

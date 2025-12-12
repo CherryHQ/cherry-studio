@@ -11,6 +11,7 @@ import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
   isGPT5ProModel,
   isGPT5SeriesModel,
+  isGPT51CodexMaxModel,
   isGPT51SeriesModel,
   isGPT52ProModel,
   isGPT52SeriesModel,
@@ -35,6 +36,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   gpt5_codex: ['low', 'medium', 'high'] as const,
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
   gpt5_1_codex: ['none', 'medium', 'high'] as const,
+  gpt5_1_codex_max: ['none', 'medium', 'high', 'xhigh'] as const,
   gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
   gpt52pro: ['medium', 'high', 'xhigh'] as const,
@@ -65,6 +67,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_1: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1,
   gpt5_1_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex,
   gpt5_2: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2,
+  gpt5_1_codex_max: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max,
   gpt52pro: MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   grok4_fast: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
@@ -90,6 +93,7 @@ const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idR
   }
 }
 
+// TODO: add ut
 const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
@@ -99,6 +103,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   if (isGPT51SeriesModel(model)) {
     if (modelId.includes('codex')) {
       thinkingModelType = 'gpt5_1_codex'
+      if (isGPT51CodexMaxModel(model)) {
+        thinkingModelType = 'gpt5_1_codex_max'
+      }
     } else {
       thinkingModelType = 'gpt5_1'
     }
