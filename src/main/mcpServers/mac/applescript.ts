@@ -1,9 +1,7 @@
 import { loggerService } from '@logger'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
+import { spawn } from 'child_process'
 
 const logger = loggerService.withContext('MacMCP')
-const execFileAsync = promisify(execFile)
 
 // Input validation constants
 export const MAX_INPUT_LENGTHS = {
@@ -61,32 +59,65 @@ export function validateInput(input: string, maxLength: number, fieldName: strin
 }
 
 // Execute AppleScript with proper timeout and error handling
-export async function runAppleScript(script: string, timeoutMs: number = 5000): Promise<string> {
-  try {
+// Uses stdin (-) to handle multi-line scripts properly
+export function runAppleScript(script: string, timeoutMs: number = 5000): Promise<string> {
+  return new Promise((resolve, reject) => {
     logger.debug('Executing AppleScript', { scriptLength: script.length })
 
-    const { stdout, stderr } = await execFileAsync('osascript', ['-e', script], {
-      timeout: timeoutMs,
-      maxBuffer: 1024 * 1024
+    const proc = spawn('osascript', ['-'], {
+      stdio: ['pipe', 'pipe', 'pipe']
     })
 
-    if (stderr) {
-      logger.warn('AppleScript stderr output', { stderr })
-    }
+    let stdout = ''
+    let stderr = ''
+    let timedOut = false
 
-    return stdout.trim()
-  } catch (error) {
-    const err = error as Error & { code?: string }
-
-    if (err.code === 'ETIMEDOUT') {
+    // Set timeout
+    const timer = setTimeout(() => {
+      timedOut = true
+      proc.kill('SIGTERM')
       logger.error('AppleScript timeout', { timeoutMs })
-      throw new Error(`Operation timed out after ${timeoutMs}ms`)
-    }
+      reject(new Error(`Operation timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
 
-    logger.error('AppleScript execution failed', {
-      error: err.message,
-      scriptLength: script.length
+    proc.stdout.on('data', (data) => {
+      stdout += data.toString()
     })
-    throw error
-  }
+
+    proc.stderr.on('data', (data) => {
+      stderr += data.toString()
+    })
+
+    proc.on('close', (code) => {
+      clearTimeout(timer)
+
+      if (timedOut) return
+
+      if (stderr) {
+        logger.warn('AppleScript stderr output', { stderr: stderr.trim() })
+      }
+
+      if (code !== 0) {
+        logger.error('AppleScript execution failed', {
+          code,
+          stderr: stderr.trim(),
+          scriptLength: script.length
+        })
+        reject(new Error(`AppleScript error: ${stderr.trim() || `exit code ${code}`}`))
+        return
+      }
+
+      resolve(stdout.trim())
+    })
+
+    proc.on('error', (err) => {
+      clearTimeout(timer)
+      logger.error('AppleScript spawn error', { error: err.message })
+      reject(new Error(`Failed to execute AppleScript: ${err.message}`))
+    })
+
+    // Write script to stdin and close
+    proc.stdin.write(script)
+    proc.stdin.end()
+  })
 }
