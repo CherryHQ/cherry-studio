@@ -745,7 +745,8 @@ export const BuiltinMCPServerNames = {
   difyKnowledge: '@cherry/dify-knowledge',
   python: '@cherry/python',
   didiMCP: '@cherry/didi-mcp',
-  browser: '@cherry/browser'
+  browser: '@cherry/browser',
+  mac: '@cherry/mac'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]

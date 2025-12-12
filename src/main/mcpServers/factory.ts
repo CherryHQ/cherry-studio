@@ -9,6 +9,7 @@ import DiDiMcpServer from './didi-mcp'
 import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
+import MacServer from './mac'
 import MemoryServer from './memory'
 import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
@@ -51,6 +52,12 @@ export function createInMemoryMCPServer(
     }
     case BuiltinMCPServerNames.browser: {
       return new BrowserServer().server
+    }
+    case BuiltinMCPServerNames.mac: {
+      if (process.platform !== 'darwin') {
+        throw new Error('@cherry/mac is only available on macOS')
+      }
+      return new MacServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)
