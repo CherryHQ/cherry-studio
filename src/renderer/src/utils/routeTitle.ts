@@ -1,5 +1,8 @@
 import i18n from '@renderer/i18n'
 
+/** Base URL for parsing relative route paths */
+const BASE_URL = 'https://www.cherry-ai.com/'
+
 /**
  * Route to i18n key mapping for default tab titles
  */
@@ -29,30 +32,35 @@ const routeTitleKeys: Record<string, string> = {
  * getDefaultRouteTitle('/unknown') // 'unknown'
  */
 export function getDefaultRouteTitle(url: string): string {
+  const sanitizedUrl = new URL(url, BASE_URL).pathname
+
   // Try exact match first
-  const exactKey = routeTitleKeys[url]
+  const exactKey = routeTitleKeys[sanitizedUrl]
   if (exactKey) {
     return i18n.t(exactKey)
   }
 
   // Try matching base path (e.g., '/chat/123' -> '/chat')
-  const basePath = '/' + url.split('/').filter(Boolean)[0]
+  const basePath = '/' + sanitizedUrl.split('/').filter(Boolean)[0]
   const baseKey = routeTitleKeys[basePath]
   if (baseKey) {
     return i18n.t(baseKey)
   }
 
-  // Fallback to URL path
-  return url.split('/').pop() || url
+  // Fallback to last segment of pathname
+  const segments = sanitizedUrl.split('/').filter(Boolean)
+  return segments.pop() || sanitizedUrl
 }
 
 /**
  * Get the i18n key for a route (without translating)
  */
 export function getRouteTitleKey(url: string): string | undefined {
-  const exactKey = routeTitleKeys[url]
+  const sanitizedUrl = new URL(url, BASE_URL).pathname
+
+  const exactKey = routeTitleKeys[sanitizedUrl]
   if (exactKey) return exactKey
 
-  const basePath = '/' + url.split('/').filter(Boolean)[0]
+  const basePath = '/' + sanitizedUrl.split('/').filter(Boolean)[0]
   return routeTitleKeys[basePath]
 }

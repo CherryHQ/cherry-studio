@@ -94,8 +94,8 @@ const ProviderList: FC = () => {
       // 清除 id 参数
       navigate({
         to: location.pathname,
-        search: (prev) => {
-          const { id: _, ...rest } = prev as Record<string, unknown>
+        search: ({ id, ...rest }) => {
+          void id
           return rest
         },
         replace: true

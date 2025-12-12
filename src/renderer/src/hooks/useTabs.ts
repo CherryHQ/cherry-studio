@@ -179,7 +179,7 @@ export function useTabs() {
         return
       }
 
-      // 添加 LRU 字段
+      // 添加 LRU 字段，保留完整 URL（含 search/hash）
       const newTab: Tab = {
         ...tab,
         lastAccessTime: Date.now(),
@@ -255,7 +255,7 @@ export function useTabs() {
       const newTab: Tab = {
         id: id || uuid(),
         type,
-        url,
+        url, // full URL including search/hash
         title: title || getDefaultRouteTitle(url),
         lastAccessTime: Date.now(),
         isDormant: false

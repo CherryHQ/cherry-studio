@@ -24,20 +24,20 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     return createRouter({ routeTree, history })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
-
   // Sync internal navigation back to tab state
   useEffect(() => {
     return router.subscribe('onResolved', ({ toLocation }) => {
-      if (toLocation.pathname !== tab.url) {
-        onUrlChange(toLocation.pathname)
+      const nextHref = toLocation.href
+      if (nextHref !== tab.url) {
+        onUrlChange(nextHref)
       }
     })
   }, [router, tab.url, onUrlChange])
 
   // Navigate when tab.url changes externally (e.g., from Sidebar)
   useEffect(() => {
-    const currentPath = router.state.location.pathname
-    if (tab.url !== currentPath) {
+    const currentHref = router.state.location.href
+    if (tab.url !== currentHref) {
       router.navigate({ to: tab.url })
     }
   }, [router, tab.url])

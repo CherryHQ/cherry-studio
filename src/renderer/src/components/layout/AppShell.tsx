@@ -23,7 +23,7 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 export const AppShell = () => {
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab } = useTabs()
 
-  // Sync internal navigation back to tab state with default title
+  // Sync internal navigation back to tab state with default title (url may include search/hash)
   const handleUrlChange = (tabId: string, url: string) => {
     updateTab(tabId, { url, title: getDefaultRouteTitle(url) })
   }
