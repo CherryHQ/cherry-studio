@@ -423,56 +423,58 @@ const CodeViewer = ({
   }, [handleCopy])
 
   // Handle context menu to provide clean copy without line numbers
-  const handleContextMenu = useCallback((event: MouseEvent) => {
-    const target = event.target as HTMLElement
-    const selection = window.getSelection()
+  const handleContextMenu = useCallback(
+    (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      const selection = window.getSelection()
 
-    // Only handle if:
-    // 1. User has a valid selection
-    // 2. Selection belongs to this viewer
-    // 3. Right-click happened on a toolbar button (to avoid interfering with normal context menu)
-    const isToolbarButton = target.closest('.code-toolbar')
-    const shouldHandleCopy = selection && !selection.isCollapsed &&
-                             selectionBelongsToViewer(selection) &&
-                             isToolbarButton
+      // Only handle if:
+      // 1. User has a valid selection
+      // 2. Selection belongs to this viewer
+      // 3. Right-click happened on a toolbar button (to avoid interfering with normal context menu)
+      const isToolbarButton = target.closest('.code-toolbar')
+      const shouldHandleCopy =
+        selection && !selection.isCollapsed && selectionBelongsToViewer(selection) && isToolbarButton
 
-    if (shouldHandleCopy) {
-      event.preventDefault()
-      event.stopPropagation()
+      if (shouldHandleCopy) {
+        event.preventDefault()
+        event.stopPropagation()
 
-      // Extract the selected text without line numbers
-      let saved = savedSelectionRef.current
-      if (!saved) {
-        saved = saveSelection()
-      }
-
-      if (saved) {
-        const { startLine, startOffset, endLine, endOffset } = saved
-        const selectedLines: string[] = []
-
-        for (let i = startLine; i <= endLine; i++) {
-          const line = rawLines[i] || ''
-          if (i === startLine && i === endLine) {
-            selectedLines.push(line.slice(startOffset, endOffset))
-          } else if (i === startLine) {
-            selectedLines.push(line.slice(startOffset))
-          } else if (i === endLine) {
-            selectedLines.push(line.slice(0, endOffset))
-          } else {
-            selectedLines.push(line)
-          }
+        // Extract the selected text without line numbers
+        let saved = savedSelectionRef.current
+        if (!saved) {
+          saved = saveSelection()
         }
 
-        const fullText = selectedLines.join('\n')
+        if (saved) {
+          const { startLine, startOffset, endLine, endOffset } = saved
+          const selectedLines: string[] = []
 
-        // Copy to clipboard
-        navigator.clipboard.writeText(fullText).catch((error) => {
-          logger.error('Failed to copy selected text', { error })
-        })
+          for (let i = startLine; i <= endLine; i++) {
+            const line = rawLines[i] || ''
+            if (i === startLine && i === endLine) {
+              selectedLines.push(line.slice(startOffset, endOffset))
+            } else if (i === startLine) {
+              selectedLines.push(line.slice(startOffset))
+            } else if (i === endLine) {
+              selectedLines.push(line.slice(0, endOffset))
+            } else {
+              selectedLines.push(line)
+            }
+          }
+
+          const fullText = selectedLines.join('\n')
+
+          // Copy to clipboard
+          navigator.clipboard.writeText(fullText).catch((error) => {
+            logger.error('Failed to copy selected text', { error })
+          })
+        }
       }
-    }
-    // If not a toolbar button, allow default context menu behavior
-  }, [selectionBelongsToViewer, saveSelection, rawLines])
+      // If not a toolbar button, allow default context menu behavior
+    },
+    [selectionBelongsToViewer, saveSelection, rawLines]
+  )
 
   useEffect(() => {
     const element = shikiThemeRef.current
