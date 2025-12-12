@@ -28,21 +28,14 @@ import { getAnthropicThinkingBudget } from '../utils/reasoning'
  * - Disabled for models that do not support temperature.
  * - Disabled for Claude 4.5 reasoning models when TopP is enabled and temperature is disabled.
  * Otherwise, returns the temperature value if the assistant has temperature enabled.
- * @param dynamicTemperature some models support `temperature` when set `none`
+
  */
-export function getTemperature(
-  assistant: Assistant,
-  model: Model,
-  dynamicTemperature: boolean = false
-): number | undefined {
-  if (dynamicTemperature) {
-    return getTemperatureValue(assistant, model)
-  }
+export function getTemperature(assistant: Assistant, model: Model): number | undefined {
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
 
-  if (!isSupportTemperatureModel(model)) {
+  if (!isSupportTemperatureModel(model, assistant)) {
     return undefined
   }
 
@@ -84,7 +77,7 @@ export function getTopP(assistant: Assistant, model: Model, dynamicTopP: boolean
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
-  if (!isSupportTopPModel(model)) {
+  if (!isSupportTopPModel(model, assistant)) {
     return undefined
   }
   if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTemperature) {

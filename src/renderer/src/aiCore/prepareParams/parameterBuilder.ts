@@ -18,7 +18,6 @@ import {
   isFixedReasoningModel,
   isGeminiModel,
   isGenerateImageModel,
-  isGPT52SeriesModel,
   isGrokModel,
   isOpenAIModel,
   isOpenRouterBuiltInWebSearchModel,
@@ -215,9 +214,6 @@ export async function buildStreamTextParams(
     }
   }
 
-  // https://platform.openai.com/docs/guides/latest-model#gpt-5-2-parameter-compatibility
-  const dynamicValue = isGPT52SeriesModel(model) && assistant.settings?.reasoning_effort === 'none'
-
   // 构建基础参数
   // Note: standardParams (topK, frequencyPenalty, presencePenalty, stopSequences, seed)
   // are extracted from custom parameters and passed directly to streamText()
@@ -225,8 +221,8 @@ export async function buildStreamTextParams(
   const params: StreamTextParams = {
     messages: sdkMessages,
     maxOutputTokens: getMaxTokens(assistant, model),
-    temperature: getTemperature(assistant, model, dynamicValue),
-    topP: getTopP(assistant, model, dynamicValue),
+    temperature: getTemperature(assistant, model),
+    topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters
     ...standardParams,
     abortSignal: options.requestOptions?.signal,
