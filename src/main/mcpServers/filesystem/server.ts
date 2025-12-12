@@ -1,5 +1,8 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { app } from 'electron'
+import fs from 'fs/promises'
+import path from 'path'
 
 import {
   deleteToolDefinition,
@@ -21,20 +24,18 @@ import { logger } from './types'
 
 export class FileSystemServer {
   public server: Server
-  private allowedDirectories: string[]
+  private baseDir: string
 
-  constructor(allowedDirs?: string[]) {
-    // Allowed-directories enforcement has been removed. We accept args for backward compatibility,
-    // but the server is always unrestricted.
-    if (Array.isArray(allowedDirs) && allowedDirs.length > 0) {
-      logger.info(
-        `Ignoring allowed directories args; filesystem MCP server is unrestricted. Args: ${allowedDirs.join(', ')}`
-      )
+  constructor() {
+    const envRoot = process.env.WORKSPACE_ROOT
+    if (envRoot && path.isAbsolute(envRoot)) {
+      this.baseDir = envRoot
+      logger.info(`Using WORKSPACE_ROOT for filesystem MCP baseDir: ${envRoot}`)
     } else {
-      logger.info('No allowed directories configured; filesystem MCP server is unrestricted.')
+      const userData = app.getPath('userData')
+      this.baseDir = path.join(userData, 'workspace')
+      logger.info(`Using default workspace for filesystem MCP baseDir: ${this.baseDir}`)
     }
-
-    this.allowedDirectories = []
 
     this.server = new Server(
       {
@@ -51,7 +52,13 @@ export class FileSystemServer {
     this.initialize()
   }
 
-  initialize() {
+  async initialize() {
+    try {
+      await fs.mkdir(this.baseDir, { recursive: true })
+    } catch (error) {
+      logger.error('Failed to create filesystem MCP baseDir', { error, baseDir: this.baseDir })
+    }
+
     // Register tool list handler
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
@@ -62,18 +69,7 @@ export class FileSystemServer {
           readToolDefinition,
           editToolDefinition,
           writeToolDefinition,
-          deleteToolDefinition,
-          {
-            name: 'list_allowed_directories',
-            description:
-              'Returns the list of directories that this server is allowed to access. ' +
-              'Use this to understand which directories are available before trying to access files.',
-            inputSchema: {
-              type: 'object',
-              properties: {},
-              required: []
-            }
-          }
+          deleteToolDefinition
         ]
       }
     })
@@ -85,38 +81,25 @@ export class FileSystemServer {
 
         switch (name) {
           case 'glob':
-            return await handleGlobTool(args, this.allowedDirectories)
+            return await handleGlobTool(args, this.baseDir)
 
           case 'ls':
-            return await handleLsTool(args, this.allowedDirectories)
+            return await handleLsTool(args, this.baseDir)
 
           case 'grep':
-            return await handleGrepTool(args, this.allowedDirectories)
+            return await handleGrepTool(args, this.baseDir)
 
           case 'read':
-            return await handleReadTool(args, this.allowedDirectories)
+            return await handleReadTool(args, this.baseDir)
 
           case 'edit':
-            return await handleEditTool(args, this.allowedDirectories)
+            return await handleEditTool(args, this.baseDir)
 
           case 'write':
-            return await handleWriteTool(args, this.allowedDirectories)
+            return await handleWriteTool(args, this.baseDir)
 
           case 'delete':
-            return await handleDeleteTool(args, this.allowedDirectories)
-
-          case 'list_allowed_directories':
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text:
-                    this.allowedDirectories.length > 0
-                      ? `Allowed directories:\n${this.allowedDirectories.join('\n')}`
-                      : 'Allowed directories: unrestricted'
-                }
-              ]
-            }
+            return await handleDeleteTool(args, this.baseDir)
 
           default:
             throw new Error(`Unknown tool: ${name}`)

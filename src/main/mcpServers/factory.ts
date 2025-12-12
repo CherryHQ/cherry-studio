@@ -36,7 +36,7 @@ export function createInMemoryMCPServer(
       return new FetchServer().server
     }
     case BuiltinMCPServerNames.filesystem: {
-      return new FileSystemServer(args).server
+      return new FileSystemServer().server
     }
     case BuiltinMCPServerNames.difyKnowledge: {
       const difyKey = envs.DIFY_KEY

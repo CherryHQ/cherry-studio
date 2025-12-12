@@ -35,14 +35,14 @@ export const globToolDefinition = {
 }
 
 // Handler implementation
-export async function handleGlobTool(args: unknown, allowedDirectories: string[]) {
+export async function handleGlobTool(args: unknown, baseDir: string) {
   const parsed = GlobToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for glob: ${parsed.error}`)
   }
 
-  const searchPath = parsed.data.path || process.cwd()
-  const validPath = await validatePath(allowedDirectories, searchPath)
+  const searchPath = parsed.data.path || baseDir
+  const validPath = await validatePath(searchPath, baseDir)
 
   const files: FileInfo[] = []
   let truncated = false
@@ -100,7 +100,8 @@ export async function handleGlobTool(args: unknown, allowedDirectories: string[]
   if (files.length === 0) {
     output.push('No files found matching pattern')
   } else {
-    output.push(...files.map((f) => f.path))
+    const baseForDisplay = parsed.data.path ? validPath : baseDir
+    output.push(...files.map((f) => path.relative(baseForDisplay, f.path)))
     if (truncated) {
       output.push('')
       output.push(`(Results truncated to ${MAX_FILES_LIMIT} files. Consider using a more specific pattern.)`)

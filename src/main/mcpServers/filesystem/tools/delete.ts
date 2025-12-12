@@ -28,14 +28,14 @@ Usage:
 }
 
 // Handler implementation
-export async function handleDeleteTool(args: unknown, allowedDirectories: string[]) {
+export async function handleDeleteTool(args: unknown, baseDir: string) {
   const parsed = DeleteToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for delete: ${parsed.error}`)
   }
 
   const targetPath = parsed.data.path
-  const validPath = await validatePath(allowedDirectories, targetPath)
+  const validPath = await validatePath(targetPath, baseDir)
   const recursive = parsed.data.recursive || false
 
   // Check if path exists and get stats
@@ -50,7 +50,7 @@ export async function handleDeleteTool(args: unknown, allowedDirectories: string
   }
 
   const isDirectory = stats.isDirectory()
-  const relativePath = path.relative(process.cwd(), validPath)
+  const relativePath = path.relative(baseDir, validPath)
 
   // Perform deletion
   try {
