@@ -178,9 +178,28 @@ export const loading = (args: RequireSome<LoadingToastConfig, 'promise'>): strin
  */
 export const addToast = (config: ToastConfig) => info(config)
 
+/**
+ * Close a specific toast notification by its key
+ * @param key - Toast key (string)
+ */
+export const closeToast = (key: string) => {
+  getMessageApi().destroy(key)
+}
+
+export type ToastUtilities = {
+  addToast: typeof addToast
+  close: typeof closeToast
+  error: typeof error
+  success: typeof success
+  warning: typeof warning
+  info: typeof info
+  loading: typeof loading
+}
+
 export const getToastUtilities = () =>
   ({
     addToast,
+    close: closeToast,
     error,
     success,
     warning,
