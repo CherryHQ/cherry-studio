@@ -69,11 +69,15 @@ export function _buildCanonicalHeaders(headers: Record<string, string>): {
   canonicalHeaders: string
   signedHeaders: string
 } {
-  const sortedKeys = Object.keys(headers)
-    .map((k) => k.toLowerCase())
-    .sort()
+  // Create a lowercase-keyed map to handle mixed-case input headers
+  const lowercaseHeaders: Record<string, string> = {}
+  for (const [key, value] of Object.entries(headers)) {
+    lowercaseHeaders[key.toLowerCase()] = value
+  }
 
-  const canonicalHeaders = sortedKeys.map((key) => `${key}:${headers[key]?.trim() || ''}`).join('\n') + '\n'
+  const sortedKeys = Object.keys(lowercaseHeaders).sort()
+
+  const canonicalHeaders = sortedKeys.map((key) => `${key}:${lowercaseHeaders[key]?.trim() || ''}`).join('\n') + '\n'
 
   const signedHeaders = sortedKeys.join(';')
 
