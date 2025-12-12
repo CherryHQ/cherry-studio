@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "clear": {
+        "button": "[to be translated]:Clear custom path"
+      },
+      "customPath": "[to be translated]:Using custom path: {{path}}",
       "error": {
         "description": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Ο πράκτορας δεν μπορεί να λειτουργήσει χωρίς αυτό. Παρακαλούμε εγκαταστήστε το Git για Windows από",
         "recheck": "Επανέλεγχος Εγκατάστασης του Git Bash",
         "title": "Απαιτείται Git Bash"
       },
+      "found": {
+        "title": "[to be translated]:Git Bash configured"
+      },
       "notFound": "Το Git Bash δεν βρέθηκε. Παρακαλώ εγκαταστήστε το πρώτα.",
+      "pick": {
+        "button": "[to be translated]:Select Git Bash Path",
+        "failed": "[to be translated]:Failed to set Git Bash path",
+        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
+        "title": "[to be translated]:Select Git Bash executable"
+      },
       "success": "Το Git Bash εντοπίστηκε με επιτυχία!"
     },
     "input": {
@@ -471,6 +485,14 @@
         "url_placeholder": "Εισάγετε JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Μαζική Διαγραφή",
+          "confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε τους επιλεγμένους {{count}} βοηθούς;"
+        },
+        "mode": {
+          "delete": "Διαγραφή",
+          "sort": "Ταξινόμηση"
+        },
         "title": "Διαχείριση βοηθών"
       },
       "my_agents": "Οι βοηθοί μου",
@@ -1185,6 +1207,7 @@
     "saved": "Αποθηκεύτηκε",
     "search": "Αναζήτηση",
     "select": "Επιλογή",
+    "select_all": "Επιλογή Όλων",
     "selected": "Επιλεγμένο",
     "selectedItems": "Επιλέχθηκαν {{count}} αντικείμενα",
     "selectedMessages": "Επιλέχθηκαν {{count}} μηνύματα",

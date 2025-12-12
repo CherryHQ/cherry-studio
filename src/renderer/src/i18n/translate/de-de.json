@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Automatisch ermitteltes Git Bash wird verwendet",
+      "clear": {
+        "button": "Benutzerdefinierten Pfad löschen"
+      },
+      "customPath": "Benutzerdefinierter Pfad: {{path}}",
       "error": {
         "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
         "recheck": "Überprüfe die Git Bash-Installation erneut",
         "title": "Git Bash erforderlich"
       },
+      "found": {
+        "title": "Git Bash konfiguriert"
+      },
       "notFound": "Git Bash nicht gefunden. Bitte installieren Sie es zuerst.",
+      "pick": {
+        "button": "Git Bash Pfad auswählen",
+        "failed": "Git Bash Pfad konnte nicht gesetzt werden",
+        "invalidPath": "Die ausgewählte Datei ist keine gültige Git Bash ausführbare Datei (bash.exe).",
+        "title": "Git Bash ausführbare Datei auswählen"
+      },
       "success": "Git Bash erfolgreich erkannt!"
     },
     "input": {
@@ -471,6 +485,14 @@
         "url_placeholder": "JSON-URL eingeben"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Stapel löschen",
+          "confirm": "Sind Sie sicher, dass Sie die ausgewählten {{count}} Assistenten löschen möchten?"
+        },
+        "mode": {
+          "delete": "Löschen",
+          "sort": "Sortieren"
+        },
         "title": "Assistenten verwalten"
       },
       "my_agents": "Meine Assistenten",
@@ -1185,6 +1207,7 @@
     "saved": "Gespeichert",
     "search": "Suchen",
     "select": "Auswählen",
+    "select_all": "Alle auswählen",
     "selected": "Ausgewählt",
     "selectedItems": "{{count}} Elemente ausgewählt",
     "selectedMessages": "{{count}} Nachrichten ausgewählt",

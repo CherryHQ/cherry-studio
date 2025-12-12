@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Utilisation de Git Bash détecté automatiquement",
+      "clear": {
+        "button": "Effacer le chemin personnalisé"
+      },
+      "customPath": "Utilisation du chemin personnalisé : {{path}}",
       "error": {
         "description": "Git Bash est requis pour exécuter des agents sur Windows. L'agent ne peut pas fonctionner sans. Veuillez installer Git pour Windows depuis",
         "recheck": "Revérifier l'installation de Git Bash",
         "title": "Git Bash requis"
       },
-      "notFound": "Git Bash introuvable. Veuillez l’installer d’abord.",
+      "found": {
+        "title": "Git Bash configuré"
+      },
+      "notFound": "Git Bash non trouvé. Veuillez l'installer d'abord.",
+      "pick": {
+        "button": "Sélectionner le chemin Git Bash",
+        "failed": "Échec de la configuration du chemin Git Bash",
+        "invalidPath": "Le fichier sélectionné n'est pas un exécutable Git Bash valide (bash.exe).",
+        "title": "Sélectionner l'exécutable Git Bash"
+      },
       "success": "Git Bash détecté avec succès !"
     },
     "input": {
@@ -471,6 +485,14 @@
         "url_placeholder": "Saisir l'URL JSON"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Suppression par lot",
+          "confirm": "Êtes-vous sûr de vouloir supprimer les {{count}} assistants sélectionnés ?"
+        },
+        "mode": {
+          "delete": "Supprimer",
+          "sort": "Trier"
+        },
         "title": "Gérer les assistants"
       },
       "my_agents": "Mes assistants",
@@ -1185,6 +1207,7 @@
     "saved": "enregistré",
     "search": "Rechercher",
     "select": "Sélectionner",
+    "select_all": "Tout sélectionner",
     "selected": "Sélectionné",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",

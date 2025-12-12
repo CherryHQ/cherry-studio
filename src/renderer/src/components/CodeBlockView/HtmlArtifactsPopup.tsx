@@ -25,7 +25,7 @@ type ViewMode = 'split' | 'code' | 'preview'
 const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onSave, onClose }) => {
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(true)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
   const codeEditorRef = useRef<CodeEditorHandles>(null)
   const previewFrameRef = useRef<HTMLIFrameElement>(null)
@@ -78,7 +78,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       </HeaderLeft>
 
       <HeaderCenter>
-        <ViewControls onDoubleClick={(e) => e.stopPropagation()}>
+        <ViewControls onDoubleClick={(e) => e.stopPropagation()} className="nodrag">
           <ViewButton
             size="small"
             type={viewMode === 'split' ? 'primary' : 'default'}

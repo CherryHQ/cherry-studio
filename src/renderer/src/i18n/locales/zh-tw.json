@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "使用自動偵測的 Git Bash",
+      "clear": {
+        "button": "清除自訂路徑"
+      },
+      "customPath": "使用自訂路徑：{{path}}",
       "error": {
         "description": "在 Windows 上執行代理程式需要 Git Bash。沒有它代理程式無法運作。請從以下地址安裝 Git for Windows",
         "recheck": "重新檢測 Git Bash 安裝",
         "title": "需要 Git Bash"
       },
+      "found": {
+        "title": "已配置 Git Bash"
+      },
       "notFound": "找不到 Git Bash。請先安裝。",
+      "pick": {
+        "button": "選擇 Git Bash 路徑",
+        "failed": "設定 Git Bash 路徑失敗",
+        "invalidPath": "選擇的檔案不是有效的 Git Bash 可執行檔（bash.exe）。",
+        "title": "選擇 Git Bash 可執行檔"
+      },
       "success": "成功偵測到 Git Bash！"
     },
     "input": {
@@ -471,6 +485,14 @@
         "url_placeholder": "輸入 JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "批次刪除",
+          "confirm": "您確定要刪除所選的 {{count}} 個助理嗎？"
+        },
+        "mode": {
+          "delete": "刪除",
+          "sort": "排序"
+        },
         "title": "管理助手"
       },
       "my_agents": "我的助手",
@@ -1185,6 +1207,7 @@
     "saved": "已儲存",
     "search": "搜尋",
     "select": "選擇",
+    "select_all": "全選",
     "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "選中 {{count}} 條訊息",
