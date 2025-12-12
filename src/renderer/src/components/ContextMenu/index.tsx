@@ -58,7 +58,6 @@ function extractSelectedText(selection: Selection): string {
   }
 
   // Clean up excessive newlines but preserve code structure
-  //return result.replace(/\n{3,}/g, '\n\n').trim()
   return result.trim()
 }
 
