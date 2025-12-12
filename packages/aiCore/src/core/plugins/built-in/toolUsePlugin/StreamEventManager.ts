@@ -62,7 +62,7 @@ export class StreamEventManager {
     const recursiveResult = await context.recursiveCall(recursiveParams)
 
     if (recursiveResult && recursiveResult.fullStream) {
-      await this.pipeRecursiveStream(controller, recursiveResult.fullStream, context)
+      await this.pipeRecursiveStream(controller, recursiveResult.fullStream)
     } else {
       console.warn('[MCP Prompt] No fullstream found in recursive result:', recursiveResult)
     }
@@ -74,11 +74,7 @@ export class StreamEventManager {
   /**
    * 将递归流的数据传递到当前流
    */
-  private async pipeRecursiveStream(
-    controller: StreamController,
-    recursiveStream: ReadableStream,
-    _context?: AiRequestContext
-  ): Promise<void> {
+  private async pipeRecursiveStream(controller: StreamController, recursiveStream: ReadableStream): Promise<void> {
     const reader = recursiveStream.getReader()
     try {
       while (true) {
