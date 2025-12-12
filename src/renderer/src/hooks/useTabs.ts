@@ -197,13 +197,19 @@ export function useTabs() {
 
   const closeTab = useCallback(
     (id: string) => {
-      const newTabs = tabs.filter((t) => t.id !== id)
+      let newTabs = tabs.filter((t) => t.id !== id)
       let newActiveId = activeTabId
 
       if (activeTabId === id) {
         const index = tabs.findIndex((t) => t.id === id)
         const nextTab = newTabs[index - 1] || newTabs[index]
         newActiveId = nextTab ? nextTab.id : ''
+
+        if (nextTab?.isDormant) {
+          newTabs = newTabs.map((t) =>
+            t.id === nextTab.id ? { ...t, isDormant: false, lastAccessTime: Date.now() } : t
+          )
+        }
       }
 
       setTabsState({ tabs: newTabs, activeTabId: newActiveId })
