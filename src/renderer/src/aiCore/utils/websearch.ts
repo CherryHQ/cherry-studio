@@ -9,6 +9,8 @@ import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 
+const MAX_X_AI_SERACH_RESULT = 30
+
 export function getWebSearchParams(model: Model): Record<string, any> {
   if (model.provider === 'hunyuan') {
     return { enable_enhancement: true, citation: true, search_info: true }
@@ -82,7 +84,7 @@ export function buildProviderBuiltinWebSearchConfig(
       const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
       return {
         xai: {
-          maxSearchResults: webSearchConfig.maxResults,
+          maxSearchResults: Math.max(webSearchConfig.maxResults, MAX_X_AI_SERACH_RESULT),
           returnCitations: true,
           sources: [
             {
