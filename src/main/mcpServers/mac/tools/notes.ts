@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+
 import {
   MAX_INPUT_LENGTHS,
   MAX_RESULTS,
@@ -7,7 +8,7 @@ import {
   TIMEOUT_MS,
   validateInput
 } from '../applescript'
-import type { CreateNoteResult, Note, NotesArgs, ToolResponse } from '../types'
+import type { CreateNoteResult, Note, ToolResponse } from '../types'
 import { NotesArgsSchema } from '../types'
 import { errorResponse, handleAppleScriptError, successResponse, truncateContent } from './utils'
 
@@ -197,11 +198,7 @@ end tell`
 }
 
 // Create a new note
-async function createNote(
-  title?: string,
-  body?: string,
-  folder?: string
-): Promise<ToolResponse> {
+async function createNote(title?: string, body?: string, folder?: string): Promise<ToolResponse> {
   if (!title || title.trim() === '') {
     return errorResponse('Note title is required')
   }

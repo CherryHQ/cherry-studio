@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+
 import {
   MAX_INPUT_LENGTHS,
   MAX_RESULTS,
@@ -7,7 +8,7 @@ import {
   TIMEOUT_MS,
   validateInput
 } from '../applescript'
-import type { EmailMessage, MailAccount, MailArgs, Mailbox, ToolResponse } from '../types'
+import type { EmailMessage, MailAccount, Mailbox, ToolResponse } from '../types'
 import { MailArgsSchema } from '../types'
 import { errorResponse, handleAppleScriptError, successResponse, truncateContent } from './utils'
 
@@ -92,11 +93,7 @@ export async function handleMail(args: unknown): Promise<ToolResponse> {
 }
 
 // Get unread emails
-async function getUnreadEmails(
-  account?: string,
-  mailbox?: string,
-  limit?: number
-): Promise<ToolResponse> {
+async function getUnreadEmails(account?: string, mailbox?: string, limit?: number): Promise<ToolResponse> {
   const maxEmails = limit || MAX_RESULTS.emails
   const hasAccountFilter = account && account.trim() !== ''
   const hasMailboxFilter = mailbox && mailbox.trim() !== ''
@@ -553,8 +550,7 @@ function parseMailboxesResult(result: string): Mailbox[] {
     const mailboxes: Mailbox[] = []
 
     // Pattern to match mailbox records
-    const recordPattern =
-      /\{mboxName:"([^"]*)", mboxAccount:"([^"]*)", mboxUnreadCount:(\d+)\}/g
+    const recordPattern = /\{mboxName:"([^"]*)", mboxAccount:"([^"]*)", mboxUnreadCount:(\d+)\}/g
     let match
 
     while ((match = recordPattern.exec(result)) !== null) {

@@ -1,6 +1,6 @@
+import { loggerService } from '@logger'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('MacMCP')
 const execFileAsync = promisify(execFile)
@@ -38,11 +38,11 @@ export const MAX_RESULTS = {
 // CRITICAL: Sanitize all user inputs for AppleScript
 export function sanitizeAppleScriptString(input: string): string {
   return input
-    .replace(/\\/g, '\\\\')   // Escape backslashes first
-    .replace(/"/g, '\\"')      // Escape double quotes
-    .replace(/\n/g, '\\n')     // Escape newlines
-    .replace(/\r/g, '\\r')     // Escape carriage returns
-    .replace(/\0/g, '')        // Remove null bytes
+    .replace(/\\/g, '\\\\') // Escape backslashes first
+    .replace(/"/g, '\\"') // Escape double quotes
+    .replace(/\n/g, '\\n') // Escape newlines
+    .replace(/\r/g, '\\r') // Escape carriage returns
+    .replace(/\0/g, '') // Remove null bytes
 }
 
 // Validate input before passing to AppleScript
@@ -61,18 +61,14 @@ export function validateInput(input: string, maxLength: number, fieldName: strin
 }
 
 // Execute AppleScript with proper timeout and error handling
-export async function runAppleScript(
-  script: string,
-  timeoutMs: number = 5000
-): Promise<string> {
+export async function runAppleScript(script: string, timeoutMs: number = 5000): Promise<string> {
   try {
     logger.debug('Executing AppleScript', { scriptLength: script.length })
 
-    const { stdout, stderr } = await execFileAsync(
-      'osascript',
-      ['-e', script],
-      { timeout: timeoutMs, maxBuffer: 1024 * 1024 }
-    )
+    const { stdout, stderr } = await execFileAsync('osascript', ['-e', script], {
+      timeout: timeoutMs,
+      maxBuffer: 1024 * 1024
+    })
 
     if (stderr) {
       logger.warn('AppleScript stderr output', { stderr })

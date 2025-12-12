@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+
 import type { ToolResponse } from '../types'
 
 const logger = loggerService.withContext('MacMCP')
@@ -21,11 +22,7 @@ function isPermissionError(error: Error): boolean {
   return /not allowed|not authorized|permission denied|access.*denied/i.test(error.message)
 }
 
-export function handleAppleScriptError(
-  error: unknown,
-  tool: string,
-  operation: string
-): ToolResponse {
+export function handleAppleScriptError(error: unknown, tool: string, operation: string): ToolResponse {
   const err = error as Error
 
   logger.error('AppleScript tool error', {
@@ -41,9 +38,7 @@ export function handleAppleScriptError(
   }
 
   if (err.message.includes('ETIMEDOUT') || err.message.includes('timed out')) {
-    return errorResponse(
-      `Operation timed out. The ${tool} app may be unresponsive.`
-    )
+    return errorResponse(`Operation timed out. The ${tool} app may be unresponsive.`)
   }
 
   return errorResponse(`Failed to ${operation} in ${tool}: ${err.message}`)

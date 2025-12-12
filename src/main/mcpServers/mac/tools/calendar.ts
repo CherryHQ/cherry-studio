@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+
 import {
   MAX_INPUT_LENGTHS,
   MAX_RESULTS,
@@ -7,7 +8,7 @@ import {
   TIMEOUT_MS,
   validateInput
 } from '../applescript'
-import type { CalendarArgs, CalendarEvent, ToolResponse } from '../types'
+import type { CalendarEvent, ToolResponse } from '../types'
 import { CalendarArgsSchema } from '../types'
 import { errorResponse, handleAppleScriptError, successResponse, truncateContent } from './utils'
 
@@ -232,11 +233,7 @@ end tell`
 }
 
 // List upcoming events
-async function listEvents(
-  startDate?: string,
-  endDate?: string,
-  limit?: number
-): Promise<ToolResponse> {
+async function listEvents(startDate?: string, endDate?: string, limit?: number): Promise<ToolResponse> {
   const maxEvents = limit || MAX_RESULTS.events
 
   // Default: next 7 days
@@ -343,9 +340,7 @@ tell application "Calendar"
 
   logger.info('Open calendar completed')
 
-  const message = startDate
-    ? `Calendar app opened to date: ${startDate}`
-    : 'Calendar app opened'
+  const message = startDate ? `Calendar app opened to date: ${startDate}` : 'Calendar app opened'
 
   return successResponse({
     success: true,
@@ -394,9 +389,7 @@ async function createEvent(
   const endDateStr = formatDateForAppleScript(endD.toISOString())
 
   const sanitizedLocation = location ? sanitizeAppleScriptString(location) : ''
-  const sanitizedNotes = notes
-    ? sanitizeAppleScriptString(truncateContent(notes, MAX_INPUT_LENGTHS.noteContent))
-    : ''
+  const sanitizedNotes = notes ? sanitizeAppleScriptString(truncateContent(notes, MAX_INPUT_LENGTHS.noteContent)) : ''
   const targetCalendar = calendar || 'Calendar'
   const sanitizedCalendar = sanitizeAppleScriptString(targetCalendar)
   const allDayFlag = isAllDay ? 'true' : 'false'

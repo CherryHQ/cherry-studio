@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+
 import {
   MAX_INPUT_LENGTHS,
   MAX_RESULTS,
@@ -7,7 +8,7 @@ import {
   TIMEOUT_MS,
   validateInput
 } from '../applescript'
-import type { Reminder, ReminderList, RemindersArgs, ToolResponse } from '../types'
+import type { Reminder, ReminderList, ToolResponse } from '../types'
 import { RemindersArgsSchema } from '../types'
 import { errorResponse, handleAppleScriptError, successResponse, truncateContent } from './utils'
 
@@ -245,9 +246,7 @@ async function createReminder(
   validateInput(name, MAX_INPUT_LENGTHS.reminderName, 'Reminder name')
   const sanitizedName = sanitizeAppleScriptString(name)
 
-  const sanitizedBody = body
-    ? sanitizeAppleScriptString(truncateContent(body, MAX_INPUT_LENGTHS.noteContent))
-    : ''
+  const sanitizedBody = body ? sanitizeAppleScriptString(truncateContent(body, MAX_INPUT_LENGTHS.noteContent)) : ''
 
   const targetList = listName || 'Reminders'
   const sanitizedList = sanitizeAppleScriptString(targetList)
