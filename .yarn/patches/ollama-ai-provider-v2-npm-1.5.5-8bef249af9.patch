@@ -1,0 +1,26 @@
+diff --git a/dist/index.js b/dist/index.js
+index 35b5142ce8476ce2549ed7c2ec48e7d8c46c90d9..0f5fe836de79b3d61f34f09364db2b6198e930b0 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -662,7 +662,7 @@ function convertToOllamaChatMessages({
+         const images = content.filter((part) => part.type === "file" && part.mediaType.startsWith("image/")).map((part) => part.data);
+         messages.push({
+           role: "user",
+-          content: userText.length > 0 ? userText : [],
++          content: userText.length > 0 ? userText : '',
+           images: images.length > 0 ? images : void 0
+         });
+         break;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index e2a634a78d80ac9542f2cc4f96cf2291094b10cf..337bd131505dd1bf861f67b4c9c2a225365d5f80 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -662,7 +662,7 @@ function convertToOllamaChatMessages({
+         const images = content.filter((part) => part.type === "file" && part.mediaType.startsWith("image/")).map((part) => part.data);
+         messages.push({
+           role: "user",
+-          content: userText.length > 0 ? userText : [],
++          content: userText.length > 0 ? userText : '',
+           images: images.length > 0 ? images : void 0
+         });
+         break;

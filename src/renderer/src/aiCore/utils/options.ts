@@ -12,7 +12,6 @@ import {
   isGrokModel,
   isOpenAIModel,
   isQwenMTModel,
-  isSupportedThinkingTokenQwenModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
@@ -245,7 +244,7 @@ export function buildProviderOptions(
           providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier)
           break
         case SystemProviderIds.ollama:
-          providerSpecificOptions = buildOllamaProviderOptions(assistant, model, capabilities)
+          providerSpecificOptions = buildOllamaProviderOptions(assistant, capabilities)
           break
         case SystemProviderIds.gateway:
           providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
@@ -565,7 +564,6 @@ function buildBedrockProviderOptions(
 
 function buildOllamaProviderOptions(
   assistant: Assistant,
-  model: Model,
   capabilities: {
     enableReasoning: boolean
     enableWebSearch: boolean
@@ -575,7 +573,7 @@ function buildOllamaProviderOptions(
   const { enableReasoning } = capabilities
   const providerOptions: OllamaCompletionProviderOptions = {}
   const reasoningEffort = assistant.settings?.reasoning_effort
-  if (enableReasoning && isSupportedThinkingTokenQwenModel(model)) {
+  if (enableReasoning) {
     providerOptions.think = !['none', undefined].includes(reasoningEffort)
   }
   return {

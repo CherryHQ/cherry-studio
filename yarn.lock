@@ -10257,7 +10257,7 @@ __metadata:
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.2.0"
-    ollama-ai-provider-v2: "npm:^1.5.5"
+    ollama-ai-provider-v2: "patch:ollama-ai-provider-v2@npm%3A1.5.5#~/.yarn/patches/ollama-ai-provider-v2-npm-1.5.5-8bef249af9.patch"
     os-proxy-config: "npm:^1.1.2"
     oxlint: "npm:^1.22.0"
     oxlint-tsgolint: "npm:^0.2.0"
@@ -19960,7 +19960,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ollama-ai-provider-v2@npm:^1.5.5":
+"ollama-ai-provider-v2@npm:1.5.5":
   version: 1.5.5
   resolution: "ollama-ai-provider-v2@npm:1.5.5"
   dependencies:
@@ -19969,6 +19969,18 @@ __metadata:
   peerDependencies:
     zod: ^4.0.16
   checksum: 10c0/da40c8097bd8205c46eccfbd13e77c51a6ce97a29b886adfc9e1b8444460b558138d1ed4428491fcc9378d46f649dd0a9b1e5b13cf6bbc8f5385e8b321734e72
+  languageName: node
+  linkType: hard
+
+"ollama-ai-provider-v2@patch:ollama-ai-provider-v2@npm%3A1.5.5#~/.yarn/patches/ollama-ai-provider-v2-npm-1.5.5-8bef249af9.patch":
+  version: 1.5.5
+  resolution: "ollama-ai-provider-v2@patch:ollama-ai-provider-v2@npm%3A1.5.5#~/.yarn/patches/ollama-ai-provider-v2-npm-1.5.5-8bef249af9.patch::version=1.5.5&hash=0550b9"
+  dependencies:
+    "@ai-sdk/provider": "npm:^2.0.0"
+    "@ai-sdk/provider-utils": "npm:^3.0.17"
+  peerDependencies:
+    zod: ^4.0.16
+  checksum: 10c0/822c26478926d1d3eae389b8b41193d1c48c152dbc91863e29c4026cc322d502d7fa848813cb89a4c4739615d84f0b703d9e111f991efe9298edb15c719a57af
   languageName: node
   linkType: hard
 
