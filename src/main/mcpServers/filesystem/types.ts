@@ -92,17 +92,57 @@ export async function validatePath(allowedDirectories: string[] | undefined, req
 // Check if a file is likely binary
 export async function isBinaryFile(filePath: string): Promise<boolean> {
   try {
-    const buffer = Buffer.alloc(512)
+    const buffer = Buffer.alloc(4096)
     const fd = await fs.open(filePath, 'r')
-    await fd.read(buffer, 0, 512, 0)
+    const { bytesRead } = await fd.read(buffer, 0, buffer.length, 0)
     await fd.close()
 
-    // Check for null bytes (common in binary files)
-    for (let i = 0; i < buffer.length; i++) {
-      if (buffer[i] === 0) return true
+    if (bytesRead === 0) return false
+
+    const view = buffer.subarray(0, bytesRead)
+
+    let zeroBytes = 0
+    let evenZeros = 0
+    let oddZeros = 0
+    let nonPrintable = 0
+
+    for (let i = 0; i < view.length; i++) {
+      const b = view[i]
+
+      if (b === 0) {
+        zeroBytes++
+        if (i % 2 === 0) evenZeros++
+        else oddZeros++
+        continue
+      }
+
+      // treat common whitespace as printable
+      if (b === 9 || b === 10 || b === 13) continue
+
+      // basic ASCII printable range
+      if (b >= 32 && b <= 126) continue
+
+      // bytes >= 128 are likely part of UTF-8 sequences; count as printable
+      if (b >= 128) continue
+
+      nonPrintable++
     }
 
-    return false
+    // If there are lots of null bytes, it's probably binary unless it looks like UTF-16 text.
+    if (zeroBytes > 0) {
+      const evenSlots = Math.ceil(view.length / 2)
+      const oddSlots = Math.floor(view.length / 2)
+      const evenZeroRatio = evenSlots > 0 ? evenZeros / evenSlots : 0
+      const oddZeroRatio = oddSlots > 0 ? oddZeros / oddSlots : 0
+
+      // UTF-16LE/BE tends to have zeros on every other byte.
+      if (evenZeroRatio > 0.7 || oddZeroRatio > 0.7) return false
+
+      if (zeroBytes / view.length > 0.05) return true
+    }
+
+    // Heuristic: too many non-printable bytes => binary.
+    return nonPrintable / view.length > 0.3
   } catch {
     return false
   }
