@@ -6,9 +6,9 @@ import { logger, replaceWithFuzzyMatch, validatePath } from '../types'
 
 // Schema definition
 export const EditToolSchema = z.object({
-  file_path: z.string().describe('The absolute path to the file to modify'),
+  file_path: z.string().describe('The path to the file to modify'),
   old_string: z.string().describe('The text to replace'),
-  new_string: z.string().describe('The text to replace it with (must be different from old_string)'),
+  new_string: z.string().describe('The text to replace it with'),
   replace_all: z.boolean().optional().default(false).describe('Replace all occurrences of old_string (default false)')
 })
 
@@ -17,15 +17,15 @@ export const editToolDefinition = {
   name: 'edit',
   description: `Performs exact string replacements in files.
 
-Usage:
-- You must use the 'read' tool at least once before editing to understand the file content.
-- When editing text from read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix.
-- The line number prefix format is: spaces + line number + tab. Everything after that tab is the actual file content to match.
-- Never include any part of the line number prefix in the old_string or new_string.
-- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
-- The edit will FAIL if 'old_string' is not found in the file with an error "old_string not found in content".
-- The edit will FAIL if 'old_string' is found multiple times in the file. Either provide a larger string with more surrounding context to make it unique or use 'replace_all' to change every instance.
-- Use 'replace_all' for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.`,
+- You must use the 'read' tool at least once before editing
+- The file_path must be an absolute path, not a relative path
+- Preserve exact indentation from read output (after the line number prefix)
+- Never include line number prefixes in old_string or new_string
+- ALWAYS prefer editing existing files over creating new ones
+- The edit will FAIL if old_string is not found in the file
+- The edit will FAIL if old_string appears multiple times (provide more context or use replace_all)
+- The edit will FAIL if old_string equals new_string
+- Use replace_all to rename variables or replace all occurrences`,
   inputSchema: z.toJSONSchema(EditToolSchema)
 }
 

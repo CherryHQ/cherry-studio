@@ -6,26 +6,24 @@ import { MAX_FILES_LIMIT, validatePath } from '../types'
 
 // Schema definition
 export const LsToolSchema = z.object({
-  path: z
-    .string()
-    .optional()
-    .describe('The directory to list. If not specified, the current working directory will be used'),
+  path: z.string().optional().describe('The directory to list (must be absolute path). Defaults to the base directory'),
   recursive: z.boolean().optional().describe('Whether to list directories recursively (default: false)')
 })
 
 // Tool definition with detailed description
 export const lsToolDefinition = {
   name: 'ls',
-  description: `List files and directories in a specified path.
+  description: `Lists files and directories in a specified path.
 
-- Returns a tree-like structure showing the directory contents with icons
-- Directories are shown with 📁, files with 📄
+- Returns a tree-like structure with icons (📁 directories, 📄 files)
+- Shows the absolute directory path in the header
 - Entries are sorted alphabetically with directories first
-- Can optionally list recursively to show subdirectories (up to 5 levels deep)
-- Common directories like node_modules, dist, .git are automatically excluded
+- Can list recursively with recursive=true (up to 5 levels deep)
+- Common directories (node_modules, dist, .git) are excluded
 - Hidden files (starting with .) are excluded except .env.example
-- Results are limited to 100 entries to avoid overwhelming output
-- If path is not specified, lists the current working directory`,
+- Results are limited to 100 entries
+- The path parameter must be an absolute path if specified
+- If path is not specified, defaults to the base directory`,
   inputSchema: z.toJSONSchema(LsToolSchema)
 }
 
