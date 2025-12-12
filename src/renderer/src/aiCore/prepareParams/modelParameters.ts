@@ -28,8 +28,16 @@ import { getAnthropicThinkingBudget } from '../utils/reasoning'
  * - Disabled for models that do not support temperature.
  * - Disabled for Claude 4.5 reasoning models when TopP is enabled and temperature is disabled.
  * Otherwise, returns the temperature value if the assistant has temperature enabled.
+ * @param dynamicTemperature some models support `temperature` when set `none`
  */
-export function getTemperature(assistant: Assistant, model: Model): number | undefined {
+export function getTemperature(
+  assistant: Assistant,
+  model: Model,
+  dynamicTemperature: boolean = false
+): number | undefined {
+  if (dynamicTemperature) {
+    return getTemperatureValue(assistant, model)
+  }
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
@@ -46,6 +54,10 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
     return undefined
   }
 
+  return getTemperatureValue(assistant, model)
+}
+
+function getTemperatureValue(assistant: Assistant, model: Model): number | undefined {
   const assistantSettings = getAssistantSettings(assistant)
   let temperature = assistantSettings?.temperature
   if (temperature && isMaxTemperatureOneModel(model)) {
@@ -63,8 +75,12 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
  * - Disabled for models that do not support TopP.
  * - Disabled for Claude 4.5 reasoning models when temperature is explicitly enabled.
  * Otherwise, returns the TopP value if the assistant has TopP enabled.
+ * @param dynamicTopP: some models support `topP` when set `none`
  */
-export function getTopP(assistant: Assistant, model: Model): number | undefined {
+export function getTopP(assistant: Assistant, model: Model, dynamicTopP: boolean = false): number | undefined {
+  if (dynamicTopP) {
+    return getTopPValue(assistant)
+  }
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
@@ -75,6 +91,10 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
     return undefined
   }
 
+  return getTopPValue(assistant)
+}
+
+function getTopPValue(assistant: Assistant): number | undefined {
   const assistantSettings = getAssistantSettings(assistant)
   // FIXME: assistant.settings.enableTopP should be always a boolean value.
   const enableTopP = assistantSettings.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
