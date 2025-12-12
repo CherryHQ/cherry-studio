@@ -4559,6 +4559,7 @@
         "credentials_required": "Please fill in Access Key ID and Secret Access Key",
         "credentials_save_failed": "Failed to save credentials",
         "credentials_saved": "Credentials saved",
+        "credentials_saved_notice": "Credentials have been securely saved. Clear credentials to update them.",
         "description": "Volcengine is ByteDance's cloud service platform, providing Doubao and other large language model services. Please use IAM user's Access Key for authentication, do not use the root user credentials.",
         "project_name": "Project Name",
         "project_name_help": "Project name for endpoint filtering, default is 'default'",
