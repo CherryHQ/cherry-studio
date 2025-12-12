@@ -149,7 +149,7 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   }
 }
 
-const _getModelSupportedReasoningEffort = (model: Model): ReasoningEffortOption[] | undefined => {
+const _getModelSupportedReasoningEffortOptions = (model: Model): ReasoningEffortOption[] | undefined => {
   if (!isSupportedReasoningEffortModel(model) && !isSupportedThinkingTokenModel(model)) {
     return undefined
   }
@@ -175,35 +175,35 @@ const _getModelSupportedReasoningEffort = (model: Model): ReasoningEffortOption[
  *
  * @example
  * // OpenAI o-series models support low, medium, high
- * getModelSupportedReasoningEffort({ id: 'o3-mini', ... })
+ * getModelSupportedReasoningEffortOptions({ id: 'o3-mini', ... })
  * // Returns: ['low', 'medium', 'high']
  *
  * @example
  * // GPT-5.1 models support none, low, medium, high
- * getModelSupportedReasoningEffort({ id: 'gpt-5.1', ... })
+ * getModelSupportedReasoningEffortOptions({ id: 'gpt-5.1', ... })
  * // Returns: ['none', 'low', 'medium', 'high']
  *
  * @example
  * // Gemini Flash models support none, low, medium, high, auto
- * getModelSupportedReasoningEffort({ id: 'gemini-2.5-flash-latest', ... })
+ * getModelSupportedReasoningEffortOptions({ id: 'gemini-2.5-flash-latest', ... })
  * // Returns: ['none', 'low', 'medium', 'high', 'auto']
  *
  * @example
  * // Non-reasoning models return undefined
- * getModelSupportedReasoningEffort({ id: 'gpt-4o', ... })
+ * getModelSupportedReasoningEffortOptions({ id: 'gpt-4o', ... })
  * // Returns: undefined
  *
  * @example
  * // Name fallback when id doesn't match
- * getModelSupportedReasoningEffort({ id: 'custom-id', name: 'gpt-5.1', ... })
+ * getModelSupportedReasoningEffortOptions({ id: 'custom-id', name: 'gpt-5.1', ... })
  * // Returns: ['none', 'low', 'medium', 'high']
  */
-export const getModelSupportedReasoningEffort = (
+export const getModelSupportedReasoningEffortOptions = (
   model: Model | undefined | null
 ): ReasoningEffortOption[] | undefined => {
   if (!model) return undefined
 
-  const { idResult, nameResult } = withModelIdAndNameAsId(model, _getModelSupportedReasoningEffort)
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, _getModelSupportedReasoningEffortOptions)
   return idResult ?? nameResult
 }
 

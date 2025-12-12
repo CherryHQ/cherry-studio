@@ -5,7 +5,7 @@ import { isEmbeddingModel, isRerankModel } from '../embedding'
 import { isOpenAIReasoningModel, isSupportedReasoningEffortOpenAIModel } from '../openai'
 import {
   findTokenLimit,
-  getModelSupportedReasoningEffort,
+  getModelSupportedReasoningEffortOptions,
   getThinkModelType,
   isClaude4SeriesModel,
   isClaude45ReasoningModel,
@@ -1653,29 +1653,29 @@ describe('isGemini3ThinkingTokenModel', () => {
   })
 })
 
-describe('getModelSupportedReasoningEffort', () => {
+describe('getModelSupportedReasoningEffortOptions', () => {
   describe('Edge cases', () => {
     it('should return undefined for undefined model', () => {
-      expect(getModelSupportedReasoningEffort(undefined)).toBeUndefined()
+      expect(getModelSupportedReasoningEffortOptions(undefined)).toBeUndefined()
     })
 
     it('should return undefined for null model', () => {
-      expect(getModelSupportedReasoningEffort(null)).toBeUndefined()
+      expect(getModelSupportedReasoningEffortOptions(null)).toBeUndefined()
     })
 
     it('should return undefined for non-reasoning models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-4o' }))).toBeUndefined()
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'claude-3-opus' }))).toBeUndefined()
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'random-model' }))).toBeUndefined()
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-4o' }))).toBeUndefined()
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-3-opus' }))).toBeUndefined()
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'random-model' }))).toBeUndefined()
     })
   })
 
   describe('OpenAI models', () => {
     it('should return correct options for o-series models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'o3' }))).toEqual(['low', 'medium', 'high'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'o3-mini' }))).toEqual(['low', 'medium', 'high'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'o4' }))).toEqual(['low', 'medium', 'high'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-oss-reasoning' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'o3' }))).toEqual(['low', 'medium', 'high'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'o3-mini' }))).toEqual(['low', 'medium', 'high'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'o4' }))).toEqual(['low', 'medium', 'high'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-oss-reasoning' }))).toEqual([
         'low',
         'medium',
         'high'
@@ -1685,17 +1685,17 @@ describe('getModelSupportedReasoningEffort', () => {
     it('should return correct options for deep research models', () => {
       // Note: Deep research models need to be actual OpenAI reasoning models to be detected
       // 'sonar-deep-research' from Perplexity is the primary deep research model
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'sonar-deep-research' }))).toEqual(['medium'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'sonar-deep-research' }))).toEqual(['medium'])
     })
 
     it('should return correct options for GPT-5 models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5' }))).toEqual([
         'minimal',
         'low',
         'medium',
         'high'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5-preview' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5-preview' }))).toEqual([
         'minimal',
         'low',
         'medium',
@@ -1704,13 +1704,17 @@ describe('getModelSupportedReasoningEffort', () => {
     })
 
     it('should return correct options for GPT-5 Pro models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5-pro' }))).toEqual(['high'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5-pro-preview' }))).toEqual(['high'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5-pro' }))).toEqual(['high'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5-pro-preview' }))).toEqual(['high'])
     })
 
     it('should return correct options for GPT-5 Codex models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5-codex' }))).toEqual(['low', 'medium', 'high'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5-codex-mini' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5-codex' }))).toEqual([
+        'low',
+        'medium',
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5-codex-mini' }))).toEqual([
         'low',
         'medium',
         'high'
@@ -1718,19 +1722,19 @@ describe('getModelSupportedReasoningEffort', () => {
     })
 
     it('should return correct options for GPT-5.1 models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5.1' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1' }))).toEqual([
         'none',
         'low',
         'medium',
         'high'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5.1-preview' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-preview' }))).toEqual([
         'none',
         'low',
         'medium',
         'high'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5.1-mini' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-mini' }))).toEqual([
         'none',
         'low',
         'medium',
@@ -1739,8 +1743,12 @@ describe('getModelSupportedReasoningEffort', () => {
     })
 
     it('should return correct options for GPT-5.1 Codex models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5.1-codex' }))).toEqual(['none', 'medium', 'high'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gpt-5.1-codex-mini' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex' }))).toEqual([
+        'none',
+        'medium',
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex-mini' }))).toEqual([
         'none',
         'medium',
         'high'
@@ -1750,27 +1758,26 @@ describe('getModelSupportedReasoningEffort', () => {
 
   describe('Grok models', () => {
     it('should return correct options for Grok 3 mini', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'grok-3-mini' }))).toEqual(['low', 'high'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'grok-3-mini' }))).toEqual(['low', 'high'])
     })
 
     it('should return correct options for Grok 4 Fast', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'grok-4-fast', provider: 'openrouter' }))).toEqual([
-        'none',
-        'auto'
-      ])
+      expect(
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'grok-4-fast', provider: 'openrouter' }))
+      ).toEqual(['none', 'auto'])
     })
   })
 
   describe('Gemini models', () => {
     it('should return correct options for Gemini Flash models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gemini-2.5-flash-latest' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-2.5-flash-latest' }))).toEqual([
         'none',
         'low',
         'medium',
         'high',
         'auto'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gemini-flash-latest' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-flash-latest' }))).toEqual([
         'none',
         'low',
         'medium',
@@ -1780,13 +1787,13 @@ describe('getModelSupportedReasoningEffort', () => {
     })
 
     it('should return correct options for Gemini Pro models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gemini-2.5-pro-latest' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-2.5-pro-latest' }))).toEqual([
         'low',
         'medium',
         'high',
         'auto'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gemini-pro-latest' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-pro-latest' }))).toEqual([
         'low',
         'medium',
         'high',
@@ -1795,8 +1802,12 @@ describe('getModelSupportedReasoningEffort', () => {
     })
 
     it('should return correct options for Gemini 3 models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gemini-3-flash' }))).toEqual(['low', 'medium', 'high'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'gemini-3-pro-preview' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-3-flash' }))).toEqual([
+        'low',
+        'medium',
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-3-pro-preview' }))).toEqual([
         'low',
         'medium',
         'high'
@@ -1806,25 +1817,25 @@ describe('getModelSupportedReasoningEffort', () => {
 
   describe('Qwen models', () => {
     it('should return correct options for controllable Qwen models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'qwen-plus' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen-plus' }))).toEqual([
         'none',
         'low',
         'medium',
         'high'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'qwen-turbo' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen-turbo' }))).toEqual([
         'none',
         'low',
         'medium',
         'high'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'qwen-flash' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen-flash' }))).toEqual([
         'none',
         'low',
         'medium',
         'high'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'qwen3-8b' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-8b' }))).toEqual([
         'none',
         'low',
         'medium',
@@ -1834,15 +1845,19 @@ describe('getModelSupportedReasoningEffort', () => {
 
     it('should return undefined for always-thinking Qwen models', () => {
       // These models always think and don't support thinking token control
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'qwen3-thinking' }))).toBeUndefined()
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'qwen3-vl-235b-thinking' }))).toBeUndefined()
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-thinking' }))).toBeUndefined()
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-vl-235b-thinking' }))).toBeUndefined()
     })
   })
 
   describe('Doubao models', () => {
     it('should return correct options for auto-thinking Doubao models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'doubao-seed-1.6' }))).toEqual(['none', 'auto', 'high'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'doubao-1-5-thinking-pro-m' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'doubao-seed-1.6' }))).toEqual([
+        'none',
+        'auto',
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'doubao-1-5-thinking-pro-m' }))).toEqual([
         'none',
         'auto',
         'high'
@@ -1850,13 +1865,13 @@ describe('getModelSupportedReasoningEffort', () => {
     })
 
     it('should return correct options for Doubao models after 251015', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'doubao-seed-1-6-251015' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'doubao-seed-1-6-251015' }))).toEqual([
         'minimal',
         'low',
         'medium',
         'high'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'doubao-seed-1-6-lite-251015' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'doubao-seed-1-6-lite-251015' }))).toEqual([
         'minimal',
         'low',
         'medium',
@@ -1865,7 +1880,7 @@ describe('getModelSupportedReasoningEffort', () => {
     })
 
     it('should return correct options for other Doubao thinking models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'doubao-1.5-thinking-vision-pro' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'doubao-1.5-thinking-vision-pro' }))).toEqual([
         'none',
         'high'
       ])
@@ -1874,31 +1889,28 @@ describe('getModelSupportedReasoningEffort', () => {
 
   describe('Other providers', () => {
     it('should return correct options for Hunyuan models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'hunyuan-a13b' }))).toEqual(['none', 'auto'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'hunyuan-a13b' }))).toEqual(['none', 'auto'])
     })
 
     it('should return correct options for Zhipu models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'glm-4.5' }))).toEqual(['none', 'auto'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'glm-4.6' }))).toEqual(['none', 'auto'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'glm-4.5' }))).toEqual(['none', 'auto'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'glm-4.6' }))).toEqual(['none', 'auto'])
     })
 
     it('should return correct options for Perplexity models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'sonar-deep-research' }))).toEqual(['medium'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'sonar-deep-research' }))).toEqual(['medium'])
     })
 
     it('should return correct options for DeepSeek hybrid models', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'deepseek-v3.1', provider: 'deepseek' }))).toEqual([
-        'none',
-        'auto'
-      ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'deepseek-v3.2', provider: 'openrouter' }))).toEqual([
-        'none',
-        'auto'
-      ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'deepseek-chat', provider: 'deepseek' }))).toEqual([
-        'none',
-        'auto'
-      ])
+      expect(
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v3.1', provider: 'deepseek' }))
+      ).toEqual(['none', 'auto'])
+      expect(
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v3.2', provider: 'openrouter' }))
+      ).toEqual(['none', 'auto'])
+      expect(
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-chat', provider: 'deepseek' }))
+      ).toEqual(['none', 'auto'])
     })
   })
 
@@ -1906,7 +1918,7 @@ describe('getModelSupportedReasoningEffort', () => {
     it('should fall back to name when id does not match', () => {
       // Grok 4 Fast requires openrouter provider to be recognized
       expect(
-        getModelSupportedReasoningEffort(
+        getModelSupportedReasoningEffortOptions(
           createModel({
             id: 'custom-id',
             name: 'grok-4-fast',
@@ -1916,7 +1928,7 @@ describe('getModelSupportedReasoningEffort', () => {
       ).toEqual(['none', 'auto'])
 
       expect(
-        getModelSupportedReasoningEffort(
+        getModelSupportedReasoningEffortOptions(
           createModel({
             id: 'custom-id',
             name: 'gpt-5.1'
@@ -1926,7 +1938,7 @@ describe('getModelSupportedReasoningEffort', () => {
 
       // Qwen models work well for name-based fallback
       expect(
-        getModelSupportedReasoningEffort(
+        getModelSupportedReasoningEffortOptions(
           createModel({
             id: 'custom-id',
             name: 'qwen-plus'
@@ -1937,7 +1949,7 @@ describe('getModelSupportedReasoningEffort', () => {
 
     it('should use id result when id matches', () => {
       expect(
-        getModelSupportedReasoningEffort(
+        getModelSupportedReasoningEffortOptions(
           createModel({
             id: 'gpt-5.1',
             name: 'Different Name'
@@ -1946,7 +1958,7 @@ describe('getModelSupportedReasoningEffort', () => {
       ).toEqual(['none', 'low', 'medium', 'high'])
 
       expect(
-        getModelSupportedReasoningEffort(
+        getModelSupportedReasoningEffortOptions(
           createModel({
             id: 'o3-mini',
             name: 'Some other name'
@@ -1958,14 +1970,14 @@ describe('getModelSupportedReasoningEffort', () => {
 
   describe('Case sensitivity', () => {
     it('should handle case insensitive model IDs', () => {
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'GPT-5.1' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'GPT-5.1' }))).toEqual([
         'none',
         'low',
         'medium',
         'high'
       ])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'O3-MINI' }))).toEqual(['low', 'medium', 'high'])
-      expect(getModelSupportedReasoningEffort(createModel({ id: 'Gemini-2.5-Flash-Latest' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'O3-MINI' }))).toEqual(['low', 'medium', 'high'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'Gemini-2.5-Flash-Latest' }))).toEqual([
         'none',
         'low',
         'medium',
@@ -1979,15 +1991,15 @@ describe('getModelSupportedReasoningEffort', () => {
     it('should return values that match MODEL_SUPPORTED_OPTIONS configuration', () => {
       // Verify that returned values match the configuration
       const model = createModel({ id: 'o3' })
-      const result = getModelSupportedReasoningEffort(model)
+      const result = getModelSupportedReasoningEffortOptions(model)
       expect(result).toEqual(MODEL_SUPPORTED_OPTIONS.o)
 
       const gpt5Model = createModel({ id: 'gpt-5' })
-      const gpt5Result = getModelSupportedReasoningEffort(gpt5Model)
+      const gpt5Result = getModelSupportedReasoningEffortOptions(gpt5Model)
       expect(gpt5Result).toEqual(MODEL_SUPPORTED_OPTIONS.gpt5)
 
       const geminiModel = createModel({ id: 'gemini-2.5-flash-latest' })
-      const geminiResult = getModelSupportedReasoningEffort(geminiModel)
+      const geminiResult = getModelSupportedReasoningEffortOptions(geminiModel)
       expect(geminiResult).toEqual(MODEL_SUPPORTED_OPTIONS.gemini)
     })
   })

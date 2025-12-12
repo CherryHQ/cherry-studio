@@ -10,7 +10,7 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  getModelSupportedReasoningEffort,
+  getModelSupportedReasoningEffortOptions,
   isDeepSeekHybridInferenceModel,
   isDoubaoThinkingAutoModel,
   isGPT5SeriesModel,
@@ -303,7 +303,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Grok models/Perplexity models/OpenAI models
     if (isSupportedReasoningEffortModel(model)) {
       // 检查模型是否支持所选选项
-      const supportedOptions = getModelSupportedReasoningEffort(model)
+      const supportedOptions = getModelSupportedReasoningEffortOptions(model)
       if (supportedOptions?.includes(reasoningEffort)) {
         return {
           reasoning_effort: reasoningEffort
