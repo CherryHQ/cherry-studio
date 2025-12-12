@@ -3888,6 +3888,7 @@
         "dify_knowledge": "Dify's MCP server implementation provides a simple API to interact with Dify. Requires configuring the Dify Key",
         "fetch": "MCP server for retrieving URL web content",
         "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
+        "mac": "Interact with macOS native apps (Notes, Mail, Calendar, Reminders) via AppleScript. macOS only.",
         "mcp_auto_install": "Automatically install MCP service (beta)",
         "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable.",
         "no": "No description",

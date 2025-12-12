@@ -3888,6 +3888,7 @@
         "dify_knowledge": "Dify 的 MCP 伺服器實現，提供了一個簡單的 API 來與 Dify 進行互動。需要配置 Dify Key",
         "fetch": "用於獲取 URL 網頁內容的 MCP 伺服器",
         "filesystem": "實現文件系統操作的模型上下文協議（MCP）的 Node.js 伺服器。需要配置允許訪問的目錄",
+        "mac": "透過 AppleScript 與 macOS 原生應用程式（備忘錄、郵件、行事曆、提醒事項）互動。僅限 macOS。",
         "mcp_auto_install": "自動安裝 MCP 服務（測試版）",
         "memory": "基於本地知識圖譜的持久性記憶基礎實現。這使得模型能夠在不同對話間記住使用者的相關資訊。需要配置 MEMORY_FILE_PATH 環境變數。",
         "no": "無描述",
