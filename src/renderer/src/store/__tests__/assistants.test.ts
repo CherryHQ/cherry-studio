@@ -7,6 +7,12 @@ vi.mock('@renderer/utils', () => ({
   uuid: () => 'test-uuid'
 }))
 
+vi.mock('@renderer/hooks/useTopic', () => ({
+  TopicManager: {
+    removeTopic: vi.fn()
+  }
+}))
+
 const makeTopic = (id: string, assistantId: string): Topic => ({
   id,
   assistantId,
