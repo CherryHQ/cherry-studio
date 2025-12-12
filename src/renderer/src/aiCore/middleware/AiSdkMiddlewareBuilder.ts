@@ -244,7 +244,9 @@ function addModelSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config: Ai
     isSupportedThinkingTokenQwenModel(config.model) &&
     !isSupportEnableThinkingProvider(config.provider)
   ) {
-    const enableThinking = config.assistant?.settings?.reasoning_effort !== undefined
+    const enableThinking =
+      config.assistant?.settings?.reasoning_effort !== undefined &&
+      config.assistant?.settings?.reasoning_effort !== 'none'
     builder.add({
       name: 'qwen-thinking-control',
       middleware: qwenThinkingMiddleware(enableThinking)

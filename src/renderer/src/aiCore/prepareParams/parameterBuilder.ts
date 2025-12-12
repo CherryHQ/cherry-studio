@@ -103,11 +103,11 @@ export async function buildStreamTextParams(
 
   // 这三个变量透传出来，交给下面启用插件/中间件
   // 也可以在外部构建好再传入buildStreamTextParams
-  // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
   const enableReasoning =
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    isFixedReasoningModel(model)
+      assistant.settings?.reasoning_effort !== undefined &&
+      assistant.settings?.reasoning_effort !== 'none') ||
+    (isFixedReasoningModel(model) && assistant.settings?.reasoning_effort !== 'none')
 
   // 判断是否使用内置搜索
   // 条件：没有外部搜索提供商 && (用户开启了内置搜索 || 模型强制使用内置搜索)

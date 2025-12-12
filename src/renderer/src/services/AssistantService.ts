@@ -68,8 +68,9 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     throw new Error('Unknown target language')
   }
 
-  const settings = {
-    temperature: 0.7
+  const settings: Partial<AssistantSettings> = {
+    temperature: 0.7,
+    reasoning_effort: 'none'
   }
 
   const getTranslateContent = (model: Model, text: string, targetLanguage: TranslateLanguage): string => {
