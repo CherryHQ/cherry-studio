@@ -411,7 +411,10 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
               }
             }
 
-            // 如果没有执行工具调用，直接传递原始finish-step事件
+            // 如果没有执行工具调用，累加 usage 后透传 finish-step 事件
+            if (chunk.usage && context.accumulatedUsage) {
+              streamEventManager.accumulateUsage(context.accumulatedUsage, chunk.usage)
+            }
             controller.enqueue(chunk)
 
             // 清理状态
