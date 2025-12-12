@@ -1,11 +1,9 @@
-import { isMac, isWin } from '@main/constant'
-import { spawn } from 'child_process'
 import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
 
 import type { GrepMatch } from '../types'
-import { isBinaryFile, MAX_GREP_MATCHES, MAX_LINE_LENGTH, validatePath } from '../types'
+import { isBinaryFile, MAX_GREP_MATCHES, MAX_LINE_LENGTH, runRipgrep, validatePath } from '../types'
 
 // Schema definition
 export const GrepToolSchema = z.object({
@@ -54,77 +52,36 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
   let truncated = false
   let regex: RegExp
 
-  function getRipgrepAddonPath() {
-    const pkgJsonPath = require.resolve('@anthropic-ai/claude-agent-sdk/package.json')
-    const pkgRoot = path.dirname(pkgJsonPath)
+  // Build ripgrep arguments
+  const rgArgs: string[] = [
+    '--no-heading',
+    '--line-number',
+    '--color',
+    'never',
+    '--ignore-case',
+    '--glob',
+    '!.git/**',
+    '--glob',
+    '!node_modules/**',
+    '--glob',
+    '!dist/**',
+    '--glob',
+    '!build/**',
+    '--glob',
+    '!__pycache__/**'
+  ]
 
-    const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
-    const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-
-    return path.join(pkgRoot, 'vendor', 'ripgrep', `${arch}-${platform}`, 'ripgrep.node')
-  }
-
-  async function runRipgrep(): Promise<{ ok: boolean; stdout: string; exitCode: number | null }> {
-    const addonPath = getRipgrepAddonPath()
-
-    const rgArgs: string[] = [
-      '--no-heading',
-      '--line-number',
-      '--color',
-      'never',
-      '--ignore-case',
-      '--glob',
-      '!.git/**',
-      '--glob',
-      '!node_modules/**',
-      '--glob',
-      '!dist/**',
-      '--glob',
-      '!build/**',
-      '--glob',
-      '!__pycache__/**'
-    ]
-
-    if (data.include) {
-      for (const pat of data.include
-        .split(',')
-        .map((p) => p.trim())
-        .filter(Boolean)) {
-        rgArgs.push('--glob', pat)
-      }
+  if (data.include) {
+    for (const pat of data.include
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)) {
+      rgArgs.push('--glob', pat)
     }
-
-    rgArgs.push(data.pattern)
-    rgArgs.push(validPath)
-
-    const childScript = `const { ripgrepMain } = require(process.env.RIPGREP_ADDON_PATH); process.exit(ripgrepMain(process.argv.slice(1)));`
-
-    return new Promise((resolve) => {
-      const child = spawn(process.execPath, ['--eval', childScript, 'rg', ...rgArgs], {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          ELECTRON_RUN_AS_NODE: '1',
-          RIPGREP_ADDON_PATH: addonPath
-        },
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
-
-      let stdout = ''
-
-      child.stdout?.on('data', (chunk) => {
-        stdout += chunk.toString('utf-8')
-      })
-
-      child.on('error', () => {
-        resolve({ ok: false, stdout: '', exitCode: null })
-      })
-
-      child.on('close', (code) => {
-        resolve({ ok: true, stdout, exitCode: code })
-      })
-    })
   }
+
+  rgArgs.push(data.pattern)
+  rgArgs.push(validPath)
 
   try {
     regex = new RegExp(data.pattern, 'gi')
@@ -225,7 +182,7 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
   // Perform the search
   let usedRipgrep = false
   try {
-    const rgResult = await runRipgrep()
+    const rgResult = await runRipgrep(rgArgs)
     if (rgResult.ok && rgResult.exitCode !== null && rgResult.exitCode !== 2) {
       usedRipgrep = true
       const lines = rgResult.stdout.split('\n').filter(Boolean)
