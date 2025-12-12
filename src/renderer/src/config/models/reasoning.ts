@@ -158,6 +158,46 @@ const _getModelSupportedReasoningEffort = (model: Model): ReasoningEffortOption[
   return MODEL_SUPPORTED_OPTIONS[thinkingType]
 }
 
+/**
+ * Gets the supported reasoning effort options for a given model.
+ *
+ * This function determines which reasoning effort levels a model supports based on its type.
+ * It works with models that support either `reasoning_effort` parameter (like OpenAI o-series)
+ * or thinking token control (like Claude, Gemini, Qwen, etc.).
+ *
+ * The function implements a fallback mechanism: it first checks the model's `id`, and if that
+ * doesn't match any known patterns, it falls back to checking the model's `name`.
+ *
+ * @param model - The model to check for reasoning effort support. Can be undefined or null.
+ * @returns An array of supported reasoning effort options, or undefined if:
+ *          - The model is null/undefined
+ *          - The model doesn't support reasoning effort or thinking tokens
+ *
+ * @example
+ * // OpenAI o-series models support low, medium, high
+ * getModelSupportedReasoningEffort({ id: 'o3-mini', ... })
+ * // Returns: ['low', 'medium', 'high']
+ *
+ * @example
+ * // GPT-5.1 models support none, low, medium, high
+ * getModelSupportedReasoningEffort({ id: 'gpt-5.1', ... })
+ * // Returns: ['none', 'low', 'medium', 'high']
+ *
+ * @example
+ * // Gemini Flash models support none, low, medium, high, auto
+ * getModelSupportedReasoningEffort({ id: 'gemini-2.5-flash-latest', ... })
+ * // Returns: ['none', 'low', 'medium', 'high', 'auto']
+ *
+ * @example
+ * // Non-reasoning models return undefined
+ * getModelSupportedReasoningEffort({ id: 'gpt-4o', ... })
+ * // Returns: undefined
+ *
+ * @example
+ * // Name fallback when id doesn't match
+ * getModelSupportedReasoningEffort({ id: 'custom-id', name: 'gpt-5.1', ... })
+ * // Returns: ['none', 'low', 'medium', 'high']
+ */
 export const getModelSupportedReasoningEffort = (
   model: Model | undefined | null
 ): ReasoningEffortOption[] | undefined => {
