@@ -345,6 +345,10 @@ toast.loading = (props: QuickLoadingProps) => {
   })
 }
 
+toast.dismiss = (id: ToastProps['id']) => {
+  sonnerToast.dismiss(id)
+}
+
 const toastColorVariants = cva(undefined, {
   variants: {
     type: {

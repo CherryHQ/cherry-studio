@@ -140,6 +140,15 @@ interface toast {
    * })
    */
   loading: (props: QuickLoadingProps) => void
+
+  /**
+   * Dismiss a toast notification by its ID
+   * @param id - The ID of the toast to dismiss
+   * @example
+   * const toastId = toast.info({ title: 'Info' })
+   * toast.dismiss(toastId)
+   */
+  dismiss: (id: string | number) => void
 }
 
 // Export types for external use
