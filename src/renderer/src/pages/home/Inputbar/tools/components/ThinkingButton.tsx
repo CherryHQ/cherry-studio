@@ -22,6 +22,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { Model, ThinkingOption } from '@renderer/types'
 import { Tooltip } from 'antd'
+import { Brain } from 'lucide-react'
 import type { FC, ReactElement } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -233,6 +234,10 @@ const ThinkingButton: FC<Props> = ({
 }
 
 const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boolean }) => {
+  if (!props.isFixedReasoning && props.option === 'xhigh') {
+    return <Brain className="icon" size={18} style={{ marginTop: -2 }} />
+  }
+
   let IconComponent: React.FC<React.SVGProps<SVGSVGElement>> | null = null
   if (props.isFixedReasoning) {
     IconComponent = MdiLightbulbAutoOutline
@@ -249,9 +254,6 @@ const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boole
         break
       case 'high':
         IconComponent = MdiLightbulbOn90
-        break
-      case 'xhigh':
-        IconComponent = MdiLightbulbOn
         break
       case 'xhigh':
         IconComponent = MdiLightbulbOn
