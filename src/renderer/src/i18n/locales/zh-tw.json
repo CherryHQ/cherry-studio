@@ -2317,7 +2317,7 @@
     "failed": {
       "install": "安裝 OVMS 失敗:",
       "install_code_100": "未知錯誤",
-      "install_code_101": "僅支援 Intel(R) Core(TM) Ultra CPU",
+      "install_code_101": "僅支援 Intel(R) CPU",
       "install_code_102": "僅支援 Windows",
       "install_code_103": "下載 OVMS runtime 失敗",
       "install_code_104": "安裝 OVMS runtime 失敗",
