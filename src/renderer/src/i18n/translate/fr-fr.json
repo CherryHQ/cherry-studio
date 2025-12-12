@@ -4534,6 +4534,7 @@
         "clear_credentials": "Effacer les identifiants",
         "credentials_cleared": "Identifiants effacés",
         "credentials_required": "Veuillez renseigner l'ID de clé d'accès et la clé d'accès secrète",
+        "credentials_save_failed": "Échec de l'enregistrement des identifiants",
         "credentials_saved": "Identifiants enregistrés",
         "description": "Volcengine est la plateforme de services cloud de ByteDance, fournissant des services de modèles de langage de grande taille tels que Doubao. Utilisez la clé d'accès pour l'authentification afin de récupérer la liste des modèles.",
         "project_name": "Nom du projet",

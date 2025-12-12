@@ -4534,6 +4534,7 @@
         "clear_credentials": "資格証明書をクリア",
         "credentials_cleared": "資格情報がクリアされました",
         "credentials_required": "アクセスキーIDとシークレットアクセスキーを入力してください",
+        "credentials_save_failed": "認証情報の保存に失敗しました",
         "credentials_saved": "認証情報が保存されました",
         "description": "VolcengineはByteDanceのクラウドサービスプラットフォームで、Doubaoやその他の大規模言語モデルサービスを提供しています。認証にはアクセスキーを使用してモデルリストを取得します。",
         "project_name": "プロジェクト名",

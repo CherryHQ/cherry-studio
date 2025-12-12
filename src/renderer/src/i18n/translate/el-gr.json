@@ -4534,6 +4534,7 @@
         "clear_credentials": "Καθαρά Διαπιστευτήρια",
         "credentials_cleared": "Τα διαπιστευτήρια διαγράφηκαν",
         "credentials_required": "Παρακαλούμε συμπληρώστε το Access Key ID και το Secret Access Key",
+        "credentials_save_failed": "Αποτυχία αποθήκευσης διαπιστευτηρίων",
         "credentials_saved": "Τα διαπιστευτήρια αποθηκεύτηκαν",
         "description": "Η Volcengine είναι η πλατφόρμα υπηρεσιών cloud της ByteDance, παρέχοντας το Doubao και άλλες υπηρεσίες μεγάλων γλωσσικών μοντέλων. Χρησιμοποιήστε το Access Key για πιστοποίηση για να ανακτήσετε τη λίστα μοντέλων.",
         "project_name": "Όνομα Έργου",

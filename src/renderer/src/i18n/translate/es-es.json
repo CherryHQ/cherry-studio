@@ -4534,6 +4534,7 @@
         "clear_credentials": "Credenciales Claras",
         "credentials_cleared": "Credenciales borradas",
         "credentials_required": "Por favor, complete el ID de clave de acceso y la clave de acceso secreta.",
+        "credentials_save_failed": "Error al guardar las credenciales",
         "credentials_saved": "Credenciales guardadas",
         "description": "Volcengine es la plataforma de servicios en la nube de ByteDance, que proporciona Doubao y otros servicios de modelos de lenguaje de gran escala. Utiliza Access Key para la autenticación y obtener la lista de modelos.",
         "project_name": "Nombre del Proyecto",
