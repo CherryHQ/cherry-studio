@@ -417,6 +417,7 @@ end tell`
 }
 
 // Helper function to parse AppleScript reminder lists result
+// AppleScript returns records as: "listName:Name, listId:ID" (no braces, no quotes)
 function parseReminderListsResult(result: string): ReminderList[] {
   try {
     if (!result || result.trim() === '') {
@@ -425,26 +426,19 @@ function parseReminderListsResult(result: string): ReminderList[] {
 
     const lists: ReminderList[] = []
 
-    // Pattern to match list records
-    const recordPattern = /\{listName:"([^"]*)", listId:"([^"]*)"\}/g
-    let match
+    // Split by "listName:" to separate records
+    const parts = result.split(/(?=listName:)/).filter((p) => p.trim())
 
-    while ((match = recordPattern.exec(result)) !== null) {
-      lists.push({
-        name: match[1] || 'Untitled List',
-        id: match[2] || ''
-      })
-    }
-
-    // If no matches found, try simple parsing for single record
-    if (lists.length === 0 && result.includes('listName:')) {
-      const nameMatch = result.match(/listName:"([^"]*)"/)
-      const idMatch = result.match(/listId:"([^"]*)"/)
+    for (const part of parts) {
+      // Extract listName and listId from each part
+      // Format: "listName:My List, listId:UUID"
+      const nameMatch = part.match(/listName:([^,]+)/)
+      const idMatch = part.match(/listId:([^,}]+)/)
 
       if (nameMatch) {
         lists.push({
-          name: nameMatch[1] || 'Untitled List',
-          id: idMatch?.[1] || ''
+          name: nameMatch[1].trim() || 'Untitled List',
+          id: idMatch ? idMatch[1].trim() : ''
         })
       }
     }
@@ -457,6 +451,7 @@ function parseReminderListsResult(result: string): ReminderList[] {
 }
 
 // Helper function to parse AppleScript reminders result
+// AppleScript returns records as: "reminderName:Name, reminderBody:Body, ..." (no braces, no quotes)
 function parseRemindersResult(result: string): Reminder[] {
   try {
     if (!result || result.trim() === '') {
@@ -465,38 +460,45 @@ function parseRemindersResult(result: string): Reminder[] {
 
     const reminders: Reminder[] = []
 
-    // Pattern to match reminder records
-    const recordPattern =
-      /\{reminderName:"([^"]*)", reminderBody:"([^"]*)", reminderCompleted:(true|false), reminderDue:"([^"]*)", reminderList:"([^"]*)", reminderId:"([^"]*)"\}/g
-    let match
+    // Split by "reminderName:" to separate records
+    const parts = result.split(/(?=reminderName:)/).filter((p) => p.trim())
 
-    while ((match = recordPattern.exec(result)) !== null) {
-      reminders.push({
-        name: match[1] || 'Untitled Reminder',
-        body: match[2] || '',
-        completed: match[3] === 'true',
-        dueDate: match[4] || null,
-        listName: match[5] || 'Reminders',
-        id: match[6] || ''
-      })
-    }
-
-    // If no matches found, try simple parsing for single record
-    if (reminders.length === 0 && result.includes('reminderName:')) {
-      const nameMatch = result.match(/reminderName:"([^"]*)"/)
-      const bodyMatch = result.match(/reminderBody:"([^"]*)"/)
-      const completedMatch = result.match(/reminderCompleted:(true|false)/)
-      const dueMatch = result.match(/reminderDue:"([^"]*)"/)
-      const listMatch = result.match(/reminderList:"([^"]*)"/)
-      const idMatch = result.match(/reminderId:"([^"]*)"/)
+    for (const part of parts) {
+      const nameMatch = part.match(/reminderName:([^,]+)/)
+      const bodyMatch = part.match(/reminderBody:([^,]*)/)
+      const completedMatch = part.match(/reminderCompleted:(true|false)/)
+      const dueMatch = part.match(/reminderDue:([^,]*)/)
+      const listMatch = part.match(/reminderList:([^,]+)/)
+      const idMatch = part.match(/reminderId:([^,}]+)/)
 
       if (nameMatch) {
         reminders.push({
-          name: nameMatch[1] || 'Untitled Reminder',
-          body: bodyMatch?.[1] || '',
+          name: nameMatch[1].trim() || 'Untitled Reminder',
+          body: bodyMatch ? bodyMatch[1].trim() : '',
           completed: completedMatch?.[1] === 'true',
-          dueDate: dueMatch?.[1] || null,
-          listName: listMatch?.[1] || 'Reminders',
+          dueDate: dueMatch ? dueMatch[1].trim() || null : null,
+          listName: listMatch ? listMatch[1].trim() : 'Reminders',
+          id: idMatch ? idMatch[1].trim() : ''
+        })
+      }
+    }
+
+    // Fallback for single record
+    if (reminders.length === 0 && result.includes('reminderName:')) {
+      const nameMatch = result.match(/reminderName:([^,]+)/)
+      const bodyMatch = result.match(/reminderBody:([^,]*)/)
+      const completedMatch = result.match(/reminderCompleted:(true|false)/)
+      const dueMatch = result.match(/reminderDue:([^,]*)/)
+      const listMatch = result.match(/reminderList:([^,]+)/)
+      const idMatch = result.match(/reminderId:([^,}]+)/)
+
+      if (nameMatch) {
+        reminders.push({
+          name: nameMatch[1].trim() || 'Untitled Reminder',
+          body: bodyMatch ? bodyMatch[1].trim() : '',
+          completed: completedMatch?.[1] === 'true',
+          dueDate: dueMatch ? dueMatch[1].trim() || null : null,
+          listName: listMatch ? listMatch[1].trim() : 'Reminders',
           id: idMatch?.[1] || ''
         })
       }

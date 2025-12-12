@@ -441,6 +441,7 @@ end tell`
 }
 
 // Helper function to parse AppleScript events result
+// AppleScript returns records as: "eventTitle:Title, eventStart:Date, ..." (no braces, no quotes)
 function parseEventsResult(result: string): CalendarEvent[] {
   try {
     if (!result || result.trim() === '') {
@@ -449,45 +450,29 @@ function parseEventsResult(result: string): CalendarEvent[] {
 
     const events: CalendarEvent[] = []
 
-    // Pattern to match event records
-    const recordPattern =
-      /\{eventTitle:"([^"]*)", eventStart:"([^"]*)", eventEnd:"([^"]*)", eventLocation:"([^"]*)", eventCal:"([^"]*)", eventAllDay:(true|false), eventNotes:"([^"]*)"\}/g
-    let match
+    // Split by "eventTitle:" to separate records
+    const parts = result.split(/(?=eventTitle:)/).filter((p) => p.trim())
 
-    while ((match = recordPattern.exec(result)) !== null) {
-      events.push({
-        id: `${match[1]}-${match[2]}`, // Simple ID from title + startDate
-        title: match[1] || 'Untitled Event',
-        startDate: match[2] || null,
-        endDate: match[3] || null,
-        location: match[4] || null,
-        calendarName: match[5] || 'Calendar',
-        isAllDay: match[6] === 'true',
-        notes: match[7] || null,
-        url: null
-      })
-    }
-
-    // If no matches found, try simple parsing for single record
-    if (events.length === 0 && result.includes('eventTitle:')) {
-      const titleMatch = result.match(/eventTitle:"([^"]*)"/)
-      const startMatch = result.match(/eventStart:"([^"]*)"/)
-      const endMatch = result.match(/eventEnd:"([^"]*)"/)
-      const locationMatch = result.match(/eventLocation:"([^"]*)"/)
-      const calMatch = result.match(/eventCal:"([^"]*)"/)
-      const allDayMatch = result.match(/eventAllDay:(true|false)/)
-      const notesMatch = result.match(/eventNotes:"([^"]*)"/)
+    for (const part of parts) {
+      const titleMatch = part.match(/eventTitle:([^,]+)/)
+      const startMatch = part.match(/eventStart:([^,]+)/)
+      const endMatch = part.match(/eventEnd:([^,]+)/)
+      const locationMatch = part.match(/eventLocation:([^,]*)/)
+      const calMatch = part.match(/eventCal:([^,]+)/)
+      const allDayMatch = part.match(/eventAllDay:(true|false)/)
 
       if (titleMatch) {
+        const title = titleMatch[1].trim()
+        const startDate = startMatch ? startMatch[1].trim() : null
         events.push({
-          id: `${titleMatch[1]}-${startMatch?.[1] || ''}`,
-          title: titleMatch[1] || 'Untitled Event',
-          startDate: startMatch?.[1] || null,
-          endDate: endMatch?.[1] || null,
-          location: locationMatch?.[1] || null,
-          calendarName: calMatch?.[1] || 'Calendar',
+          id: `${title}-${startDate || ''}`,
+          title: title || 'Untitled Event',
+          startDate,
+          endDate: endMatch ? endMatch[1].trim() : null,
+          location: locationMatch ? locationMatch[1].trim() || null : null,
+          calendarName: calMatch ? calMatch[1].trim() : 'Calendar',
           isAllDay: allDayMatch?.[1] === 'true',
-          notes: notesMatch?.[1] || null,
+          notes: null,
           url: null
         })
       }

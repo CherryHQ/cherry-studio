@@ -262,46 +262,48 @@ end tell`
 }
 
 // Helper function to parse AppleScript notes result
+// AppleScript returns records as: "noteName:Name, noteFolder:Folder" (no braces, no quotes)
 function parseNotesResult(result: string): Note[] {
   try {
-    // AppleScript returns record format like: {noteName:"...", noteContent:"...", noteFolder:"..."}
-    // We need to parse this into JSON format
-
     if (!result || result.trim() === '') {
       return []
     }
 
     const notes: Note[] = []
 
-    // Remove outer braces if present
-    let content = result.trim()
-    if (content.startsWith('{') && content.endsWith('}')) {
-      content = content.slice(1, -1)
-    }
+    // AppleScript returns comma-separated records, split by record boundaries
+    // Multiple records look like: "noteName:A, noteFolder:F, noteName:B, noteFolder:F2"
+    // We need to find pairs of noteName/noteFolder
 
-    // Split by record boundaries (looking for patterns like "}, {")
-    const recordPattern = /\{noteName:"([^"]*)", noteContent:"([^"]*)", noteFolder:"([^"]*)"\}/g
-    let match
+    // First, try to split by "noteName:" to separate records
+    const parts = result.split(/(?=noteName:)/).filter((p) => p.trim())
 
-    while ((match = recordPattern.exec(result)) !== null) {
-      notes.push({
-        name: match[1] || 'Untitled Note',
-        content: match[2] || '',
-        folder: match[3] || 'Notes'
-      })
-    }
-
-    // If no matches found, try simple parsing
-    if (notes.length === 0 && content.includes('noteName:')) {
-      const nameMatch = content.match(/noteName:"([^"]*)"/)
-      const contentMatch = content.match(/noteContent:"([^"]*)"/)
-      const folderMatch = content.match(/noteFolder:"([^"]*)"/)
+    for (const part of parts) {
+      // Extract noteName and noteFolder from each part
+      // Format: "noteName:My Note Title, noteFolder:My Folder"
+      const nameMatch = part.match(/noteName:([^,]+)/)
+      const folderMatch = part.match(/noteFolder:([^,}]+)/)
 
       if (nameMatch) {
         notes.push({
-          name: nameMatch[1] || 'Untitled Note',
-          content: contentMatch?.[1] || '',
-          folder: folderMatch?.[1] || 'Notes'
+          name: nameMatch[1].trim() || 'Untitled Note',
+          content: '',
+          folder: folderMatch ? folderMatch[1].trim() : 'Notes'
+        })
+      }
+    }
+
+    // Also try with quotes (for search with content)
+    if (notes.length === 0) {
+      const contentMatch = result.match(/noteContent:([^,]+)/)
+      const nameMatch = result.match(/noteName:([^,]+)/)
+      const folderMatch = result.match(/noteFolder:([^,}]+)/)
+
+      if (nameMatch) {
+        notes.push({
+          name: nameMatch[1].trim() || 'Untitled Note',
+          content: contentMatch ? contentMatch[1].trim() : '',
+          folder: folderMatch ? folderMatch[1].trim() : 'Notes'
         })
       }
     }
