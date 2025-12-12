@@ -154,16 +154,24 @@ async function searchEvents(
 
   if (startDate) {
     const start = new Date(startDate)
+    if (isNaN(start.getTime())) {
+      return errorResponse('Invalid start date format')
+    }
     validateDateRange(start)
     const now = new Date()
-    daysBack = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+    // Clamp to non-negative to avoid AppleScript arithmetic issues
+    daysBack = Math.max(0, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
   }
 
   if (endDate) {
     const end = new Date(endDate)
+    if (isNaN(end.getTime())) {
+      return errorResponse('Invalid end date format')
+    }
     validateDateRange(end)
     const now = new Date()
-    daysForward = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    // Clamp to non-negative to avoid AppleScript arithmetic issues
+    daysForward = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
   }
 
   const script = `
@@ -173,6 +181,7 @@ tell application "Calendar"
   set nowDate to current date
   set startD to nowDate - (${daysBack} * days)
   set endD to nowDate + (${daysForward} * days)
+  set searchQuery to "${sanitizedQuery}"
 
   repeat with cal in calendars
     if eventCount >= ${maxEvents} then exit repeat
@@ -186,13 +195,13 @@ tell application "Calendar"
         if evtStart >= startD and evtStart <= endD then
           set evtTitle to summary of evt
 
-          -- Case-insensitive search in title
-          if evtTitle contains "${sanitizedQuery}" then
+          -- Case-insensitive search in title using variable
+          if evtTitle contains searchQuery then
             set evtEnd to end date of evt as string
             set evtLocation to location of evt
             set evtAllDay to allday event of evt
 
-            set evtInfo to {eventTitle:evtTitle, eventStart:(evtStart as string), eventEnd:evtEnd, eventLocation:evtLocation, eventCal:calName, eventAllDay:evtAllDay}
+            set evtInfo to "eventTitle:" & evtTitle & "|eventStart:" & (evtStart as string) & "|eventEnd:" & evtEnd & "|eventLocation:" & evtLocation & "|eventCal:" & calName & "|eventAllDay:" & evtAllDay
             set end of eventList to evtInfo
             set eventCount to eventCount + 1
           end if
@@ -237,16 +246,24 @@ async function listEvents(startDate?: string, endDate?: string, limit?: number):
 
   if (startDate) {
     const start = new Date(startDate)
+    if (isNaN(start.getTime())) {
+      return errorResponse('Invalid start date format')
+    }
     validateDateRange(start)
     const now = new Date()
-    daysBack = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+    // Clamp to non-negative to avoid AppleScript arithmetic issues
+    daysBack = Math.max(0, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
   }
 
   if (endDate) {
     const end = new Date(endDate)
+    if (isNaN(end.getTime())) {
+      return errorResponse('Invalid end date format')
+    }
     validateDateRange(end)
     const now = new Date()
-    daysForward = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    // Clamp to non-negative to avoid AppleScript arithmetic issues
+    daysForward = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
   }
 
   // Use current date and day arithmetic in AppleScript (much faster than date string parsing)
@@ -274,7 +291,7 @@ tell application "Calendar"
           set evtLocation to location of evt
           set evtAllDay to allday event of evt
 
-          set evtInfo to {eventTitle:evtTitle, eventStart:(evtStart as string), eventEnd:evtEnd, eventLocation:evtLocation, eventCal:calName, eventAllDay:evtAllDay}
+          set evtInfo to "eventTitle:" & evtTitle & "|eventStart:" & (evtStart as string) & "|eventEnd:" & evtEnd & "|eventLocation:" & evtLocation & "|eventCal:" & calName & "|eventAllDay:" & evtAllDay
           set end of eventList to evtInfo
           set eventCount to eventCount + 1
         end if
@@ -316,6 +333,9 @@ tell application "Calendar"
 
   if (startDate) {
     const date = new Date(startDate)
+    if (isNaN(date.getTime())) {
+      return errorResponse('Invalid date format')
+    }
     validateDateRange(date)
     const dateStr = formatDateForAppleScript(date.toISOString())
 
@@ -360,11 +380,17 @@ async function createEvent(
 
   // Parse and validate dates
   const startD = new Date(startDate)
+  if (isNaN(startD.getTime())) {
+    return errorResponse('Invalid start date format')
+  }
   validateDateRange(startD)
 
   let endD = new Date(startD)
   if (endDate) {
     endD = new Date(endDate)
+    if (isNaN(endD.getTime())) {
+      return errorResponse('Invalid end date format')
+    }
     validateDateRange(endD)
   } else {
     // Default: 1 hour after start
@@ -441,7 +467,7 @@ end tell`
 }
 
 // Helper function to parse AppleScript events result
-// AppleScript returns records as: "eventTitle:Title, eventStart:Date, ..." (no braces, no quotes)
+// AppleScript returns pipe-delimited records: "eventTitle:Title|eventStart:Date|..."
 function parseEventsResult(result: string): CalendarEvent[] {
   try {
     if (!result || result.trim() === '') {
@@ -450,15 +476,16 @@ function parseEventsResult(result: string): CalendarEvent[] {
 
     const events: CalendarEvent[] = []
 
-    // Split by "eventTitle:" to separate records
+    // Split by "eventTitle:" to separate records (each record is pipe-delimited)
     const parts = result.split(/(?=eventTitle:)/).filter((p) => p.trim())
 
     for (const part of parts) {
-      const titleMatch = part.match(/eventTitle:([^,]+)/)
-      const startMatch = part.match(/eventStart:([^,]+)/)
-      const endMatch = part.match(/eventEnd:([^,]+)/)
-      const locationMatch = part.match(/eventLocation:([^,]*)/)
-      const calMatch = part.match(/eventCal:([^,]+)/)
+      // Use pipe as delimiter to handle commas in field values
+      const titleMatch = part.match(/eventTitle:([^|]+)/)
+      const startMatch = part.match(/eventStart:([^|]+)/)
+      const endMatch = part.match(/eventEnd:([^|]+)/)
+      const locationMatch = part.match(/eventLocation:([^|]*)/)
+      const calMatch = part.match(/eventCal:([^|]+)/)
       const allDayMatch = part.match(/eventAllDay:(true|false)/)
 
       if (titleMatch) {

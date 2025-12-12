@@ -92,6 +92,7 @@ async function searchNotes(query?: string, limit?: number): Promise<ToolResponse
 tell application "Notes"
   set matchingNotes to {}
   set noteCount to 0
+  set searchQuery to "${sanitizedQuery}"
 
   -- Get all notes and search through them
   set allNotes to notes
@@ -105,15 +106,10 @@ tell application "Notes"
       set noteContent to plaintext of currentNote
       set noteFolder to name of container of currentNote
 
-      -- Simple case-insensitive search in name and content
-      if (noteName contains "${sanitizedQuery}") or (noteContent contains "${sanitizedQuery}") then
-        -- Limit content for preview
-        if (length of noteContent) > ${MAX_RESULTS.contentPreview} then
-          set noteContent to (characters 1 thru ${MAX_RESULTS.contentPreview} of noteContent) as string
-          set noteContent to noteContent & "..."
-        end if
-
-        set noteInfo to {noteName:noteName, noteContent:noteContent, noteFolder:noteFolder}
+      -- Simple case-insensitive search in name and content using variable
+      if (noteName contains searchQuery) or (noteContent contains searchQuery) then
+        -- Use pipe delimiter to handle commas in content
+        set noteInfo to "noteName:" & noteName & "|noteContent:" & noteContent & "|noteFolder:" & noteFolder
         set end of matchingNotes to noteInfo
         set noteCount to noteCount + 1
       end if
@@ -159,7 +155,8 @@ tell application "Notes"
     try
       set noteName to name of n
       set noteFolder to name of container of n
-      set noteInfo to {noteName:noteName, noteFolder:noteFolder}
+      -- Use pipe delimiter to handle commas in names
+      set noteInfo to "noteName:" & noteName & "|noteFolder:" & noteFolder
       set end of notesList to noteInfo
       set noteCount to noteCount + 1
     on error
@@ -262,7 +259,7 @@ end tell`
 }
 
 // Helper function to parse AppleScript notes result
-// AppleScript returns records as: "noteName:Name, noteFolder:Folder" (no braces, no quotes)
+// AppleScript returns pipe-delimited records: "noteName:Name|noteFolder:Folder"
 function parseNotesResult(result: string): Note[] {
   try {
     if (!result || result.trim() === '') {
@@ -271,33 +268,14 @@ function parseNotesResult(result: string): Note[] {
 
     const notes: Note[] = []
 
-    // AppleScript returns comma-separated records, split by record boundaries
-    // Multiple records look like: "noteName:A, noteFolder:F, noteName:B, noteFolder:F2"
-    // We need to find pairs of noteName/noteFolder
-
-    // First, try to split by "noteName:" to separate records
+    // Split by "noteName:" to separate records (each record is pipe-delimited)
     const parts = result.split(/(?=noteName:)/).filter((p) => p.trim())
 
     for (const part of parts) {
-      // Extract noteName and noteFolder from each part
-      // Format: "noteName:My Note Title, noteFolder:My Folder"
-      const nameMatch = part.match(/noteName:([^,]+)/)
-      const folderMatch = part.match(/noteFolder:([^,}]+)/)
-
-      if (nameMatch) {
-        notes.push({
-          name: nameMatch[1].trim() || 'Untitled Note',
-          content: '',
-          folder: folderMatch ? folderMatch[1].trim() : 'Notes'
-        })
-      }
-    }
-
-    // Also try with quotes (for search with content)
-    if (notes.length === 0) {
-      const contentMatch = result.match(/noteContent:([^,]+)/)
-      const nameMatch = result.match(/noteName:([^,]+)/)
-      const folderMatch = result.match(/noteFolder:([^,}]+)/)
+      // Use pipe as delimiter to handle commas in field values
+      const nameMatch = part.match(/noteName:([^|]+)/)
+      const contentMatch = part.match(/noteContent:([^|]*)/)
+      const folderMatch = part.match(/noteFolder:([^|,}]+)/)
 
       if (nameMatch) {
         notes.push({

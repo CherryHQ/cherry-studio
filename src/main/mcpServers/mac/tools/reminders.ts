@@ -109,7 +109,8 @@ tell application "Reminders"
       set listName to name of currentList
       set listId to id of currentList
 
-      set listInfo to {listName:listName, listId:listId}
+      -- Use pipe delimiter to handle commas in names
+      set listInfo to "listName:" & listName & "|listId:" & listId
       set end of listsList to listInfo
       set listCount to listCount + 1
     on error
@@ -149,6 +150,7 @@ async function searchReminders(query?: string, limit?: number): Promise<ToolResp
 tell application "Reminders"
   set matchingReminders to {}
   set reminderCount to 0
+  set searchQuery to "${sanitizedQuery}"
 
   set allLists to lists
 
@@ -178,9 +180,10 @@ tell application "Reminders"
           set reminderDueStr to ""
         end try
 
-        -- Case-insensitive search in name and body
-        if (reminderName contains "${sanitizedQuery}") or (reminderBody contains "${sanitizedQuery}") then
-          set reminderInfo to {reminderName:reminderName, reminderBody:reminderBody, reminderCompleted:reminderCompleted, reminderDue:reminderDueStr, reminderList:listName, reminderId:reminderId}
+        -- Case-insensitive search in name and body using variable
+        if (reminderName contains searchQuery) or (reminderBody contains searchQuery) then
+          -- Use pipe delimiter to handle commas in content
+          set reminderInfo to "reminderName:" & reminderName & "|reminderBody:" & reminderBody & "|reminderCompleted:" & reminderCompleted & "|reminderDue:" & reminderDueStr & "|reminderList:" & listName & "|reminderId:" & reminderId
           set end of matchingReminders to reminderInfo
           set reminderCount to reminderCount + 1
         end if
@@ -254,6 +257,9 @@ async function createReminder(
   let dueDateScript = ''
   if (dueDate) {
     const date = new Date(dueDate)
+    if (isNaN(date.getTime())) {
+      return errorResponse('Invalid due date format')
+    }
     // AppleScript date format: "Monday, January 1, 2024 at 12:00:00 PM"
     const options: Intl.DateTimeFormatOptions = {
       weekday: 'long',
@@ -340,11 +346,12 @@ tell application "Reminders"
   set reminderCount to 0
   set targetList to null
   set listFound to false
+  set searchListId to "${sanitizedListId}"
 
-  -- Try to find the list by ID or name
+  -- Try to find the list by ID or name using variable
   set allLists to lists
   repeat with currentList in allLists
-    if (id of currentList is "${sanitizedListId}") or (name of currentList is "${sanitizedListId}") then
+    if (id of currentList is searchListId) or (name of currentList is searchListId) then
       set targetList to currentList
       set listFound to true
       exit repeat
@@ -380,7 +387,8 @@ tell application "Reminders"
         set reminderDueStr to ""
       end try
 
-      set reminderInfo to {reminderName:reminderName, reminderBody:reminderBody, reminderCompleted:reminderCompleted, reminderDue:reminderDueStr, reminderList:listName, reminderId:reminderId}
+      -- Use pipe delimiter to handle commas in content
+      set reminderInfo to "reminderName:" & reminderName & "|reminderBody:" & reminderBody & "|reminderCompleted:" & reminderCompleted & "|reminderDue:" & reminderDueStr & "|reminderList:" & listName & "|reminderId:" & reminderId
       set end of remindersList to reminderInfo
       set reminderCount to reminderCount + 1
     on error
@@ -417,7 +425,7 @@ end tell`
 }
 
 // Helper function to parse AppleScript reminder lists result
-// AppleScript returns records as: "listName:Name, listId:ID" (no braces, no quotes)
+// AppleScript returns pipe-delimited records: "listName:Name|listId:ID"
 function parseReminderListsResult(result: string): ReminderList[] {
   try {
     if (!result || result.trim() === '') {
@@ -426,14 +434,13 @@ function parseReminderListsResult(result: string): ReminderList[] {
 
     const lists: ReminderList[] = []
 
-    // Split by "listName:" to separate records
+    // Split by "listName:" to separate records (each record is pipe-delimited)
     const parts = result.split(/(?=listName:)/).filter((p) => p.trim())
 
     for (const part of parts) {
-      // Extract listName and listId from each part
-      // Format: "listName:My List, listId:UUID"
-      const nameMatch = part.match(/listName:([^,]+)/)
-      const idMatch = part.match(/listId:([^,}]+)/)
+      // Use pipe as delimiter to handle commas in field values
+      const nameMatch = part.match(/listName:([^|]+)/)
+      const idMatch = part.match(/listId:([^|,}]+)/)
 
       if (nameMatch) {
         lists.push({
@@ -451,7 +458,7 @@ function parseReminderListsResult(result: string): ReminderList[] {
 }
 
 // Helper function to parse AppleScript reminders result
-// AppleScript returns records as: "reminderName:Name, reminderBody:Body, ..." (no braces, no quotes)
+// AppleScript returns pipe-delimited records: "reminderName:Name|reminderBody:Body|..."
 function parseRemindersResult(result: string): Reminder[] {
   try {
     if (!result || result.trim() === '') {
@@ -460,16 +467,17 @@ function parseRemindersResult(result: string): Reminder[] {
 
     const reminders: Reminder[] = []
 
-    // Split by "reminderName:" to separate records
+    // Split by "reminderName:" to separate records (each record is pipe-delimited)
     const parts = result.split(/(?=reminderName:)/).filter((p) => p.trim())
 
     for (const part of parts) {
-      const nameMatch = part.match(/reminderName:([^,]+)/)
-      const bodyMatch = part.match(/reminderBody:([^,]*)/)
+      // Use pipe as delimiter to handle commas in field values
+      const nameMatch = part.match(/reminderName:([^|]+)/)
+      const bodyMatch = part.match(/reminderBody:([^|]*)/)
       const completedMatch = part.match(/reminderCompleted:(true|false)/)
-      const dueMatch = part.match(/reminderDue:([^,]*)/)
-      const listMatch = part.match(/reminderList:([^,]+)/)
-      const idMatch = part.match(/reminderId:([^,}]+)/)
+      const dueMatch = part.match(/reminderDue:([^|]*)/)
+      const listMatch = part.match(/reminderList:([^|]+)/)
+      const idMatch = part.match(/reminderId:([^|,}]+)/)
 
       if (nameMatch) {
         reminders.push({
@@ -479,27 +487,6 @@ function parseRemindersResult(result: string): Reminder[] {
           dueDate: dueMatch ? dueMatch[1].trim() || null : null,
           listName: listMatch ? listMatch[1].trim() : 'Reminders',
           id: idMatch ? idMatch[1].trim() : ''
-        })
-      }
-    }
-
-    // Fallback for single record
-    if (reminders.length === 0 && result.includes('reminderName:')) {
-      const nameMatch = result.match(/reminderName:([^,]+)/)
-      const bodyMatch = result.match(/reminderBody:([^,]*)/)
-      const completedMatch = result.match(/reminderCompleted:(true|false)/)
-      const dueMatch = result.match(/reminderDue:([^,]*)/)
-      const listMatch = result.match(/reminderList:([^,]+)/)
-      const idMatch = result.match(/reminderId:([^,}]+)/)
-
-      if (nameMatch) {
-        reminders.push({
-          name: nameMatch[1].trim() || 'Untitled Reminder',
-          body: bodyMatch ? bodyMatch[1].trim() : '',
-          completed: completedMatch?.[1] === 'true',
-          dueDate: dueMatch ? dueMatch[1].trim() || null : null,
-          listName: listMatch ? listMatch[1].trim() : 'Reminders',
-          id: idMatch?.[1] || ''
         })
       }
     }
