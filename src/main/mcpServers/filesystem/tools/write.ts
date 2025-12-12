@@ -15,11 +15,10 @@ export const writeToolDefinition = {
   name: 'write',
   description: `Writes a file to the local filesystem.
 
-Usage:
-- This tool will overwrite the existing file if there is one at the provided path
-- If this is an existing file, you MUST use the read tool first to read the file's contents. This ensures you understand what you're overwriting
-- ALWAYS prefer editing existing files in the codebase using the 'edit' tool. Use 'write' only when creating new files
-- NEVER proactively create documentation files (*.md) or README files unless explicitly requested
+- This tool will overwrite the existing file if one exists at the path
+- You MUST use the read tool first to understand what you're overwriting
+- ALWAYS prefer using the 'edit' tool for existing files
+- NEVER proactively create documentation files unless explicitly requested
 - Parent directories will be created automatically if they don't exist
 - The file_path must be an absolute path, not a relative path`,
   inputSchema: z.toJSONSchema(WriteToolSchema)

@@ -13,17 +13,15 @@ export const DeleteToolSchema = z.object({
 // Tool definition with detailed description
 export const deleteToolDefinition = {
   name: 'delete',
-  description: `Delete a file or directory from the filesystem.
+  description: `Deletes a file or directory from the filesystem.
 
 CAUTION: This operation cannot be undone!
 
-Usage:
-- For files: simply provide the path to delete
-- For empty directories: provide the path to delete
-- For non-empty directories: set recursive=true to delete the directory and all its contents
-- Without recursive=true, attempting to delete a non-empty directory will fail with an error
+- For files: simply provide the path
+- For empty directories: provide the path
+- For non-empty directories: set recursive=true
 - The path must be an absolute path, not a relative path
-- Always verify the path before deleting to avoid accidental data loss`,
+- Always verify the path before deleting to avoid data loss`,
   inputSchema: z.toJSONSchema(DeleteToolSchema)
 }
 

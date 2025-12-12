@@ -10,7 +10,10 @@ import { isBinaryFile, MAX_GREP_MATCHES, MAX_LINE_LENGTH, validatePath } from '.
 // Schema definition
 export const GrepToolSchema = z.object({
   pattern: z.string().describe('The regex pattern to search for in file contents'),
-  path: z.string().optional().describe('The directory to search in. Defaults to the current working directory'),
+  path: z
+    .string()
+    .optional()
+    .describe('The directory to search in (must be absolute path). Defaults to the base directory'),
   include: z.string().optional().describe('File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")')
 })
 
@@ -21,12 +24,13 @@ export const grepToolDefinition = {
 
 - Searches file contents using regular expressions
 - Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
-- Filter files by pattern with the include parameter (e.g., "*.js", "*.{ts,tsx}")
-- Returns file paths and line numbers with matching content sorted by file
-- Use this tool when you need to find files containing specific patterns
-- Results are limited to 100 matches to avoid overwhelming output
+- Filter files by pattern with include (e.g., "*.js", "*.{ts,tsx}")
+- Returns absolute file paths and line numbers with matching content
+- Results are limited to 100 matches
 - Binary files are automatically skipped
-- Common directories like node_modules, .git, dist are excluded`,
+- Common directories (node_modules, .git, dist) are excluded
+- The path parameter must be an absolute path if specified
+- If path is not specified, defaults to the base directory`,
   inputSchema: z.toJSONSchema(GrepToolSchema)
 }
 
@@ -280,12 +284,9 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
       fileGroups.get(match.file)!.push(match)
     })
 
-    // Format grouped matches
-    const baseForDisplay = data.path ? validPath : baseDir
-
+    // Format grouped matches - always use absolute paths
     fileGroups.forEach((fileMatches, filePath) => {
-      const relativePath = path.relative(baseForDisplay, filePath)
-      output.push(`\n${relativePath}:`)
+      output.push(`\n${filePath}:`)
       fileMatches.forEach((match) => {
         output.push(`  ${match.line}: ${match.content}`)
       })
