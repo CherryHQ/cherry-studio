@@ -72,7 +72,13 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
       if (isDataUrl) {
         const { mediaType } = parseDataUrlMediaType(url)
         const commaIndex = url.indexOf(',')
-        const base64Data = commaIndex !== -1 ? url.slice(commaIndex + 1) : url
+        if (commaIndex === -1) {
+          logger.error('Malformed data URL detected (missing comma separator), image will be excluded:', {
+            urlPrefix: url.slice(0, 50) + '...'
+          })
+          continue
+        }
+        const base64Data = url.slice(commaIndex + 1)
         parts.push({ type: 'image', image: base64Data, ...(mediaType ? { mediaType } : {}) })
       } else {
         // For remote URLs we keep payload minimal to match existing expectations.

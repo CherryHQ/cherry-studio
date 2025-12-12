@@ -171,7 +171,7 @@ describe('messageConverter', () => {
       })
     })
 
-    it('handles malformed data URLs without comma separator', async () => {
+    it('skips malformed data URLs without comma separator', async () => {
       const model = createModel()
       const message = createMessage('user')
       message.__mockContent = 'Malformed data url'
@@ -182,12 +182,26 @@ describe('messageConverter', () => {
       expect(result).toEqual({
         role: 'user',
         content: [
-          { type: 'text', text: 'Malformed data url' },
-          // Falls back to using the whole URL as image data when comma is not found
-          // Note: mediaType is still extracted but won't be set if parseDataUrlMediaType returns undefined
-          { type: 'image', image: 'data:image/pngAAABBB' }
+          { type: 'text', text: 'Malformed data url' }
+          // Malformed data URL is excluded from the content
         ]
       })
+    })
+
+    it('handles multiple large base64 images without stack overflow', async () => {
+      const model = createModel()
+      const message = createMessage('user')
+      // Create large base64 strings (~500KB each) to simulate real-world large images
+      const largeBase64 = 'A'.repeat(500_000)
+      message.__mockContent = 'Check these images'
+      message.__mockImageBlocks = [
+        createImageBlock(message.id, { url: `data:image/png;base64,${largeBase64}` }),
+        createImageBlock(message.id, { url: `data:image/png;base64,${largeBase64}` }),
+        createImageBlock(message.id, { url: `data:image/png;base64,${largeBase64}` })
+      ]
+
+      // Should not throw RangeError: Maximum call stack size exceeded
+      await expect(convertMessageToSdkParam(message, true, model)).resolves.toBeDefined()
     })
 
     it('returns file instructions as a system message when native uploads succeed', async () => {
