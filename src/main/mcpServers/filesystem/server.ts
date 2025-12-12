@@ -1,7 +1,5 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import fs from 'fs/promises'
-import path from 'path'
 
 import {
   deleteToolDefinition,
@@ -17,24 +15,24 @@ import {
   readToolDefinition,
   writeToolDefinition
 } from './tools'
-import { expandHome, logger, normalizePath } from './types'
+import { logger } from './types'
 
 export class FileSystemServer {
   public server: Server
   private allowedDirectories: string[]
 
-  constructor(allowedDirs: string[]) {
-    if (!Array.isArray(allowedDirs) || allowedDirs.length === 0) {
-      throw new Error('No allowed directories provided, please specify at least one directory in args')
+  constructor(allowedDirs?: string[]) {
+    // Allowed-directories enforcement has been removed. We accept args for backward compatibility,
+    // but the server is always unrestricted.
+    if (Array.isArray(allowedDirs) && allowedDirs.length > 0) {
+      logger.info(
+        `Ignoring allowed directories args; filesystem MCP server is unrestricted. Args: ${allowedDirs.join(', ')}`
+      )
+    } else {
+      logger.info('No allowed directories configured; filesystem MCP server is unrestricted.')
     }
 
-    this.allowedDirectories = allowedDirs.map((dir) => normalizePath(path.resolve(expandHome(dir))))
-
-    // Validate that all directories exist and are accessible
-    this.validateDirs().catch((error) => {
-      logger.error('Error validating allowed directories:', error)
-      throw new Error(`Error validating allowed directories: ${error}`)
-    })
+    this.allowedDirectories = []
 
     this.server = new Server(
       {
@@ -49,24 +47,6 @@ export class FileSystemServer {
     )
 
     this.initialize()
-  }
-
-  async validateDirs() {
-    // Validate that all directories exist and are accessible
-    await Promise.all(
-      this.allowedDirectories.map(async (dir) => {
-        try {
-          const stats = await fs.stat(expandHome(dir))
-          if (!stats.isDirectory()) {
-            logger.error(`Error: ${dir} is not a directory`)
-            throw new Error(`Error: ${dir} is not a directory`)
-          }
-        } catch (error: any) {
-          logger.error(`Error accessing directory ${dir}:`, error)
-          throw new Error(`Error accessing directory ${dir}: ${error.message}`)
-        }
-      })
-    )
   }
 
   initialize() {
@@ -124,7 +104,10 @@ export class FileSystemServer {
               content: [
                 {
                   type: 'text',
-                  text: `Allowed directories:\n${this.allowedDirectories.join('\n')}`
+                  text:
+                    this.allowedDirectories.length > 0
+                      ? `Allowed directories:\n${this.allowedDirectories.join('\n')}`
+                      : 'Allowed directories: unrestricted'
                 }
               ]
             }
