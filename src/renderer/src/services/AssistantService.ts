@@ -6,6 +6,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
+import { getModelSupportedReasoningEffort } from '@renderer/config/models'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
 import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
@@ -54,7 +55,11 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
-export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, text: string): TranslateAssistant {
+export function getDefaultTranslateAssistant(
+  targetLanguage: TranslateLanguage,
+  text: string,
+  _settings?: Partial<AssistantSettings>
+): TranslateAssistant {
   const model = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
 
@@ -68,9 +73,12 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     throw new Error('Unknown target language')
   }
 
+  const reasoningEffort = getModelSupportedReasoningEffort(model)?.[0]
   const settings = {
-    temperature: 0.7
-  }
+    temperature: 0.7,
+    reasoning_effort: reasoningEffort,
+    ..._settings
+  } satisfies Partial<AssistantSettings>
 
   const getTranslateContent = (model: Model, text: string, targetLanguage: TranslateLanguage): string => {
     if (isQwenMTModel(model)) {

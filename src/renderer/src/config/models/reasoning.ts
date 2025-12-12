@@ -1,6 +1,7 @@
 import type {
   Model,
   ReasoningEffortConfig,
+  ReasoningEffortOption,
   SystemProviderId,
   ThinkingModelType,
   ThinkingOptionConfig
@@ -25,7 +26,7 @@ export const REASONING_REGEX =
 
 // 模型类型到支持的reasoning_effort的映射表
 // TODO: refactor this. too many identical options
-export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
+export const MODEL_SUPPORTED_REASONING_EFFORT = {
   default: ['low', 'medium', 'high'] as const,
   o: ['low', 'medium', 'high'] as const,
   openai_deep_research: ['medium'] as const,
@@ -48,7 +49,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const
-} as const
+} as const satisfies ReasoningEffortConfig
 
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
@@ -148,6 +149,24 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   }
 }
 
+const _getModelSupportedReasoningEffort = (model: Model): ReasoningEffortOption[] | undefined => {
+  if (!isSupportedReasoningEffortModel(model) && !isSupportedThinkingTokenModel(model)) {
+    return undefined
+  }
+  // use private function to avoid redundant function calling
+  const thinkingType = _getThinkModelType(model)
+  return MODEL_SUPPORTED_OPTIONS[thinkingType]
+}
+
+export const getModelSupportedReasoningEffort = (
+  model: Model | undefined | null
+): ReasoningEffortOption[] | undefined => {
+  if (!model) return undefined
+
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, _getModelSupportedReasoningEffort)
+  return idResult ?? nameResult
+}
+
 function _isSupportedThinkingTokenModel(model: Model): boolean {
   // Specifically for DeepSeek V3.1. White list for now
   if (isDeepSeekHybridInferenceModel(model)) {
@@ -183,12 +202,14 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
 }
 
 /** 用于判断是否支持控制思考，但不一定以reasoning_effort的方式 */
+// TODO: rename it
 export function isSupportedThinkingTokenModel(model?: Model): boolean {
   if (!model) return false
   const { idResult, nameResult } = withModelIdAndNameAsId(model, _isSupportedThinkingTokenModel)
   return idResult || nameResult
 }
 
+// TODO: it should be merged in isSupportedThinkingTokenModel
 export function isSupportedReasoningEffortModel(model?: Model): boolean {
   if (!model) {
     return false
