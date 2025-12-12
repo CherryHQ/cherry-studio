@@ -99,7 +99,15 @@ class KnowledgeQueue {
     const userId = getStoreSetting('userId')
     try {
       if (item.retryCount && item.retryCount >= this.MAX_RETRIES) {
-        logger.info(`Item ${item.id} has reached max retries, skipping`)
+        logger.warn(`Item ${item.id} has reached max retries, marking as failed`)
+        store.dispatch(
+          updateItemProcessingStatus({
+            baseId,
+            itemId: item.id,
+            status: 'failed',
+            error: 'Max retries exceeded'
+          })
+        )
         return
       }
 
