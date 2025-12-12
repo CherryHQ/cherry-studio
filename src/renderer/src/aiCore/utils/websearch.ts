@@ -84,7 +84,7 @@ export function buildProviderBuiltinWebSearchConfig(
       const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
       return {
         xai: {
-          maxSearchResults: Math.max(webSearchConfig.maxResults, X_AI_MAX_SERACH_RESULT),
+          maxSearchResults: Math.min(webSearchConfig.maxResults, X_AI_MAX_SERACH_RESULT),
           returnCitations: true,
           sources: [
             {
