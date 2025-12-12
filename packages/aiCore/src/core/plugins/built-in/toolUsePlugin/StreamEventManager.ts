@@ -77,7 +77,7 @@ export class StreamEventManager {
   private async pipeRecursiveStream(
     controller: StreamController,
     recursiveStream: ReadableStream,
-    context?: AiRequestContext
+    _context?: AiRequestContext
   ): Promise<void> {
     const reader = recursiveStream.getReader()
     try {
@@ -86,18 +86,14 @@ export class StreamEventManager {
         if (done) {
           break
         }
+        if (value.type === 'start') {
+          continue
+        }
+
         if (value.type === 'finish') {
-          // 迭代的流不发finish，但需要累加其 usage
-          if (value.usage && context?.accumulatedUsage) {
-            this.accumulateUsage(context.accumulatedUsage, value.usage)
-          }
           break
         }
-        // 对于 finish-step 类型，累加其 usage
-        if (value.type === 'finish-step' && value.usage && context?.accumulatedUsage) {
-          this.accumulateUsage(context.accumulatedUsage, value.usage)
-        }
-        // 将递归流的数据传递到当前流
+
         controller.enqueue(value)
       }
     } finally {
@@ -159,7 +155,7 @@ export class StreamEventManager {
   /**
    * 累加 usage 数据
    */
-  private accumulateUsage(target: any, source: any): void {
+  accumulateUsage(target: any, source: any): void {
     if (!target || !source) return
 
     // 累加各种 token 类型
