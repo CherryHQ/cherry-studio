@@ -292,6 +292,21 @@ describe('VolcengineService', () => {
 
         expect(result.canonicalHeaders).toBe('host:example.com\nx-custom:\n')
       })
+
+      it('should handle mixed-case header keys', () => {
+        const headers = {
+          'X-Date': '20240101T120000Z',
+          'Content-Type': 'application/json',
+          Host: 'example.com'
+        }
+
+        const result = _buildCanonicalHeaders(headers)
+
+        expect(result.canonicalHeaders).toBe(
+          'content-type:application/json\nhost:example.com\nx-date:20240101T120000Z\n'
+        )
+        expect(result.signedHeaders).toBe('content-type;host;x-date')
+      })
     })
 
     describe('deriveSigningKey', () => {
