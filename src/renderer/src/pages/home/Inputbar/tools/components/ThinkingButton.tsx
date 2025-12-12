@@ -5,7 +5,8 @@ import {
   MdiLightbulbOn,
   MdiLightbulbOn30,
   MdiLightbulbOn50,
-  MdiLightbulbOn80
+  MdiLightbulbOn80,
+  MdiLightbulbOn90
 } from '@renderer/components/Icons/SVGIcon'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
@@ -185,6 +186,9 @@ const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boole
         IconComponent = MdiLightbulbOn80
         break
       case 'high':
+        IconComponent = MdiLightbulbOn90
+        break
+      case 'xhigh':
         IconComponent = MdiLightbulbOn
         break
       case 'auto':

@@ -546,7 +546,8 @@
         "low": "Curto",
         "medium": "Médio",
         "minimal": "mínimo",
-        "off": "Desligado"
+        "off": "Desligado",
+        "xhigh": "[to be translated]:X High"
       },
       "regular_phrases": {
         "add": "Adicionar Frase",

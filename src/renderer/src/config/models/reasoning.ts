@@ -12,6 +12,8 @@ import {
   isGPT5ProModel,
   isGPT5SeriesModel,
   isGPT51SeriesModel,
+  isGPT52ProModel,
+  isGPT52SeriesModel,
   isOpenAIDeepResearchModel,
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
@@ -33,7 +35,9 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   gpt5_codex: ['low', 'medium', 'high'] as const,
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
   gpt5_1_codex: ['none', 'medium', 'high'] as const,
+  gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
+  gpt52pro: ['medium', 'high', 'xhigh'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
@@ -60,6 +64,8 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
   gpt5_1: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1,
   gpt5_1_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex,
+  gpt5_2: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2,
+  gpt52pro: MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   grok4_fast: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
   gemini: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
@@ -95,6 +101,11 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
       thinkingModelType = 'gpt5_1_codex'
     } else {
       thinkingModelType = 'gpt5_1'
+    }
+  } else if (isGPT52SeriesModel(model)) {
+    thinkingModelType = 'gpt5_2'
+    if (isGPT52ProModel(model)) {
+      thinkingModelType = 'gpt52pro'
     }
   } else if (isGPT5SeriesModel(model)) {
     if (modelId.includes('codex')) {

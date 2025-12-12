@@ -546,7 +546,8 @@
         "low": "Low",
         "medium": "Medium",
         "minimal": "Minimal",
-        "off": "Off"
+        "off": "Off",
+        "xhigh": "X High"
       },
       "regular_phrases": {
         "add": "Add Phrase",

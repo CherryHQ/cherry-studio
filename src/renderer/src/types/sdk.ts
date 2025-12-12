@@ -74,13 +74,17 @@ export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | 
  */
 
 type OpenAIParamsPurified = Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'reasoning_effort' | 'modalities'>
-
+type OpenAIReasoningEffort =
+  | OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort']
+  | 'none'
+  | 'auto'
+  | 'xhigh'
 export type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
-  reasoningEffort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
+  reasoningEffort?: OpenAIReasoningEffort
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
-  reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
+  reasoning_effort?: OpenAIReasoningEffort
   enable_thinking?: boolean
   thinking_budget?: number
   incremental_output?: boolean
@@ -100,7 +104,7 @@ export type ReasoningEffortOptionalParams = {
       type: 'enabled' | 'disabled'
     }
     thinking_budget?: number
-    reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'auto'
+    reasoning_effort?: OpenAIReasoningEffort
   }
   disable_reasoning?: boolean
   // Add any other potential reasoning-related keys here if they exist

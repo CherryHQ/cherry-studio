@@ -546,7 +546,8 @@
         "low": "稍微思考",
         "medium": "正常思考",
         "minimal": "最少思考",
-        "off": "關閉"
+        "off": "關閉",
+        "xhigh": "極力思考"
       },
       "regular_phrases": {
         "add": "添加短语",

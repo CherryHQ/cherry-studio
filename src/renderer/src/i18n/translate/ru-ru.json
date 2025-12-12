@@ -546,7 +546,8 @@
         "low": "Меньше думать",
         "medium": "Среднее",
         "minimal": "минимальный",
-        "off": "Выключить"
+        "off": "Выключить",
+        "xhigh": "[to be translated]:X High"
       },
       "regular_phrases": {
         "add": "Добавить подсказку",

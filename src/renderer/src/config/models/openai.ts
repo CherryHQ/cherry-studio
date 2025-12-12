@@ -35,6 +35,11 @@ export const isGPT5ProModel = (model: Model) => {
   return modelId.includes('gpt-5-pro')
 }
 
+export const isGPT52ProModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5.2-pro')
+}
+
 export const isOpenAIOpenWeightModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-oss')
@@ -42,7 +47,7 @@ export const isOpenAIOpenWeightModel = (model: Model) => {
 
 export const isGPT5SeriesModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5') && !modelId.includes('gpt-5.1')
+  return modelId.includes('gpt-5') && !modelId.includes('gpt-5.1') && !modelId.includes('gpt-5.2')
 }
 
 export const isGPT5SeriesReasoningModel = (model: Model) => {
@@ -53,6 +58,11 @@ export const isGPT5SeriesReasoningModel = (model: Model) => {
 export const isGPT51SeriesModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5.1')
+}
+
+export const isGPT52SeriesModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5.2')
 }
 
 export function isSupportVerbosityModel(model: Model): boolean {
@@ -86,7 +96,7 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
     modelId.includes('o3') ||
     modelId.includes('o4') ||
     modelId.includes('gpt-oss') ||
-    ((isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) && !modelId.includes('chat'))
+    ((isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) && !modelId.includes('chat'))
   )
 }
 

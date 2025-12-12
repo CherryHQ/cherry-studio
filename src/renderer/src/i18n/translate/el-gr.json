@@ -546,7 +546,8 @@
         "low": "Μικρό",
         "medium": "Μεσαίο",
         "minimal": "ελάχιστος",
-        "off": "Απενεργοποίηση"
+        "off": "Απενεργοποίηση",
+        "xhigh": "[to be translated]:X High"
       },
       "regular_phrases": {
         "add": "Προσθήκη φράσης",
