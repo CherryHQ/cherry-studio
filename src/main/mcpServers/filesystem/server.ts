@@ -3,9 +3,11 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 
 import {
   deleteToolDefinition,
+  editToolDefinition,
   globToolDefinition,
   grepToolDefinition,
   handleDeleteTool,
+  handleEditTool,
   handleGlobTool,
   handleGrepTool,
   handleLsTool,
@@ -58,6 +60,7 @@ export class FileSystemServer {
           lsToolDefinition,
           grepToolDefinition,
           readToolDefinition,
+          editToolDefinition,
           writeToolDefinition,
           deleteToolDefinition,
           {
@@ -92,6 +95,9 @@ export class FileSystemServer {
 
           case 'read':
             return await handleReadTool(args, this.allowedDirectories)
+
+          case 'edit':
+            return await handleEditTool(args, this.allowedDirectories)
 
           case 'write':
             return await handleWriteTool(args, this.allowedDirectories)

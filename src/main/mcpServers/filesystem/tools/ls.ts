@@ -13,12 +13,19 @@ export const LsToolSchema = z.object({
   recursive: z.boolean().optional().describe('Whether to list directories recursively (default: false)')
 })
 
-// Tool definition
+// Tool definition with detailed description
 export const lsToolDefinition = {
   name: 'ls',
-  description:
-    'List files and directories in a specified path. Returns a tree-like structure showing the directory contents. ' +
-    'Can optionally list recursively to show subdirectories.',
+  description: `List files and directories in a specified path.
+
+- Returns a tree-like structure showing the directory contents with icons
+- Directories are shown with 📁, files with 📄
+- Entries are sorted alphabetically with directories first
+- Can optionally list recursively to show subdirectories (up to 5 levels deep)
+- Common directories like node_modules, dist, .git are automatically excluded
+- Hidden files (starting with .) are excluded except .env.example
+- Results are limited to 100 entries to avoid overwhelming output
+- If path is not specified, lists the current working directory`,
   inputSchema: z.toJSONSchema(LsToolSchema)
 }
 
