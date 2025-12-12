@@ -75,7 +75,7 @@ class KnowledgeQueue {
 
       let processableItem = findProcessableItem()
       while (processableItem) {
-        this.processItem(baseId, processableItem).then()
+        await this.processItem(baseId, processableItem)
         processableItem = findProcessableItem()
       }
     } finally {
@@ -99,13 +99,25 @@ class KnowledgeQueue {
     const userId = getStoreSetting('userId')
     try {
       if (item.retryCount && item.retryCount >= this.MAX_RETRIES) {
+        const errorMessage = item.processingError
+          ? `Max retries exceeded: ${item.processingError}`
+          : 'Max retries exceeded'
         logger.warn(`Item ${item.id} has reached max retries, marking as failed`)
+        notificationService.send({
+          id: uuid(),
+          type: 'error',
+          title: t('common.knowledge_base'),
+          message: t('notification.knowledge.error', { error: errorMessage }),
+          silent: false,
+          timestamp: Date.now(),
+          source: 'knowledge'
+        })
         store.dispatch(
           updateItemProcessingStatus({
             baseId,
             itemId: item.id,
             status: 'failed',
-            error: 'Max retries exceeded'
+            error: errorMessage
           })
         )
         return
