@@ -14,13 +14,14 @@ export const MAX_INPUT_LENGTHS = {
   reminderName: 500
 }
 
-// Timeouts per operation type
+// Timeouts per operation type (in milliseconds)
+// Apps like Calendar, Notes, Mail may need time to launch and sync with iCloud
 export const TIMEOUT_MS = {
-  list: 3000,
-  search: 5000,
-  create: 5000,
-  open: 2000,
-  send: 8000
+  list: 15000, // 15s - app launch + iterate items
+  search: 20000, // 20s - app launch + search through content
+  create: 10000, // 10s - app launch + create item
+  open: 5000, // 5s - app launch
+  send: 15000 // 15s - email sending with network
 }
 
 // Result limits

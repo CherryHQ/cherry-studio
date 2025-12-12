@@ -132,11 +132,11 @@ describe('Mac MCP - AppleScript Utilities', () => {
     })
 
     it('should have valid TIMEOUT_MS', () => {
-      expect(TIMEOUT_MS.list).toBe(3000)
-      expect(TIMEOUT_MS.search).toBe(5000)
-      expect(TIMEOUT_MS.create).toBe(5000)
-      expect(TIMEOUT_MS.open).toBe(2000)
-      expect(TIMEOUT_MS.send).toBe(8000)
+      expect(TIMEOUT_MS.list).toBe(15000)
+      expect(TIMEOUT_MS.search).toBe(20000)
+      expect(TIMEOUT_MS.create).toBe(10000)
+      expect(TIMEOUT_MS.open).toBe(5000)
+      expect(TIMEOUT_MS.send).toBe(15000)
     })
 
     it('should have valid MAX_RESULTS', () => {
