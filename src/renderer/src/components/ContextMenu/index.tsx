@@ -31,9 +31,9 @@ function extractSelectedText(selection: Selection): string {
   // Remove all line number elements
   fragment.querySelectorAll('.line-number').forEach((el) => el.remove())
 
-  // Handle all content (text + code blocks) using TreeWalker to preserve order
-  // This approach handles mixed content correctly
-  const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_ALL, null)
+  // Handle all content using optimized TreeWalker with precise node filtering
+  // This approach handles mixed content correctly while improving performance
+  const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null)
 
   let result = ''
   let node = walker.nextNode()
