@@ -133,6 +133,7 @@ function validateDateRange(date: Date): void {
 }
 
 // Search events by query within date range
+// NOTE: We avoid "whose" clause and use manual filtering for performance.
 async function searchEvents(
   query?: string,
   startDate?: string,
@@ -147,72 +148,65 @@ async function searchEvents(
   const sanitizedQuery = sanitizeAppleScriptString(query.toLowerCase())
   const maxEvents = limit || MAX_RESULTS.events
 
-  // Set default date range: today to +30 days
-  const now = new Date()
-  const defaultStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const defaultEnd = new Date(defaultStart)
-  defaultEnd.setDate(defaultEnd.getDate() + 30)
-
-  let startD = defaultStart
-  let endD = defaultEnd
+  // Calculate days offset for AppleScript
+  let daysBack = 0
+  let daysForward = 30
 
   if (startDate) {
-    startD = new Date(startDate)
-    validateDateRange(startD)
+    const start = new Date(startDate)
+    validateDateRange(start)
+    const now = new Date()
+    daysBack = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
   }
 
   if (endDate) {
-    endD = new Date(endDate)
-    validateDateRange(endD)
+    const end = new Date(endDate)
+    validateDateRange(end)
+    const now = new Date()
+    daysForward = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
   }
-
-  if (startD >= endD) {
-    return errorResponse('Start date must be before end date')
-  }
-
-  const startDateStr = formatDateForAppleScript(startD.toISOString())
-  const endDateStr = formatDateForAppleScript(endD.toISOString())
 
   const script = `
 tell application "Calendar"
   set eventList to {}
   set eventCount to 0
-  set startD to date "${startDateStr}"
-  set endD to date "${endDateStr}"
+  set nowDate to current date
+  set startD to nowDate - (${daysBack} * days)
+  set endD to nowDate + (${daysForward} * days)
 
   repeat with cal in calendars
+    if eventCount >= ${maxEvents} then exit repeat
     set calName to name of cal
 
     try
-      repeat with evt in (events of cal whose start date >= startD and start date <= endD)
+      repeat with evt in events of cal
         if eventCount >= ${maxEvents} then exit repeat
 
-        set evtTitle to summary of evt
-        set evtContent to description of evt
+        set evtStart to start date of evt
+        if evtStart >= startD and evtStart <= endD then
+          set evtTitle to summary of evt
 
-        -- Case-insensitive search in title and description
-        if (evtTitle contains "${sanitizedQuery}") or (evtContent contains "${sanitizedQuery}") then
-          set evtStart to start date of evt as string
-          set evtEnd to end date of evt as string
-          set evtLocation to location of evt
-          set evtAllDay to allday event of evt
+          -- Case-insensitive search in title
+          if evtTitle contains "${sanitizedQuery}" then
+            set evtEnd to end date of evt as string
+            set evtLocation to location of evt
+            set evtAllDay to allday event of evt
 
-          set evtInfo to {eventTitle:evtTitle, eventStart:evtStart, eventEnd:evtEnd, eventLocation:evtLocation, eventCal:calName, eventAllDay:evtAllDay, eventNotes:evtContent}
-          set end of eventList to evtInfo
-          set eventCount to eventCount + 1
+            set evtInfo to {eventTitle:evtTitle, eventStart:(evtStart as string), eventEnd:evtEnd, eventLocation:evtLocation, eventCal:calName, eventAllDay:evtAllDay}
+            set end of eventList to evtInfo
+            set eventCount to eventCount + 1
+          end if
         end if
       end repeat
     on error
       -- Skip problematic calendars
     end try
-
-    if eventCount >= ${maxEvents} then exit repeat
   end repeat
 
   return eventList
 end tell`
 
-  logger.debug('Executing search events', { queryLength: query.length })
+  logger.debug('Executing search events', { queryLength: query.length, daysBack, daysForward })
   const result = await runAppleScript(script, TIMEOUT_MS.search)
 
   const events = parseEventsResult(result)
@@ -225,79 +219,75 @@ end tell`
       endDate: event.endDate,
       location: event.location,
       calendarName: event.calendarName,
-      isAllDay: event.isAllDay,
-      notes: event.notes ? truncateContent(event.notes, MAX_RESULTS.contentPreview) : null
+      isAllDay: event.isAllDay
     })),
     count: events.length
   })
 }
 
 // List upcoming events
+// NOTE: We avoid using "whose" clause as it's extremely slow in AppleScript.
+// Instead we use "current date" and manual filtering for better performance.
 async function listEvents(startDate?: string, endDate?: string, limit?: number): Promise<ToolResponse> {
   const maxEvents = limit || MAX_RESULTS.events
 
-  // Default: next 7 days
-  const now = new Date()
-  const defaultStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const defaultEnd = new Date(defaultStart)
-  defaultEnd.setDate(defaultEnd.getDate() + 7)
-
-  let startD = defaultStart
-  let endD = defaultEnd
+  // Calculate days offset for AppleScript
+  let daysBack = 0
+  let daysForward = 7
 
   if (startDate) {
-    startD = new Date(startDate)
-    validateDateRange(startD)
+    const start = new Date(startDate)
+    validateDateRange(start)
+    const now = new Date()
+    daysBack = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
   }
 
   if (endDate) {
-    endD = new Date(endDate)
-    validateDateRange(endD)
+    const end = new Date(endDate)
+    validateDateRange(end)
+    const now = new Date()
+    daysForward = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
   }
 
-  if (startD >= endD) {
-    return errorResponse('Start date must be before end date')
-  }
-
-  const startDateStr = formatDateForAppleScript(startD.toISOString())
-  const endDateStr = formatDateForAppleScript(endD.toISOString())
-
+  // Use current date and day arithmetic in AppleScript (much faster than date string parsing)
   const script = `
 tell application "Calendar"
   set eventList to {}
   set eventCount to 0
-  set startD to date "${startDateStr}"
-  set endD to date "${endDateStr}"
+  set nowDate to current date
+  set startD to nowDate - (${daysBack} * days)
+  set endD to nowDate + (${daysForward} * days)
 
   repeat with cal in calendars
+    if eventCount >= ${maxEvents} then exit repeat
     set calName to name of cal
 
     try
-      repeat with evt in (events of cal whose start date >= startD and start date <= endD)
+      -- Manual filtering is faster than "whose" clause
+      repeat with evt in events of cal
         if eventCount >= ${maxEvents} then exit repeat
 
-        set evtTitle to summary of evt
-        set evtStart to start date of evt as string
-        set evtEnd to end date of evt as string
-        set evtLocation to location of evt
-        set evtAllDay to allday event of evt
-        set evtContent to description of evt
+        set evtStart to start date of evt
+        if evtStart >= startD and evtStart <= endD then
+          set evtTitle to summary of evt
+          set evtEnd to end date of evt as string
+          set evtLocation to location of evt
+          set evtAllDay to allday event of evt
 
-        set evtInfo to {eventTitle:evtTitle, eventStart:evtStart, eventEnd:evtEnd, eventLocation:evtLocation, eventCal:calName, eventAllDay:evtAllDay, eventNotes:evtContent}
-        set end of eventList to evtInfo
-        set eventCount to eventCount + 1
+          set evtInfo to {eventTitle:evtTitle, eventStart:(evtStart as string), eventEnd:evtEnd, eventLocation:evtLocation, eventCal:calName, eventAllDay:evtAllDay}
+          set end of eventList to evtInfo
+          set eventCount to eventCount + 1
+        end if
       end repeat
     on error
       -- Skip problematic calendars
     end try
-
-    if eventCount >= ${maxEvents} then exit repeat
   end repeat
 
   return eventList
 end tell`
 
-  logger.debug('Executing list events', { maxEvents })
+  logger.debug('Executing list events', { maxEvents, daysBack, daysForward })
   const result = await runAppleScript(script, TIMEOUT_MS.list)
 
   const events = parseEventsResult(result)

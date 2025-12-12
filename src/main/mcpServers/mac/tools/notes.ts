@@ -143,6 +143,8 @@ end tell`
 }
 
 // List all notes with limit
+// NOTE: We only fetch name and folder here for performance.
+// Fetching plaintext is extremely slow in AppleScript (40+ seconds).
 async function listNotes(limit?: number): Promise<ToolResponse> {
   const maxNotes = limit || MAX_RESULTS.notes
 
@@ -151,25 +153,13 @@ tell application "Notes"
   set notesList to {}
   set noteCount to 0
 
-  -- Get all notes from all folders
-  set allNotes to notes
-
-  repeat with i from 1 to (count of allNotes)
+  repeat with n in notes
     if noteCount >= ${maxNotes} then exit repeat
 
     try
-      set currentNote to item i of allNotes
-      set noteName to name of currentNote
-      set noteContent to plaintext of currentNote
-      set noteFolder to name of container of currentNote
-
-      -- Limit content for preview
-      if (length of noteContent) > ${MAX_RESULTS.contentPreview} then
-        set noteContent to (characters 1 thru ${MAX_RESULTS.contentPreview} of noteContent) as string
-        set noteContent to noteContent & "..."
-      end if
-
-      set noteInfo to {noteName:noteName, noteContent:noteContent, noteFolder:noteFolder}
+      set noteName to name of n
+      set noteFolder to name of container of n
+      set noteInfo to {noteName:noteName, noteFolder:noteFolder}
       set end of notesList to noteInfo
       set noteCount to noteCount + 1
     on error
@@ -190,7 +180,6 @@ end tell`
   return successResponse({
     notes: notes.map((note) => ({
       name: note.name,
-      content: truncateContent(note.content, MAX_RESULTS.contentPreview),
       folder: note.folder
     })),
     count: notes.length
