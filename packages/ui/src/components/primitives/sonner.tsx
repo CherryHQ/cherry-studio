@@ -1,18 +1,17 @@
+import { cn } from '@cherrystudio/ui/utils'
+import { cva } from 'class-variance-authority'
 import { Loader2Icon } from 'lucide-react'
-import { useTheme } from 'next-themes'
-import type { SVGProps } from 'react'
-import { Toaster as Sonner, type ToasterProps } from 'sonner'
+import { type ReactNode, type SVGProps, useCallback, useMemo } from 'react'
+import { toast as sonnerToast, Toaster as Sonner, type ToasterProps } from 'sonner'
 
 const InfoIcon = ({ className }: SVGProps<SVGSVGElement>) => (
-  <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <foreignObject x="0" y="0" width="29.0476" height="30">
+  <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <foreignObject x="0" y="0">
       <div
         // xmlns="http://www.w3.org/1999/xhtml"
         style={{
           backdropFilter: 'blur(2px)',
-          clipPath: 'url(#bgblur_0_1669_13486_clip_path)',
-          height: '100%',
-          width: '100%'
+          clipPath: 'url(#bgblur_0_1669_13486_clip_path)'
         }}></div>
     </foreignObject>
     <g filter="url(#filter0_dd_1669_13486)" data-figma-bg-blur-radius="4">
@@ -129,19 +128,12 @@ const WarningIcon = ({ className }: SVGProps<SVGSVGElement>) => (
 )
 
 const SuccessIcon = ({ className }: SVGProps<SVGSVGElement>) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <mask
-      id="mask0_1669_13491"
-      style={{ maskType: 'luminance' }}
-      maskUnits="userSpaceOnUse"
-      x="0"
-      y="0"
-      width="24"
-      height="24">
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <mask id="mask0_1669_13491" style={{ maskType: 'luminance' }} maskUnits="userSpaceOnUse" x="0" y="0">
       <path d="M24 0H0V24H24V0Z" fill="white" />
     </mask>
     <g mask="url(#mask0_1669_13491)">
-      <foreignObject x="-3" y="-2" width="30" height="30">
+      <foreignObject x="-3" y="-2">
         <div
           // xmlns="http://www.w3.org/1999/xhtml"
           style={{
@@ -275,31 +267,202 @@ const ErrorIcon = ({ className }: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = 'system' } = useTheme()
+const CloseIcon = ({ className }: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" className={className}>
+    <path
+      fill-rule="evenodd"
+      clip-rule="evenodd"
+      d="M15.4419 5.44194C15.686 5.19786 15.686 4.80214 15.4419 4.55806C15.1979 4.31398 14.8021 4.31398 14.5581 4.55806L10 9.11612L5.44194 4.55806C5.19786 4.31398 4.80214 4.31398 4.55806 4.55806C4.31398 4.80214 4.31398 5.19786 4.55806 5.44194L9.11612 10L4.55806 14.5581C4.31398 14.8021 4.31398 15.1979 4.55806 15.4419C4.80214 15.686 5.19786 15.686 5.44194 15.4419L10 10.8839L14.5581 15.4419C14.8021 15.686 15.1979 15.686 15.4419 15.4419C15.686 15.1979 15.686 14.8021 15.4419 14.5581L10.8839 10L15.4419 5.44194Z"
+      fill="black"
+      fill-opacity="0.4"
+    />
+  </svg>
+)
+interface ToastProps {
+  id: string | number
+  type: 'info' | 'warning' | 'error' | 'success' | 'loading'
+  title: string
+  description?: string
+  coloredMessage?: string
+  coloredBackground?: boolean
+  dismissable?: boolean
+  onDismiss?: () => void
+  button?: {
+    icon?: ReactNode
+    label: string
+    onClick: () => void
+  }
+  link?: {
+    label: string
+    href?: string
+    onClick?: () => void
+  }
+  promise?: Promise<unknown>
+}
+
+function toast(props: Omit<ToastProps, 'id'>) {
+  return sonnerToast.custom((id) => <Toast id={id} {...props} />)
+}
+
+interface QuickApiProps extends Omit<ToastProps, 'type' | 'id'> {}
+
+interface QuickLoadingProps extends QuickApiProps {
+  promise: ToastProps['promise']
+}
+
+toast.info = (props: QuickApiProps) => {
+  toast({
+    type: 'info',
+    ...props
+  })
+}
+
+toast.success = (props: QuickApiProps) => {
+  toast({
+    type: 'success',
+    ...props
+  })
+}
+
+toast.warning = (props: QuickApiProps) => {
+  toast({
+    type: 'warning',
+    ...props
+  })
+}
+
+toast.error = (props: QuickApiProps) => {
+  toast({
+    type: 'error',
+    ...props
+  })
+}
+
+toast.loading = (props: QuickLoadingProps) => {
+  toast({
+    type: 'loading',
+    ...props
+  })
+}
+
+const toastColorVariants = cva(undefined, {
+  variants: {
+    type: {
+      info: 'text-blue-500',
+      warning: 'text-warning-base',
+      error: 'text-error-base',
+      success: 'text-success-base',
+      loading: 'text-foreground-muted'
+    }
+  }
+})
+
+const toastBgColorVariants = cva(undefined, {
+  variants: {
+    type: {
+      info: 'bg-blue-50 border-blue-400',
+      warning: 'bg-warning-bg border-warning-base',
+      error: 'bg-error-bg border-error-base',
+      success: 'bg-success-bg border-success-base',
+      loading: undefined
+    }
+  }
+})
+
+function Toast({
+  id,
+  type,
+  title,
+  description,
+  coloredMessage,
+  coloredBackground,
+  dismissable,
+  onDismiss,
+  button,
+  link
+}: ToastProps) {
+  const icon = useMemo(() => {
+    switch (type) {
+      case 'info':
+        return <InfoIcon className="size-6" />
+      case 'error':
+        return <ErrorIcon className="size-6" />
+      case 'loading':
+        return <Loader2Icon className="size-6 animate-spin" />
+      case 'success':
+        return <SuccessIcon className="size-6" />
+      case 'warning':
+        return <WarningIcon className="size-6" />
+    }
+  }, [type])
+
+  const handleDismiss = useCallback(() => {
+    sonnerToast.dismiss(id)
+    onDismiss?.()
+  }, [id, onDismiss])
 
   return (
-    <Sonner
-      theme={theme as ToasterProps['theme']}
-      className="toaster group"
-      icons={{
-        success: <SuccessIcon className="size-4" />,
-        info: <InfoIcon className="size-4" />,
-        warning: <WarningIcon className="size-4" />,
-        error: <ErrorIcon className="size-4" />,
-        loading: <Loader2Icon className="size-4 animate-spin" />
-      }}
-      style={
-        {
-          '--normal-bg': 'var(--popover)',
-          '--normal-text': 'var(--popover-foreground)',
-          '--normal-border': 'var(--border)',
-          '--border-radius': 'var(--radius)'
-        } as React.CSSProperties
-      }
-      {...props}
-    />
+    <div
+      id={String(id)}
+      className={cn(
+        'flex p-4 rounded-xs bg-background items-center shadow-lg',
+        coloredBackground && toastBgColorVariants({ type })
+      )}
+      aria-label="Toast">
+      {dismissable && (
+        <button type="button" aria-label="Dismiss the toast" onClick={handleDismiss}>
+          <CloseIcon className="size-5 absolute top-[5px] right-1.5" />
+        </button>
+      )}
+      <div className={cn('flex items-start flex-1', button !== undefined ? 'gap-3' : 'gap-4')}>
+        {icon}
+        <div className="cs-toast-content flex flex-col gap-1">
+          <div className="cs-toast-title font-medium leading-4.5" role="heading">
+            {title}
+          </div>
+          <div className="cs-toast-description">
+            <p className="text-foreground-secondary text-xs leading-3.5 tracking-normal">
+              {coloredMessage && <span className={toastColorVariants({ type })}>{coloredMessage} </span>}
+              {description}
+            </p>
+          </div>
+          {link && (
+            // FIXME: missing typography/typography components/p/letter-spacing
+            <div className="cs-toast-link text-foreground-muted text-xs leading-3.5 tracking-normal">
+              <a
+                href={link.href}
+                onClick={link.onClick}
+                className={cn(
+                  'underline decoration-foreground-muted cursor-pointer',
+                  'hover:text-foreground-secondary',
+                  // FIXME: missing active style in design
+                  'active:text-black'
+                )}>
+                {link.label}
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+      {button !== undefined && (
+        <button
+          type="button"
+          className={cn(
+            'py-1 px-2 rounded-3xs flex items-center h-7 bg-background-subtle border-[0.5px] border-border',
+            'text-foreground text-sm leading-4 tracking-normal',
+            button.icon !== undefined && 'gap-2'
+          )}
+          onClick={button.onClick}>
+          <div>{button.icon}</div>
+          <div>{button.label}</div>
+        </button>
+      )}
+    </div>
   )
 }
 
-export { Toaster }
+const Toaster = ({ ...props }: ToasterProps) => {
+  return <Sonner className="toaster group" {...props} />
+}
+
+export { toast, Toaster }
