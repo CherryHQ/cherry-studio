@@ -84,7 +84,7 @@ export async function checkDataLimit() {
       currentInterval = setInterval(check, CHECK_INTERVAL_WARNING)
     } else if (!shouldShowWarning && currentToastId) {
       // TODO: new toast component cannot be closed programmatically. add a dismiss button in the toast.
-      // window.toast.closeToast(currentToastId)
+      window.toast.close(currentToastId)
       currentToastId = null
 
       // Switch back to normal mode
