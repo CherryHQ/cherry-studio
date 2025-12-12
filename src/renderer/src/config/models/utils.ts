@@ -50,14 +50,14 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
  * @param model - The model to check
  * @returns true if the model supports temperature parameter
  */
-export function isSupportTemperatureModel(model: Model | undefined | null, assistant: Assistant): boolean {
+export function isSupportTemperatureModel(model: Model | undefined | null, assistant?: Assistant): boolean {
   if (!model) {
     return false
   }
 
   // OpenAI reasoning models (except open weight) don't support temperature
   if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
-    if (isGPT52SeriesModel(model) && assistant.settings?.reasoning_effort === 'none') {
+    if (isGPT52SeriesModel(model) && assistant?.settings?.reasoning_effort === 'none') {
       return true
     }
     return false
@@ -81,14 +81,14 @@ export function isSupportTemperatureModel(model: Model | undefined | null, assis
  * @param model - The model to check
  * @returns true if the model supports top_p parameter
  */
-export function isSupportTopPModel(model: Model | undefined | null, assistant: Assistant): boolean {
+export function isSupportTopPModel(model: Model | undefined | null, assistant?: Assistant): boolean {
   if (!model) {
     return false
   }
 
   // OpenAI reasoning models (except open weight) don't support top_p
   if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
-    if (isGPT52SeriesModel(model) && assistant.settings?.reasoning_effort === 'none') {
+    if (isGPT52SeriesModel(model) && assistant?.settings?.reasoning_effort === 'none') {
       return true
     }
     return false
