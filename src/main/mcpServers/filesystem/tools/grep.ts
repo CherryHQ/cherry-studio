@@ -12,12 +12,19 @@ export const GrepToolSchema = z.object({
   include: z.string().optional().describe('File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")')
 })
 
-// Tool definition
+// Tool definition with detailed description
 export const grepToolDefinition = {
   name: 'grep',
-  description:
-    'Search for a regex pattern in file contents. Returns matching lines with file paths and line numbers. ' +
-    'Supports regex patterns and file filtering. Results are limited to 100 matches.',
+  description: `Fast content search tool that works with any codebase size.
+
+- Searches file contents using regular expressions
+- Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
+- Filter files by pattern with the include parameter (e.g., "*.js", "*.{ts,tsx}")
+- Returns file paths and line numbers with matching content sorted by file
+- Use this tool when you need to find files containing specific patterns
+- Results are limited to 100 matches to avoid overwhelming output
+- Binary files are automatically skipped
+- Common directories like node_modules, .git, dist are excluded`,
   inputSchema: z.toJSONSchema(GrepToolSchema)
 }
 
