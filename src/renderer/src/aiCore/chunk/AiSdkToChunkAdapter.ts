@@ -339,12 +339,14 @@ export class AiSdkToChunkAdapter {
           reasoning_content: final.reasoningContent || ''
         }
 
+        // Pass finishReason in BLOCK_COMPLETE for message-level tracking
         this.onChunk({
           type: ChunkType.BLOCK_COMPLETE,
           response: {
             ...baseResponse,
             usage: { ...usage },
-            metrics: metrics ? { ...metrics } : undefined
+            metrics: metrics ? { ...metrics } : undefined,
+            finishReason: chunk.finishReason
           }
         })
         this.onChunk({

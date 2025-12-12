@@ -14,9 +14,15 @@ import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
 import type { AgentSessionEntity, GetAgentSessionResponse } from '@renderer/types/agent'
+import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import {
+  AssistantMessageStatus,
+  MessageBlockStatus,
+  MessageBlockType,
+  UserMessageStatus
+} from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import {
@@ -26,6 +32,7 @@ import {
 } from '@renderer/utils/agentSession'
 import {
   createAssistantMessage,
+  createMainTextBlock,
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
@@ -1493,6 +1500,230 @@ export const appendAssistantResponseThunk =
       finishTopicLoading(topicId)
     }
   }
+
+/**
+ * Thunk to continue generation from where an assistant message was truncated.
+ * Appends new content to the original truncated message instead of creating new messages.
+ * This avoids issues with APIs that don't support consecutive assistant messages.
+ * @param topicId - The topic ID.
+ * @param truncatedAssistantMessage - The assistant message that was truncated (finishReason: 'length').
+ * @param assistant - The assistant configuration.
+ */
+export const continueGenerationThunk =
+  (topicId: Topic['id'], truncatedAssistantMessage: Message, assistant: Assistant) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    try {
+      const state = getState()
+
+      // Verify the truncated message exists
+      if (!state.messages.entities[truncatedAssistantMessage.id]) {
+        logger.error(`[continueGenerationThunk] Truncated message ${truncatedAssistantMessage.id} not found.`)
+        return
+      }
+
+      // Get the content of the truncated message to include in the continuation prompt
+      const truncatedContent = getMainTextContent(truncatedAssistantMessage)
+
+      // Create a continuation prompt that asks the AI to continue strictly from where it left off
+      // Use only the last 150 chars to minimize repetition - just enough for context
+      const continuationPrompt = t('message.continue_generation.prompt', {
+        truncatedContent: truncatedContent.slice(-150)
+      })
+
+      // Update the truncated message status to PROCESSING to indicate continuation
+      const messageUpdates = {
+        status: AssistantMessageStatus.PROCESSING,
+        updatedAt: new Date().toISOString()
+      }
+      dispatch(
+        newMessagesActions.updateMessage({
+          topicId,
+          messageId: truncatedAssistantMessage.id,
+          updates: messageUpdates
+        })
+      )
+      dispatch(updateTopicUpdatedAt({ topicId }))
+
+      // Queue the generation with continuation context
+      const queue = getTopicQueue(topicId)
+      const assistantConfig = {
+        ...assistant,
+        model: truncatedAssistantMessage.model || assistant.model
+      }
+      queue.add(async () => {
+        await fetchAndProcessContinuationImpl(
+          dispatch,
+          getState,
+          topicId,
+          assistantConfig,
+          truncatedAssistantMessage,
+          continuationPrompt
+        )
+      })
+    } catch (error) {
+      logger.error(`[continueGenerationThunk] Error continuing generation:`, error as Error)
+    } finally {
+      finishTopicLoading(topicId)
+    }
+  }
+
+/**
+ * Implementation for continuing generation on a truncated message.
+ * Similar to fetchAndProcessAssistantResponseImpl but:
+ * 1. Finds the existing main text block to append content to
+ * 2. Uses a continuation prompt to ask the AI to continue
+ * 3. Wraps the chunk processor to prepend existing content to new text
+ */
+const fetchAndProcessContinuationImpl = async (
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  origAssistant: Assistant,
+  truncatedMessage: Message,
+  continuationPrompt: string
+) => {
+  const topic = origAssistant.topics.find((t) => t.id === topicId)
+  const assistant = topic?.prompt
+    ? { ...origAssistant, prompt: `${origAssistant.prompt}\n${topic.prompt}` }
+    : origAssistant
+  const assistantMsgId = truncatedMessage.id
+  let callbacks: StreamProcessorCallbacks = {}
+
+  // Create a virtual user message with the continuation prompt
+  // We need to temporarily add the block to store so getMainTextContent can read it
+  const virtualUserMessageId = uuid()
+  const virtualTextBlock = createMainTextBlock(virtualUserMessageId, continuationPrompt, {
+    status: MessageBlockStatus.SUCCESS
+  })
+
+  try {
+    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+
+    // Find the existing main text block content to prepend
+    const state = getState()
+    const existingMainTextBlockId = truncatedMessage.blocks.find((blockId) => {
+      const block = state.messageBlocks.entities[blockId]
+      return block?.type === MessageBlockType.MAIN_TEXT
+    })
+    const existingContent = existingMainTextBlockId
+      ? (state.messageBlocks.entities[existingMainTextBlockId] as any)?.content || ''
+      : ''
+
+    // Create BlockManager instance
+    const blockManager = new BlockManager({
+      dispatch,
+      getState,
+      saveUpdatedBlockToDB,
+      saveUpdatesToDB,
+      assistantMsgId,
+      topicId,
+      throttledBlockUpdate,
+      cancelThrottledBlockUpdate
+    })
+
+    const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
+
+    // Find the original user message that triggered this assistant response
+    const userMessageId = truncatedMessage.askId
+    const userMessageIndex = allMessagesForTopic.findIndex((m) => m?.id === userMessageId)
+
+    let messagesForContext: Message[] = []
+    if (userMessageIndex === -1) {
+      logger.error(
+        `[fetchAndProcessContinuationImpl] Triggering user message ${userMessageId} not found. Falling back.`
+      )
+      const assistantMessageIndex = allMessagesForTopic.findIndex((m) => m?.id === assistantMsgId)
+      messagesForContext = (
+        assistantMessageIndex !== -1 ? allMessagesForTopic.slice(0, assistantMessageIndex) : allMessagesForTopic
+      ).filter((m) => m && !m.status?.includes('ing'))
+    } else {
+      // Include messages up to the user message
+      const contextSlice = allMessagesForTopic.slice(0, userMessageIndex + 1)
+      messagesForContext = contextSlice.filter((m) => m && !m.status?.includes('ing'))
+    }
+
+    // Add the truncated assistant message content to context
+    const truncatedAssistantForContext: Message = {
+      ...truncatedMessage,
+      status: AssistantMessageStatus.SUCCESS // Treat as completed for context
+    }
+
+    const virtualContinueMessage: Message = {
+      id: virtualUserMessageId,
+      role: 'user',
+      topicId,
+      assistantId: assistant.id,
+      createdAt: new Date().toISOString(),
+      status: UserMessageStatus.SUCCESS,
+      blocks: [virtualTextBlock.id],
+      model: assistant.model,
+      modelId: assistant.model?.id
+    }
+
+    // Temporarily add the block to store (will be removed in finally block)
+    dispatch(upsertOneBlock(virtualTextBlock))
+
+    // Build the final context: original context + truncated assistant + virtual user message
+    messagesForContext = [...messagesForContext, truncatedAssistantForContext, virtualContinueMessage]
+
+    // Create standard callbacks (no modification needed)
+    callbacks = createCallbacks({
+      blockManager,
+      dispatch,
+      getState,
+      topicId,
+      assistantMsgId,
+      saveUpdatesToDB,
+      assistant
+    })
+    const baseStreamProcessor = createStreamProcessor(callbacks)
+
+    // Wrap the stream processor to prepend existing content to text chunks
+    const wrappedStreamProcessor = (chunk: Chunk) => {
+      if (chunk.type === ChunkType.TEXT_DELTA || chunk.type === ChunkType.TEXT_COMPLETE) {
+        // Prepend existing content to the new text
+        return baseStreamProcessor({
+          ...chunk,
+          text: existingContent + chunk.text
+        })
+      }
+      return baseStreamProcessor(chunk)
+    }
+
+    const abortController = new AbortController()
+    addAbortController(userMessageId!, () => abortController.abort())
+
+    await transformMessagesAndFetch(
+      {
+        messages: messagesForContext,
+        assistant,
+        topicId,
+        options: {
+          signal: abortController.signal,
+          timeout: 30000,
+          headers: defaultAppHeaders()
+        }
+      },
+      wrappedStreamProcessor
+    )
+  } catch (error: any) {
+    logger.error('Error in fetchAndProcessContinuationImpl:', error)
+    endSpan({
+      topicId,
+      error: error,
+      modelName: assistant.model?.name
+    })
+    try {
+      callbacks.onError?.(error)
+    } catch (callbackError) {
+      logger.error('Error in onError callback:', callbackError as Error)
+    }
+  } finally {
+    // Always clean up the temporary virtual block
+    dispatch(removeManyBlocks([virtualTextBlock.id]))
+    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+  }
+}
 
 /**
  * Clones messages from a source topic up to a specified index into a *pre-existing* new topic.
