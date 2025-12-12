@@ -451,6 +451,7 @@ function Toast({
       {button !== undefined && (
         <button
           type="button"
+          // FIXME: missing hover/active style
           className={cn(
             'py-1 px-2 rounded-3xs flex items-center h-7 bg-background-subtle border-[0.5px] border-border',
             'text-foreground text-sm leading-4 tracking-normal',
