@@ -9,7 +9,7 @@ import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 
-const X_AI_MAX_SERACH_RESULT = 30
+const X_AI_MAX_SEARCH_RESULT = 30
 
 export function getWebSearchParams(model: Model): Record<string, any> {
   if (model.provider === 'hunyuan') {
