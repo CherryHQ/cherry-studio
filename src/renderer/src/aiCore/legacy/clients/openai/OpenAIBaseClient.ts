@@ -90,7 +90,7 @@ export abstract class OpenAIBaseClient<
   override async getEmbeddingDimensions(model: Model): Promise<number> {
     let sdk: OpenAI = await this.getSdkInstance()
     if (isOllamaProvider(this.provider)) {
-      const embedBaseUrl = `${this.provider.apiHost.replace(/\/api$/, '').replace(/\/v1/, '')}/v1`
+      const embedBaseUrl = `${this.provider.apiHost.replace(/(\/(api|v1))\/?$/, '')}/v1`
       sdk = sdk.withOptions({ baseURL: embedBaseUrl })
     }
 
