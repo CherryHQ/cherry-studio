@@ -2005,6 +2005,9 @@
       "closeall": {
         "title": "Alle schließen"
       },
+      "edit_custom": {
+        "title": "Benutzerdefinierte App bearbeiten"
+      },
       "hide": {
         "title": "Ausblenden"
       },
@@ -4154,6 +4157,7 @@
         "remove_error": "Löschen der benutzerdefinierten Mini-App fehlgeschlagen",
         "remove_success": "Benutzerdefinierte Mini-App erfolgreich gelöscht",
         "save": "Speichern",
+        "edit": "Bearbeiten",
         "save_error": "Benutzerdefinierte Mini-App-Speicherung fehlgeschlagen",
         "save_success": "Benutzerdefinierte Mini-App erfolgreich gespeichert",
         "title": "Benutzerdefiniert",

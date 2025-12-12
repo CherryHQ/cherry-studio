@@ -21,11 +21,12 @@ interface Props {
   onClick?: () => void
   size?: number
   isLast?: boolean
+  onEdit?: (app: MinAppType) => void
 }
 
 const logger = loggerService.withContext('App')
 
-const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
+const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast, onEdit }) => {
   const { openMinappKeepAlive } = useMinappPopup()
   const { t } = useTranslation()
   const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
@@ -81,6 +82,13 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     },
     ...(app.type === 'Custom'
       ? [
+          {
+            key: 'editCustom',
+            label: t('minapp.sidebar.edit_custom.title'),
+            onClick: () => {
+              onEdit?.(app)
+            }
+          },
           {
             key: 'removeCustom',
             label: t('minapp.sidebar.remove_custom.title'),

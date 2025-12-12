@@ -2005,6 +2005,9 @@
       "closeall": {
         "title": "Close All"
       },
+      "edit_custom": {
+        "title": "Edit Custom App"
+      },
       "hide": {
         "title": "Hide"
       },
@@ -4133,6 +4136,7 @@
       "custom": {
         "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
         "duplicate_ids": "Duplicate IDs found: {{ids}}",
+        "edit": "Edit",
         "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
         "edit_title": "Edit Custom Mini App",
         "id": "ID",

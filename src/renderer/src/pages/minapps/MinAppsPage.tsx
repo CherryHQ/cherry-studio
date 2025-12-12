@@ -1,23 +1,33 @@
+import { PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
 import App from '@renderer/components/MinApp/MinApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import type { MinAppType } from '@renderer/types'
 import { Button, Input } from 'antd'
 import { Search, SettingsIcon } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import MiniAppFormModal from './MiniAppFormModal'
 import MinappSettingsPopup from './MiniappSettings/MinappSettingsPopup'
-import NewAppButton from './NewAppButton'
+
+const logger = loggerService.withContext('AppsPage')
 
 const AppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const { minapps } = useMinapps()
+  const [modalVisible, setModalVisible] = useState(false)
+  const [editingApp, setEditingApp] = useState<MinAppType | null>(null)
+  const { minapps, updateMinapps } = useMinapps()
   const { isTopNavbar } = useNavbarPosition()
+
+  const isEditMode = editingApp !== null
 
   const filteredApps = search
     ? minapps.filter(
@@ -34,6 +44,74 @@ const AppsPage: FC = () => {
   // Disable right-click menu in blank area
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
+  }
+
+  const handleOpenEditModal = (app: MinAppType) => {
+    setEditingApp(app)
+    setModalVisible(true)
+  }
+
+  const handleAddCustomApp = async (newApp: MinAppType) => {
+    try {
+      const content = await window.api.file.read('custom-minapps.json')
+      const customApps = JSON.parse(content)
+
+      // Check for duplicate ID
+      if (customApps.some((app: MinAppType) => app.id === newApp.id)) {
+        window.toast.error(t('settings.miniapps.custom.duplicate_ids', { ids: newApp.id }))
+        return
+      }
+      if (ORIGIN_DEFAULT_MIN_APPS.some((app: MinAppType) => app.id === newApp.id)) {
+        window.toast.error(t('settings.miniapps.custom.conflicting_ids', { ids: newApp.id }))
+        return
+      }
+
+      customApps.push(newApp)
+      await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(customApps, null, 2))
+      window.toast.success(t('settings.miniapps.custom.save_success'))
+      setModalVisible(false)
+      setEditingApp(null)
+      const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+      updateDefaultMinApps(reloadedApps)
+      updateMinapps([...minapps, newApp])
+    } catch (error) {
+      window.toast.error(t('settings.miniapps.custom.save_error'))
+      logger.error('Failed to save custom mini app:', error as Error)
+    }
+  }
+
+  const handleEditCustomApp = async (updatedApp: MinAppType) => {
+    try {
+      const content = await window.api.file.read('custom-minapps.json')
+      const customApps = JSON.parse(content)
+
+      // Find and update the app
+      const appIndex = customApps.findIndex((app: MinAppType) => app.id === updatedApp.id)
+      if (appIndex === -1) {
+        window.toast.error(t('settings.miniapps.custom.edit_error'))
+        return
+      }
+
+      // Preserve addTime if it exists
+      const existingApp = customApps[appIndex]
+      customApps[appIndex] = {
+        ...updatedApp,
+        addTime: existingApp.addTime || updatedApp.addTime || new Date().toISOString()
+      }
+
+      await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(customApps, null, 2))
+      window.toast.success(t('settings.miniapps.custom.save_success'))
+      setModalVisible(false)
+      setEditingApp(null)
+      const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+      updateDefaultMinApps(reloadedApps)
+      // Update the minapps list
+      const updatedMinapps = minapps.map((app) => (app.id === updatedApp.id ? updatedApp : app))
+      updateMinapps(updatedMinapps)
+    } catch (error) {
+      window.toast.error(t('settings.miniapps.custom.edit_error'))
+      logger.error('Failed to edit custom mini app:', error as Error)
+    }
   }
 
   return (
@@ -88,11 +166,30 @@ const AppsPage: FC = () => {
             <AppsContainerWrapper>
               <AppsContainer style={{ height: containerHeight }}>
                 {filteredApps.map((app) => (
-                  <App key={app.id} app={app} />
+                  <App key={app.id} app={app} onEdit={handleOpenEditModal} />
                 ))}
-                <NewAppButton />
+                <AddButtonContainer
+                  onClick={() => {
+                    setEditingApp(null)
+                    setModalVisible(true)
+                  }}>
+                  <AddButton>
+                    <PlusOutlined />
+                  </AddButton>
+                  <AppTitle>{t('settings.miniapps.custom.title')}</AppTitle>
+                </AddButtonContainer>
               </AppsContainer>
             </AppsContainerWrapper>
+            <MiniAppFormModal
+              mode={isEditMode ? 'edit' : 'create'}
+              visible={modalVisible}
+              initialValues={editingApp || undefined}
+              onCancel={() => {
+                setModalVisible(false)
+                setEditingApp(null)
+              }}
+              onSubmit={isEditMode ? handleEditCustomApp : handleAddCustomApp}
+            />
           </RightContainer>
         </MainContainer>
       </ContentContainer>
@@ -166,6 +263,44 @@ const AppsContainer = styled.div`
   grid-template-columns: repeat(auto-fill, 90px);
   gap: 25px;
   justify-content: center;
+`
+
+const AddButtonContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`
+
+const AddButton = styled.div`
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-background-soft);
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-soft);
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--color-background);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+`
+
+const AppTitle = styled.div`
+  font-size: 12px;
+  margin-top: 5px;
+  color: var(--color-text-soft);
+  text-align: center;
+  user-select: none;
+  white-space: nowrap;
 `
 
 export default AppsPage

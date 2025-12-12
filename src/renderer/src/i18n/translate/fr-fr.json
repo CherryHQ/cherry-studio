@@ -2010,6 +2010,9 @@
       },
       "remove_custom": {
         "title": "Supprimer l'application personnalisée"
+      },
+      "edit_custom": {
+        "title": "Modifier l'application personnalisée"
       }
     },
     "title": "Mini-programme"
@@ -4153,8 +4156,9 @@
         "placeholder": "Введите конфигурацию пользовательского приложения (в формате JSON)",
         "remove_error": "Не удалось удалить пользовательское приложение.",
         "remove_success": "Пользовательское приложение успешно удалено.",
-        "save": "Сохранить",
-        "save_error": "Не удалось сохранить пользовательское приложение.",
+        "save": "Enregistrer",
+        "edit": "Modifier",
+        "save_error": "Échec de l'enregistrement de l'application personnalisée.",
         "save_success": "Пользовательское приложение успешно сохранено.",
         "title": "Пользовательское приложение",
         "url": "URL",

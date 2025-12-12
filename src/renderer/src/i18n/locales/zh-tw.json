@@ -2005,6 +2005,9 @@
       "closeall": {
         "title": "關閉所有"
       },
+      "edit_custom": {
+        "title": "編輯自定義應用"
+      },
       "hide": {
         "title": "隱藏"
       },
@@ -4154,6 +4157,7 @@
         "remove_error": "自定義小程序刪除失敗",
         "remove_success": "自定義小程序刪除成功",
         "save": "保存",
+        "edit": "編輯",
         "save_error": "自定義小程序保存失敗",
         "save_success": "自定義小程序保存成功",
         "title": "自定義",

@@ -1,28 +1,33 @@
-import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
+import { UploadOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
-import { useMinapps } from '@renderer/hooks/useMinapps'
 import type { MinAppType } from '@renderer/types'
 import { Button, Form, Input, Modal, Radio, Upload } from 'antd'
 import type { UploadFile } from 'antd/es/upload/interface'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
-  size?: number
+  visible: boolean
+  mode: 'create' | 'edit'
+  initialValues?: MinAppType
+  onCancel: () => void
+  onSubmit: (values: MinAppType) => void
 }
 
-const logger = loggerService.withContext('NewAppButton')
+const logger = loggerService.withContext('MiniAppFormModal')
 
-const NewAppButton: FC<Props> = ({ size = 60 }) => {
+const MiniAppFormModal: FC<Props> = ({ visible, mode, initialValues, onCancel, onSubmit }) => {
   const { t } = useTranslation()
-  const [isModalVisible, setIsModalVisible] = useState(false)
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [logoType, setLogoType] = useState<'url' | 'file'>('url')
   const [form] = Form.useForm()
-  const { minapps, updateMinapps } = useMinapps()
+
+  useEffect(() => {
+    if (initialValues) {
+      form.setFieldsValue(initialValues)
+    }
+  }, [initialValues, form])
 
   const handleLogoTypeChange = (e: any) => {
     setLogoType(e.target.value)
@@ -30,42 +35,18 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
     setFileList([])
   }
 
-  const handleAddCustomApp = async (values: any) => {
-    try {
-      const content = await window.api.file.read('custom-minapps.json')
-      const customApps = JSON.parse(content)
-
-      // Check for duplicate ID
-      if (customApps.some((app: MinAppType) => app.id === values.id)) {
-        window.toast.error(t('settings.miniapps.custom.duplicate_ids', { ids: values.id }))
-        return
-      }
-      if (ORIGIN_DEFAULT_MIN_APPS.some((app: MinAppType) => app.id === values.id)) {
-        window.toast.error(t('settings.miniapps.custom.conflicting_ids', { ids: values.id }))
-        return
-      }
-
-      const newApp: MinAppType = {
-        id: values.id,
-        name: values.name,
-        url: values.url,
-        logo: form.getFieldValue('logo') || '',
-        type: 'Custom',
-        addTime: new Date().toISOString()
-      }
-      customApps.push(newApp)
-      await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(customApps, null, 2))
-      window.toast.success(t('settings.miniapps.custom.save_success'))
-      setIsModalVisible(false)
-      form.resetFields()
-      setFileList([])
-      const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
-      updateDefaultMinApps(reloadedApps)
-      updateMinapps([...minapps, newApp])
-    } catch (error) {
-      window.toast.error(t('settings.miniapps.custom.save_error'))
-      logger.error('Failed to save custom mini app:', error as Error)
+  const handleSubmit = async (values: any) => {
+    const newApp: MinAppType = {
+      id: values.id,
+      name: values.name,
+      url: values.url,
+      logo: form.getFieldValue('logo') || '',
+      type: 'Custom',
+      addTime: mode === 'edit' && initialValues?.addTime ? initialValues.addTime : new Date().toISOString()
     }
+    onSubmit(newApp)
+    form.resetFields()
+    setFileList([])
   }
 
   const handleFileChange = async (info: any) => {
@@ -92,29 +73,23 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
 
   return (
     <>
-      <Container onClick={() => setIsModalVisible(true)}>
-        <AddButton size={size}>
-          <PlusOutlined />
-        </AddButton>
-        <AppTitle>{t('settings.miniapps.custom.title')}</AppTitle>
-      </Container>
       <Modal
         title={t('settings.miniapps.custom.edit_title')}
-        open={isModalVisible}
+        open={visible}
         onCancel={() => {
-          setIsModalVisible(false)
           setFileList([])
+          onCancel()
         }}
         maskClosable={false}
         footer={null}
         transitionName="animation-move-down"
         centered>
-        <Form form={form} onFinish={handleAddCustomApp} layout="vertical">
+        <Form form={form} onFinish={handleSubmit} layout="vertical">
           <Form.Item
             name="id"
             label={t('settings.miniapps.custom.id')}
             rules={[{ required: true, message: t('settings.miniapps.custom.id_error') }]}>
-            <Input placeholder={t('settings.miniapps.custom.id_placeholder')} />
+            <Input placeholder={t('settings.miniapps.custom.id_placeholder')} disabled={mode === 'edit'} />
           </Form.Item>
           <Form.Item
             name="name"
@@ -152,7 +127,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
           )}
           <Form.Item>
             <Button type="primary" htmlType="submit">
-              {t('settings.miniapps.custom.save')}
+              {mode === 'create' ? t('settings.miniapps.custom.save') : t('settings.miniapps.custom.edit')}
             </Button>
           </Form.Item>
         </Form>
@@ -161,42 +136,4 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-`
-
-const AddButton = styled.div<{ size?: number }>`
-  width: ${({ size }) => size || 60}px;
-  height: ${({ size }) => size || 60}px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-background-soft);
-  border: 1px dashed var(--color-border);
-  color: var(--color-text-soft);
-  font-size: 24px;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--color-background);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-  }
-`
-
-const AppTitle = styled.div`
-  font-size: 12px;
-  margin-top: 5px;
-  color: var(--color-text-soft);
-  text-align: center;
-  user-select: none;
-  white-space: nowrap;
-`
-
-export default NewAppButton
+export default MiniAppFormModal
