@@ -30,14 +30,14 @@ export const lsToolDefinition = {
 }
 
 // Handler implementation
-export async function handleLsTool(args: unknown, allowedDirectories: string[]) {
+export async function handleLsTool(args: unknown, baseDir: string) {
   const parsed = LsToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for ls: ${parsed.error}`)
   }
 
-  const targetPath = parsed.data.path || process.cwd()
-  const validPath = await validatePath(allowedDirectories, targetPath)
+  const targetPath = parsed.data.path || baseDir
+  const validPath = await validatePath(targetPath, baseDir)
   const recursive = parsed.data.recursive || false
 
   interface TreeNode {

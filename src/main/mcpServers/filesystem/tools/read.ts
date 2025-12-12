@@ -29,14 +29,14 @@ Usage:
 }
 
 // Handler implementation
-export async function handleReadTool(args: unknown, allowedDirectories: string[]) {
+export async function handleReadTool(args: unknown, baseDir: string) {
   const parsed = ReadToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for read: ${parsed.error}`)
   }
 
   const filePath = parsed.data.file_path
-  const validPath = await validatePath(allowedDirectories, filePath)
+  const validPath = await validatePath(filePath, baseDir)
 
   // Check if file exists
   try {
@@ -72,7 +72,7 @@ export async function handleReadTool(args: unknown, allowedDirectories: string[]
 
   // Format output with line numbers and truncate long lines
   const output: string[] = []
-  const relativePath = path.relative(process.cwd(), validPath)
+  const relativePath = path.relative(baseDir, validPath)
 
   output.push(`File: ${relativePath}`)
   if (offset > 0 || limit < lines.length) {

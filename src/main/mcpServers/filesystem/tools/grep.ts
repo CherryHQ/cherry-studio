@@ -1,3 +1,5 @@
+import { isMac, isWin } from '@main/constant'
+import { spawn } from 'child_process'
 import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
@@ -29,27 +31,101 @@ export const grepToolDefinition = {
 }
 
 // Handler implementation
-export async function handleGrepTool(args: unknown, allowedDirectories: string[]) {
+export async function handleGrepTool(args: unknown, baseDir: string) {
   const parsed = GrepToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for grep: ${parsed.error}`)
   }
 
-  if (!parsed.data.pattern) {
+  const data = parsed.data
+
+  if (!data.pattern) {
     throw new Error('Pattern is required for grep')
   }
 
-  const searchPath = parsed.data.path || process.cwd()
-  const validPath = await validatePath(allowedDirectories, searchPath)
+  const searchPath = data.path || baseDir
+  const validPath = await validatePath(searchPath, baseDir)
 
   const matches: GrepMatch[] = []
   let truncated = false
   let regex: RegExp
 
+  function getRipgrepAddonPath() {
+    const pkgJsonPath = require.resolve('@anthropic-ai/claude-agent-sdk/package.json')
+    const pkgRoot = path.dirname(pkgJsonPath)
+
+    const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+
+    return path.join(pkgRoot, 'vendor', 'ripgrep', `${arch}-${platform}`, 'ripgrep.node')
+  }
+
+  async function runRipgrep(): Promise<{ ok: boolean; stdout: string; exitCode: number | null }> {
+    const addonPath = getRipgrepAddonPath()
+
+    const rgArgs: string[] = [
+      '--no-heading',
+      '--line-number',
+      '--color',
+      'never',
+      '--ignore-case',
+      '--glob',
+      '!.git/**',
+      '--glob',
+      '!node_modules/**',
+      '--glob',
+      '!dist/**',
+      '--glob',
+      '!build/**',
+      '--glob',
+      '!__pycache__/**'
+    ]
+
+    if (data.include) {
+      for (const pat of data.include
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean)) {
+        rgArgs.push('--glob', pat)
+      }
+    }
+
+    rgArgs.push(data.pattern)
+    rgArgs.push(validPath)
+
+    const childScript = `const { ripgrepMain } = require(process.env.RIPGREP_ADDON_PATH); process.exit(ripgrepMain(process.argv.slice(1)));`
+
+    return new Promise((resolve) => {
+      const child = spawn(process.execPath, ['--eval', childScript, 'rg', ...rgArgs], {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: '1',
+          RIPGREP_ADDON_PATH: addonPath
+        },
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+
+      let stdout = ''
+
+      child.stdout?.on('data', (chunk) => {
+        stdout += chunk.toString('utf-8')
+      })
+
+      child.on('error', () => {
+        resolve({ ok: false, stdout: '', exitCode: null })
+      })
+
+      child.on('close', (code) => {
+        resolve({ ok: true, stdout, exitCode: code })
+      })
+    })
+  }
+
   try {
-    regex = new RegExp(parsed.data.pattern, 'gi')
+    regex = new RegExp(data.pattern, 'gi')
   } catch (error) {
-    throw new Error(`Invalid regex pattern: ${parsed.data.pattern}`)
+    throw new Error(`Invalid regex pattern: ${data.pattern}`)
   }
 
   async function searchFile(filePath: string): Promise<void> {
@@ -116,8 +192,8 @@ export async function handleGrepTool(args: unknown, allowedDirectories: string[]
 
         if (entry.isFile()) {
           // Check if file matches include pattern
-          if (parsed.data?.include) {
-            const includePatterns = parsed.data.include.split(',').map((p) => p.trim())
+          if (data.include) {
+            const includePatterns = data.include.split(',').map((p) => p.trim())
             const fileName = path.basename(fullPath)
             const matchesInclude = includePatterns.some((pattern) => {
               // Simple glob pattern matching
@@ -143,11 +219,50 @@ export async function handleGrepTool(args: unknown, allowedDirectories: string[]
   }
 
   // Perform the search
-  const stats = await fs.stat(validPath)
-  if (stats.isFile()) {
-    await searchFile(validPath)
-  } else {
-    await searchDirectory(validPath)
+  let usedRipgrep = false
+  try {
+    const rgResult = await runRipgrep()
+    if (rgResult.ok && rgResult.exitCode !== null && rgResult.exitCode !== 2) {
+      usedRipgrep = true
+      const lines = rgResult.stdout.split('\n').filter(Boolean)
+      for (const line of lines) {
+        if (matches.length >= MAX_GREP_MATCHES) {
+          truncated = true
+          break
+        }
+
+        const firstColon = line.indexOf(':')
+        const secondColon = line.indexOf(':', firstColon + 1)
+        if (firstColon === -1 || secondColon === -1) continue
+
+        const filePart = line.slice(0, firstColon)
+        const linePart = line.slice(firstColon + 1, secondColon)
+        const contentPart = line.slice(secondColon + 1)
+        const lineNum = Number.parseInt(linePart, 10)
+        if (!Number.isFinite(lineNum)) continue
+
+        const absoluteFilePath = path.isAbsolute(filePart) ? filePart : path.resolve(baseDir, filePart)
+        const truncatedLine =
+          contentPart.length > MAX_LINE_LENGTH ? contentPart.substring(0, MAX_LINE_LENGTH) + '...' : contentPart
+
+        matches.push({
+          file: absoluteFilePath,
+          line: lineNum,
+          content: truncatedLine.trim()
+        })
+      }
+    }
+  } catch {
+    usedRipgrep = false
+  }
+
+  if (!usedRipgrep) {
+    const stats = await fs.stat(validPath)
+    if (stats.isFile()) {
+      await searchFile(validPath)
+    } else {
+      await searchDirectory(validPath)
+    }
   }
 
   // Format output
@@ -166,8 +281,10 @@ export async function handleGrepTool(args: unknown, allowedDirectories: string[]
     })
 
     // Format grouped matches
+    const baseForDisplay = data.path ? validPath : baseDir
+
     fileGroups.forEach((fileMatches, filePath) => {
-      const relativePath = path.relative(process.cwd(), filePath)
+      const relativePath = path.relative(baseForDisplay, filePath)
       output.push(`\n${relativePath}:`)
       fileMatches.forEach((match) => {
         output.push(`  ${match.line}: ${match.content}`)

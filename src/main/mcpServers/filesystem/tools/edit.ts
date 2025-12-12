@@ -30,7 +30,7 @@ Usage:
 }
 
 // Handler implementation
-export async function handleEditTool(args: unknown, allowedDirectories: string[]) {
+export async function handleEditTool(args: unknown, baseDir: string) {
   const parsed = EditToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for edit: ${parsed.error}`)
@@ -39,7 +39,7 @@ export async function handleEditTool(args: unknown, allowedDirectories: string[]
   const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = parsed.data
 
   // Validate path
-  const validPath = await validatePath(allowedDirectories, filePath)
+  const validPath = await validatePath(filePath, baseDir)
 
   // Check if file exists
   try {
@@ -60,7 +60,7 @@ export async function handleEditTool(args: unknown, allowedDirectories: string[]
 
         logger.info('File created', { path: validPath })
 
-        const relativePath = path.relative(process.cwd(), validPath)
+        const relativePath = path.relative(baseDir, validPath)
         return {
           content: [
             {
@@ -84,7 +84,7 @@ export async function handleEditTool(args: unknown, allowedDirectories: string[]
 
     logger.info('File overwritten', { path: validPath })
 
-    const relativePath = path.relative(process.cwd(), validPath)
+    const relativePath = path.relative(baseDir, validPath)
     return {
       content: [
         {
@@ -111,7 +111,7 @@ export async function handleEditTool(args: unknown, allowedDirectories: string[]
   const newLines = newContent.split('\n').length
   const lineDiff = newLines - oldLines
 
-  const relativePath = path.relative(process.cwd(), validPath)
+  const relativePath = path.relative(baseDir, validPath)
   let diffSummary = `Edited: ${relativePath}`
   if (lineDiff > 0) {
     diffSummary += `\n+${lineDiff} lines`

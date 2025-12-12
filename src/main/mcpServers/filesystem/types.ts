@@ -38,53 +38,24 @@ export function expandHome(filepath: string): string {
 }
 
 // Security validation
-export async function validatePath(allowedDirectories: string[] | undefined, requestedPath: string): Promise<string> {
+export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
   const expandedPath = expandHome(requestedPath)
-  const absolute = path.isAbsolute(expandedPath)
-    ? path.resolve(expandedPath)
-    : path.resolve(process.cwd(), expandedPath)
-
-  const normalizedRequested = normalizePath(absolute)
-
-  const hasAllowList = Array.isArray(allowedDirectories) && allowedDirectories.length > 0
-
-  // Check if path is within allowed directories when allowlist is configured
-  if (hasAllowList) {
-    const isAllowed = allowedDirectories!.some((dir) => normalizedRequested.startsWith(dir))
-    if (!isAllowed) {
-      throw new Error(
-        `Access denied - path outside allowed directories: ${absolute} not in ${allowedDirectories!.join(', ')}`
-      )
-    }
-  }
+  const root = baseDir ?? process.cwd()
+  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
 
   // Handle symlinks by checking their real path
   try {
     const realPath = await fs.realpath(absolute)
-    const normalizedReal = normalizePath(realPath)
-    if (hasAllowList) {
-      const isRealPathAllowed = allowedDirectories!.some((dir) => normalizedReal.startsWith(dir))
-      if (!isRealPathAllowed) {
-        throw new Error('Access denied - symlink target outside allowed directories')
-      }
-    }
-    return realPath
+    return normalizePath(realPath)
   } catch (error) {
     // For new files that don't exist yet, verify parent directory
     const parentDir = path.dirname(absolute)
     try {
       const realParentPath = await fs.realpath(parentDir)
-      const normalizedParent = normalizePath(realParentPath)
-      if (hasAllowList) {
-        const isParentAllowed = allowedDirectories!.some((dir) => normalizedParent.startsWith(dir))
-        if (!isParentAllowed) {
-          throw new Error('Access denied - parent directory outside allowed directories')
-        }
-      }
-      return absolute
+      normalizePath(realParentPath)
+      return normalizePath(absolute)
     } catch {
-      // Path doesn't exist, but that's okay for some operations
-      return absolute
+      return normalizePath(absolute)
     }
   }
 }
