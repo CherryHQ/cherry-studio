@@ -13,7 +13,7 @@ export class BrowserServer {
   constructor() {
     const server = new MCServer(
       {
-        name: 'browser',
+        name: '@cherry/browser',
         version: '0.1.0'
       },
       {
