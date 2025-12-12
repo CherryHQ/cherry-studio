@@ -156,7 +156,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
         }
       }
     } else {
-      // GPT-5.2+ non-codex models (also serves as fallback for unknown future sub-versions)
+      // GPT-5.2+ non-codex models（也作为未来未知 GPT-5.x 子版本的兜底）
       if (modelId.includes('-pro')) {
         thinkingModelType = 'gpt52pro'
       } else {

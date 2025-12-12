@@ -518,6 +518,22 @@ describe('GPT-5.1 Series Models', () => {
   })
 })
 
+describe('GPT-5.2 Series Models', () => {
+  describe('getThinkModelType', () => {
+    it('should return gpt5_2 for GPT-5.2 models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-preview' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-mini' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt5_codex for GPT-5.2 codex models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex' }))).toBe('gpt5_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-mini' }))).toBe('gpt5_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-preview' }))).toBe('gpt5_codex')
+    })
+  })
+})
+
 describe('Reasoning effort helpers', () => {
   it('evaluates OpenAI-specific reasoning toggles', () => {
     expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'o3-mini' }))).toBe(true)
@@ -649,6 +665,11 @@ describe('Reasoning option configuration', () => {
   it('does not allow GPT-5.1 codex models to disable reasoning', () => {
     expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).not.toContain('none')
     expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex_max).not.toContain('none')
+  })
+
+  it('includes xhigh option for GPT-5.2 models', () => {
+    expect(MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2).toContain('xhigh')
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_2).toContain('xhigh')
   })
 
   it('restricts GPT-5 Pro reasoning to high effort only', () => {

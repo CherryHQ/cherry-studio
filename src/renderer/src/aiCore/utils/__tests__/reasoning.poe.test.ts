@@ -110,6 +110,18 @@ describe('Poe Provider Reasoning Support', () => {
       })
     })
 
+    it('should return reasoning_effort in extra_body for GPT-5.2 model with xhigh effort', () => {
+      const model = createPoeModel('gpt-5.2')
+      const assistant = createAssistant('xhigh')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toEqual({
+        extra_body: {
+          reasoning_effort: 'xhigh'
+        }
+      })
+    })
+
     it('should convert auto to medium for GPT-5 model in extra_body', () => {
       const model = createPoeModel('gpt-5')
       const assistant = createAssistant('auto')

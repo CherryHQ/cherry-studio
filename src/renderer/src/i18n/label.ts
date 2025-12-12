@@ -5,7 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
+import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId, ThinkingOption } from '@renderer/types'
 import { BuiltinMCPServerNames } from '@renderer/types'
 
 import i18n from './index'
@@ -207,6 +207,7 @@ const shortcutKeyMap = {
   actions: 'settings.shortcuts.actions',
   clear_shortcut: 'settings.shortcuts.clear_shortcut',
   clear_topic: 'settings.shortcuts.clear_topic',
+  close_tab: 'settings.shortcuts.close_tab',
   rename_topic: 'settings.shortcuts.rename_topic',
   copy_last_message: 'settings.shortcuts.copy_last_message',
   edit_last_user_message: 'settings.shortcuts.edit_last_user_message',
@@ -334,6 +335,21 @@ const httpMessageKeyMap = {
 
 export const getHttpMessageLabel = (key: string): string => {
   return getLabel(httpMessageKeyMap, key)
+}
+
+const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
+  default: 'assistants.settings.reasoning_effort.default',
+  none: 'assistants.settings.reasoning_effort.off',
+  minimal: 'assistants.settings.reasoning_effort.minimal',
+  low: 'assistants.settings.reasoning_effort.low',
+  medium: 'assistants.settings.reasoning_effort.medium',
+  high: 'assistants.settings.reasoning_effort.high',
+  xhigh: 'assistants.settings.reasoning_effort.xhigh',
+  auto: 'assistants.settings.reasoning_effort.auto'
+} as const
+
+export const getReasoningEffortOptionsLabel = (key: string): string => {
+  return getLabel(reasoningEffortOptionsKeyMap, key)
 }
 
 const fileFieldKeyMap = {
