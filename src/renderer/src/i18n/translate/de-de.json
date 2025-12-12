@@ -546,7 +546,8 @@
         "low": "Spontan",
         "medium": "Überlegt",
         "minimal": "Minimal",
-        "off": "Aus"
+        "off": "Aus",
+        "xhigh": "Extra hoch"
       },
       "regular_phrases": {
         "add": "Phrase hinzufügen",

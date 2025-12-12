@@ -546,7 +546,8 @@
         "low": "Court",
         "medium": "Moyen",
         "minimal": "minimal",
-        "off": "Off"
+        "off": "Off",
+        "xhigh": "[to be translated]:Extra High"
       },
       "regular_phrases": {
         "add": "Добавить фразу",

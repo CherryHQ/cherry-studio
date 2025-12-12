@@ -88,7 +88,10 @@ const ThinkModelTypes = [
   'gpt5_1',
   'gpt5_codex',
   'gpt5_1_codex',
+  'gpt5_1_codex_max',
+  'gpt5_2',
   'gpt5pro',
+  'gpt52pro',
   'grok',
   'grok4_fast',
   'gemini',
@@ -122,6 +125,7 @@ export const EFFORT_RATIO: EffortRatio = {
   low: 0.05,
   medium: 0.5,
   high: 0.8,
+  xhigh: 0.9,
   auto: 2
 }
 
