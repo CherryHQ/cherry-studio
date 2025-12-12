@@ -38,7 +38,7 @@ export function expandHome(filepath: string): string {
 }
 
 // Security validation
-export async function validatePath(allowedDirectories: string[], requestedPath: string): Promise<string> {
+export async function validatePath(allowedDirectories: string[] | undefined, requestedPath: string): Promise<string> {
   const expandedPath = expandHome(requestedPath)
   const absolute = path.isAbsolute(expandedPath)
     ? path.resolve(expandedPath)
@@ -46,21 +46,27 @@ export async function validatePath(allowedDirectories: string[], requestedPath: 
 
   const normalizedRequested = normalizePath(absolute)
 
-  // Check if path is within allowed directories
-  const isAllowed = allowedDirectories.some((dir) => normalizedRequested.startsWith(dir))
-  if (!isAllowed) {
-    throw new Error(
-      `Access denied - path outside allowed directories: ${absolute} not in ${allowedDirectories.join(', ')}`
-    )
+  const hasAllowList = Array.isArray(allowedDirectories) && allowedDirectories.length > 0
+
+  // Check if path is within allowed directories when allowlist is configured
+  if (hasAllowList) {
+    const isAllowed = allowedDirectories!.some((dir) => normalizedRequested.startsWith(dir))
+    if (!isAllowed) {
+      throw new Error(
+        `Access denied - path outside allowed directories: ${absolute} not in ${allowedDirectories!.join(', ')}`
+      )
+    }
   }
 
   // Handle symlinks by checking their real path
   try {
     const realPath = await fs.realpath(absolute)
     const normalizedReal = normalizePath(realPath)
-    const isRealPathAllowed = allowedDirectories.some((dir) => normalizedReal.startsWith(dir))
-    if (!isRealPathAllowed) {
-      throw new Error('Access denied - symlink target outside allowed directories')
+    if (hasAllowList) {
+      const isRealPathAllowed = allowedDirectories!.some((dir) => normalizedReal.startsWith(dir))
+      if (!isRealPathAllowed) {
+        throw new Error('Access denied - symlink target outside allowed directories')
+      }
     }
     return realPath
   } catch (error) {
@@ -69,9 +75,11 @@ export async function validatePath(allowedDirectories: string[], requestedPath: 
     try {
       const realParentPath = await fs.realpath(parentDir)
       const normalizedParent = normalizePath(realParentPath)
-      const isParentAllowed = allowedDirectories.some((dir) => normalizedParent.startsWith(dir))
-      if (!isParentAllowed) {
-        throw new Error('Access denied - parent directory outside allowed directories')
+      if (hasAllowList) {
+        const isParentAllowed = allowedDirectories!.some((dir) => normalizedParent.startsWith(dir))
+        if (!isParentAllowed) {
+          throw new Error('Access denied - parent directory outside allowed directories')
+        }
       }
       return absolute
     } catch {
