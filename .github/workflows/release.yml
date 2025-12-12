@@ -56,7 +56,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
 
       - name: Get release tag
         id: get-tag
@@ -126,6 +126,14 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
+          # fork 仓库通常没有配置签名证书 secrets；当 CSC_LINK 为空字符串时，
+          # electron-builder 会把它解析成当前工作目录路径并报 “not a file”。
+          # 这里显式禁用签名，确保依然能产出 dmg/zip。
+          if [ -z "${CSC_LINK:-}" ]; then
+            echo "CSC_LINK 未配置，跳过 macOS 代码签名"
+            unset CSC_LINK CSC_KEY_PASSWORD
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
           pnpm build:mac
         env:
           CSC_FOR_PULL_REQUEST: true
