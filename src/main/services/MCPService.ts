@@ -249,6 +249,26 @@ class McpService {
           StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         > => {
           // Create appropriate transport based on configuration
+
+          // Special case for nowLedgeMem - uses HTTP transport instead of in-memory
+          if (isBuiltinMCPServer(server) && server.name === BuiltinMCPServerNames.nowLedgeMem) {
+            const nowLedgeMemUrl = 'http://127.0.0.1:14242/mcp'
+            const options: StreamableHTTPClientTransportOptions = {
+              fetch: async (url, init) => {
+                return net.fetch(typeof url === 'string' ? url : url.toString(), init)
+              },
+              requestInit: {
+                headers: {
+                  ...defaultAppHeaders(),
+                  APP: 'Cherry Studio'
+                }
+              },
+              authProvider
+            }
+            getServerLogger(server).debug(`Using StreamableHTTPClientTransport for NowLedgeMem`)
+            return new StreamableHTTPClientTransport(new URL(nowLedgeMemUrl), options)
+          }
+
           if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
             getServerLogger(server).debug(`Using in-memory transport`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()

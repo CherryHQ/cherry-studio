@@ -3891,6 +3891,7 @@
         "mcp_auto_install": "自动安装 MCP 服务（测试版）",
         "memory": "基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。",
         "no": "无描述",
+        "nowLedgeMem": "Nowledge Mem 将您选择的 AI 对话、工具、笔记、智能体和文件保存在本地计算机的私有记忆中。了解更多请访问 https://mem.nowledge.co/",
         "python": "在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包",
         "sequentialthinking": "一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具"
       },
