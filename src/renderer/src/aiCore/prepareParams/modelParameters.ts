@@ -68,12 +68,8 @@ function getTemperatureValue(assistant: Assistant, model: Model): number | undef
  * - Disabled for models that do not support TopP.
  * - Disabled for Claude 4.5 reasoning models when temperature is explicitly enabled.
  * Otherwise, returns the TopP value if the assistant has TopP enabled.
- * @param dynamicTopP: some models support `topP` when set `none`
  */
-export function getTopP(assistant: Assistant, model: Model, dynamicTopP: boolean = false): number | undefined {
-  if (dynamicTopP) {
-    return getTopPValue(assistant)
-  }
+export function getTopP(assistant: Assistant, model: Model): number | undefined {
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
