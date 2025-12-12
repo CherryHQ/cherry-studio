@@ -3,6 +3,10 @@ import TurndownService from 'turndown'
 
 import { logger, userAgent } from './types'
 
+/**
+ * Controller for managing browser windows via Chrome DevTools Protocol (CDP).
+ * Supports multiple sessions with LRU eviction and idle timeout cleanup.
+ */
 export class CdpBrowserController {
   private windows: Map<string, { win: BrowserWindow; lastActive: number }> = new Map()
   private readonly maxSessions: number
@@ -135,27 +139,50 @@ export class CdpBrowserController {
     return win
   }
 
+  /**
+   * Opens a URL in a browser window and waits for navigation to complete.
+   * @param url - The URL to navigate to
+   * @param timeout - Navigation timeout in milliseconds (default: 10000)
+   * @param show - Whether to show the browser window (default: false)
+   * @param sessionId - Session identifier for window reuse (default: 'default')
+   * @returns Object containing the current URL and page title after navigation
+   */
   public async open(url: string, timeout = 10000, show = false, sessionId = 'default') {
     const win = await this.getWindow(sessionId, true, show)
     logger.info('Loading URL', { url, sessionId })
     const { webContents } = win
     this.touch(sessionId)
 
+    // Track resolution state to prevent multiple handlers from firing
+    let resolved = false
+    let onFinish: () => void
+    let onDomReady: () => void
+    let onFail: (_event: Electron.Event, code: number, desc: string) => void
+
+    // Define cleanup outside Promise to ensure it's callable in finally block,
+    // preventing memory leaks when timeout occurs before navigation completes
+    const cleanup = () => {
+      webContents.removeListener('did-finish-load', onFinish)
+      webContents.removeListener('did-fail-load', onFail)
+      webContents.removeListener('dom-ready', onDomReady)
+    }
+
     const loadPromise = new Promise<void>((resolve, reject) => {
-      const cleanup = () => {
-        webContents.removeListener('did-finish-load', onFinish)
-        webContents.removeListener('did-fail-load', onFail)
-        webContents.removeListener('dom-ready', onDomReady)
-      }
-      const onFinish = () => {
+      onFinish = () => {
+        if (resolved) return
+        resolved = true
         cleanup()
         resolve()
       }
-      const onDomReady = () => {
+      onDomReady = () => {
+        if (resolved) return
+        resolved = true
         cleanup()
         resolve()
       }
-      const onFail = (_event: Electron.Event, code: number, desc: string) => {
+      onFail = (_event: Electron.Event, code: number, desc: string) => {
+        if (resolved) return
+        resolved = true
         cleanup()
         reject(new Error(`Navigation failed (${code}): ${desc}`))
       }
@@ -168,7 +195,12 @@ export class CdpBrowserController {
       setTimeout(() => reject(new Error('Navigation timed out')), timeout)
     })
 
-    await Promise.race([win.loadURL(url), loadPromise, timeoutPromise])
+    try {
+      await Promise.race([win.loadURL(url), loadPromise, timeoutPromise])
+    } finally {
+      // Always cleanup listeners to prevent memory leaks on timeout
+      cleanup()
+    }
 
     const currentUrl = webContents.getURL()
     const title = await webContents.getTitle()
@@ -223,6 +255,14 @@ export class CdpBrowserController {
     logger.info('Browser CDP context reset (all sessions)')
   }
 
+  /**
+   * Fetches a URL and returns content in the specified format.
+   * @param url - The URL to fetch
+   * @param format - Output format: 'html', 'txt', 'markdown', or 'json' (default: 'markdown')
+   * @param timeout - Navigation timeout in milliseconds (default: 10000)
+   * @param sessionId - Session identifier (default: 'default')
+   * @returns Content in the requested format. For 'json', returns parsed object or { data: rawContent } if parsing fails
+   */
   public async fetch(
     url: string,
     format: 'html' | 'txt' | 'markdown' | 'json' = 'markdown',
@@ -255,7 +295,12 @@ export class CdpBrowserController {
       return turndownService.turndown(content)
     }
     if (format === 'json') {
-      return JSON.parse(content)
+      // Attempt to parse as JSON; if content is not valid JSON, wrap it in a data object
+      try {
+        return JSON.parse(content)
+      } catch {
+        return { data: content }
+      }
     }
     return content
   }
