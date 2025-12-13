@@ -202,7 +202,7 @@ describe('buildFunctionCallToolName', () => {
       expect(result).not.toMatch(/[\u4e00-\u9fff]/) // No Chinese characters
       expect(result).toContain('ocr') // OCR is lowercased
       // Should only contain ASCII characters (lowercase)
-      expect(result).toMatch(/^[a-z_][a-z0-9_.\-:]*$/)
+      expect(result).toMatch(/^[a-z_][a-z0-9_-]*$/)
     })
 
     it('should distinguish between different Chinese OCR tools', () => {
@@ -219,7 +219,7 @@ describe('buildFunctionCallToolName', () => {
 
       // All should be ASCII-only valid tool names
       tools.forEach((tool) => {
-        expect(tool).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
+        expect(tool).toMatch(/^[a-z_][a-z0-9_-]*$/)
         expect(tool).not.toMatch(/[\u4e00-\u9fff]/) // No Chinese characters
       })
 
@@ -234,7 +234,7 @@ describe('buildFunctionCallToolName', () => {
     it('should handle Japanese characters with Romaji transliteration', () => {
       const result = buildFunctionCallToolName('server', 'ユーザー検索')
       // Should be ASCII-only (Japanese characters are transliterated to Romaji)
-      expect(result).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
+      expect(result).toMatch(/^[a-z_][a-z0-9_-]*$/)
       // Should not contain original Japanese characters
       expect(result).not.toMatch(/[\u3040-\u309f\u30a0-\u30ff]/)
     })
@@ -242,7 +242,7 @@ describe('buildFunctionCallToolName', () => {
     it('should handle Korean characters with romanization', () => {
       const result = buildFunctionCallToolName('server', '사용자검색')
       // Should be ASCII-only
-      expect(result).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
+      expect(result).toMatch(/^[a-z_][a-z0-9_-]*$/)
       // Should not contain original Korean characters
       expect(result).not.toMatch(/[\uac00-\ud7af]/)
     })
@@ -256,7 +256,7 @@ describe('buildFunctionCallToolName', () => {
       expect(result).toContain('yong_hu')
       expect(result).toContain('ming_cheng')
       // Final result should be ASCII-only (lowercase)
-      expect(result).toMatch(/^[a-z_][a-z0-9_.\-:]*$/)
+      expect(result).toMatch(/^[a-z_][a-z0-9_-]*$/)
     })
 
     it('should transliterate Chinese and replace special symbols', () => {
@@ -270,7 +270,7 @@ describe('buildFunctionCallToolName', () => {
       expect(result).toContain('shang_chuan')
       expect(result).toContain('gong_ju')
       // Should be ASCII-only (lowercase)
-      expect(result).toMatch(/^[a-z_][a-z0-9_.\-:]*$/)
+      expect(result).toMatch(/^[a-z_][a-z0-9_-]*$/)
     })
 
     it('should produce AI model compatible tool names', () => {
@@ -279,9 +279,9 @@ describe('buildFunctionCallToolName', () => {
       testCases.forEach((testCase) => {
         const result = buildFunctionCallToolName('server', testCase)
         // Must start with letter or underscore
-        expect(result).toMatch(/^[a-zA-Z_]/)
-        // Must only contain a-z, A-Z, 0-9, _, -, ., :
-        expect(result).toMatch(/^[a-zA-Z0-9_.\-:]+$/)
+        expect(result).toMatch(/^[a-z_]/)
+        // Must only contain a-z, 0-9, _, -
+        expect(result).toMatch(/^[a-z0-9_-]+$/)
         // Must be <= 64 characters
         expect(result.length).toBeLessThanOrEqual(64)
       })
