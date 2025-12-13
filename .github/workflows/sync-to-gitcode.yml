@@ -216,6 +216,7 @@ jobs:
             local filename=$(basename "$file")
             local max_retries=3
             local retry=0
+            local curl_status=0
 
             echo "Uploading: $filename"
 
@@ -224,34 +225,45 @@ jobs:
 
             while [ $retry -lt $max_retries ]; do
               # Get upload URL
+              curl_status=0
               UPLOAD_INFO=$(curl -s --connect-timeout 30 --max-time 60 \
                 -H "Authorization: Bearer ${GITCODE_TOKEN}" \
-                "${API_URL}/repos/${GITCODE_OWNER}/${GITCODE_REPO}/releases/${TAG_NAME}/upload_url?file_name=${encoded_filename}")
+                "${API_URL}/repos/${GITCODE_OWNER}/${GITCODE_REPO}/releases/${TAG_NAME}/upload_url?file_name=${encoded_filename}") || curl_status=$?
 
-              UPLOAD_URL=$(echo "$UPLOAD_INFO" | jq -r '.url // empty')
+              if [ $curl_status -eq 0 ]; then
+                UPLOAD_URL=$(echo "$UPLOAD_INFO" | jq -r '.url // empty')
 
-              if [ -n "$UPLOAD_URL" ]; then
-                # Write headers to temp file to avoid shell escaping issues
-                echo "$UPLOAD_INFO" | jq -r '.headers | to_entries[] | "header = \"" + .key + ": " + .value + "\""' > /tmp/upload_headers.txt
+                if [ -n "$UPLOAD_URL" ]; then
+                  # Write headers to temp file to avoid shell escaping issues
+                  echo "$UPLOAD_INFO" | jq -r '.headers | to_entries[] | "header = \"" + .key + ": " + .value + "\""' > /tmp/upload_headers.txt
 
-                # Upload file using PUT with headers from file
-                UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT \
-                  -K /tmp/upload_headers.txt \
-                  --data-binary "@${file}" \
-                  "$UPLOAD_URL")
+                  # Upload file using PUT with headers from file
+                  curl_status=0
+                  UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT \
+                    -K /tmp/upload_headers.txt \
+                    --data-binary "@${file}" \
+                    "$UPLOAD_URL") || curl_status=$?
 
-                HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
-                RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
+                  if [ $curl_status -eq 0 ]; then
+                    HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -n1)
+                    RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
 
-                if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-                  echo "  Uploaded: $filename"
-                  return 0
+                    if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                      echo "  Uploaded: $filename"
+                      return 0
+                    else
+                      echo "  Failed (HTTP $HTTP_CODE), retry $((retry + 1))/$max_retries"
+                      echo "  Response: $RESPONSE_BODY"
+                    fi
+                  else
+                    echo "  Upload request failed (curl exit $curl_status), retry $((retry + 1))/$max_retries"
+                  fi
                 else
-                  echo "  Failed (HTTP $HTTP_CODE), retry $((retry + 1))/$max_retries"
-                  echo "  Response: $RESPONSE_BODY"
+                  echo "  Failed to get upload URL, retry $((retry + 1))/$max_retries"
+                  echo "  Response: $UPLOAD_INFO"
                 fi
               else
-                echo "  Failed to get upload URL, retry $((retry + 1))/$max_retries"
+                echo "  Failed to get upload URL (curl exit $curl_status), retry $((retry + 1))/$max_retries"
                 echo "  Response: $UPLOAD_INFO"
               fi
 
