@@ -2992,6 +2992,31 @@ const migrateConfig = {
       logger.error('migrate 183 error', error as Error)
       return state
     }
+  },
+  '184': (state: RootState) => {
+    try {
+      // Add exa-mcp (free) web search provider if not exists
+      const exaMcpExists = state.websearch.providers.some((p) => p.id === 'exa-mcp')
+      if (!exaMcpExists) {
+        // Find the index of 'exa' provider to insert after it
+        const exaIndex = state.websearch.providers.findIndex((p) => p.id === 'exa')
+        const newProvider = {
+          id: 'exa-mcp' as const,
+          name: 'ExaMCP',
+          apiHost: 'https://mcp.exa.ai/mcp'
+        }
+        if (exaIndex !== -1) {
+          state.websearch.providers.splice(exaIndex + 1, 0, newProvider)
+        } else {
+          state.websearch.providers.push(newProvider)
+        }
+      }
+      logger.info('migrate 184 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 184 error', error as Error)
+      return state
+    }
   }
 }
 
