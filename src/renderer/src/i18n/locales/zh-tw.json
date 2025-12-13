@@ -2194,8 +2194,8 @@
         "select": "選擇",
         "select_directory_failed": "選擇目錄失敗",
         "title": "數據設置",
-        "work_directory_description": "工作目錄是存儲所有筆記文件的位置。\n更改工作目錄不會移動現有文件，請手動遷移文件。",
-        "work_directory_placeholder": "選擇筆記工作目錄"
+        "work_directory_description": "工作目錄是存儲所有筆記文件的位置。支持相對路徑如 ~/筆記 或 ./筆記 以實現多設備同步。\n更改工作目錄不會移動現有文件，請手動遷移文件。",
+        "work_directory_placeholder": "輸入或選擇筆記工作目錄（例如：~/筆記）"
       },
       "display": {
         "compress_content": "縮減欄寬",
