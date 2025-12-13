@@ -14,6 +14,7 @@ import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 import { OVMSClient } from './ovms/OVMSClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
+import { VolcengineAPIClient } from './volcengine/VolcengineAPIClient'
 import { ZhipuAPIClient } from './zhipu/ZhipuAPIClient'
 
 const logger = loggerService.withContext('ApiClientFactory')
@@ -61,6 +62,12 @@ export class ApiClientFactory {
 
     if (provider.id === 'zhipu') {
       instance = new ZhipuAPIClient(provider) as BaseApiClient
+      return instance
+    }
+
+    if (provider.id === 'doubao') {
+      logger.debug(`Creating VolcengineAPIClient for provider: ${provider.id}`)
+      instance = new VolcengineAPIClient(provider) as BaseApiClient
       return instance
     }
 

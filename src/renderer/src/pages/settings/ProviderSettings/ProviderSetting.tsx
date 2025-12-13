@@ -62,6 +62,7 @@ import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
+import VolcengineSettings from './VolcengineSettings'
 
 interface Props {
   providerId: string
@@ -601,6 +602,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings />}
+      {provider.id === 'doubao' && <VolcengineSettings />}
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )
