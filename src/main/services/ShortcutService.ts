@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { Shortcut } from '@types'
@@ -7,7 +8,6 @@ import { globalShortcut } from 'electron'
 import { configManager } from './ConfigManager'
 import selectionService from './SelectionService'
 import { windowService } from './WindowService'
-
 const logger = loggerService.withContext('ShortcutService')
 
 let showAppAccelerator: string | null = null
@@ -36,7 +36,7 @@ function getShortcutHandler(shortcut: Shortcut) {
     case 'mini_window':
       return () => {
         // 在处理器内部检查QuickAssistant状态，而不是在注册时检查
-        const quickAssistantEnabled = configManager.getEnableQuickAssistant()
+        const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
         logger.info(`mini_window shortcut triggered, QuickAssistant enabled: ${quickAssistantEnabled}`)
 
         if (!quickAssistantEnabled) {
@@ -147,7 +147,7 @@ const convertShortcutFormat = (shortcut: string | string[]): string => {
 export function registerShortcuts(window: BrowserWindow) {
   if (isRegisterOnBoot) {
     window.once('ready-to-show', () => {
-      if (configManager.getLaunchToTray()) {
+      if (preferenceService.get('app.tray.on_launch')) {
         registerOnlyUniversalShortcuts()
       }
     })

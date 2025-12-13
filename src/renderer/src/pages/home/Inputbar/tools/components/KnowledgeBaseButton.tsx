@@ -1,10 +1,10 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { useAppSelector } from '@renderer/store'
 import type { KnowledgeBase } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -112,14 +112,14 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
   }, [openQuickPanel, quickPanel, t])
 
   return (
-    <Tooltip placement="top" title={t('chat.input.knowledge_base')} mouseLeaveDelay={0} arrow>
+    <Tooltip content={t('chat.input.knowledge_base')} closeDelay={0}>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={selectedBases && selectedBases.length > 0}
         disabled={disabled}
-        aria-label={t('chat.input.knowledge_base')}>
-        <FileSearch size={18} />
-      </ActionIconButton>
+        aria-label={t('chat.input.knowledge_base')}
+        icon={<FileSearch size={18} />}
+      />
     </Tooltip>
   )
 }

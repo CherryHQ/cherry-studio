@@ -1,3 +1,7 @@
+/**
+ * Data Refactor, notes by fullex
+ * //TODO @deprecated this file will be removed
+ */
 import { loggerService } from '@logger'
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import { useDispatch, useSelector, useStore } from 'react-redux'

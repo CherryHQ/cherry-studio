@@ -1,4 +1,4 @@
-import { Flex } from 'antd'
+import { Flex } from '@cherrystudio/ui'
 import { styled } from 'styled-components'
 
 export const PreviewError = styled.div`

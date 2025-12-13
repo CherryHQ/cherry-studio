@@ -1,7 +1,7 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getBackupProgressLabel } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
-import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
 import { useEffect, useState } from 'react'
@@ -27,7 +27,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
-  const skipBackupFile = store.getState().settings.skipBackupFile
+  const [skipBackupFile] = usePreference('data.backup.general.skip_backup_file')
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.BackupProgress, (_, data: ProgressData) => {

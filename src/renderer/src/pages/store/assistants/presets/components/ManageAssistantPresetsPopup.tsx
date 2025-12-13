@@ -1,7 +1,7 @@
 import { MenuOutlined } from '@ant-design/icons'
+import { Box, RowFlex } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon } from '@renderer/components/Icons'
-import { Box, HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import type { AssistantPreset } from '@renderer/types'
@@ -105,7 +105,7 @@ const PopupContainer: React.FC = () => {
           <>
             <ActionBar>
               {mode === 'delete' ? (
-                <HStack alignItems="center">
+                <RowFlex className="items-center">
                   <Checkbox checked={isAllSelected} indeterminate={isIndeterminate} onChange={handleSelectAll}>
                     {t('common.select_all')}
                   </Checkbox>
@@ -114,11 +114,11 @@ const PopupContainer: React.FC = () => {
                       +100
                     </Button>
                   )}
-                </HStack>
+                </RowFlex>
               ) : (
                 <div />
               )}
-              <HStack gap="8px" alignItems="center">
+              <RowFlex className="items-center gap-8px">
                 {mode === 'delete' && (
                   <Button
                     danger
@@ -138,7 +138,7 @@ const PopupContainer: React.FC = () => {
                     { label: t('assistants.presets.manage.mode.delete'), value: 'delete' }
                   ]}
                 />
-              </HStack>
+              </RowFlex>
             </ActionBar>
 
             {mode === 'sort' ? (
@@ -146,12 +146,12 @@ const PopupContainer: React.FC = () => {
                 <DraggableList list={presets} onUpdate={setAssistantPresets}>
                   {(item) => (
                     <AgentItem>
-                      <Box mr={8}>
+                      <Box className="mr-8">
                         {item.emoji} {item.name}
                       </Box>
-                      <HStack gap="15px">
+                      <RowFlex className="gap-[15px]">
                         <MenuOutlined style={{ cursor: 'move' }} />
-                      </HStack>
+                      </RowFlex>
                     </AgentItem>
                   )}
                 </DraggableList>
@@ -163,12 +163,12 @@ const PopupContainer: React.FC = () => {
                     key={item.id}
                     onClick={() => handleSelect(item)}
                     $selected={selectedIds.has(item.id)}>
-                    <HStack alignItems="center" gap="8px">
+                    <RowFlex className="items-center gap-8px">
                       <Checkbox checked={selectedIds.has(item.id)} onChange={() => handleSelect(item)} />
                       <Box>
                         {item.emoji} {item.name}
                       </Box>
-                    </HStack>
+                    </RowFlex>
                   </SelectableAgentItem>
                 ))}
               </AgentList>

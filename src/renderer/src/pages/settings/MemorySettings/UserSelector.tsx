@@ -1,5 +1,5 @@
-import { HStack } from '@renderer/components/Layout'
-import { Avatar, Button, Select, Space, Tooltip } from 'antd'
+import { Avatar, Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Select } from 'antd'
 import { UserRoundPlus } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,12 +23,10 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
   const renderLabel = useCallback(
     (userId: string, userName: string) => {
       return (
-        <HStack alignItems="center" gap={10}>
-          <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
-            {getUserAvatar(userId)}
-          </Avatar>
+        <RowFlex className="items-center gap-2.5">
+          <Avatar className="h-5 w-5 bg-primary">{getUserAvatar(userId)}</Avatar>
           <span>{userName}</span>
-        </HStack>
+        </RowFlex>
       )
     },
     [getUserAvatar]
@@ -51,12 +49,14 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
   }, [renderLabel, t, uniqueUsers])
 
   return (
-    <Space.Compact>
+    <Flex className="gap-2">
       <Select value={currentUser} onChange={onUserSwitch} style={{ width: 200 }} options={options} />
-      <Tooltip title={t('memory.add_new_user')}>
-        <Button type="default" onClick={onAddUser} icon={<UserRoundPlus size={16} />} />
+      <Tooltip content={t('memory.add_new_user')}>
+        <Button size="sm" variant="default" onClick={onAddUser}>
+          <UserRoundPlus size={16} />
+        </Button>
       </Tooltip>
-    </Space.Compact>
+    </Flex>
   )
 }
 

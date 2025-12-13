@@ -1,4 +1,4 @@
-import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useCache } from '@renderer/data/hooks/useCache'
 import type { Assistant, Topic } from '@renderer/types'
 import type { FC } from 'react'
 
@@ -15,8 +15,7 @@ interface Props {
 }
 
 const TopicsTab: FC<Props> = (props) => {
-  const { chat } = useRuntime()
-  const { activeTopicOrSession } = chat
+  const [activeTopicOrSession] = useCache('chat.active_view')
   if (activeTopicOrSession === 'topic') {
     return <Topics {...props} />
   }

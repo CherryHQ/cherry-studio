@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   ApiServerConfig,
@@ -7,12 +8,14 @@ import type {
   StopApiServerStatusResult
 } from '@types'
 import { ipcMain } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
 
 import { apiServer } from '../apiServer'
-import { config } from '../apiServer/config'
 import { loggerService } from './LoggerService'
 const logger = loggerService.withContext('ApiServerService')
 
+//FIXME v2 refactor: ApiServer的启动/停止，是否运行的逻辑，现在比较乱。特别是在v2的新数据架构下，需要进一步优化，现在仅仅是做了简单的替换
+// 例如： 这样的warning：[mainWindow::PreferenceService] Attempted to confirm mismatched request for feature.csaas.enabled: expected req_1764650398717_0zb6wc350_feature.csaas.enabled, got req_1764650398704_41o5b5l1b_feature.csaas.enabled
 export class ApiServerService {
   constructor() {
     // Use the new clean implementation
@@ -20,6 +23,8 @@ export class ApiServerService {
 
   async start(): Promise<void> {
     try {
+      // Ensure valid API key before starting
+      await this.ensureValidApiKey()
       await apiServer.start()
       logger.info('API Server started successfully')
     } catch (error: any) {
@@ -52,8 +57,31 @@ export class ApiServerService {
     return apiServer.isRunning()
   }
 
-  async getCurrentConfig(): Promise<ApiServerConfig> {
-    return config.get()
+  /**
+   * Get current API server configuration from preference service
+   */
+  getCurrentConfig(): ApiServerConfig {
+    const config = preferenceService.getMultiple({
+      enabled: 'feature.csaas.enabled',
+      host: 'feature.csaas.host',
+      port: 'feature.csaas.port',
+      apiKey: 'feature.csaas.api_key'
+    }) as ApiServerConfig
+
+    return config
+  }
+
+  /**
+   * Ensure a valid API key exists, generate one if null
+   */
+  async ensureValidApiKey(): Promise<string> {
+    let apiKey = preferenceService.get('feature.csaas.api_key')
+    if (apiKey === null) {
+      apiKey = `cs-sk-${uuidv4()}`
+      await preferenceService.set('feature.csaas.api_key', apiKey)
+      logger.info('Generated new API key')
+    }
+    return apiKey
   }
 
   registerIpcHandlers(): void {
@@ -85,14 +113,15 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetStatus, async (): Promise<GetApiServerStatusResult> => {
+    ipcMain.handle(IpcChannel.ApiServer_GetStatus, (): GetApiServerStatusResult => {
       try {
-        const config = await this.getCurrentConfig()
+        const config = this.getCurrentConfig()
         return {
           running: this.isRunning(),
           config
         }
       } catch (error: any) {
+        logger.error('IpcChannel.ApiServer_GetStatus', error as Error)
         return {
           running: this.isRunning(),
           config: null
@@ -100,7 +129,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetConfig, async () => {
+    ipcMain.handle(IpcChannel.ApiServer_GetConfig, () => {
       try {
         return this.getCurrentConfig()
       } catch (error: any) {

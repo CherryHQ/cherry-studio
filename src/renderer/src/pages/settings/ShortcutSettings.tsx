@@ -1,5 +1,5 @@
 import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
@@ -9,7 +9,7 @@ import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import type { Shortcut } from '@renderer/types'
 import type { InputRef } from 'antd'
-import { Button, Input, Switch, Table as AntTable, Tooltip } from 'antd'
+import { Input, Table as AntTable } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { FC } from 'react'
 import React, { useRef, useState } from 'react'
@@ -334,8 +334,8 @@ const ShortcutSettings: FC = () => {
         const isEditable = shortcutConfig?.editable !== false
 
         return (
-          <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <HStack alignItems="center" style={{ position: 'relative' }}>
+          <RowFlex className="items-center justify-end gap-2">
+            <RowFlex className="relative items-center">
               {isEditing ? (
                 <ShortcutInput
                   ref={(el) => {
@@ -358,8 +358,8 @@ const ShortcutSettings: FC = () => {
                   {shortcut.length > 0 ? formatShortcut(shortcut) : t('settings.shortcuts.press_shortcut')}
                 </ShortcutText>
               )}
-            </HStack>
-          </HStack>
+            </RowFlex>
+          </RowFlex>
         )
       }
     },
@@ -369,26 +369,21 @@ const ShortcutSettings: FC = () => {
       align: 'right',
       width: '70px',
       render: (record: Shortcut) => (
-        <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <Tooltip title={t('settings.shortcuts.reset_to_default')}>
-            <Button
-              icon={<UndoOutlined />}
-              size="small"
-              shape="circle"
-              onClick={() => handleResetShortcut(record)}
-              disabled={!isShortcutModified(record)}
-            />
+        <RowFlex className="items-center justify-end gap-2">
+          <Tooltip content={t('settings.shortcuts.reset_to_default')}>
+            <Button size="icon-sm" onClick={() => handleResetShortcut(record)} disabled={!isShortcutModified(record)}>
+              <UndoOutlined />
+            </Button>
           </Tooltip>
-          <Tooltip title={t('settings.shortcuts.clear_shortcut')}>
+          <Tooltip content={t('settings.shortcuts.clear_shortcut')}>
             <Button
-              icon={<ClearOutlined />}
-              size="small"
-              shape="circle"
+              size="icon-sm"
               onClick={() => handleClear(record)}
-              disabled={record.shortcut.length === 0 || !record.editable}
-            />
+              disabled={record.shortcut.length === 0 || !record.editable}>
+              <ClearOutlined />
+            </Button>
           </Tooltip>
-        </HStack>
+        </RowFlex>
       )
     },
     {
@@ -397,7 +392,7 @@ const ShortcutSettings: FC = () => {
       align: 'right',
       width: '50px',
       render: (record: Shortcut) => (
-        <Switch size="small" checked={record.enabled} onChange={() => dispatch(toggleShortcut(record.key))} />
+        <Switch checked={record.enabled} onCheckedChange={() => dispatch(toggleShortcut(record.key))} />
       )
     }
   ]
@@ -415,9 +410,9 @@ const ShortcutSettings: FC = () => {
           showHeader={false}
         />
         <SettingDivider style={{ marginBottom: 0 }} />
-        <HStack justifyContent="flex-end" padding="16px 0">
+        <RowFlex className="justify-end p-4">
           <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
-        </HStack>
+        </RowFlex>
       </SettingGroup>
     </SettingContainer>
   )

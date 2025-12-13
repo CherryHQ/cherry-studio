@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
-import { handleSaveData, useAppDispatch } from '@renderer/store'
-import { setUpdateState } from '@renderer/store/runtime'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { handleSaveData } from '@renderer/store'
 import { Button, Modal } from 'antd'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useState } from 'react'
@@ -23,8 +23,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
   const [isInstalling, setIsInstalling] = useState(false)
-  const dispatch = useAppDispatch()
-
+  const { updateAppUpdateState } = useAppUpdateState()
   useEffect(() => {
     if (releaseInfo) {
       logger.info('Update dialog opened', { version: releaseInfo.version })
@@ -53,7 +52,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   }
 
   const onIgnore = () => {
-    dispatch(setUpdateState({ ignore: true }))
+    updateAppUpdateState({ ignore: true })
     setOpen(false)
   }
 
