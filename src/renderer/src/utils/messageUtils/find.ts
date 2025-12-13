@@ -9,6 +9,7 @@ import type {
   Message,
   MessageBlock,
   ThinkingMessageBlock,
+  ToolMessageBlock,
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
@@ -106,6 +107,26 @@ export const findFileBlocks = (message: Message): FileMessageBlock[] => {
     }
   }
   return fileBlocks
+}
+
+/**
+ * Finds all ToolMessageBlocks associated with a given message.
+ * @param message - The message object.
+ * @returns An array of ToolMessageBlocks (empty if none found).
+ */
+export const findToolBlocks = (message: Message): ToolMessageBlock[] => {
+  if (!message || !message.blocks || message.blocks.length === 0) {
+    return []
+  }
+  const state = store.getState()
+  const toolBlocks: ToolMessageBlock[] = []
+  for (const blockId of message.blocks) {
+    const block = messageBlocksSelectors.selectById(state, blockId)
+    if (block && block.type === MessageBlockType.TOOL) {
+      toolBlocks.push(block as ToolMessageBlock)
+    }
+  }
+  return toolBlocks
 }
 
 /**
