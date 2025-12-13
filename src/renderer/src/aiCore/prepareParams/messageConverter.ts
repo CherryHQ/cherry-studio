@@ -3,6 +3,7 @@
  * 将 Cherry Studio 消息格式转换为 AI SDK 消息格式
  */
 
+import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
@@ -163,13 +164,13 @@ async function convertMessageToAssistantModelMessage(
   thinkingBlocks: ThinkingMessageBlock[],
   model?: Model
 ): Promise<AssistantModelMessage> {
-  const parts: Array<TextPart | FilePart> = []
+  const parts: Array<TextPart | ReasoningPart | FilePart> = []
   if (content) {
     parts.push({ type: 'text', text: content })
   }
 
   for (const thinkingBlock of thinkingBlocks) {
-    parts.push({ type: 'text', text: thinkingBlock.content })
+    parts.push({ type: 'reasoning', text: thinkingBlock.content })
   }
 
   for (const fileBlock of fileBlocks) {
