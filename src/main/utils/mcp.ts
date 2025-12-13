@@ -1,6 +1,72 @@
+import { loggerService } from '@logger'
+import { transliterate } from 'transliteration'
+
+const logger = loggerService.withContext('Utils:MCP')
+
+/**
+ * Transliterates non-ASCII text (including CJK characters) to ASCII-compatible format.
+ *
+ * Converts input text to lowercase ASCII representation, replacing spaces with underscores
+ * and removing special characters. Unknown or special characters are replaced with underscores.
+ *
+ * @param text - The input string to transliterate, may contain Unicode characters including CJK
+ * @returns A lowercase ASCII string with spaces converted to underscores and special characters removed,
+ *          preserving only alphanumeric characters, underscores, and hyphens
+ *
+ * @example
+ * ```typescript
+ * transliterateToAscii("Hello World") // returns "hello_world"
+ * transliterateToAscii("你好世界") // returns transliterated version with underscores
+ * transliterateToAscii("Café-123") // returns "cafe-123"
+ * ```
+ */
+function transliterateToAscii(text: string): string {
+  // Input validation
+  if (!text || typeof text !== 'string') {
+    logger.warn('Invalid input to transliterateToAscii', { text })
+    return 'invalid_input'
+  }
+
+  try {
+    // Use transliteration library which supports CJK (Chinese, Japanese, Korean)
+    const result = transliterate(text, {
+      // Unknown/special characters become underscores
+      unknown: '_',
+      ignore: []
+    })
+
+    logger.debug('Transliteration successful', { input: text, output: result })
+
+    // Convert to lowercase, remove spaces, and clean up special chars
+    // Only preserve a-z, 0-9, underscores, and hyphens (OpenAI/Anthropic API compatible)
+    return result
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_-]/g, '_')
+  } catch (error) {
+    logger.error('Transliteration failed, falling back to ASCII-only mode', { text, error })
+    // Fallback: keep only ASCII alphanumeric, underscores, and hyphens for consistency
+    return text.toLowerCase().replace(/[^a-z0-9_-]/g, '_')
+  }
+}
+
 export function buildFunctionCallToolName(serverName: string, toolName: string, serverId?: string) {
-  const sanitizedServer = serverName.trim().replace(/-/g, '_')
-  const sanitizedTool = toolName.trim().replace(/-/g, '_')
+  // Input validation with descriptive fallbacks to indicate invalid input
+  if (!serverName || typeof serverName !== 'string') {
+    logger.warn('Invalid serverName provided', { serverName })
+    serverName = 'invalid_server'
+  }
+  if (!toolName || typeof toolName !== 'string') {
+    logger.warn('Invalid toolName provided', { toolName })
+    toolName = 'invalid_tool'
+  }
+
+  // First, transliterate non-ASCII characters to ASCII
+  const transliteratedServer = transliterateToAscii(serverName.trim())
+  const transliteratedTool = transliterateToAscii(toolName.trim())
+
+  const sanitizedServer = transliteratedServer.replace(/-/g, '_')
+  const sanitizedTool = transliteratedTool.replace(/-/g, '_')
 
   // Calculate suffix first to reserve space for it
   // Suffix format: "_" + 6 alphanumeric chars = 7 chars total
@@ -26,13 +92,13 @@ export function buildFunctionCallToolName(serverName: string, toolName: string, 
     name = `${sanitizedServer.slice(0, 7) || ''}-${sanitizedTool || ''}`
   }
 
-  // Replace invalid characters with underscores or dashes
-  // Keep a-z, A-Z, 0-9, underscores and dashes
-  name = name.replace(/[^a-zA-Z0-9_-]/g, '_')
+  // Replace invalid characters with underscores
+  // Keep only a-z, 0-9, underscores, dashes (OpenAI/Anthropic API compatible)
+  name = name.replace(/[^a-z0-9_-]/g, '_')
 
-  // Ensure name starts with a letter or underscore (for valid JavaScript identifier)
-  if (!/^[a-zA-Z]/.test(name)) {
-    name = `tool-${name}`
+  // Ensure name starts with a letter or underscore (AI model requirement)
+  if (!/^[a-z_]/.test(name)) {
+    name = `tool_${name}`
   }
 
   // Remove consecutive underscores/dashes (optional improvement)
