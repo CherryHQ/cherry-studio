@@ -32,6 +32,7 @@ import {
   isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
+import { defaultAppHeaders } from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
 import type { AiSdkConfig } from '../types'
@@ -197,18 +198,13 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     extraOptions.mode = 'chat'
   }
 
-  // 添加额外headers
-  if (actualProvider.extra_headers) {
-    extraOptions.headers = actualProvider.extra_headers
-    // copy from openaiBaseClient/openaiResponseApiClient
-    if (aiSdkProviderId === 'openai') {
-      extraOptions.headers = {
-        ...extraOptions.headers,
-        'HTTP-Referer': 'https://cherry-ai.com',
-        'X-Title': 'Cherry Studio',
-        'X-Api-Key': baseConfig.apiKey
-      }
-    }
+  extraOptions.headers = {
+    ...defaultAppHeaders(),
+    ...actualProvider.extra_headers
+  }
+
+  if (aiSdkProviderId === 'openai') {
+    extraOptions.headers['X-Api-Key'] = baseConfig.apiKey
   }
   // azure
   // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
