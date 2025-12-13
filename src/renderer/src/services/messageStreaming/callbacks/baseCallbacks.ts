@@ -108,9 +108,16 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       const possibleBlockId = findBlockIdForCompletion()
 
       if (possibleBlockId) {
-        // 更改上一个block的状态为ERROR
-        const changes = {
+        // 更改上一个block的状态为ERROR/PAUSED
+        const changes: Record<string, any> = {
           status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+        }
+        // 如果是 thinking block，保留实际思考时间
+        if (blockManager.lastBlockType === MessageBlockType.THINKING) {
+          const thinkingInfo = getCurrentThinkingInfo?.()
+          if (thinkingInfo?.blockId === possibleBlockId && thinkingInfo?.millsec && thinkingInfo.millsec > 0) {
+            changes.thinking_millsec = thinkingInfo.millsec
+          }
         }
         blockManager.smartBlockUpdate(possibleBlockId, changes, blockManager.lastBlockType!, true)
       }
