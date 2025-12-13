@@ -134,58 +134,60 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-rc.1
+    Cherry Studio 1.7.3 - Feature & Stability Update
 
-    🎉 MAJOR NEW FEATURE: AI Agents
-    - Create and manage custom AI agents with specialized tools and permissions
-    - Dedicated agent sessions with persistent SQLite storage, separate from regular chats
-    - Real-time tool approval system - review and approve agent actions dynamically
-    - MCP (Model Context Protocol) integration for connecting external tools
-    - Slash commands support for quick agent interactions
-    - OpenAI-compatible REST API for agent access
+    This release brings new features, UI improvements, and important bug fixes.
 
-    ✨ New Features:
-    - AI Providers: Added support for Hugging Face, Mistral, Perplexity, and SophNet
-    - Knowledge Base: OpenMinerU document preprocessor, full-text search in notes, enhanced tool selection
-    - Image & OCR: Intel OVMS painting provider and Intel OpenVINO (NPU) OCR support
-    - MCP Management: Redesigned interface with dual-column layout for easier management
-    - Languages: Added German language support
+    ✨ New Features
+    - Add MCP server log viewer for better debugging
+    - Support custom Git Bash path configuration
+    - Add print to PDF and save as HTML for mini program webviews
+    - Add CherryIN API host selection settings
+    - Enhance assistant presets with sort and batch delete modes
+    - Open URL directly for SelectionAssistant search action
+    - Enhance web search tool switching with provider-specific context
 
-    ⚡ Improvements:
-    - Upgraded to Electron 38.7.0
-    - Enhanced system shutdown handling and automatic update checks
-    - Improved proxy bypass rules
+    🔧 Improvements
+    - Remove Intel Ultra limit for OVMS
+    - Improve settings tab and assistant item UI
 
-    🐛 Important Bug Fixes:
-    - Fixed streaming response issues across multiple AI providers
-    - Fixed session list scrolling problems
-    - Fixed knowledge base deletion errors
+    🐛 Bug Fixes
+    - Fix stack overflow with base64 images
+    - Fix infinite loop in knowledge queue processing
+    - Fix quick panel closing in multiple selection mode
+    - Fix thinking timer not stopping when reply is aborted
+    - Fix ThinkingButton icon display for fixed reasoning mode
+    - Fix knowledge query prioritization and intent prompt
+    - Fix OpenRouter embeddings support
+    - Fix SelectionAction window resize on Windows
+    - Add gpustack provider support for qwen3 thinking mode
 
     <!--LANG:zh-CN-->
-    v1.7.0-rc.1 新特性
+    Cherry Studio 1.7.3 - 功能与稳定性更新
 
-    🎉 重大更新：AI Agent 智能体系统
-    - 创建和管理专属 AI Agent，配置专用工具和权限
-    - 独立的 Agent 会话，使用 SQLite 持久化存储，与普通聊天分离
-    - 实时工具审批系统 - 动态审查和批准 Agent 操作
-    - MCP（模型上下文协议）集成，连接外部工具
-    - 支持斜杠命令快速交互
-    - 兼容 OpenAI 的 REST API 访问
+    本次更新带来新功能、界面改进和重要的问题修复。
 
-    ✨ 新功能:
-    - AI 提供商：新增 Hugging Face、Mistral、Perplexity 和 SophNet 支持
-    - 知识库：OpenMinerU 文档预处理器、笔记全文搜索、增强的工具选择
-    - 图像与 OCR：Intel OVMS 绘图提供商和 Intel OpenVINO (NPU) OCR 支持
-    - MCP 管理：重构管理界面，采用双列布局，更加方便管理
-    - 语言：新增德语支持
+    ✨ 新功能
+    - 新增 MCP 服务器日志查看器，便于调试
+    - 支持自定义 Git Bash 路径配置
+    - 小程序 webview 支持打印 PDF 和保存为 HTML
+    - 新增 CherryIN API 主机选择设置
+    - 助手预设增强：支持排序和批量删除模式
+    - 划词助手搜索操作直接打开 URL
+    - 增强网页搜索工具切换逻辑，支持服务商特定上下文
 
-    ⚡ 改进:
-    - 升级到 Electron 38.7.0
-    - 增强的系统关机处理和自动更新检查
-    - 改进的代理绕过规则
+    🔧 功能改进
+    - 移除 OVMS 的 Intel Ultra 限制
+    - 优化设置标签页和助手项目 UI
 
-    🐛 重要修复:
-    - 修复多个 AI 提供商的流式响应问题
-    - 修复会话列表滚动问题
-    - 修复知识库删除错误
+    🐛 问题修复
+    - 修复 base64 图片导致的栈溢出问题
+    - 修复知识库队列处理的无限循环问题
+    - 修复多选模式下快捷面板意外关闭的问题
+    - 修复回复中止时思考计时器未停止的问题
+    - 修复固定推理模式下思考按钮图标显示问题
+    - 修复知识库查询优先级和意图提示
+    - 修复 OpenRouter 嵌入模型支持
+    - 修复 Windows 上划词助手窗口大小调整问题
+    - 为 gpustack 服务商添加 qwen3 思考模式支持
     <!--LANG:END-->

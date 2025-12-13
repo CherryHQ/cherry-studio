@@ -1,18 +1,29 @@
 // src/main/services/agents/services/claudecode/index.ts
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 
-import type { CanUseTool, McpHttpServerConfig, Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type {
+  CanUseTool,
+  HookCallback,
+  McpHttpServerConfig,
+  Options,
+  PreToolUseHookInput,
+  SDKMessage
+} from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
+import { ConfigKeys, configManager } from '@main/services/ConfigManager'
+import { validateGitBashPath } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
 import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
+import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
@@ -98,6 +109,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
     ) as Record<string, string>
 
+    const customGitBashPath = validateGitBashPath(configManager.get(ConfigKeys.GitBashPath) as string | undefined)
+
     const env = {
       ...loginShellEnvWithoutProxies,
       // TODO: fix the proxy api server
@@ -113,7 +126,12 @@ class ClaudeCodeService implements AgentServiceInterface {
       // TODO: support set small model in UI
       ANTHROPIC_DEFAULT_HAIKU_MODEL: modelInfo.modelId,
       ELECTRON_RUN_AS_NODE: '1',
-      ELECTRON_NO_ATTACH_CONSOLE: '1'
+      ELECTRON_NO_ATTACH_CONSOLE: '1',
+      // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
+      // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
+      // This prevents the SDK from using the user's home directory which may have encoding problems
+      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
     }
 
     const errorChunks: string[] = []
@@ -150,7 +168,67 @@ class ClaudeCodeService implements AgentServiceInterface {
         return { behavior: 'allow', updatedInput: input }
       }
 
-      return promptForToolApproval(toolName, input, options)
+      return promptForToolApproval(toolName, input, {
+        ...options,
+        toolCallId: buildNamespacedToolCallId(session.id, options.toolUseID)
+      })
+    }
+
+    const preToolUseHook: HookCallback = async (input, toolUseID, options) => {
+      // Type guard to ensure we're handling PreToolUse event
+      if (input.hook_event_name !== 'PreToolUse') {
+        return {}
+      }
+
+      const hookInput = input as PreToolUseHookInput
+      const toolName = hookInput.tool_name
+
+      logger.debug('PreToolUse hook triggered', {
+        session_id: hookInput.session_id,
+        tool_name: hookInput.tool_name,
+        tool_use_id: toolUseID,
+        tool_input: hookInput.tool_input,
+        cwd: hookInput.cwd,
+        permission_mode: hookInput.permission_mode,
+        autoAllowTools: autoAllowTools
+      })
+
+      if (options?.signal?.aborted) {
+        logger.debug('PreToolUse hook signal already aborted; skipping tool use', {
+          tool_name: hookInput.tool_name
+        })
+        return {}
+      }
+
+      // handle auto approved tools since it never triggers canUseTool
+      const normalizedToolName = normalizeToolName(toolName)
+      if (toolUseID) {
+        const bypassAll = input.permission_mode === 'bypassPermissions'
+        const autoAllowed = autoAllowTools.has(toolName) || autoAllowTools.has(normalizedToolName)
+        if (bypassAll || autoAllowed) {
+          const namespacedToolCallId = buildNamespacedToolCallId(session.id, toolUseID)
+          logger.debug('handling auto approved tools', {
+            toolName,
+            normalizedToolName,
+            namespacedToolCallId,
+            permission_mode: input.permission_mode,
+            autoAllowTools
+          })
+          const isRecord = (v: unknown): v is Record<string, unknown> => {
+            return !!v && typeof v === 'object' && !Array.isArray(v)
+          }
+          const toolInput = isRecord(input.tool_input) ? input.tool_input : {}
+
+          await promptForToolApproval(toolName, toolInput, {
+            ...options,
+            toolCallId: namespacedToolCallId,
+            autoApprove: true
+          })
+        }
+      }
+
+      // Return to proceed without modification
+      return {}
     }
 
     // Build SDK options from parameters
@@ -176,7 +254,14 @@ class ClaudeCodeService implements AgentServiceInterface {
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
       allowedTools: session.allowed_tools,
-      canUseTool
+      canUseTool,
+      hooks: {
+        PreToolUse: [
+          {
+            hooks: [preToolUseHook]
+          }
+        ]
+      }
     }
 
     if (session.accessible_paths.length > 1) {
@@ -346,7 +431,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     const jsonOutput: SDKMessage[] = []
     let hasCompleted = false
     const startTime = Date.now()
-    const streamState = new ClaudeStreamState()
+    const streamState = new ClaudeStreamState({ agentSessionId: sessionId })
 
     try {
       for await (const message of query({ prompt: promptStream, options })) {
@@ -408,23 +493,6 @@ class ClaudeCodeService implements AgentServiceInterface {
               error: error instanceof Error ? error.message : String(error)
             })
           }
-        }
-
-        if (message.type === 'assistant' || message.type === 'user') {
-          logger.silly('claude response', {
-            message,
-            content: JSON.stringify(message.message.content)
-          })
-        } else if (message.type === 'stream_event') {
-          // logger.silly('Claude stream event', {
-          //   message,
-          //   event: JSON.stringify(message.event)
-          // })
-        } else {
-          logger.silly('Claude response', {
-            message,
-            event: JSON.stringify(message)
-          })
         }
 
         const chunks = transformSDKMessageToStreamParts(message, streamState)

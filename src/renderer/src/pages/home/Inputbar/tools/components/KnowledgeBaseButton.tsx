@@ -92,14 +92,6 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
     }
   }, [openQuickPanel, quickPanelHook])
 
-  // 监听 selectedBases 变化，动态更新已打开的 QuickPanel 列表状态
-  useEffect(() => {
-    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.KnowledgeBase) {
-      // 直接使用重新计算的 baseItems，因为它已经包含了最新的 isSelected 状态
-      quickPanelHook.updateList(baseItems)
-    }
-  }, [selectedBases, quickPanelHook, baseItems])
-
   useEffect(() => {
     const disposeRootMenu = quickPanel.registerRootMenu([
       {
@@ -124,7 +116,8 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={selectedBases && selectedBases.length > 0}
-        disabled={disabled}>
+        disabled={disabled}
+        aria-label={t('chat.input.knowledge_base')}>
         <FileSearch size={18} />
       </ActionIconButton>
     </Tooltip>

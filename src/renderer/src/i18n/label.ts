@@ -87,7 +87,7 @@ const providerKeyMap = {
   longcat: 'provider.longcat',
   huggingface: 'provider.huggingface',
   sophnet: 'provider.sophnet',
-  'ai-gateway': 'provider.ai-gateway',
+  gateway: 'provider.ai-gateway',
   cerebras: 'provider.cerebras'
 } as const
 
@@ -316,7 +316,8 @@ const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
   high: 'assistants.settings.reasoning_effort.high',
   low: 'assistants.settings.reasoning_effort.low',
   medium: 'assistants.settings.reasoning_effort.medium',
-  auto: 'assistants.settings.reasoning_effort.default'
+  auto: 'assistants.settings.reasoning_effort.default',
+  xhigh: 'assistants.settings.reasoning_effort.xhigh'
 } as const
 
 export const getReasoningEffortOptionsLabel = (key: string): string => {

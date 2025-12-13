@@ -55,6 +55,8 @@ export enum IpcChannel {
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
   Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
   Webview_SearchHotkey = 'webview:search-hotkey',
+  Webview_PrintToPDF = 'webview:print-to-pdf',
+  Webview_SaveAsHTML = 'webview:save-as-html',
 
   // Open
   Open_Path = 'open:path',
@@ -90,6 +92,8 @@ export enum IpcChannel {
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
+  Mcp_GetServerLogs = 'mcp:get-server-logs',
+  Mcp_ServerLog = 'mcp:server-log',
   // Python
   Python_Execute = 'python:execute',
 
@@ -196,6 +200,9 @@ export enum IpcChannel {
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_StartWatcher = 'file:startWatcher',
   File_StopWatcher = 'file:stopWatcher',
+  File_PauseWatcher = 'file:pauseWatcher',
+  File_ResumeWatcher = 'file:resumeWatcher',
+  File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
 
   // file service
@@ -235,6 +242,9 @@ export enum IpcChannel {
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
   System_GetCpuName = 'system:getCpuName',
+  System_CheckGitBash = 'system:checkGitBash',
+  System_GetGitBashPath = 'system:getGitBashPath',
+  System_SetGitBashPath = 'system:setGitBashPath',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',
@@ -289,6 +299,8 @@ export enum IpcChannel {
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
+  // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
+  Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
 

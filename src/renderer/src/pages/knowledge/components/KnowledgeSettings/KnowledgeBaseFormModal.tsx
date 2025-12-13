@@ -1,7 +1,8 @@
-import { HStack } from '@renderer/components/Layout'
 import type { ModalProps } from 'antd'
-import { Menu, Modal } from 'antd'
+import { Button, Modal } from 'antd'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 export interface PanelConfig {
@@ -10,15 +11,47 @@ export interface PanelConfig {
   panel: React.ReactNode
 }
 
-interface KnowledgeBaseFormModalProps extends Omit<ModalProps, 'children'> {
+interface KnowledgeBaseFormModalProps extends Omit<ModalProps, 'children' | 'footer'> {
   panels: PanelConfig[]
+  onMoreSettings?: () => void
+  defaultExpandAdvanced?: boolean
 }
 
-const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels, ...rest }) => {
-  const [selectedMenu, setSelectedMenu] = useState(panels[0]?.key)
+const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
+  panels,
+  onMoreSettings,
+  defaultExpandAdvanced = false,
+  okText,
+  onOk,
+  onCancel,
+  ...rest
+}) => {
+  const { t } = useTranslation()
+  const [showAdvanced, setShowAdvanced] = useState(defaultExpandAdvanced)
 
-  const menuItems = panels.map(({ key, label }) => ({ key, label }))
-  const activePanel = panels.find((p) => p.key === selectedMenu)?.panel
+  const generalPanel = panels.find((p) => p.key === 'general')
+  const advancedPanel = panels.find((p) => p.key === 'advanced')
+
+  const footer = (
+    <FooterContainer>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {advancedPanel && (
+          <Button
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            icon={showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}>
+            {t('settings.advanced.title')}
+          </Button>
+        )}
+        {onMoreSettings && <Button onClick={onMoreSettings}>{t('settings.moresetting.title')}</Button>}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Button onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button type="primary" onClick={onOk}>
+          {okText || t('common.confirm')}
+        </Button>
+      </div>
+    </FooterContainer>
+  )
 
   return (
     <StyledModal
@@ -26,33 +59,42 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
       maskClosable={false}
       centered
       transitionName="animation-move-down"
-      width="min(900px, 65vw)"
+      width="min(500px, 60vw)"
       styles={{
-        body: { padding: 0, height: 550 },
+        body: { padding: '16px 8px', maxHeight: '70vh', overflowY: 'auto' },
         header: {
-          padding: '10px 15px',
+          padding: '12px 20px',
           borderBottom: '0.5px solid var(--color-border)',
           margin: 0,
           borderRadius: 0
         },
         content: {
           padding: 0,
-          paddingBottom: 10,
           overflow: 'hidden'
+        },
+        footer: {
+          padding: '12px 20px',
+          borderTop: '0.5px solid var(--color-border)',
+          margin: 0
         }
       }}
+      footer={footer}
+      okText={okText}
+      onOk={onOk}
+      onCancel={onCancel}
       {...rest}>
-      <HStack height="100%">
-        <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={[selectedMenu]}
-            mode="vertical"
-            items={menuItems}
-            onSelect={({ key }) => setSelectedMenu(key)}
-          />
-        </LeftMenu>
-        <SettingsContentPanel>{activePanel}</SettingsContentPanel>
-      </HStack>
+      <ContentContainer>
+        {/* General Settings */}
+        {generalPanel && <div>{generalPanel.panel}</div>}
+
+        {/* Advanced Settings */}
+        {showAdvanced && advancedPanel && (
+          <AdvancedSettingsContainer>
+            <AdvancedSettingsTitle>{advancedPanel.label}</AdvancedSettingsTitle>
+            <div>{advancedPanel.panel}</div>
+          </AdvancedSettingsContainer>
+        )}
+      </ContentContainer>
     </StyledModal>
   )
 }
@@ -60,57 +102,38 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
 const StyledModal = styled(Modal)`
   .ant-modal-title {
     font-size: 14px;
+    font-weight: 500;
   }
   .ant-modal-close {
-    top: 4px;
-    right: 4px;
+    top: 8px;
+    right: 8px;
   }
 `
 
-const LeftMenu = styled.div`
+const ContentContainer = styled.div`
   display: flex;
-  height: 100%;
-  border-right: 0.5px solid var(--color-border);
+  flex-direction: column;
 `
 
-const SettingsContentPanel = styled.div`
-  flex: 1;
-  padding: 16px 16px;
-  overflow-y: scroll;
+const FooterContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 `
 
-const StyledMenu = styled(Menu)`
-  width: 200px;
-  padding: 5px;
-  background: transparent;
-  margin-top: 2px;
-  border-inline-end: none !important;
+const AdvancedSettingsContainer = styled.div`
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--color-border);
+`
 
-  .ant-menu-item {
-    height: 36px;
-    color: var(--color-text-2);
-    display: flex;
-    align-items: center;
-    border: 0.5px solid transparent;
-    border-radius: 6px;
-    margin-bottom: 7px;
-
-    .ant-menu-title-content {
-      line-height: 36px;
-    }
-  }
-  .ant-menu-item-active {
-    background-color: var(--color-background-soft) !important;
-    transition: none;
-  }
-  .ant-menu-item-selected {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-    .ant-menu-title-content {
-      color: var(--color-text-1);
-      font-weight: 500;
-    }
-  }
+const AdvancedSettingsTitle = styled.div`
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--color-text-1);
+  margin-bottom: 16px;
+  padding: 0 16px;
 `
 
 export default KnowledgeBaseFormModal

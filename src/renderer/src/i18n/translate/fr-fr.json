@@ -6,6 +6,9 @@
         "failed": "Échec de l'ajout de l'agent",
         "invalid_agent": "Agent invalide"
       },
+      "model": {
+        "tooltip": "Actuellement, seuls les modèles qui prennent en charge les points de terminaison Anthropic sont disponibles pour la fonctionnalité Agent."
+      },
       "title": "Ajouter un agent",
       "type": {
         "placeholder": "Sélectionner le type d'Agent"
@@ -27,8 +30,31 @@
         "null_id": "L'ID de l'agent est nul."
       }
     },
+    "gitBash": {
+      "autoDetected": "Utilisation de Git Bash détecté automatiquement",
+      "clear": {
+        "button": "Effacer le chemin personnalisé"
+      },
+      "customPath": "Utilisation du chemin personnalisé : {{path}}",
+      "error": {
+        "description": "Git Bash est requis pour exécuter des agents sur Windows. L'agent ne peut pas fonctionner sans. Veuillez installer Git pour Windows depuis",
+        "recheck": "Revérifier l'installation de Git Bash",
+        "title": "Git Bash requis"
+      },
+      "found": {
+        "title": "Git Bash configuré"
+      },
+      "notFound": "Git Bash non trouvé. Veuillez l'installer d'abord.",
+      "pick": {
+        "button": "Sélectionner le chemin Git Bash",
+        "failed": "Échec de la configuration du chemin Git Bash",
+        "invalidPath": "Le fichier sélectionné n'est pas un exécutable Git Bash valide (bash.exe).",
+        "title": "Sélectionner l'exécutable Git Bash"
+      },
+      "success": "Git Bash détecté avec succès !"
+    },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
     },
     "list": {
       "error": {
@@ -257,6 +283,7 @@
       "error": {
         "sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer."
       },
+      "executing": "Exécution en cours...",
       "expired": "Expiré",
       "inputPreview": "Aperçu de l'entrée de l'outil",
       "pending": "En attente ({{seconds}}s)",
@@ -270,6 +297,7 @@
         "denied": "La demande d'outil a été refusée.",
         "timeout": "La demande d'outil a expiré avant d'obtenir l'approbation."
       },
+      "toolPendingFallback": "Outil",
       "waiting": "En attente de la décision d'autorisation de l'outil..."
     },
     "type": {
@@ -457,6 +485,14 @@
         "url_placeholder": "Saisir l'URL JSON"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Suppression par lot",
+          "confirm": "Êtes-vous sûr de vouloir supprimer les {{count}} assistants sélectionnés ?"
+        },
+        "mode": {
+          "delete": "Supprimer",
+          "sort": "Trier"
+        },
         "title": "Gérer les assistants"
       },
       "my_agents": "Mes assistants",
@@ -510,7 +546,8 @@
         "low": "Court",
         "medium": "Moyen",
         "minimal": "minimal",
-        "off": "Off"
+        "off": "Off",
+        "xhigh": "[to be translated]:Extra High"
       },
       "regular_phrases": {
         "add": "Добавить фразу",
@@ -1138,6 +1175,7 @@
     "fullscreen": "Mode plein écran, appuyez sur F11 pour quitter",
     "go_to_settings": "Aller aux paramètres",
     "i_know": "J'ai compris",
+    "ignore": "Ignorer",
     "inspect": "Vérifier",
     "invalid_value": "valeur invalide",
     "knowledge_base": "Base de connaissances",
@@ -1149,6 +1187,8 @@
     "name": "Nom",
     "no_results": "Aucun résultat",
     "none": "Aucun",
+    "off": "Désactivé",
+    "on": "Marche",
     "open": "Ouvrir",
     "paste": "Coller",
     "placeholders": {
@@ -1168,6 +1208,7 @@
     "saved": "enregistré",
     "search": "Rechercher",
     "select": "Sélectionner",
+    "select_all": "Tout sélectionner",
     "selected": "Sélectionné",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
@@ -1196,7 +1237,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Génération d'images",
+    "image-generation": "Génération d'images (OpenAI)",
     "jina-rerank": "Reclassement Jina",
     "openai": "OpenAI",
     "openai-response": "Réponse OpenAI"
@@ -1376,6 +1417,36 @@
     "preview": "Aperçu",
     "split": "Diviser"
   },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "Importation de ChatGPT",
+      "button": "Sélectionner le fichier",
+      "description": "Importe uniquement le texte de la conversation, n'inclut pas les images et les pièces jointes",
+      "error": {
+        "invalid_json": "Format de fichier JSON invalide",
+        "no_conversations": "Aucune conversation trouvée dans le fichier",
+        "no_valid_conversations": "Aucune conversation valide à importer",
+        "unknown": "L'importation a échoué, veuillez vérifier le format du fichier"
+      },
+      "help": {
+        "step1": "1. Connectez-vous à ChatGPT, allez dans Paramètres > Contrôles des données > Exporter les données",
+        "step2": "2. Attendez le fichier d’exportation par e-mail",
+        "step3": "3. Extrayez le fichier téléchargé et recherchez conversations.json",
+        "title": "Comment exporter les conversations de ChatGPT ?"
+      },
+      "importing": "Importation des conversations...",
+      "selecting": "Sélection du fichier...",
+      "success": "Importation réussie de {{topics}} conversations avec {{messages}} messages",
+      "title": "Importer les conversations de ChatGPT",
+      "untitled_conversation": "Conversation sans titre"
+    },
+    "confirm": {
+      "button": "Sélectionner le fichier à importer",
+      "label": "Êtes-vous sûr de vouloir importer des données externes ?"
+    },
+    "content": "Sélectionnez le fichier de conversation de l'application externe à importer, actuellement uniquement les fichiers au format JSON de ChatGPT sont pris en charge",
+    "title": "Importer des conversations externes"
+  },
   "knowledge": {
     "add": {
       "title": "Ajouter une base de connaissances"
@@ -1463,6 +1534,7 @@
     "notes_placeholder": "Entrez des informations supplémentaires ou un contexte pour cette base de connaissances...",
     "provider_not_found": "Le fournisseur du modèle de la base de connaissances a été perdu, cette base de connaissances ne sera plus supportée, veuillez en créer une nouvelle",
     "quota": "Quota restant pour {{name}} : {{quota}}",
+    "quota_empty": "Le quota {{name}} d'aujourd'hui est épuisé, veuillez en faire la demande sur le site officiel",
     "quota_infinity": "Quota restant pour {{name}} : illimité",
     "rename": "Renommer",
     "search": "Rechercher dans la base de connaissances",
@@ -2175,7 +2247,10 @@
     "untitled_folder": "nouveau dossier",
     "untitled_note": "Note sans titre",
     "upload_failed": "Échec du téléchargement de la note",
-    "upload_success": "Note téléchargée avec succès"
+    "upload_files": "Télécharger des fichiers",
+    "upload_folder": "Puis dossier de téléchargement",
+    "upload_success": "Note téléchargée avec succès",
+    "uploading_files": "Téléchargement de {{count}} fichiers..."
   },
   "notification": {
     "assistant": "Réponse de l'assistant",
@@ -2466,7 +2541,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Copier en tant qu'image"
+      "image": "Copier en tant qu'image",
+      "src": "Copier la source de l'image"
     },
     "dialog": "Ouvrir la fenêtre d'aperçu",
     "label": "Aperçu",
@@ -3085,6 +3161,7 @@
         "basic": "Paramètres de base",
         "cloud_storage": "Paramètres de sauvegarde cloud",
         "export_settings": "Paramètres d'exportation",
+        "import_settings": "Importer les paramètres",
         "third_party": "Connexion tierce"
       },
       "export_menu": {
@@ -3143,6 +3220,11 @@
       },
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",
+      "import_settings": {
+        "button": "Importer le fichier JSON",
+        "chatgpt": "Importer depuis ChatGPT",
+        "title": "Importer des données d'applications externes"
+      },
       "joplin": {
         "check": {
           "button": "Vérifier",
@@ -3724,6 +3806,9 @@
       },
       "view_webdav_settings": "Voir les paramètres WebDAV"
     },
+    "groq": {
+      "title": "Paramètres Groq"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "La désactivation de l'accélération matérielle nécessite un redémarrage de l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
@@ -3851,6 +3936,7 @@
       "jsonSaveError": "Échec de la sauvegarde de la configuration JSON",
       "jsonSaveSuccess": "Configuration JSON sauvegardée",
       "logoUrl": "Адрес логотипа",
+      "logs": "Journaux",
       "longRunning": "Mode d'exécution prolongée",
       "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
       "marketplaces": "Places de marché",
@@ -3870,6 +3956,7 @@
       "name": "Nom",
       "newServer": "Сервер MCP",
       "noDescriptionAvailable": "Aucune description disponible pour le moment",
+      "noLogs": "Aucun journal pour le moment",
       "noServers": "Aucun serveur configuré",
       "not_support": "Модель не поддерживается",
       "npx_list": {
@@ -4214,10 +4301,15 @@
         "default": "Par défaut",
         "flex": "Flexible",
         "on_demand": "à la demande",
-        "performance": "performance",
         "priority": "priorité",
         "tip": "Spécifie le niveau de latence utilisé pour traiter la demande",
         "title": "Niveau de service"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Si l'utilisation des jetons est incluse (applicable uniquement à l'API OpenAI Chat Completions)",
+          "title": "Inclure l'utilisation"
+        }
       },
       "summary_text_mode": {
         "auto": "Automatique",
@@ -4311,12 +4403,16 @@
           "stream_options": {
             "help": "Le fournisseur prend-il en charge le paramètre stream_options ?",
             "label": "Prise en charge des options de flux"
+          },
+          "verbosity": {
+            "help": "Si le fournisseur prend en charge le paramètre de verbosité",
+            "label": "Prend en charge la verbosité"
           }
         },
         "url": {
           "preview": "Aperçu : {{url}}",
           "reset": "Réinitialiser",
-          "tip": "forcer l'utilisation de l'adresse d'entrée si terminé par #"
+          "tip": "Ajoutez # à la fin pour désactiver la version d'API ajoutée automatiquement."
         }
       },
       "api_host": "Adresse API",

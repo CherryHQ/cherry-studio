@@ -12,7 +12,6 @@ import {
   isSupportVerbosityModel,
   isVisionModel
 } from '@renderer/config/models'
-import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import type {
   FileMetadata,
@@ -43,6 +42,7 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { isSupportDeveloperRoleProvider } from '@renderer/utils/provider'
 import { MB } from '@shared/config/constant'
 import { t } from 'i18next'
 import { isEmpty } from 'lodash'
@@ -122,6 +122,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     if (this.sdkInstance) {
       return this.sdkInstance
     }
+    const baseUrl = this.getBaseURL()
 
     if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
       return new AzureOpenAI({
@@ -134,7 +135,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       return new OpenAI({
         dangerouslyAllowBrowser: true,
         apiKey: this.apiKey,
-        baseURL: this.getBaseURL(),
+        baseURL: baseUrl,
         defaultHeaders: {
           ...this.defaultHeaders(),
           ...this.provider.extra_headers

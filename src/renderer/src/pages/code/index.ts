@@ -1,4 +1,4 @@
-import type { EndpointType, Model, Provider } from '@renderer/types'
+import { type EndpointType, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
 
 export interface LaunchValidationResult {
@@ -25,7 +25,17 @@ export const CLI_TOOLS = [
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
-export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = ['deepseek', 'moonshot', 'zhipu', 'dashscope', 'modelscope']
+export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
+  'deepseek',
+  'moonshot',
+  'zhipu',
+  'dashscope',
+  'modelscope',
+  'minimax',
+  'longcat',
+  SystemProviderIds.qiniu,
+  SystemProviderIds.silicon
+]
 export const CLAUDE_SUPPORTED_PROVIDERS = [
   'aihubmix',
   'dmxapi',
@@ -52,7 +62,7 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
   const CODE_TOOLS_API_ENDPOINTS = {
     aihubmix: {
       gemini: {
-        api_base_url: 'https://api.aihubmix.com/gemini'
+        api_base_url: 'https://aihubmix.com/gemini'
       }
     },
     deepseek: {
@@ -78,6 +88,11 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
     modelscope: {
       anthropic: {
         api_base_url: 'https://api-inference.modelscope.cn'
+      }
+    },
+    minimax: {
+      anthropic: {
+        api_base_url: 'https://api.minimaxi.com/anthropic'
       }
     }
   }
@@ -125,7 +140,8 @@ export const generateToolEnvironment = ({
 
   switch (tool) {
     case codeTools.claudeCode:
-      env.ANTHROPIC_BASE_URL = getCodeToolsApiBaseUrl(model, 'anthropic') || modelProvider.apiHost
+      env.ANTHROPIC_BASE_URL =
+        getCodeToolsApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
       env.ANTHROPIC_MODEL = model.id
       if (modelProvider.type === 'anthropic') {
         env.ANTHROPIC_API_KEY = apiKey

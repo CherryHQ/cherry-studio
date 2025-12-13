@@ -2,7 +2,6 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel } from '@renderer/config/models'
-import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -11,6 +10,7 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
 import type { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
+import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
 import { Form, Input, Tooltip } from 'antd'
 import { CircleX, Hammer, Plus } from 'lucide-react'
 import type { FC } from 'react'
@@ -516,7 +516,10 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
 
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={assistant.mcpServers && assistant.mcpServers.length > 0}>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        active={assistant.mcpServers && assistant.mcpServers.length > 0}
+        aria-label={t('settings.mcp.title')}>
         <Hammer size={18} />
       </ActionIconButton>
     </Tooltip>

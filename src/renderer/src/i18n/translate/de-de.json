@@ -6,6 +6,9 @@
         "failed": "Agent hinzufügen fehlgeschlagen",
         "invalid_agent": "Ungültiger Agent"
       },
+      "model": {
+        "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen."
+      },
       "title": "Agent hinzufügen",
       "type": {
         "placeholder": "Agent-Typ auswählen"
@@ -27,8 +30,31 @@
         "null_id": "Agent ID ist leer."
       }
     },
+    "gitBash": {
+      "autoDetected": "Automatisch ermitteltes Git Bash wird verwendet",
+      "clear": {
+        "button": "Benutzerdefinierten Pfad löschen"
+      },
+      "customPath": "Benutzerdefinierter Pfad: {{path}}",
+      "error": {
+        "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
+        "recheck": "Überprüfe die Git Bash-Installation erneut",
+        "title": "Git Bash erforderlich"
+      },
+      "found": {
+        "title": "Git Bash konfiguriert"
+      },
+      "notFound": "Git Bash nicht gefunden. Bitte installieren Sie es zuerst.",
+      "pick": {
+        "button": "Git Bash Pfad auswählen",
+        "failed": "Git Bash Pfad konnte nicht gesetzt werden",
+        "invalidPath": "Die ausgewählte Datei ist keine gültige Git Bash ausführbare Datei (bash.exe).",
+        "title": "Git Bash ausführbare Datei auswählen"
+      },
+      "success": "Git Bash erfolgreich erkannt!"
+    },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
     },
     "list": {
       "error": {
@@ -257,6 +283,7 @@
       "error": {
         "sendFailed": "Ihre Entscheidung konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
       },
+      "executing": "Ausführen...",
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pending": "Ausstehend ({{seconds}}s)",
@@ -270,6 +297,7 @@
         "denied": "Tool-Anfrage wurde abgelehnt.",
         "timeout": "Tool-Anfrage ist abgelaufen, bevor eine Genehmigung eingegangen ist."
       },
+      "toolPendingFallback": "Werkzeug",
       "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
     },
     "type": {
@@ -457,6 +485,14 @@
         "url_placeholder": "JSON-URL eingeben"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Stapel löschen",
+          "confirm": "Sind Sie sicher, dass Sie die ausgewählten {{count}} Assistenten löschen möchten?"
+        },
+        "mode": {
+          "delete": "Löschen",
+          "sort": "Sortieren"
+        },
         "title": "Assistenten verwalten"
       },
       "my_agents": "Meine Assistenten",
@@ -510,7 +546,8 @@
         "low": "Spontan",
         "medium": "Überlegt",
         "minimal": "Minimal",
-        "off": "Aus"
+        "off": "Aus",
+        "xhigh": "Extra hoch"
       },
       "regular_phrases": {
         "add": "Phrase hinzufügen",
@@ -1138,6 +1175,7 @@
     "fullscreen": "Vollbildmodus aktiviert, F11 zum Beenden",
     "go_to_settings": "Zu Einstellungen",
     "i_know": "Verstanden",
+    "ignore": "Ignorieren",
     "inspect": "Prüfen",
     "invalid_value": "Ungültiger Wert",
     "knowledge_base": "Wissensdatenbank",
@@ -1149,6 +1187,8 @@
     "name": "Name",
     "no_results": "Keine Ergebnisse",
     "none": "Keine",
+    "off": "Aus",
+    "on": "An",
     "open": "Öffnen",
     "paste": "Einfügen",
     "placeholders": {
@@ -1168,6 +1208,7 @@
     "saved": "Gespeichert",
     "search": "Suchen",
     "select": "Auswählen",
+    "select_all": "Alle auswählen",
     "selected": "Ausgewählt",
     "selectedItems": "{{count}} Elemente ausgewählt",
     "selectedMessages": "{{count}} Nachrichten ausgewählt",
@@ -1196,7 +1237,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Bildgenerierung",
+    "image-generation": "Bilderzeugung (OpenAI)",
     "jina-rerank": "Jina Reranking",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -1376,6 +1417,36 @@
     "preview": "Vorschau",
     "split": "Geteilte Ansicht"
   },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT-Import",
+      "button": "Datei auswählen",
+      "description": "Importiert nur Gesprächstexte, keine Bilder und Anhänge",
+      "error": {
+        "invalid_json": "Ungültiges JSON-Dateiformat",
+        "no_conversations": "Keine Gespräche in der Datei gefunden",
+        "no_valid_conversations": "Keine gültigen Konversationen zum Importieren",
+        "unknown": "Import fehlgeschlagen, bitte überprüfen Sie das Dateiformat"
+      },
+      "help": {
+        "step1": "1. Melden Sie sich bei ChatGPT an, gehen Sie zu Einstellungen > Dateneinstellungen > Daten exportieren",
+        "step2": "2. Warten Sie auf die Exportdatei per E-Mail",
+        "step3": "3. Extrahiere die heruntergeladene Datei und finde conversations.json",
+        "title": "Wie exportiere ich ChatGPT-Gespräche?"
+      },
+      "importing": "Konversationen werden importiert...",
+      "selecting": "Datei wird ausgewählt...",
+      "success": "Erfolgreich {{topics}} Konversationen mit {{messages}} Nachrichten importiert",
+      "title": "ChatGPT-Unterhaltungen importieren",
+      "untitled_conversation": "Unbenannte Unterhaltung"
+    },
+    "confirm": {
+      "button": "Importdatei auswählen",
+      "label": "Sind Sie sicher, dass Sie externe Daten importieren möchten?"
+    },
+    "content": "Wählen Sie die zu importierende Gesprächsdatei einer externen Anwendung aus; derzeit werden nur ChatGPT-JSON-Formatdateien unterstützt.",
+    "title": "Externe Gespräche importieren"
+  },
   "knowledge": {
     "add": {
       "title": "Wissensdatenbank hinzufügen"
@@ -1463,6 +1534,7 @@
     "notes_placeholder": "Zusätzliche Informationen oder Kontext für diese Wissensdatenbank eingeben...",
     "provider_not_found": "Anbieter nicht gefunden",
     "quota": "{{name}} verbleibendes Kontingent: {{quota}}",
+    "quota_empty": "Das heutige {{name}}-Kontingent ist erschöpft. Bitte beantragen Sie es auf der offiziellen Website",
     "quota_infinity": "{{name}} verbleibendes Kontingent: unbegrenzt",
     "rename": "Umbenennen",
     "search": "Wissensdatenbank durchsuchen",
@@ -2175,7 +2247,10 @@
     "untitled_folder": "Neuer Ordner",
     "untitled_note": "Unbenannte Notiz",
     "upload_failed": "Notizen-Upload fehlgeschlagen",
-    "upload_success": "Notizen erfolgreich hochgeladen"
+    "upload_files": "Dateien hochladen",
+    "upload_folder": "Ordner hochladen",
+    "upload_success": "Notizen erfolgreich hochgeladen",
+    "uploading_files": "Lade {{count}} Dateien hoch..."
   },
   "notification": {
     "assistant": "Assistenten-Antwort",
@@ -2466,7 +2541,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Als Bild kopieren"
+      "image": "Als Bild kopieren",
+      "src": "Bildquelle kopieren"
     },
     "dialog": "Vorschaufenster öffnen",
     "label": "Vorschau",
@@ -3085,6 +3161,7 @@
         "basic": "Grundlegende Dateneinstellungen",
         "cloud_storage": "Cloud-Backup-Einstellungen",
         "export_settings": "Export-Einstellungen",
+        "import_settings": "Importeinstellungen",
         "third_party": "Drittanbieter-Verbindungen"
       },
       "export_menu": {
@@ -3143,6 +3220,11 @@
       },
       "hour_interval_one": "{{count}} Stunde",
       "hour_interval_other": "{{count}} Stunden",
+      "import_settings": {
+        "button": "JSON-Datei importieren",
+        "chatgpt": "Import aus ChatGPT",
+        "title": "Importiere Daten von externen Anwendungen"
+      },
       "joplin": {
         "check": {
           "button": "Erkennen",
@@ -3724,6 +3806,9 @@
       },
       "view_webdav_settings": "WebDAV-Einstellungen anzeigen"
     },
+    "groq": {
+      "title": "Groq Einstellungen"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "Deaktivierung der Hardwarebeschleunigung erfordert Neustart. Jetzt neu starten?",
@@ -3851,6 +3936,7 @@
       "jsonSaveError": "JSON-Konfiguration speichern fehlgeschlagen",
       "jsonSaveSuccess": "JSON-Konfiguration erfolgreich gespeichert",
       "logoUrl": "Logo-URL",
+      "logs": "Protokolle",
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
       "marketplaces": "Marktplätze",
@@ -3870,6 +3956,7 @@
       "name": "Name",
       "newServer": "MCP-Server",
       "noDescriptionAvailable": "Keine Beschreibung",
+      "noLogs": "Noch keine Protokolle",
       "noServers": "Server nicht konfiguriert",
       "not_support": "Modell nicht unterstützt",
       "npx_list": {
@@ -4214,10 +4301,15 @@
         "default": "Standard",
         "flex": "Flexibel",
         "on_demand": "Auf Anfrage",
-        "performance": "Leistung",
         "priority": "Priorität",
         "tip": "Latenz-Ebene für Anfrageverarbeitung festlegen",
         "title": "Service-Tier"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Ob die Token-Nutzung enthalten ist (gilt nur für die OpenAI Chat Completions API)",
+          "title": "Nutzung einbeziehen"
+        }
       },
       "summary_text_mode": {
         "auto": "Automatisch",
@@ -4311,12 +4403,16 @@
           "stream_options": {
             "help": "Unterstützt stream_options",
             "label": "Unterstützt stream_options"
+          },
+          "verbosity": {
+            "help": "Ob der Anbieter den Ausführlichkeitsparameter unterstützt",
+            "label": "Unterstützung der Ausführlichkeit"
           }
         },
         "url": {
           "preview": "Vorschau: {{url}}",
           "reset": "Zurücksetzen",
-          "tip": "# am Ende erzwingt die Verwendung der Eingabe-Adresse"
+          "tip": "Fügen Sie am Ende ein # hinzu, um die automatisch angehängte API-Version zu deaktivieren."
         }
       },
       "api_host": "API-Adresse",

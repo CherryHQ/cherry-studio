@@ -1,0 +1,74 @@
+diff --git a/dist/index.js b/dist/index.js
+index 130094d194ea1e8e7d3027d07d82465741192124..4d13dcee8c962ca9ee8f1c3d748f8ffe6a3cfb47 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -290,6 +290,7 @@ var openaiChatResponseSchema = (0, import_provider_utils3.lazyValidator)(
+           message: import_v42.z.object({
+             role: import_v42.z.literal("assistant").nullish(),
+             content: import_v42.z.string().nullish(),
++            reasoning_content: import_v42.z.string().nullish(),
+             tool_calls: import_v42.z.array(
+               import_v42.z.object({
+                 id: import_v42.z.string().nullish(),
+@@ -356,6 +357,7 @@ var openaiChatChunkSchema = (0, import_provider_utils3.lazyValidator)(
+             delta: import_v42.z.object({
+               role: import_v42.z.enum(["assistant"]).nullish(),
+               content: import_v42.z.string().nullish(),
++              reasoning_content: import_v42.z.string().nullish(),
+               tool_calls: import_v42.z.array(
+                 import_v42.z.object({
+                   index: import_v42.z.number(),
+@@ -814,6 +816,13 @@ var OpenAIChatLanguageModel = class {
+     if (text != null && text.length > 0) {
+       content.push({ type: "text", text });
+     }
++    const reasoning = choice.message.reasoning_content;
++    if (reasoning != null && reasoning.length > 0) {
++      content.push({
++        type: 'reasoning',
++        text: reasoning
++      });
++    }
+     for (const toolCall of (_a = choice.message.tool_calls) != null ? _a : []) {
+       content.push({
+         type: "tool-call",
+@@ -895,6 +904,7 @@ var OpenAIChatLanguageModel = class {
+     };
+     let metadataExtracted = false;
+     let isActiveText = false;
++    let isActiveReasoning = false;
+     const providerMetadata = { openai: {} };
+     return {
+       stream: response.pipeThrough(
+@@ -952,6 +962,21 @@ var OpenAIChatLanguageModel = class {
+               return;
+             }
+             const delta = choice.delta;
++            const reasoningContent = delta.reasoning_content;
++            if (reasoningContent) {
++              if (!isActiveReasoning) {
++                controller.enqueue({
++                  type: 'reasoning-start',
++                  id: 'reasoning-0',
++                });
++                isActiveReasoning = true;
++              }
++              controller.enqueue({
++                type: 'reasoning-delta',
++                id: 'reasoning-0',
++                delta: reasoningContent,
++              });
++            }
+             if (delta.content != null) {
+               if (!isActiveText) {
+                 controller.enqueue({ type: "text-start", id: "0" });
+@@ -1064,6 +1089,9 @@ var OpenAIChatLanguageModel = class {
+             }
+           },
+           flush(controller) {
++            if (isActiveReasoning) {
++              controller.enqueue({ type: 'reasoning-end', id: 'reasoning-0' });
++            }
+             if (isActiveText) {
+               controller.enqueue({ type: "text-end", id: "0" });
+             }

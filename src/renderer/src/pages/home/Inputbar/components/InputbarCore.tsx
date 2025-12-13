@@ -50,6 +50,9 @@ export interface InputbarCoreProps {
   resizeTextArea: (force?: boolean) => void
   focusTextarea: () => void
 
+  height: number | undefined
+  onHeightChange: (height: number) => void
+
   supportedExts: string[]
   isLoading: boolean
 
@@ -104,6 +107,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   textareaRef,
   resizeTextArea,
   focusTextarea,
+  height,
+  onHeightChange,
   supportedExts,
   isLoading,
   onPause,
@@ -131,8 +136,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   } = useSettings()
   const quickPanelTriggersEnabled = forceEnableQuickPanelTriggers ?? enableQuickPanelTriggers
 
-  const [textareaHeight, setTextareaHeight] = useState<number>()
-
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
   const { getLanguageByLangcode } = useTranslate()
@@ -156,11 +159,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
     (value) => {
-      if (typeof value === 'function') {
-        onTextChange(value(textRef.current))
-      } else {
-        onTextChange(value)
-      }
+      const newText = typeof value === 'function' ? value(textRef.current) : value
+      onTextChange(newText)
     },
     [onTextChange]
   )
@@ -181,8 +181,10 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     enabled: config.enableDragDrop,
     t
   })
-  // 判断是否可以发送：文本不为空或有文件
-  const cannotSend = isEmpty && files.length === 0
+  // 判断是否有内容：文本不为空或有文件
+  const noContent = isEmpty && files.length === 0
+  // 发送入口统一禁用条件：空内容、正在生成、全局搜索态
+  const isSendDisabled = noContent || isLoading || searching
 
   useEffect(() => {
     setExtensions(supportedExts)
@@ -313,7 +315,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
       const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
       if (isEnterPressed) {
-        if (isSendMessageKeyPressed(event, sendMessageShortcut) && !cannotSend) {
+        if (isSendMessageKeyPressed(event, sendMessageShortcut) && !isSendDisabled) {
           handleSendMessage()
           event.preventDefault()
           return
@@ -359,7 +361,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       translate,
       handleToggleExpanded,
       sendMessageShortcut,
-      cannotSend,
+      isSendDisabled,
       handleSendMessage,
       setText,
       setTimeoutTimer,
@@ -524,7 +526,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const handleFocus = useCallback(() => {
     setInputFocus(true)
     dispatch(setSearching(false))
-    if (quickPanel.isVisible && quickPanel.triggerInfo?.type !== 'input') {
+    // Don't close panel in multiple selection mode, or if triggered by input
+    if (quickPanel.isVisible && quickPanel.triggerInfo?.type !== 'input' && !quickPanel.multiple) {
       quickPanel.close()
     }
     PasteService.setLastFocusedComponent('inputbar')
@@ -541,8 +544,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
       const handleMouseMove = (e: MouseEvent) => {
         const deltaY = startDragY.current - e.clientY
-        const newHeight = Math.max(40, Math.min(400, startHeight.current + deltaY))
-        setTextareaHeight(newHeight)
+        const newHeight = Math.max(40, Math.min(500, startHeight.current + deltaY))
+        onHeightChange(newHeight)
       }
 
       const handleMouseUp = () => {
@@ -553,7 +556,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
     },
-    [config.enableDragDrop, setTextareaHeight, textareaRef]
+    [config.enableDragDrop, onHeightChange, textareaRef]
   )
 
   const onQuote = useCallback(
@@ -620,7 +623,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const rightSectionExtras = useMemo(() => {
     const extras: React.ReactNode[] = []
     extras.push(<TranslateButton key="translate" text={text} onTranslated={onTranslated} isLoading={isTranslating} />)
-    extras.push(<SendMessageButton sendMessage={handleSendMessage} disabled={cannotSend || isLoading || searching} />)
+    extras.push(<SendMessageButton sendMessage={handleSendMessage} disabled={isSendDisabled} />)
 
     if (isLoading) {
       extras.push(
@@ -633,7 +636,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     }
 
     return <>{extras}</>
-  }, [text, onTranslated, isTranslating, handleSendMessage, cannotSend, isLoading, searching, t, onPause])
+  }, [text, onTranslated, isTranslating, handleSendMessage, isSendDisabled, isLoading, t, onPause])
 
   const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setText} /> : null
 
@@ -670,11 +673,11 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             variant="borderless"
             spellCheck={enableSpellCheck}
             rows={2}
-            autoSize={textareaHeight ? false : { minRows: 2, maxRows: 20 }}
+            autoSize={height ? false : { minRows: 2, maxRows: 20 }}
             styles={{ textarea: TextareaStyle }}
             style={{
               fontSize,
-              height: textareaHeight,
+              height: height,
               minHeight: '30px'
             }}
             disabled={isTranslating || searching}

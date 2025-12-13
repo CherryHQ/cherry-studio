@@ -6,6 +6,9 @@
         "failed": "添加 Agent 失败",
         "invalid_agent": "无效的 Agent"
       },
+      "model": {
+        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。"
+      },
       "title": "添加 Agent",
       "type": {
         "placeholder": "选择 Agent 类型"
@@ -26,6 +29,29 @@
         "failed": "获取智能体失败",
         "null_id": "智能体 ID 为空。"
       }
+    },
+    "gitBash": {
+      "autoDetected": "使用自动检测的 Git Bash",
+      "clear": {
+        "button": "清除自定义路径"
+      },
+      "customPath": "使用自定义路径：{{path}}",
+      "error": {
+        "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
+        "recheck": "重新检测 Git Bash 安装",
+        "title": "需要 Git Bash"
+      },
+      "found": {
+        "title": "已配置 Git Bash"
+      },
+      "notFound": "未找到 Git Bash。请先安装。",
+      "pick": {
+        "button": "选择 Git Bash 路径",
+        "failed": "设置 Git Bash 路径失败",
+        "invalidPath": "选择的文件不是有效的 Git Bash 可执行文件（bash.exe）。",
+        "title": "选择 Git Bash 可执行文件"
+      },
+      "success": "成功检测到 Git Bash！"
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
@@ -257,6 +283,7 @@
       "error": {
         "sendFailed": "发送您的决定失败，请重试。"
       },
+      "executing": "正在执行...",
       "expired": "已过期",
       "inputPreview": "工具输入预览",
       "pending": "等待中 ({{seconds}}秒)",
@@ -270,6 +297,7 @@
         "denied": "工具请求已被拒绝。",
         "timeout": "工具请求在收到批准前超时。"
       },
+      "toolPendingFallback": "工具",
       "waiting": "等待工具权限决定..."
     },
     "type": {
@@ -457,6 +485,14 @@
         "url_placeholder": "输入 JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "批量删除",
+          "confirm": "确定要删除选中的 {{count}} 个助手吗？"
+        },
+        "mode": {
+          "delete": "删除",
+          "sort": "排序"
+        },
         "title": "管理助手"
       },
       "my_agents": "我的助手",
@@ -510,7 +546,8 @@
         "low": "浮想",
         "medium": "斟酌",
         "minimal": "微念",
-        "off": "关闭"
+        "off": "关闭",
+        "xhigh": "穷究"
       },
       "regular_phrases": {
         "add": "添加短语",
@@ -1138,6 +1175,7 @@
     "fullscreen": "已进入全屏模式，按 F11 退出",
     "go_to_settings": "前往设置",
     "i_know": "我知道了",
+    "ignore": "忽略",
     "inspect": "检查",
     "invalid_value": "无效值",
     "knowledge_base": "知识库",
@@ -1149,6 +1187,8 @@
     "name": "名称",
     "no_results": "无结果",
     "none": "无",
+    "off": "关闭",
+    "on": "启用",
     "open": "打开",
     "paste": "粘贴",
     "placeholders": {
@@ -1168,6 +1208,7 @@
     "saved": "已保存",
     "search": "搜索",
     "select": "选择",
+    "select_all": "全选",
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
@@ -1196,7 +1237,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "图片生成",
+    "image-generation": "图像生成 (OpenAI)",
     "jina-rerank": "Jina 重排序",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -1376,6 +1417,36 @@
     "preview": "预览",
     "split": "分屏"
   },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT 导入",
+      "button": "选择文件",
+      "description": "仅导入对话文字，不携带图片和附件",
+      "error": {
+        "invalid_json": "无效的 JSON 文件格式",
+        "no_conversations": "文件中未找到任何对话",
+        "no_valid_conversations": "没有可导入的有效对话",
+        "unknown": "导入失败，请检查文件格式"
+      },
+      "help": {
+        "step1": "1. 登录 ChatGPT，进入设置 > 数据控制 > 导出数据",
+        "step2": "2. 等待邮件接收导出文件",
+        "step3": "3. 解压下载的文件，找到 conversations.json",
+        "title": "如何导出 ChatGPT 对话？"
+      },
+      "importing": "正在导入对话...",
+      "selecting": "正在选择文件...",
+      "success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
+      "title": "导入 ChatGPT 对话",
+      "untitled_conversation": "未命名对话"
+    },
+    "confirm": {
+      "button": "选择导入文件",
+      "label": "确定要导入外部数据吗？"
+    },
+    "content": "选择要导入的外部应用对话文件，暂时仅支持ChatGPT的JSON格式文件",
+    "title": "导入外部对话"
+  },
   "knowledge": {
     "add": {
       "title": "添加知识库"
@@ -1463,6 +1534,7 @@
     "notes_placeholder": "输入此知识库的附加信息或上下文...",
     "provider_not_found": "未找到服务商",
     "quota": "{{name}} 剩余额度：{{quota}}",
+    "quota_empty": "今日{{name}}额度不足，请前往官网申请",
     "quota_infinity": "{{name}} 剩余额度：无限制",
     "rename": "重命名",
     "search": "搜索知识库",
@@ -2175,7 +2247,10 @@
     "untitled_folder": "新文件夹",
     "untitled_note": "无标题笔记",
     "upload_failed": "笔记上传失败",
-    "upload_success": "笔记上传成功"
+    "upload_files": "上传文件",
+    "upload_folder": "上传文件夹",
+    "upload_success": "笔记上传成功",
+    "uploading_files": "正在上传 {{count}} 个文件..."
   },
   "notification": {
     "assistant": "助手响应",
@@ -2252,7 +2327,7 @@
     "failed": {
       "install": "安装 OVMS 失败:",
       "install_code_100": "未知错误",
-      "install_code_101": "仅支持 Intel(R) Core(TM) Ultra CPU",
+      "install_code_101": "仅支持 Intel(R) CPU",
       "install_code_102": "仅支持 Windows",
       "install_code_103": "下载 OVMS runtime 失败",
       "install_code_104": "安装 OVMS runtime 失败",
@@ -2466,7 +2541,8 @@
   },
   "preview": {
     "copy": {
-      "image": "复制为图片"
+      "image": "复制为图片",
+      "src": "复制图片源"
     },
     "dialog": "打开预览窗口",
     "label": "预览",
@@ -2487,7 +2563,7 @@
   },
   "provider": {
     "302ai": "302.AI",
-    "ai-gateway": "AI Gateway",
+    "ai-gateway": "Vercel AI Gateway",
     "aihubmix": "AiHubMix",
     "aionly": "唯一AI (AiOnly)",
     "alayanew": "Alaya NeW",
@@ -3085,6 +3161,7 @@
         "basic": "基础数据设置",
         "cloud_storage": "云备份设置",
         "export_settings": "导出设置",
+        "import_settings": "导入设置",
         "third_party": "第三方连接"
       },
       "export_menu": {
@@ -3143,6 +3220,11 @@
       },
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",
+      "import_settings": {
+        "button": "导入文件",
+        "chatgpt": "导入 ChatGPT 数据",
+        "title": "导入外部应用数据"
+      },
       "joplin": {
         "check": {
           "button": "检测",
@@ -3724,6 +3806,9 @@
       },
       "view_webdav_settings": "查看 WebDAV 设置"
     },
+    "groq": {
+      "title": "Groq 设置"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "禁用硬件加速需要重启应用才能生效，是否现在重启？",
@@ -3851,6 +3936,7 @@
       "jsonSaveError": "保存 JSON 配置失败",
       "jsonSaveSuccess": "JSON 配置已保存",
       "logoUrl": "标志网址",
+      "logs": "日志",
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "marketplaces": "市场",
@@ -3870,6 +3956,7 @@
       "name": "名称",
       "newServer": "MCP 服务器",
       "noDescriptionAvailable": "暂无描述",
+      "noLogs": "暂无日志",
       "noServers": "未配置服务器",
       "not_support": "模型不支持",
       "npx_list": {
@@ -4214,10 +4301,15 @@
         "default": "默认",
         "flex": "灵活",
         "on_demand": "按需",
-        "performance": "性能",
         "priority": "优先",
         "tip": "指定用于处理请求的延迟层级",
         "title": "服务层级"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "是否请求 Tokens 用量（仅 OpenAI Chat Completions API 可用）",
+          "title": "包含用量"
+        }
       },
       "summary_text_mode": {
         "auto": "自动",
@@ -4311,12 +4403,16 @@
           "stream_options": {
             "help": "该提供商是否支持 stream_options 参数",
             "label": "支持 stream_options"
+          },
+          "verbosity": {
+            "help": "该提供商是否支持 verbosity 参数",
+            "label": "支持 verbosity"
           }
         },
         "url": {
           "preview": "预览: {{url}}",
           "reset": "重置",
-          "tip": "# 结尾强制使用输入地址"
+          "tip": "在末尾添加 # 以禁用自动附加的API版本。"
         }
       },
       "api_host": "API 地址",

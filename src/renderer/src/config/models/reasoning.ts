@@ -8,13 +8,23 @@ import type {
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
-import { isGPT5ProModel, isGPT5SeriesModel, isGPT51SeriesModel } from './utils'
+import {
+  isGPT5ProModel,
+  isGPT5SeriesModel,
+  isGPT51CodexMaxModel,
+  isGPT51SeriesModel,
+  isGPT52ProModel,
+  isGPT52SeriesModel,
+  isOpenAIDeepResearchModel,
+  isOpenAIReasoningModel,
+  isSupportedReasoningEffortOpenAIModel
+} from './openai'
+import { GEMINI_FLASH_MODEL_REGEX, isGemini3ThinkingTokenModel } from './utils'
 import { isTextToImageModel } from './vision'
-import { GEMINI_FLASH_MODEL_REGEX, isOpenAIDeepResearchModel } from './websearch'
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
+  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking|think)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
 
 // 模型类型到支持的reasoning_effort的映射表
 // TODO: refactor this. too many identical options
@@ -26,10 +36,14 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   gpt5_codex: ['low', 'medium', 'high'] as const,
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
   gpt5_1_codex: ['none', 'medium', 'high'] as const,
+  gpt5_1_codex_max: ['none', 'medium', 'high', 'xhigh'] as const,
+  gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
+  gpt52pro: ['medium', 'high', 'xhigh'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
+  gemini3: ['low', 'medium', 'high'] as const,
   gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
@@ -52,10 +66,14 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
   gpt5_1: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1,
   gpt5_1_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex,
+  gpt5_2: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2,
+  gpt5_1_codex_max: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max,
+  gpt52pro: MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   grok4_fast: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
   gemini: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
   gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
+  gemini3: MODEL_SUPPORTED_REASONING_EFFORT.gemini3,
   qwen: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
   qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
   doubao: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
@@ -75,6 +93,7 @@ const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idR
   }
 }
 
+// TODO: add ut
 const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
@@ -84,8 +103,16 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   if (isGPT51SeriesModel(model)) {
     if (modelId.includes('codex')) {
       thinkingModelType = 'gpt5_1_codex'
+      if (isGPT51CodexMaxModel(model)) {
+        thinkingModelType = 'gpt5_1_codex_max'
+      }
     } else {
       thinkingModelType = 'gpt5_1'
+    }
+  } else if (isGPT52SeriesModel(model)) {
+    thinkingModelType = 'gpt5_2'
+    if (isGPT52ProModel(model)) {
+      thinkingModelType = 'gpt52pro'
     }
   } else if (isGPT5SeriesModel(model)) {
     if (modelId.includes('codex')) {
@@ -105,6 +132,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
       thinkingModelType = 'gemini'
     } else {
       thinkingModelType = 'gemini_pro'
+    }
+    if (isGemini3ThinkingTokenModel(model)) {
+      thinkingModelType = 'gemini3'
     }
   } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
   else if (isSupportedThinkingTokenQwenModel(model)) {
@@ -149,7 +179,13 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
         'nvidia',
         'ppio',
         'hunyuan',
-        'tencent-cloud-ti'
+        'tencent-cloud-ti',
+        'deepseek',
+        'cherryin',
+        'new-api',
+        'aihubmix',
+        'sophnet',
+        'dmxapi'
       ] satisfies SystemProviderId[]
     ).some((id) => id === model.provider)
   }
@@ -189,7 +225,7 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  const providerId = model.provider.toLowerCase()
+  const providerId = model?.provider?.toLowerCase()
   if (modelId.includes('grok-3-mini')) {
     return true
   }
@@ -254,11 +290,15 @@ export function isGeminiReasoningModel(model?: Model): boolean {
 
 // Gemini 支持思考模式的模型正则
 export const GEMINI_THINKING_MODEL_REGEX =
-  /gemini-(?:2\.5.*(?:-latest)?|3-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
+  /gemini-(?:2\.5.*(?:-latest)?|3(?:\.\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
+    // ref: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro-image
+    if (modelId.includes('gemini-3-pro-image')) {
+      return true
+    }
     if (modelId.includes('image') || modelId.includes('tts')) {
       return false
     }
@@ -382,6 +422,16 @@ export function isClaude45ReasoningModel(model: Model): boolean {
   return regex.test(modelId)
 }
 
+export function isClaude4SeriesModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  // Supports various formats including:
+  // - Direct API: claude-sonnet-4, claude-opus-4-20250514
+  // - GCP Vertex AI: claude-sonnet-4@20250514
+  // - AWS Bedrock: anthropic.claude-sonnet-4-20250514-v1:0
+  const regex = /claude-(sonnet|opus|haiku)-4(?:[.-]\d+)?(?:[@\-:][\w\-:]+)?$/i
+  return regex.test(modelId)
+}
+
 export function isClaudeReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -438,16 +488,23 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
 }
 
 export const isDeepSeekHybridInferenceModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  // deepseek官方使用chat和reasoner做推理控制，其他provider需要单独判断，id可能会有所差别
-  // openrouter: deepseek/deepseek-chat-v3.1 不知道会不会有其他provider仿照ds官方分出一个同id的作为非思考模式的模型，这里有风险
-  // Matches: "deepseek-v3" followed by ".digit" or "-digit".
-  // Optionally, this can be followed by ".alphanumeric_sequence" or "-alphanumeric_sequence"
-  // until the end of the string.
-  // Examples: deepseek-v3.1, deepseek-v3-1, deepseek-v3.1.2, deepseek-v3.1-alpha
-  // Does NOT match: deepseek-v3.123 (missing separator after '1'), deepseek-v3.x (x isn't a digit)
-  // TODO: move to utils and add test cases
-  return /deepseek-v3(?:\.\d|-\d)(?:(\.|-)\w+)?$/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
+    const modelId = getLowerBaseModelName(model.id)
+    // openrouter: deepseek/deepseek-chat-v3.1 不知道会不会有其他provider仿照ds官方分出一个同id的作为非思考模式的模型，这里有风险
+    // 这里假定所有deepseek-chat都是deepseek-v3.2
+    // Matches: "deepseek-v3" followed by ".digit" or "-digit".
+    // Optionally, this can be followed by ".alphanumeric_sequence" or "-alphanumeric_sequence"
+    // until the end of the string.
+    // Examples: deepseek-v3.1, deepseek-v3-1, deepseek-v3.1.2, deepseek-v3.1-alpha
+    // Does NOT match: deepseek-v3.123 (missing separator after '1'), deepseek-v3.x (x isn't a digit)
+    // TODO: move to utils and add test cases
+    return (
+      /(\w+-)?deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(modelId) ||
+      modelId.includes('deepseek-chat-v3.1') ||
+      modelId.includes('deepseek-chat')
+    )
+  })
+  return idResult || nameResult
 }
 
 export const isLingReasoningModel = (model?: Model): boolean => {
@@ -501,7 +558,6 @@ export function isReasoningModel(model?: Model): boolean {
       REASONING_REGEX.test(model.name) ||
       isSupportedThinkingTokenDoubaoModel(model) ||
       isDeepSeekHybridInferenceModel(model) ||
-      isDeepSeekHybridInferenceModel({ ...model, id: model.name }) ||
       false
     )
   }
@@ -521,7 +577,8 @@ export function isReasoningModel(model?: Model): boolean {
     isMiniMaxReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
-    modelId.includes('seed-oss')
+    modelId.includes('seed-oss') ||
+    modelId.includes('deepseek-v3.2-speciale')
   ) {
     return true
   }
@@ -529,23 +586,7 @@ export function isReasoningModel(model?: Model): boolean {
   return REASONING_REGEX.test(modelId) || false
 }
 
-export function isOpenAIReasoningModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id, '/')
-  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
-}
-
-export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return (
-    (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
-    modelId.includes('o3') ||
-    modelId.includes('o4') ||
-    modelId.includes('gpt-oss') ||
-    ((isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) && !modelId.includes('chat'))
-  )
-}
-
-export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
+const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Gemini models
   'gemini-2\\.5-flash-lite.*$': { min: 512, max: 24576 },
   'gemini-.*-flash.*$': { min: 0, max: 24576 },
@@ -566,10 +607,18 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'qwen-flash.*$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
-  // Claude models
-  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64_000 },
-  'claude-(:?haiku|sonnet)-4.*$': { min: 1024, max: 64_000 },
-  'claude-opus-4-1.*$': { min: 1024, max: 32_000 }
+  // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
+  '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 32_000 },
+  '(?:anthropic\\.)?claude-sonnet-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
+    min: 1024,
+    max: 64_000
+  },
+  '(?:anthropic\\.)?claude-opus-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
+    min: 1024,
+    max: 32_000
+  }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
@@ -580,3 +629,17 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
   }
   return undefined
 }
+
+/**
+ * Determines if a model is a fixed reasoning model.
+ *
+ * A model is considered a fixed reasoning model if it meets all of the following criteria:
+ * - It is a reasoning model
+ * - It does NOT support thinking tokens
+ * - It does NOT support reasoning effort
+ *
+ * @param model - The model to check
+ * @returns `true` if the model is a fixed reasoning model, `false` otherwise
+ */
+export const isFixedReasoningModel = (model: Model) =>
+  isReasoningModel(model) && !isSupportedThinkingTokenModel(model) && !isSupportedReasoningEffortModel(model)

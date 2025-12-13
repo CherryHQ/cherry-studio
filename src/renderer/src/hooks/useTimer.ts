@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 /**
  * 定时器管理 Hook，用于管理 setTimeout 和 setInterval 定时器，支持通过 key 来标识不同的定时器
@@ -43,10 +43,38 @@ export const useTimer = () => {
   const timeoutMapRef = useRef(new Map<string, NodeJS.Timeout>())
   const intervalMapRef = useRef(new Map<string, NodeJS.Timeout>())
 
+  /**
+   * 清除指定 key 的 setTimeout 定时器
+   * @param key - 定时器标识符
+   */
+  const clearTimeoutTimer = useCallback((key: string) => {
+    clearTimeout(timeoutMapRef.current.get(key))
+    timeoutMapRef.current.delete(key)
+  }, [])
+
+  /**
+   * 清除指定 key 的 setInterval 定时器
+   * @param key - 定时器标识符
+   */
+  const clearIntervalTimer = useCallback((key: string) => {
+    clearInterval(intervalMapRef.current.get(key))
+    intervalMapRef.current.delete(key)
+  }, [])
+
+  /**
+   * 清除所有定时器，包括 setTimeout 和 setInterval
+   */
+  const clearAllTimers = useCallback(() => {
+    timeoutMapRef.current.forEach((timer) => clearTimeout(timer))
+    intervalMapRef.current.forEach((timer) => clearInterval(timer))
+    timeoutMapRef.current.clear()
+    intervalMapRef.current.clear()
+  }, [])
+
   // 组件卸载时自动清理所有定时器
   useEffect(() => {
     return () => clearAllTimers()
-  }, [])
+  }, [clearAllTimers])
 
   /**
    * 设置一个 setTimeout 定时器
@@ -65,12 +93,15 @@ export const useTimer = () => {
    * cleanup();
    * ```
    */
-  const setTimeoutTimer = (key: string, ...args: Parameters<typeof setTimeout>) => {
-    clearTimeout(timeoutMapRef.current.get(key))
-    const timer = setTimeout(...args)
-    timeoutMapRef.current.set(key, timer)
-    return () => clearTimeoutTimer(key)
-  }
+  const setTimeoutTimer = useCallback(
+    (key: string, ...args: Parameters<typeof setTimeout>) => {
+      clearTimeout(timeoutMapRef.current.get(key))
+      const timer = setTimeout(...args)
+      timeoutMapRef.current.set(key, timer)
+      return () => clearTimeoutTimer(key)
+    },
+    [clearTimeoutTimer]
+  )
 
   /**
    * 设置一个 setInterval 定时器
@@ -89,56 +120,31 @@ export const useTimer = () => {
    * cleanup();
    * ```
    */
-  const setIntervalTimer = (key: string, ...args: Parameters<typeof setInterval>) => {
-    clearInterval(intervalMapRef.current.get(key))
-    const timer = setInterval(...args)
-    intervalMapRef.current.set(key, timer)
-    return () => clearIntervalTimer(key)
-  }
-
-  /**
-   * 清除指定 key 的 setTimeout 定时器
-   * @param key - 定时器标识符
-   */
-  const clearTimeoutTimer = (key: string) => {
-    clearTimeout(timeoutMapRef.current.get(key))
-    timeoutMapRef.current.delete(key)
-  }
-
-  /**
-   * 清除指定 key 的 setInterval 定时器
-   * @param key - 定时器标识符
-   */
-  const clearIntervalTimer = (key: string) => {
-    clearInterval(intervalMapRef.current.get(key))
-    intervalMapRef.current.delete(key)
-  }
+  const setIntervalTimer = useCallback(
+    (key: string, ...args: Parameters<typeof setInterval>) => {
+      clearInterval(intervalMapRef.current.get(key))
+      const timer = setInterval(...args)
+      intervalMapRef.current.set(key, timer)
+      return () => clearIntervalTimer(key)
+    },
+    [clearIntervalTimer]
+  )
 
   /**
    * 清除所有 setTimeout 定时器
    */
-  const clearAllTimeoutTimers = () => {
+  const clearAllTimeoutTimers = useCallback(() => {
     timeoutMapRef.current.forEach((timer) => clearTimeout(timer))
     timeoutMapRef.current.clear()
-  }
+  }, [])
 
   /**
    * 清除所有 setInterval 定时器
    */
-  const clearAllIntervalTimers = () => {
+  const clearAllIntervalTimers = useCallback(() => {
     intervalMapRef.current.forEach((timer) => clearInterval(timer))
     intervalMapRef.current.clear()
-  }
-
-  /**
-   * 清除所有定时器，包括 setTimeout 和 setInterval
-   */
-  const clearAllTimers = () => {
-    timeoutMapRef.current.forEach((timer) => clearTimeout(timer))
-    intervalMapRef.current.forEach((timer) => clearInterval(timer))
-    timeoutMapRef.current.clear()
-    intervalMapRef.current.clear()
-  }
+  }, [])
 
   return {
     setTimeoutTimer,

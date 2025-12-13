@@ -163,6 +163,7 @@ import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import type { Model } from '@renderer/types'
 
 export function getModelLogoById(modelId: string): string | undefined {
+  // FIXME: This is always true. Either remove it or fetch it.
   const isLight = true
 
   if (!modelId) {
@@ -192,7 +193,7 @@ export function getModelLogoById(modelId: string): string | undefined {
     'gpt-5.1': GPT51ModelLogo,
     'gpt-5': GPT5ModelLogo,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
-    'gpt-oss(?:-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
+    'gpt-oss(?::|-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     'babbage-': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     '(sora-|sora_)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,

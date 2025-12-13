@@ -50,20 +50,17 @@ describe('error', () => {
   })
 
   describe('formatErrorMessage', () => {
-    it('should format error with indentation and header', () => {
+    it('should format error with message directly when message exists', () => {
       console.error = vi.fn()
 
       const error = new Error('Test error')
       const result = formatErrorMessage(error)
 
-      expect(result).toContain('Error Details:')
-      expect(result).toContain('  {')
-      expect(result).toContain('    "message": "Test error"')
-      expect(result).toContain('  }')
-      expect(result).not.toContain('"stack":')
+      // When error has a message property, it returns the message directly
+      expect(result).toBe('Test error')
     })
 
-    it('should remove sensitive information and format with proper indentation', () => {
+    it('should return message directly when error object has message property', () => {
       console.error = vi.fn()
 
       const error = {
@@ -75,16 +72,11 @@ describe('error', () => {
 
       const result = formatErrorMessage(error)
 
-      expect(result).toContain('Error Details:')
-      expect(result).toContain('  {')
-      expect(result).toContain('    "message": "API error"')
-      expect(result).toContain('  }')
-      expect(result).not.toContain('Authorization')
-      expect(result).not.toContain('stack')
-      expect(result).not.toContain('request_id')
+      // When error has a message property, it returns the message directly
+      expect(result).toBe('API error')
     })
 
-    it('should handle errors during formatting with simple error message', () => {
+    it('should handle errors during formatting and return placeholder message', () => {
       console.error = vi.fn()
 
       const problematicError = {
@@ -94,32 +86,23 @@ describe('error', () => {
       }
 
       const result = formatErrorMessage(problematicError)
-      expect(result).toContain('Error Details:')
-      expect(result).toContain('"message": "<Unable to access property>"')
+      // When message property throws error, it's caught and set to '<Unable to access property>'
+      expect(result).toBe('<Unable to access property>')
     })
 
-    it('should handle non-serializable errors with simple error message', () => {
+    it('should format error object without message property with full details', () => {
       console.error = vi.fn()
 
-      const nonSerializableError = {
-        toString() {
-          throw new Error('Cannot convert to string')
-        }
+      const errorWithoutMessage = {
+        code: 500,
+        status: 'Internal Server Error'
       }
 
-      try {
-        Object.defineProperty(nonSerializableError, 'toString', {
-          get() {
-            throw new Error('Cannot access toString')
-          }
-        })
-      } catch (e) {
-        // Ignore
-      }
-
-      const result = formatErrorMessage(nonSerializableError)
+      const result = formatErrorMessage(errorWithoutMessage)
+      // When no message property exists, it returns full error details
       expect(result).toContain('Error Details:')
-      expect(result).toContain('"toString": "<Unable to access property>"')
+      expect(result).toContain('"code": 500')
+      expect(result).toContain('"status": "Internal Server Error"')
     })
   })
 

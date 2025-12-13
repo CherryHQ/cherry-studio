@@ -10,18 +10,19 @@ export function ExitPlanModeTool({
   input,
   output
 }: {
-  input: ExitPlanModeToolInput
+  input?: ExitPlanModeToolInput
   output?: ExitPlanModeToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
+  const plan = input?.plan ?? ''
   return {
     key: AgentToolsType.ExitPlanMode,
     label: (
       <ToolTitle
         icon={<DoorOpen className="h-4 w-4" />}
         label="ExitPlanMode"
-        stats={`${input.plan.split('\n\n').length} plans`}
+        stats={`${plan.split('\n\n').length} plans`}
       />
     ),
-    children: <ReactMarkdown>{input.plan + '\n\n' + (output ?? '')}</ReactMarkdown>
+    children: <ReactMarkdown>{plan + '\n\n' + (output ?? '')}</ReactMarkdown>
   }
 }

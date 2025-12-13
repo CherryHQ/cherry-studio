@@ -24,7 +24,7 @@ exports[`DynamicVirtualList > basic rendering > snapshot test 1`] = `
     >
       <div
         data-index="0"
-        style="position: absolute; top: 0px; left: 0px; transform: translateY(0px); width: 100%;"
+        style="position: absolute; top: 0px; left: 0px; z-index: 0; pointer-events: auto; transform: translateY(0px); width: 100%;"
       >
         <div
           data-testid="item-0"
@@ -34,7 +34,7 @@ exports[`DynamicVirtualList > basic rendering > snapshot test 1`] = `
       </div>
       <div
         data-index="1"
-        style="position: absolute; top: 0px; left: 0px; transform: translateY(50px); width: 100%;"
+        style="position: absolute; top: 0px; left: 0px; z-index: 0; pointer-events: auto; transform: translateY(50px); width: 100%;"
       >
         <div
           data-testid="item-1"
@@ -44,7 +44,7 @@ exports[`DynamicVirtualList > basic rendering > snapshot test 1`] = `
       </div>
       <div
         data-index="2"
-        style="position: absolute; top: 0px; left: 0px; transform: translateY(100px); width: 100%;"
+        style="position: absolute; top: 0px; left: 0px; z-index: 0; pointer-events: auto; transform: translateY(100px); width: 100%;"
       >
         <div
           data-testid="item-2"

@@ -6,6 +6,9 @@
         "failed": "Αποτυχία προσθήκης πράκτορα",
         "invalid_agent": "Μη έγκυρος Agent"
       },
+      "model": {
+        "tooltip": "Προς το παρόν, μόνο μοντέλα που υποστηρίζουν τελικά σημεία Anthropic είναι διαθέσιμα για τη λειτουργία Agent."
+      },
       "title": "Προσθήκη Agent",
       "type": {
         "placeholder": "Επιλέξτε τύπο Agent"
@@ -27,8 +30,31 @@
         "null_id": "Το ID του πράκτορα είναι null."
       }
     },
+    "gitBash": {
+      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "clear": {
+        "button": "[to be translated]:Clear custom path"
+      },
+      "customPath": "[to be translated]:Using custom path: {{path}}",
+      "error": {
+        "description": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Ο πράκτορας δεν μπορεί να λειτουργήσει χωρίς αυτό. Παρακαλούμε εγκαταστήστε το Git για Windows από",
+        "recheck": "Επανέλεγχος Εγκατάστασης του Git Bash",
+        "title": "Απαιτείται Git Bash"
+      },
+      "found": {
+        "title": "[to be translated]:Git Bash configured"
+      },
+      "notFound": "Το Git Bash δεν βρέθηκε. Παρακαλώ εγκαταστήστε το πρώτα.",
+      "pick": {
+        "button": "[to be translated]:Select Git Bash Path",
+        "failed": "[to be translated]:Failed to set Git Bash path",
+        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
+        "title": "[to be translated]:Select Git Bash executable"
+      },
+      "success": "Το Git Bash εντοπίστηκε με επιτυχία!"
+    },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
     },
     "list": {
       "error": {
@@ -257,6 +283,7 @@
       "error": {
         "sendFailed": "Αποτυχία αποστολής της απόφασής σας. Προσπαθήστε ξανά."
       },
+      "executing": "Εκτέλεση...",
       "expired": "Ληγμένο",
       "inputPreview": "Προεπισκόπηση εισόδου εργαλείου",
       "pending": "Εκκρεμεί ({{seconds}}δ)",
@@ -270,6 +297,7 @@
         "denied": "Το αίτημα για εργαλείο απορρίφθηκε.",
         "timeout": "Το αίτημα για το εργαλείο έληξε πριν λάβει έγκριση."
       },
+      "toolPendingFallback": "Εργαλείο",
       "waiting": "Αναμονή για απόφαση άδειας εργαλείου..."
     },
     "type": {
@@ -457,6 +485,14 @@
         "url_placeholder": "Εισάγετε JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Μαζική Διαγραφή",
+          "confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε τους επιλεγμένους {{count}} βοηθούς;"
+        },
+        "mode": {
+          "delete": "Διαγραφή",
+          "sort": "Ταξινόμηση"
+        },
         "title": "Διαχείριση βοηθών"
       },
       "my_agents": "Οι βοηθοί μου",
@@ -510,7 +546,8 @@
         "low": "Μικρό",
         "medium": "Μεσαίο",
         "minimal": "ελάχιστος",
-        "off": "Απενεργοποίηση"
+        "off": "Απενεργοποίηση",
+        "xhigh": "[to be translated]:Extra High"
       },
       "regular_phrases": {
         "add": "Προσθήκη φράσης",
@@ -1138,6 +1175,7 @@
     "fullscreen": "Εισήχθη σε πλήρη οθόνη, πατήστε F11 για να έξω",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
     "i_know": "Το έχω καταλάβει",
+    "ignore": "Αγνόησε",
     "inspect": "Επιθεώρηση",
     "invalid_value": "Μη έγκυρη τιμή",
     "knowledge_base": "Βάση Γνώσεων",
@@ -1149,6 +1187,8 @@
     "name": "Όνομα",
     "no_results": "Δεν βρέθηκαν αποτελέσματα",
     "none": "Χωρίς",
+    "off": "Κλειστό",
+    "on": "Ενεργό",
     "open": "Άνοιγμα",
     "paste": "Επικόλληση",
     "placeholders": {
@@ -1168,6 +1208,7 @@
     "saved": "Αποθηκεύτηκε",
     "search": "Αναζήτηση",
     "select": "Επιλογή",
+    "select_all": "Επιλογή Όλων",
     "selected": "Επιλεγμένο",
     "selectedItems": "Επιλέχθηκαν {{count}} αντικείμενα",
     "selectedMessages": "Επιλέχθηκαν {{count}} μηνύματα",
@@ -1196,7 +1237,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Δημιουργία Εικόνας",
+    "image-generation": "Δημιουργία Εικόνων (OpenAI)",
     "jina-rerank": "Επαναταξινόμηση Jina",
     "openai": "OpenAI",
     "openai-response": "Απάντηση OpenAI"
@@ -1376,6 +1417,36 @@
     "preview": "Προεπισκόπηση",
     "split": "Διαχωρισμός"
   },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "Εισαγωγή ChatGPT",
+      "button": "Επιλέξτε Αρχείο",
+      "description": "Εισάγει μόνο κείμενο συνομιλίας, δεν περιλαμβάνει εικόνες και συνημμένα",
+      "error": {
+        "invalid_json": "Μη έγκυρη μορφή αρχείου JSON",
+        "no_conversations": "Δεν βρέθηκαν συνομιλίες στο αρχείο",
+        "no_valid_conversations": "Δεν υπάρχουν έγκυρες συνομιλίες προς εισαγωγή",
+        "unknown": "Η εισαγωγή απέτυχε, παρακαλώ ελέγξτε τη μορφή του αρχείου"
+      },
+      "help": {
+        "step1": "1. Συνδεθείτε στο ChatGPT, πηγαίνετε στις Ρυθμίσεις > Έλεγχοι δεδομένων > Εξαγωγή δεδομένων",
+        "step2": "2. Περιμένετε το αρχείο εξαγωγής μέσω email",
+        "step3": "3. Εξαγάγετε το ληφθέν αρχείο και βρείτε το conversations.json",
+        "title": "Πώς να εξάγετε συνομιλίες του ChatGPT;"
+      },
+      "importing": "Εισαγωγή συνομιλιών...",
+      "selecting": "Επιλογή αρχείου...",
+      "success": "Επιτυχής εισαγωγή {{topics}} συνομιλιών με {{messages}} μηνύματα",
+      "title": "Εισαγωγή Συνομιλιών του ChatGPT",
+      "untitled_conversation": "Συνομιλία χωρίς τίτλο"
+    },
+    "confirm": {
+      "button": "Επιλέξτε Εισαγωγή Αρχείου",
+      "label": "Είστε σίγουροι ότι θέλετε να εισάγετε εξωτερικά δεδομένα;"
+    },
+    "content": "Επιλέξτε εξωτερικό αρχείο συνομιλίας εφαρμογής για εισαγωγή, προς το παρόν υποστηρίζονται μόνο αρχεία μορφής JSON του ChatGPT",
+    "title": "Εισαγωγή Εξωτερικών Συνομιλιών"
+  },
   "knowledge": {
     "add": {
       "title": "Προσθήκη βιβλιοθήκης γνώσεων"
@@ -1463,6 +1534,7 @@
     "notes_placeholder": "Εισάγετε πρόσθετες πληροφορίες ή πληροφορίες προσδιορισμού για αυτή τη βάση γνώσεων...",
     "provider_not_found": "Η παροχή υπηρεσιών μοντέλου βάσης γνώσεων χαθηκε, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
     "quota": "Διαθέσιμο όριο για {{name}}: {{quota}}",
+    "quota_empty": "Το σημερινό όριο {{name}} εξαντλήθηκε, παρακαλούμε υποβάλετε αίτηση στην επίσημη ιστοσελίδα",
     "quota_infinity": "Διαθέσιμο όριο για {{name}}: Απεριόριστο",
     "rename": "Μετονομασία",
     "search": "Αναζήτηση βάσης γνώσεων",
@@ -2175,7 +2247,10 @@
     "untitled_folder": "Νέος φάκελος",
     "untitled_note": "σημείωση χωρίς τίτλο",
     "upload_failed": "Η σημείωση δεν ανέβηκε",
-    "upload_success": "Οι σημειώσεις μεταφορτώθηκαν με επιτυχία"
+    "upload_files": "Ανέβασμα Αρχείων",
+    "upload_folder": "Ανέβασμα Φακέλου",
+    "upload_success": "Οι σημειώσεις μεταφορτώθηκαν με επιτυχία",
+    "uploading_files": "Ανεβάζονται {{count}} αρχεία..."
   },
   "notification": {
     "assistant": "Απάντηση Βοηθού",
@@ -2466,7 +2541,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Αντιγραφή ως εικόνα"
+      "image": "Αντιγραφή ως εικόνα",
+      "src": "Αντιγραφή πηγής εικόνας"
     },
     "dialog": "Άνοιγμα παραθύρου προεπισκόπησης",
     "label": "Προεπισκόπηση",
@@ -3085,6 +3161,7 @@
         "basic": "Ρυθμίσεις βασικών δεδομένων",
         "cloud_storage": "Ρυθμίσεις αποθήκευσης στο νέφος",
         "export_settings": "Ρυθμίσεις εξαγωγής",
+        "import_settings": "Εισαγωγή Ρυθμίσεων",
         "third_party": "Σύνδεση τρίτων"
       },
       "export_menu": {
@@ -3143,6 +3220,11 @@
       },
       "hour_interval_one": "{{count}} ώρα",
       "hour_interval_other": "{{count}} ώρες",
+      "import_settings": {
+        "button": "Εισαγωγή αρχείου Json",
+        "chatgpt": "Εισαγωγή από το ChatGPT",
+        "title": "Εισαγωγή Δεδομένων Εξωτερικής Εφαρμογής"
+      },
       "joplin": {
         "check": {
           "button": "Έλεγχος",
@@ -3724,6 +3806,9 @@
       },
       "view_webdav_settings": "Προβολή ρυθμίσεων WebDAV"
     },
+    "groq": {
+      "title": "Ρυθμίσεις Groq"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "Η απενεργοποίηση της υλικοποιημένης επιτάχυνσης απαιτεί επανεκκίνηση της εφαρμογής για να τεθεί σε ισχύ. Θέλετε να επανεκκινήσετε τώρα;",
@@ -3851,6 +3936,7 @@
       "jsonSaveError": "Αποτυχία αποθήκευσης της διαμορφωτικής ρύθμισης JSON",
       "jsonSaveSuccess": "Η διαμορφωτική ρύθμιση JSON αποθηκεύτηκε επιτυχώς",
       "logoUrl": "URL Λογότυπου",
+      "logs": "Αρχεία καταγραφής",
       "longRunning": "Μακροχρόνια λειτουργία",
       "longRunningTooltip": "Όταν ενεργοποιηθεί, ο διακομιστής υποστηρίζει μακροχρόνιες εργασίες, επαναφέρει το χρονικό όριο μετά από λήψη ειδοποίησης προόδου και επεκτείνει το μέγιστο χρονικό όριο σε 10 λεπτά.",
       "marketplaces": "Αγορές",
@@ -3870,6 +3956,7 @@
       "name": "Όνομα",
       "newServer": "Διακομιστής MCP",
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
+      "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {
@@ -4214,10 +4301,15 @@
         "default": "Προεπιλογή",
         "flex": "Εύκαμπτο",
         "on_demand": "κατά παραγγελία",
-        "performance": "Απόδοση",
         "priority": "προτεραιότητα",
         "tip": "Καθορίστε το επίπεδο καθυστέρησης που χρησιμοποιείται για την επεξεργασία των αιτημάτων",
         "title": "Επίπεδο υπηρεσίας"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Είτε περιλαμβάνεται η χρήση διακριτικών (ισχύει μόνο για το OpenAI Chat Completions API)",
+          "title": "Συμπεριλάβετε χρήση"
+        }
       },
       "summary_text_mode": {
         "auto": "Αυτόματο",
@@ -4311,12 +4403,16 @@
           "stream_options": {
             "help": "Υποστηρίζει ο πάροχος την παράμετρο stream_options;",
             "label": "Υποστήριξη stream_options"
+          },
+          "verbosity": {
+            "help": "Αν ο πάροχος υποστηρίζει την παράμετρο αναλυτικότητας",
+            "label": "Υποστήριξη πολυλογίας"
           }
         },
         "url": {
           "preview": "Προεπισκόπηση: {{url}}",
           "reset": "Επαναφορά",
-          "tip": "#τέλος ενδεχόμενη χρήση της εισαγωγής διευθύνσεως"
+          "tip": "Προσθέστε το σύμβολο # στο τέλος για να απενεργοποιήσετε την αυτόματα προστιθέμενη έκδοση API."
         }
       },
       "api_host": "Διεύθυνση API",

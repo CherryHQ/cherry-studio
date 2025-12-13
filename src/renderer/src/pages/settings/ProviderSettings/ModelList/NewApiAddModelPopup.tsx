@@ -1,11 +1,11 @@
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
-import { isNotSupportedTextDelta } from '@renderer/config/models'
-import { isNewApiProvider } from '@renderer/config/providers'
+import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import type { FormProps } from 'antd'
 import { Button, Flex, Form, Input, Modal, Select } from 'antd'
 import { find } from 'lodash'
@@ -65,7 +65,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       endpoint_type: isNewApiProvider(provider) ? values.endpointType : undefined
     }
 
-    addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })
+    addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
 
     return true
   }
