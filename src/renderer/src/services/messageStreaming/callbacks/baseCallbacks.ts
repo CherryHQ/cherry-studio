@@ -29,10 +29,20 @@ interface BaseCallbacksDependencies {
   assistantMsgId: string
   saveUpdatesToDB: any
   assistant: Assistant
+  getCurrentThinkingInfo?: () => { blockId: string | null; millsec: number }
 }
 
 export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
-  const { blockManager, dispatch, getState, topicId, assistantMsgId, saveUpdatesToDB, assistant } = deps
+  const {
+    blockManager,
+    dispatch,
+    getState,
+    topicId,
+    assistantMsgId,
+    saveUpdatesToDB,
+    assistant,
+    getCurrentThinkingInfo
+  } = deps
 
   const startTime = Date.now()
   const notificationService = NotificationService.getInstance()
@@ -111,13 +121,28 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       if (currentMessage) {
         const allBlockRefs = findAllBlocks(currentMessage)
         const blockState = getState().messageBlocks
+        // 获取当前思考信息（如果有），用于保留实际思考时间
+        const thinkingInfo = getCurrentThinkingInfo?.()
         for (const blockRef of allBlockRefs) {
           const block = blockState.entities[blockRef.id]
           if (block && block.status === MessageBlockStatus.STREAMING && block.id !== possibleBlockId) {
+            // 构建更新对象
+            const changes: Record<string, any> = {
+              status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+            }
+            // 如果是 thinking block 且有思考时间信息，保留实际思考时间
+            if (
+              block.type === MessageBlockType.THINKING &&
+              thinkingInfo?.blockId === block.id &&
+              thinkingInfo?.millsec &&
+              thinkingInfo.millsec > 0
+            ) {
+              changes.thinking_millsec = thinkingInfo.millsec
+            }
             dispatch(
               updateOneBlock({
                 id: block.id,
-                changes: { status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR }
+                changes
               })
             )
           }
