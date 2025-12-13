@@ -46,9 +46,7 @@ function transliterateToAscii(text: string): string {
   } catch (error) {
     logger.error('Transliteration failed, falling back to ASCII-only mode', { text, error })
     // Fallback: keep only ASCII alphanumeric, underscores, and hyphens for consistency
-    return text
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, '_')
+    return text.toLowerCase().replace(/[^a-z0-9_-]/g, '_')
   }
 }
 
