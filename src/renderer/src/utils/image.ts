@@ -617,3 +617,23 @@ export const convertImageToPng = async (blob: Blob): Promise<Blob> => {
     img.src = url
   })
 }
+
+/**
+ * Parse media type from a data URL without using heavy regular expressions.
+ *
+ * data:[<mediatype>][;base64],<data>
+ * - mediatype may be empty (defaults to text/plain;charset=US-ASCII per spec)
+ * - we only care about extracting media type and whether it's base64
+ */
+export function parseDataUrlMediaType(url: string): { mediaType?: string; isBase64: boolean } {
+  if (!url.startsWith('data:')) return { isBase64: false }
+  const comma = url.indexOf(',')
+  if (comma === -1) return { isBase64: false }
+  // strip leading 'data:' and take header portion only
+  const header = url.slice(5, comma)
+  const semi = header.indexOf(';')
+  const mediaType = (semi === -1 ? header : header.slice(0, semi)).trim() || undefined
+  // base64 flag may appear anywhere after mediatype in the header
+  const isBase64 = header.indexOf(';base64') !== -1
+  return { mediaType, isBase64 }
+}

@@ -10,7 +10,6 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import i18n from '@renderer/i18n'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
@@ -53,6 +52,7 @@ import {
 } from '..'
 import ApiOptionsSettingsPopup from './ApiOptionsSettings/ApiOptionsSettingsPopup'
 import AwsBedrockSettings from './AwsBedrockSettings'
+import CherryINSettings from './CherryINSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
@@ -99,13 +99,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const [anthropicApiHost, setAnthropicHost] = useState<string | undefined>(provider.anthropicApiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [activeHostField, setActiveHostField] = useState<HostField>('apiHost')
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const dispatch = useAppDispatch()
 
   const isAzureOpenAI = isAzureOpenAIProvider(provider)
   const isDmxapi = provider.id === 'dmxapi'
+  const isCherryIN = provider.id === 'cherryin'
+  const isChineseUser = i18n.language.startsWith('zh')
   const noAPIInputProviders = ['aws-bedrock'] as const satisfies SystemProviderId[]
   const hideApiInput = noAPIInputProviders.some((id) => id === provider.id)
   const noAPIKeyInputProviders = ['copilot', 'vertexai'] as const satisfies SystemProviderId[]
@@ -339,13 +341,16 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   }, [provider.anthropicApiHost])
 
   const canConfigureAnthropicHost = useMemo(() => {
+    if (isCherryIN) {
+      return false
+    }
     if (isNewApiProvider(provider)) {
       return true
     }
     return (
       provider.type !== 'anthropic' && isSystemProviderId(provider.id) && isAnthropicCompatibleProviderId(provider.id)
     )
-  }, [provider])
+  }, [isCherryIN, provider])
 
   const anthropicHostPreview = useMemo(() => {
     const rawHost = anthropicApiHost ?? provider.anthropicApiHost
@@ -513,19 +518,23 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               </SettingSubtitle>
               {activeHostField === 'apiHost' && (
                 <>
-                  <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-                    <Input
-                      value={apiHost}
-                      placeholder={t('settings.provider.api_host')}
-                      onChange={(e) => setApiHost(e.target.value)}
-                      onBlur={onUpdateApiHost}
-                    />
-                    {isApiHostResettable && (
-                      <Button variant="destructive" onClick={onReset}>
-                        {t('settings.provider.api.url.reset')}
-                      </Button>
-                    )}
-                  </Space.Compact>
+                  {isCherryIN && isChineseUser ? (
+                    <CherryINSettings providerId={provider.id} apiHost={apiHost} setApiHost={setApiHost} />
+                  ) : (
+                    <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+                      <Input
+                        value={apiHost}
+                        placeholder={t('settings.provider.api_host')}
+                        onChange={(e) => setApiHost(e.target.value)}
+                        onBlur={onUpdateApiHost}
+                      />
+                      {isApiHostResettable && (
+                        <Button variant="destructive" onClick={onReset}>
+                          {t('settings.provider.api.url.reset')}
+                        </Button>
+                      )}
+                    </Space.Compact>
+                  )}
                   {isVertexProvider(provider) && (
                     <SettingHelpTextRow>
                       <SettingHelpText>{t('settings.provider.vertex_ai.api_host_help')}</SettingHelpText>

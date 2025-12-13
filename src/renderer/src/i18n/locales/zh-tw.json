@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "使用自動偵測的 Git Bash",
+      "clear": {
+        "button": "清除自訂路徑"
+      },
+      "customPath": "使用自訂路徑：{{path}}",
       "error": {
         "description": "在 Windows 上執行代理程式需要 Git Bash。沒有它代理程式無法運作。請從以下地址安裝 Git for Windows",
         "recheck": "重新檢測 Git Bash 安裝",
         "title": "需要 Git Bash"
       },
+      "found": {
+        "title": "已配置 Git Bash"
+      },
       "notFound": "找不到 Git Bash。請先安裝。",
+      "pick": {
+        "button": "選擇 Git Bash 路徑",
+        "failed": "設定 Git Bash 路徑失敗",
+        "invalidPath": "選擇的檔案不是有效的 Git Bash 可執行檔（bash.exe）。",
+        "title": "選擇 Git Bash 可執行檔"
+      },
       "success": "成功偵測到 Git Bash！"
     },
     "input": {
@@ -471,6 +485,14 @@
         "url_placeholder": "輸入 JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "批次刪除",
+          "confirm": "您確定要刪除所選的 {{count}} 個助理嗎？"
+        },
+        "mode": {
+          "delete": "刪除",
+          "sort": "排序"
+        },
         "title": "管理助手"
       },
       "my_agents": "我的助手",
@@ -524,7 +546,8 @@
         "low": "稍微思考",
         "medium": "正常思考",
         "minimal": "最少思考",
-        "off": "關閉"
+        "off": "關閉",
+        "xhigh": "極力思考"
       },
       "regular_phrases": {
         "add": "添加短语",
@@ -1185,6 +1208,7 @@
     "saved": "已儲存",
     "search": "搜尋",
     "select": "選擇",
+    "select_all": "全選",
     "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "選中 {{count}} 條訊息",
@@ -2303,7 +2327,7 @@
     "failed": {
       "install": "安裝 OVMS 失敗:",
       "install_code_100": "未知錯誤",
-      "install_code_101": "僅支援 Intel(R) Core(TM) Ultra CPU",
+      "install_code_101": "僅支援 Intel(R) CPU",
       "install_code_102": "僅支援 Windows",
       "install_code_103": "下載 OVMS runtime 失敗",
       "install_code_104": "安裝 OVMS runtime 失敗",
@@ -3912,6 +3936,7 @@
       "jsonSaveError": "保存 JSON 配置失敗",
       "jsonSaveSuccess": "JSON 配置已儲存",
       "logoUrl": "標誌網址",
+      "logs": "日誌",
       "longRunning": "長時間運行模式",
       "longRunningTooltip": "啟用後，伺服器支援長時間任務，接收到進度通知時會重置超時計時器，並延長最大超時時間至10分鐘",
       "marketplaces": "市場",
@@ -3931,6 +3956,7 @@
       "name": "名稱",
       "newServer": "MCP 伺服器",
       "noDescriptionAvailable": "描述不存在",
+      "noLogs": "暫無日誌",
       "noServers": "未設定伺服器",
       "not_support": "不支援此模型",
       "npx_list": {

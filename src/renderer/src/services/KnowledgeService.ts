@@ -162,7 +162,7 @@ export const searchKnowledgeBase = async (
 
     const searchResults: KnowledgeSearchResult[] = await window.api.knowledgeBase.search(
       {
-        search: rewrite || query,
+        search: query || rewrite || '',
         base: baseParams
       },
       currentSpan?.spanContext()

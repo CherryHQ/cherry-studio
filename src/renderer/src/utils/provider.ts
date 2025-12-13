@@ -58,7 +58,8 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
 const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [
   'ollama',
   'lmstudio',
-  'nvidia'
+  'nvidia',
+  'gpustack'
 ] as const satisfies SystemProviderId[]
 
 /**

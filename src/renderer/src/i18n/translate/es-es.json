@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Usando Git Bash detectado automáticamente",
+      "clear": {
+        "button": "Borrar ruta personalizada"
+      },
+      "customPath": "Usando ruta personalizada: {{path}}",
       "error": {
         "description": "Se requiere Git Bash para ejecutar agentes en Windows. El agente no puede funcionar sin él. Instale Git para Windows desde",
         "recheck": "Volver a verificar la instalación de Git Bash",
         "title": "Git Bash Requerido"
       },
+      "found": {
+        "title": "Git Bash configurado"
+      },
       "notFound": "Git Bash no encontrado. Por favor, instálalo primero.",
+      "pick": {
+        "button": "Seleccionar ruta de Git Bash",
+        "failed": "No se pudo configurar la ruta de Git Bash",
+        "invalidPath": "El archivo seleccionado no es un ejecutable válido de Git Bash (bash.exe).",
+        "title": "Seleccionar ejecutable de Git Bash"
+      },
       "success": "¡Git Bash detectado con éxito!"
     },
     "input": {
@@ -471,6 +485,14 @@
         "url_placeholder": "Introducir URL JSON"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Eliminación por lotes",
+          "confirm": "¿Estás seguro de que quieres eliminar los {{count}} asistentes seleccionados?"
+        },
+        "mode": {
+          "delete": "Eliminar",
+          "sort": "Ordenar"
+        },
         "title": "Gestionar asistentes"
       },
       "my_agents": "Mis asistentes",
@@ -524,7 +546,8 @@
         "low": "Corto",
         "medium": "Medio",
         "minimal": "minimal",
-        "off": "Apagado"
+        "off": "Apagado",
+        "xhigh": "[to be translated]:Extra High"
       },
       "regular_phrases": {
         "add": "Agregar frase",
@@ -1185,6 +1208,7 @@
     "saved": "Guardado",
     "search": "Buscar",
     "select": "Seleccionar",
+    "select_all": "Seleccionar todo",
     "selected": "Seleccionado",
     "selectedItems": "{{count}} elementos seleccionados",
     "selectedMessages": "{{count}} mensajes seleccionados",
@@ -3912,6 +3936,7 @@
       "jsonSaveError": "Fallo al guardar la configuración JSON",
       "jsonSaveSuccess": "Configuración JSON guardada exitosamente",
       "logoUrl": "URL del logotipo",
+      "logs": "Registros",
       "longRunning": "Modo de ejecución prolongada",
       "longRunningTooltip": "Una vez habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de tiempo de espera al recibir notificaciones de progreso y amplía el tiempo máximo de espera hasta 10 minutos.",
       "marketplaces": "Mercados",
@@ -3931,6 +3956,7 @@
       "name": "Nombre",
       "newServer": "Servidor MCP",
       "noDescriptionAvailable": "Sin descripción disponible por ahora",
+      "noLogs": "Aún no hay registros",
       "noServers": "No se han configurado servidores",
       "not_support": "El modelo no es compatible",
       "npx_list": {

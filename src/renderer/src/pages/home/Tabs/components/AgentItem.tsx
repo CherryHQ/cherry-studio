@@ -1,6 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import { useSessions } from '@renderer/hooks/agents/useSessions'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -8,7 +7,7 @@ import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
-import { Bot } from 'lucide-react'
+import { Bot, MoreVertical } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,9 +23,9 @@ interface AgentItemProps {
 
 const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
   const { t } = useTranslation()
-  const { sessions } = useSessions(agent.id)
   const [topicPosition] = usePreference('topic.position')
   const [clickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
+  const [assistantIconType] = usePreference('assistant.icon_type')
 
   const handlePress = useCallback(() => {
     // Show session sidebar if setting is enabled (reusing the assistant setting for consistency)
@@ -37,6 +36,14 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
     }
     onPress()
   }, [clickAssistantToShowTopic, topicPosition, onPress])
+
+  const handleMoreClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      agent.id && AgentSettingsPopup.show({ agentId: agent.id })
+    },
+    [agent.id]
+  )
 
   const menuItems: MenuProps['items'] = useMemo(
     () => [
@@ -73,14 +80,14 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
       <Container onClick={handlePress} isActive={isActive}>
         <AssistantNameRow className="name" title={agent.name ?? agent.id}>
           <AgentNameWrapper>
-            <AgentLabel agent={agent} />
+            <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
           </AgentNameWrapper>
           {isActive && (
-            <MenuButton>
-              <SessionCount>{sessions.length}</SessionCount>
+            <MenuButton onClick={handleMoreClick}>
+              <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
             </MenuButton>
           )}
-          {!isActive && <BotIcon />}
+          {!isActive && assistantIconType !== 'none' && <BotIcon />}
         </AssistantNameRow>
       </Container>
     </Dropdown>
@@ -117,7 +124,7 @@ export const AgentNameWrapper: React.FC<React.HTMLAttributes<HTMLDivElement>> = 
 export const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
     className={cn(
-      'flex h-5 min-h-5 w-5 flex-row items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-background)]',
+      'flex h-[22px] min-h-[22px] min-w-[22px] flex-row items-center justify-center rounded-[11px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
       className
     )}
     {...props}

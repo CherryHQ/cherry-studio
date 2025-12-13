@@ -5,6 +5,7 @@ import type { SpanContext } from '@opentelemetry/api'
 import type { TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
+import type { MCPServerLogEntry } from '@shared/config/types'
 import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   PreferenceDefaultScopeType,
@@ -129,7 +130,10 @@ const api = {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),
     getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName),
-    checkGitBash: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.System_CheckGitBash)
+    checkGitBash: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.System_CheckGitBash),
+    getGitBashPath: (): Promise<string | null> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPath),
+    setGitBashPath: (newPath: string | null): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.System_SetGitBashPath, newPath)
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
@@ -378,7 +382,16 @@ const api = {
     },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
     getServerVersion: (server: MCPServer): Promise<string | null> =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server)
+      ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server),
+    getServerLogs: (server: MCPServer): Promise<MCPServerLogEntry[]> =>
+      ipcRenderer.invoke(IpcChannel.Mcp_GetServerLogs, server),
+    onServerLog: (callback: (log: MCPServerLogEntry & { serverId?: string }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, log: MCPServerLogEntry & { serverId?: string }) => {
+        callback(log)
+      }
+      ipcRenderer.on(IpcChannel.Mcp_ServerLog, listener)
+      return () => ipcRenderer.off(IpcChannel.Mcp_ServerLog, listener)
+    }
   },
   python: {
     execute: (script: string, context?: Record<string, any>, timeout?: number) =>
@@ -430,6 +443,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal),
     setSpellCheckEnabled: (webviewId: number, isEnable: boolean) =>
       ipcRenderer.invoke(IpcChannel.Webview_SetSpellCheckEnabled, webviewId, isEnable),
+    printToPDF: (webviewId: number) => ipcRenderer.invoke(IpcChannel.Webview_PrintToPDF, webviewId),
+    saveAsHTML: (webviewId: number) => ipcRenderer.invoke(IpcChannel.Webview_SaveAsHTML, webviewId),
     onFindShortcut: (callback: (payload: WebviewKeyEvent) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: WebviewKeyEvent) => {
         callback(payload)

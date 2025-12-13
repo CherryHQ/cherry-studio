@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "clear": {
+        "button": "[to be translated]:Clear custom path"
+      },
+      "customPath": "[to be translated]:Using custom path: {{path}}",
       "error": {
         "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
         "recheck": "Git Bashのインストールを再確認してください",
         "title": "Git Bashが必要です"
       },
+      "found": {
+        "title": "[to be translated]:Git Bash configured"
+      },
       "notFound": "Git Bash が見つかりません。先にインストールしてください。",
+      "pick": {
+        "button": "[to be translated]:Select Git Bash Path",
+        "failed": "[to be translated]:Failed to set Git Bash path",
+        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
+        "title": "[to be translated]:Select Git Bash executable"
+      },
       "success": "Git Bashが正常に検出されました！"
     },
     "input": {
@@ -471,6 +485,14 @@
         "url_placeholder": "JSON URLを入力"
       },
       "manage": {
+        "batch_delete": {
+          "button": "バッチ削除",
+          "confirm": "選択した{{count}}件のアシスタントを削除してもよろしいですか？"
+        },
+        "mode": {
+          "delete": "削除",
+          "sort": "並べ替え"
+        },
         "title": "アシスタントを管理"
       },
       "my_agents": "マイアシスタント",
@@ -524,7 +546,8 @@
         "low": "少しの思考",
         "medium": "普通の思考",
         "minimal": "最小限の思考",
-        "off": "オフ"
+        "off": "オフ",
+        "xhigh": "[to be translated]:Extra High"
       },
       "regular_phrases": {
         "add": "プロンプトを追加",
@@ -1185,6 +1208,7 @@
     "saved": "保存されました",
     "search": "検索",
     "select": "選択",
+    "select_all": "すべて選択",
     "selected": "選択済み",
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
@@ -3912,6 +3936,7 @@
       "jsonSaveError": "JSON設定の保存に失敗しました",
       "jsonSaveSuccess": "JSON設定が保存されました。",
       "logoUrl": "ロゴURL",
+      "logs": "ログ",
       "longRunning": "長時間運行モード",
       "longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
       "marketplaces": "マーケットプレイス",
@@ -3931,6 +3956,7 @@
       "name": "名前",
       "newServer": "MCP サーバー",
       "noDescriptionAvailable": "説明がありません",
+      "noLogs": "ログはまだありません",
       "noServers": "サーバーが設定されていません",
       "not_support": "モデルはサポートされていません",
       "npx_list": {

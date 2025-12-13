@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Usando Git Bash detectado automaticamente",
+      "clear": {
+        "button": "Limpar caminho personalizado"
+      },
+      "customPath": "Usando caminho personalizado: {{path}}",
       "error": {
         "description": "O Git Bash é necessário para executar agentes no Windows. O agente não pode funcionar sem ele. Por favor, instale o Git para Windows a partir de",
         "recheck": "Reverificar a Instalação do Git Bash",
         "title": "Git Bash Necessário"
       },
+      "found": {
+        "title": "Git Bash configurado"
+      },
       "notFound": "Git Bash não encontrado. Por favor, instale-o primeiro.",
+      "pick": {
+        "button": "Selecionar caminho do Git Bash",
+        "failed": "Falha ao configurar o caminho do Git Bash",
+        "invalidPath": "O arquivo selecionado não é um executável válido do Git Bash (bash.exe).",
+        "title": "Selecionar executável do Git Bash"
+      },
       "success": "Git Bash detectado com sucesso!"
     },
     "input": {
@@ -471,6 +485,14 @@
         "url_placeholder": "Inserir URL JSON"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Exclusão em Lote",
+          "confirm": "Tem certeza de que deseja excluir os {{count}} assistentes selecionados?"
+        },
+        "mode": {
+          "delete": "Excluir",
+          "sort": "Ordenar"
+        },
         "title": "Gerir assistentes"
       },
       "my_agents": "Os meus assistentes",
@@ -524,7 +546,8 @@
         "low": "Curto",
         "medium": "Médio",
         "minimal": "mínimo",
-        "off": "Desligado"
+        "off": "Desligado",
+        "xhigh": "[to be translated]:Extra High"
       },
       "regular_phrases": {
         "add": "Adicionar Frase",
@@ -1185,6 +1208,7 @@
     "saved": "Guardado",
     "search": "Pesquisar",
     "select": "Selecionar",
+    "select_all": "Selecionar Tudo",
     "selected": "Selecionado",
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
@@ -3912,6 +3936,7 @@
       "jsonSaveError": "Falha ao salvar configuração JSON",
       "jsonSaveSuccess": "Configuração JSON salva com sucesso",
       "logoUrl": "URL do Logotipo",
+      "logs": "Registros",
       "longRunning": "Modo de execução prolongada",
       "longRunningTooltip": "Quando ativado, o servidor suporta tarefas de longa duração, redefinindo o temporizador de tempo limite ao receber notificações de progresso e estendendo o tempo máximo de tempo limite para 10 minutos.",
       "marketplaces": "Mercados",
@@ -3931,6 +3956,7 @@
       "name": "Nome",
       "newServer": "Servidor MCP",
       "noDescriptionAvailable": "Nenhuma descrição disponível no momento",
+      "noLogs": "Ainda sem registos",
       "noServers": "Nenhum servidor configurado",
       "not_support": "Modelo Não Suportado",
       "npx_list": {

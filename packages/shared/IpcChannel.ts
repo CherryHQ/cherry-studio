@@ -55,6 +55,8 @@ export enum IpcChannel {
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
   Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
   Webview_SearchHotkey = 'webview:search-hotkey',
+  Webview_PrintToPDF = 'webview:print-to-pdf',
+  Webview_SaveAsHTML = 'webview:save-as-html',
 
   // Open
   Open_Path = 'open:path',
@@ -90,6 +92,8 @@ export enum IpcChannel {
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
+  Mcp_GetServerLogs = 'mcp:get-server-logs',
+  Mcp_ServerLog = 'mcp:server-log',
   // Python
   Python_Execute = 'python:execute',
 
@@ -255,6 +259,8 @@ export enum IpcChannel {
   System_GetHostname = 'system:getHostname',
   System_GetCpuName = 'system:getCpuName',
   System_CheckGitBash = 'system:checkGitBash',
+  System_GetGitBashPath = 'system:getGitBashPath',
+  System_SetGitBashPath = 'system:setGitBashPath',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',

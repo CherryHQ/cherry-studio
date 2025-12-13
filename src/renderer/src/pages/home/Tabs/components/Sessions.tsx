@@ -15,8 +15,6 @@ import styled from 'styled-components'
 import AddButton from './AddButton'
 import SessionItem from './SessionItem'
 
-// const logger = loggerService.withContext('SessionsTab')
-
 interface SessionsProps {
   agentId: string
 }

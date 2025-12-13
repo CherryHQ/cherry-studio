@@ -13,11 +13,11 @@ import {
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
   isGemini3ThinkingTokenModel,
-  isGPT5SeriesModel,
   isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
+  isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -134,8 +134,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // https://creator.poe.com/docs/external-applications/openai-compatible-api#additional-considerations
   // Poe provider - supports custom bot parameters via extra_body
   if (provider.id === SystemProviderIds.poe) {
-    // GPT-5 series models use reasoning_effort parameter in extra_body
-    if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) {
+    if (isOpenAIReasoningModel(model)) {
       return {
         extra_body: {
           reasoning_effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
@@ -589,6 +588,7 @@ export function getGeminiReasoningParams(
     if (effortRatio > 1) {
       return {
         thinkingConfig: {
+          thinkingBudget: -1,
           includeThoughts: true
         }
       }
@@ -634,6 +634,8 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Pick<
     case 'low':
     case 'high':
       return { reasoningEffort }
+    case 'xhigh':
+      return { reasoningEffort: 'high' }
   }
 }
 
