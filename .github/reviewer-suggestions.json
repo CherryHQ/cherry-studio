@@ -1,0 +1,455 @@
+{
+  "generatedAt": "2025-10-29T06:19:19.098Z",
+  "suggestions": {
+    "ai_core": [
+      {
+        "github": "SuYao",
+        "name": "SuYao",
+        "email": "sy20010504@gmail.com",
+        "commits": 33
+      },
+      {
+        "github": "MyPrototypeWhat",
+        "name": "MyPrototypeWhat",
+        "email": "daoquqiexing@gmail.com",
+        "commits": 12
+      },
+      {
+        "github": "Vaayne",
+        "name": "Vaayne",
+        "email": "liu.vaayne@gmail.com",
+        "commits": 10
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 9
+      },
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 6
+      }
+    ],
+    "agent": [
+      {
+        "github": "icarus",
+        "name": "icarus",
+        "email": "eurfelux@gmail.com",
+        "commits": 152
+      },
+      {
+        "github": "Vaayne",
+        "name": "Vaayne",
+        "email": "liu.vaayne@gmail.com",
+        "commits": 80
+      },
+      {
+        "github": "suyao",
+        "name": "suyao",
+        "email": "sy20010504@gmail.com",
+        "commits": 29
+      },
+      {
+        "github": "defi-failure",
+        "name": "defi-failure",
+        "email": "159208748+defi-failure@users.noreply.github.com",
+        "commits": 8
+      },
+      {
+        "github": "Phantom",
+        "name": "Phantom",
+        "email": "eurfelux@gmail.com",
+        "commits": 5
+      }
+    ],
+    "provider": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 53
+      },
+      {
+        "github": "one",
+        "name": "one",
+        "email": "wangan.cs@gmail.com",
+        "commits": 32
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 30
+      },
+      {
+        "github": "SuYao",
+        "name": "SuYao",
+        "email": "sy20010504@gmail.com",
+        "commits": 14
+      },
+      {
+        "github": "eeee0717",
+        "name": "Chen Tao",
+        "email": "70054568+eeee0717@users.noreply.github.com",
+        "commits": 10
+      }
+    ],
+    "backend": [
+      {
+        "github": "beyondkmp",
+        "name": "beyondkmp",
+        "email": "beyondkmp@gmail.com",
+        "commits": 99
+      },
+      {
+        "github": "Vaayne",
+        "name": "Vaayne",
+        "email": "liu.vaayne@gmail.com",
+        "commits": 96
+      },
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 84
+      },
+      {
+        "github": "0xfullex",
+        "name": "fullex",
+        "email": "106392080+0xfullex@users.noreply.github.com",
+        "commits": 49
+      },
+      {
+        "github": "vaayne",
+        "name": "LiuVaayne",
+        "email": "10231735+vaayne@users.noreply.github.com",
+        "commits": 33
+      }
+    ],
+    "knowledge": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 20
+      },
+      {
+        "github": "eeee0717",
+        "name": "Chen Tao",
+        "email": "70054568+eeee0717@users.noreply.github.com",
+        "commits": 13
+      },
+      {
+        "github": "one",
+        "name": "one",
+        "email": "wangan.cs@gmail.com",
+        "commits": 8
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 6
+      },
+      {
+        "github": "beyondkmp",
+        "name": "beyondkmp",
+        "email": "beyondkmp@gmail.com",
+        "commits": 5
+      }
+    ],
+    "data_storage": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 63
+      },
+      {
+        "github": "Vaayne",
+        "name": "Vaayne",
+        "email": "liu.vaayne@gmail.com",
+        "commits": 21
+      },
+      {
+        "github": "SuYao",
+        "name": "SuYao",
+        "email": "sy20010504@gmail.com",
+        "commits": 20
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 17
+      },
+      {
+        "github": "suyao",
+        "name": "suyao",
+        "email": "sy20010504@gmail.com",
+        "commits": 13
+      }
+    ],
+    "backup_export": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 23
+      },
+      {
+        "github": "beyondkmp",
+        "name": "beyondkmp",
+        "email": "beyondkmp@gmail.com",
+        "commits": 12
+      },
+      {
+        "github": "GeorgeDong32",
+        "name": "George·Dong",
+        "email": "98630204+GeorgeDong32@users.noreply.github.com",
+        "commits": 9
+      },
+      {
+        "github": "one",
+        "name": "one",
+        "email": "wangan.cs@gmail.com",
+        "commits": 5
+      },
+      {
+        "github": "0xfullex",
+        "name": "fullex",
+        "email": "106392080+0xfullex@users.noreply.github.com",
+        "commits": 5
+      }
+    ],
+    "minapps": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 12
+      },
+      {
+        "github": "beyondkmp",
+        "name": "beyondkmp",
+        "email": "beyondkmp@gmail.com",
+        "commits": 5
+      },
+      {
+        "github": "GeorgeDong32",
+        "name": "George·Dong",
+        "email": "98630204+GeorgeDong32@users.noreply.github.com",
+        "commits": 4
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 4
+      },
+      {
+        "github": "0xfullex",
+        "name": "fullex",
+        "email": "106392080+0xfullex@users.noreply.github.com",
+        "commits": 3
+      }
+    ],
+    "chat": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 189
+      },
+      {
+        "github": "one",
+        "name": "one",
+        "email": "wangan.cs@gmail.com",
+        "commits": 86
+      },
+      {
+        "github": "icarus",
+        "name": "icarus",
+        "email": "eurfelux@gmail.com",
+        "commits": 85
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 52
+      },
+      {
+        "github": "SuYao",
+        "name": "SuYao",
+        "email": "sy20010504@gmail.com",
+        "commits": 48
+      }
+    ],
+    "draw": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 8
+      },
+      {
+        "github": "jin-wang-c",
+        "name": "Caelan",
+        "email": "79105826+jin-wang-c@users.noreply.github.com",
+        "commits": 7
+      },
+      {
+        "github": "DDU1222",
+        "name": "chenxue",
+        "email": "DDU1222@users.noreply.github.com",
+        "commits": 6
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 5
+      },
+      {
+        "github": "0xfullex",
+        "name": "fullex",
+        "email": "106392080+0xfullex@users.noreply.github.com",
+        "commits": 4
+      }
+    ],
+    "uiux": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 109
+      },
+      {
+        "github": "one",
+        "name": "one",
+        "email": "wangan.cs@gmail.com",
+        "commits": 89
+      },
+      {
+        "github": "icarus",
+        "name": "icarus",
+        "email": "eurfelux@gmail.com",
+        "commits": 35
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 32
+      },
+      {
+        "github": "0xfullex",
+        "name": "fullex",
+        "email": "106392080+0xfullex@users.noreply.github.com",
+        "commits": 24
+      }
+    ],
+    "build-config": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 170
+      },
+      {
+        "github": "beyondkmp",
+        "name": "beyondkmp",
+        "email": "beyondkmp@gmail.com",
+        "commits": 65
+      },
+      {
+        "github": "one",
+        "name": "one",
+        "email": "wangan.cs@gmail.com",
+        "commits": 40
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 34
+      },
+      {
+        "github": "SuYao",
+        "name": "SuYao",
+        "email": "sy20010504@gmail.com",
+        "commits": 32
+      }
+    ],
+    "test": [
+      {
+        "github": "one",
+        "name": "one",
+        "email": "wangan.cs@gmail.com",
+        "commits": 45
+      },
+      {
+        "github": "SuYao",
+        "name": "SuYao",
+        "email": "sy20010504@gmail.com",
+        "commits": 27
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 20
+      },
+      {
+        "github": "Vaayne",
+        "name": "Vaayne",
+        "email": "liu.vaayne@gmail.com",
+        "commits": 19
+      },
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 18
+      }
+    ],
+    "docs": [
+      {
+        "github": "kangfenmao",
+        "name": "kangfenmao",
+        "email": "kangfenmao@qq.com",
+        "commits": 18
+      },
+      {
+        "github": "0xfullex",
+        "name": "fullex",
+        "email": "106392080+0xfullex@users.noreply.github.com",
+        "commits": 7
+      },
+      {
+        "github": "EurFelux",
+        "name": "Phantom",
+        "email": "59059173+EurFelux@users.noreply.github.com",
+        "commits": 6
+      },
+      {
+        "github": "one",
+        "name": "one",
+        "email": "wangan.cs@gmail.com",
+        "commits": 6
+      },
+      {
+        "github": "sunrise0o0",
+        "name": "牡丹凤凰",
+        "email": "87239270+sunrise0o0@users.noreply.github.com",
+        "commits": 4
+      }
+    ],
+    "vendor_added": [],
+    "large_change": []
+  }
+}

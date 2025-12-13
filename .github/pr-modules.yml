@@ -1,0 +1,160 @@
+# 模块 → 路径匹配（globs）与 GitHub 审核人列表
+# 多模块命中时取优先级最高的为主类，其余在卡片中显示“涉及模块”
+
+categories:
+  ai_core:
+    name: "AI Core"
+    globs:
+      - "packages/aiCore/**"
+      - "src/renderer/src/aiCore/**"
+    github_reviewers: ["DeJeune", "MyPrototypeWhat", "Vaayne"]
+
+  agent:
+    name: "Agent"
+    globs:
+      - "packages/shared/agents/**"
+      - "resources/data/agents-*.json"
+      - "src/renderer/src/api/agent.ts"
+      - "src/renderer/src/types/agent.ts"
+      - "src/renderer/src/utils/agentSession.ts"
+      - "src/renderer/src/services/db/AgentMessageDataSource.ts"
+      - "src/renderer/src/hooks/agents/**"
+      - "src/renderer/src/components/Popups/agent/**"
+      - "src/renderer/src/pages/home/**/Agent*.tsx"
+      - "src/renderer/src/pages/settings/AgentSettings/**"
+      - "src/main/services/agents/**"
+      - "src/main/apiServer/routes/agents/**"
+    github_reviewers: ["EurFelux", "Vaayne", "DeJeune"]
+
+  provider:
+    name: "Provider"
+    globs:
+      - "src/renderer/src/config/providers.ts"
+      - "src/renderer/src/config/preprocessProviders.ts"
+      - "src/renderer/src/config/webSearchProviders.ts"
+      - "src/renderer/src/hooks/useWebSearchProviders.ts"
+      - "src/renderer/src/providers/**"
+      - "src/renderer/src/pages/settings/ProviderSettings/**"
+      - "src/renderer/src/pages/settings/WebSearchSettings/**"
+      - "src/renderer/src/pages/settings/DocProcessSettings/PreprocessProviderSettings.tsx"
+      - "src/renderer/src/pages/settings/MCPSettings/providers/**"
+      - "src/renderer/src/assets/images/providers/**"
+    github_reviewers: ["YinsenHo", "kangfenmao", "alephpiece"]
+
+  backend:
+    name: "后端/平台"
+    globs:
+      - "src/main/apiServer/**"
+      - "src/main/services/**"
+      - "src/main/*.ts"
+      - "src/preload/**"
+      - "src/main/mcpServers/**"
+    github_reviewers: ["beyondkmp", "Vaayne", "kangfenmao"]
+
+  knowledge:
+    name: "知识库"
+    globs:
+      - "src/main/knowledge/**"
+      - "src/renderer/src/pages/knowledge/**"
+      - "src/renderer/src/store/knowledge.ts"
+      - "src/renderer/src/queue/KnowledgeQueue.ts"
+    github_reviewers: ["eeee0717", "alephpiece", "GeorgeDong32"]
+
+  data_storage:
+    name: "数据与存储"
+    globs:
+      - "src/renderer/src/databases/**"
+      - "src/renderer/src/services/db/**"
+      - "src/main/services/agents/database/**"
+      - "resources/database/drizzle/**"
+      - "src/renderer/src/store/migrate.ts"
+      - "src/renderer/src/databases/upgrades.ts"
+    github_reviewers: ["0xfullex", "kangfenmao", "Vaayne", "DeJeune"]
+
+  backup_export:
+    name: "备份/导出"
+    globs:
+      - "src/renderer/src/components/*Backup*"
+      - "src/renderer/src/components/Webdav*"
+      - "src/renderer/src/components/ObsidianExportDialog.tsx"
+      - "src/renderer/src/components/S3*"
+      - "src/renderer/src/store/backup.ts"
+      - "src/renderer/src/store/nutstore.ts"
+      - "src/renderer/src/pages/settings/DataSettings/**"
+    github_reviewers: ["beyondkmp", "GeorgeDong32"]
+
+  minapps:
+    name: "小程序"
+    globs:
+      - "src/renderer/src/pages/minapps/**"
+      - "src/renderer/src/store/minapps.ts"
+      - "src/renderer/src/config/minapps.ts"
+    github_reviewers: ["GeorgeDong32", "beyondkmp"]
+
+  chat:
+    name: "对话"
+    globs:
+      - "src/renderer/src/pages/home/**"
+      - "src/renderer/src/store/newMessage.ts"
+      - "src/renderer/src/store/messageBlock.ts"
+      - "src/renderer/src/store/memory.ts"
+      - "src/renderer/src/store/llm.ts"
+    github_reviewers: ["kangfenmao", "alephpiece", "EurFelux"]
+
+  draw:
+    name: "绘图"
+    globs:
+      - "src/renderer/src/pages/paintings/**"
+      - "src/renderer/src/store/paintings.ts"
+    github_reviewers: ["EurFelux", "DeJeune"]
+
+  uiux:
+    name: "UI/UX"
+    globs:
+      - "src/renderer/src/components/**"
+      - "src/renderer/src/ui/**"
+      - "src/renderer/src/assets/styles/**"
+      - "src/renderer/src/windows/**"
+    github_reviewers: ["kangfenmao", "MyPrototypeWhat", "alephpiece"]
+
+  build-config:
+    name: "构建/配置"
+    globs:
+      - "package.json"
+      - "tsconfig*.json"
+      - "electron-builder.yml"
+      - "electron.vite.config.ts"
+      - "vitest.config.ts"
+      - "playwright.config.ts"
+      - ".github/workflows/**"
+      - "scripts/**"
+    github_reviewers: ["kangfenmao", "beyondkmp", "alephpiece"]
+
+  test:
+    name: "测试"
+    globs:
+      - "tests/**"
+      - "src/**/__tests__/**"
+      - "scripts/__tests__/**"
+    github_reviewers: ["alephpiece", "DeJeune", "EurFelux"]
+
+  docs:
+    name: "文档"
+    globs:
+      - "docs/**"
+      - "README*.md"
+      - "SECURITY.md"
+      - "CODE_OF_CONDUCT.md"
+      - "AGENTS.md"
+    github_reviewers: ["kangfenmao", "0xfullex", "EurFelux"]
+
+rules:
+  vendor_added:
+    # 新增供应商时的强制审核人
+    github_reviewers: ["YinsenHo"]
+  large_change:
+    # 重大变更阈值（改动文件数 > changed_files_gt 触发）
+    changed_files_gt: 30
+    github_reviewers: ["kangfenmao"]
+
+
