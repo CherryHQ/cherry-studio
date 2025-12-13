@@ -24,7 +24,7 @@ function transliterateToAscii(text: string): string {
   // Input validation
   if (!text || typeof text !== 'string') {
     logger.warn('Invalid input to transliterateToAscii', { text })
-    return ''
+    return 'invalid_input'
   }
 
   try {
@@ -45,22 +45,22 @@ function transliterateToAscii(text: string): string {
       .replace(/[^a-z0-9_-]/g, '_')
   } catch (error) {
     logger.error('Transliteration failed, falling back to ASCII-only mode', { text, error })
-    // Fallback: keep only ASCII alphanumeric and convert everything else to underscores
+    // Fallback: keep only ASCII alphanumeric, underscores, and hyphens for consistency
     return text
       .toLowerCase()
-      .replace(/[^a-z0-9]/g, '_')
+      .replace(/[^a-z0-9_-]/g, '_')
   }
 }
 
 export function buildFunctionCallToolName(serverName: string, toolName: string, serverId?: string) {
-  // Input validation
+  // Input validation with descriptive fallbacks to indicate invalid input
   if (!serverName || typeof serverName !== 'string') {
     logger.warn('Invalid serverName provided', { serverName })
-    serverName = 'server'
+    serverName = 'invalid_server'
   }
   if (!toolName || typeof toolName !== 'string') {
     logger.warn('Invalid toolName provided', { toolName })
-    toolName = 'tool'
+    toolName = 'invalid_tool'
   }
 
   // First, transliterate non-ASCII characters to ASCII
