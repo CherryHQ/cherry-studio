@@ -181,7 +181,7 @@ function convertToolBlockToToolResultPart(toolBlock: ToolMessageBlock): ToolResu
   } else if (typeof content === 'string') {
     output = { type: 'text', value: content }
   } else {
-    output = { type: 'json', value: JSON.parse(JSON.stringify(content)) }
+    output = { type: 'json', value: content }
   }
 
   return {
