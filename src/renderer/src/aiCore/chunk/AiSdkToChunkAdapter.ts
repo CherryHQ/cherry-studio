@@ -145,6 +145,15 @@ export class AiSdkToChunkAdapter {
       }
       // === 文本相关事件 ===
       case 'text-start':
+        // 如果有未完成的思考内容，先生成 THINKING_COMPLETE
+        // 这处理了某些提供商不发送 reasoning-end 事件的情况
+        if (final.reasoningContent) {
+          this.onChunk({
+            type: ChunkType.THINKING_COMPLETE,
+            text: final.reasoningContent
+          })
+          final.reasoningContent = ''
+        }
         this.onChunk({
           type: ChunkType.TEXT_START
         })
