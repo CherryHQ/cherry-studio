@@ -33,6 +33,7 @@ export class ScreenshotService {
   private selectionWindow: BrowserWindow | null = null
   private screenshotBuffer: Buffer | null = null
   private screenshotData: string | null = null
+  private screenshotTempPath: string | null = null
   private currentFileName: string | null = null
   private selectionPromise: {
     resolve: (value: SelectionCaptureResult) => void
@@ -59,7 +60,7 @@ export class ScreenshotService {
       const buffer = await image.toPng()
 
       const ext = '.png'
-      const tempFilePath = await fileStorage.createTempFile(undefined, fileName || `screenshot${ext}`)
+      const tempFilePath = await fileStorage.createTempFile({} as any, fileName || `screenshot${ext}`)
       await fs.promises.writeFile(tempFilePath, buffer)
 
       const stats = await fs.promises.stat(tempFilePath)
@@ -140,8 +141,8 @@ export class ScreenshotService {
     })
 
     // Clean up when closed
-    window.on('closed', () => {
-      this.cleanupSelection()
+    window.on('closed', async () => {
+      await this.cleanupSelection()
     })
 
     // Load the selection HTML
@@ -154,7 +155,7 @@ export class ScreenshotService {
     return window
   }
 
-  private cleanupSelection() {
+  private async cleanupSelection() {
     if (this.selectionWindow && !this.selectionWindow.isDestroyed()) {
       this.selectionWindow.destroy()
     }
@@ -163,6 +164,16 @@ export class ScreenshotService {
     this.screenshotData = null
     this.currentFileName = null
     this.selectionPromise = null
+
+    // Clean up temporary file
+    if (this.screenshotTempPath) {
+      try {
+        await fs.promises.unlink(this.screenshotTempPath)
+      } catch (error) {
+        logger.warn('Failed to delete temporary screenshot file', error as Error)
+      }
+      this.screenshotTempPath = null
+    }
   }
 
   public confirmSelection(selection: Rectangle): void {
@@ -178,7 +189,7 @@ export class ScreenshotService {
         status: 'error',
         message: 'Selection too small (minimum 10×10 pixels)'
       })
-      this.cleanupSelection()
+      void this.cleanupSelection()
       return
     }
 
@@ -197,7 +208,7 @@ export class ScreenshotService {
       status: 'cancelled',
       message: 'User cancelled selection'
     })
-    this.cleanupSelection()
+    void this.cleanupSelection()
   }
 
   private async processSelection(selection: Rectangle): Promise<void> {
@@ -245,7 +256,7 @@ export class ScreenshotService {
         message: error instanceof Error ? error.message : 'Failed to process selection'
       })
     } finally {
-      this.cleanupSelection()
+      await this.cleanupSelection()
     }
   }
 
@@ -286,12 +297,10 @@ export class ScreenshotService {
       this.currentFileName = fileName
 
       // Write buffer to a temporary file and store the file URL for the renderer
-      const os = await import('os');
-      const tempDir = os.tmpdir();
-      const tempFileName = `screenshot-${uuidv4()}.png`;
-      const tempFilePath = path.join(tempDir, tempFileName);
-      await fs.promises.writeFile(tempFilePath, buffer);
-      this.screenshotData = `file://${tempFilePath}`;
+      const tempFilePath = await fileStorage.createTempFile({} as any, `screenshot-${uuidv4()}.png`)
+      await fs.promises.writeFile(tempFilePath, buffer)
+      this.screenshotTempPath = tempFilePath
+      this.screenshotData = `file://${tempFilePath}`
 
       // Create or show selection window
       if (!this.selectionWindow || this.selectionWindow.isDestroyed()) {
@@ -315,7 +324,7 @@ export class ScreenshotService {
       })
     } catch (error) {
       logger.error('Screenshot capture with selection failed', error as Error)
-      this.cleanupSelection()
+      await this.cleanupSelection()
 
       // Check if it's a permission issue on macOS
       if (process.platform === 'darwin') {

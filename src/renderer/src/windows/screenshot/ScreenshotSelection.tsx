@@ -64,12 +64,9 @@ const ScreenshotSelection = () => {
       logger.info('Screenshot drawn on canvas')
     }
     img.onerror = (e) => {
-      logger.error('Failed to load screenshot image', { error: e, screenshotData });
-      // Optionally, notify the user or close the selection window gracefully
-      // For example, close the window:
-      if (window.electron && window.electron.ipcRenderer) {
-        window.electron.ipcRenderer.send(IpcChannel.Screenshot_CloseSelectionWindow);
-      }
+      logger.error('Failed to load screenshot image', { error: e })
+      // Close the selection window gracefully on image load error
+      window.api.screenshot.cancelSelection()
     }
     img.src = screenshotData
   }, [screenshotData])
