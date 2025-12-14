@@ -285,8 +285,13 @@ export class Screenshot {
       this.screenshotBuffer = buffer
       this.currentFileName = fileName
 
-      // Convert to base64 data URL for the renderer
-      this.screenshotData = `data:image/png;base64,${buffer.toString('base64')}`
+      // Write buffer to a temporary file and store the file URL for the renderer
+      const os = await import('os');
+      const tempDir = os.tmpdir();
+      const tempFileName = `screenshot-${uuidv4()}.png`;
+      const tempFilePath = path.join(tempDir, tempFileName);
+      await fs.promises.writeFile(tempFilePath, buffer);
+      this.screenshotData = `file://${tempFilePath}`;
 
       // Create or show selection window
       if (!this.selectionWindow || this.selectionWindow.isDestroyed()) {
