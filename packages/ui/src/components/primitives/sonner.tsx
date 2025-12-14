@@ -361,14 +361,14 @@ const toastColorVariants = cva(undefined, {
   }
 })
 
-const toastBgColorVariants = cva(undefined, {
+const toastBgColorVariants = cva('backdrop-blur-md', {
   variants: {
     type: {
-      info: 'bg-blue-50 border-blue-400',
-      warning: 'bg-warning-bg border-warning-base',
-      error: 'bg-error-bg border-error-base',
-      success: 'bg-success-bg border-success-base',
-      loading: undefined
+      info: 'bg-blue-500/10 border-blue-500/20',
+      warning: 'bg-orange-500/10 border-orange-500/20',
+      error: 'bg-red-500/10 border-red-500/20',
+      success: 'bg-primary/10 border-primary/20',
+      loading: 'backdrop-blur-none'
     }
   }
 })
@@ -409,7 +409,7 @@ function Toast({
     <div
       id={String(id)}
       className={cn(
-        'flex p-4 rounded-xs bg-background items-center shadow-lg',
+        'flex p-4 rounded-xs bg-background border-border border-[0.5px] items-center shadow-lg',
         coloredBackground && toastBgColorVariants({ type })
       )}
       aria-label="Toast">
