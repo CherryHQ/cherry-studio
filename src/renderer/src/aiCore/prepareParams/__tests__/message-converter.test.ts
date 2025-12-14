@@ -109,6 +109,20 @@ const createImageBlock = (
   ...overrides
 })
 
+const createThinkingBlock = (
+  messageId: string,
+  overrides: Partial<Omit<ThinkingMessageBlock, 'type' | 'messageId'>> = {}
+): ThinkingMessageBlock => ({
+  id: overrides.id ?? `thinking-block-${++blockCounter}`,
+  messageId,
+  type: MessageBlockType.THINKING,
+  createdAt: overrides.createdAt ?? new Date(2024, 0, 1, 0, 0, blockCounter).toISOString(),
+  status: overrides.status ?? MessageBlockStatus.SUCCESS,
+  content: overrides.content ?? 'Let me think...',
+  thinking_millsec: overrides.thinking_millsec ?? 1000,
+  ...overrides
+})
+
 describe('messageConverter', () => {
   beforeEach(() => {
     convertFileBlockToFilePartMock.mockReset()
@@ -228,6 +242,23 @@ describe('messageConverter', () => {
           content: [{ type: 'text', text: 'Summarize the PDF' }]
         }
       ])
+    })
+
+    it('includes reasoning parts for assistant messages with thinking blocks', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Here is my answer'
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Let me think...' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Here is my answer' },
+          { type: 'reasoning', text: 'Let me think...' }
+        ]
+      })
     })
   })
 
