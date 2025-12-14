@@ -59,7 +59,7 @@ export class Screenshot {
       const buffer = await image.toPng()
 
       const ext = '.png'
-      const tempFilePath = await fileStorage.createTempFile({} as any, fileName || `screenshot${ext}`)
+      const tempFilePath = await fileStorage.createTempFile(undefined, fileName || `screenshot${ext}`)
       await fs.promises.writeFile(tempFilePath, buffer)
 
       const stats = await fs.promises.stat(tempFilePath)
