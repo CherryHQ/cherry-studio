@@ -385,5 +385,13 @@ export enum IpcChannel {
   WebSocket_Stop = 'webSocket:stop',
   WebSocket_Status = 'webSocket:status',
   WebSocket_SendFile = 'webSocket:send-file',
-  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates'
+  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates',
+
+  // Screenshot
+  Screenshot_CheckPermission = 'screenshot:check-permission',
+  Screenshot_Capture = 'screenshot:capture',
+  Screenshot_CaptureWithSelection = 'screenshot:capture-with-selection',
+  Screenshot_SelectionWindowReady = 'screenshot:selection-window-ready',
+  Screenshot_SelectionConfirm = 'screenshot:selection-confirm',
+  Screenshot_SelectionCancel = 'screenshot:selection-cancel'
 }

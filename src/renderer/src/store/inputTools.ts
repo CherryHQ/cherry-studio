@@ -13,6 +13,7 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
   visible: [
     'new_topic',
     'attachment',
+    'screenshot',
     'thinking',
     'web_search',
     'url_context',
@@ -30,11 +31,11 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
 export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<InputbarScope, ToolOrder> = {
   [TopicType.Chat]: DEFAULT_TOOL_ORDER,
   [TopicType.Session]: {
-    visible: ['create_session', 'slash_commands', 'attachment'],
+    visible: ['create_session', 'slash_commands', 'attachment', 'screenshot'],
     hidden: []
   },
   'mini-window': {
-    visible: ['attachment', 'mention_models', 'quick_phrases'],
+    visible: ['attachment', 'screenshot', 'mention_models', 'quick_phrases'],
     hidden: []
   }
 }

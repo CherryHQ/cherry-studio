@@ -709,6 +709,16 @@
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
+      "screenshot": {
+        "cancel": "[to be translated]:Cancel",
+        "capture_failed": "[to be translated]:Failed to capture screenshot",
+        "open_settings": "[to be translated]:Open Settings",
+        "permission_denied": "[to be translated]:Screen recording permission required",
+        "permission_dialog_content": "[to be translated]:Screenshot feature requires screen recording permission. Would you like to open system settings to grant permission?",
+        "permission_dialog_title": "[to be translated]:Screen Recording Permission Required",
+        "permission_granted_restart": "[to be translated]:Permission has been granted. Please restart the application for the changes to take effect.",
+        "tooltip": "[to be translated]:Take screenshot"
+      },
       "send": "Enviar",
       "settings": "Configurações",
       "slash_commands": {

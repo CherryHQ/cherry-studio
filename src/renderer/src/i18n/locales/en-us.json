@@ -709,6 +709,18 @@
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "screenshot": {
+        "cancel": "Cancel",
+        "capture_failed": "Failed to capture screenshot",
+        "full_screen": "Full Screen",
+        "open_settings": "Open Settings",
+        "permission_denied": "Screen recording permission required",
+        "permission_dialog_content": "Screenshot feature requires screen recording permission. Would you like to open system settings to grant permission?",
+        "permission_dialog_title": "Screen Recording Permission Required",
+        "permission_granted_restart": "Permission has been granted. Please restart the application for the changes to take effect.",
+        "select_region": "Select Region",
+        "tooltip": "Take screenshot"
+      },
       "send": "Send",
       "settings": "Settings",
       "slash_commands": {

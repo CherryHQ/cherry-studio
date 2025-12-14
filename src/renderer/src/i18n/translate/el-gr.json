@@ -709,6 +709,16 @@
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
+      "screenshot": {
+        "cancel": "[to be translated]:Cancel",
+        "capture_failed": "[to be translated]:Failed to capture screenshot",
+        "open_settings": "[to be translated]:Open Settings",
+        "permission_denied": "[to be translated]:Screen recording permission required",
+        "permission_dialog_content": "[to be translated]:Screenshot feature requires screen recording permission. Would you like to open system settings to grant permission?",
+        "permission_dialog_title": "[to be translated]:Screen Recording Permission Required",
+        "permission_granted_restart": "[to be translated]:Permission has been granted. Please restart the application for the changes to take effect.",
+        "tooltip": "[to be translated]:Take screenshot"
+      },
       "send": "Αποστολή",
       "settings": "Ρυθμίσεις",
       "slash_commands": {

@@ -54,6 +54,7 @@ import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
+import { Screenshot } from './services/ScreenshotService'
 import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
@@ -598,6 +599,49 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_GetPdfInfo, fileManager.pdfPageCount.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile.bind(fileManager))
+
+  // Screenshot
+  ipcMain.handle(IpcChannel.Screenshot_CheckPermission, async () => {
+    if (!isMac) {
+      return { status: 'granted' as const }
+    }
+
+    const status = systemPreferences.getMediaAccessStatus('screen')
+    return {
+      status: status === 'granted' ? ('granted' as const) : ('denied' as const)
+    }
+  })
+
+  // Screenshot service singleton for selection flow
+  let screenshotService: Screenshot | null = null
+
+  ipcMain.handle(IpcChannel.Screenshot_Capture, async (_event, fileName: string) => {
+    const service = new Screenshot()
+    return await service.capture(fileName)
+  })
+
+  ipcMain.handle(IpcChannel.Screenshot_CaptureWithSelection, async (_event, fileName: string) => {
+    if (!screenshotService) {
+      screenshotService = new Screenshot()
+    }
+    return await screenshotService.captureWithSelection(fileName)
+  })
+
+  ipcMain.handle(
+    IpcChannel.Screenshot_SelectionConfirm,
+    async (_event, selection: { x: number; y: number; width: number; height: number }) => {
+      if (screenshotService) {
+        screenshotService.confirmSelection(selection)
+      }
+    }
+  )
+
+  ipcMain.handle(IpcChannel.Screenshot_SelectionCancel, async () => {
+    if (screenshotService) {
+      screenshotService.cancelSelection()
+    }
+  })
+
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))

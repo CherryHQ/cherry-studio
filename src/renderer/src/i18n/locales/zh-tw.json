@@ -709,6 +709,18 @@
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "screenshot": {
+        "cancel": "取消",
+        "capture_failed": "截圖失敗",
+        "full_screen": "全螢幕截圖",
+        "open_settings": "打開設定",
+        "permission_denied": "需要螢幕錄製權限",
+        "permission_dialog_content": "使用截圖功能需要授��螢幕錄製權限。是否要打開系統設定進行授權？",
+        "permission_dialog_title": "需要螢幕錄製權限",
+        "permission_granted_restart": "權限已授予，請重啟應用程式以使權限生效。",
+        "select_region": "選擇區域",
+        "tooltip": "截圖"
+      },
       "send": "傳送",
       "settings": "設定",
       "slash_commands": {

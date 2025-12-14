@@ -10266,6 +10266,7 @@ __metadata:
     mime: "npm:^4.0.4"
     mime-types: "npm:^3.0.1"
     motion: "npm:^12.10.5"
+    node-screenshots: "npm:0.2.1"
     node-stream-zip: "npm:^1.15.0"
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
@@ -19801,6 +19802,95 @@ __metadata:
   version: 2.0.19
   resolution: "node-releases@npm:2.0.19"
   checksum: 10c0/52a0dbd25ccf545892670d1551690fe0facb6a471e15f2cfa1b20142a5b255b3aa254af5f59d6ecb69c2bec7390bc643c43aa63b13bf5e64b6075952e716b1aa
+  languageName: node
+  linkType: hard
+
+"node-screenshots-darwin-arm64@npm:0.2.1":
+  version: 0.2.1
+  resolution: "node-screenshots-darwin-arm64@npm:0.2.1"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"node-screenshots-darwin-universal@npm:0.2.1":
+  version: 0.2.1
+  resolution: "node-screenshots-darwin-universal@npm:0.2.1"
+  conditions: os=darwin
+  languageName: node
+  linkType: hard
+
+"node-screenshots-darwin-x64@npm:0.2.1":
+  version: 0.2.1
+  resolution: "node-screenshots-darwin-x64@npm:0.2.1"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"node-screenshots-linux-x64-gnu@npm:0.2.1":
+  version: 0.2.1
+  resolution: "node-screenshots-linux-x64-gnu@npm:0.2.1"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"node-screenshots-linux-x64-musl@npm:0.2.1":
+  version: 0.2.1
+  resolution: "node-screenshots-linux-x64-musl@npm:0.2.1"
+  conditions: os=linux & cpu=x64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"node-screenshots-win32-arm64-msvc@npm:0.2.1":
+  version: 0.2.1
+  resolution: "node-screenshots-win32-arm64-msvc@npm:0.2.1"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"node-screenshots-win32-ia32-msvc@npm:0.2.1":
+  version: 0.2.1
+  resolution: "node-screenshots-win32-ia32-msvc@npm:0.2.1"
+  conditions: os=win32 & cpu=ia32
+  languageName: node
+  linkType: hard
+
+"node-screenshots-win32-x64-msvc@npm:0.2.1":
+  version: 0.2.1
+  resolution: "node-screenshots-win32-x64-msvc@npm:0.2.1"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"node-screenshots@npm:0.2.1":
+  version: 0.2.1
+  resolution: "node-screenshots@npm:0.2.1"
+  dependencies:
+    node-screenshots-darwin-arm64: "npm:0.2.1"
+    node-screenshots-darwin-universal: "npm:0.2.1"
+    node-screenshots-darwin-x64: "npm:0.2.1"
+    node-screenshots-linux-x64-gnu: "npm:0.2.1"
+    node-screenshots-linux-x64-musl: "npm:0.2.1"
+    node-screenshots-win32-arm64-msvc: "npm:0.2.1"
+    node-screenshots-win32-ia32-msvc: "npm:0.2.1"
+    node-screenshots-win32-x64-msvc: "npm:0.2.1"
+  dependenciesMeta:
+    node-screenshots-darwin-arm64:
+      optional: true
+    node-screenshots-darwin-universal:
+      optional: true
+    node-screenshots-darwin-x64:
+      optional: true
+    node-screenshots-linux-x64-gnu:
+      optional: true
+    node-screenshots-linux-x64-musl:
+      optional: true
+    node-screenshots-win32-arm64-msvc:
+      optional: true
+    node-screenshots-win32-ia32-msvc:
+      optional: true
+    node-screenshots-win32-x64-msvc:
+      optional: true
+  checksum: 10c0/f1c011dbd104e62776292d2efd1fcdc98bc75282d389e0e6fd057e80dc32fcfbaa1e217a8e55c7c329cba1a246f82501733db2cdd79e6d5cb0e05d4219e02edf
   languageName: node
   linkType: hard
 

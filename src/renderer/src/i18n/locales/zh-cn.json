@@ -709,6 +709,18 @@
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "screenshot": {
+        "cancel": "取消",
+        "capture_failed": "截屏失败",
+        "full_screen": "全屏截图",
+        "open_settings": "打开设置",
+        "permission_denied": "需要屏幕录制权限",
+        "permission_dialog_content": "使用截屏功能需要授予屏幕录制权限。是否要打开系统设置进行授权？",
+        "permission_dialog_title": "需要屏幕录制权限",
+        "permission_granted_restart": "权限已授予，请重启应用以使权限生效。",
+        "select_region": "选择区域",
+        "tooltip": "截屏"
+      },
       "send": "发送",
       "settings": "设置",
       "slash_commands": {
