@@ -1,5 +1,6 @@
 import '@renderer/databases'
 
+import { Toaster } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'
@@ -43,6 +44,7 @@ function App(): React.ReactElement {
                   <PersistGate loading={null} persistor={persistor}>
                     <TopViewContainer>
                       <Router />
+                      <Toaster />
                     </TopViewContainer>
                   </PersistGate>
                 </CodeStyleProvider>
