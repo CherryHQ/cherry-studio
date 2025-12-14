@@ -1,8 +1,8 @@
+import { toast as sonnerToast, Toaster as Sonner, type ToasterProps } from '@cherrystudio/sonner'
 import { cn } from '@cherrystudio/ui/utils'
 import { cva } from 'class-variance-authority'
 import { Loader2Icon } from 'lucide-react'
 import { type ReactNode, type SVGProps, useCallback, useMemo } from 'react'
-import { toast as sonnerToast, Toaster as Sonner, type ToasterProps } from 'sonner'
 
 const InfoIcon = ({ className }: SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>

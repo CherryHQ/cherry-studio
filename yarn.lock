@@ -2213,10 +2213,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@cherrystudio/sonner@npm:2.0.8":
+  version: 2.0.8
+  resolution: "@cherrystudio/sonner@npm:2.0.8"
+  peerDependencies:
+    react: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+    react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+  checksum: 10c0/72ede2ba41eeeb71011ba1bfaef64738935e1fcd6ff82f19d5fcac164f964be399849ff38a505b30f2ea05466880770c9512411f8a609c6844d550f577505d27
+  languageName: node
+  linkType: hard
+
 "@cherrystudio/ui@workspace:*, @cherrystudio/ui@workspace:packages/ui":
   version: 0.0.0-use.local
   resolution: "@cherrystudio/ui@workspace:packages/ui"
   dependencies:
+    "@cherrystudio/sonner": "npm:2.0.8"
     "@dnd-kit/core": "npm:^6.3.1"
     "@dnd-kit/modifiers": "npm:^9.0.0"
     "@dnd-kit/sortable": "npm:^10.0.0"
@@ -2255,7 +2266,6 @@ __metadata:
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
     react-dropzone: "npm:^14.3.8"
-    sonner: "npm:^2.0.7"
     storybook: "npm:^10.0.5"
     styled-components: "npm:^6.1.15"
     tailwind-merge: "npm:^2.5.5"
@@ -27899,16 +27909,6 @@ __metadata:
     ip-address: "npm:^9.0.5"
     smart-buffer: "npm:^4.2.0"
   checksum: 10c0/15b95db4caa359c80bfa880ff3e58f3191b9ffa4313570e501a60ee7575f51e4be664a296f4ee5c2c40544da179db6140be53433ce41ec745f9d51f342557514
-  languageName: node
-  linkType: hard
-
-"sonner@npm:^2.0.7":
-  version: 2.0.7
-  resolution: "sonner@npm:2.0.7"
-  peerDependencies:
-    react: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
-    react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
-  checksum: 10c0/6966ab5e892ed6aab579a175e4a24f3b48747f0fc21cb68c3e33cb41caa7a0eebeb098c210545395e47a18d585eb8734ae7dd12d2bd18c8a3294a1ee73f997d9
   languageName: node
   linkType: hard
 
