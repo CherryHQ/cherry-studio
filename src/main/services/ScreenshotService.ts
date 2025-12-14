@@ -29,7 +29,7 @@ interface Rectangle {
   height: number
 }
 
-export class ScreenshotService {
+class ScreenshotService {
   private selectionWindow: BrowserWindow | null = null
   private screenshotBuffer: Buffer | null = null
   private screenshotData: string | null = null
@@ -176,7 +176,7 @@ export class ScreenshotService {
     }
   }
 
-  public confirmSelection(selection: Rectangle): void {
+  public async confirmSelection(selection: Rectangle): Promise<void> {
     if (!this.selectionPromise) {
       logger.warn('No active selection to confirm')
       return
@@ -189,7 +189,7 @@ export class ScreenshotService {
         status: 'error',
         message: 'Selection too small (minimum 10×10 pixels)'
       })
-      void this.cleanupSelection()
+      await this.cleanupSelection()
       return
     }
 
@@ -197,7 +197,7 @@ export class ScreenshotService {
     this.processSelection(selection)
   }
 
-  public cancelSelection(): void {
+  public async cancelSelection(): Promise<void> {
     if (!this.selectionPromise) {
       logger.warn('No active selection to cancel')
       return
@@ -208,7 +208,7 @@ export class ScreenshotService {
       status: 'cancelled',
       message: 'User cancelled selection'
     })
-    void this.cleanupSelection()
+    await this.cleanupSelection()
   }
 
   private async processSelection(selection: Rectangle): Promise<void> {
@@ -349,3 +349,5 @@ export class ScreenshotService {
     }
   }
 }
+
+export const screenshotService = new ScreenshotService()

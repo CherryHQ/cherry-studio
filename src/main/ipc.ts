@@ -54,7 +54,7 @@ import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
-import { Screenshot } from './services/ScreenshotService'
+import { screenshotService } from './services/ScreenshotService'
 import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
@@ -612,34 +612,24 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  // Screenshot service singleton for selection flow
-  let screenshotService: Screenshot | null = null
-
+  // Screenshot
   ipcMain.handle(IpcChannel.Screenshot_Capture, async (_event, fileName: string) => {
-    const service = new Screenshot()
-    return await service.capture(fileName)
+    return await screenshotService.capture(fileName)
   })
 
   ipcMain.handle(IpcChannel.Screenshot_CaptureWithSelection, async (_event, fileName: string) => {
-    if (!screenshotService) {
-      screenshotService = new Screenshot()
-    }
     return await screenshotService.captureWithSelection(fileName)
   })
 
   ipcMain.handle(
     IpcChannel.Screenshot_SelectionConfirm,
     async (_event, selection: { x: number; y: number; width: number; height: number }) => {
-      if (screenshotService) {
-        screenshotService.confirmSelection(selection)
-      }
+      screenshotService.confirmSelection(selection)
     }
   )
 
   ipcMain.handle(IpcChannel.Screenshot_SelectionCancel, async () => {
-    if (screenshotService) {
-      screenshotService.cancelSelection()
-    }
+    screenshotService.cancelSelection()
   })
 
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
