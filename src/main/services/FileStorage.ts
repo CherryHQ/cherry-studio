@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
 import {
   checkName,
+  expandNotesPath,
   getFilesDir,
   getFileType,
   getName,
-  getNotesDir,
+  getNotesDirAbsolute,
   getTempDir,
   readTextFileWithAutoEncoding,
   scanDir
@@ -144,7 +145,7 @@ const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
 
 class FileStorage {
   private storageDir = getFilesDir()
-  private notesDir = getNotesDir()
+  private notesDir = getNotesDirAbsolute()
   private tempDir = getTempDir()
   private watcher?: FSWatcher
   private watcherSender?: Electron.WebContents
@@ -861,7 +862,9 @@ class FileStorage {
 
   public getDirectoryStructure = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<NotesTreeNode[]> => {
     try {
-      return await scanDir(dirPath)
+      // Expand relative paths before scanning
+      const expandedPath = expandNotesPath(dirPath)
+      return await scanDir(expandedPath)
     } catch (error) {
       logger.error('Failed to get directory structure:', error as Error)
       throw error
@@ -1152,8 +1155,8 @@ class FileStorage {
         return false
       }
 
-      // Normalize path
-      const normalizedPath = path.resolve(dirPath)
+      // Expand and normalize path (handles ~, ., and .. paths)
+      const normalizedPath = expandNotesPath(dirPath)
 
       // Check if directory exists
       if (!fs.existsSync(normalizedPath)) {
@@ -1169,7 +1172,7 @@ class FileStorage {
       // Get app paths to prevent selection of restricted directories
       const appDataPath = path.resolve(process.env.APPDATA || path.join(require('os').homedir(), '.config'))
       const filesDir = path.resolve(getFilesDir())
-      const currentNotesDir = path.resolve(getNotesDir())
+      const currentNotesDir = getNotesDirAbsolute()
 
       // Prevent selecting app data directories
       if (
@@ -1406,7 +1409,8 @@ class FileStorage {
         throw new Error('Directory path is required')
       }
 
-      const normalizedPath = path.resolve(dirPath.trim())
+      // Expand relative paths before watching
+      const normalizedPath = expandNotesPath(dirPath.trim())
 
       if (!fs.existsSync(normalizedPath)) {
         throw new Error(`Directory does not exist: ${normalizedPath}`)

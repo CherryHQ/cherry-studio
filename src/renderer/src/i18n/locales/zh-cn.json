@@ -2194,8 +2194,8 @@
         "select": "选择",
         "select_directory_failed": "选择目录失败",
         "title": "数据设置",
-        "work_directory_description": "工作目录是存储所有笔记文件的位置。更改工作目录不会移动现有文件，请手动迁移文件。",
-        "work_directory_placeholder": "选择笔记工作目录"
+        "work_directory_description": "工作目录是存储所有笔记文件的位置。支持相对路径如 ~/笔记 或 ./笔记 以实现多设备同步。更改工作目录不会移动现有文件，请手动迁移文件。",
+        "work_directory_placeholder": "输入或选择笔记工作目录（例如：~/笔记）"
       },
       "display": {
         "compress_content": "缩减栏宽",

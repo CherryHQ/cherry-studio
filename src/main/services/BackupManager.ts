@@ -11,6 +11,7 @@ import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
+import { expandNotesPath } from '../utils/file'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -240,11 +241,49 @@ class BackupManager {
         // 使用流式复制
         await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
           copiedSize += size
-          const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
+          const progress = Math.min(45, Math.floor((copiedSize / totalSize) * 45))
           onProgress({ stage: 'copying_files', progress, total: 100 })
         })
 
         await this.setWritableRecursive(tempDataDir)
+
+        // 检查并备份 notes 目录（如果配置在 Data 目录外）
+        try {
+          const backupData = JSON.parse(data)
+          const persistData = JSON.parse(backupData.localStorage?.['persist:cherry-studio'] || '{}')
+          const noteState = JSON.parse(persistData.note || '{}')
+          const notesPath = noteState.notesPath
+
+          if (notesPath) {
+            // 展开路径获取绝对路径
+            const expandedNotesPath = expandNotesPath(notesPath)
+            const dataPath = path.join(app.getPath('userData'), 'Data')
+            const normalizedDataPath = path.normalize(dataPath)
+            const normalizedNotesPath = path.normalize(expandedNotesPath)
+
+            // 检查 notes 是否在 Data 目录外
+            const isOutsideData =
+              !normalizedNotesPath.startsWith(normalizedDataPath + path.sep) &&
+              normalizedNotesPath !== normalizedDataPath
+
+            if (isOutsideData && fs.existsSync(expandedNotesPath)) {
+              logger.info(`Backing up notes from external location: ${expandedNotesPath}`)
+              const tempNotesDir = path.join(this.tempDir, 'Notes')
+              await this.copyDirWithProgress(expandedNotesPath, tempNotesDir, (size) => {
+                // Notes backup progress from 45% to 50%
+                copiedSize += size
+                const notesProgress = 45 + Math.min(5, Math.floor((size / totalSize) * 5))
+                onProgress({ stage: 'copying_notes', progress: notesProgress, total: 100 })
+              })
+              await this.setWritableRecursive(tempNotesDir)
+              logger.info('External notes directory backed up successfully')
+            }
+          }
+        } catch (error) {
+          // 如果解析失败或获取 notes 路径失败，继续备份其他内容
+          logger.warn('Failed to parse notes path from backup data, skipping external notes backup', error as Error)
+        }
+
         onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
       } else {
         logger.debug('Skip the backup of the file')
@@ -399,11 +438,50 @@ class BackupManager {
         // 使用流式复制
         await this.copyDirWithProgress(sourcePath, destPath, (size) => {
           copiedSize += size
-          const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
+          const progress = Math.min(75, 35 + Math.floor((copiedSize / totalSize) * 40))
           onProgress({ stage: 'copying_files', progress, total: 100 })
         })
       } else {
         logger.debug('skipBackupFile is true, skip restoring Data directory')
+      }
+
+      // 检查并恢复外部 Notes 目录
+      logger.debug('step 3.5: check and restore external Notes directory')
+      const notesBackupPath = path.join(this.tempDir, 'Notes')
+      const notesExists = await fs.pathExists(notesBackupPath)
+
+      if (notesExists) {
+        try {
+          // 从 data.json 中获取 notes 路径配置
+          const backupData = JSON.parse(data)
+          const persistData = JSON.parse(backupData.localStorage?.['persist:cherry-studio'] || '{}')
+          const noteState = JSON.parse(persistData.note || '{}')
+          const notesPath = noteState.notesPath
+
+          if (notesPath) {
+            const expandedNotesPath = expandNotesPath(notesPath)
+            logger.info(`Restoring notes to configured location: ${expandedNotesPath}`)
+
+            // 确保目标目录的父目录存在
+            await fs.ensureDir(path.dirname(expandedNotesPath))
+
+            // 如果目标已存在，先删除
+            if (await fs.pathExists(expandedNotesPath)) {
+              await this.setWritableRecursive(expandedNotesPath)
+              await fs.remove(expandedNotesPath)
+            }
+
+            // 复制 Notes 目录
+            await this.copyDirWithProgress(notesBackupPath, expandedNotesPath, (size) => {
+              const progress = Math.min(85, 75 + Math.floor(size / 1000000))
+              onProgress({ stage: 'copying_notes', progress, total: 100 })
+            })
+
+            logger.info('External notes directory restored successfully')
+          }
+        } catch (error) {
+          logger.warn('Failed to restore external notes directory', error as Error)
+        }
       }
 
       logger.debug('step 4: clean up temp directory')
