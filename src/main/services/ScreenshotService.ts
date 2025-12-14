@@ -29,7 +29,7 @@ interface Rectangle {
   height: number
 }
 
-export class Screenshot {
+export class ScreenshotService {
   private selectionWindow: BrowserWindow | null = null
   private screenshotBuffer: Buffer | null = null
   private screenshotData: string | null = null
