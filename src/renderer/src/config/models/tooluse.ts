@@ -26,6 +26,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
   'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'doubao-seed-code(?:-[\\w-]+)?',
   'kimi-k2(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
