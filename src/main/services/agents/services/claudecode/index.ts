@@ -110,8 +110,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
     ) as Record<string, string>
 
-    let customGitBashPath: string | null = null
-    if (isWin) {
+    let customGitBashPath: string | null | undefined = process.env.CLAUDE_CODE_GIT_BASH_PATH
+    if (isWin && !customGitBashPath) {
       customGitBashPath = validateGitBashPath(configManager.get(ConfigKeys.GitBashPath))
       if (!customGitBashPath) {
         const discoveredPath = autoDiscoverGitBash()
