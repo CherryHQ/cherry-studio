@@ -236,16 +236,21 @@ export function autoDiscoverGitBash(): string | null {
     return null
   }
 
-  // Only auto-discover if no path is configured
+  // Check if a path is already configured
   const existingPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
   if (existingPath) {
-    return validateGitBashPath(existingPath)
+    const validated = validateGitBashPath(existingPath)
+    if (validated) {
+      return validated
+    }
+    // Existing path is invalid, try to auto-discover
+    logger.warn('Existing Git Bash path is invalid, attempting auto-discovery', { path: existingPath })
   }
 
   // Try to find Git Bash
   const discoveredPath = findGitBash()
   if (discoveredPath) {
-    // Persist the discovered path
+    // Persist the discovered path (overwrites invalid path if present)
     configManager.set(ConfigKeys.GitBashPath, discoveredPath)
     logger.info('Auto-discovered Git Bash path', { path: discoveredPath })
   }
