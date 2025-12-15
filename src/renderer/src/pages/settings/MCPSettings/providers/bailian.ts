@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
+import { getDecryptedLocalStorageItem, setEncryptedLocalStorageItem } from '@renderer/utils/secureStorage'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('BailianSyncUtils')
@@ -11,12 +12,11 @@ const TOKEN_STORAGE_KEY = 'bailian_token'
 
 // Token 工具函数
 export const saveBailianToken = (token: string): void => {
-  localStorage.setItem(TOKEN_STORAGE_KEY, token)
+  setEncryptedLocalStorageItem(TOKEN_STORAGE_KEY, token)
 }
 
 export const getBailianToken = (): string | null => {
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY)
-  return token
+  return getDecryptedLocalStorageItem(TOKEN_STORAGE_KEY)
 }
 
 export const clearBailianToken = (): void => {

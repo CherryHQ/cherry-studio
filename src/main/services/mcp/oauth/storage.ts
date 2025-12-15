@@ -4,6 +4,7 @@ import type {
   OAuthClientInformationFull,
   OAuthTokens
 } from '@modelcontextprotocol/sdk/shared/auth.js'
+import { safeStorage } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -29,10 +30,32 @@ export class JsonFileStorage implements IOAuthStorage {
     }
 
     try {
-      const data = await fs.readFile(this.filePath, 'utf-8')
-      const parsed = JSON.parse(data)
+      const raw = await fs.readFile(this.filePath)
+
+      let storageJson: string | undefined
+      let usedEncryptedPayload = false
+
+      if (safeStorage.isEncryptionAvailable()) {
+        try {
+          storageJson = safeStorage.decryptString(raw)
+          usedEncryptedPayload = true
+        } catch {
+          // Fall back to legacy plain JSON (pre-encryption), and migrate on success.
+        }
+      }
+
+      if (storageJson === undefined) {
+        storageJson = raw.toString('utf-8')
+      }
+
+      const parsed = JSON.parse(storageJson)
       const validated = OAuthStorageSchema.parse(parsed)
       this.cache = validated
+
+      if (safeStorage.isEncryptionAvailable() && !usedEncryptedPayload) {
+        await this.writeStorage(validated)
+      }
+
       return validated
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
@@ -56,8 +79,15 @@ export class JsonFileStorage implements IOAuthStorage {
 
       // Write file atomically
       const tempPath = `${this.filePath}.tmp`
-      await fs.writeFile(tempPath, JSON.stringify(data, null, 2))
+      const payload = JSON.stringify(data, null, 2)
+      if (safeStorage.isEncryptionAvailable()) {
+        await fs.writeFile(tempPath, safeStorage.encryptString(payload))
+      } else {
+        logger.warn('safeStorage encryption is not available; saving MCP OAuth storage as plain JSON')
+        await fs.writeFile(tempPath, payload)
+      }
       await fs.rename(tempPath, this.filePath)
+      await fs.chmod(this.filePath, 0o600)
 
       // Update cache
       this.cache = data

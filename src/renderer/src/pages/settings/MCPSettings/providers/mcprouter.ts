@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
+import { getDecryptedLocalStorageItem, setEncryptedLocalStorageItem } from '@renderer/utils/secureStorage'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('MCPRouterSyncUtils')
@@ -10,11 +11,11 @@ const TOKEN_STORAGE_KEY = 'mcprouter_token'
 export const MCPROUTER_HOST = 'https://mcprouter.co'
 
 export const saveMCPRouterToken = (token: string): void => {
-  localStorage.setItem(TOKEN_STORAGE_KEY, token)
+  setEncryptedLocalStorageItem(TOKEN_STORAGE_KEY, token)
 }
 
 export const getMCPRouterToken = (): string | null => {
-  return localStorage.getItem(TOKEN_STORAGE_KEY)
+  return getDecryptedLocalStorageItem(TOKEN_STORAGE_KEY)
 }
 
 export const clearMCPRouterToken = (): void => {

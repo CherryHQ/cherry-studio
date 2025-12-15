@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
+import { getDecryptedLocalStorageItem, setEncryptedLocalStorageItem } from '@renderer/utils/secureStorage'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('302ai')
@@ -10,11 +11,11 @@ const TOKEN_STORAGE_KEY = 'ai302_token'
 export const AI302_HOST = 'https://api.302.ai/mcp'
 
 export const saveAI302Token = (token: string): void => {
-  localStorage.setItem(TOKEN_STORAGE_KEY, token)
+  setEncryptedLocalStorageItem(TOKEN_STORAGE_KEY, token)
 }
 
 export const getAI302Token = (): string | null => {
-  return localStorage.getItem(TOKEN_STORAGE_KEY)
+  return getDecryptedLocalStorageItem(TOKEN_STORAGE_KEY)
 }
 
 export const clearAI302Token = (): void => {

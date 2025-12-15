@@ -8,7 +8,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { getConfigDir } from '@main/utils/file'
 import * as crypto from 'crypto'
-import { net, shell } from 'electron'
+import { net, safeStorage, shell } from 'electron'
 import { promises } from 'fs'
 import { dirname } from 'path'
 
@@ -117,15 +117,39 @@ class AnthropicService extends Error {
   // 5. Save credentials
   private async saveCredentials(creds: Credentials): Promise<void> {
     await promises.mkdir(dirname(CREDS_PATH), { recursive: true })
-    await promises.writeFile(CREDS_PATH, JSON.stringify(creds, null, 2))
+
+    if (!safeStorage.isEncryptionAvailable()) {
+      logger.warn('safeStorage encryption is not available; saving Anthropic OAuth credentials as plain JSON')
+      await promises.writeFile(CREDS_PATH, JSON.stringify(creds, null, 2))
+      await promises.chmod(CREDS_PATH, 0o600) // Read/write for owner only
+      return
+    }
+
+    const encrypted = safeStorage.encryptString(JSON.stringify(creds))
+    await promises.writeFile(CREDS_PATH, encrypted)
     await promises.chmod(CREDS_PATH, 0o600) // Read/write for owner only
   }
 
   // 6. Load credentials
   private async loadCredentials(): Promise<Credentials | null> {
     try {
-      const data = await promises.readFile(CREDS_PATH, 'utf-8')
-      return JSON.parse(data)
+      const raw = await promises.readFile(CREDS_PATH)
+
+      // Prefer encrypted payload if supported.
+      if (safeStorage.isEncryptionAvailable()) {
+        try {
+          const decrypted = safeStorage.decryptString(raw)
+          return JSON.parse(decrypted) as Credentials
+        } catch {
+          // Fall back to legacy plain JSON (pre-encryption), and migrate on success.
+        }
+      }
+
+      const legacy = JSON.parse(raw.toString('utf-8')) as Credentials
+      if (safeStorage.isEncryptionAvailable()) {
+        await this.saveCredentials(legacy)
+      }
+      return legacy
     } catch {
       return null
     }
@@ -163,7 +187,12 @@ class AnthropicService extends Error {
 
     // Build authorization URL
     const authUrl = this.getAuthorizationURL(this.currentPKCE)
-    logger.debug(authUrl)
+    try {
+      const parsed = new URL(authUrl)
+      logger.debug('Starting Anthropic OAuth flow', { origin: parsed.origin, pathname: parsed.pathname })
+    } catch {
+      logger.debug('Starting Anthropic OAuth flow')
+    }
 
     // Open URL in external browser
     await shell.openExternal(authUrl)

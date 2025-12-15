@@ -175,7 +175,12 @@ if (!app.requestSingleInstanceLock()) {
       // Start API server if enabled or if agents exist
       try {
         const config = await apiServerService.getCurrentConfig()
-        logger.info('API server config:', config)
+        logger.info('API server config:', {
+          enabled: config.enabled,
+          host: config.host,
+          port: config.port,
+          hasApiKey: Boolean(config.apiKey)
+        })
 
         // Check if there are any agents
         let shouldStart = config.enabled

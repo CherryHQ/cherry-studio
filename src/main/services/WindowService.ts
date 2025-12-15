@@ -85,7 +85,6 @@ export class WindowService {
         sandbox: false,
         webSecurity: false,
         webviewTag: true,
-        allowRunningInsecureContent: true,
         zoomFactor: configManager.getZoomFactor(),
         backgroundThrottling: false
       }
@@ -300,26 +299,6 @@ export class WindowService {
       }
 
       return { action: 'deny' }
-    })
-
-    this.setupWebRequestHeaders(mainWindow)
-  }
-
-  private setupWebRequestHeaders(mainWindow: BrowserWindow) {
-    mainWindow.webContents.session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
-      if (details.responseHeaders?.['X-Frame-Options']) {
-        delete details.responseHeaders['X-Frame-Options']
-      }
-      if (details.responseHeaders?.['x-frame-options']) {
-        delete details.responseHeaders['x-frame-options']
-      }
-      if (details.responseHeaders?.['Content-Security-Policy']) {
-        delete details.responseHeaders['Content-Security-Policy']
-      }
-      if (details.responseHeaders?.['content-security-policy']) {
-        delete details.responseHeaders['content-security-policy']
-      }
-      callback({ cancel: false, responseHeaders: details.responseHeaders })
     })
   }
 

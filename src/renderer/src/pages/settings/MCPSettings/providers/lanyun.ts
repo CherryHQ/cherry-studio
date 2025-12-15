@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type { MCPServer } from '@renderer/types'
+import { getDecryptedLocalStorageItem, setEncryptedLocalStorageItem } from '@renderer/utils/secureStorage'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('TokenLanYunSyncUtils')
@@ -11,11 +12,11 @@ export const LANYUN_MCP_HOST = TOKENLANYUN_HOST + '/mcp/manager/selectListByApiK
 export const LANYUN_KEY_HOST = TOKENLANYUN_HOST + '/#/manage/apiKey'
 
 export const saveTokenLanYunToken = (token: string): void => {
-  localStorage.setItem(TOKEN_STORAGE_KEY, token)
+  setEncryptedLocalStorageItem(TOKEN_STORAGE_KEY, token)
 }
 
 export const getTokenLanYunToken = (): string | null => {
-  return localStorage.getItem(TOKEN_STORAGE_KEY)
+  return getDecryptedLocalStorageItem(TOKEN_STORAGE_KEY)
 }
 
 export const clearTokenLanYunToken = (): void => {
