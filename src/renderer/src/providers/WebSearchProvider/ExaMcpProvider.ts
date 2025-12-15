@@ -126,6 +126,55 @@ export default class ExaMcpProvider extends BaseWebSearchProvider {
     }
   }
 
+  private parsetextChunk(raw: string): ExaSearchResult[] {
+    const items: ExaSearchResult[] = []
+    for (const chunk of raw.split('\n\n')) {
+      // logger.debug('Parsing chunk:', {"chunks": chunk})
+      // 3. Parse the labeled lines inside the text block
+      const lines = chunk.split('\n')
+      // logger.debug('Lines:', lines);
+      let title = ''
+      let publishedDate = ''
+      let url = ''
+      let fullText = ''
+
+      // We’ll capture everything after the first "Text:" as the article text
+      let textStartIndex = -1
+
+      lines.forEach((line, idx) => {
+        if (line.startsWith('Title:')) {
+          title = line.replace(/^Title:\s*/, '')
+        } else if (line.startsWith('Published Date:')) {
+          publishedDate = line.replace(/^Published Date:\s*/, '')
+        } else if (line.startsWith('URL:')) {
+          url = line.replace(/^URL:\s*/, '')
+        } else if (line.startsWith('Text:') && textStartIndex === -1) {
+          // mark where "Text:" starts
+          textStartIndex = idx
+          // text on the same line after "Text: "
+          fullText = line.replace(/^Text:\s*/, '')
+        }
+      })
+      if (textStartIndex !== -1) {
+        const rest = lines.slice(textStartIndex + 1).join('\n')
+        if (rest.trim().length > 0) {
+          fullText = (fullText ? fullText + '\n' : '') + rest
+        }
+      }
+
+      // If we at least got a title or URL, treat it as a valid article
+      if (title || url || fullText) {
+        items.push({
+          title,
+          publishedDate,
+          url,
+          text: fullText
+        })
+      }
+    }
+    return items
+  }
+
   private parseResponse(responseText: string): ExaSearchResults {
     // Parse SSE response format
     const lines = responseText.split('\n')
@@ -135,10 +184,11 @@ export default class ExaMcpProvider extends BaseWebSearchProvider {
           const data: McpSearchResponse = JSON.parse(line.substring(6))
           if (data.result?.content?.[0]?.text) {
             // The text content contains stringified JSON with the actual results
-            return JSON.parse(data.result.content[0].text) as ExaSearchResults
+            return { results: this.parsetextChunk(data.result.content[0].text) }
           }
         } catch {
           // Continue to next line if parsing fails
+          logger.warn('Failed to parse SSE line:', { line })
         }
       }
     }
@@ -147,10 +197,11 @@ export default class ExaMcpProvider extends BaseWebSearchProvider {
     try {
       const data: McpSearchResponse = JSON.parse(responseText)
       if (data.result?.content?.[0]?.text) {
-        return JSON.parse(data.result.content[0].text) as ExaSearchResults
+        return { results: this.parsetextChunk(data.result.content[0].text) }
       }
     } catch {
       // Ignore parsing errors
+      logger.warn('Failed to parse direct JSON response:', { responseText })
     }
 
     return { results: [] }
