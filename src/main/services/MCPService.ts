@@ -250,9 +250,9 @@ class McpService {
         > => {
           // Create appropriate transport based on configuration
 
-          // Special case for nowLedgeMem - uses HTTP transport instead of in-memory
-          if (isBuiltinMCPServer(server) && server.name === BuiltinMCPServerNames.nowLedgeMem) {
-            const nowLedgeMemUrl = 'http://127.0.0.1:14242/mcp'
+          // Special case for nowledgeMem - uses HTTP transport instead of in-memory
+          if (isBuiltinMCPServer(server) && server.name === BuiltinMCPServerNames.nowledgeMem) {
+            const nowledgeMemUrl = 'http://127.0.0.1:14242/mcp'
             const options: StreamableHTTPClientTransportOptions = {
               fetch: async (url, init) => {
                 return net.fetch(typeof url === 'string' ? url : url.toString(), init)
@@ -266,7 +266,7 @@ class McpService {
               authProvider
             }
             getServerLogger(server).debug(`Using StreamableHTTPClientTransport for NowLedgeMem`)
-            return new StreamableHTTPClientTransport(new URL(nowLedgeMemUrl), options)
+            return new StreamableHTTPClientTransport(new URL(nowledgeMemUrl), options)
           }
 
           if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
