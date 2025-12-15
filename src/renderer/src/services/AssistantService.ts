@@ -38,7 +38,9 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   enableTopP: false,
   // It would gracefully fallback to prompt if not supported by model.
   toolUseMode: 'function',
-  customParameters: []
+  customParameters: [],
+  // Default reasoning_effort to 'none'
+  reasoning_effort: 'none'
 } as const satisfies AssistantSettings
 
 export function getDefaultAssistant(): Assistant {
