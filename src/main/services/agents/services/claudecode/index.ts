@@ -16,8 +16,7 @@ import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
-import { ConfigKeys, configManager } from '@main/services/ConfigManager'
-import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/process'
+import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { app } from 'electron'
 
@@ -112,13 +111,9 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     let customGitBashPath: string | null = null
     if (isWin) {
-      customGitBashPath = validateGitBashPath(configManager.get(ConfigKeys.GitBashPath))
-      if (!customGitBashPath) {
-        const discoveredPath = autoDiscoverGitBash()
-        customGitBashPath = discoveredPath
-        if (customGitBashPath) {
-          logger.info('Auto-discovered Git Bash path for Claude Code', { path: customGitBashPath })
-        }
+      customGitBashPath = autoDiscoverGitBash()
+      if (customGitBashPath) {
+        logger.info('Using Git Bash path for Claude Code', { path: customGitBashPath })
       }
     }
 
