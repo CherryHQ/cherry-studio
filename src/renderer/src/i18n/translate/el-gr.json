@@ -31,25 +31,25 @@
       }
     },
     "gitBash": {
-      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "autoDetected": "Χρήση αυτόματα εντοπισμένου Git Bash",
       "clear": {
-        "button": "[to be translated]:Clear custom path"
+        "button": "Εκκαθάριση προσαρμοσμένης διαδρομής"
       },
-      "customPath": "[to be translated]:Using custom path: {{path}}",
+      "customPath": "Χρήση προσαρμοσμένης διαδρομής: {{path}}",
       "error": {
         "description": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Ο πράκτορας δεν μπορεί να λειτουργήσει χωρίς αυτό. Παρακαλούμε εγκαταστήστε το Git για Windows από",
         "recheck": "Επανέλεγχος Εγκατάστασης του Git Bash",
         "title": "Απαιτείται Git Bash"
       },
       "found": {
-        "title": "[to be translated]:Git Bash configured"
+        "title": "Το Git Bash ρυθμίστηκε"
       },
       "notFound": "Το Git Bash δεν βρέθηκε. Παρακαλώ εγκαταστήστε το πρώτα.",
       "pick": {
-        "button": "[to be translated]:Select Git Bash Path",
-        "failed": "[to be translated]:Failed to set Git Bash path",
-        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
-        "title": "[to be translated]:Select Git Bash executable"
+        "button": "Επιλογή διαδρομής Git Bash",
+        "failed": "Αποτυχία ορισμού διαδρομής Git Bash",
+        "invalidPath": "Το επιλεγμένο αρχείο δεν είναι έγκυρο εκτελέσιμο Git Bash (bash.exe).",
+        "title": "Επιλογή εκτελέσιμου Git Bash"
       },
       "success": "Το Git Bash εντοπίστηκε με επιτυχία!"
     },
@@ -547,7 +547,7 @@
         "medium": "Μεσαίο",
         "minimal": "ελάχιστος",
         "off": "Απενεργοποίηση",
-        "xhigh": "[to be translated]:Extra High"
+        "xhigh": "Πολύ υψηλό"
       },
       "regular_phrases": {
         "add": "Προσθήκη φράσης",
@@ -3891,6 +3891,7 @@
         "mcp_auto_install": "Αυτόματη εγκατάσταση υπηρεσίας MCP (προβολή)",
         "memory": "Βασική υλοποίηση μόνιμης μνήμης με βάση τοπικό γράφημα γνώσης. Αυτό επιτρέπει στο μοντέλο να θυμάται πληροφορίες σχετικές με τον χρήστη ανάμεσα σε διαφορετικές συνομιλίες. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος MEMORY_FILE_PATH.",
         "no": "Χωρίς περιγραφή",
+        "nowledgeMem": "Το Nowledge Mem διατηρεί συνομιλίες AI, εργαλεία, σημειώσεις, πράκτορες και αρχεία που επιλέγετε σε μια ιδιωτική μνήμη στον υπολογιστή σας. Μάθετε περισσότερα στο https://mem.nowledge.co/",
         "python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",
         "sequentialthinking": "ένας εξυπηρετητής MCP που υλοποιείται, παρέχοντας εργαλεία για δυναμική και αναστοχαστική επίλυση προβλημάτων μέσω δομημένων διαδικασιών σκέψης"
       },

@@ -547,7 +547,7 @@
         "medium": "Moyen",
         "minimal": "minimal",
         "off": "Off",
-        "xhigh": "[to be translated]:Extra High"
+        "xhigh": "Très élevé"
       },
       "regular_phrases": {
         "add": "Добавить фразу",
@@ -3891,6 +3891,7 @@
         "mcp_auto_install": "Installation automatique du service MCP (version bêta)",
         "memory": "Implémentation de base de mémoire persistante basée sur un graphe de connaissances local. Cela permet au modèle de se souvenir des informations relatives à l'utilisateur entre différentes conversations. Nécessite la configuration de la variable d'environnement MEMORY_FILE_PATH.",
         "no": "sans description",
+        "nowledgeMem": "Nowledge Mem conserve les conversations IA, outils, notes, agents et fichiers de votre choix dans une mémoire privée sur votre ordinateur. En savoir plus sur https://mem.nowledge.co/",
         "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
         "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
       },
