@@ -827,7 +827,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         expect(configManager.set).toHaveBeenCalledWith('gitBashPath', bashPath)
       })
 
-      it('should not call configManager.set multiple times on single discovery', () => {
+      it('should persist on each discovery when config remains undefined', () => {
         const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
         const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
 
@@ -841,8 +841,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         autoDiscoverGitBash()
         autoDiscoverGitBash()
 
-        // Second call should find the mocked undefined config and persist again
-        // This tests that the function works correctly, not that it deduplicates
+        // Each call discovers and persists since config remains undefined (mocked)
         expect(configManager.set).toHaveBeenCalledTimes(2)
       })
     })
