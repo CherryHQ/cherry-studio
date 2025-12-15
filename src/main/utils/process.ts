@@ -237,7 +237,7 @@ export function autoDiscoverGitBash(): string | null {
   }
 
   // Only auto-discover if no path is configured
-  const existingPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
+  const existingPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
   if (existingPath) {
     return validateGitBashPath(existingPath)
   }
