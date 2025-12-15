@@ -62,7 +62,7 @@ export class StreamEventManager {
     const recursiveResult = await context.recursiveCall(recursiveParams)
 
     if (recursiveResult && recursiveResult.fullStream) {
-      await this.pipeRecursiveStream(controller, recursiveResult.fullStream, context)
+      await this.pipeRecursiveStream(controller, recursiveResult.fullStream)
     } else {
       console.warn('[MCP Prompt] No fullstream found in recursive result:', recursiveResult)
     }
@@ -74,11 +74,7 @@ export class StreamEventManager {
   /**
    * 将递归流的数据传递到当前流
    */
-  private async pipeRecursiveStream(
-    controller: StreamController,
-    recursiveStream: ReadableStream,
-    context?: AiRequestContext
-  ): Promise<void> {
+  private async pipeRecursiveStream(controller: StreamController, recursiveStream: ReadableStream): Promise<void> {
     const reader = recursiveStream.getReader()
     try {
       while (true) {
@@ -86,18 +82,14 @@ export class StreamEventManager {
         if (done) {
           break
         }
+        if (value.type === 'start') {
+          continue
+        }
+
         if (value.type === 'finish') {
-          // 迭代的流不发finish，但需要累加其 usage
-          if (value.usage && context?.accumulatedUsage) {
-            this.accumulateUsage(context.accumulatedUsage, value.usage)
-          }
           break
         }
-        // 对于 finish-step 类型，累加其 usage
-        if (value.type === 'finish-step' && value.usage && context?.accumulatedUsage) {
-          this.accumulateUsage(context.accumulatedUsage, value.usage)
-        }
-        // 将递归流的数据传递到当前流
+
         controller.enqueue(value)
       }
     } finally {
@@ -135,10 +127,8 @@ export class StreamEventManager {
     // 构建新的对话消息
     const newMessages: ModelMessage[] = [
       ...(context.originalParams.messages || []),
-      {
-        role: 'assistant',
-        content: textBuffer
-      },
+      // 只有当 textBuffer 有内容时才添加 assistant 消息，避免空消息导致 API 错误
+      ...(textBuffer ? [{ role: 'assistant' as const, content: textBuffer }] : []),
       {
         role: 'user',
         content: toolResultsText
@@ -161,7 +151,7 @@ export class StreamEventManager {
   /**
    * 累加 usage 数据
    */
-  private accumulateUsage(target: any, source: any): void {
+  accumulateUsage(target: any, source: any): void {
     if (!target || !source) return
 
     // 累加各种 token 类型

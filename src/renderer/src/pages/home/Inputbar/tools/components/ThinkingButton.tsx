@@ -5,7 +5,8 @@ import {
   MdiLightbulbOn,
   MdiLightbulbOn30,
   MdiLightbulbOn50,
-  MdiLightbulbOn80
+  MdiLightbulbOn80,
+  MdiLightbulbOn90
 } from '@renderer/components/Icons/SVGIcon'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
@@ -93,7 +94,7 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       level: option,
       label: getReasoningEffortOptionsLabel(option),
       description: '',
-      icon: ThinkingIcon(option),
+      icon: ThinkingIcon({ option }),
       isSelected: currentReasoningEffort === option,
       action: () => onThinkingChange(option)
     }))
@@ -135,7 +136,7 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       {
         label: t('assistants.settings.reasoning_effort.label'),
         description: '',
-        icon: ThinkingIcon(currentReasoningEffort),
+        icon: ThinkingIcon({ option: currentReasoningEffort }),
         isMenu: true,
         action: () => openQuickPanel()
       }
@@ -163,37 +164,43 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
         aria-label={ariaLabel}
         aria-pressed={currentReasoningEffort !== 'none'}
         style={isFixedReasoning ? { cursor: 'default' } : undefined}>
-        {ThinkingIcon(currentReasoningEffort)}
+        {ThinkingIcon({ option: currentReasoningEffort, isFixedReasoning })}
       </ActionIconButton>
     </Tooltip>
   )
 }
 
-const ThinkingIcon = (option?: ThinkingOption) => {
+const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boolean }) => {
   let IconComponent: React.FC<React.SVGProps<SVGSVGElement>> | null = null
-
-  switch (option) {
-    case 'minimal':
-      IconComponent = MdiLightbulbOn30
-      break
-    case 'low':
-      IconComponent = MdiLightbulbOn50
-      break
-    case 'medium':
-      IconComponent = MdiLightbulbOn80
-      break
-    case 'high':
-      IconComponent = MdiLightbulbOn
-      break
-    case 'auto':
-      IconComponent = MdiLightbulbAutoOutline
-      break
-    case 'none':
-      IconComponent = MdiLightbulbOffOutline
-      break
-    default:
-      IconComponent = MdiLightbulbOffOutline
-      break
+  if (props.isFixedReasoning) {
+    IconComponent = MdiLightbulbAutoOutline
+  } else {
+    switch (props.option) {
+      case 'minimal':
+        IconComponent = MdiLightbulbOn30
+        break
+      case 'low':
+        IconComponent = MdiLightbulbOn50
+        break
+      case 'medium':
+        IconComponent = MdiLightbulbOn80
+        break
+      case 'high':
+        IconComponent = MdiLightbulbOn90
+        break
+      case 'xhigh':
+        IconComponent = MdiLightbulbOn
+        break
+      case 'auto':
+        IconComponent = MdiLightbulbAutoOutline
+        break
+      case 'none':
+        IconComponent = MdiLightbulbOffOutline
+        break
+      default:
+        IconComponent = MdiLightbulbOffOutline
+        break
+    }
   }
 
   return <IconComponent className="icon" width={18} height={18} style={{ marginTop: -2 }} />

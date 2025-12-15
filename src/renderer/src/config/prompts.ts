@@ -306,7 +306,7 @@ export const SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY = `
   **Use user's language to rephrase the question.**
   Follow these guidelines:
   1. If the question is a simple writing task, greeting (e.g., Hi, Hello, How are you), or does not require searching for information (unless the greeting contains a follow-up question), return 'not_needed' in the 'question' XML block. This indicates that no search is required.
-  2. For knowledge, You need rewrite user query into 'rewrite' XML block with one alternative version while preserving the original intent and meaning. Also include the original question in the 'question' block.
+  2. For knowledge, You need rewrite user query into 'rewrite' XML block with one alternative version while preserving the original intent and meaning. Also include the rephrased or decomposed question(s) in the 'question' block.
   3. Always return the rephrased question inside the 'question' XML block.
   4. Always wrap the rephrased question in the appropriate XML blocks: use <knowledge></knowledge> for queries that can be answered from a pre-existing knowledge base. Ensure that the rephrased question is always contained within a <question></question> block inside the wrapper.
   5. *use knowledge to rephrase the question*

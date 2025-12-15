@@ -22,6 +22,7 @@ import {
   ArrowUpAZ,
   BrushCleaning,
   Check,
+  MoreVertical,
   Plus,
   Save,
   Settings2,
@@ -150,6 +151,14 @@ const AssistantItem: FC<AssistantItemProps> = ({
     [assistant.emoji, assistantName]
   )
 
+  const handleMoreClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      AssistantSettingsPopup.show({ assistant })
+    },
+    [assistant]
+  )
+
   return (
     <Dropdown
       menu={{ items: menuItems }}
@@ -174,8 +183,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
         {isActive && (
-          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-            <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
+          <MenuButton onClick={handleMoreClick}>
+            <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
           </MenuButton>
         )}
       </Container>
@@ -441,21 +450,6 @@ const MenuButton = ({
     {...props}
     className={cn(
       'absolute top-[6px] right-[9px] flex h-[22px] min-h-[22px] min-w-[22px] flex-row items-center justify-center rounded-[11px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
-      className
-    )}>
-    {children}
-  </div>
-)
-
-const TopicCount = ({
-  children,
-  className,
-  ...props
-}: PropsWithChildren<{} & React.HTMLAttributes<HTMLDivElement>>) => (
-  <div
-    {...props}
-    className={cn(
-      'flex flex-row items-center justify-center rounded-[10px] text-[10px] text-[var(--color-text)]',
       className
     )}>
     {children}

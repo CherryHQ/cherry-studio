@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Using auto-detected Git Bash",
+      "clear": {
+        "button": "Clear custom path"
+      },
+      "customPath": "Using custom path: {{path}}",
       "error": {
         "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
         "recheck": "Recheck Git Bash Installation",
         "title": "Git Bash Required"
       },
+      "found": {
+        "title": "Git Bash configured"
+      },
       "notFound": "Git Bash not found. Please install it first.",
+      "pick": {
+        "button": "Select Git Bash Path",
+        "failed": "Failed to set Git Bash path",
+        "invalidPath": "Selected file is not a valid Git Bash executable (bash.exe).",
+        "title": "Select Git Bash executable"
+      },
       "success": "Git Bash detected successfully!"
     },
     "input": {
@@ -471,6 +485,14 @@
         "url_placeholder": "Enter JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Batch Delete",
+          "confirm": "Are you sure you want to delete the selected {{count}} assistants?"
+        },
+        "mode": {
+          "delete": "Delete",
+          "sort": "Sort"
+        },
         "title": "Manage Assistants"
       },
       "my_agents": "My Assistants",
@@ -524,7 +546,8 @@
         "low": "Low",
         "medium": "Medium",
         "minimal": "Minimal",
-        "off": "Off"
+        "off": "Off",
+        "xhigh": "Extra High"
       },
       "regular_phrases": {
         "add": "Add Phrase",
@@ -1185,6 +1208,7 @@
     "saved": "Saved",
     "search": "Search",
     "select": "Select",
+    "select_all": "Select All",
     "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
@@ -2303,7 +2327,7 @@
     "failed": {
       "install": "Install OVMS failed:",
       "install_code_100": "Unknown Error",
-      "install_code_101": "Only supports Intel(R) Core(TM) Ultra CPU",
+      "install_code_101": "Only supports Intel(R) CPU",
       "install_code_102": "Only supports Windows",
       "install_code_103": "Download OVMS runtime failed",
       "install_code_104": "Failed to install OVMS runtime",
@@ -3913,6 +3937,7 @@
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
       "logoUrl": "Logo URL",
+      "logs": "Logs",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
       "marketplaces": "Marketplaces",
@@ -3932,6 +3957,7 @@
       "name": "Name",
       "newServer": "MCP Server",
       "noDescriptionAvailable": "No description available",
+      "noLogs": "No logs yet",
       "noServers": "No servers configured",
       "not_support": "Model not supported",
       "npx_list": {

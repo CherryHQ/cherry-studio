@@ -163,6 +163,7 @@ export const useKnowledge = (baseId: string) => {
         processingProgress: 0,
         processingError: '',
         uniqueId: undefined,
+        retryCount: 0,
         updated_at: Date.now()
       })
       checkAllBases()
@@ -182,6 +183,7 @@ export const useKnowledge = (baseId: string) => {
       processingProgress: 0,
       processingError: '',
       uniqueId: undefined,
+      retryCount: 0,
       updated_at: Date.now()
     })
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)

@@ -2979,7 +2979,13 @@ const migrateConfig = {
   },
   '183': (state: RootState) => {
     try {
-      addProvider(state, SystemProviderIds.memorylake)
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.cherryin) {
+          provider.apiHost = 'https://open.cherryin.cc'
+          provider.anthropicApiHost = 'https://open.cherryin.cc'
+        }
+      })
+      state.llm.providers = moveProvider(state.llm.providers, SystemProviderIds.poe, 10)
       logger.info('migrate 183 success')
       return state
     } catch (error) {
