@@ -6,6 +6,7 @@ import os from 'os'
 import path from 'path'
 
 import { isWin } from '../constant'
+import { ConfigKeys, configManager } from '../services/ConfigManager'
 import { getResourcePath } from '.'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -59,7 +60,7 @@ export async function getBinaryPath(name?: string): Promise<string> {
 
 export async function isBinaryExists(name: string): Promise<boolean> {
   const cmd = await getBinaryPath(name)
-  return await fs.existsSync(cmd)
+  return fs.existsSync(cmd)
 }
 
 /**
@@ -224,4 +225,30 @@ export function validateGitBashPath(customPath?: string | null): string | null {
 
   logger.debug('Validated custom Git Bash path', { path: resolved })
   return resolved
+}
+
+/**
+ * Auto-discover and persist Git Bash path if not already configured
+ * Only called when Git Bash is actually needed
+ */
+export function autoDiscoverGitBash(): string | null {
+  if (!isWin) {
+    return null
+  }
+
+  // Only auto-discover if no path is configured
+  const existingPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
+  if (existingPath) {
+    return validateGitBashPath(existingPath)
+  }
+
+  // Try to find Git Bash
+  const discoveredPath = findGitBash()
+  if (discoveredPath) {
+    // Persist the discovered path
+    configManager.set(ConfigKeys.GitBashPath, discoveredPath)
+    logger.info('Auto-discovered Git Bash path', { path: discoveredPath })
+  }
+
+  return discoveredPath
 }

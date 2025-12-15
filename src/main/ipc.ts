@@ -6,7 +6,13 @@ import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
-import { findGitBash, getBinaryPath, isBinaryExists, runInstallScript, validateGitBashPath } from '@main/utils/process'
+import {
+  autoDiscoverGitBash,
+  getBinaryPath,
+  isBinaryExists,
+  runInstallScript,
+  validateGitBashPath
+} from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { UpgradeChannel } from '@shared/config/constant'
@@ -493,15 +499,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
   ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
   ipcMain.handle(IpcChannel.System_GetCpuName, () => require('os').cpus()[0].model)
-  ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
+  ipcMain.handle(IpcChannel.System_CheckGitBash, async () => {
     if (!isWin) {
       return true // Non-Windows systems don't need Git Bash
     }
 
     try {
-      const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
-      const bashPath = findGitBash(customPath)
-
+      // Use autoDiscoverGitBash to handle auto-discovery and persistence
+      const bashPath = autoDiscoverGitBash()
       if (bashPath) {
         logger.info('Git Bash is available', { path: bashPath })
         return true
