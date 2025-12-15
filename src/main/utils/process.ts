@@ -230,13 +230,29 @@ export function validateGitBashPath(customPath?: string | null): string | null {
 /**
  * Auto-discover and persist Git Bash path if not already configured
  * Only called when Git Bash is actually needed
+ *
+ * Precedence order:
+ * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (highest - runtime override)
+ * 2. Configured path from settings
+ * 3. Auto-discovery via findGitBash
  */
 export function autoDiscoverGitBash(): string | null {
   if (!isWin) {
     return null
   }
 
-  // Check if a path is already configured
+  // 1. Check environment variable override first (highest priority)
+  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  if (envOverride) {
+    const validated = validateGitBashPath(envOverride)
+    if (validated) {
+      logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override', { path: validated })
+      return validated
+    }
+    logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
+  }
+
+  // 2. Check if a path is already configured
   const existingPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
   if (existingPath) {
     const validated = validateGitBashPath(existingPath)
@@ -247,7 +263,7 @@ export function autoDiscoverGitBash(): string | null {
     logger.warn('Existing Git Bash path is invalid, attempting auto-discovery', { path: existingPath })
   }
 
-  // Try to find Git Bash
+  // 3. Try to find Git Bash via auto-discovery
   const discoveredPath = findGitBash()
   if (discoveredPath) {
     // Persist the discovered path (overwrites invalid path if present)

@@ -747,6 +747,67 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       })
     })
 
+    describe('environment variable precedence', () => {
+      it('should use env var over valid config path', () => {
+        const envPath = 'C:\\EnvGit\\bin\\bash.exe'
+        const configPath = 'C:\\ConfigGit\\bin\\bash.exe'
+
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+        vi.mocked(configManager.get).mockReturnValue(configPath)
+        vi.mocked(fs.existsSync).mockImplementation((p) => {
+          return p === envPath || p === configPath
+        })
+
+        const result = autoDiscoverGitBash()
+
+        // Env var should take precedence
+        expect(result).toBe(envPath)
+        // Should not persist env var path (it's a runtime override)
+        expect(configManager.set).not.toHaveBeenCalled()
+      })
+
+      it('should fall back to config path when env var is invalid', () => {
+        const envPath = 'C:\\Invalid\\bash.exe'
+        const configPath = 'C:\\ConfigGit\\bin\\bash.exe'
+
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+        vi.mocked(configManager.get).mockReturnValue(configPath)
+        vi.mocked(fs.existsSync).mockImplementation((p) => {
+          // Env path is invalid (doesn't exist)
+          if (p === envPath) return false
+          return p === configPath
+        })
+
+        const result = autoDiscoverGitBash()
+
+        // Should fall back to config path
+        expect(result).toBe(configPath)
+        expect(configManager.set).not.toHaveBeenCalled()
+      })
+
+      it('should fall back to auto-discovery when both env var and config are invalid', () => {
+        const envPath = 'C:\\InvalidEnv\\bash.exe'
+        const configPath = 'C:\\InvalidConfig\\bash.exe'
+        const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+        process.env.ProgramFiles = 'C:\\Program Files'
+        vi.mocked(configManager.get).mockReturnValue(configPath)
+        vi.mocked(fs.existsSync).mockImplementation((p) => {
+          // Both env and config paths are invalid
+          if (p === envPath || p === configPath) return false
+          // But standard Git installation exists
+          return p === gitPath || p === discoveredPath
+        })
+
+        const result = autoDiscoverGitBash()
+
+        expect(result).toBe(discoveredPath)
+        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', discoveredPath)
+      })
+    })
+
     describe('with valid existing config path', () => {
       it('should validate and return existing path without re-discovering', () => {
         const existingPath = 'C:\\CustomGit\\bin\\bash.exe'
