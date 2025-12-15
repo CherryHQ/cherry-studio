@@ -546,7 +546,8 @@
         "low": "少しの思考",
         "medium": "普通の思考",
         "minimal": "最小限の思考",
-        "off": "オフ"
+        "off": "オフ",
+        "xhigh": "[to be translated]:Extra High"
       },
       "regular_phrases": {
         "add": "プロンプトを追加",

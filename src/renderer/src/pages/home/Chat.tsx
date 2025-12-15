@@ -180,7 +180,8 @@ const Chat: FC<Props> = (props) => {
       <HStack>
         <motion.div
           animate={{
-            marginRight: topicPosition === 'right' && showTopics ? 'var(--assistants-width)' : 0
+            marginRight:
+              topicPosition === 'right' && showTopics ? 'calc(var(--assistants-width) + var(--border-width))' : 0
           }}
           transition={{ duration: 0.3, ease: 'easeInOut' }}
           style={{ flex: 1, display: 'flex', minWidth: 0 }}>

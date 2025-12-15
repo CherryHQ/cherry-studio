@@ -102,16 +102,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/azure@npm:^2.0.74":
-  version: 2.0.74
-  resolution: "@ai-sdk/azure@npm:2.0.74"
+"@ai-sdk/azure@npm:^2.0.87":
+  version: 2.0.87
+  resolution: "@ai-sdk/azure@npm:2.0.87"
   dependencies:
-    "@ai-sdk/openai": "npm:2.0.72"
+    "@ai-sdk/openai": "npm:2.0.85"
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
+    "@ai-sdk/provider-utils": "npm:3.0.19"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/dccd1959ef43034a0559cdc862af7f351c0a997a56dbeb68b1c844f67d3ff7920f43890e1d18546600eeaac1c54f0c94943b6ce0b43ba4d44ddc3a829b8a71dd
+  checksum: 10c0/77b0c74966144c3ca715e8357bd36502bd7055edb74a4005d9537cf9175cd9b33df32164a5e3f1925b1d311ed1a4eaf5b8fad6abdb81e1b6c14ba5ea78479f34
   languageName: node
   linkType: hard
 
@@ -266,27 +266,27 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@npm:2.0.72":
-  version: 2.0.72
-  resolution: "@ai-sdk/openai@npm:2.0.72"
+"@ai-sdk/openai@npm:2.0.85":
+  version: 2.0.85
+  resolution: "@ai-sdk/openai@npm:2.0.85"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
+    "@ai-sdk/provider-utils": "npm:3.0.19"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/64fb8b7b2627b16e1fdcb3a7dd8d26f34d054b3f7bba5de6ef579f1c12c91246d0682caa36c5dae5ed2f29b462cc6013a38d9e80234819030fbf1730e7f8da50
+  checksum: 10c0/c8e50de443d939d7a5d7444e1a2ff35357d05dd3add0fca8226b578b199f4ca53c8a9e22c376e88006466b86e39c88d7ceca790a6a866300e3964ad24756d580
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.72#~/.yarn/patches/@ai-sdk-openai-npm-2.0.72-234e68da87.patch":
-  version: 2.0.72
-  resolution: "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.72#~/.yarn/patches/@ai-sdk-openai-npm-2.0.72-234e68da87.patch::version=2.0.72&hash=126b76"
+"@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.85#~/.yarn/patches/@ai-sdk-openai-npm-2.0.85-27483d1d6a.patch":
+  version: 2.0.85
+  resolution: "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.85#~/.yarn/patches/@ai-sdk-openai-npm-2.0.85-27483d1d6a.patch::version=2.0.85&hash=81ee54"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
+    "@ai-sdk/provider-utils": "npm:3.0.19"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/fec21ab02aff999b487abdd02c32d526580d47cdf83dd74b02f8faf1423b63ab7da3c374b7a98a15bb94fdcb6deb2851381ce0f52b92c9c030dee06ff2dcf71d
+  checksum: 10c0/8fd0e4e63840b0ceb3fbf61b567e3318edfd5c3177b502076fb04b340ef8ea0a6b4cb95e4c6f7634b3bd8661ef0b69828a22b5434542c8e7d3488bff291e99c1
   languageName: node
   linkType: hard
 
@@ -325,6 +325,19 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/209c15b0dceef0ba95a7d3de544be0a417ad4a0bd5143496b3966a35fedf144156d93a42ff8c3d7db56781b9836bafc8c132c98978c49240e55bc1a36e18a67f
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/provider-utils@npm:3.0.19":
+  version: 3.0.19
+  resolution: "@ai-sdk/provider-utils@npm:3.0.19"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@standard-schema/spec": "npm:^1.0.0"
+    eventsource-parser: "npm:^3.0.6"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/e4decb19264067fa1b1642e07d515d25d1509a1a9143f59ccc051e3ca413c9fb1d708e1052a70eaf329ca39ddf6152520cd833dbf8c95d9bf02bbeffae8ea363
   languageName: node
   linkType: hard
 
@@ -1853,7 +1866,7 @@ __metadata:
   resolution: "@cherrystudio/ai-core@workspace:packages/aiCore"
   dependencies:
     "@ai-sdk/anthropic": "npm:^2.0.49"
-    "@ai-sdk/azure": "npm:^2.0.74"
+    "@ai-sdk/azure": "npm:^2.0.87"
     "@ai-sdk/deepseek": "npm:^1.0.31"
     "@ai-sdk/openai-compatible": "patch:@ai-sdk/openai-compatible@npm%3A1.0.27#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.27-06f74278cf.patch"
     "@ai-sdk/provider": "npm:^2.0.0"
@@ -2110,9 +2123,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@cherrystudio/openai@npm:^6.9.0":
-  version: 6.9.0
-  resolution: "@cherrystudio/openai@npm:6.9.0"
+"@cherrystudio/openai@npm:^6.12.0":
+  version: 6.12.0
+  resolution: "@cherrystudio/openai@npm:6.12.0"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.25 || ^4.0
@@ -2123,7 +2136,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/9c51ef33c5b9d08041a115e3d6a8158412a379998a0eae186923d5bdcc808b634c1fef4471a1d499bb8c624b04c075167bc90a1a60a805005c0657ecebbb58d0
+  checksum: 10c0/6831a603141b05508e11ea365279b57311424f9db578028d72d9bae8473e09d5fe12b1fbc0b471cabc0b3adb67339d845b6b8f6f8be4cded0e98e5a6ea25efc8
   languageName: node
   linkType: hard
 
@@ -10042,7 +10055,7 @@ __metadata:
     "@ai-sdk/google-vertex": "npm:^3.0.79"
     "@ai-sdk/huggingface": "npm:^0.0.10"
     "@ai-sdk/mistral": "npm:^2.0.24"
-    "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.72#~/.yarn/patches/@ai-sdk-openai-npm-2.0.72-234e68da87.patch"
+    "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.85#~/.yarn/patches/@ai-sdk-openai-npm-2.0.85-27483d1d6a.patch"
     "@ai-sdk/perplexity": "npm:^2.0.20"
     "@ai-sdk/test-server": "npm:^0.0.1"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
@@ -10067,7 +10080,7 @@ __metadata:
     "@cherrystudio/embedjs-ollama": "npm:^0.1.31"
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
     "@cherrystudio/extension-table-plus": "workspace:^"
-    "@cherrystudio/openai": "npm:^6.9.0"
+    "@cherrystudio/openai": "npm:^6.12.0"
     "@dnd-kit/core": "npm:^6.3.1"
     "@dnd-kit/modifiers": "npm:^9.0.0"
     "@dnd-kit/sortable": "npm:^10.0.0"
@@ -10257,7 +10270,7 @@ __metadata:
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.2.0"
-    ollama-ai-provider-v2: "npm:^1.5.5"
+    ollama-ai-provider-v2: "patch:ollama-ai-provider-v2@npm%3A1.5.5#~/.yarn/patches/ollama-ai-provider-v2-npm-1.5.5-8bef249af9.patch"
     os-proxy-config: "npm:^1.1.2"
     oxlint: "npm:^1.22.0"
     oxlint-tsgolint: "npm:^0.2.0"
@@ -19960,7 +19973,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ollama-ai-provider-v2@npm:^1.5.5":
+"ollama-ai-provider-v2@npm:1.5.5":
   version: 1.5.5
   resolution: "ollama-ai-provider-v2@npm:1.5.5"
   dependencies:
@@ -19969,6 +19982,18 @@ __metadata:
   peerDependencies:
     zod: ^4.0.16
   checksum: 10c0/da40c8097bd8205c46eccfbd13e77c51a6ce97a29b886adfc9e1b8444460b558138d1ed4428491fcc9378d46f649dd0a9b1e5b13cf6bbc8f5385e8b321734e72
+  languageName: node
+  linkType: hard
+
+"ollama-ai-provider-v2@patch:ollama-ai-provider-v2@npm%3A1.5.5#~/.yarn/patches/ollama-ai-provider-v2-npm-1.5.5-8bef249af9.patch":
+  version: 1.5.5
+  resolution: "ollama-ai-provider-v2@patch:ollama-ai-provider-v2@npm%3A1.5.5#~/.yarn/patches/ollama-ai-provider-v2-npm-1.5.5-8bef249af9.patch::version=1.5.5&hash=16c016"
+  dependencies:
+    "@ai-sdk/provider": "npm:^2.0.0"
+    "@ai-sdk/provider-utils": "npm:^3.0.17"
+  peerDependencies:
+    zod: ^4.0.16
+  checksum: 10c0/aa6bd3415d08f7bbd1a3051f45b1cd3a8fa8bb01413e98de45e8888f64e6b12bca6e340453a3e82e4193ca5354397f524c6c0f7b3e9996d70f53c81374c69180
   languageName: node
   linkType: hard
 

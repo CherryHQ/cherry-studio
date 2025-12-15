@@ -11,7 +11,10 @@ import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
   isGPT5ProModel,
   isGPT5SeriesModel,
+  isGPT51CodexMaxModel,
   isGPT51SeriesModel,
+  isGPT52ProModel,
+  isGPT52SeriesModel,
   isOpenAIDeepResearchModel,
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
@@ -33,7 +36,10 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   gpt5_codex: ['low', 'medium', 'high'] as const,
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
   gpt5_1_codex: ['none', 'medium', 'high'] as const,
+  gpt5_1_codex_max: ['none', 'medium', 'high', 'xhigh'] as const,
+  gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
+  gpt52pro: ['medium', 'high', 'xhigh'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
@@ -60,6 +66,9 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
   gpt5_1: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1,
   gpt5_1_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex,
+  gpt5_2: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2,
+  gpt5_1_codex_max: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max,
+  gpt52pro: MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   grok4_fast: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
   gemini: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
@@ -84,6 +93,7 @@ const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idR
   }
 }
 
+// TODO: add ut
 const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
@@ -93,8 +103,16 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   if (isGPT51SeriesModel(model)) {
     if (modelId.includes('codex')) {
       thinkingModelType = 'gpt5_1_codex'
+      if (isGPT51CodexMaxModel(model)) {
+        thinkingModelType = 'gpt5_1_codex_max'
+      }
     } else {
       thinkingModelType = 'gpt5_1'
+    }
+  } else if (isGPT52SeriesModel(model)) {
+    thinkingModelType = 'gpt5_2'
+    if (isGPT52ProModel(model)) {
+      thinkingModelType = 'gpt52pro'
     }
   } else if (isGPT5SeriesModel(model)) {
     if (modelId.includes('codex')) {
@@ -370,7 +388,7 @@ export function isQwenAlwaysThinkModel(model?: Model): boolean {
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?(?!-(?:thinking)(?:-|$)))(?:-[\w-]+)*/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?(?!-(?:thinking)(?:-|$))|seed-code(?:-preview)?(?:-\d+)?)(?:-[\w-]+)*/i
 
 // 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
 // Auto thinking is no longer supported after version 251015, see https://console.volcengine.com/ark/region:ark+cn-beijing/model/detail?Id=doubao-seed-1-6

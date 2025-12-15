@@ -546,7 +546,8 @@
         "low": "Low",
         "medium": "Medium",
         "minimal": "Minimal",
-        "off": "Off"
+        "off": "Off",
+        "xhigh": "Extra High"
       },
       "regular_phrases": {
         "add": "Add Phrase",
@@ -2326,7 +2327,7 @@
     "failed": {
       "install": "Install OVMS failed:",
       "install_code_100": "Unknown Error",
-      "install_code_101": "Only supports Intel(R) Core(TM) Ultra CPU",
+      "install_code_101": "Only supports Intel(R) CPU",
       "install_code_102": "Only supports Windows",
       "install_code_103": "Download OVMS runtime failed",
       "install_code_104": "Failed to install OVMS runtime",

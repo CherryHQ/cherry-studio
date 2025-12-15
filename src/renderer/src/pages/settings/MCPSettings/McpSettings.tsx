@@ -817,7 +817,7 @@ const McpSettings: React.FC = () => {
         width={720}
         centered
         transitionName="animation-move-down"
-        bodyStyle={{ maxHeight: '60vh', minHeight: '40vh', overflowY: 'auto' }}
+        bodyStyle={{ maxHeight: '70vh', minHeight: '40vh', overflowY: 'auto' }}
         afterOpenChange={(open) => {
           if (open) {
             fetchServerLogs()
@@ -861,14 +861,16 @@ const AdvancedSettingsButton = styled.div`
   align-items: center;
 `
 
-const LogList = styled.div`
+const LogList = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding-bottom: 15px;
+  padding-top: 5px;
 `
 
 const LogItem = styled.div`
-  background: var(--color-bg-2, #1f1f1f);
+  background: var(--color-background-mute, #1f1f1f);
   color: var(--color-text-1, #e6e6e6);
   border-radius: 8px;
   padding: 10px 12px;

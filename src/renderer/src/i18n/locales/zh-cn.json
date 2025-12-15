@@ -546,7 +546,8 @@
         "low": "浮想",
         "medium": "斟酌",
         "minimal": "微念",
-        "off": "关闭"
+        "off": "关闭",
+        "xhigh": "穷究"
       },
       "regular_phrases": {
         "add": "添加短语",
@@ -2326,7 +2327,7 @@
     "failed": {
       "install": "安装 OVMS 失败:",
       "install_code_100": "未知错误",
-      "install_code_101": "仅支持 Intel(R) Core(TM) Ultra CPU",
+      "install_code_101": "仅支持 Intel(R) CPU",
       "install_code_102": "仅支持 Windows",
       "install_code_103": "下载 OVMS runtime 失败",
       "install_code_104": "安装 OVMS runtime 失败",

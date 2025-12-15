@@ -259,7 +259,7 @@ describe('websearch utils', () => {
 
         expect(result).toEqual({
           xai: {
-            maxSearchResults: 50,
+            maxSearchResults: 30,
             returnCitations: true,
             sources: [{ type: 'web', excludedWebsites: [] }, { type: 'news' }, { type: 'x' }],
             mode: 'on'
