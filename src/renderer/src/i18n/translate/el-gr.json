@@ -31,25 +31,25 @@
       }
     },
     "gitBash": {
-      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "autoDetected": "Χρησιμοποιείται αυτόματα εντοπισμένο Git Bash",
       "clear": {
-        "button": "[to be translated]:Clear custom path"
+        "button": "Διαγραφή προσαρμοσμένης διαδρομής"
       },
-      "customPath": "[to be translated]:Using custom path: {{path}}",
+      "customPath": "Χρησιμοποιείται προσαρμοσμένη διαδρομή: {{path}}",
       "error": {
         "description": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Ο πράκτορας δεν μπορεί να λειτουργήσει χωρίς αυτό. Παρακαλούμε εγκαταστήστε το Git για Windows από",
         "recheck": "Επανέλεγχος Εγκατάστασης του Git Bash",
         "title": "Απαιτείται Git Bash"
       },
       "found": {
-        "title": "[to be translated]:Git Bash configured"
+        "title": "Το Git Bash διαμορφώθηκε"
       },
       "notFound": "Το Git Bash δεν βρέθηκε. Παρακαλώ εγκαταστήστε το πρώτα.",
       "pick": {
-        "button": "[to be translated]:Select Git Bash Path",
-        "failed": "[to be translated]:Failed to set Git Bash path",
-        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
-        "title": "[to be translated]:Select Git Bash executable"
+        "button": "Επιλογή διαδρομής Git Bash",
+        "failed": "Αποτυχία ορισμού διαδρομής Git Bash",
+        "invalidPath": "Το επιλεγμένο αρχείο δεν είναι έγκυρο εκτελέσιμο Git Bash (bash.exe).",
+        "title": "Επιλογή εκτελέσιμου Git Bash"
       },
       "success": "Το Git Bash εντοπίστηκε με επιτυχία!"
     },
@@ -547,7 +547,7 @@
         "medium": "Μεσαίο",
         "minimal": "ελάχιστος",
         "off": "Απενεργοποίηση",
-        "xhigh": "[to be translated]:Extra High"
+        "xhigh": "Εξαιρετικά Υψηλή"
       },
       "regular_phrases": {
         "add": "Προσθήκη φράσης",
@@ -3884,6 +3884,7 @@
       "builtinServers": "Ενσωματωμένοι Διακομιστές",
       "builtinServersDescriptions": {
         "brave_search": "μια εφαρμογή διακομιστή MCP που ενσωματώνει το Brave Search API, παρέχοντας δυνατότητες αναζήτησης στον ιστό και τοπικής αναζήτησης. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος BRAVE_API_KEY",
+        "browser": "Ελέγχει ένα headless παράθυρο Electron μέσω του Chrome DevTools Protocol. Εργαλεία: άνοιγμα URL, εκτέλεση JS μίας γραμμής, επαναφορά συνεδρίας.",
         "didi_mcp": "Διακομιστής DiDi MCP που παρέχει υπηρεσίες μεταφοράς συμπεριλαμβανομένης της αναζήτησης χαρτών, εκτίμησης τιμών, διαχείρισης παραγγελιών και παρακολούθησης οδηγών. Διαθέσιμο μόνο στην ηπειρωτική Κίνα. Απαιτεί διαμόρφωση της μεταβλητής περιβάλλοντος DIDI_API_KEY",
         "dify_knowledge": "Η υλοποίηση του Dify για τον διακομιστή MCP, παρέχει μια απλή API για να αλληλεπιδρά με το Dify. Απαιτείται η ρύθμιση του κλειδιού Dify",
         "fetch": "Εξυπηρετητής MCP για λήψη περιεχομένου ιστοσελίδας URL",
