@@ -7,7 +7,9 @@
         "invalid_agent": "無效的 Agent"
       },
       "model": {
-        "tooltip": "目前，僅支援 Anthropic 端點的模型可供代理功能使用。"
+        "supported_providers": "支援的服務商",
+        "tooltip": "目前，僅支援 Anthropic 端點的模型可供代理功能使用。",
+        "view_providers": "檢視支援的服務商"
       },
       "title": "新增 Agent",
       "type": {
@@ -4578,6 +4580,11 @@
       },
       "docs_check": "檢查",
       "docs_more_details": "檢視更多細節",
+      "filter": {
+        "agent": "支援 Agent",
+        "all": "全部服務商"
+      },
+      "filter_agent": "篩選支援 Agent 的服務商",
       "get_api_key": "點選這裡取得金鑰",
       "misc": "其他",
       "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",

@@ -7,7 +7,9 @@
         "invalid_agent": "Ungültiger Agent"
       },
       "model": {
-        "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen."
+        "supported_providers": "Unterstützte Anbieter",
+        "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen.",
+        "view_providers": "Unterstützte Anbieter anzeigen"
       },
       "title": "Agent hinzufügen",
       "type": {
@@ -4578,6 +4580,11 @@
       },
       "docs_check": "Anzeigen",
       "docs_more_details": "Weitere Details anzeigen",
+      "filter": {
+        "agent": "Vom Agenten unterstützt",
+        "all": "Alle Anbieter"
+      },
+      "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
       "misc": "Sonstige",
       "no_models_for_check": "Keine testbaren Modelle (z.B. Chat-Modelle)",
