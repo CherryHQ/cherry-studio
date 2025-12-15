@@ -97,27 +97,18 @@
 
   Call checkVCRedist
   ${If} $0 != "1"
-    MessageBox MB_YESNO "\
-      NOTE: ${PRODUCT_NAME} requires $\r$\n\
-      'Microsoft Visual C++ Redistributable'$\r$\n\
-      to function properly.$\r$\n$\r$\n\
-      Download and install now?" /SD IDYES IDYES InstallVCRedist IDNO DontInstall
-    InstallVCRedist:
-      inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable..." "https://aka.ms/vs/17/release/vc_redist.x64.exe" "$TEMP\vc_redist.x64.exe"
-      ExecWait "$TEMP\vc_redist.x64.exe /install /norestart"
-      ;IfErrors InstallError ContinueInstall ; vc_redist exit code is unreliable :(
-      Call checkVCRedist
-      ${If} $0 == "1"
-        Goto ContinueInstall
-      ${EndIf}
-
-    ;InstallError:
+    ; Automatically download and install VC++ Redistributable without asking
+    inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable..." "https://aka.ms/vs/17/release/vc_redist.x64.exe" "$TEMP\vc_redist.x64.exe"
+    ExecWait "$TEMP\vc_redist.x64.exe /install /norestart"
+    ;IfErrors InstallError ContinueInstall ; vc_redist exit code is unreliable :(
+    Call checkVCRedist
+    ${If} $0 != "1"
       MessageBox MB_ICONSTOP "\
         There was an unexpected error installing$\r$\n\
         Microsoft Visual C++ Redistributable.$\r$\n\
         The installation of ${PRODUCT_NAME} cannot continue."
-    DontInstall:
       Abort
+    ${EndIf}
   ${EndIf}
   ContinueInstall:
     Pop $4
