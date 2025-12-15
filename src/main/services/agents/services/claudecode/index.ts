@@ -115,7 +115,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       customGitBashPath = validateGitBashPath(configManager.get(ConfigKeys.GitBashPath))
       if (!customGitBashPath) {
         const discoveredPath = autoDiscoverGitBash()
-        customGitBashPath = validateGitBashPath(discoveredPath)
+        customGitBashPath = discoveredPath
         if (customGitBashPath) {
           logger.info('Auto-discovered Git Bash path for Claude Code', { path: customGitBashPath })
         }
