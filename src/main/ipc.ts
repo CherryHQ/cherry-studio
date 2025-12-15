@@ -499,7 +499,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
   ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
   ipcMain.handle(IpcChannel.System_GetCpuName, () => require('os').cpus()[0].model)
-  ipcMain.handle(IpcChannel.System_CheckGitBash, async () => {
+  ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
     if (!isWin) {
       return true // Non-Windows systems don't need Git Bash
     }
