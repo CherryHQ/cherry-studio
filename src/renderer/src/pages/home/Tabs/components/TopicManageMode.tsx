@@ -2,11 +2,12 @@ import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import type { Assistant, Topic } from '@renderer/types'
+import { cn } from '@renderer/utils'
 import { Dropdown, Tooltip } from 'antd'
 import { CheckSquare, FolderOpen, Search, Square, Trash2, XIcon } from 'lucide-react'
+import type { FC, PropsWithChildren, Ref } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 export interface TopicManageModeState {
   isManageMode: boolean
@@ -311,7 +312,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
             </Dropdown>
           )}
           <Tooltip title={t('common.delete')}>
-            <ManageIconButton className="danger" onClick={handleDeleteSelected} disabled={selectedIds.size === 0}>
+            <ManageIconButton danger onClick={handleDeleteSelected} disabled={selectedIds.size === 0}>
               <Trash2 size={16} />
             </ManageIconButton>
           </Tooltip>
@@ -327,132 +328,84 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
   )
 }
 
-// Styled components
-const ManagePanel = styled.div`
-  position: absolute;
-  bottom: 15px;
-  left: 12px;
-  width: calc(var(--assistants-width) - 24px);
-  background-color: var(--color-background);
-  border-radius: 12px;
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  z-index: 100;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    0 0 0 1px var(--color-border);
-`
+// Tailwind components
+const ManagePanel: FC<PropsWithChildren> = ({ children }) => (
+  <div className="absolute bottom-[15px] left-[12px] z-[100] flex w-[calc(var(--assistants-width)-24px)] flex-row items-center rounded-xl bg-[var(--color-background)] px-3 py-2 shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_0_1px_var(--color-border)]">
+    {children}
+  </div>
+)
 
-const ManagePanelContent = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-`
+const ManagePanelContent: FC<PropsWithChildren> = ({ children }) => (
+  <div className="flex w-full min-w-0 flex-row items-center gap-1 overflow-hidden">{children}</div>
+)
 
-const ManageIconButton = styled.button<{ disabled?: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 50%;
-  background-color: transparent;
-  color: var(--color-text-2);
-  cursor: ${(props) => (props.disabled ? 'not-allowed' : 'pointer')};
-  opacity: ${(props) => (props.disabled ? 0.4 : 1)};
-  transition: all 0.2s;
-  flex-shrink: 0;
+interface ManageIconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  danger?: boolean
+}
 
-  &:hover:not(:disabled) {
-    background-color: var(--color-background-mute);
-    color: var(--color-text-1);
-  }
+const ManageIconButton: FC<PropsWithChildren<ManageIconButtonProps>> = ({
+  children,
+  className,
+  danger,
+  disabled,
+  ...props
+}) => (
+  <button
+    {...props}
+    type="button"
+    disabled={disabled}
+    className={cn(
+      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent text-[var(--color-text-2)] transition-all duration-200',
+      disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
+      !disabled && !danger && 'hover:bg-[var(--color-background-mute)] hover:text-[var(--color-text-1)]',
+      danger && 'text-[var(--color-error)]',
+      danger && !disabled && 'hover:bg-[var(--color-error)] hover:text-white [&:hover>svg]:text-white',
+      className
+    )}>
+    {children}
+  </button>
+)
 
-  &.danger {
-    color: var(--color-error);
+const ManageDivider: FC = () => <div className="mx-1 h-5 w-px bg-[var(--color-border)]" />
 
-    &:hover:not(:disabled) {
-      background-color: var(--color-error);
-      color: white !important;
+const LeftGroup: FC<PropsWithChildren> = ({ children }) => <div className="flex items-center gap-1">{children}</div>
 
-      svg {
-        color: white !important;
-      }
-    }
-  }
-`
+const RightGroup: FC<PropsWithChildren> = ({ children }) => (
+  <div className="ml-auto flex items-center gap-1">{children}</div>
+)
 
-const ManageDivider = styled.div`
-  width: 1px;
-  height: 20px;
-  background-color: var(--color-border);
-  margin: 0 4px;
-`
+const SelectedBadge: FC<PropsWithChildren<React.HTMLAttributes<HTMLSpanElement>>> = ({
+  children,
+  className,
+  ...props
+}) => (
+  <span
+    {...props}
+    className={cn(
+      'inline-flex h-[18px] min-w-[18px] cursor-pointer items-center justify-center rounded-[9px] bg-[var(--color-primary)] px-[5px] font-medium text-[11px] text-white transition-opacity duration-200 hover:opacity-[0.85]',
+      className
+    )}>
+    {children}
+  </span>
+)
 
-const LeftGroup = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
+const SearchInputWrapper: FC<PropsWithChildren> = ({ children }) => (
+  <div className="mx-1 flex min-w-0 flex-1 items-center gap-1">{children}</div>
+)
 
-const RightGroup = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-`
+interface SearchInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  ref?: Ref<HTMLInputElement>
+}
 
-const SelectedBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background-color: var(--color-primary);
-  color: white;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.2s;
-
-  &:hover {
-    opacity: 0.85;
-  }
-`
-
-const SearchInputWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-  gap: 4px;
-  margin-left: 4px;
-  margin-right: 4px;
-`
-
-const SearchInput = styled.input`
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background-color: transparent;
-  color: var(--color-text-1);
-  font-size: 13px;
-  outline: none;
-
-  &::placeholder {
-    color: var(--color-text-3);
-  }
-`
+const SearchInput: FC<SearchInputProps> = ({ className, ref, ...props }) => (
+  <input
+    {...props}
+    ref={ref}
+    className={cn(
+      'h-7 min-w-0 flex-1 border-none bg-transparent p-0 text-[13px] text-[var(--color-text-1)] outline-none placeholder:text-[var(--color-text-3)]',
+      className
+    )}
+  />
+)
 
 export default TopicManagePanel
