@@ -31,6 +31,11 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
       apiKey: 'https://dashboard.exa.ai/api-keys'
     }
   },
+  'exa-mcp': {
+    websites: {
+      official: 'https://exa.ai'
+    }
+  },
   bocha: {
     websites: {
       official: 'https://bochaai.com',
@@ -79,6 +84,11 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     name: 'Exa',
     apiHost: 'https://api.exa.ai',
     apiKey: ''
+  },
+  {
+    id: 'exa-mcp',
+    name: 'ExaMCP',
+    apiHost: 'https://mcp.exa.ai/mcp'
   },
   {
     id: 'bocha',
