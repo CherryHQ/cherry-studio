@@ -541,14 +541,22 @@
       "prompt": "提示词设置",
       "reasoning_effort": {
         "auto": "自动",
+        "auto_description": "灵活决定推理力度",
         "default": "默认",
+        "default_description": "依赖模型默认行为，不作任何配置",
         "high": "沉思",
+        "high_description": "高强度推理",
         "label": "思维链长度",
         "low": "浮想",
+        "low_description": "低强度推理",
         "medium": "斟酌",
+        "medium_description": "中强度推理",
         "minimal": "微念",
+        "minimal_description": "最小程度的思考",
         "off": "关闭",
-        "xhigh": "穷究"
+        "off_description": "禁用推理",
+        "xhigh": "穷究",
+        "xhigh_description": "超高强度推理"
       },
       "regular_phrases": {
         "add": "添加短语",

@@ -541,14 +541,22 @@
       "prompt": "Prompt Settings",
       "reasoning_effort": {
         "auto": "Auto",
+        "auto_description": "Flexibly determine reasoning effort",
         "default": "Default",
+        "default_description": "Depend on the model's default behavior, without any configuration.",
         "high": "High",
+        "high_description": "High level reasoning",
         "label": "Reasoning effort",
         "low": "Low",
+        "low_description": "Low level reasoning",
         "medium": "Medium",
+        "medium_description": "Medium level reasoning",
         "minimal": "Minimal",
+        "minimal_description": "Minimal reasoning",
         "off": "Off",
-        "xhigh": "Extra High"
+        "off_description": "Disable reasoning",
+        "xhigh": "Extra High",
+        "xhigh_description": "Extra high level reasoning"
       },
       "regular_phrases": {
         "add": "Add Phrase",

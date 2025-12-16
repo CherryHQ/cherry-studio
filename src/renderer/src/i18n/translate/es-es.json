@@ -541,14 +541,22 @@
       "prompt": "Configuración de Palabras Clave",
       "reasoning_effort": {
         "auto": "Automóvil",
+        "auto_description": "Determinar flexiblemente el esfuerzo de razonamiento",
         "default": "Por defecto",
+        "default_description": "Depender del comportamiento predeterminado del modelo, sin ninguna configuración.",
         "high": "Largo",
+        "high_description": "Razonamiento de alto nivel",
         "label": "Longitud de Cadena de Razonamiento",
         "low": "Corto",
+        "low_description": "Razonamiento de bajo nivel",
         "medium": "Medio",
+        "medium_description": "Razonamiento de nivel medio",
         "minimal": "minimal",
+        "minimal_description": "Razonamiento mínimo",
         "off": "Apagado",
-        "xhigh": "Extra Alta"
+        "off_description": "Deshabilitar razonamiento",
+        "xhigh": "Extra Alta",
+        "xhigh_description": "Razonamiento de extra alto nivel"
       },
       "regular_phrases": {
         "add": "Agregar frase",

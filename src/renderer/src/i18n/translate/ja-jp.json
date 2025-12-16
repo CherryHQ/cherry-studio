@@ -541,14 +541,22 @@
       "prompt": "プロンプト設定",
       "reasoning_effort": {
         "auto": "自動",
+        "auto_description": "推論にかける労力を柔軟に調整する",
         "default": "デフォルト",
+        "default_description": "設定なしで、モデルの既定の動作に依存する。",
         "high": "最大限の思考",
+        "high_description": "高度な推論",
         "label": "思考連鎖の長さ",
         "low": "少しの思考",
+        "low_description": "低レベル推論",
         "medium": "普通の思考",
+        "medium_description": "中レベル推論",
         "minimal": "最小限の思考",
+        "minimal_description": "最小限の推論",
         "off": "オフ",
-        "xhigh": "超高"
+        "off_description": "推論を無効にする",
+        "xhigh": "超高",
+        "xhigh_description": "超高度な推論"
       },
       "regular_phrases": {
         "add": "プロンプトを追加",

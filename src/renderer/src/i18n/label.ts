@@ -5,7 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId, ThinkingOption } from '@renderer/types'
+import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
 import { BuiltinMCPServerNames } from '@renderer/types'
 
 import i18n from './index'
@@ -308,23 +308,6 @@ const httpMessageKeyMap = {
 
 export const getHttpMessageLabel = (key: string): string => {
   return getLabel(httpMessageKeyMap, key)
-}
-
-const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
-  //  t('assistants.settings.reasoning_effort.default')
-  default: 'assistants.settings.reasoning_effort.default',
-  none: 'assistants.settings.reasoning_effort.off',
-  minimal: 'assistants.settings.reasoning_effort.minimal',
-  high: 'assistants.settings.reasoning_effort.high',
-  low: 'assistants.settings.reasoning_effort.low',
-  medium: 'assistants.settings.reasoning_effort.medium',
-  // t('assistants.settings.reasoning_effort.auto'),
-  auto: 'assistants.settings.reasoning_effort.auto',
-  xhigh: 'assistants.settings.reasoning_effort.xhigh'
-} as const
-
-export const getReasoningEffortOptionsLabel = (key: string): string => {
-  return getLabel(reasoningEffortOptionsKeyMap, key)
 }
 
 const fileFieldKeyMap = {

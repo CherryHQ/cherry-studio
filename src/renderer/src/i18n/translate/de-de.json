@@ -541,14 +541,22 @@
       "prompt": "Prompt-Einstellungen",
       "reasoning_effort": {
         "auto": "Auto",
+        "auto_description": "Denkaufwand flexibel bestimmen",
         "default": "Standard",
+        "default_description": "Vom Standardverhalten des Modells abhängen, ohne Konfiguration.",
         "high": "Tiefes Nachdenken",
+        "high_description": "Ganzheitliches Denken",
         "label": "Gedankenkettenlänge",
         "low": "Spontan",
+        "low_description": "Geringfügige Argumentation",
         "medium": "Überlegt",
+        "medium_description": "Denken auf mittlerem Niveau",
         "minimal": "Minimal",
+        "minimal_description": "Minimales Denken",
         "off": "Aus",
-        "xhigh": "Extra hoch"
+        "off_description": "Denken deaktivieren",
+        "xhigh": "Extra hoch",
+        "xhigh_description": "Extra hohes Denkvermögen"
       },
       "regular_phrases": {
         "add": "Phrase hinzufügen",

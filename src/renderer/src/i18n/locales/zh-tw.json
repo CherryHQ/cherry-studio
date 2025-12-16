@@ -541,14 +541,22 @@
       "prompt": "提示詞設定",
       "reasoning_effort": {
         "auto": "自動",
+        "auto_description": "彈性決定推理投入的心力",
         "default": "預設",
+        "default_description": "依賴模型的預設行為，無需任何配置。",
         "high": "盡力思考",
+        "high_description": "高級推理",
         "label": "思維鏈長度",
         "low": "稍微思考",
+        "low_description": "低階推理",
         "medium": "正常思考",
+        "medium_description": "中等程度推理",
         "minimal": "最少思考",
+        "minimal_description": "最少推理",
         "off": "關閉",
-        "xhigh": "極力思考"
+        "off_description": "禁用推理",
+        "xhigh": "極力思考",
+        "xhigh_description": "超高階推理"
       },
       "regular_phrases": {
         "add": "新增短語",

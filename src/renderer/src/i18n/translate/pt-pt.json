@@ -541,14 +541,22 @@
       "prompt": "Configurações de Prompt",
       "reasoning_effort": {
         "auto": "Automóvel",
+        "auto_description": "Determinar flexivelmente o esforço de raciocínio",
         "default": "Padrão",
+        "default_description": "Depender do comportamento padrão do modelo, sem qualquer configuração.",
         "high": "Longo",
+        "high_description": "Raciocínio de alto nível",
         "label": "Comprimento da Cadeia de Raciocínio",
         "low": "Curto",
+        "low_description": "Raciocínio de baixo nível",
         "medium": "Médio",
+        "medium_description": "Raciocínio de nível médio",
         "minimal": "mínimo",
+        "minimal_description": "Raciocínio mínimo",
         "off": "Desligado",
-        "xhigh": "Extra Alta"
+        "off_description": "Desabilitar raciocínio",
+        "xhigh": "Extra Alta",
+        "xhigh_description": "Raciocínio de altíssimo nível"
       },
       "regular_phrases": {
         "add": "Adicionar Frase",
