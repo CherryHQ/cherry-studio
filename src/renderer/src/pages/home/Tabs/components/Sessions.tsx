@@ -1,4 +1,4 @@
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { DraggableVirtualList, type DraggableVirtualListRef } from '@renderer/components/DraggableList'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -12,9 +12,8 @@ import {
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { motion } from 'framer-motion'
-import { memo, useCallback, useEffect } from 'react'
+import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import AddButton from './AddButton'
 import SessionItem from './SessionItem'
@@ -25,11 +24,29 @@ interface SessionsProps {
 
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
-  const { sessions, isLoading, error, deleteSession } = useSessions(agentId)
+  const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, total } = useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
+  const listRef = useRef<DraggableVirtualListRef>(null)
+
+  // Handle scroll to load more
+  useEffect(() => {
+    const scrollElement = listRef.current?.scrollElement()
+    if (!scrollElement) return
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement
+      // Load more when scrolled to bottom (with 100px threshold)
+      if (scrollHeight - scrollTop - clientHeight < 100 && hasMore && !isLoadingMore) {
+        loadMore()
+      }
+    }
+
+    scrollElement.addEventListener('scroll', handleScroll)
+    return () => scrollElement.removeEventListener('scroll', handleScroll)
+  }, [hasMore, isLoadingMore, loadMore])
 
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
@@ -96,36 +113,39 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   }
 
   return (
-    <StyledVirtualList
+    <DraggableVirtualList
+      ref={listRef}
       className="sessions-tab"
       list={sessions}
-      estimateSize={() => 9 * 4}
-      // FIXME: This component only supports CSSProperties
-      scrollerStyle={{ overflowX: 'hidden' }}
-      autoHideScrollbar
+      disabled
+      style={{ height: '100%', padding: '9px 0 10px 10px' }}
+      itemContainerStyle={{ paddingBottom: '8px' }}
       header={
-        <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
-          {t('agent.session.add.title')}
-        </AddButton>
+        <>
+          <AddButton onClick={createDefaultSession} disabled={creatingSession}>
+            {t('agent.session.add.title')}
+          </AddButton>
+          <div className="my-1"></div>
+        </>
       }>
-      {(session) => (
-        <SessionItem
-          key={session.id}
-          session={session}
-          agentId={agentId}
-          onDelete={() => handleDeleteSession(session.id)}
-          onPress={() => setActiveSessionId(agentId, session.id)}
-        />
+      {(session, index) => (
+        <>
+          <SessionItem
+            key={session.id}
+            session={session}
+            agentId={agentId}
+            onDelete={() => handleDeleteSession(session.id)}
+            onPress={() => setActiveSessionId(agentId, session.id)}
+          />
+          {index === sessions.length - 1 && isLoadingMore && (
+            <div className="flex justify-center py-2">
+              <Spin size="small" />
+            </div>
+          )}
+        </>
       )}
-    </StyledVirtualList>
+    </DraggableVirtualList>
   )
 }
-
-const StyledVirtualList = styled(DynamicVirtualList)`
-  display: flex;
-  flex-direction: column;
-  padding: 12px 10px;
-  height: 100%;
-` as typeof DynamicVirtualList
 
 export default memo(Sessions)
