@@ -2,8 +2,8 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2025-11-14T10:23:25.580Z
- * Total icons: 80
+ * Generated at: 2025-12-16T07:41:23.902Z
+ * Total icons: 79
  */
 
 export { Ai302 } from './302ai'

@@ -6,8 +6,44 @@ import { transform } from '@svgr/core'
 import fs from 'fs/promises'
 import path from 'path'
 
-const ICONS_DIR = path.join(__dirname, '../icons')
-const OUTPUT_DIR = path.join(__dirname, '../src/components/icons/logos')
+type IconType = 'icons' | 'logos'
+
+const DEFAULT_TYPE: IconType = 'icons'
+
+const SOURCE_DIR_MAP: Record<IconType, string> = {
+  icons: path.join(__dirname, '../icons/general'),
+  logos: path.join(__dirname, '../icons/logos')
+}
+
+const OUTPUT_DIR_MAP: Record<IconType, string> = {
+  icons: path.join(__dirname, '../src/components/icons/general'),
+  logos: path.join(__dirname, '../src/components/icons/logos')
+}
+
+function parseTypeArg(): IconType {
+  const arg = process.argv.find((item) => item.startsWith('--type='))
+  if (!arg) return DEFAULT_TYPE
+
+  const value = arg.split('=')[1]
+  if (value === 'icons' || value === 'logos') return value
+
+  throw new Error(`Invalid --type value: ${value}. Use "icons" or "logos".`)
+}
+
+async function ensureInputDir(type: IconType): Promise<string> {
+  const inputDir = SOURCE_DIR_MAP[type]
+  const stat = await fs.stat(inputDir).catch(() => null)
+  if (!stat || !stat.isDirectory()) {
+    throw new Error(`Source directory not found for type=${type}. Expected: ${inputDir}`)
+  }
+  return inputDir
+}
+
+async function ensureOutputDir(type: IconType): Promise<string> {
+  const outputDir = OUTPUT_DIR_MAP[type]
+  await fs.mkdir(outputDir, { recursive: true })
+  return outputDir
+}
 
 /**
  * Convert filename to PascalCase component name
@@ -55,13 +91,18 @@ function toCamelCase(filename: string): string {
 /**
  * Generate a single icon component
  */
-async function generateIcon(svgFile: string): Promise<{ filename: string; componentName: string }> {
-  const svgPath = path.join(ICONS_DIR, svgFile)
+async function generateIcon(
+  type: IconType,
+  inputDir: string,
+  outputDir: string,
+  svgFile: string
+): Promise<{ filename: string; componentName: string }> {
+  const svgPath = path.join(inputDir, svgFile)
   const svgCode = await fs.readFile(svgPath, 'utf-8')
 
   const componentName = toPascalCase(svgFile)
   const outputFilename = toCamelCase(svgFile) + '.tsx'
-  const outputPath = path.join(OUTPUT_DIR, outputFilename)
+  const outputPath = path.join(outputDir, outputFilename)
 
   // Use SVGR with simple config
   let jsCode = await transform(
@@ -110,7 +151,7 @@ async function generateIcon(svgFile: string): Promise<{ filename: string; compon
 /**
  * Generate index.ts file
  */
-async function generateIndex(components: Array<{ filename: string; componentName: string }>) {
+async function generateIndex(outputDir: string, components: Array<{ filename: string; componentName: string }>) {
   const exports = components
     .map(({ filename, componentName }) => {
       const basename = filename.replace('.tsx', '')
@@ -130,29 +171,30 @@ async function generateIndex(components: Array<{ filename: string; componentName
 ${exports}
 `
 
-  await fs.writeFile(path.join(OUTPUT_DIR, 'index.ts'), indexContent, 'utf-8')
+  await fs.writeFile(path.join(outputDir, 'index.ts'), indexContent, 'utf-8')
 }
 
 /**
  * Main function
  */
 async function main() {
-  console.log('🔧 Starting icon generation...\n')
+  const type = parseTypeArg()
 
-  // Ensure output directory exists
-  await fs.mkdir(OUTPUT_DIR, { recursive: true })
+  console.log(`🔧 Starting icon generation (type: ${type})...\n`)
 
-  // Get all SVG files
-  const files = await fs.readdir(ICONS_DIR)
+  const inputDir = await ensureInputDir(type)
+  const outputDir = await ensureOutputDir(type)
+
+  const files = await fs.readdir(inputDir)
   const svgFiles = files.filter((f) => f.endsWith('.svg'))
 
-  console.log(`📁 Found ${svgFiles.length} SVG files\n`)
+  console.log(`📁 Found ${svgFiles.length} SVG files in ${inputDir}\n`)
 
   const components: Array<{ filename: string; componentName: string }> = []
 
   for (const svgFile of svgFiles) {
     try {
-      const result = await generateIcon(svgFile)
+      const result = await generateIcon(type, inputDir, outputDir, svgFile)
       components.push(result)
       console.log(`✅ ${svgFile} -> ${result.filename} (${result.componentName})`)
     } catch (error) {
@@ -160,9 +202,8 @@ async function main() {
     }
   }
 
-  // Generate index.ts
   console.log('\n📝 Generating index.ts...')
-  await generateIndex(components)
+  await generateIndex(outputDir, components)
 
   console.log(`\n✨ Generation complete! Successfully processed ${components.length}/${svgFiles.length} files`)
 }
