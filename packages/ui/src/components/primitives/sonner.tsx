@@ -1,8 +1,8 @@
-import { toast as sonnerToast, Toaster as Sonner, type ToasterProps } from '@cherrystudio/sonner'
 import { cn } from '@cherrystudio/ui/utils'
 import { cva } from 'class-variance-authority'
 import { Loader2Icon } from 'lucide-react'
 import { type ReactNode, type SVGProps, useCallback, useMemo } from 'react'
+import { toast as sonnerToast, Toaster as Sonner, type ToasterProps } from 'sonner'
 
 const InfoIcon = ({ className }: SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
@@ -301,7 +301,9 @@ interface ToastProps {
 }
 
 function toast(props: Omit<ToastProps, 'id'>) {
-  return sonnerToast.custom((id) => <Toast id={id} {...props} />)
+  return sonnerToast.custom((id) => <Toast id={id} {...props} />, {
+    classNames: { toast: props.coloredBackground ? 'backdrop-blur-md rounded-xs' : undefined }
+  })
 }
 
 interface QuickApiProps extends Omit<ToastProps, 'type' | 'id'> {}
@@ -361,7 +363,7 @@ const toastColorVariants = cva(undefined, {
   }
 })
 
-const toastBgColorVariants = cva('backdrop-blur-md', {
+const toastBgColorVariants = cva(undefined, {
   variants: {
     type: {
       info: 'bg-blue-500/10 border-blue-500/20',
