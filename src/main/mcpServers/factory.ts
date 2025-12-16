@@ -4,6 +4,7 @@ import type { BuiltinMCPServerName } from '@types'
 import { BuiltinMCPServerNames } from '@types'
 
 import BraveSearchServer from './brave-search'
+import BrowserServer from './browser'
 import DiDiMcpServer from './didi-mcp'
 import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
@@ -47,6 +48,9 @@ export function createInMemoryMCPServer(
     case BuiltinMCPServerNames.didiMCP: {
       const apiKey = envs.DIDI_API_KEY
       return new DiDiMcpServer(apiKey).server
+    }
+    case BuiltinMCPServerNames.browser: {
+      return new BrowserServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

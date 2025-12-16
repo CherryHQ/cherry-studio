@@ -547,7 +547,7 @@
         "medium": "Medio",
         "minimal": "minimal",
         "off": "Apagado",
-        "xhigh": "Extra alto"
+        "xhigh": "Extra Alta"
       },
       "regular_phrases": {
         "add": "Agregar frase",
@@ -3884,6 +3884,7 @@
       "builtinServers": "Servidores integrados",
       "builtinServersDescriptions": {
         "brave_search": "Una implementación de servidor MCP que integra la API de búsqueda de Brave, proporcionando funciones de búsqueda web y búsqueda local. Requiere configurar la variable de entorno BRAVE_API_KEY",
+        "browser": "Controla una ventana Electron headless mediante Chrome DevTools Protocol. Herramientas: abrir URL, ejecutar JS de una línea, reiniciar sesión.",
         "didi_mcp": "Servidor DiDi MCP que proporciona servicios de transporte incluyendo búsqueda de mapas, estimación de precios, gestión de pedidos y seguimiento de conductores. Disponible solo en China Continental. Requiere configurar la variable de entorno DIDI_API_KEY",
         "dify_knowledge": "Implementación del servidor MCP de Dify, que proporciona una API sencilla para interactuar con Dify. Se requiere configurar la clave de Dify.",
         "fetch": "Servidor MCP para obtener el contenido de la página web de una URL",
@@ -3891,7 +3892,6 @@
         "mcp_auto_install": "Instalación automática del servicio MCP (versión beta)",
         "memory": "Implementación básica de memoria persistente basada en un grafo de conocimiento local. Esto permite que el modelo recuerde información relevante del usuario entre diferentes conversaciones. Es necesario configurar la variable de entorno MEMORY_FILE_PATH.",
         "no": "sin descripción",
-        "nowledgeMem": "Nowledge Mem guarda chats de IA, herramientas, notas, agentes y archivos que elijas en una memoria privada en tu ordenador. Más información en https://mem.nowledge.co/",
         "python": "Ejecuta código Python en un entorno sandbox seguro. Usa Pyodide para ejecutar Python, compatible con la mayoría de las bibliotecas estándar y paquetes de cálculo científico.",
         "sequentialthinking": "Una implementación de servidor MCP que proporciona herramientas para la resolución dinámica y reflexiva de problemas mediante un proceso de pensamiento estructurado"
       },
