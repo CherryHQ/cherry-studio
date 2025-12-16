@@ -39,6 +39,7 @@ import {
 } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { FileChangeEvent } from '@shared/config/types'
+import { message } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
@@ -245,6 +246,38 @@ const NotesPage: FC = () => {
         const defaultPath = info.notesPath
         updateNotesPath(defaultPath)
         return
+      }
+
+      // 验证路径是否有效（处理跨平台恢复场景）
+      try {
+        const isValid = await window.api.file.validateNotesDirectory(notesPath)
+        if (!isValid) {
+          logger.warn('Invalid notes path detected, resetting to default', { path: notesPath })
+
+          // 获取当前平台的默认路径
+          const info = await window.api.getAppInfo()
+          const defaultPath = info.notesPath
+
+          // 重置为默认路径
+          updateNotesPath(defaultPath)
+
+          // 检查默认路径下是否有笔记文件
+          try {
+            const tree = await window.api.file.getDirectoryStructure(defaultPath)
+            if (!tree || tree.length === 0) {
+              // 默认目录为空，提示用户需要迁移文件
+              message.warning({
+                content: t('notes.crossPlatformRestoreWarning', { path: defaultPath }),
+                duration: 10
+              })
+            }
+          } catch (error) {
+            // 目录不存在或读取失败，会由 FileStorage 自动创建
+            logger.debug('Default notes directory will be created', { error })
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to validate notes path:', error as Error)
       }
     }
 

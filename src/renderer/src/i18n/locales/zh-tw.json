@@ -2152,6 +2152,7 @@
     "collapse": "收合",
     "content_placeholder": "請輸入筆記內容...",
     "copyContent": "複製內容",
+    "crossPlatformRestoreWarning": "偵測到從其他裝置恢復設定，但筆記目錄為空。請將筆記檔案複製到：{{path}}",
     "delete": "刪除",
     "delete_confirm": "確定要刪除此 {{type}} 嗎？",
     "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",

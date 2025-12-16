@@ -2152,6 +2152,7 @@
     "collapse": "σύμπτυξη",
     "content_placeholder": "Παρακαλώ εισαγάγετε το περιεχόμενο των σημειώσεων...",
     "copyContent": "αντιγραφή περιεχομένου",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτό το {{type}};",
     "delete_folder_confirm": "Θέλετε να διαγράψετε τον φάκελο «{{name}}» και όλο το περιεχόμενό του;",

@@ -2152,6 +2152,7 @@
     "collapse": "réduire",
     "content_placeholder": "Veuillez saisir le contenu de la note...",
     "copyContent": "contenu copié",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
     "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",

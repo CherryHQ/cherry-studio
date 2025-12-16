@@ -2152,6 +2152,7 @@
     "collapse": "Einklappen",
     "content_placeholder": "Bitte Notizinhalt eingeben...",
     "copyContent": "Inhalt kopieren",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "Löschen",
     "delete_confirm": "Möchten Sie diesen {{type}} wirklich löschen?",
     "delete_folder_confirm": "Möchten Sie Ordner \"{{name}}\" und alle seine Inhalte wirklich löschen?",

@@ -2152,6 +2152,7 @@
     "collapse": "Свернуть",
     "content_placeholder": "Введите содержимое заметки...",
     "copyContent": "Копировать контент",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "удалить",
     "delete_confirm": "Вы уверены, что хотите удалить этот объект {{type}}?",
     "delete_folder_confirm": "Вы уверены, что хотите удалить папку \"{{name}}\" со всем ее содержимым?",
