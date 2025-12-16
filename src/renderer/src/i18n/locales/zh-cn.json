@@ -472,6 +472,7 @@
         "button": "导入",
         "error": {
           "fetch_failed": "从 URL 获取数据失败",
+          "file_required": "请先选择文件",
           "invalid_format": "无效的助手格式：缺少必填字段",
           "url_required": "请输入 URL"
         },
@@ -486,11 +487,14 @@
       },
       "manage": {
         "batch_delete": {
-          "button": "批量删除",
+          "button": "删除",
           "confirm": "确定要删除选中的 {{count}} 个助手吗？"
         },
+        "batch_export": {
+          "button": "导出"
+        },
         "mode": {
-          "delete": "删除",
+          "manage": "管理",
           "sort": "排序"
         },
         "title": "管理助手"
@@ -1221,11 +1225,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "订阅",
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
     "unknown": "未知",
     "unnamed": "未命名",
+    "unsubscribe": "退订",
     "update_success": "更新成功",
     "upload_files": "上传文件",
     "warning": "警告",
@@ -1720,7 +1726,7 @@
       "import": {
         "error": "导入失败"
       },
-      "imported": "导入成功"
+      "imported": "成功导入 {{count}} 个助手"
     },
     "api": {
       "check": {

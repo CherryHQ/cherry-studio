@@ -472,6 +472,7 @@
         "button": "Importar",
         "error": {
           "fetch_failed": "Falha ao obter dados do URL",
+          "file_required": "Por favor, selecione um arquivo primeiro",
           "invalid_format": "Formato de assistente inválido: campos obrigatórios em falta",
           "url_required": "Por favor insere um URL"
         },
@@ -489,8 +490,11 @@
           "button": "Exclusão em Lote",
           "confirm": "Tem certeza de que deseja excluir os {{count}} assistentes selecionados?"
         },
+        "batch_export": {
+          "button": "Exportar"
+        },
         "mode": {
-          "delete": "Excluir",
+          "manage": "Gerenciar",
           "sort": "Ordenar"
         },
         "title": "Gerir assistentes"
@@ -1221,11 +1225,13 @@
       }
     },
     "stop": "Parar",
+    "subscribe": "Subscrever",
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
     "unknown": "Desconhecido",
     "unnamed": "Sem nome",
+    "unsubscribe": "Cancelar inscrição",
     "update_success": "Atualização bem-sucedida",
     "upload_files": "Carregar arquivo",
     "warning": "Aviso",

@@ -472,6 +472,7 @@
         "button": "Importieren",
         "error": {
           "fetch_failed": "Daten von URL abrufen fehlgeschlagen",
+          "file_required": "Bitte wählen Sie zuerst eine Datei aus",
           "invalid_format": "Ungültiges Assistentenformat: Pflichtfelder fehlen",
           "url_required": "Bitte geben Sie eine URL ein"
         },
@@ -489,8 +490,11 @@
           "button": "Stapel löschen",
           "confirm": "Sind Sie sicher, dass Sie die ausgewählten {{count}} Assistenten löschen möchten?"
         },
+        "batch_export": {
+          "button": "Exportieren"
+        },
         "mode": {
-          "delete": "Löschen",
+          "manage": "Verwalten",
           "sort": "Sortieren"
         },
         "title": "Assistenten verwalten"
@@ -1221,11 +1225,13 @@
       }
     },
     "stop": "Stoppen",
+    "subscribe": "Abonnieren",
     "success": "Erfolgreich",
     "swap": "Tauschen",
     "topics": "Themen",
     "unknown": "Unbekannt",
     "unnamed": "Unbenannt",
+    "unsubscribe": "Abmelden",
     "update_success": "Erfolgreich aktualisiert",
     "upload_files": "Dateien hochladen",
     "warning": "Warnung",

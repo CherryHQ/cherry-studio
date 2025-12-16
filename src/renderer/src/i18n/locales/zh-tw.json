@@ -472,6 +472,7 @@
         "button": "匯入",
         "error": {
           "fetch_failed": "從 URL 取得資料失敗",
+          "file_required": "請先選擇一個檔案",
           "invalid_format": "無效的助手格式：缺少必填欄位",
           "url_required": "請輸入 URL"
         },
@@ -489,8 +490,11 @@
           "button": "批次刪除",
           "confirm": "確定要刪除所選的 {{count}} 個助手嗎？"
         },
+        "batch_export": {
+          "button": "匯出"
+        },
         "mode": {
-          "delete": "刪除",
+          "manage": "管理",
           "sort": "排序"
         },
         "title": "管理助手"
@@ -1221,11 +1225,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "訂閱",
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
     "unknown": "未知",
     "unnamed": "未命名",
+    "unsubscribe": "取消訂閱",
     "update_success": "更新成功",
     "upload_files": "上傳檔案",
     "warning": "警告",

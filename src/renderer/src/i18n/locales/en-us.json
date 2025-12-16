@@ -472,6 +472,7 @@
         "button": "Import",
         "error": {
           "fetch_failed": "Failed to fetch from URL",
+          "file_required": "Please select a file first",
           "invalid_format": "Invalid assistant format: missing required fields",
           "url_required": "Please enter a URL"
         },
@@ -486,11 +487,14 @@
       },
       "manage": {
         "batch_delete": {
-          "button": "Batch Delete",
+          "button": "Delete",
           "confirm": "Are you sure you want to delete the selected {{count}} assistants?"
         },
+        "batch_export": {
+          "button": "Export"
+        },
         "mode": {
-          "delete": "Delete",
+          "manage": "Manage",
           "sort": "Sort"
         },
         "title": "Manage Assistants"
@@ -1221,11 +1225,13 @@
       }
     },
     "stop": "Stop",
+    "subscribe": "Subscribe",
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
+    "unsubscribe": "Unsubscribe",
     "update_success": "Update successfully",
     "upload_files": "Upload file",
     "warning": "Warning",
@@ -1720,7 +1726,7 @@
       "import": {
         "error": "Import failed"
       },
-      "imported": "Imported successfully"
+      "imported": "Successfully imported {{count}} assistant(s)"
     },
     "api": {
       "check": {

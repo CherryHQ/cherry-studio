@@ -472,6 +472,7 @@
         "button": "インポート",
         "error": {
           "fetch_failed": "URLからのデータ取得に失敗しました",
+          "file_required": "まずファイルを選択してください",
           "invalid_format": "無効なアシスタント形式：必須フィールドが不足しています",
           "url_required": "URLを入力してください"
         },
@@ -489,8 +490,11 @@
           "button": "バッチ削除",
           "confirm": "選択した{{count}}件のアシスタントを削除してもよろしいですか？"
         },
+        "batch_export": {
+          "button": "エクスポート"
+        },
         "mode": {
-          "delete": "削除",
+          "manage": "管理",
           "sort": "並べ替え"
         },
         "title": "アシスタントを管理"
@@ -1221,11 +1225,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "購読",
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
     "unknown": "Unknown",
     "unnamed": "無題",
+    "unsubscribe": "配信停止",
     "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
     "warning": "警告",
