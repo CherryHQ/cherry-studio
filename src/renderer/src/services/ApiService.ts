@@ -88,7 +88,6 @@ export async function fetchMcpTools(assistant: Assistant) {
  * @param request - 包含消息内容和助手信息的请求对象
  * @param onChunkReceived - 接收流式响应数据的回调函数
  */
-// 目前先按照函数来写,后续如果有需要到class的地方就改回来
 export async function transformMessagesAndFetch(
   request: {
     messages: Message[]

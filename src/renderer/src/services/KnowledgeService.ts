@@ -25,7 +25,7 @@ import type { ExtractResults } from '@renderer/utils/extract'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
 import type { ModelMessage, UserModelMessage } from 'ai'
-import { isEmpty } from 'lodash'
+import { isArray, isEmpty, isString } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
@@ -361,48 +361,52 @@ export const injectUserMessageWithKnowledgeSearchPrompt = async ({
   blockManager: BlockManager
   setCitationBlockId: (blockId: string) => void
 }) => {
-  if (assistant.knowledge_bases?.length && modelMessages.length > 0) {
-    const lastUserMessage = modelMessages[modelMessages.length - 1]
-    const isUserMessage = lastUserMessage.role === 'user'
+  if (isEmpty(assistant.knowledge_bases) || isEmpty(modelMessages)) {
+    return
+  }
 
-    if (!isUserMessage) {
-      return
-    }
+  const lastUserMessage = modelMessages[modelMessages.length - 1]
+  const isUserMessage = lastUserMessage.role === 'user'
 
-    const knowledgeReferences = await getKnowledgeReferences({
-      assistant,
-      lastUserMessage,
-      topicId: topicId
-    })
+  if (!isUserMessage) {
+    return
+  }
 
-    if (knowledgeReferences.length === 0) {
-      return
-    }
+  const knowledgeReferences = await getKnowledgeReferences({
+    assistant,
+    lastUserMessage,
+    topicId: topicId
+  })
 
-    await createKnowledgeReferencesBlock({
-      assistantMsgId,
-      knowledgeReferences,
-      blockManager,
-      setCitationBlockId
-    })
+  if (knowledgeReferences.length === 0) {
+    return
+  }
 
-    const question = getMessageContent(lastUserMessage) || ''
-    const references = JSON.stringify(knowledgeReferences, null, 2)
+  await createKnowledgeReferencesBlock({
+    assistantMsgId,
+    knowledgeReferences,
+    blockManager,
+    setCitationBlockId
+  })
 
-    const knowledgeSearchPrompt = REFERENCE_PROMPT.replace('{question}', question).replace('{references}', references)
+  const question = getMessageContent(lastUserMessage) || ''
+  const references = JSON.stringify(knowledgeReferences, null, 2)
 
-    if (typeof lastUserMessage.content === 'string') {
-      lastUserMessage.content = knowledgeSearchPrompt
-    } else if (Array.isArray(lastUserMessage.content)) {
-      const textPart = lastUserMessage.content.find((part) => part.type === 'text')
-      if (textPart) {
-        textPart.text = knowledgeSearchPrompt
-      } else {
-        lastUserMessage.content.push({
-          type: 'text',
-          text: knowledgeSearchPrompt
-        })
-      }
+  const knowledgeSearchPrompt = REFERENCE_PROMPT.replace('{question}', question).replace('{references}', references)
+
+  if (isString(lastUserMessage.content)) {
+    lastUserMessage.content = knowledgeSearchPrompt
+  }
+
+  if (isArray(lastUserMessage.content)) {
+    const textPart = lastUserMessage.content.find((part) => part.type === 'text')
+    if (textPart) {
+      textPart.text = knowledgeSearchPrompt
+    } else {
+      lastUserMessage.content.push({
+        type: 'text',
+        text: knowledgeSearchPrompt
+      })
     }
   }
 }
@@ -416,7 +420,7 @@ export const getKnowledgeReferences = async ({
   lastUserMessage: UserModelMessage
   topicId?: string
 }) => {
-  // 如果助手没有知识库，返回空字符串
+  // 如果助手没有知识库，返回空数组
   if (!assistant || isEmpty(assistant.knowledge_bases)) {
     return []
   }
@@ -439,7 +443,7 @@ export const getKnowledgeReferences = async ({
     topicId!
   )
 
-  // 返回提示词
+  // 返回知识库引用
   return knowledgeReferences
 }
 
