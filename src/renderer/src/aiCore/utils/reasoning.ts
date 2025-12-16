@@ -427,7 +427,7 @@ export function getOpenAIReasoningParams(
 
   let reasoningEffort = assistant?.settings?.reasoning_effort
 
-  if (!reasoningEffort) {
+  if (!reasoningEffort || reasoningEffort === 'default') {
     return {}
   }
 
@@ -505,7 +505,11 @@ export function getAnthropicReasoningParams(
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
 
-  if (reasoningEffort === undefined || reasoningEffort === 'none') {
+  if (!reasoningEffort || reasoningEffort === 'default') {
+    return {}
+  }
+
+  if (reasoningEffort === 'none') {
     return {
       thinking: {
         type: 'disabled'
@@ -559,6 +563,10 @@ export function getGeminiReasoningParams(
   }
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
+
+  if (!reasoningEffort || reasoningEffort === 'default') {
+    return {}
+  }
 
   // Gemini 推理参数
   if (isSupportedThinkingTokenGeminiModel(model)) {
@@ -650,7 +658,7 @@ export function getBedrockReasoningParams(
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
 
-  if (reasoningEffort === undefined) {
+  if (reasoningEffort === undefined || reasoningEffort === 'default') {
     return {}
   }
 
