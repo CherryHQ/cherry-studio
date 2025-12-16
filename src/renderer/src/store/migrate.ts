@@ -3017,6 +3017,19 @@ const migrateConfig = {
       logger.error('migrate 184 error', error as Error)
       return state
     }
+  },
+  '185': (state: RootState) => {
+    try {
+      // Reset toolUseMode to function for default assistant
+      if (state.assistants.defaultAssistant.settings?.toolUseMode) {
+        state.assistants.defaultAssistant.settings.toolUseMode = 'function'
+      }
+      logger.info('migrate 185 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 185 error', error as Error)
+      return state
+    }
   }
 }
 
