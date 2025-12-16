@@ -25,7 +25,7 @@ import type { ExtractResults } from '@renderer/utils/extract'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
 import type { ModelMessage, UserModelMessage } from 'ai'
-import { isArray, isEmpty, isString } from 'lodash'
+import { isArray, isEmpty, isString, omit } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
@@ -389,10 +389,15 @@ export const injectUserMessageWithKnowledgeSearchPrompt = async ({
     setCitationBlockId
   })
 
-  const question = getMessageContent(lastUserMessage) || ''
-  const references = JSON.stringify(knowledgeReferences, null, 2)
+  const referencesWithoutMetadata = knowledgeReferences.map((ref) => omit(ref, ['metadata']))
 
-  const knowledgeSearchPrompt = REFERENCE_PROMPT.replace('{question}', question).replace('{references}', references)
+  const question = getMessageContent(lastUserMessage) || ''
+  const references = JSON.stringify(referencesWithoutMetadata, null, 2)
+
+  const knowledgeSearchPrompt = REFERENCE_PROMPT.replace('{question}', question).replace(
+    '{references}',
+    '```json\n' + references + '\n```'
+  )
 
   if (isString(lastUserMessage.content)) {
     lastUserMessage.content = knowledgeSearchPrompt
