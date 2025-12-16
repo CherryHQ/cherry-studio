@@ -420,7 +420,7 @@ export const getKnowledgeReferences = async ({
   lastUserMessage: UserModelMessage
   topicId?: string
 }) => {
-  // 如果助手没有知识库，返回空数组
+  // 如果助手没有知识库，返回空字符串
   if (!assistant || isEmpty(assistant.knowledge_bases)) {
     return []
   }
@@ -443,7 +443,7 @@ export const getKnowledgeReferences = async ({
     topicId!
   )
 
-  // 返回知识库引用
+  // 返回提示词
   return knowledgeReferences
 }
 
