@@ -3024,6 +3024,14 @@ const migrateConfig = {
       if (state.assistants.defaultAssistant.settings?.toolUseMode) {
         state.assistants.defaultAssistant.settings.toolUseMode = 'function'
       }
+      // Reset toolUseMode to function for assistants
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings?.toolUseMode === 'prompt') {
+          if (assistant.model && isFunctionCallingModel(assistant.model)) {
+            assistant.settings.toolUseMode = 'function'
+          }
+        }
+      })
       logger.info('migrate 185 success')
       return state
     } catch (error) {
