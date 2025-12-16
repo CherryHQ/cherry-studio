@@ -31,25 +31,25 @@
       }
     },
     "gitBash": {
-      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "autoDetected": "自動検出されたGit Bashを使用中",
       "clear": {
-        "button": "[to be translated]:Clear custom path"
+        "button": "カスタムパスをクリア"
       },
-      "customPath": "[to be translated]:Using custom path: {{path}}",
+      "customPath": "カスタムパスを使用中: {{path}}",
       "error": {
         "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
         "recheck": "Git Bashのインストールを再確認してください",
         "title": "Git Bashが必要です"
       },
       "found": {
-        "title": "[to be translated]:Git Bash configured"
+        "title": "Git Bashが設定されました"
       },
       "notFound": "Git Bash が見つかりません。先にインストールしてください。",
       "pick": {
-        "button": "[to be translated]:Select Git Bash Path",
-        "failed": "[to be translated]:Failed to set Git Bash path",
-        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
-        "title": "[to be translated]:Select Git Bash executable"
+        "button": "Git Bashパスを選択",
+        "failed": "Git Bashパスの設定に失敗しました",
+        "invalidPath": "選択されたファイルは有効なGit Bash実行ファイル（bash.exe）ではありません。",
+        "title": "Git Bash実行ファイルを選択"
       },
       "success": "Git Bashが正常に検出されました！"
     },
@@ -547,7 +547,7 @@
         "medium": "普通の思考",
         "minimal": "最小限の思考",
         "off": "オフ",
-        "xhigh": "[to be translated]:Extra High"
+        "xhigh": "超高"
       },
       "regular_phrases": {
         "add": "プロンプトを追加",
@@ -3884,6 +3884,7 @@
       "builtinServers": "組み込みサーバー",
       "builtinServersDescriptions": {
         "brave_search": "Brave検索APIを統合したMCPサーバーの実装で、ウェブ検索とローカル検索の両機能を提供します。BRAVE_API_KEY環境変数の設定が必要です",
+        "browser": "Chrome DevTools Protocolを介してheadless Electronウィンドウを制御します。ツール：URLを開く、単一行JSを実行、セッションをリセット。",
         "didi_mcp": "DiDi MCPサーバーは、地図検索、料金見積もり、注文管理、ドライバー追跡を含むライドシェアサービスを提供します。中国本土でのみ利用可能です。DIDI_API_KEY環境変数の設定が必要です",
         "dify_knowledge": "DifyのMCPサーバー実装は、Difyと対話するためのシンプルなAPIを提供します。Dify Keyの設定が必要です。",
         "fetch": "URLのウェブページコンテンツを取得するためのMCPサーバー",

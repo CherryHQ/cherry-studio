@@ -3884,6 +3884,7 @@
       "builtinServers": "內建伺服器",
       "builtinServersDescriptions": {
         "brave_search": "一個整合了 Brave 搜尋 API 的 MCP 伺服器實做，提供網頁與本機搜尋雙重功能。需要設定 BRAVE_API_KEY 環境變數",
+        "browser": "透過 Chrome DevTools Protocol 控制 headless Electron 視窗。工具：開啟 URL、執行單行 JS、重設工作階段。",
         "didi_mcp": "一個整合了滴滴 MCP 伺服器實做，提供網約車服務包括地圖搜尋、價格預估、訂單管理和司機追蹤。僅支援中國大陸地區。需要設定 DIDI_API_KEY 環境變數",
         "dify_knowledge": "Dify 的 MCP 伺服器實做，提供了一個簡單的 API 來與 Dify 進行互動。需要設定 Dify Key",
         "fetch": "用於取得 URL 網頁內容的 MCP 伺服器",

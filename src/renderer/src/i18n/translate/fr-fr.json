@@ -547,7 +547,7 @@
         "medium": "Moyen",
         "minimal": "minimal",
         "off": "Off",
-        "xhigh": "[to be translated]:Extra High"
+        "xhigh": "Très élevée"
       },
       "regular_phrases": {
         "add": "Добавить фразу",
@@ -3884,6 +3884,7 @@
       "builtinServers": "Serveurs intégrés",
       "builtinServersDescriptions": {
         "brave_search": "Une implémentation de serveur MCP intégrant l'API de recherche Brave, offrant des fonctionnalités de recherche web et locale. Nécessite la configuration de la variable d'environnement BRAVE_API_KEY",
+        "browser": "Contrôle une fenêtre Electron headless via Chrome DevTools Protocol. Outils : ouvrir une URL, exécuter du JS en une ligne, réinitialiser la session.",
         "didi_mcp": "Serveur DiDi MCP fournissant des services de transport incluant la recherche de cartes, l'estimation des prix, la gestion des commandes et le suivi des conducteurs. Disponible uniquement en Chine continentale. Nécessite la configuration de la variable d'environnement DIDI_API_KEY",
         "dify_knowledge": "Implémentation du serveur MCP de Dify, fournissant une API simple pour interagir avec Dify. Nécessite la configuration de la clé Dify",
         "fetch": "serveur MCP utilisé pour récupérer le contenu des pages web URL",
