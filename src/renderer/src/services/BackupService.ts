@@ -6,7 +6,10 @@ import store from '@renderer/store'
 import { setLocalBackupSyncState, setS3SyncState, setWebDAVSyncState } from '@renderer/store/backup'
 import type { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { stripPersistedRootStateSecretsString, transformPersistedRootStateString } from '@renderer/utils/securePersist'
+import { Input } from 'antd'
 import dayjs from 'dayjs'
+import { createElement } from 'react'
 
 import { NotificationService } from './NotificationService'
 
@@ -63,26 +66,92 @@ async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavC
 }
 
 export async function backup(skipBackupFile: boolean) {
-  const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
-  const fileContnet = await getBackupData()
-  const selectFolder = await window.api.file.selectFolder()
-  if (selectFolder) {
-    await window.api.backup.backup(filename, fileContnet, selectFolder, skipBackupFile)
-    window.toast.success(i18n.t('message.backup.success'))
+  return backupWithOptions(skipBackupFile)
+}
+
+export type BackupExportOptions = {
+  includeSecrets?: boolean
+  passphrase?: string
+}
+
+export async function backupWithOptions(skipBackupFile: boolean, options: BackupExportOptions = {}): Promise<boolean> {
+  const includeSecrets = Boolean(options.includeSecrets)
+  const passphrase =
+    typeof options.passphrase === 'string' && options.passphrase.length > 0 ? options.passphrase : undefined
+
+  const extension = passphrase ? 'csbackup' : 'zip'
+  const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.${extension}`
+  const fileContnet = await getBackupData({ includeSecrets })
+
+  const appInfo = await window.api.getAppInfo()
+  const defaultPath = appInfo?.documentsPath || appInfo?.appDataPath
+
+  const selectFolder = await window.api.file.selectFolder(defaultPath ? { defaultPath } : undefined)
+  if (!selectFolder) {
+    return false
   }
+
+  if (includeSecrets) {
+    const downloadsPath = appInfo?.downloadsPath
+    const desktopPath = appInfo?.desktopPath
+    const isDownloads = downloadsPath ? await window.api.isPathInside(selectFolder, downloadsPath) : false
+    const isDesktop = desktopPath ? await window.api.isPathInside(selectFolder, desktopPath) : false
+    const isCloudSynced = isPossiblyCloudSyncedPath(selectFolder)
+
+    if (isDownloads || isDesktop || isCloudSynced) {
+      const confirmed = await window.modal.confirm({
+        title: i18n.t('common.warning'),
+        content: i18n.t('backup.path.warning_public_dir'),
+        centered: true
+      })
+
+      if (!confirmed) {
+        return false
+      }
+    }
+  }
+
+  await window.api.backup.backup(filename, fileContnet, selectFolder, skipBackupFile, { passphrase })
+  window.toast.success(i18n.t('message.backup.success'))
+  return true
+}
+
+const isPossiblyCloudSyncedPath = (folderPath: string): boolean => {
+  const normalized = folderPath.replaceAll('\\', '/').toLowerCase().replaceAll(' ', '')
+  const hints = [
+    'onedrive',
+    'dropbox',
+    'googledrive',
+    'google-drive',
+    'icloud',
+    'icloudrive',
+    'box',
+    'mega',
+    'syncthing'
+  ]
+
+  return hints.some((hint) => normalized.includes(hint))
 }
 
 export async function restore() {
   const notificationService = NotificationService.getInstance()
-  const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
+  const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip', 'csbackup'] }] })
 
   if (file) {
     try {
       let data: Record<string, any> = {}
 
       // zip backup file
-      if (file?.fileName.endsWith('.zip')) {
-        const restoreData = await window.api.backup.restore(file.filePath)
+      if (file?.fileName.endsWith('.zip') || file?.fileName.endsWith('.csbackup')) {
+        let passphrase: string | undefined
+        if (file.fileName.endsWith('.csbackup')) {
+          passphrase = await promptBackupPassphrase()
+          if (!passphrase) {
+            return
+          }
+        }
+
+        const restoreData = await window.api.backup.restore(file.filePath, passphrase ? { passphrase } : undefined)
         data = JSON.parse(restoreData)
       } else {
         data = JSON.parse(await window.api.zip.decompress(file.content))
@@ -102,9 +171,43 @@ export async function restore() {
       })
     } catch (error) {
       logger.error('restore: Error restoring backup file:', error as Error)
-      window.toast.error(i18n.t('error.backup.file_format'))
+      const message = (error as Error)?.message || ''
+      if (message.toLowerCase().includes('passphrase')) {
+        window.toast.error(i18n.t('error.backup.invalid_passphrase'))
+      } else {
+        window.toast.error(i18n.t('error.backup.file_format'))
+      }
     }
   }
+}
+
+async function promptBackupPassphrase(): Promise<string | undefined> {
+  let passphrase = ''
+
+  const confirmed = await window.modal.confirm({
+    title: i18n.t('restore.passphrase.title'),
+    content: createElement('div', null, [
+      createElement('div', { key: 'desc', style: { marginBottom: 8 } }, i18n.t('restore.passphrase.description')),
+      createElement(Input.Password, {
+        key: 'input',
+        placeholder: i18n.t('restore.passphrase.placeholder'),
+        autoFocus: true,
+        autoComplete: 'new-password',
+        onChange: (event: any) => {
+          passphrase = event?.target?.value ?? ''
+        }
+      })
+    ]),
+    centered: true,
+    onOk: async () => {
+      if (!passphrase) {
+        window.toast.error(i18n.t('restore.passphrase.empty'))
+        throw new Error('Passphrase required')
+      }
+    }
+  })
+
+  return confirmed ? passphrase : undefined
 }
 
 export async function reset() {
@@ -820,11 +923,31 @@ export function stopAutoSync(type?: BackupType) {
   }
 }
 
-export async function getBackupData() {
+export async function getBackupData(options: { includeSecrets?: boolean } = {}) {
+  const localStorageSnapshot: Record<string, string> = {}
+  for (let index = 0; index < localStorage.length; index++) {
+    const key = localStorage.key(index)
+    if (!key) {
+      continue
+    }
+    const value = localStorage.getItem(key)
+    if (value !== null) {
+      localStorageSnapshot[key] = value
+    }
+  }
+
+  const persistedKey = 'persist:cherry-studio'
+  if (typeof localStorageSnapshot[persistedKey] === 'string') {
+    localStorageSnapshot[persistedKey] = options.includeSecrets
+      ? transformPersistedRootStateString(localStorageSnapshot[persistedKey], 'decrypt')
+      : stripPersistedRootStateSecretsString(localStorageSnapshot[persistedKey])
+  }
+
   return JSON.stringify({
     time: new Date().getTime(),
-    version: 5,
-    localStorage,
+    version: 6,
+    includesSecrets: Boolean(options.includeSecrets),
+    localStorage: localStorageSnapshot,
     indexedDB: await backupDatabase()
   })
 }
@@ -850,7 +973,17 @@ export async function handleData(data: Record<string, any>) {
   }
 
   if (data.version >= 2) {
-    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    const persistedKey = 'persist:cherry-studio'
+    const persistedValue = data?.localStorage?.[persistedKey]
+    if (typeof persistedValue === 'string') {
+      const decrypted = transformPersistedRootStateString(persistedValue, 'decrypt')
+      const reencrypted = transformPersistedRootStateString(decrypted, 'encrypt')
+      localStorage.setItem(persistedKey, reencrypted)
+
+      if (data.version < 6 && persistedValue.includes('csenc:')) {
+        window.toast.warning(i18n.t('message.restore.secrets_migration_notice'))
+      }
+    }
 
     // remove notes_tree from indexedDB
     if (data.indexedDB['notes_tree']) {

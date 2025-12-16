@@ -2,6 +2,7 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import type { MinAppType, Topic, WebSearchStatus } from '@renderer/types'
+import type { CredentialIssue } from '@renderer/utils/secureStorage'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 export interface ChatState {
@@ -39,6 +40,7 @@ export interface UpdateState {
 
 export interface RuntimeState {
   avatar: string
+  credentialIssues: CredentialIssue[]
   generating: boolean
   translating: boolean
   translateAbortKey?: string
@@ -65,6 +67,7 @@ export interface ExportState {
 
 const initialState: RuntimeState = {
   avatar: UserAvatar,
+  credentialIssues: [],
   generating: false,
   translating: false,
   minappShow: false,
@@ -108,6 +111,30 @@ const runtimeSlice = createSlice({
   reducers: {
     setAvatar: (state, action: PayloadAction<string | null>) => {
       state.avatar = action.payload || AppLogo
+    },
+    addCredentialIssue: (state, action: PayloadAction<CredentialIssue>) => {
+      const key = `${action.payload.reason}:${action.payload.id}`
+      const exists = state.credentialIssues.some((issue) => `${issue.reason}:${issue.id}` === key)
+      if (!exists) {
+        state.credentialIssues.push(action.payload)
+      }
+    },
+    clearCredentialIssues: (state) => {
+      state.credentialIssues = []
+    },
+    dismissCredentialIssue: (state, action: PayloadAction<string>) => {
+      state.credentialIssues = state.credentialIssues.filter((issue) => issue.id !== action.payload)
+    },
+    setCredentialIssues: (state, action: PayloadAction<CredentialIssue[]>) => {
+      const nextIssues: CredentialIssue[] = []
+      const seen = new Set<string>()
+      for (const issue of action.payload) {
+        const key = `${issue.reason}:${issue.id}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        nextIssues.push(issue)
+      }
+      state.credentialIssues = nextIssues
     },
     setGenerating: (state, action: PayloadAction<boolean>) => {
       state.generating = action.payload
@@ -195,6 +222,10 @@ const runtimeSlice = createSlice({
 
 export const {
   setAvatar,
+  addCredentialIssue,
+  clearCredentialIssues,
+  dismissCredentialIssue,
+  setCredentialIssues,
   setGenerating,
   setTranslating,
   setTranslateAbortKey,

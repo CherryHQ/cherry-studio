@@ -34,7 +34,19 @@ const resources = Object.fromEntries(
 )
 
 export const getLanguage = () => {
-  return localStorage.getItem('language') || navigator.language || defaultLanguage
+  let savedLanguage: string | null = null
+  try {
+    savedLanguage =
+      typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+        ? window.localStorage.getItem('language')
+        : null
+  } catch {
+    savedLanguage = null
+  }
+
+  const browserLanguage = typeof navigator !== 'undefined' ? navigator.language : undefined
+
+  return savedLanguage || browserLanguage || defaultLanguage
 }
 
 export const getLanguageCode = () => {

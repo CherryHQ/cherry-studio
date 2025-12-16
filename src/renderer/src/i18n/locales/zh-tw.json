@@ -593,11 +593,28 @@
       "button": "選擇備份位置",
       "label": "確定要備份資料嗎？"
     },
-    "content": "備份全部資料，包括聊天記錄、設定、知識庫等全部資料。請注意，備份過程可能需要一些時間，感謝您的耐心等待",
+    "content": "備份應用資料，包括聊天記錄、設定、知識庫等。預設不包含憑證（secrets）。請注意，備份過程可能需要一些時間，感謝您的耐心等待",
+    "options": {
+      "encrypt_with_passphrase": "使用口令加密備份檔案（推薦）",
+      "passphrase": "口令",
+      "passphrase_confirm": "確認口令",
+      "path_tip": "提示：包含憑證的備份請避免保存到公開目錄或雲端同步目錄。",
+      "secrets_ack": "我理解備份包含明文憑證",
+      "secrets_warning": {
+        "description": "包含憑證會以可遷移形式匯出（解密後的憑證）。請妥善保管備份檔案，避免放在公開目錄或雲端同步目錄。",
+        "title": "此備份將包含憑證"
+      },
+      "with_secrets": "包含憑證（可跨裝置遷移）",
+      "without_secrets": "預設（不包含憑證）"
+    },
+    "path": {
+      "warning_public_dir": "你選擇了可能不安全的目錄（公開目錄/雲端同步目錄）。對於包含憑證的備份，請避免保存到公開目錄或雲端同步目錄。仍要繼續嗎？"
+    },
     "progress": {
       "completed": "備份完成",
       "compressing": "壓縮檔案...",
       "copying_files": "複製檔案... {{progress}}%",
+      "encrypting": "加密備份...",
       "preparing": "準備備份...",
       "preparing_compression": "準備壓縮...",
       "title": "備份進度",
@@ -1246,7 +1263,8 @@
     "availableProviders": "可用供應商",
     "availableTools": "可用工具",
     "backup": {
-      "file_format": "備份檔案格式錯誤"
+      "file_format": "備份檔案格式錯誤",
+      "invalid_passphrase": "備份口令錯誤"
     },
     "boundary": {
       "default": {
@@ -1908,6 +1926,7 @@
     },
     "restore": {
       "failed": "還原失敗",
+      "secrets_migration_notice": "部分憑證可能無法遷移到目前裝置，請視需要重新授權",
       "success": "還原成功"
     },
     "save": {
@@ -2633,9 +2652,16 @@
       "label": "確定要復原資料嗎？"
     },
     "content": "復原操作將使用備份資料覆蓋目前所有應用程式資料。請注意，復原過程可能需要一些時間，感謝您的耐心等待",
+    "passphrase": {
+      "description": "該備份已加密，請輸入口令解密。",
+      "empty": "口令不能為空",
+      "placeholder": "口令",
+      "title": "輸入備份口令"
+    },
     "progress": {
       "completed": "復原完成",
       "copying_files": "複製檔案... {{progress}}%",
+      "decrypting": "解密備份...",
       "extracted": "解壓成功",
       "extracting": "解開備份...",
       "preparing": "準備復原...",
@@ -4595,6 +4621,18 @@
       "title": "快捷短語",
       "titleLabel": "標題",
       "titlePlaceholder": "請輸入短語標題"
+    },
+    "security": {
+      "credentials_invalid": {
+        "action_data": "前往資料設定",
+        "action_docprocess": "前往文件處理設定",
+        "action_provider": "前往服務商設定",
+        "action_websearch": "前往網頁搜尋設定",
+        "affected": "受影響的憑證：{{items}}",
+        "description": "偵測到部分憑證無法解密或已遺失（可能因為卸載重裝、系統鑰匙圈變更等）。請到對應設定重新輸入 API Key 或重新授權。",
+        "dismiss": "忽略",
+        "title": "憑證失效，需要重新授權"
+      }
     },
     "shortcuts": {
       "action": "操作",

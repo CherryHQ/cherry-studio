@@ -85,6 +85,13 @@ class CopilotService {
     return path.join(getConfigDir(), CONFIG.TOKEN_FILE_NAME)
   }
 
+  private isLikelyToken = (token: string): boolean => {
+    if (!token) return false
+    if (token !== token.trim()) return false
+    if (token.length < 10) return false
+    return /^[\x21-\x7E]+$/.test(token)
+  }
+
   /**
    * 设置自定义请求头
    */
@@ -218,14 +225,25 @@ class CopilotService {
    */
   public saveCopilotToken = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<void> => {
     try {
-      const encryptedToken = safeStorage.encryptString(token)
+      let payload: Buffer | string = token
+      if (safeStorage.isEncryptionAvailable()) {
+        try {
+          payload = safeStorage.encryptString(token)
+        } catch (error) {
+          logger.warn('safeStorage encryptString failed; saving Copilot token as plain text', error as Error)
+          payload = token
+        }
+      } else {
+        logger.warn('safeStorage encryption is not available; saving Copilot token as plain text')
+      }
       // 确保目录存在
       const dir = path.dirname(this.tokenFilePath)
       if (!fs.existsSync(dir)) {
         await fs.promises.mkdir(dir, { recursive: true })
       }
 
-      await fs.promises.writeFile(this.tokenFilePath, encryptedToken)
+      await fs.promises.writeFile(this.tokenFilePath, payload)
+      await fs.promises.chmod(this.tokenFilePath, 0o600).catch(() => {})
     } catch (error) {
       logger.error('Failed to save token:', error as Error)
       throw new CopilotServiceError('无法保存访问令牌', error)
@@ -242,8 +260,33 @@ class CopilotService {
     try {
       this.updateHeaders(headers)
 
-      const encryptedToken = await fs.promises.readFile(this.tokenFilePath)
-      const access_token = safeStorage.decryptString(Buffer.from(encryptedToken))
+      const raw = await fs.promises.readFile(this.tokenFilePath)
+
+      let access_token: string | undefined
+      if (safeStorage.isEncryptionAvailable()) {
+        try {
+          access_token = safeStorage.decryptString(raw)
+        } catch {
+          // Fall back to legacy plain token (pre-encryption), and migrate on success.
+        }
+      }
+
+      if (!access_token) {
+        const legacy = raw.toString('utf-8')
+        if (!this.isLikelyToken(legacy)) {
+          await fs.promises.unlink(this.tokenFilePath).catch(() => {})
+          throw new CopilotServiceError('无法读取已保存的访问令牌，请重新授权')
+        }
+        access_token = legacy
+        if (safeStorage.isEncryptionAvailable()) {
+          await this.saveCopilotToken(_, legacy)
+        }
+      }
+
+      if (!this.isLikelyToken(access_token)) {
+        await fs.promises.unlink(this.tokenFilePath).catch(() => {})
+        throw new CopilotServiceError('无法读取已保存的访问令牌，请重新授权')
+      }
 
       const response = await net.fetch(CONFIG.API_URLS.COPILOT_TOKEN, {
         method: 'GET',

@@ -593,11 +593,28 @@
       "button": "选择备份位置",
       "label": "确定要备份数据吗？"
     },
-    "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
+    "content": "备份应用数据，包括聊天记录、设置、知识库等。默认不包含凭据（secrets）。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
+    "options": {
+      "encrypt_with_passphrase": "使用口令加密备份文件（推荐）",
+      "passphrase": "口令",
+      "passphrase_confirm": "确认口令",
+      "path_tip": "提示：包含凭据的备份请避免保存到公共目录或网盘同步目录。",
+      "secrets_ack": "我理解备份包含明文凭据",
+      "secrets_warning": {
+        "description": "包含凭据会以可迁移形式导出（解密后的凭据）。请妥善保管备份文件，避免放在公共目录或网盘同步目录。",
+        "title": "此备份将包含凭据"
+      },
+      "with_secrets": "包含凭据（可跨设备迁移）",
+      "without_secrets": "默认（不包含凭据）"
+    },
+    "path": {
+      "warning_public_dir": "你选择了可能不安全的目录（公共目录/网盘同步目录）。对于包含凭据的备份，请避免保存到公共目录或网盘同步目录。仍要继续吗？"
+    },
     "progress": {
       "completed": "备份完成",
       "compressing": "压缩文件...",
       "copying_files": "复制文件... {{progress}}%",
+      "encrypting": "加密备份...",
       "preparing": "准备备份...",
       "preparing_compression": "准备压缩...",
       "title": "备份进度",
@@ -1246,7 +1263,8 @@
     "availableProviders": "可用提供商",
     "availableTools": "可用工具",
     "backup": {
-      "file_format": "备份文件格式错误"
+      "file_format": "备份文件格式错误",
+      "invalid_passphrase": "备份口令错误"
     },
     "boundary": {
       "default": {
@@ -1908,6 +1926,7 @@
     },
     "restore": {
       "failed": "恢复失败",
+      "secrets_migration_notice": "部分凭据可能无法迁移到当前设备，请按需重新授权",
       "success": "恢复成功"
     },
     "save": {
@@ -2633,9 +2652,16 @@
       "label": "确定要恢复数据吗？"
     },
     "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待",
+    "passphrase": {
+      "description": "该备份已加密，请输入口令解密。",
+      "empty": "口令不能为空",
+      "placeholder": "口令",
+      "title": "输入备份口令"
+    },
     "progress": {
       "completed": "恢复完成",
       "copying_files": "复制文件... {{progress}}%",
+      "decrypting": "解密备份...",
       "extracted": "解压成功",
       "extracting": "解压备份...",
       "preparing": "准备恢复...",
@@ -4595,6 +4621,18 @@
       "title": "快捷短语",
       "titleLabel": "标题",
       "titlePlaceholder": "请输入短语标题"
+    },
+    "security": {
+      "credentials_invalid": {
+        "action_data": "前往数据设置",
+        "action_docprocess": "前往文档处理设置",
+        "action_provider": "前往服务商设置",
+        "action_websearch": "前往网页搜索设置",
+        "affected": "受影响的凭据：{{items}}",
+        "description": "检测到部分凭据无法解密或已丢失（可能由于卸载重装、系统钥匙串变化等）。请到对应设置重新输入 API Key 或重新授权。",
+        "dismiss": "忽略",
+        "title": "凭据失效，需要重新授权"
+      }
     },
     "shortcuts": {
       "action": "操作",

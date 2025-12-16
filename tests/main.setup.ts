@@ -16,6 +16,12 @@ vi.mock('electron', () => ({
       switch (key) {
         case 'userData':
           return '/mock/userData'
+        case 'documents':
+          return '/mock/documents'
+        case 'downloads':
+          return '/mock/downloads'
+        case 'desktop':
+          return '/mock/desktop'
         case 'temp':
           return '/mock/temp'
         case 'logs':
@@ -25,6 +31,20 @@ vi.mock('electron', () => ({
       }
     }),
     getVersion: vi.fn(() => '1.0.0')
+  },
+  net: {
+    fetch: vi.fn()
+  },
+  safeStorage: {
+    isEncryptionAvailable: vi.fn(() => true),
+    encryptString: vi.fn((plainText: string) => Buffer.from(`encrypted:${plainText}`, 'utf-8')),
+    decryptString: vi.fn((encrypted: Buffer) => {
+      const value = encrypted.toString('utf-8')
+      if (!value.startsWith('encrypted:')) {
+        throw new Error('Unable to decrypt')
+      }
+      return value.slice('encrypted:'.length)
+    })
   },
   ipcMain: {
     handle: vi.fn(),
@@ -98,13 +118,18 @@ vi.mock('winston-daily-rotate-file', () => {
 })
 
 // Mock Node.js modules
-vi.mock('node:os', () => ({
-  platform: vi.fn(() => 'darwin'),
-  arch: vi.fn(() => 'x64'),
-  version: vi.fn(() => '20.0.0'),
-  cpus: vi.fn(() => [{ model: 'Mock CPU' }]),
-  totalmem: vi.fn(() => 8 * 1024 * 1024 * 1024) // 8GB
-}))
+vi.mock('node:os', () => {
+  const api = {
+    platform: vi.fn(() => 'darwin'),
+    arch: vi.fn(() => 'x64'),
+    version: vi.fn(() => '20.0.0'),
+    homedir: vi.fn(() => '/mock/home'),
+    cpus: vi.fn(() => [{ model: 'Mock CPU' }]),
+    totalmem: vi.fn(() => 8 * 1024 * 1024 * 1024) // 8GB
+  }
+
+  return { ...api, default: api }
+})
 
 vi.mock('node:path', async () => {
   const actual = await vi.importActual('node:path')

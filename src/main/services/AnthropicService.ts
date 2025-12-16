@@ -125,8 +125,13 @@ class AnthropicService extends Error {
       return
     }
 
-    const encrypted = safeStorage.encryptString(JSON.stringify(creds))
-    await promises.writeFile(CREDS_PATH, encrypted)
+    try {
+      const encrypted = safeStorage.encryptString(JSON.stringify(creds))
+      await promises.writeFile(CREDS_PATH, encrypted)
+    } catch (error) {
+      logger.warn('safeStorage encryptString failed; saving Anthropic OAuth credentials as plain JSON', error as Error)
+      await promises.writeFile(CREDS_PATH, JSON.stringify(creds, null, 2))
+    }
     await promises.chmod(CREDS_PATH, 0o600) // Read/write for owner only
   }
 

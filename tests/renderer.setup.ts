@@ -79,11 +79,9 @@ const createStorageMock = () => {
   }
 }
 
-if (typeof globalThis.localStorage?.getItem !== 'function') {
-  const storage = typeof window?.localStorage?.getItem === 'function' ? window.localStorage : createStorageMock()
-  vi.stubGlobal('localStorage', storage)
-}
-if (typeof globalThis.sessionStorage?.getItem !== 'function') {
-  const storage = typeof window?.sessionStorage?.getItem === 'function' ? window.sessionStorage : createStorageMock()
-  vi.stubGlobal('sessionStorage', storage)
-}
+const localStorageImpl = typeof window?.localStorage?.getItem === 'function' ? window.localStorage : createStorageMock()
+vi.stubGlobal('localStorage', localStorageImpl)
+
+const sessionStorageImpl =
+  typeof window?.sessionStorage?.getItem === 'function' ? window.sessionStorage : createStorageMock()
+vi.stubGlobal('sessionStorage', sessionStorageImpl)

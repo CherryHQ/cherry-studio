@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import { getBackupProgressLabel } from '@renderer/i18n/label'
-import { backup } from '@renderer/services/BackupService'
+import { backupWithOptions } from '@renderer/services/BackupService'
 import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Modal, Progress } from 'antd'
+import { Alert, Checkbox, Input, Modal, Progress, Radio, Space, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,7 +15,14 @@ interface Props {
   resolve: (data: any) => void
 }
 
-type ProgressStageType = 'reading_data' | 'preparing' | 'extracting' | 'extracted' | 'copying_files' | 'completed'
+type ProgressStageType =
+  | 'preparing'
+  | 'writing_data'
+  | 'copying_files'
+  | 'preparing_compression'
+  | 'compressing'
+  | 'encrypting'
+  | 'completed'
 
 interface ProgressData {
   stage: ProgressStageType
@@ -26,6 +33,12 @@ interface ProgressData {
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
+  const [isRunning, setIsRunning] = useState(false)
+  const [includeSecrets, setIncludeSecrets] = useState(false)
+  const [encryptBackup, setEncryptBackup] = useState(true)
+  const [secretsAcknowledged, setSecretsAcknowledged] = useState(false)
+  const [passphrase, setPassphrase] = useState('')
+  const [confirmPassphrase, setConfirmPassphrase] = useState('')
   const { t } = useTranslation()
   const skipBackupFile = store.getState().settings.skipBackupFile
 
@@ -41,8 +54,22 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const onOk = async () => {
     logger.debug(`skipBackupFile: ${skipBackupFile}`)
-    await backup(skipBackupFile)
-    setOpen(false)
+    setIsRunning(true)
+    try {
+      const completed = await backupWithOptions(skipBackupFile, {
+        includeSecrets,
+        passphrase: includeSecrets && encryptBackup ? passphrase : undefined
+      })
+      if (completed) {
+        setOpen(false)
+      }
+    } catch (error) {
+      logger.error('Backup failed:', error as Error)
+      window.toast.error(t('message.backup.failed'))
+      setProgressData(undefined)
+    } finally {
+      setIsRunning(false)
+    }
   }
 
   const onCancel = () => {
@@ -66,7 +93,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   BackupPopup.hide = onCancel
 
-  const isDisabled = progressData ? progressData.stage !== 'completed' : false
+  const needsPassphrase = includeSecrets && encryptBackup
+  const passphraseValid = !needsPassphrase || (passphrase.length > 0 && passphrase === confirmPassphrase)
+  const canStart = !includeSecrets || (secretsAcknowledged && passphraseValid)
+
+  const isProgressLocked = progressData ? progressData.stage !== 'completed' : false
+  const isBusy = isRunning || isProgressLocked
+  const okDisabled = isBusy || !canStart
+  const cancelDisabled = isBusy
 
   return (
     <Modal
@@ -75,13 +109,68 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      okButtonProps={{ disabled: isDisabled }}
-      cancelButtonProps={{ disabled: isDisabled }}
+      okButtonProps={{ disabled: okDisabled }}
+      cancelButtonProps={{ disabled: cancelDisabled }}
       okText={t('backup.confirm.button')}
       maskClosable={false}
       transitionName="animation-move-down"
       centered>
-      {!progressData && <div>{t('backup.content')}</div>}
+      {!progressData && (
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Typography.Paragraph style={{ marginBottom: 0 }}>{t('backup.content')}</Typography.Paragraph>
+          <Radio.Group
+            value={includeSecrets ? 'with_secrets' : 'without_secrets'}
+            onChange={(e) => {
+              const nextInclude = e.target.value === 'with_secrets'
+              setIncludeSecrets(nextInclude)
+              if (!nextInclude) {
+                setSecretsAcknowledged(false)
+                setPassphrase('')
+                setConfirmPassphrase('')
+              }
+            }}>
+            <Space direction="vertical">
+              <Radio value="without_secrets">{t('backup.options.without_secrets')}</Radio>
+              <Radio value="with_secrets">{t('backup.options.with_secrets')}</Radio>
+            </Space>
+          </Radio.Group>
+
+          {includeSecrets && (
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              <Alert
+                type="warning"
+                showIcon
+                message={t('backup.options.secrets_warning.title')}
+                description={t('backup.options.secrets_warning.description')}
+              />
+              <Checkbox checked={secretsAcknowledged} onChange={(e) => setSecretsAcknowledged(e.target.checked)}>
+                {t('backup.options.secrets_ack')}
+              </Checkbox>
+              <Checkbox checked={encryptBackup} onChange={(e) => setEncryptBackup(e.target.checked)}>
+                {t('backup.options.encrypt_with_passphrase')}
+              </Checkbox>
+
+              {encryptBackup && (
+                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <Input.Password
+                    value={passphrase}
+                    onChange={(e) => setPassphrase(e.target.value)}
+                    placeholder={t('backup.options.passphrase')}
+                  />
+                  <Input.Password
+                    value={confirmPassphrase}
+                    onChange={(e) => setConfirmPassphrase(e.target.value)}
+                    placeholder={t('backup.options.passphrase_confirm')}
+                    status={confirmPassphrase.length > 0 && !passphraseValid ? 'error' : undefined}
+                  />
+                </Space>
+              )}
+
+              <Typography.Text type="secondary">{t('backup.options.path_tip')}</Typography.Text>
+            </Space>
+          )}
+        </Space>
+      )}
       {progressData && (
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <Progress percent={Math.floor(progressData.progress)} strokeColor="var(--color-primary)" />

@@ -108,6 +108,7 @@ const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
   copying_files: 'backup.progress.copying_files',
+  encrypting: 'backup.progress.encrypting',
   preparing_compression: 'backup.progress.preparing_compression',
   preparing: 'backup.progress.preparing',
   title: 'backup.progress.title',
@@ -121,6 +122,7 @@ export const getBackupProgressLabel = (key: string): string => {
 const restoreProgressKeyMap = {
   completed: 'restore.progress.completed',
   copying_files: 'restore.progress.copying_files',
+  decrypting: 'restore.progress.decrypting',
   extracted: 'restore.progress.extracted',
   extracting: 'restore.progress.extracting',
   preparing: 'restore.progress.preparing',

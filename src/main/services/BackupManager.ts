@@ -11,11 +11,16 @@ import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
+import { decryptBackupFile, encryptBackupFile, isEncryptedBackupFile } from '../utils/backupEncryption'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('BackupManager')
+
+type BackupCryptoOptions = {
+  passphrase?: string
+}
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -195,14 +200,19 @@ class BackupManager {
     fileName: string,
     data: string,
     destinationPath: string = this.backupDir,
-    skipBackupFile: boolean = false
+    skipBackupFile: boolean = false,
+    options: BackupCryptoOptions = {}
   ): Promise<string> {
     const mainWindow = windowService.getMainWindow()
+    const passphrase =
+      typeof options.passphrase === 'string' && options.passphrase.length > 0 ? options.passphrase : null
+    let tempZipPath = ''
+    let backupedFilePath = ''
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
       // 只在关键阶段记录日志：开始、结束和主要阶段转换点
-      const logStages = ['preparing', 'writing_data', 'preparing_compression', 'completed']
+      const logStages = ['preparing', 'writing_data', 'preparing_compression', 'encrypting', 'completed']
       if (logStages.includes(processData.stage) || processData.progress === 100) {
         logger.debug('backup progress', processData)
       }
@@ -210,6 +220,7 @@ class BackupManager {
 
     try {
       await fs.ensureDir(this.tempDir)
+      await fs.ensureDir(destinationPath)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       // 使用流的方式写入 data.json
@@ -251,9 +262,11 @@ class BackupManager {
         await fs.promises.mkdir(path.join(this.tempDir, 'Data')) // 不创建空 Data 目录会导致 restore 失败
       }
 
+      backupedFilePath = path.join(destinationPath, fileName)
+      tempZipPath = passphrase ? path.join(this.backupDir, `cherry-studio.${Date.now()}.zip`) : backupedFilePath
+
       // 创建输出文件流
-      const backupedFilePath = path.join(destinationPath, fileName)
-      const output = fs.createWriteStream(backupedFilePath)
+      const output = fs.createWriteStream(tempZipPath)
 
       // 创建 archiver 实例，启用 ZIP64 支持
       const archive = archiver('zip', {
@@ -261,6 +274,7 @@ class BackupManager {
         zip64: true // 启用 ZIP64 支持以处理大文件
       })
 
+      const compressMax = passphrase ? 95 : 99
       let lastProgress = 50
       let totalEntries = 0
       let processedEntries = 0
@@ -305,7 +319,10 @@ class BackupManager {
       archive.on('data', (chunk) => {
         processedBytes += chunk.length
         if (totalBytes > 0) {
-          const progressPercent = Math.min(99, 55 + Math.floor((processedBytes / totalBytes) * 44))
+          const progressPercent = Math.min(
+            compressMax,
+            55 + Math.floor((processedBytes / totalBytes) * (compressMax - 55))
+          )
           if (progressPercent > lastProgress) {
             lastProgress = progressPercent
             onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
@@ -316,7 +333,7 @@ class BackupManager {
       // 使用 Promise 等待压缩完成
       await new Promise<void>((resolve, reject) => {
         output.on('close', () => {
-          onProgress({ stage: 'compressing', progress: 100, total: 100 })
+          onProgress({ stage: 'compressing', progress: compressMax, total: 100 })
           resolve()
         })
         archive.on('error', reject)
@@ -336,6 +353,26 @@ class BackupManager {
         archive.finalize()
       })
 
+      if (passphrase) {
+        const encryptStart = compressMax
+        const encryptSpan = 99 - encryptStart
+        onProgress({ stage: 'encrypting', progress: encryptStart, total: 100 })
+
+        await encryptBackupFile(tempZipPath, backupedFilePath, {
+          passphrase,
+          onProgress: (processed, total) => {
+            if (total <= 0) return
+            const progressPercent = Math.min(99, encryptStart + Math.floor((processed / total) * encryptSpan))
+            if (progressPercent > lastProgress) {
+              lastProgress = progressPercent
+              onProgress({ stage: 'encrypting', progress: progressPercent, total: 100 })
+            }
+          }
+        })
+
+        await fs.remove(tempZipPath).catch(() => {})
+      }
+
       // 清理临时目录
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
@@ -346,17 +383,30 @@ class BackupManager {
       logger.error('[BackupManager] Backup failed:', error as Error)
       // 确保清理临时目录
       await fs.remove(this.tempDir).catch(() => {})
+      if (tempZipPath) {
+        await fs.remove(tempZipPath).catch(() => {})
+      }
+      if (backupedFilePath) {
+        await fs.remove(backupedFilePath).catch(() => {})
+      }
       throw error
     }
   }
 
-  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<string> {
+  async restore(
+    _: Electron.IpcMainInvokeEvent,
+    backupPath: string,
+    options: BackupCryptoOptions = {}
+  ): Promise<string> {
     const mainWindow = windowService.getMainWindow()
+    const passphrase =
+      typeof options.passphrase === 'string' && options.passphrase.length > 0 ? options.passphrase : null
+    let decryptedZipPath: string | null = null
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
       // 只在关键阶段记录日志
-      const logStages = ['preparing', 'extracting', 'extracted', 'reading_data', 'completed']
+      const logStages = ['preparing', 'decrypting', 'extracting', 'extracted', 'reading_data', 'completed']
       if (logStages.includes(processData.stage) || processData.progress === 100) {
         logger.debug('restore progress', processData)
       }
@@ -367,9 +417,37 @@ class BackupManager {
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
+      let zipPath = backupPath
+
+      const encrypted = await isEncryptedBackupFile(backupPath)
+      if (encrypted) {
+        if (!passphrase) {
+          throw new Error('Backup passphrase required')
+        }
+
+        decryptedZipPath = path.join(this.backupDir, `cherry-studio.restore.${Date.now()}.zip`)
+        onProgress({ stage: 'decrypting', progress: 10, total: 100 })
+
+        try {
+          await decryptBackupFile(backupPath, decryptedZipPath, {
+            passphrase,
+            onProgress: (processed, total) => {
+              if (total <= 0) return
+              const progress = Math.min(14, 10 + Math.floor((processed / total) * 4))
+              onProgress({ stage: 'decrypting', progress, total: 100 })
+            }
+          })
+        } catch (error) {
+          await fs.remove(decryptedZipPath).catch(() => {})
+          throw new Error('Invalid backup passphrase')
+        }
+
+        zipPath = decryptedZipPath
+      }
+
       logger.debug(`step 1: unzip backup file: ${this.tempDir}`)
 
-      const zip = new StreamZip.async({ file: backupPath })
+      const zip = new StreamZip.async({ file: zipPath })
       onProgress({ stage: 'extracting', progress: 15, total: 100 })
       await zip.extract(null, this.tempDir)
       onProgress({ stage: 'extracted', progress: 25, total: 100 })
@@ -410,6 +488,9 @@ class BackupManager {
       // 清理临时目录
       await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)
+      if (decryptedZipPath) {
+        await fs.remove(decryptedZipPath).catch(() => {})
+      }
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
       logger.debug('step 5: Restore completed successfully')
@@ -418,6 +499,9 @@ class BackupManager {
     } catch (error) {
       logger.error('Restore failed:', error as Error)
       await fs.remove(this.tempDir).catch(() => {})
+      if (decryptedZipPath) {
+        await fs.remove(decryptedZipPath).catch(() => {})
+      }
       throw error
     }
   }

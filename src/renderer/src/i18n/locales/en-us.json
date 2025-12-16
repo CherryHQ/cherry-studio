@@ -593,11 +593,28 @@
       "button": "Select Backup Location",
       "label": "Are you sure you want to backup data?"
     },
-    "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "content": "Backup app data, including chat history, settings, and knowledge base. By default, credentials are excluded. Please note that the backup process may take some time, thank you for your patience.",
+    "options": {
+      "encrypt_with_passphrase": "Encrypt backup with a passphrase (recommended)",
+      "passphrase": "Passphrase",
+      "passphrase_confirm": "Confirm passphrase",
+      "path_tip": "Tip: Avoid saving backups containing credentials to public or cloud-synced folders.",
+      "secrets_ack": "I understand the backup includes plaintext credentials.",
+      "secrets_warning": {
+        "description": "Including credentials exports them in a portable form. Store the backup securely and avoid public or cloud-synced folders.",
+        "title": "This backup includes credentials"
+      },
+      "with_secrets": "Include credentials (portable across devices)",
+      "without_secrets": "Default (without credentials)"
+    },
+    "path": {
+      "warning_public_dir": "You selected a potentially unsafe folder (public or cloud-synced). For backups containing credentials, avoid saving to public or cloud-synced folders. Continue?"
+    },
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
       "copying_files": "Copying files... {{progress}}%",
+      "encrypting": "Encrypting backup...",
       "preparing": "Preparing backup...",
       "preparing_compression": "Preparing compression...",
       "title": "Backup Progress",
@@ -1246,7 +1263,8 @@
     "availableProviders": "Available Providers",
     "availableTools": "Available Tools",
     "backup": {
-      "file_format": "Backup file format error"
+      "file_format": "Backup file format error",
+      "invalid_passphrase": "Invalid backup passphrase"
     },
     "boundary": {
       "default": {
@@ -1908,6 +1926,7 @@
     },
     "restore": {
       "failed": "Restore failed",
+      "secrets_migration_notice": "Some credentials may need to be re-authorized on this device",
       "success": "Restored successfully"
     },
     "save": {
@@ -2633,9 +2652,16 @@
       "label": "Are you sure you want to restore data?"
     },
     "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+    "passphrase": {
+      "description": "Enter the passphrase to decrypt this backup.",
+      "empty": "Passphrase is required",
+      "placeholder": "Passphrase",
+      "title": "Backup Passphrase"
+    },
     "progress": {
       "completed": "Restore completed",
       "copying_files": "Copying files... {{progress}}%",
+      "decrypting": "Decrypting backup...",
       "extracted": "Extraction successful",
       "extracting": "Extracting backup...",
       "preparing": "Preparing restore...",
@@ -4595,6 +4621,18 @@
       "title": "Quick Phrases",
       "titleLabel": "Title",
       "titlePlaceholder": "Please enter phrase title"
+    },
+    "security": {
+      "credentials_invalid": {
+        "action_data": "Go to Data settings",
+        "action_docprocess": "Go to Document processing",
+        "action_provider": "Go to Providers",
+        "action_websearch": "Go to Web search",
+        "affected": "Affected credentials: {{items}}",
+        "description": "Some credentials could not be decrypted or were lost (e.g. after reinstall or OS keychain changes). Please re-enter API keys or re-authorize.",
+        "dismiss": "Dismiss",
+        "title": "Credentials need re-authorization"
+      }
     },
     "shortcuts": {
       "action": "Action",

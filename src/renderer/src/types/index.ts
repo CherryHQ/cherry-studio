@@ -488,6 +488,9 @@ export type AppInfo = {
   appPath: string
   configPath: string
   appDataPath: string
+  documentsPath?: string
+  downloadsPath?: string
+  desktopPath?: string
   resourcesPath: string
   filesPath: string
   logsPath: string

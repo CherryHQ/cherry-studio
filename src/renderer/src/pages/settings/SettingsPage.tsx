@@ -26,6 +26,7 @@ import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AboutSettings from './AboutSettings'
+import CredentialIssuesBanner from './CredentialIssuesBanner'
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
 import DocProcessSettings from './DocProcessSettings'
@@ -156,24 +157,27 @@ const SettingsPage: FC = () => {
           </MenuItemLink>
         </SettingMenus>
         <SettingContent>
-          <Routes>
-            <Route path="provider" element={<ProviderList />} />
-            <Route path="model" element={<ModelSettings />} />
-            <Route path="websearch" element={<WebSearchSettings />} />
-            <Route path="api-server" element={<ApiServerSettings />} />
-            <Route path="docprocess" element={<DocProcessSettings />} />
-            <Route path="quickphrase" element={<QuickPhraseSettings />} />
-            <Route path="mcp/*" element={<MCPSettings />} />
-            <Route path="memory" element={<MemorySettings />} />
-            <Route path="general/*" element={<GeneralSettings />} />
-            <Route path="display" element={<DisplaySettings />} />
-            <Route path="shortcut" element={<ShortcutSettings />} />
-            <Route path="quickAssistant" element={<QuickAssistantSettings />} />
-            <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
-            <Route path="data" element={<DataSettings />} />
-            <Route path="notes" element={<NotesSettings />} />
-            <Route path="about" element={<AboutSettings />} />
-          </Routes>
+          <CredentialIssuesBanner />
+          <RoutesContainer>
+            <Routes>
+              <Route path="provider" element={<ProviderList />} />
+              <Route path="model" element={<ModelSettings />} />
+              <Route path="websearch" element={<WebSearchSettings />} />
+              <Route path="api-server" element={<ApiServerSettings />} />
+              <Route path="docprocess" element={<DocProcessSettings />} />
+              <Route path="quickphrase" element={<QuickPhraseSettings />} />
+              <Route path="mcp/*" element={<MCPSettings />} />
+              <Route path="memory" element={<MemorySettings />} />
+              <Route path="general/*" element={<GeneralSettings />} />
+              <Route path="display" element={<DisplaySettings />} />
+              <Route path="shortcut" element={<ShortcutSettings />} />
+              <Route path="quickAssistant" element={<QuickAssistantSettings />} />
+              <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
+              <Route path="data" element={<DataSettings />} />
+              <Route path="notes" element={<NotesSettings />} />
+              <Route path="about" element={<AboutSettings />} />
+            </Routes>
+          </RoutesContainer>
         </SettingContent>
       </ContentContainer>
     </Container>
@@ -236,8 +240,15 @@ const MenuItem = styled.li`
 
 const SettingContent = styled.div`
   display: flex;
+  flex-direction: column;
   height: 100%;
   flex: 1;
+`
+
+const RoutesContainer = styled.div`
+  display: flex;
+  flex: 1;
+  overflow: hidden;
 `
 
 const Divider = styled(AntDivider)`
