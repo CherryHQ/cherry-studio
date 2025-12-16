@@ -54,7 +54,7 @@ jobs:
           yarn install
 
       - name: 🏃‍♀️ Translate
-        run: yarn sync:i18n && yarn auto:i18n
+        run: yarn i18n:sync && yarn i18n:translate
 
       - name: 🔍 Format
         run: yarn format

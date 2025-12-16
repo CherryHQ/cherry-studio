@@ -145,7 +145,7 @@ export function main() {
     console.log('i18n 检查已通过')
   } catch (e) {
     console.error(e)
-    throw new Error(`检查未通过。尝试运行 yarn sync:i18n 以解决问题。`)
+    throw new Error(`检查未通过。尝试运行 yarn i18n:sync 以解决问题。`)
   }
 }
 

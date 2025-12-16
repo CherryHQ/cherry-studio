@@ -58,7 +58,7 @@ jobs:
         run: yarn typecheck
 
       - name: i18n Check
-        run: yarn check:i18n
+        run: yarn i18n:check
 
       - name: Test
         run: yarn test

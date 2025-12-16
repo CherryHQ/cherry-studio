@@ -50,7 +50,7 @@ Usage Instructions:
    - pt-pt (Portuguese)
 
 Run Command:
-yarn auto:i18n
+yarn i18n:translate
 
 Performance Optimization Recommendations:
 - For stable API services: MAX_CONCURRENT_TRANSLATIONS=8, TRANSLATION_DELAY_MS=50
