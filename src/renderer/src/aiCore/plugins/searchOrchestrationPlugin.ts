@@ -8,6 +8,7 @@
  */
 import { type AiRequestContext, definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { DEFAULT_ASSISTANT_KNOWLEDGE_RECOGNITION } from '@renderer/config/constant'
 // import { generateObject } from '@cherrystudio/ai-core'
 import {
   SEARCH_SUMMARY_PROMPT,
@@ -266,7 +267,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 判断是否需要各种搜索
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
+        const knowledgeRecognition = assistant.knowledgeRecognition || DEFAULT_ASSISTANT_KNOWLEDGE_RECOGNITION
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
@@ -330,7 +331,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 📚 知识库搜索工具配置
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
+        const knowledgeRecognition = assistant.knowledgeRecognition || DEFAULT_ASSISTANT_KNOWLEDGE_RECOGNITION
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
 
         if (shouldKnowledgeSearch) {

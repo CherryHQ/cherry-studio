@@ -1,5 +1,6 @@
 import { CheckOutlined } from '@ant-design/icons'
 import { Box } from '@renderer/components/Layout'
+import { DEFAULT_ASSISTANT_KNOWLEDGE_RECOGNITION } from '@renderer/config/constant'
 import { useAppSelector } from '@renderer/store'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import type { SelectProps } from 'antd'
@@ -53,7 +54,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
       </Row>
       <Row align="middle" style={{ marginTop: 10 }}>
         <Segmented
-          value={assistant.knowledgeRecognition ?? 'off'}
+          value={assistant.knowledgeRecognition ?? DEFAULT_ASSISTANT_KNOWLEDGE_RECOGNITION}
           options={[
             { label: t('assistants.settings.knowledge_base.recognition.off'), value: 'off' },
             {
@@ -71,7 +72,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
           onChange={(value) =>
             updateAssistant({
               ...assistant,
-              knowledgeRecognition: value as 'off' | 'on'
+              knowledgeRecognition: value as Assistant['knowledgeRecognition']
             })
           }
         />

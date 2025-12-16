@@ -1,3 +1,4 @@
+import { DEFAULT_ASSISTANT_KNOWLEDGE_RECOGNITION } from '@renderer/config/constant'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { processKnowledgeSearch } from '@renderer/services/KnowledgeService'
 import type { Assistant, KnowledgeReference } from '@renderer/types'
@@ -38,7 +39,7 @@ You can use this tool as-is, or provide additionalContext to refine the search f
       // 获取助手的知识库配置
       const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
       const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-      const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+      const knowledgeRecognition = assistant.knowledgeRecognition || DEFAULT_ASSISTANT_KNOWLEDGE_RECOGNITION
 
       // 检查是否有知识库
       if (!hasKnowledgeBase) {

@@ -42,7 +42,7 @@ export interface AiSdkMiddlewareConfig {
   uiMessages?: Message[]
   // 内置搜索配置
   webSearchPluginConfig?: WebSearchPluginConfig
-  // 知识库识别开关，默认开启
+  // 知识库意图识别开关，默认关闭
   knowledgeRecognition?: 'off' | 'on'
 }
 
