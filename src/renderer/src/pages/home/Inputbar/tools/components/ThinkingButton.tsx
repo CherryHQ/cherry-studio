@@ -101,7 +101,8 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
     }))
   }, [currentReasoningEffort, supportedOptions, onThinkingChange])
 
-  const isThinkingEnabled = currentReasoningEffort !== undefined && currentReasoningEffort !== 'none'
+  const isThinkingEnabled =
+    currentReasoningEffort !== undefined && currentReasoningEffort !== 'none' && currentReasoningEffort !== 'default'
 
   const disableThinking = useCallback(() => {
     onThinkingChange('none')
