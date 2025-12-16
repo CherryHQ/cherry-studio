@@ -1,3 +1,4 @@
+import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -37,8 +38,10 @@ import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
   BrushCleaning,
+  CheckSquare,
   FolderOpen,
   HelpCircle,
+  ListChecks,
   MenuIcon,
   NotebookPen,
   PackagePlus,
@@ -46,6 +49,7 @@ import {
   PinOffIcon,
   Save,
   Sparkles,
+  Square,
   UploadIcon,
   XIcon
 } from 'lucide-react'
@@ -55,6 +59,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import AddButton from './AddButton'
+import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 
 interface Props {
   assistant: Assistant
@@ -80,6 +85,10 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
+
+  // 管理模式状态
+  const manageState = useTopicManageMode()
+  const { isManageMode, selectedIds, searchText, enterManageMode, exitManageMode, toggleSelectTopic } = manageState
 
   const { startEdit, isEditing, inputProps } = useInPlaceEdit({
     onSave: (name: string) => {
@@ -437,6 +446,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           .map((a) => ({
             label: a.name,
             key: a.id,
+            icon: <AssistantAvatar assistant={a} size={18} />,
             onClick: () => onMoveTopic(topic, a)
           }))
       })
@@ -492,107 +502,187 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     return assistant.topics
   }, [assistant.topics, pinTopicsToTop])
 
+  // Filter topics based on search text (only in manage mode)
+  // Supports: case-insensitive, space-separated keywords (all must match)
+  const deferredSearchText = useDeferredValue(searchText)
+  const filteredTopics = useMemo(() => {
+    if (!isManageMode || !deferredSearchText.trim()) {
+      return sortedTopics
+    }
+    // Split by spaces and filter out empty strings
+    const keywords = deferredSearchText
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((k) => k.length > 0)
+    if (keywords.length === 0) {
+      return sortedTopics
+    }
+    // All keywords must match (AND logic)
+    return sortedTopics.filter((topic) => {
+      const lowerName = topic.name.toLowerCase()
+      return keywords.every((keyword) => lowerName.includes(keyword))
+    })
+  }, [sortedTopics, deferredSearchText, isManageMode])
+
   const singlealone = topicPosition === 'right' && position === 'right'
 
   return (
-    <DraggableVirtualList
-      className="topics-tab"
-      list={sortedTopics}
-      onUpdate={updateTopics}
-      style={{ height: '100%', padding: '9px 0 10px 10px' }}
-      itemContainerStyle={{ paddingBottom: '8px' }}
-      header={
-        <>
-          <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
-            {t('chat.add.topic.title')}
-          </AddButton>
-          <div className="my-1"></div>
-        </>
-      }>
-      {(topic) => {
-        const isActive = topic.id === activeTopic?.id
-        const topicName = topic.name.replace('`', '')
-        const topicPrompt = topic.prompt
-        const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
-
-        const getTopicNameClassName = () => {
-          if (isRenaming(topic.id)) return 'shimmer'
-          if (isNewlyRenamed(topic.id)) return 'typing'
-          return ''
+    <>
+      <DraggableVirtualList
+        className="topics-tab"
+        list={filteredTopics}
+        onUpdate={updateTopics}
+        style={{ height: '100%', padding: '8px 0 10px 10px', paddingBottom: isManageMode ? 70 : 10 }}
+        itemContainerStyle={{ paddingBottom: '8px' }}
+        header={
+          <HeaderRow>
+            <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+              {t('chat.add.topic.title')}
+            </AddButton>
+            <Tooltip title={t('chat.topics.manage.title')} mouseEnterDelay={0.5}>
+              <HeaderIconButton
+                onClick={isManageMode ? exitManageMode : enterManageMode}
+                className={isManageMode ? 'active' : ''}>
+                <ListChecks size={14} />
+              </HeaderIconButton>
+            </Tooltip>
+          </HeaderRow>
         }
+        disabled={isManageMode}>
+        {(topic) => {
+          const isActive = topic.id === activeTopic?.id
+          const topicName = topic.name.replace('`', '')
+          const topicPrompt = topic.prompt
+          const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
+          const isSelected = selectedIds.has(topic.id)
+          const canSelect = !topic.pinned
 
-        return (
-          <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
-            <TopicListItem
-              onContextMenu={() => setTargetTopic(topic)}
-              className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-              onClick={editingTopicId === topic.id && isEditing ? undefined : () => onSwitchTopic(topic)}
-              style={{
-                borderRadius,
-                cursor: editingTopicId === topic.id && isEditing ? 'default' : 'pointer'
-              }}>
-              {isPending(topic.id) && !isActive && <PendingIndicator />}
-              {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
-              <TopicNameContainer>
-                {editingTopicId === topic.id && isEditing ? (
-                  <TopicEditInput {...inputProps} onClick={(e) => e.stopPropagation()} />
-                ) : (
-                  <TopicName
-                    className={getTopicNameClassName()}
-                    title={topicName}
-                    onDoubleClick={() => {
-                      setEditingTopicId(topic.id)
-                      startEdit(topic.name)
-                    }}>
-                    {topicName}
-                  </TopicName>
+          const getTopicNameClassName = () => {
+            if (isRenaming(topic.id)) return 'shimmer'
+            if (isNewlyRenamed(topic.id)) return 'typing'
+            return ''
+          }
+
+          const handleItemClick = () => {
+            if (isManageMode) {
+              if (canSelect) {
+                toggleSelectTopic(topic.id)
+              }
+            } else {
+              onSwitchTopic(topic)
+            }
+          }
+
+          return (
+            <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']} disabled={isManageMode}>
+              <TopicListItem
+                onContextMenu={() => setTargetTopic(topic)}
+                className={classNames(
+                  isActive && !isManageMode ? 'active' : '',
+                  singlealone ? 'singlealone' : '',
+                  isManageMode && isSelected ? 'selected' : '',
+                  isManageMode && !canSelect ? 'disabled' : ''
                 )}
-                {!topic.pinned && (
-                  <Tooltip
-                    placement="bottom"
-                    mouseEnterDelay={0.7}
-                    mouseLeaveDelay={0}
-                    title={
-                      <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                        {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                      </div>
-                    }>
-                    <MenuButton
-                      className="menu"
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          handleConfirmDelete(topic, e)
-                        } else if (deletingTopicId === topic.id) {
-                          handleConfirmDelete(topic, e)
-                        } else {
-                          handleDeleteClick(topic.id, e)
-                        }
-                      }}>
-                      {deletingTopicId === topic.id ? (
-                        <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
+                onClick={editingTopicId === topic.id && isEditing ? undefined : handleItemClick}
+                style={{
+                  borderRadius,
+                  cursor:
+                    editingTopicId === topic.id && isEditing
+                      ? 'default'
+                      : isManageMode && !canSelect
+                        ? 'not-allowed'
+                        : 'pointer'
+                }}>
+                {isPending(topic.id) && !isActive && <PendingIndicator />}
+                {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
+                <TopicNameContainer>
+                  {isManageMode && (
+                    <SelectIcon className={!canSelect ? 'disabled' : ''}>
+                      {isSelected ? (
+                        <CheckSquare size={16} color="var(--color-primary)" />
                       ) : (
-                        <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
+                        <Square size={16} color="var(--color-text-3)" />
                       )}
+                    </SelectIcon>
+                  )}
+                  {editingTopicId === topic.id && isEditing ? (
+                    <TopicEditInput {...inputProps} onClick={(e) => e.stopPropagation()} />
+                  ) : (
+                    <TopicName
+                      className={getTopicNameClassName()}
+                      title={topicName}
+                      onDoubleClick={
+                        isManageMode
+                          ? undefined
+                          : () => {
+                              setEditingTopicId(topic.id)
+                              startEdit(topic.name)
+                            }
+                      }>
+                      {topicName}
+                    </TopicName>
+                  )}
+                  {!topic.pinned && (
+                    <Tooltip
+                      placement="bottom"
+                      mouseEnterDelay={0.7}
+                      mouseLeaveDelay={0}
+                      title={
+                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                        </div>
+                      }>
+                      <MenuButton
+                        className="menu"
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey) {
+                            handleConfirmDelete(topic, e)
+                          } else if (deletingTopicId === topic.id) {
+                            handleConfirmDelete(topic, e)
+                          } else {
+                            handleDeleteClick(topic.id, e)
+                          }
+                        }}>
+                        {deletingTopicId === topic.id ? (
+                          <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
+                        ) : (
+                          <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
+                        )}
+                      </MenuButton>
+                    </Tooltip>
+                  )}
+                  {topic.pinned && (
+                    <MenuButton className="pin">
+                      <PinIcon size={14} color="var(--color-text-3)" />
                     </MenuButton>
-                  </Tooltip>
+                  )}
+                </TopicNameContainer>
+                {topicPrompt && (
+                  <TopicPromptText className="prompt" title={fullTopicPrompt}>
+                    {fullTopicPrompt}
+                  </TopicPromptText>
                 )}
-                {topic.pinned && (
-                  <MenuButton className="pin">
-                    <PinIcon size={14} color="var(--color-text-3)" />
-                  </MenuButton>
+                {showTopicTime && (
+                  <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
                 )}
-              </TopicNameContainer>
-              {topicPrompt && (
-                <TopicPromptText className="prompt" title={fullTopicPrompt}>
-                  {fullTopicPrompt}
-                </TopicPromptText>
-              )}
-              {showTopicTime && <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>}
-            </TopicListItem>
-          </Dropdown>
-        )
-      }}
-    </DraggableVirtualList>
+              </TopicListItem>
+            </Dropdown>
+          )
+        }}
+      </DraggableVirtualList>
+
+      {/* 管理模式底部面板 */}
+      <TopicManagePanel
+        assistant={assistant}
+        assistants={assistants}
+        activeTopic={activeTopic}
+        setActiveTopic={setActiveTopic}
+        removeTopic={removeTopic}
+        moveTopic={moveTopic}
+        manageState={manageState}
+        filteredTopics={filteredTopics}
+      />
+    </>
   )
 }
 
@@ -640,6 +730,15 @@ const TopicListItem = styled.div`
       box-shadow: none;
     }
   }
+
+  &.selected {
+    background-color: var(--color-primary-bg);
+    box-shadow: inset 0 0 0 1px var(--color-primary);
+  }
+
+  &.disabled {
+    opacity: 0.5;
+  }
 `
 
 const TopicNameContainer = styled.div`
@@ -648,7 +747,6 @@ const TopicNameContainer = styled.div`
   align-items: center;
   gap: 4px;
   height: 20px;
-  justify-content: space-between;
 `
 
 const TopicName = styled.div`
@@ -659,6 +757,8 @@ const TopicName = styled.div`
   font-size: 13px;
   position: relative;
   will-change: background-position, width;
+  flex: 1;
+  text-align: left;
 
   --color-shimmer-mid: var(--color-text-1);
   --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
@@ -763,5 +863,51 @@ const MenuButton = styled.div`
   min-height: 20px;
   .anticon {
     font-size: 12px;
+  }
+`
+
+const HeaderRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding-right: 10px;
+  margin-bottom: 5px;
+`
+
+const HeaderIconButton = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--color-text-2);
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: var(--color-background-mute);
+    color: var(--color-text-1);
+  }
+
+  &.active {
+    color: var(--color-primary);
+
+    &:hover {
+      background-color: var(--color-background-mute);
+    }
+  }
+`
+
+const SelectIcon = styled.div`
+  display: flex;
+  align-items: center;
+  margin-right: 4px;
+
+  &.disabled {
+    opacity: 0.5;
   }
 `

@@ -145,6 +145,7 @@ const Container = styled.div`
   width: var(--assistants-width);
   transition: width 0.3s;
   height: calc(100vh - var(--navbar-height));
+  position: relative;
 
   &.right {
     height: calc(100vh - var(--navbar-height));
