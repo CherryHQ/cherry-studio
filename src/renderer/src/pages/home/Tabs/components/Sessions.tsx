@@ -1,4 +1,4 @@
-import { DraggableVirtualList, type DraggableVirtualListRef } from '@renderer/components/DraggableList'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -14,6 +14,7 @@ import { Alert, Spin } from 'antd'
 import { motion } from 'framer-motion'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 import AddButton from './AddButton'
 import SessionItem from './SessionItem'
@@ -24,12 +25,12 @@ interface SessionsProps {
 
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
-  const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, total } = useSessions(agentId)
+  const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore } = useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
-  const listRef = useRef<DraggableVirtualListRef>(null)
+  const listRef = useRef<DynamicVirtualListRef>(null)
 
   // Handle scroll to load more
   useEffect(() => {
@@ -113,20 +114,18 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   }
 
   return (
-    <DraggableVirtualList
+    <StyledVirtualList
       ref={listRef}
       className="sessions-tab"
       list={sessions}
-      disabled
-      style={{ height: '100%', padding: '9px 0 10px 10px' }}
-      itemContainerStyle={{ paddingBottom: '8px' }}
+      estimateSize={() => 9 * 4}
+      // FIXME: This component only supports CSSProperties
+      scrollerStyle={{ overflowX: 'hidden' }}
+      autoHideScrollbar
       header={
-        <>
-          <AddButton onClick={createDefaultSession} disabled={creatingSession}>
-            {t('agent.session.add.title')}
-          </AddButton>
-          <div className="my-1"></div>
-        </>
+        <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
+          {t('agent.session.add.title')}
+        </AddButton>
       }>
       {(session, index) => (
         <>
@@ -144,8 +143,15 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
           )}
         </>
       )}
-    </DraggableVirtualList>
+    </StyledVirtualList>
   )
 }
+
+const StyledVirtualList = styled(DynamicVirtualList)`
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px;
+  height: 100%;
+` as typeof DynamicVirtualList
 
 export default memo(Sessions)
