@@ -34,6 +34,10 @@ export interface StreamProcessorCallbacks {
   onLLMWebSearchInProgress?: () => void
   // LLM Web search complete
   onLLMWebSearchComplete?: (llmWebSearchResult: WebSearchResponse) => void
+  // Get citation block ID
+  getCitationBlockId?: () => string | null
+  // Set citation block ID
+  setCitationBlockId?: (blockId: string) => void
   // Image generation chunk received
   onImageCreated?: () => void
   onImageDelta?: (imageData: GenerateImageResponse) => void
