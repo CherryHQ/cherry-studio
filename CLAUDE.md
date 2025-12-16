@@ -28,7 +28,7 @@ When creating a Pull Request, you MUST:
 - **Development**: `yarn dev` - Runs Electron app in development mode with hot reload
 - **Debug**: `yarn debug` - Starts with debugging enabled, use `chrome://inspect` to attach debugger
 - **Build Check**: `yarn build:check` - **REQUIRED** before commits (lint + test + typecheck)
-  - If having i18n sort issues, run `yarn sync:i18n` first to sync template
+  - If having i18n sort issues, run `yarn i18n:sync` first to sync template
   - If having formatting issues, run `yarn format` first
 - **Test**: `yarn test` - Run all tests (Vitest) across main and renderer processes
 - **Single Test**:
@@ -40,20 +40,23 @@ When creating a Pull Request, you MUST:
 ## Project Architecture
 
 ### Electron Structure
+
 - **Main Process** (`src/main/`): Node.js backend with services (MCP, Knowledge, Storage, etc.)
 - **Renderer Process** (`src/renderer/`): React UI with Redux state management
 - **Preload Scripts** (`src/preload/`): Secure IPC bridge
 
 ### Key Components
+
 - **AI Core** (`src/renderer/src/aiCore/`): Middleware pipeline for multiple AI providers.
 - **Services** (`src/main/services/`): MCPService, KnowledgeService, WindowService, etc.
 - **Build System**: Electron-Vite with experimental rolldown-vite, yarn workspaces.
 - **State Management**: Redux Toolkit (`src/renderer/src/store/`) for predictable state.
 
 ### Logging
+
 ```typescript
-import { loggerService } from '@logger'
-const logger = loggerService.withContext('moduleName')
+import { loggerService } from "@logger";
+const logger = loggerService.withContext("moduleName");
 // Renderer: loggerService.initWindowSource('windowName') first
-logger.info('message', CONTEXT)
+logger.info("message", CONTEXT);
 ```
