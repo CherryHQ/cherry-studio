@@ -64,7 +64,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // reasoningEffort is not set, no extra reasoning setting
   // Generally, for every model which supports reasoning control, the reasoning effort won't be undefined.
   // It's for some reasoning models that don't support reasoning control, such as deepseek reasoner.
-  if (!reasoningEffort) {
+  if (!reasoningEffort || reasoningEffort === 'default') {
     return {}
   }
 
@@ -329,7 +329,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // Grok models/Perplexity models/OpenAI models, use reasoning_effort
   if (isSupportedReasoningEffortModel(model)) {
     // 检查模型是否支持所选选项
-    const supportedOptions = getModelSupportedReasoningEffortOptions(model)
+    const supportedOptions = getModelSupportedReasoningEffortOptions(model)?.filter((option) => option !== 'default')
     if (supportedOptions?.includes(reasoningEffort)) {
       return {
         reasoningEffort
@@ -620,10 +620,6 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Pick<
 
   const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
 
-  if (!reasoningEffort || reasoningEffort === 'none') {
-    return {}
-  }
-
   switch (reasoningEffort) {
     case 'auto':
     case 'minimal':
@@ -634,6 +630,10 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Pick<
       return { reasoningEffort }
     case 'xhigh':
       return { reasoningEffort: 'high' }
+    case 'default':
+    case 'none':
+    default:
+      return {}
   }
 }
 

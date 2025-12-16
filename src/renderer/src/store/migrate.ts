@@ -3017,6 +3017,20 @@ const migrateConfig = {
       logger.error('migrate 184 error', error as Error)
       return state
     }
+  },
+  '185': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && assistant.settings.reasoning_effort === undefined) {
+          assistant.settings.reasoning_effort = 'default'
+        }
+      })
+      logger.info('migrate 185 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 185 error', error as Error)
+      return state
+    }
   }
 }
 

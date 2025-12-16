@@ -540,6 +540,7 @@
       "more": "Assistenteneinstellungen",
       "prompt": "Prompt-Einstellungen",
       "reasoning_effort": {
+        "auto": "Auto",
         "default": "Standard",
         "high": "Tiefes Nachdenken",
         "label": "Gedankenkettenlänge",

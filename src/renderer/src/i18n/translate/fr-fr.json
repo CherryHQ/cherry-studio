@@ -540,6 +540,7 @@
       "more": "Paramètres de l'assistant",
       "prompt": "Paramètres de l'invite",
       "reasoning_effort": {
+        "auto": "Auto",
         "default": "Par défaut",
         "high": "Long",
         "label": "Longueur de la chaîne de raisonnement",

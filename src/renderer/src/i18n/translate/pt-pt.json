@@ -540,6 +540,7 @@
       "more": "Configurações do Assistente",
       "prompt": "Configurações de Prompt",
       "reasoning_effort": {
+        "auto": "Automóvel",
         "default": "Padrão",
         "high": "Longo",
         "label": "Comprimento da Cadeia de Raciocínio",

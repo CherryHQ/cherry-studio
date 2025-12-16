@@ -540,6 +540,7 @@
       "more": "アシスタント設定",
       "prompt": "プロンプト設定",
       "reasoning_effort": {
+        "auto": "自動",
         "default": "デフォルト",
         "high": "最大限の思考",
         "label": "思考連鎖の長さ",

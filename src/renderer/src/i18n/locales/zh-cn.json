@@ -540,6 +540,7 @@
       "more": "助手设置",
       "prompt": "提示词设置",
       "reasoning_effort": {
+        "auto": "自动",
         "default": "默认",
         "high": "沉思",
         "label": "思维链长度",

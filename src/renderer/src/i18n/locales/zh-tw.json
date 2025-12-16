@@ -540,6 +540,7 @@
       "more": "助手設定",
       "prompt": "提示詞設定",
       "reasoning_effort": {
+        "auto": "自動",
         "default": "預設",
         "high": "盡力思考",
         "label": "思維鏈長度",

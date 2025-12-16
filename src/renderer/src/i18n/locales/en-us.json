@@ -540,6 +540,7 @@
       "more": "Assistant Settings",
       "prompt": "Prompt Settings",
       "reasoning_effort": {
+        "auto": "Auto",
         "default": "Default",
         "high": "High",
         "label": "Reasoning effort",

@@ -540,6 +540,7 @@
       "more": "Configuración del Asistente",
       "prompt": "Configuración de Palabras Clave",
       "reasoning_effort": {
+        "auto": "Automóvil",
         "default": "Por defecto",
         "high": "Largo",
         "label": "Longitud de Cadena de Razonamiento",

@@ -6,7 +6,8 @@ import {
   MdiLightbulbOn30,
   MdiLightbulbOn50,
   MdiLightbulbOn80,
-  MdiLightbulbOn90
+  MdiLightbulbOn90,
+  MdiLightbulbQuestion
 } from '@renderer/components/Icons/SVGIcon'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
@@ -197,8 +198,9 @@ const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boole
       case 'none':
         IconComponent = MdiLightbulbOffOutline
         break
+      case 'default':
       default:
-        IconComponent = MdiLightbulbOffOutline
+        IconComponent = MdiLightbulbQuestion
         break
     }
   }
