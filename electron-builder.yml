@@ -134,54 +134,38 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.4 - New Browser MCP & Model Updates
+    Cherry Studio 1.7.5 - Filesystem MCP Overhaul & Topic Management
 
-    This release adds a powerful browser automation MCP server, new web search provider, and model support updates.
+    This release features a completely rewritten filesystem MCP server, new batch topic management, and improved assistant management.
 
     ✨ New Features
-    - [MCP] Add @cherry/browser CDP MCP server with session management for browser automation
-    - [Web Search] Add ExaMCP free web search provider (no API key required)
-    - [Model] Support GPT 5.2 series models
-    - [Model] Add capabilities support for Doubao Seed Code models (tool calling, reasoning, vision)
-
-    🔧 Improvements
-    - [Translate] Add reasoning effort option to translate service
-    - [i18n] Improve zh-TW Traditional Chinese locale
-    - [Settings] Update MCP Settings layout and styling
+    - [MCP] Rewrite filesystem MCP server with improved tool set (glob, ls, grep, read, write, edit, delete)
+    - [Topics] Add topic manage mode for batch delete and move operations with search functionality
+    - [Assistants] Merge import/subscribe popups and add export to assistant management
+    - [Knowledge] Use prompt injection for forced knowledge base search (faster response times)
+    - [Settings] Add tool use mode setting (prompt/function) to default assistant settings
 
     🐛 Bug Fixes
-    - [Chat] Fix line numbers being wrongly copied from code blocks
-    - [Translate] Fix default to first supported reasoning effort when translating
-    - [Chat] Fix preserve thinking block in assistant messages
-    - [Web Search] Fix max search result limit
-    - [Embedding] Fix embedding dimensions retrieval for ModernAiProvider
-    - [Chat] Fix token calculation in prompt tool use plugin
-    - [Model] Fix Ollama provider options for Qwen model support
-    - [UI] Fix Chat component marginRight calculation for improved layout
+    - [Model] Correct typo in Gemini 3 Pro Image Preview model name
+    - [Installer] Auto-install VC++ Redistributable without user prompt
+    - [Notes] Fix notes directory validation and default path reset for cross-platform restore
+    - [OAuth] Bind OAuth callback server to localhost (127.0.0.1) for security
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.4 - 新增浏览器 MCP 与模型更新
+    Cherry Studio 1.7.5 - 文件系统 MCP 重构与话题管理
 
-    本次更新新增强大的浏览器自动化 MCP 服务器、新的网页搜索提供商以及模型支持更新。
+    本次更新完全重写了文件系统 MCP 服务器，新增批量话题管理功能，并改进了助手管理。
 
     ✨ 新功能
-    - [MCP] 新增 @cherry/browser CDP MCP 服务器，支持会话管理的浏览器自动化
-    - [网页搜索] 新增 ExaMCP 免费网页搜索提供商（无需 API 密钥）
-    - [模型] 支持 GPT 5.2 系列模型
-    - [模型] 为豆包 Seed Code 模型添加能力支持（工具调用、推理、视觉）
-
-    🔧 功能改进
-    - [翻译] 为翻译服务添加推理强度选项
-    - [国际化] 改进繁体中文（zh-TW）本地化
-    - [设置] 优化 MCP 设置布局和样式
+    - [MCP] 重写文件系统 MCP 服务器，提供改进的工具集（glob、ls、grep、read、write、edit、delete）
+    - [话题] 新增话题管理模式，支持批量删除和移动操作，带搜索功能
+    - [助手] 合并导入/订阅弹窗，并在助手管理中添加导出功能
+    - [知识库] 使用提示词注入进行强制知识库搜索（响应更快）
+    - [设置] 在默认助手设置中添加工具使用模式设置（prompt/function）
 
     🐛 问题修复
-    - [聊天] 修复代码块中行号被错误复制的问题
-    - [翻译] 修复翻译时默认使用第一个支持的推理强度
-    - [聊天] 修复助手消息中思考块的保留问题
-    - [网页搜索] 修复最大搜索结果数限制
-    - [嵌入] 修复 ModernAiProvider 嵌入维度获取问题
-    - [聊天] 修复提示词工具使用插件的 token 计算问题
-    - [模型] 修复 Ollama 提供商对 Qwen 模型的支持选项
-    - [界面] 修复聊天组件右边距计算以改善布局
+    - [模型] 修正 Gemini 3 Pro Image Preview 模型名称的拼写错误
+    - [安装程序] 自动安装 VC++ 运行库，无需用户确认
+    - [笔记] 修复跨平台恢复场景下的笔记目录验证和默认路径重置逻辑
+    - [OAuth] 将 OAuth 回调服务器绑定到 localhost (127.0.0.1) 以提高安全性
     <!--LANG:END-->
