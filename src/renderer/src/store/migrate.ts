@@ -2913,31 +2913,6 @@ const migrateConfig = {
       return state
     }
   },
-  '180': (state: RootState) => {
-    try {
-      if (state.settings.apiServer) {
-        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
-      }
-      // @ts-expect-error
-      if (state.settings.openAI.summaryText === 'undefined') {
-        state.settings.openAI.summaryText = undefined
-      }
-      // @ts-expect-error
-      if (state.settings.openAI.verbosity === 'undefined') {
-        state.settings.openAI.verbosity = undefined
-      }
-      state.llm.providers.forEach((provider) => {
-        if (provider.id === SystemProviderIds.ollama) {
-          provider.type = 'ollama'
-        }
-      })
-      logger.info('migrate 180 success')
-      return state
-    } catch (error) {
-      logger.error('migrate 180 error', error as Error)
-      return state
-    }
-  },
   '181': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
@@ -3015,6 +2990,52 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 184 error', error as Error)
+      return state
+    }
+  },
+  '185': (state: RootState) => {
+    try {
+      // Reset toolUseMode to function for default assistant
+      if (state.assistants.defaultAssistant.settings?.toolUseMode) {
+        state.assistants.defaultAssistant.settings.toolUseMode = 'function'
+      }
+      // Reset toolUseMode to function for assistants
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings?.toolUseMode === 'prompt') {
+          if (assistant.model && isFunctionCallingModel(assistant.model)) {
+            assistant.settings.toolUseMode = 'function'
+          }
+        }
+      })
+      logger.info('migrate 185 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 185 error', error as Error)
+      return state
+    }
+  },
+  '186': (state: RootState) => {
+    try {
+      if (state.settings.apiServer) {
+        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.summaryText === 'undefined') {
+        state.settings.openAI.summaryText = undefined
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.verbosity === 'undefined') {
+        state.settings.openAI.verbosity = undefined
+      }
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
+      logger.info('migrate 186 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 186 error', error as Error)
       return state
     }
   }

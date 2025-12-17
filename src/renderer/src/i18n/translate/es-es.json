@@ -472,6 +472,7 @@
         "button": "Importar",
         "error": {
           "fetch_failed": "Error al obtener datos desde la URL",
+          "file_required": "Por favor, selecciona primero un archivo",
           "invalid_format": "Formato de asistente inválido: faltan campos obligatorios",
           "url_required": "Por favor introduce una URL"
         },
@@ -489,8 +490,11 @@
           "button": "Eliminación por lotes",
           "confirm": "¿Estás seguro de que quieres eliminar los {{count}} asistentes seleccionados?"
         },
+        "batch_export": {
+          "button": "Exportar"
+        },
         "mode": {
-          "delete": "Eliminar",
+          "manage": "Gestionar",
           "sort": "Ordenar"
         },
         "title": "Gestionar asistentes"
@@ -1027,6 +1031,29 @@
         "yuque": "Exportar a Yuque"
       },
       "list": "Lista de temas",
+      "manage": {
+        "clear_selection": "Borrar selección",
+        "delete": {
+          "confirm": {
+            "content": "¿Estás seguro de que quieres eliminar {{count}} tema(s) seleccionado(s)? Esta acción no se puede deshacer.",
+            "title": "Eliminar Temas"
+          },
+          "success": "Eliminado(s) {{count}} tema(s)"
+        },
+        "deselect_all": "Deseleccionar todo",
+        "error": {
+          "at_least_one": "Al menos se debe mantener un tema."
+        },
+        "move": {
+          "button": "Mover",
+          "placeholder": "Seleccionar asistente de destino",
+          "success": "Movido(s) {{count}} tema(s)"
+        },
+        "pinned": "Temas Fijados",
+        "selected_count": "{{count}} seleccionado",
+        "title": "Administrar Temas",
+        "unpinned": "Temas no fijados"
+      },
       "move_to": "Mover a",
       "new": "Iniciar nueva conversación",
       "pin": "Fijar tema",
@@ -1036,6 +1063,10 @@
         },
         "label": "Palabras clave del tema",
         "tips": "Palabras clave del tema: proporcionar indicaciones adicionales para el tema actual"
+      },
+      "search": {
+        "placeholder": "Buscar temas...",
+        "title": "Buscar"
       },
       "title": "Tema",
       "unpin": "Quitar fijación"
@@ -1221,11 +1252,13 @@
       }
     },
     "stop": "Detener",
+    "subscribe": "Suscribirse",
     "success": "Éxito",
     "swap": "Intercambiar",
     "topics": "Temas",
     "unknown": "Desconocido",
     "unnamed": "Sin nombre",
+    "unsubscribe": "Cancelar suscripción",
     "update_success": "Actualización exitosa",
     "upload_files": "Subir archivo",
     "warning": "Advertencia",
@@ -2152,6 +2185,7 @@
     "collapse": "ocultar",
     "content_placeholder": "Introduzca el contenido de la nota...",
     "copyContent": "copiar contenido",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "eliminar",
     "delete_confirm": "¿Estás seguro de que deseas eliminar este {{type}}?",
     "delete_folder_confirm": "¿Está seguro de que desea eliminar la carpeta \"{{name}}\" y todo su contenido?",
