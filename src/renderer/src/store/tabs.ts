@@ -20,6 +20,14 @@ import { createSlice } from '@reduxjs/toolkit'
 export interface Tab {
   id: string
   path: string
+  /**
+   * 标签页级聊天状态（用于标签页隔离）。
+   * 注意：不同标签页可以有不同的当前助手/话题选择，避免互相覆盖。
+   */
+  chatState?: {
+    assistantId?: string
+    topicId?: string
+  }
 }
 
 export interface TabsState {

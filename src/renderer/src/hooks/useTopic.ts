@@ -14,29 +14,23 @@ import { MessageBlockType } from '@renderer/types/newMessage'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 import { truncateText } from '@renderer/utils/naming'
 import { find, isEmpty } from 'lodash'
-import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
-
-let _activeTopic: Topic
-let _setActiveTopic: Dispatch<SetStateAction<Topic>>
 
 const logger = loggerService.withContext('useTopic')
 
 export function useActiveTopic(assistantId: string, topic?: Topic) {
   const { assistant } = useAssistant(assistantId)
-  const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
-
-  _activeTopic = activeTopic
-  _setActiveTopic = setActiveTopic
+  const [activeTopic, setActiveTopic] = useState(topic || assistant?.topics[0])
 
   useEffect(() => {
     if (activeTopic) {
       void store.dispatch(loadTopicMessagesThunk(activeTopic.id))
       void EventEmitter.emit(EVENT_NAMES.CHANGE_TOPIC, activeTopic)
     }
-  }, [activeTopic])
+  }, [activeTopic?.id])
 
   useEffect(() => {
     // activeTopic not in assistant.topics
@@ -61,7 +55,7 @@ export function useActiveTopic(assistantId: string, topic?: Topic) {
     if (latestTopic && latestTopic !== activeTopic) {
       setActiveTopic(latestTopic)
     }
-  }, [assistant?.topics, activeTopic])
+  }, [assistant?.topics, activeTopic?.id])
 
   return { activeTopic, setActiveTopic }
 }
@@ -136,9 +130,6 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
 
     const applyTopicName = (name: string) => {
       const data = { ...topic, name } as Topic
-      if (topic.id === _activeTopic.id) {
-        _setActiveTopic(data)
-      }
       store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
     }
 
