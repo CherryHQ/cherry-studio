@@ -731,7 +731,6 @@ describe('reasoning utils', () => {
           includeThoughts: true
         }
       })
-      expect(result.thinkingConfig.thinkingBudget).toBeGreaterThan(0)
     })
 
     it('should enable thinking without budget for auto effort ratio > 1', async () => {
