@@ -163,7 +163,7 @@ class FileStorage {
         fs.mkdirSync(this.storageDir, { recursive: true })
       }
       if (!fs.existsSync(this.notesDir)) {
-        fs.mkdirSync(this.storageDir, { recursive: true })
+        fs.mkdirSync(this.notesDir, { recursive: true })
       }
       if (!fs.existsSync(this.tempDir)) {
         fs.mkdirSync(this.tempDir, { recursive: true })

@@ -2152,6 +2152,7 @@
     "collapse": "閉じる",
     "content_placeholder": "メモの内容を入力してください...",
     "copyContent": "コンテンツをコピーします",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "削除",
     "delete_confirm": "この{{type}}を本当に削除しますか？",
     "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",

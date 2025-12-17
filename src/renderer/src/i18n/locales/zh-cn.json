@@ -2152,6 +2152,7 @@
     "collapse": "收起",
     "content_placeholder": "请输入笔记内容...",
     "copyContent": "复制内容",
+    "crossPlatformRestoreWarning": "检测到从其他设备恢复配置，但笔记目录为空。请将笔记文件复制到: {{path}}",
     "delete": "删除",
     "delete_confirm": "确定要删除这个{{type}}吗？",
     "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
