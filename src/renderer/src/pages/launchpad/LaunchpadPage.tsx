@@ -5,6 +5,7 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setLaunchpadAssistantId, setLaunchpadTopicId } from '@renderer/store/settings'
 import { sortTopicsByPinnedAndCreatedAt } from '@renderer/utils/topicSort'
@@ -32,7 +33,8 @@ import styled from 'styled-components'
 const LaunchpadPage: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { defaultPaintingProvider, launchpadAssistantId, launchpadTopicId } = useSettings()
+  const { defaultPaintingProvider, launchpadAssistantId, launchpadTopicId, clickAssistantToShowTopic, topicPosition } =
+    useSettings()
   const { pinned } = useMinapps()
   const { assistants } = useAssistants()
   const { chat, openedKeepAliveMinapps } = useRuntime()
@@ -168,11 +170,14 @@ const LaunchpadPage: FC = () => {
 
       dispatch(setLaunchpadAssistantId(assistantId))
       dispatch(setLaunchpadTopicId(nextTopicId))
+      if (clickAssistantToShowTopic && topicPosition === 'left') {
+        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+      }
       assistantIdRef.current = assistantId
       topicIdRef.current = nextTopicId
       navigate(`/chat/assistant/${assistantId}`)
     },
-    [assistants, dispatch, navigate, launchpadTopicId, activeTopic]
+    [assistants, clickAssistantToShowTopic, dispatch, navigate, topicPosition, launchpadTopicId, activeTopic]
   )
 
   const handleTopicSelect = useCallback(
@@ -180,11 +185,14 @@ const LaunchpadPage: FC = () => {
       if (!selectedAssistant) return
       dispatch(setLaunchpadAssistantId(selectedAssistant.id))
       dispatch(setLaunchpadTopicId(topicId))
+      if (clickAssistantToShowTopic && topicPosition === 'left') {
+        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+      }
       assistantIdRef.current = selectedAssistant.id
       topicIdRef.current = topicId
       navigate(`/chat/topic/${topicId}`)
     },
-    [dispatch, navigate, selectedAssistant]
+    [clickAssistantToShowTopic, dispatch, navigate, selectedAssistant, topicPosition]
   )
 
   const assistantMenuItems = useMemo<MenuProps['items']>(
@@ -249,6 +257,9 @@ const LaunchpadPage: FC = () => {
               }
               menuItems={assistantMenuItems}
               onClick={() => {
+                if (clickAssistantToShowTopic && topicPosition === 'left') {
+                  EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+                }
                 const targetAssistantId = assistantIdRef.current || selectedAssistant?.id
                 if (targetAssistantId) {
                   navigate(`/chat/assistant/${targetAssistantId}`)
@@ -264,6 +275,9 @@ const LaunchpadPage: FC = () => {
               }
               menuItems={topicMenuItems}
               onClick={() => {
+                if (clickAssistantToShowTopic && topicPosition === 'left') {
+                  EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+                }
                 const targetTopicId = topicIdRef.current || selectedTopic?.id
                 if (targetTopicId) {
                   navigate(`/chat/topic/${targetTopicId}`)
