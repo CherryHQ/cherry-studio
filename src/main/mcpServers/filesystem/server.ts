@@ -33,7 +33,7 @@ export class FileSystemServer {
       logger.info(`Using WORKSPACE_ROOT for filesystem MCP baseDir: ${envRoot}`)
     } else {
       const userData = app.getPath('userData')
-      this.baseDir = path.join(userData, 'workspace')
+      this.baseDir = path.join(userData, 'Data', 'Workspace')
       logger.info(`Using default workspace for filesystem MCP baseDir: ${this.baseDir}`)
     }
 
