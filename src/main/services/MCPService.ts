@@ -265,7 +265,7 @@ class McpService {
               },
               authProvider
             }
-            getServerLogger(server).debug(`Using StreamableHTTPClientTransport for NowLedgeMem`)
+            getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
             return new StreamableHTTPClientTransport(new URL(nowledgeMemUrl), options)
           }
 
