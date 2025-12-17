@@ -250,13 +250,18 @@ const NotesPage: FC = () => {
 
       // 验证路径是否有效（处理跨平台恢复场景）
       try {
+        // 获取当前平台的默认路径
+        const info = await window.api.getAppInfo()
+        const defaultPath = info.notesPath
+
+        // 如果当前路径就是默认路径，跳过验证（默认路径始终有效）
+        if (notesPath === defaultPath) {
+          return
+        }
+
         const isValid = await window.api.file.validateNotesDirectory(notesPath)
         if (!isValid) {
           logger.warn('Invalid notes path detected, resetting to default', { path: notesPath })
-
-          // 获取当前平台的默认路径
-          const info = await window.api.getAppInfo()
-          const defaultPath = info.notesPath
 
           // 重置为默认路径
           updateNotesPath(defaultPath)
