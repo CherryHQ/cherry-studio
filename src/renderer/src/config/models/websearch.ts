@@ -120,6 +120,16 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
+  if (provider.id === 'baidu-cloud') {
+    // 排除嵌入模型
+    const embeddingModels = ['bge-large-zh', 'bge-large-en']
+    if (embeddingModels.includes(modelId)) {
+      return false
+    }
+    // 其他模型都支持web search
+    return true
+  }
+
   return false
 }
 

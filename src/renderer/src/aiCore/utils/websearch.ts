@@ -25,6 +25,47 @@ export function getWebSearchParams(model: Model): Record<string, any> {
     }
   }
 
+  if (model.provider === 'baidu-cloud') {
+    // 根据模型ID判断支持的搜索参数
+    const modelId = model.id.toLowerCase()
+
+    // ernie-x1-turbo-32k 只支持 enable 参数
+    if (modelId.includes('ernie-x1-turbo')) {
+      return {
+        web_search: {
+          enable: true
+        }
+      }
+    }
+
+    // ERNIE系列不支持 search_mode 参数（强制搜索）
+    if (modelId.includes('ernie')) {
+      return {
+        web_search: {
+          enable: true,
+          enable_trace: true,
+          enable_status: true,
+          enable_citation: true,
+          search_number: 10,
+          reference_number: 5
+        }
+      }
+    }
+
+    // 其他模型支持完整参数
+    return {
+      web_search: {
+        enable: true,
+        enable_trace: true,
+        enable_status: true,
+        enable_citation: true,
+        search_mode: 'auto',
+        search_number: 10,
+        reference_number: 5
+      }
+    }
+  }
+
   if (isOpenAIWebSearchChatCompletionOnlyModel(model)) {
     return {
       web_search_options: {}
