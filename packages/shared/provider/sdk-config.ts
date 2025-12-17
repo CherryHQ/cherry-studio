@@ -6,6 +6,7 @@
  */
 
 import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
+import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
 import { routeToEndpoint } from '../api'
@@ -13,7 +14,6 @@ import { isOllamaProvider } from './detection'
 import { getAiSdkProviderId } from './mapping'
 import type { MinimalProvider } from './types'
 import { SystemProviderIds } from './types'
-import { defaultAppHeaders } from '@shared/utils'
 
 /**
  * AI SDK configuration result
