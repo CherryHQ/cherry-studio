@@ -541,9 +541,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
 
     if (!newPath) {
-      // Clear both path and source
+      // Clear manual setting and re-run auto-discovery
       configManager.set(ConfigKeys.GitBashPath, null)
       configManager.set(ConfigKeys.GitBashPathSource, null)
+      // Re-run auto-discovery to restore auto-discovered path if available
+      autoDiscoverGitBash()
       return true
     }
 
