@@ -1027,6 +1027,29 @@
         "yuque": "Export to Yuque"
       },
       "list": "Topic List",
+      "manage": {
+        "clear_selection": "Clear Selection",
+        "delete": {
+          "confirm": {
+            "content": "Are you sure you want to delete {{count}} selected topic(s)? This action cannot be undone.",
+            "title": "Delete Topics"
+          },
+          "success": "Deleted {{count}} topic(s)"
+        },
+        "deselect_all": "Deselect All",
+        "error": {
+          "at_least_one": "At least one topic must be kept"
+        },
+        "move": {
+          "button": "Move",
+          "placeholder": "Select target assistant",
+          "success": "Moved {{count}} topic(s)"
+        },
+        "pinned": "Pinned Topics",
+        "selected_count": "{{count}} selected",
+        "title": "Manage Topics",
+        "unpinned": "Unpinned Topics"
+      },
       "move_to": "Move to",
       "new": "New Topic",
       "pin": "Pin Topic",
@@ -1036,6 +1059,10 @@
         },
         "label": "Topic Prompts",
         "tips": "Topic Prompts: Additional supplementary prompts provided for the current topic"
+      },
+      "search": {
+        "placeholder": "Search topics...",
+        "title": "Search"
       },
       "title": "Topics",
       "unpin": "Unpin Topic"

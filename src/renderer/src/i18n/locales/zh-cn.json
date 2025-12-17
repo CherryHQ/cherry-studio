@@ -1027,6 +1027,29 @@
         "yuque": "导出到语雀"
       },
       "list": "话题列表",
+      "manage": {
+        "clear_selection": "取消选择",
+        "delete": {
+          "confirm": {
+            "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
+            "title": "删除话题"
+          },
+          "success": "已删除 {{count}} 个话题"
+        },
+        "deselect_all": "取消全选",
+        "error": {
+          "at_least_one": "至少需要保留一个话题"
+        },
+        "move": {
+          "button": "移动",
+          "placeholder": "选择目标助手",
+          "success": "已移动 {{count}} 个话题"
+        },
+        "pinned": "已固定的话题",
+        "selected_count": "已选择 {{count}} 个",
+        "title": "管理话题",
+        "unpinned": "未固定的话题"
+      },
       "move_to": "移动到",
       "new": "开始新对话",
       "pin": "固定话题",
@@ -1036,6 +1059,10 @@
         },
         "label": "话题提示词",
         "tips": "话题提示词：针对当前话题提供额外的补充提示词"
+      },
+      "search": {
+        "placeholder": "搜索话题...",
+        "title": "搜索"
       },
       "title": "话题",
       "unpin": "取消固定"
