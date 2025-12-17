@@ -155,6 +155,24 @@ export function normalizeCitationMarks(
       }
       break
     }
+    case WebSearchSource.BAIDU_CLOUD: {
+      // 百度云格式: ^[1][4]^ → [cite:1], [cite:4]
+      applyReplacements(/\^\[(\d+(?:\]\[?\d+)*)\]\^/g, (match) => {
+        const citationNums = match[1]
+          .replace(/^\[/, '')
+          .replace(/\]$/g, '')
+          .split('][')
+          .map((num) => parseInt(num, 10))
+
+        const citations = citationNums
+          .filter((num) => citationMap.has(num))
+          .map((num) => `[cite:${num}]`)
+          .join('')
+
+        return citations
+      })
+      break
+    }
     default: {
       // 简单数字格式: [N] → [cite:N]
       applyReplacements(/\[(\d+)\]/g, (match) => {

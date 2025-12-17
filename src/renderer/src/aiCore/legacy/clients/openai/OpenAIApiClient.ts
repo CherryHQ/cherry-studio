@@ -809,6 +809,17 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
       }
 
+      // Baidu Cloud web search
+      // @ts-ignore - search_results may not be in standard type definitions
+      if (context.provider?.id === 'baidu-cloud' && chunk.search_results && chunk.search_results.length > 0) {
+        hasBeenCollectedWebSearch = true
+        return {
+          // @ts-ignore - search_results may not be in standard type definitions
+          results: chunk.search_results,
+          source: WebSearchSource.BAIDU_CLOUD
+        }
+      }
+
       // TODO: 放到AnthropicApiClient中
       // // Other providers...
       // // @ts-ignore - web_search may not be in standard type definitions

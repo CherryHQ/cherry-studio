@@ -661,6 +661,7 @@ export enum WebSearchSource {
   QWEN = 'qwen',
   HUNYUAN = 'hunyuan',
   ZHIPU = 'zhipu',
+  BAIDU_CLOUD = 'baidu-cloud',
   GROK = 'grok',
   AISDK = 'ai-sdk'
 }
