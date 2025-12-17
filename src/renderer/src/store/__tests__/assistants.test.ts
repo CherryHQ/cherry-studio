@@ -67,4 +67,20 @@ describe('assistants reducer - moveAllTopics', () => {
     expect(baseState.assistants[0].topics).toHaveLength(2)
     expect(baseState.assistants[1].topics).toHaveLength(1)
   })
+
+  it('supports moving only the provided topicsToMove', () => {
+    const nextState = assistantsReducer(
+      baseState,
+      moveAllTopics({ fromId: 'a', toId: 'b', topicsToMove: [makeTopic('t2', 'a')] })
+    )
+
+    const from = nextState.assistants.find((a) => a.id === 'a')!
+    const to = nextState.assistants.find((a) => a.id === 'b')!
+
+    expect(from.topics).toHaveLength(1)
+    expect(from.topics[0].assistantId).toBe('a')
+
+    expect(to.topics.map((t) => t.id)).toEqual(['t2', 't3'])
+    expect(to.topics.every((t) => t.assistantId === 'b')).toBe(true)
+  })
 })

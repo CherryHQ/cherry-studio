@@ -1,11 +1,30 @@
 import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
+import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import App from '@renderer/components/MinApp/MinApp'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
-import type { FC } from 'react'
-import { useMemo } from 'react'
+import { useAppDispatch } from '@renderer/store'
+import { setLaunchpadAssistantId, setLaunchpadTopicId } from '@renderer/store/settings'
+import { sortTopicsByPinnedAndCreatedAt } from '@renderer/utils/topicSort'
+import type { MenuProps } from 'antd'
+import { Dropdown } from 'antd'
+import {
+  Check,
+  ChevronDown,
+  Code,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  MessageSquare,
+  NotepadText,
+  Palette,
+  Sparkle
+} from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -13,9 +32,12 @@ import styled from 'styled-components'
 const LaunchpadPage: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { defaultPaintingProvider } = useSettings()
+  const { defaultPaintingProvider, launchpadAssistantId, launchpadTopicId } = useSettings()
   const { pinned } = useMinapps()
-  const { openedKeepAliveMinapps } = useRuntime()
+  const { assistants } = useAssistants()
+  const { chat, openedKeepAliveMinapps } = useRuntime()
+  const dispatch = useAppDispatch()
+  const activeTopic = chat.activeTopic
 
   const appMenuItems = [
     {
@@ -74,6 +96,110 @@ const LaunchpadPage: FC = () => {
     }
   ]
 
+  const selectedAssistant = useMemo(() => {
+    if (assistants.length === 0) return null
+    const storedAssistant = assistants.find((assistant) => assistant.id === launchpadAssistantId)
+    if (storedAssistant) return storedAssistant
+    const activeAssistant = activeTopic
+      ? assistants.find((assistant) => assistant.id === activeTopic.assistantId)
+      : null
+    return activeAssistant || assistants[0]
+  }, [assistants, launchpadAssistantId, activeTopic])
+
+  const assistantTopics = useMemo(() => {
+    if (!selectedAssistant) return []
+    return sortTopicsByPinnedAndCreatedAt(selectedAssistant.topics || [])
+  }, [selectedAssistant])
+
+  const selectedTopic = useMemo(() => {
+    if (!selectedAssistant) return null
+    const storedTopic = assistantTopics.find((topic) => topic.id === launchpadTopicId)
+    if (storedTopic) return storedTopic
+    if (activeTopic && activeTopic.assistantId === selectedAssistant.id) {
+      const activeTopicInAssistant = assistantTopics.find((topic) => topic.id === activeTopic.id)
+      if (activeTopicInAssistant) return activeTopicInAssistant
+    }
+    return assistantTopics[0] || null
+  }, [assistantTopics, launchpadTopicId, activeTopic, selectedAssistant])
+
+  const selectedAssistantId = selectedAssistant?.id
+  const selectedTopicId = selectedTopic?.id
+
+  useEffect(() => {
+    if (!selectedAssistantId) return
+    if (selectedAssistantId !== launchpadAssistantId) {
+      dispatch(setLaunchpadAssistantId(selectedAssistantId))
+    }
+  }, [dispatch, selectedAssistantId, launchpadAssistantId])
+
+  useEffect(() => {
+    if (!selectedTopicId) return
+    if (selectedTopicId !== launchpadTopicId) {
+      dispatch(setLaunchpadTopicId(selectedTopicId))
+    }
+  }, [dispatch, selectedTopicId, launchpadTopicId])
+
+  const handleAssistantSelect = useCallback(
+    (assistantId: string) => {
+      const nextAssistant = assistants.find((assistant) => assistant.id === assistantId)
+      if (!nextAssistant) return
+
+      const nextTopics = sortTopicsByPinnedAndCreatedAt(nextAssistant.topics || [])
+      const nextTopicId =
+        nextTopics.find((topic) => topic.id === launchpadTopicId)?.id ||
+        (activeTopic?.assistantId === nextAssistant.id ? activeTopic.id : undefined) ||
+        nextTopics[0]?.id ||
+        ''
+
+      dispatch(setLaunchpadAssistantId(assistantId))
+      dispatch(setLaunchpadTopicId(nextTopicId))
+      navigate(`/chat/assistant/${assistantId}`)
+    },
+    [assistants, dispatch, navigate, launchpadTopicId, activeTopic]
+  )
+
+  const handleTopicSelect = useCallback(
+    (topicId: string) => {
+      if (!selectedAssistant) return
+      dispatch(setLaunchpadAssistantId(selectedAssistant.id))
+      dispatch(setLaunchpadTopicId(topicId))
+      navigate(`/chat/topic/${topicId}`)
+    },
+    [dispatch, navigate, selectedAssistant]
+  )
+
+  const assistantMenuItems = useMemo<MenuProps['items']>(
+    () =>
+      assistants.map((assistant) => ({
+        key: assistant.id,
+        icon: assistant.id === selectedAssistant?.id ? <CheckIcon /> : undefined,
+        label: (
+          <MenuItemRow>
+            <AssistantAvatar assistant={assistant} size={18} />
+            <MenuItemName>{assistant.name || t('chat.default.name')}</MenuItemName>
+          </MenuItemRow>
+        ),
+        onClick: () => handleAssistantSelect(assistant.id)
+      })),
+    [assistants, handleAssistantSelect, selectedAssistant?.id, t]
+  )
+
+  const topicMenuItems = useMemo<MenuProps['items']>(
+    () =>
+      assistantTopics.map((topic) => ({
+        key: topic.id,
+        icon: topic.id === selectedTopic?.id ? <CheckIcon /> : <MessageSquare size={14} />,
+        label: (
+          <MenuItemRow>
+            <MessageSquare size={14} />
+            <MenuItemName>{topic.name}</MenuItemName>
+          </MenuItemRow>
+        ),
+        onClick: () => handleTopicSelect(topic.id)
+      })),
+    [assistantTopics, handleTopicSelect, selectedTopic?.id]
+  )
+
   // 合并并排序小程序列表
   const sortedMinapps = useMemo(() => {
     // 先添加固定的小程序，保持原有顺序
@@ -95,6 +221,26 @@ const LaunchpadPage: FC = () => {
         <Section>
           <SectionTitle>{t('launchpad.apps')}</SectionTitle>
           <Grid>
+            <SelectableAppIcon
+              label={selectedAssistant?.name || t('launchpad.assistant')}
+              icon={
+                <SoftIconWrapper>
+                  {selectedAssistant ? <AssistantAvatar assistant={selectedAssistant} size={28} /> : null}
+                </SoftIconWrapper>
+              }
+              menuItems={assistantMenuItems}
+              onClick={() => selectedAssistant && navigate(`/chat/assistant/${selectedAssistant.id}`)}
+            />
+            <SelectableAppIcon
+              label={selectedTopic?.name || t('launchpad.topic')}
+              icon={
+                <SoftIconWrapper>
+                  <MessageSquare size={28} />
+                </SoftIconWrapper>
+              }
+              menuItems={topicMenuItems}
+              onClick={() => selectedTopic && navigate(`/chat/topic/${selectedTopic.id}`)}
+            />
             {appMenuItems.map((item) => (
               <AppIcon key={item.path} onClick={() => navigate(item.path)}>
                 <IconContainer>
@@ -192,6 +338,18 @@ const IconContainer = styled.div`
   height: 56px;
 `
 
+const SoftIconWrapper = styled.div`
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--color-text);
+`
+
 const IconWrapper = styled.div<{ bgColor: string }>`
   width: 56px;
   height: 56px;
@@ -231,6 +389,66 @@ const AppWrapper = styled.div`
   &:active {
     transform: scale(0.95);
   }
+`
+
+const SelectableAppIcon: FC<{
+  icon: ReactNode
+  label: string
+  menuItems: MenuProps['items']
+  onClick: () => void
+}> = ({ icon, label, menuItems, onClick }) => {
+  return (
+    <AppIcon onClick={onClick}>
+      <IconContainer>
+        {icon}
+        <Dropdown menu={{ items: menuItems }} trigger={['click']}>
+          <MenuTrigger type="button" aria-label={label} onClick={(event) => event.stopPropagation()}>
+            <ChevronDown size={12} />
+          </MenuTrigger>
+        </Dropdown>
+      </IconContainer>
+      <AppName>{label}</AppName>
+    </AppIcon>
+  )
+}
+
+const MenuTrigger = styled.button`
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+
+  &:hover {
+    color: var(--color-text);
+  }
+`
+
+const MenuItemRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const MenuItemName = styled.span`
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const CheckIcon = styled(Check)`
+  width: 14px;
+  height: 14px;
 `
 
 export default LaunchpadPage

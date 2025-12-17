@@ -19,7 +19,7 @@ import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import type { MinAppType } from '@renderer/types'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Dropdown, type MenuProps, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import type { LRUCache } from 'lru-cache'
 import {
   FileSearch,
@@ -233,56 +233,10 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     tabsService.closeTab(tabId)
   }
 
-  const getPreferredAssistant = useCallback(() => {
-    if (assistants.length === 0) return null
-    return assistants[0]
-  }, [assistants])
-
   const handleAddLaunchpadTab = useCallback(() => {
     hideMinappPopup()
     navigate('/launchpad')
   }, [hideMinappPopup, navigate])
-
-  const handleAddAssistantTab = useCallback(() => {
-    hideMinappPopup()
-    const target = getPreferredAssistant()
-    if (!target) return
-    navigate(`/chat/assistant/${target.id}`)
-  }, [getPreferredAssistant, hideMinappPopup, navigate])
-
-  const handleAddTopicTab = useCallback(() => {
-    hideMinappPopup()
-    const targetAssistant = getPreferredAssistant()
-    const targetTopic = targetAssistant?.topics?.[0]
-    if (!targetAssistant || !targetTopic) return
-    navigate(`/chat/topic/${targetTopic.id}`)
-  }, [getPreferredAssistant, hideMinappPopup, navigate])
-
-  const addTabMenuItems: MenuProps['items'] = useMemo(
-    () => [
-      {
-        key: 'assistant-tab',
-        label: '新建助手标签页',
-        onClick: handleAddAssistantTab,
-        disabled: assistants.length === 0
-      },
-      {
-        key: 'topic-tab',
-        label: '新建话题标签页',
-        onClick: handleAddTopicTab,
-        disabled: assistants.every((item) => !item.topics?.length)
-      },
-      {
-        type: 'divider'
-      },
-      {
-        key: 'launchpad',
-        label: '新建应用标签页',
-        onClick: handleAddLaunchpadTab
-      }
-    ],
-    [assistants, handleAddAssistantTab, handleAddLaunchpadTab, handleAddTopicTab]
-  )
 
   const handleSettingsClick = () => {
     hideMinappPopup()
@@ -348,11 +302,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
               )
             }}
           />
-          <Dropdown menu={{ items: addTabMenuItems }} trigger={['click']} placement="bottom">
-            <AddTabButton className={classNames({ active: activeTabId === 'launchpad' })}>
-              <PlusOutlined />
-            </AddTabButton>
-          </Dropdown>
+          <AddTabButton className={classNames({ active: activeTabId === 'launchpad' })} onClick={handleAddLaunchpadTab}>
+            <PlusOutlined />
+          </AddTabButton>
         </HorizontalScrollContainer>
         <RightButtonsContainer style={{ paddingRight: isLinux && useSystemTitleBar ? '12px' : undefined }}>
           <UpdateAppButton />

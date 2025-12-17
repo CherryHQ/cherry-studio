@@ -176,13 +176,45 @@ export function useAssistant(id: string) {
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
     removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
-    moveAllTopics: async (toAssistant: Assistant) => {
+    moveAllTopics: async (toAssistant: Assistant, options?: { dedupe?: boolean }) => {
       if (!assistant || assistant.id === toAssistant.id) return
       const topicsToMove = assistant.topics || []
+      const targetTopics = toAssistant.topics || []
+      const shouldDedupe = options?.dedupe ?? false
 
-      dispatch(moveAllTopicsAction({ fromId: assistant.id, toId: toAssistant.id }))
+      let dedupedTopicsToMove = topicsToMove
+      let topicsToDelete: Topic[] = []
 
-      const topicIds = topicsToMove.map((topic) => topic.id)
+      if (shouldDedupe) {
+        const normalized = (name: string) => name.trim()
+        const existingNames = new Set(targetTopics.map((topic) => normalized(topic.name)))
+        const seenNames = new Set(existingNames)
+        const nextTopics: Topic[] = []
+        const duplicates: Topic[] = []
+
+        topicsToMove.forEach((topic) => {
+          const nameKey = normalized(topic.name)
+          if (seenNames.has(nameKey)) {
+            duplicates.push(topic)
+            return
+          }
+          seenNames.add(nameKey)
+          nextTopics.push(topic)
+        })
+
+        dedupedTopicsToMove = nextTopics
+        topicsToDelete = duplicates
+      }
+
+      dispatch(moveAllTopicsAction({ fromId: assistant.id, toId: toAssistant.id, topicsToMove: dedupedTopicsToMove }))
+
+      if (topicsToDelete.length > 0) {
+        await Promise.all(topicsToDelete.map((topic) => TopicManager.removeTopic(topic.id)))
+      }
+
+      const topicIds = dedupedTopicsToMove.map((topic) => topic.id)
+      if (topicIds.length === 0) return
+
       await db.topics
         .where('id')
         .anyOf(topicIds)

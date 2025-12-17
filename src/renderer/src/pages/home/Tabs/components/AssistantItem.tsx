@@ -10,7 +10,7 @@ import type { Assistant, AssistantsSortType } from '@renderer/types'
 import { cn, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
+import { Checkbox, Dropdown } from 'antd'
 import { omit } from 'lodash'
 import {
   AlignJustify,
@@ -318,16 +318,27 @@ function getMenuItems({
         .map((targetAssistant) => ({
           label: targetAssistant.name,
           key: `move-all-${targetAssistant.id}`,
-          onClick: () =>
+          onClick: () => {
+            let shouldDedupe = true
             window.modal.confirm({
               title: t('assistants.move_all.title'),
-              content: t('assistants.move_all.confirm', {
-                from: assistant.name,
-                to: targetAssistant.name
-              }),
+              content: (
+                <div>
+                  <div>
+                    {t('assistants.move_all.confirm', {
+                      from: assistant.name,
+                      to: targetAssistant.name
+                    })}
+                  </div>
+                  <Checkbox defaultChecked style={{ marginTop: 8 }} onChange={(e) => (shouldDedupe = e.target.checked)}>
+                    {t('assistants.move_all.dedupe')}
+                  </Checkbox>
+                </div>
+              ),
               centered: true,
-              onOk: () => moveAllTopics(targetAssistant)
+              onOk: () => moveAllTopics(targetAssistant, { dedupe: shouldDedupe })
             })
+          }
         }))
     },
     {

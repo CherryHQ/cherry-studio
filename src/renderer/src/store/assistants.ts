@@ -185,7 +185,7 @@ const assistantsSlice = createSlice({
         return assistant
       })
     },
-    moveAllTopics: (state, action: PayloadAction<{ fromId: string; toId: string }>) => {
+    moveAllTopics: (state, action: PayloadAction<{ fromId: string; toId: string; topicsToMove?: Topic[] }>) => {
       const { fromId, toId } = action.payload
       if (fromId === toId) return
 
@@ -194,7 +194,7 @@ const assistantsSlice = createSlice({
 
       if (!fromAssistant || !toAssistant) return
 
-      const topicsToMove = (fromAssistant.topics || []).map((topic) => ({
+      const topicsToMove = (action.payload.topicsToMove ?? fromAssistant.topics ?? []).map((topic) => ({
         ...topic,
         assistantId: toId
       }))
