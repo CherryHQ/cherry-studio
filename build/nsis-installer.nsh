@@ -12,8 +12,13 @@
 
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
+  ; Check VC++ Redistributable based on architecture stored in $1
   Function checkVCRedist
-    ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+    ${If} $1 == "arm64"
+      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\ARM64" "Installed"
+    ${Else}
+      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+    ${EndIf}
   FunctionEnd
 
   Function checkArchitectureCompatibility
@@ -98,19 +103,28 @@
   Call checkVCRedist
   ${If} $0 != "1"
     ; VC++ is required - install automatically since declining would abort anyway
+    ; Select download URL based on system architecture (stored in $1)
+    ${If} $1 == "arm64"
+      StrCpy $2 "https://aka.ms/vs/17/release/vc_redist.arm64.exe"
+      StrCpy $3 "$TEMP\vc_redist.arm64.exe"
+    ${Else}
+      StrCpy $2 "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+      StrCpy $3 "$TEMP\vc_redist.x64.exe"
+    ${EndIf}
+
     inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable..." \
-      "https://aka.ms/vs/17/release/vc_redist.x64.exe" "$TEMP\vc_redist.x64.exe" /END
+      $2 $3 /END
     Pop $0  ; Get download status from inetc::get
     ${If} $0 != "OK"
       MessageBox MB_ICONSTOP "\
         Failed to download Microsoft Visual C++ Redistributable.$\r$\n$\r$\n\
         Error: $0$\r$\n$\r$\n\
         Please check your internet connection, or download manually from:$\r$\n\
-        https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        $2"
       Abort
     ${EndIf}
 
-    ExecWait "$TEMP\vc_redist.x64.exe /install /norestart"
+    ExecWait "$3 /install /norestart"
     ; Note: vc_redist exit code is unreliable, verify via registry check instead
 
     Call checkVCRedist
@@ -118,7 +132,7 @@
       MessageBox MB_ICONSTOP "\
         Microsoft Visual C++ Redistributable installation failed.$\r$\n$\r$\n\
         You can install manually from:$\r$\n\
-        https://aka.ms/vs/17/release/vc_redist.x64.exe$\r$\n$\r$\n\
+        $2$\r$\n$\r$\n\
         The installation of ${PRODUCT_NAME} cannot continue."
       Abort
     ${EndIf}
