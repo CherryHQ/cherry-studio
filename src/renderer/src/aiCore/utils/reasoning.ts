@@ -28,6 +28,7 @@ import {
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenHunyuanModel,
+  isSupportedThinkingTokenMiMoModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel
@@ -406,6 +407,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return {}
     }
     return { thinking: { type: 'enabled' } }
+  }
+
+  if (isSupportedThinkingTokenMiMoModel(model)) {
+    return {
+      thinking: { type: 'enabled' }
+    }
   }
 
   // Default case: no special thinking settings

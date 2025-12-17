@@ -52,6 +52,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   doubao_no_auto: ['high'] as const,
   doubao_after_251015: ['minimal', 'low', 'medium', 'high'] as const,
   hunyuan: ['auto'] as const,
+  mimo: ['auto'] as const,
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const
@@ -80,6 +81,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   doubao: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
   doubao_no_auto: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
   doubao_after_251015: MODEL_SUPPORTED_REASONING_EFFORT.doubao_after_251015,
+  mimo: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.mimo] as const,
   hunyuan: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity,
@@ -155,6 +157,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
   else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
   else if (isDeepSeekHybridInferenceModel(model)) thinkingModelType = 'deepseek_hybrid'
+  else if (isSupportedThinkingTokenMiMoModel(model)) thinkingModelType = 'mimo'
   return thinkingModelType
 }
 
@@ -255,7 +258,8 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
     isSupportedThinkingTokenClaudeModel(model) ||
     isSupportedThinkingTokenDoubaoModel(model) ||
     isSupportedThinkingTokenHunyuanModel(model) ||
-    isSupportedThinkingTokenZhipuModel(model)
+    isSupportedThinkingTokenZhipuModel(model) ||
+    isSupportedThinkingTokenMiMoModel(model)
   )
 }
 
@@ -548,6 +552,11 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   return ['glm-4.5', 'glm-4.6'].some((id) => modelId.includes(id))
 }
 
+export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return ['mimo-v2-flash'].some((id) => modelId.includes(id))
+}
+
 export const isDeepSeekHybridInferenceModel = (model: Model) => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
     const modelId = getLowerBaseModelName(model.id)
@@ -585,6 +594,8 @@ export const isZhipuReasoningModel = (model?: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   return isSupportedThinkingTokenZhipuModel(model) || modelId.includes('glm-z1')
 }
+
+export const isMiMoReasoningModel = isSupportedThinkingTokenMiMoModel
 
 export const isStepReasoningModel = (model?: Model): boolean => {
   if (!model) {
@@ -636,6 +647,7 @@ export function isReasoningModel(model?: Model): boolean {
     isDeepSeekHybridInferenceModel(model) ||
     isLingReasoningModel(model) ||
     isMiniMaxReasoningModel(model) ||
+    isMiMoReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
