@@ -92,7 +92,6 @@ function toCamelCase(filename: string): string {
  * Generate a single icon component
  */
 async function generateIcon(
-  type: IconType,
   inputDir: string,
   outputDir: string,
   svgFile: string
@@ -194,7 +193,7 @@ async function main() {
 
   for (const svgFile of svgFiles) {
     try {
-      const result = await generateIcon(type, inputDir, outputDir, svgFile)
+      const result = await generateIcon(inputDir, outputDir, svgFile)
       components.push(result)
       console.log(`✅ ${svgFile} -> ${result.filename} (${result.componentName})`)
     } catch (error) {
