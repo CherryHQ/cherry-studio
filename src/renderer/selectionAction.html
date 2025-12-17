@@ -1,41 +1,39 @@
 <!doctype html>
 <html lang="zh-CN">
-
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="initial-scale=1, width=device-width" />
-    <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src blob: *; script-src 'self' 'unsafe-eval' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: * blob:; frame-src * file:" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src blob: *; script-src 'self' 'unsafe-eval' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: * blob:; frame-src * file:" />
     <title>Cherry Studio Selection Assistant</title>
+  </head>
 
-</head>
-
-<body>
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/windows/selection/action/entryPoint.tsx"></script>
     <style>
-        html {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      html {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            width: 100vw;
-            height: 100vh;
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      body {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        #root {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            box-sizing: border-box;
-        }
+      #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+      }
     </style>
-</body>
-
+  </body>
 </html>

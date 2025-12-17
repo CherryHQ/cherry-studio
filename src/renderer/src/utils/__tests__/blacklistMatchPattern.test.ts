@@ -26,7 +26,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { MatchPatternMap } from '../blacklistMatchPattern'
+import { mapRegexToPatterns, MatchPatternMap } from '../blacklistMatchPattern'
 
 function get(map: MatchPatternMap<number>, url: string) {
   return map.get(url).sort()
@@ -159,5 +159,30 @@ describe('blacklistMatchPattern', () => {
     expect(get(map, 'http://a.mozilla.org/')).toEqual([0, 1, 2])
     expect(get(map, 'http://a.b.mozilla.org/')).toEqual([0, 1, 2])
     expect(get(map, 'https://b.mozilla.org/path/')).toEqual([0, 1, 2, 6])
+  })
+})
+
+describe('mapRegexToPatterns', () => {
+  it('extracts domains from regex patterns', () => {
+    const result = mapRegexToPatterns([
+      '/example\\.com/',
+      '/(?:www\\.)?sub\\.example\\.co\\.uk/',
+      '/api\\.service\\.io/',
+      'https://baidu.com'
+    ])
+
+    expect(result).toEqual(['example.com', 'sub.example.co.uk', 'api.service.io', 'baidu.com'])
+  })
+
+  it('deduplicates domains across multiple patterns', () => {
+    const result = mapRegexToPatterns(['/example\\.com/', '/(example\\.com|test\\.org)/'])
+
+    expect(result).toEqual(['example.com', 'test.org'])
+  })
+
+  it('ignores patterns without domain matches', () => {
+    const result = mapRegexToPatterns(['', 'plain-domain.com', '/^https?:\\/\\/[^/]+$/'])
+
+    expect(result).toEqual(['plain-domain.com'])
   })
 })

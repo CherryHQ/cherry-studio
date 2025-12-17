@@ -1,0 +1,24 @@
+:root {
+  --font-family:
+    var(--user-font-family), Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, Oxygen,
+    Cantarell, 'Open Sans', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+
+  --font-family-serif:
+    serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Ubuntu, Roboto, Oxygen, Cantarell, 'Open Sans',
+    'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+  --code-font-family: var(--user-code-font-family), 'Cascadia Code', 'Fira Code', 'Consolas', Menlo, Courier, monospace;
+}
+
+/* Windows系统专用字体配置 */
+body[os='windows'] {
+  --font-family:
+    var(--user-font-family), 'Twemoji Country Flags', Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
+    Roboto, Oxygen, Cantarell, 'Open Sans', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+  --code-font-family:
+    var(--user-code-font-family), 'Cascadia Code', 'Fira Code', 'Consolas', 'Sarasa Mono SC', 'Microsoft YaHei UI',
+    Courier, monospace;
+}

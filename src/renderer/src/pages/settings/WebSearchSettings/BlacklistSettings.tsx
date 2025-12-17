@@ -1,14 +1,18 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
-import Logger from '@renderer/config/logger'
+import { Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
-import { Alert, Button, Table, TableProps } from 'antd'
+import type { TableProps } from 'antd'
+import { Alert, Table } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { t } from 'i18next'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import AddSubscribePopup from './AddSubscribePopup'
@@ -19,6 +23,8 @@ interface DataType {
   url: string
   name: string
 }
+
+const logger = loggerService.withContext('BlacklistSettings')
 
 const columns: TableProps<DataType>['columns'] = [
   { title: t('common.name'), dataIndex: 'name', key: 'name' },
@@ -45,6 +51,7 @@ const BlacklistSettings: FC = () => {
       name: source.name
     })) || []
   )
+  const { setTimeoutTimer } = useTimer()
 
   const dispatch = useAppDispatch()
 
@@ -56,7 +63,7 @@ const BlacklistSettings: FC = () => {
         name: source.name
       }))
     )
-    Logger.log('subscribeSources', websearch.subscribeSources)
+    logger.info('subscribeSources', websearch.subscribeSources)
   }, [websearch.subscribeSources])
 
   useEffect(() => {
@@ -67,30 +74,41 @@ const BlacklistSettings: FC = () => {
 
   function updateManualBlacklist(blacklist: string) {
     const blacklistDomains = blacklist.split('\n').filter((url) => url.trim() !== '')
-
     const validDomains: string[] = []
     const hasError = blacklistDomains.some((domain) => {
-      const parsed = parseMatchPattern(domain.trim())
-      if (parsed === null) {
-        return true // 有错误
+      const trimmedDomain = domain.trim()
+      // 正则表达式
+      if (trimmedDomain.startsWith('/') && trimmedDomain.endsWith('/')) {
+        try {
+          const regexPattern = trimmedDomain.slice(1, -1)
+          new RegExp(regexPattern, 'i')
+          validDomains.push(trimmedDomain)
+          return false
+        } catch (error) {
+          return true
+        }
+      } else {
+        const parsed = parseMatchPattern(trimmedDomain)
+        if (parsed === null) {
+          return true
+        }
+        validDomains.push(trimmedDomain)
+        return false
       }
-      validDomains.push(domain.trim())
-      return false
     })
 
     setErrFormat(hasError)
     if (hasError) return
 
     dispatch(setExcludeDomains(validDomains))
-    window.message.info({
-      content: t('message.save.success.title'),
-      duration: 4,
-      icon: <InfoCircleOutlined />,
-      key: 'save-blacklist-info'
+    window.toast.info({
+      title: t('message.save.success.title'),
+      timeout: 4000,
+      icon: <InfoCircleOutlined />
     })
   }
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
-    Logger.log('selectedRowKeys changed: ', newSelectedRowKeys)
+    logger.info('selectedRowKeys changed: ', newSelectedRowKeys)
     setSelectedRowKeys(newSelectedRowKeys)
   }
 
@@ -128,11 +146,11 @@ const BlacklistSettings: FC = () => {
             })
           }
         } catch (error) {
-          console.error(`Error updating subscribe source ${source.url}:`, error)
+          logger.error(`Error updating subscribe source ${source.url}:`, error as Error)
           // 显示具体源更新失败的消息
-          window.message.warning({
-            content: t('settings.websearch.subscribe_source_update_failed', { url: source.url }),
-            duration: 3
+          window.toast.warning({
+            title: t('settings.tool.websearch.subscribe_update_failed', { url: source.url }),
+            timeout: 3000
           })
         }
       }
@@ -142,20 +160,20 @@ const BlacklistSettings: FC = () => {
         setSubscribeSources(updatedSources)
         setSubscribeValid(true)
         // 显示成功消息
-        window.message.success({
-          content: t('settings.websearch.subscribe_update_success'),
-          duration: 2
+        window.toast.success({
+          title: t('settings.tool.websearch.subscribe_update_success'),
+          timeout: 2000
         })
-        setTimeout(() => setSubscribeValid(false), 3000)
+        setTimeoutTimer('updateSubscribe', () => setSubscribeValid(false), 3000)
       } else {
         setSubscribeValid(false)
         throw new Error('No valid sources updated')
       }
     } catch (error) {
-      console.error('Error updating subscribes:', error)
-      window.message.error({
-        content: t('settings.websearch.subscribe_update_failed'),
-        duration: 2
+      logger.error('Error updating subscribes:', error as Error)
+      window.toast.error({
+        title: t('settings.tool.websearch.subscribe_update_failed'),
+        timeout: 2000
       })
     }
     setSubscribeChecking(false)
@@ -165,7 +183,7 @@ const BlacklistSettings: FC = () => {
   async function handleAddSubscribe() {
     setSubscribeChecking(true)
     const result = await AddSubscribePopup.show({
-      title: t('settings.websearch.subscribe_add')
+      title: t('settings.tool.websearch.subscribe_add')
     })
 
     if (result && result.url) {
@@ -184,16 +202,16 @@ const BlacklistSettings: FC = () => {
         })
         setSubscribeValid(true)
         // 显示成功消息
-        window.message.success({
-          content: t('settings.websearch.subscribe_add_success'),
-          duration: 2
+        window.toast.success({
+          title: t('settings.tool.websearch.subscribe_add_success'),
+          timeout: 2000
         })
-        setTimeout(() => setSubscribeValid(false), 3000)
+        setTimeoutTimer('handleAddSubscribe', () => setSubscribeValid(false), 3000)
       } catch (error) {
         setSubscribeValid(false)
-        window.message.error({
-          content: t('settings.websearch.subscribe_add_failed'),
-          duration: 2
+        window.toast.error({
+          title: t('settings.tool.websearch.subscribe_add_failed'),
+          timeout: 2000
         })
       }
     }
@@ -211,39 +229,40 @@ const BlacklistSettings: FC = () => {
       // 清空选中状态
       setSelectedRowKeys([])
     } catch (error) {
-      console.error('Error deleting subscribes:', error)
+      logger.error('Error deleting subscribes:', error as Error)
     }
   }
 
   return (
     <>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.websearch.blacklist')}</SettingTitle>
+        <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
         <SettingDivider />
         <SettingRow style={{ marginBottom: 10 }}>
-          <SettingRowTitle>{t('settings.websearch.blacklist_description')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.tool.websearch.blacklist_description')}</SettingRowTitle>
         </SettingRow>
         <TextArea
           value={blacklistInput}
           onChange={(e) => setBlacklistInput(e.target.value)}
-          placeholder={t('settings.websearch.blacklist_tooltip')}
+          placeholder={t('settings.tool.websearch.blacklist_tooltip')}
           autoSize={{ minRows: 4, maxRows: 8 }}
           rows={4}
         />
         <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
           {t('common.save')}
         </Button>
-        {errFormat && <Alert message={t('settings.websearch.blacklist_tooltip')} type="error" />}
+        {errFormat && (
+          <Alert style={{ marginTop: 10 }} message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />
+        )}
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>
-          {t('settings.websearch.subscribe')}
+          {t('settings.tool.websearch.subscribe')}
           <Button
-            type={subscribeValid ? 'primary' : 'default'}
-            ghost={subscribeValid}
+            variant={subscribeValid ? 'ghost' : 'default'}
             disabled={subscribeChecking}
             onClick={handleAddSubscribe}>
-            {t('settings.websearch.subscribe_add')}
+            {t('settings.tool.websearch.subscribe_add')}
           </Button>
         </SettingTitle>
         <SettingDivider />
@@ -253,11 +272,11 @@ const BlacklistSettings: FC = () => {
             columns={columns}
             dataSource={dataSource}
             pagination={{ position: ['none'] }}
+            tableLayout="fixed"
           />
           <SettingRow style={{ height: 50 }}>
             <Button
-              type={subscribeValid ? 'primary' : 'default'}
-              ghost={subscribeValid}
+              variant={subscribeValid ? 'ghost' : 'default'}
               disabled={subscribeChecking || selectedRowKeys.length === 0}
               style={{ width: 100 }}
               onClick={updateSubscribe}>
@@ -266,11 +285,11 @@ const BlacklistSettings: FC = () => {
               ) : subscribeValid ? (
                 <CheckOutlined />
               ) : (
-                t('settings.websearch.subscribe_update')
+                t('settings.tool.websearch.subscribe_update')
               )}
             </Button>
             <Button style={{ width: 100 }} disabled={selectedRowKeys.length === 0} onClick={handleDeleteSubscribe}>
-              {t('settings.websearch.subscribe_delete')}
+              {t('settings.tool.websearch.subscribe_delete')}
             </Button>
           </SettingRow>
         </div>

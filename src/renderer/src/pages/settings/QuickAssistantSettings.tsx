@@ -1,38 +1,55 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import {
-  setClickTrayToShowQuickAssistant,
-  setEnableQuickAssistant,
-  setReadClipboardAtStartup
-} from '@renderer/store/settings'
+import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setQuickAssistantId } from '@renderer/store/llm'
+import { matchKeywordsInString } from '@renderer/utils'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
-import { Switch, Tooltip } from 'antd'
-import { FC } from 'react'
+import { Select } from 'antd'
+import type { FC } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const QuickAssistantSettings: FC = () => {
+  const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
+  const [clickTrayToShowQuickAssistant, setClickTrayToShowQuickAssistant] = usePreference(
+    'feature.quick_assistant.click_tray_to_show'
+  )
+  const [readClipboardAtStartup, setReadClipboardAtStartup] = usePreference(
+    'feature.quick_assistant.read_clipboard_at_startup'
+  )
+  const [, setTray] = usePreference('app.tray.enabled')
+
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray, readClipboardAtStartup } = useSettings()
   const dispatch = useAppDispatch()
+  const { assistants } = useAssistants()
+  const { quickAssistantId } = useAppSelector((state) => state.llm)
+  const { defaultAssistant: _defaultAssistant } = useDefaultAssistant()
+  const { defaultModel } = useDefaultModel()
+
+  // Take the "default assistant" from the assistant list first.
+  const defaultAssistant = useMemo(
+    () => assistants.find((a) => a.id === _defaultAssistant.id) || _defaultAssistant,
+    [assistants, _defaultAssistant]
+  )
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
-    dispatch(setEnableQuickAssistant(enable))
-    await window.api.config.set('enableQuickAssistant', enable, true)
+    await setEnableQuickAssistant(enable)
 
     !enable && window.api.miniWindow.close()
 
     if (enable && !clickTrayToShowQuickAssistant) {
-      window.message.info({
-        content: t('settings.quickAssistant.use_shortcut_to_show'),
-        duration: 4,
-        icon: <InfoCircleOutlined />,
-        key: 'quick-assistant-info'
+      window.toast.info({
+        title: t('settings.quickAssistant.use_shortcut_to_show'),
+        timeout: 4000,
+        icon: <InfoCircleOutlined />
       })
     }
 
@@ -42,14 +59,12 @@ const QuickAssistantSettings: FC = () => {
   }
 
   const handleClickTrayToShowQuickAssistant = async (checked: boolean) => {
-    dispatch(setClickTrayToShowQuickAssistant(checked))
-    await window.api.config.set('clickTrayToShowQuickAssistant', checked)
+    await setClickTrayToShowQuickAssistant(checked)
     checked && setTray(true)
   }
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
-    dispatch(setReadClipboardAtStartup(checked))
-    await window.api.config.set('readClipboardAtStartup', checked)
+    await setReadClipboardAtStartup(checked)
     window.api.miniWindow.close()
   }
 
@@ -61,18 +76,20 @@ const QuickAssistantSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
-            <Tooltip title={t('settings.quickAssistant.use_shortcut_to_show')} placement="right">
-              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-            </Tooltip>
+            <InfoTooltip
+              content={t('settings.quickAssistant.use_shortcut_to_show')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
           </SettingRowTitle>
-          <Switch checked={enableQuickAssistant} onChange={handleEnableQuickAssistant} />
+          <Switch checked={enableQuickAssistant} onCheckedChange={handleEnableQuickAssistant} />
         </SettingRow>
         {enableQuickAssistant && (
           <>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.click_tray_to_show')}</SettingRowTitle>
-              <Switch checked={clickTrayToShowQuickAssistant} onChange={handleClickTrayToShowQuickAssistant} />
+              <Switch checked={clickTrayToShowQuickAssistant} onCheckedChange={handleClickTrayToShowQuickAssistant} />
             </SettingRow>
           </>
         )}
@@ -81,14 +98,88 @@ const QuickAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
-              <Switch checked={readClipboardAtStartup} onChange={handleClickReadClipboardAtStartup} />
+              <Switch checked={readClipboardAtStartup} onCheckedChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
           </>
         )}
       </SettingGroup>
       {enableQuickAssistant && (
+        <SettingGroup theme={theme}>
+          <RowFlex className="items-center justify-between">
+            <RowFlex className="items-center gap-2.5">
+              {t('settings.models.quick_assistant_model')}
+              <InfoTooltip
+                content={t('selection.settings.user_modal.model.tooltip')}
+                showArrow
+                iconProps={{ className: 'cursor-pointer' }}
+              />
+              <Spacer />
+            </RowFlex>
+            <RowFlex className="items-center gap-2.5">
+              {!quickAssistantId ? null : (
+                <RowFlex className="items-center">
+                  <Select
+                    value={quickAssistantId || defaultAssistant.id}
+                    style={{ width: 300, height: 34 }}
+                    onChange={(value) => dispatch(setQuickAssistantId(value))}
+                    placeholder={t('settings.models.quick_assistant_selection')}
+                    showSearch
+                    options={[
+                      {
+                        key: defaultAssistant.id,
+                        value: defaultAssistant.id,
+                        title: defaultAssistant.name,
+                        label: (
+                          <AssistantItem>
+                            <ModelAvatar model={defaultAssistant.model || defaultModel} size={18} />
+                            <AssistantName>{defaultAssistant.name}</AssistantName>
+                            <Spacer />
+                            <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
+                          </AssistantItem>
+                        )
+                      },
+                      ...assistants
+                        .filter((a) => a.id !== defaultAssistant.id)
+                        .map((a) => ({
+                          key: a.id,
+                          value: a.id,
+                          title: a.name,
+                          label: (
+                            <AssistantItem>
+                              <ModelAvatar model={a.model || defaultModel} size={18} />
+                              <AssistantName>{a.name}</AssistantName>
+                              <Spacer />
+                            </AssistantItem>
+                          )
+                        }))
+                    ]}
+                    filterOption={(input, option) => matchKeywordsInString(input, option?.title || '')}
+                  />
+                </RowFlex>
+              )}
+              <RowFlex className="items-center gap-0">
+                <StyledButton
+                  color={quickAssistantId ? 'primary' : 'default'}
+                  onClick={() => {
+                    dispatch(setQuickAssistantId(defaultAssistant.id))
+                  }}
+                  selected={!!quickAssistantId}>
+                  {t('settings.models.use_assistant')}
+                </StyledButton>
+                <StyledButton
+                  color={!quickAssistantId ? 'primary' : 'default'}
+                  onClick={() => dispatch(setQuickAssistantId(''))}
+                  selected={!quickAssistantId}>
+                  {t('settings.models.use_model')}
+                </StyledButton>
+              </RowFlex>
+            </RowFlex>
+          </RowFlex>
+        </SettingGroup>
+      )}
+      {enableQuickAssistant && (
         <AssistantContainer>
-          <HomeWindow />
+          <HomeWindow draggable={false} />
         </AssistantContainer>
       )}
     </SettingContainer>
@@ -103,6 +194,60 @@ const AssistantContainer = styled.div`
   border: 0.5px solid var(--color-border);
   margin: 0 auto;
   overflow: hidden;
+`
+
+const AssistantItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+`
+
+const AssistantName = styled.span`
+  max-width: calc(100% - 60px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const Spacer = styled.div`
+  flex: 1;
+`
+
+const DefaultTag = styled.span<{ isCurrent: boolean }>`
+  color: ${(props) => (props.isCurrent ? 'var(--color-primary)' : 'var(--color-text-3)')};
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+`
+
+const StyledButton = styled(Button)<{ selected: boolean }>`
+  border-radius: ${(props) => (props.selected ? '6px' : '6px')};
+  z-index: ${(props) => (props.selected ? 1 : 0)};
+  min-width: 80px;
+
+  &:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right-width: 0; // No right border for the first button when not selected
+  }
+
+  &:last-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left-width: 1px; // Ensure left border for the last button
+  }
+
+  // Override Ant Design's default hover and focus styles for a cleaner look
+
+  &:hover,
+  &:focus {
+    z-index: 1;
+    border-color: ${(props) => (props.selected ? 'var(--ant-primary-color)' : 'var(--ant-primary-color-hover)')};
+    box-shadow: ${(props) =>
+      props.selected ? '0 0 0 2px var(--ant-primary-color-outline)' : '0 0 0 2px var(--ant-primary-color-outline)'};
+  }
 `
 
 export default QuickAssistantSettings

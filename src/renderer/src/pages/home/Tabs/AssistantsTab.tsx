@@ -1,17 +1,24 @@
-import { DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons'
-import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useCache } from '@renderer/data/hooks/useCache'
+import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Divider, Tooltip } from 'antd'
-import { FC, useCallback, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { Assistant, Topic } from '@renderer/types'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
+import type { FC } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import styled from 'styled-components'
 
-import AssistantItem from './components/AssistantItem'
+import UnifiedAddButton from './components/UnifiedAddButton'
+import { UnifiedList } from './components/UnifiedList'
+import { UnifiedTagGroups } from './components/UnifiedTagGroups'
+import { useActiveAgent } from './hooks/useActiveAgent'
+import { useUnifiedGrouping } from './hooks/useUnifiedGrouping'
+import { useUnifiedItems } from './hooks/useUnifiedItems'
+import { useUnifiedSorting } from './hooks/useUnifiedSorting'
 
 interface AssistantsTabProps {
   activeAssistant: Assistant
@@ -19,22 +26,53 @@ interface AssistantsTabProps {
   onCreateAssistant: () => void
   onCreateDefaultAssistant: () => void
 }
-const Assistants: FC<AssistantsTabProps> = ({
-  activeAssistant,
-  setActiveAssistant,
-  onCreateAssistant,
-  onCreateDefaultAssistant
-}) => {
-  const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
-  const [dragging, setDragging] = useState(false)
-  const [collapsedTags, setCollapsedTags] = useState<Record<string, boolean>>({})
-  const { addAgent } = useAgents()
-  const { t } = useTranslation()
-  const { getGroupedAssistants } = useTags()
-  const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
-  const containerRef = useRef<HTMLDivElement>(null)
 
-  const onDelete = useCallback(
+const AssistantsTab: FC<AssistantsTabProps> = (props) => {
+  const { activeAssistant, setActiveAssistant, onCreateAssistant, onCreateDefaultAssistant } = props
+  const containerRef = useRef<HTMLDivElement>(null)
+  const { apiServerConfig } = useApiServer()
+  const apiServerEnabled = apiServerConfig.enabled
+
+  // Agent related hooks
+  const { agents, deleteAgent, isLoading: agentsLoading, error: agentsError } = useAgents()
+  const [activeAgentId] = useCache('agent.active_id')
+  const { setActiveAgentId } = useActiveAgent()
+
+  // Assistant related hooks
+  const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
+  const { addAssistantPreset } = useAssistantPresets()
+  const { collapsedTags, toggleTagCollapse } = useTags()
+  const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
+  const [dragging, setDragging] = useState(false)
+
+  // Unified items management
+  const { unifiedItems, handleUnifiedListReorder } = useUnifiedItems({
+    agents,
+    assistants,
+    apiServerEnabled,
+    agentsLoading,
+    agentsError,
+    updateAssistants
+  })
+
+  // Sorting
+  const { sortByPinyinAsc, sortByPinyinDesc } = useUnifiedSorting({
+    unifiedItems,
+    updateAssistants
+  })
+
+  // Grouping
+  const { groupedUnifiedItems, handleUnifiedGroupReorder } = useUnifiedGrouping({
+    unifiedItems,
+    assistants,
+    agents,
+    apiServerEnabled,
+    agentsLoading,
+    agentsError,
+    updateAssistants
+  })
+
+  const onDeleteAssistant = useCallback(
     (assistant: Assistant) => {
       const remaining = assistants.filter((a) => a.id !== assistant.id)
       if (assistant.id === activeAssistant?.id) {
@@ -46,197 +84,98 @@ const Assistants: FC<AssistantsTabProps> = ({
     [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
   )
 
-  const toggleTagCollapse = useCallback((tag: string) => {
-    setCollapsedTags((prev) => ({
-      ...prev,
-      [tag]: !prev[tag]
-    }))
-  }, [])
-
   const handleSortByChange = useCallback(
-    (sortType: AssistantsSortType) => {
+    (sortType: AssistantTabSortType) => {
       setAssistantsTabSortType(sortType)
     },
     [setAssistantsTabSortType]
   )
 
-  const handleGroupReorder = useCallback(
-    (tag: string, newGroupList: Assistant[]) => {
-      let insertIndex = 0
-      const newGlobal = assistants.map((a) => {
-        const tags = a.tags?.length ? a.tags : [t('assistants.tags.untagged')]
-        if (tags.includes(tag)) {
-          const replaced = newGroupList[insertIndex]
-          insertIndex += 1
-          return replaced
-        }
-        return a
+  const handleAgentPress = useCallback(
+    (agentId: string) => {
+      setActiveAgentId(agentId)
+      // TODO: should allow it to be null
+      setActiveAssistant({
+        id: 'fake',
+        name: '',
+        prompt: '',
+        topics: [
+          {
+            id: 'fake',
+            assistantId: 'fake',
+            name: 'fake',
+            createdAt: '',
+            updatedAt: '',
+            messages: []
+          } as unknown as Topic
+        ],
+        type: 'chat'
       })
-      updateAssistants(newGlobal)
     },
-    [assistants, t, updateAssistants]
+    [setActiveAgentId, setActiveAssistant]
   )
-
-  if (assistantsTabSortType === 'tags') {
-    return (
-      <Container className="assistants-tab" ref={containerRef}>
-        <div style={{ marginBottom: '8px' }}>
-          {getGroupedAssistants.map((group) => (
-            <TagsContainer key={group.tag}>
-              {group.tag !== t('assistants.tags.untagged') && (
-                <GroupTitle onClick={() => toggleTagCollapse(group.tag)}>
-                  <Tooltip title={group.tag}>
-                    <GroupTitleName>
-                      {collapsedTags[group.tag] ? (
-                        <RightOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
-                      ) : (
-                        <DownOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
-                      )}
-                      {group.tag}
-                    </GroupTitleName>
-                  </Tooltip>
-                  <Divider style={{ margin: '12px 0' }}></Divider>
-                </GroupTitle>
-              )}
-              {!collapsedTags[group.tag] && (
-                <div>
-                  <DragableList
-                    list={group.assistants}
-                    onUpdate={(newList) => handleGroupReorder(group.tag, newList)}
-                    style={{ paddingBottom: dragging ? '34px' : 0 }}
-                    onDragStart={() => setDragging(true)}
-                    onDragEnd={() => setDragging(false)}>
-                    {(assistant) => (
-                      <AssistantItem
-                        key={assistant.id}
-                        assistant={assistant}
-                        isActive={assistant.id === activeAssistant.id}
-                        sortBy={assistantsTabSortType}
-                        onSwitch={setActiveAssistant}
-                        onDelete={onDelete}
-                        addAgent={addAgent}
-                        addAssistant={addAssistant}
-                        onCreateDefaultAssistant={onCreateDefaultAssistant}
-                        handleSortByChange={handleSortByChange}
-                      />
-                    )}
-                  </DragableList>
-                </div>
-              )}
-            </TagsContainer>
-          ))}
-        </div>
-        <AssistantAddItem onClick={onCreateAssistant}>
-          <AssistantName>
-            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-            {t('chat.add.assistant.title')}
-          </AssistantName>
-        </AssistantAddItem>
-      </Container>
-    )
-  }
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <DragableList
-        list={assistants}
-        onUpdate={updateAssistants}
-        style={{ paddingBottom: dragging ? '34px' : 0 }}
-        onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}>
-        {(assistant) => (
-          <AssistantItem
-            key={assistant.id}
-            assistant={assistant}
-            isActive={assistant.id === activeAssistant.id}
-            sortBy={assistantsTabSortType}
-            onSwitch={setActiveAssistant}
-            onDelete={onDelete}
-            addAgent={addAgent}
-            addAssistant={addAssistant}
-            onCreateDefaultAssistant={onCreateDefaultAssistant}
-            handleSortByChange={handleSortByChange}
-          />
-        )}
-      </DragableList>
-      {!dragging && (
-        <AssistantAddItem onClick={onCreateAssistant}>
-          <AssistantName>
-            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-            {t('chat.add.assistant.title')}
-          </AssistantName>
-        </AssistantAddItem>
+      <UnifiedAddButton
+        onCreateAssistant={onCreateAssistant}
+        setActiveAssistant={setActiveAssistant}
+        setActiveAgentId={setActiveAgentId}
+      />
+
+      {assistantsTabSortType === 'tags' ? (
+        <UnifiedTagGroups
+          groupedItems={groupedUnifiedItems}
+          activeAssistantId={activeAssistant.id}
+          activeAgentId={activeAgentId}
+          sortBy={assistantsTabSortType}
+          collapsedTags={collapsedTags}
+          onGroupReorder={handleUnifiedGroupReorder}
+          onDragStart={() => setDragging(true)}
+          onDragEnd={() => setDragging(false)}
+          onToggleTagCollapse={toggleTagCollapse}
+          onAssistantSwitch={setActiveAssistant}
+          onAssistantDelete={onDeleteAssistant}
+          onAgentDelete={deleteAgent}
+          onAgentPress={handleAgentPress}
+          addPreset={addAssistantPreset}
+          copyAssistant={copyAssistant}
+          onCreateDefaultAssistant={onCreateDefaultAssistant}
+          handleSortByChange={handleSortByChange}
+          sortByPinyinAsc={sortByPinyinAsc}
+          sortByPinyinDesc={sortByPinyinDesc}
+        />
+      ) : (
+        <UnifiedList
+          items={unifiedItems}
+          activeAssistantId={activeAssistant.id}
+          activeAgentId={activeAgentId}
+          sortBy={assistantsTabSortType}
+          onReorder={handleUnifiedListReorder}
+          onDragStart={() => setDragging(true)}
+          onDragEnd={() => setDragging(false)}
+          onAssistantSwitch={setActiveAssistant}
+          onAssistantDelete={onDeleteAssistant}
+          onAgentDelete={deleteAgent}
+          onAgentPress={handleAgentPress}
+          addPreset={addAssistantPreset}
+          copyAssistant={copyAssistant}
+          onCreateDefaultAssistant={onCreateDefaultAssistant}
+          handleSortByChange={handleSortByChange}
+          sortByPinyinAsc={sortByPinyinAsc}
+          sortByPinyinDesc={sortByPinyinDesc}
+        />
       )}
-      <div style={{ minHeight: 10 }}></div>
+
+      {!dragging && <div style={{ minHeight: 10 }}></div>}
     </Container>
   )
 }
 
-// 样式组件
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  padding: 12px 10px;
 `
 
-const TagsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const AssistantAddItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 7px 12px;
-  position: relative;
-  padding-right: 35px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid transparent;
-  cursor: pointer;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
-
-  &.active {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-  }
-`
-
-const GroupTitle = styled.div`
-  padding: 8px 0;
-  position: relative;
-  color: var(--color-text-2);
-  font-size: 12px;
-  font-weight: 500;
-  margin-bottom: -8px;
-  cursor: pointer;
-`
-
-const GroupTitleName = styled.div`
-  max-width: 50%;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  overflow: hidden;
-  background-color: var(--color-background);
-  box-sizing: border-box;
-  padding: 0 4px;
-  color: var(--color-text);
-  position: absolute;
-  transform: translateY(2px);
-  font-size: 13px;
-`
-
-const AssistantName = styled.div`
-  color: var(--color-text);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 13px;
-`
-
-export default Assistants
+export default AssistantsTab

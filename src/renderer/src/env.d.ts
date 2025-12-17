@@ -1,9 +1,9 @@
 /// <reference types="vite/client" />
 
-import type KeyvStorage from '@kangfenmao/keyv-storage'
-import { MessageInstance } from 'antd/es/message/interface'
-import { HookAPI } from 'antd/es/modal/useModal'
-import { NavigateFunction } from 'react-router-dom'
+import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
+import type { ToastUtilities } from '@cherrystudio/ui'
+import type { HookAPI } from 'antd/es/modal/useModal'
+import type { NavigateFunction } from 'react-router-dom'
 
 interface ImportMetaEnv {
   VITE_RENDERER_INTEGRATED_MODEL: string
@@ -16,10 +16,18 @@ interface ImportMeta {
 declare global {
   interface Window {
     root: HTMLElement
-    message: MessageInstance
     modal: HookAPI
-    keyv: KeyvStorage
     store: any
     navigate: NavigateFunction
+    toast: ToastUtilities
+    agentTools: {
+      respondToPermission: (payload: {
+        requestId: string
+        behavior: 'allow' | 'deny'
+        updatedInput?: Record<string, unknown>
+        message?: string
+        updatedPermissions?: PermissionUpdate[]
+      }) => Promise<{ success: boolean }>
+    }
   }
 }

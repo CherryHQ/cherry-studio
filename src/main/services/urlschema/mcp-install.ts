@@ -1,19 +1,28 @@
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { IpcChannel } from '@shared/IpcChannel'
-import { MCPServer } from '@types'
-import Logger from 'electron-log'
+import type { MCPServer } from '@types'
 
 import { windowService } from '../WindowService'
 
+const logger = loggerService.withContext('URLSchema:handleMcpProtocolUrl')
+
 function installMCPServer(server: MCPServer) {
   const mainWindow = windowService.getMainWindow()
+  const now = Date.now()
 
-  if (!server.id) {
-    server.id = nanoid()
+  const payload: MCPServer = {
+    ...server,
+    id: server.id ?? nanoid(),
+    installSource: 'protocol',
+    isTrusted: false,
+    isActive: false,
+    trustedAt: undefined,
+    installedAt: server.installedAt ?? now
   }
 
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(IpcChannel.Mcp_AddServer, server)
+    mainWindow.webContents.send(IpcChannel.Mcp_AddServer, payload)
   }
 }
 
@@ -44,12 +53,14 @@ export function handleMcpProtocolUrl(url: URL) {
       //   }
       // }
       // cherrystudio://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
+
       const data = params.get('servers')
+
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')
-        Logger.info('install MCP servers from urlschema: ', stringify)
+        logger.debug(`install MCP servers from urlschema: ${stringify}`)
         const jsonConfig = JSON.parse(stringify)
-        Logger.info('install MCP servers from urlschema: ', jsonConfig)
+        logger.debug(`install MCP servers from urlschema: ${JSON.stringify(jsonConfig)}`)
 
         // support both {mcpServers: [servers]}, [servers] and {server}
         if (jsonConfig.mcpServers) {
@@ -63,14 +74,12 @@ export function handleMcpProtocolUrl(url: URL) {
         }
       }
 
-      const mainWindow = windowService.getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.executeJavaScript("window.navigate('/settings/mcp')")
-      }
+      windowService.getMainWindow()?.show()
+
       break
     }
     default:
-      console.error(`Unknown MCP protocol URL: ${url}`)
+      logger.error(`Unknown MCP protocol URL: ${url}`)
       break
   }
 }

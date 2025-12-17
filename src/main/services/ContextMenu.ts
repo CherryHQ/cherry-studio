@@ -1,29 +1,39 @@
-import { Menu, MenuItemConstructorOptions } from 'electron'
-
-import { locales } from '../utils/locales'
-import { configManager } from './ConfigManager'
+import { getI18n } from '@main/utils/language'
+import type { MenuItemConstructorOptions } from 'electron'
+import { Menu } from 'electron'
 
 class ContextMenu {
-  public contextMenu(w: Electron.BrowserWindow) {
-    w.webContents.on('context-menu', (_event, properties) => {
+  public contextMenu(w: Electron.WebContents) {
+    w.on('context-menu', (_event, properties) => {
       const template: MenuItemConstructorOptions[] = this.createEditMenuItems(properties)
       const filtered = template.filter((item) => item.visible !== false)
       if (filtered.length > 0) {
-        const menu = Menu.buildFromTemplate([...filtered, ...this.createInspectMenuItems(w)])
+        let template = [...filtered, ...this.createInspectMenuItems(w)]
+        const dictionarySuggestions = this.createDictionarySuggestions(properties, w)
+        if (dictionarySuggestions.length > 0) {
+          template = [
+            ...dictionarySuggestions,
+            { type: 'separator' },
+            this.createSpellCheckMenuItem(properties, w),
+            { type: 'separator' },
+            ...template
+          ]
+        }
+        const menu = Menu.buildFromTemplate(template)
         menu.popup()
       }
     })
   }
 
-  private createInspectMenuItems(w: Electron.BrowserWindow): MenuItemConstructorOptions[] {
-    const locale = locales[configManager.getLanguage()]
-    const { common } = locale.translation
+  private createInspectMenuItems(w: Electron.WebContents): MenuItemConstructorOptions[] {
+    const i18n = getI18n()
+    const { common } = i18n.translation
     const template: MenuItemConstructorOptions[] = [
       {
         id: 'inspect',
         label: common.inspect,
         click: () => {
-          w.webContents.toggleDevTools()
+          w.toggleDevTools()
         },
         enabled: true
       }
@@ -33,8 +43,8 @@ class ContextMenu {
   }
 
   private createEditMenuItems(properties: Electron.ContextMenuParams): MenuItemConstructorOptions[] {
-    const locale = locales[configManager.getLanguage()]
-    const { common } = locale.translation
+    const i18n = getI18n()
+    const { common } = i18n.translation
     const hasText = properties.selectionText.trim().length > 0
     const can = (type: string) => properties.editFlags[`can${type}`] && hasText
 
@@ -71,6 +81,53 @@ class ContextMenu {
     })
 
     return template
+  }
+
+  private createSpellCheckMenuItem(
+    properties: Electron.ContextMenuParams,
+    w: Electron.WebContents
+  ): MenuItemConstructorOptions {
+    const hasText = properties.selectionText.length > 0
+
+    return {
+      id: 'learnSpelling',
+      label: '&Learn Spelling',
+      visible: Boolean(properties.isEditable && hasText && properties.misspelledWord),
+      click: () => {
+        w.session.addWordToSpellCheckerDictionary(properties.misspelledWord)
+      }
+    }
+  }
+
+  private createDictionarySuggestions(
+    properties: Electron.ContextMenuParams,
+    w: Electron.WebContents
+  ): MenuItemConstructorOptions[] {
+    const hasText = properties.selectionText.length > 0
+
+    if (!hasText || !properties.misspelledWord) {
+      return []
+    }
+
+    if (properties.dictionarySuggestions.length === 0) {
+      return [
+        {
+          id: 'dictionarySuggestions',
+          label: 'No Guesses Found',
+          visible: true,
+          enabled: false
+        }
+      ]
+    }
+
+    return properties.dictionarySuggestions.map((suggestion) => ({
+      id: 'dictionarySuggestions',
+      label: suggestion,
+      visible: Boolean(properties.isEditable && hasText && properties.misspelledWord),
+      click: (menuItem: Electron.MenuItem) => {
+        w.replaceMisspelling(menuItem.label)
+      }
+    }))
   }
 }
 

@@ -6,10 +6,12 @@ import { describe, expect, it } from 'vitest'
 import {
   convertMathFormula,
   findCitationInChildren,
-  getCodeBlockId,
+  isHtmlCode,
+  markdownToPlainText,
+  processLatexBrackets,
+  purifyMarkdownImages,
   removeTrailingDoubleSpaces,
-  updateCodeBlock,
-  markdownToPlainText
+  updateCodeBlock
 } from '../markdown'
 
 describe('markdown', () => {
@@ -140,35 +142,6 @@ describe('markdown', () => {
       const input = ''
       const result = removeTrailingDoubleSpaces(input)
       expect(result).toBe('')
-    })
-  })
-
-  describe('getCodeBlockId', () => {
-    it('should generate ID from position information', () => {
-      // 从位置信息生成ID
-      const start = { line: 10, column: 5, offset: 123 }
-      const result = getCodeBlockId(start)
-      expect(result).toBe('10:5:123')
-    })
-
-    it('should handle zero position values', () => {
-      // 处理零值位置
-      const start = { line: 1, column: 0, offset: 0 }
-      const result = getCodeBlockId(start)
-      expect(result).toBe('1:0:0')
-    })
-
-    it('should return null for null or undefined input', () => {
-      // 处理null或undefined输入
-      expect(getCodeBlockId(null)).toBeNull()
-      expect(getCodeBlockId(undefined)).toBeNull()
-    })
-
-    it('should handle missing properties in position object', () => {
-      // 处理缺少属性的位置对象
-      const invalidStart = { line: 5 }
-      const result = getCodeBlockId(invalidStart)
-      expect(result).toBe('5:undefined:undefined')
     })
   })
 
@@ -397,6 +370,335 @@ describe('markdown', () => {
 
     it('should keep plain text unchanged', () => {
       expect(markdownToPlainText('This is plain text.')).toBe('This is plain text.')
+    })
+  })
+
+  describe('processLatexBrackets', () => {
+    describe('basic LaTeX conversion', () => {
+      it('should convert (inline) display math \\[...\\] to $$...$$', () => {
+        expect(processLatexBrackets('The formula is \\[a+b=c\\]')).toBe('The formula is $$a+b=c$$')
+      })
+
+      it('should convert display math \\[...\\] to $$...$$', () => {
+        const input = `
+The formula is
+
+\\[
+a+b=c
+\\]
+`
+        const expected = `
+The formula is
+
+$$
+a+b=c
+$$
+`
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+
+      it('should convert inline math \\(...\\) to $...$', () => {
+        expect(processLatexBrackets('The formula is \\(a+b=c\\)')).toBe('The formula is $a+b=c$')
+      })
+
+      it('should handle complex mathematical text with escaped brackets', () => {
+        const input = `设 \\(A\\) 为 \\(n\\times n\\) 的实可逆矩阵，
+\\[
+B=\\begin{pmatrix} O & A \\\\[2pt] A' & O \\end{pmatrix}\\;(2n\\times 2n,\\;B=B'),
+\\]
+求 \\(B\\) 的正惯性指数 \\(p(B)\\) 和负惯性指数 \\(q(B)\\)。`
+
+        const expected = `设 $A$ 为 $n\\times n$ 的实可逆矩阵，
+$$
+B=\\begin{pmatrix} O & A \\\\[2pt] A' & O \\end{pmatrix}\\;(2n\\times 2n,\\;B=B'),
+$$
+求 $B$ 的正惯性指数 $p(B)$ 和负惯性指数 $q(B)$。`
+
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+    })
+
+    describe('code block protection', () => {
+      it('should not affect multi-line code blocks', () => {
+        const input = 'Text ```const arr = \\[1, 2, 3\\]\\nconst func = \\(x\\) => x``` more text'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should not affect inline code', () => {
+        const input = 'This is text with `const x = \\[1, 2, 3\\]` inline code'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should handle mixed code and LaTeX', () => {
+        const input = 'Math: \\[x + y\\] and code: `arr = \\[1, 2\\]` and more math: \\(z\\)'
+        const expected = 'Math: $$x + y$$ and code: `arr = \\[1, 2\\]` and more math: $z$'
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+
+      it('should protect complex code blocks', () => {
+        for (const [input, expected] of new Map([
+          [
+            '```javascript\\nconst latex = "\\\\[formula\\\\]"\\n```',
+            '```javascript\\nconst latex = "\\\\[formula\\\\]"\\n```'
+          ],
+          ['`\\[escaped brackets\\]`', '`\\[escaped brackets\\]`'],
+          [
+            '```\\narray = \\[\\n  \\(item1\\),\\n  \\(item2\\)\\n\\]\\n```',
+            '```\\narray = \\[\\n  \\(item1\\),\\n  \\(item2\\)\\n\\]\\n```'
+          ]
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+    })
+
+    describe('link protection', () => {
+      it('should not affect LaTeX in link text', () => {
+        const input = '[\\[pdf\\] Document](https://example.com/doc.pdf)'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should not affect LaTeX in link URLs', () => {
+        const input = '[Click here](https://example.com/path\\[with\\]brackets)'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should handle mixed links and LaTeX', () => {
+        const input = 'See [\\[pdf\\] file](url) for formula \\[x + y = z\\]'
+        const expected = 'See [\\[pdf\\] file](url) for formula $$x + y = z$$'
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+
+      it('should protect complex link patterns', () => {
+        for (const [input, expected] of new Map([
+          ['[Title with \\(math\\)](https://example.com)', '[Title with \\(math\\)](https://example.com)'],
+          ['[Link](https://example.com/\\[path\\]/file)', '[Link](https://example.com/\\[path\\]/file)'],
+          [
+            '[\\[Section 1\\] Overview](url) and \\[math formula\\]',
+            '[\\[Section 1\\] Overview](url) and $$math formula$$'
+          ]
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+    })
+
+    describe('edge cases', () => {
+      it('should handle empty string', () => {
+        expect(processLatexBrackets('')).toBe('')
+      })
+
+      it('should handle content without LaTeX', () => {
+        for (const [input, expected] of new Map([
+          ['Regular text without math', 'Regular text without math'],
+          ['Text with [regular] brackets', 'Text with [regular] brackets'],
+          ['Text with (parentheses)', 'Text with (parentheses)'],
+          ['No special characters here', 'No special characters here']
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+
+      it('should handle malformed LaTeX patterns', () => {
+        for (const [input, expected] of new Map([
+          ['\\[unclosed bracket', '\\[unclosed bracket'],
+          ['unopened bracket\\]', 'unopened bracket\\]'],
+          ['\\(unclosed paren', '\\(unclosed paren'],
+          ['unopened paren\\)', 'unopened paren\\)'],
+          ['\\[\\]', '$$$$'], // Empty LaTeX block
+          ['\\(\\)', '$$'] // Empty LaTeX inline
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+
+      it('should handle nested brackets', () => {
+        for (const [input, expected] of new Map([
+          ['\\[outer \\[inner\\] formula\\]', '$$outer \\[inner\\] formula$$'],
+          ['\\(a + \\(b + c\\)\\)', '$a + \\(b + c\\)$']
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+    })
+
+    describe('complex cases', () => {
+      it('should handle complex mixed content', () => {
+        const complexInput = `
+# Mathematical Document
+
+Here's a simple formula \\(E = mc^2\\) in text.
+
+## Section 1: Equations
+
+The quadratic formula is \\[x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}\\].
+
+- Item 1: See formula \\(\\alpha + \\beta = \\gamma\\) in this list
+- Item 2: Check [\\[PDF\\] Complex Analysis](https://example.com/math.pdf)
+  - Subitem 2.1: Basic concepts and definitions
+  - Subitem 2.2: The Cauchy-Riemann equations \\[\\frac{\\partial u}{\\partial x} = \\frac{\\partial v}{\\partial y}, \\quad \\frac{\\partial u}{\\partial y} = -\\frac{\\partial v}{\\partial x}\\]
+  - Subitem 2.3: Green's theorem connects line integrals and double integrals
+  \\[
+  \\oint_C (P dx + Q dy) = \\iint_D \\left(\\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y}\\right) dx dy
+  \\]
+  - Subitem 2.4: Applications in engineering and physics
+- Item 3: The sum \\[\\sum_{i=1}^{n} \\frac{1}{i^2} = \\frac{\\pi^2}{6}\\] is famous
+
+\`\`\`javascript
+// Code should not be affected
+const matrix = \\[
+  \\[1, 2\\],
+  \\[3, 4\\]
+\\];
+const func = \\(x\\) => x * 2;
+\`\`\`
+
+Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
+
+Final thoughts on \\(\\nabla \\cdot \\vec{F} = \\rho\\) in inline math and display math:
+
+\\[\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\\]
+
+\\[
+\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
+\\]
+`
+
+        const expectedOutput = `
+# Mathematical Document
+
+Here's a simple formula $E = mc^2$ in text.
+
+## Section 1: Equations
+
+The quadratic formula is $$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$.
+
+- Item 1: See formula $\\alpha + \\beta = \\gamma$ in this list
+- Item 2: Check [\\[PDF\\] Complex Analysis](https://example.com/math.pdf)
+  - Subitem 2.1: Basic concepts and definitions
+  - Subitem 2.2: The Cauchy-Riemann equations $$\\frac{\\partial u}{\\partial x} = \\frac{\\partial v}{\\partial y}, \\quad \\frac{\\partial u}{\\partial y} = -\\frac{\\partial v}{\\partial x}$$
+  - Subitem 2.3: Green's theorem connects line integrals and double integrals
+  $$
+  \\oint_C (P dx + Q dy) = \\iint_D \\left(\\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y}\\right) dx dy
+  $$
+  - Subitem 2.4: Applications in engineering and physics
+- Item 3: The sum $$\\sum_{i=1}^{n} \\frac{1}{i^2} = \\frac{\\pi^2}{6}$$ is famous
+
+\`\`\`javascript
+// Code should not be affected
+const matrix = \\[
+  \\[1, 2\\],
+  \\[3, 4\\]
+\\];
+const func = \\(x\\) => x * 2;
+\`\`\`
+
+Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
+
+Final thoughts on $\\nabla \\cdot \\vec{F} = \\rho$ in inline math and display math:
+
+$$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
+
+$$
+\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
+$$
+`
+
+        expect(processLatexBrackets(complexInput)).toBe(expectedOutput)
+      })
+    })
+  })
+
+  describe('isHtmlCode', () => {
+    it('should detect HTML with DOCTYPE', () => {
+      expect(isHtmlCode('<!DOCTYPE html>')).toBe(true)
+      expect(isHtmlCode('<!doctype html>')).toBe(true)
+    })
+
+    it('should detect HTML with valid tags', () => {
+      expect(isHtmlCode('<html>')).toBe(true)
+      expect(isHtmlCode('</html>')).toBe(true)
+      expect(isHtmlCode('<head>')).toBe(true)
+      expect(isHtmlCode('<body>')).toBe(true)
+      expect(isHtmlCode('<div>')).toBe(true)
+    })
+
+    it('should detect complete HTML structure', () => {
+      const html = '<html><head><title>Test</title></head><body>Hello</body></html>'
+      expect(isHtmlCode(html)).toBe(true)
+    })
+
+    it('should return false for non-HTML content', () => {
+      expect(isHtmlCode(null)).toBe(false)
+      expect(isHtmlCode('')).toBe(false)
+      expect(isHtmlCode('Hello world')).toBe(false)
+      expect(isHtmlCode('a < b')).toBe(false)
+    })
+  })
+
+  describe('purifyMarkdownImages', () => {
+    it('should replace base64 image with placeholder', () => {
+      const input = '![cat](data:image/png;base64,iVBORw0KGgo)'
+      const expected = '![cat](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should handle multiple base64 images', () => {
+      const input = `
+      ![dog](data:image/jpeg;base64,ABC123)
+      Some text
+      ![avatar](data:image/png;base64,XYZ789)
+    `
+      const expected = `
+      ![dog](image_url)
+      Some text
+      ![avatar](image_url)
+    `
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should ignore normal image links', () => {
+      const input = '![cat](https://example.com/cat.png)'
+      expect(purifyMarkdownImages(input)).toBe(input)
+    })
+
+    it('should handle whitespace in base64 url', () => {
+      const input = '![logo](  data:image/svg+xml;base64,CONTENT  )'
+      const expected = '![logo](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should preserve alt text', () => {
+      const input = '![User Avatar](data:image/png;base64,xxx)'
+      const expected = '![User Avatar](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should handle uppercase data URL', () => {
+      const input = '![test](DATA:IMAGE/PNG;BASE64,ABC)'
+      const expected = '![test](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should not modify text that is not image', () => {
+      const input = 'This is a data:image/png;base64,iVBORw line of text'
+      expect(purifyMarkdownImages(input)).toBe(input)
+    })
+
+    it('should handle mixed content', () => {
+      const input = `
+      Regular: ![cat](https://example.com/cat.png)
+      Base64: ![dog](data:image/jpeg;base64,BASE64DATA)
+      Another: ![bird](https://example.com/bird.gif)
+      Inline: ![icon](  data:image/x-icon;base64,ICONDATA  )
+    `
+      const expected = `
+      Regular: ![cat](https://example.com/cat.png)
+      Base64: ![dog](image_url)
+      Another: ![bird](https://example.com/bird.gif)
+      Inline: ![icon](image_url)
+    `
+      expect(purifyMarkdownImages(input)).toBe(expected)
     })
   })
 })

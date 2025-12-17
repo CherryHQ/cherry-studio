@@ -1,0 +1,80 @@
+import { Avatar, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
+import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
+import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
+import { getModelLogo } from '@renderer/config/models'
+import type { Model } from '@renderer/types'
+import type { ModelWithStatus } from '@renderer/types/healthCheck'
+import { maskApiKey } from '@renderer/utils/api'
+import { Bolt, Minus } from 'lucide-react'
+import React, { memo } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+interface ModelListItemProps {
+  ref?: React.RefObject<HTMLDivElement>
+  model: Model
+  modelStatus: ModelWithStatus | undefined
+  disabled?: boolean
+  onEdit: (model: Model) => void
+  onRemove: (model: Model) => void
+}
+
+const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, disabled, onEdit, onRemove }) => {
+  const { t } = useTranslation()
+  const isChecking = modelStatus?.checking === true
+
+  const healthResults: HealthResult[] =
+    modelStatus?.keyResults?.map((kr) => ({
+      status: kr.status,
+      latency: kr.latency,
+      error: kr.error,
+      label: maskApiKey(kr.key)
+    })) || []
+
+  return (
+    <ListItem ref={ref}>
+      <RowFlex className="flex-1 items-center gap-2.5">
+        <Avatar src={getModelLogo(model)} className="h-6 w-6">
+          {model?.name?.[0]?.toUpperCase()}
+        </Avatar>
+        <ModelIdWithTags
+          model={model}
+          style={{
+            flex: 1,
+            width: 0,
+            overflow: 'hidden'
+          }}
+        />
+        <FreeTrialModelTag model={model} />
+      </RowFlex>
+      <RowFlex className="items-center gap-1.5">
+        <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />
+        <RowFlex className="items-center">
+          <Tooltip content={t('models.edit')} closeDelay={0}>
+            <Button variant="ghost" onClick={() => onEdit(model)} disabled={disabled} size="icon">
+              <Bolt size={14} />
+            </Button>
+          </Tooltip>
+          <Tooltip content={t('settings.models.manage.remove_model')} closeDelay={0}>
+            <Button variant="ghost" onClick={() => onRemove(model)} disabled={disabled} size="icon">
+              <Minus size={14} />
+            </Button>
+          </Tooltip>
+        </RowFlex>
+      </RowFlex>
+    </ListItem>
+  )
+}
+
+const ListItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1;
+`
+
+export default memo(ModelListItem)

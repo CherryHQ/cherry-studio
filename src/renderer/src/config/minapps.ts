@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
 import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
@@ -21,23 +22,23 @@ import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?
 import GoogleAppLogo from '@renderer/assets/images/apps/google.svg?url'
 import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
 import GrokXAppLogo from '@renderer/assets/images/apps/grok-x.png?url'
-import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
 import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
+import LingAppLogo from '@renderer/assets/images/apps/ling.png?url'
+import LongCatAppLogo from '@renderer/assets/images/apps/longcat.svg?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
 import n8nLogo from '@renderer/assets/images/apps/n8n.svg?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
-import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
-import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png?url'
 import QwenlmAppLogo from '@renderer/assets/images/apps/qwenlm.webp?url'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png?url'
 import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.webp?url'
+import StepfunAppLogo from '@renderer/assets/images/apps/stepfun.png?url'
 import ThinkAnyLogo from '@renderer/assets/images/apps/thinkany.webp?url'
 import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
@@ -45,7 +46,6 @@ import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webp?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
-import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
 import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
@@ -55,7 +55,11 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
-import { MinAppType } from '@renderer/types'
+import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png?url'
+import i18n from '@renderer/i18n'
+import type { MinAppType } from '@renderer/types'
+
+const logger = loggerService.withContext('Config:minapps')
 
 // 加载自定义小应用
 const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
@@ -79,7 +83,7 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
       addTime: app.addTime || now
     }))
   } catch (error) {
-    console.error('Failed to load custom mini apps:', error)
+    logger.error('Failed to load custom mini apps:', error as Error)
     return []
   }
 }
@@ -97,7 +101,8 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'gemini',
     name: 'Gemini',
     url: 'https://gemini.google.com/',
-    logo: GeminiAppLogo
+    logo: GeminiAppLogo,
+    bodered: true
   },
   {
     id: 'silicon',
@@ -113,16 +118,17 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'yi',
-    name: '万知',
+    name: i18n.t('minapps.wanzhi'),
     url: 'https://www.wanzhi.com/',
     logo: WanZhiAppLogo,
     bodered: true
   },
   {
     id: 'zhipu',
-    name: '智谱清言',
+    name: i18n.t('minapps.chatglm'),
     url: 'https://chatglm.cn/main/alltoolsdetail',
-    logo: ZhipuProviderLogo
+    logo: ZhipuProviderLogo,
+    bodered: true
   },
   {
     id: 'moonshot',
@@ -132,26 +138,26 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'baichuan',
-    name: '百小应',
+    name: i18n.t('minapps.baichuan'),
     url: 'https://ying.baichuan-ai.com/chat',
     logo: BaicuanAppLogo
   },
   {
     id: 'dashscope',
-    name: '通义千问',
-    url: 'https://tongyi.aliyun.com/qianwen/',
+    name: i18n.t('minapps.qwen'),
+    url: 'https://www.tongyi.com/',
     logo: QwenModelLogo
   },
   {
     id: 'stepfun',
-    name: '跃问',
-    url: 'https://yuewen.cn/chats/new',
-    logo: YuewenAppLogo,
+    name: i18n.t('minapps.stepfun'),
+    url: 'https://stepfun.com',
+    logo: StepfunAppLogo,
     bodered: true
   },
   {
     id: 'doubao',
-    name: '豆包',
+    name: i18n.t('minapps.doubao'),
     url: 'https://www.doubao.com/chat/',
     logo: DoubaoAppLogo
   },
@@ -163,7 +169,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'minimax',
-    name: '海螺',
+    name: i18n.t('minapps.hailuo'),
     url: 'https://chat.minimaxi.com/',
     logo: HailuoModelLogo,
     bodered: true
@@ -192,13 +198,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'baidu-ai-chat',
-    name: '文心一言',
+    name: i18n.t('minapps.wenxin'),
     logo: BaiduAiAppLogo,
     url: 'https://yiyan.baidu.com/'
   },
   {
     id: 'baidu-ai-search',
-    name: '百度AI搜索',
+    name: i18n.t('minapps.baidu-ai-search'),
     logo: BaiduAiSearchLogo,
     url: 'https://chat.baidu.com/',
     bodered: true,
@@ -208,14 +214,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'tencent-yuanbao',
-    name: '腾讯元宝',
+    name: i18n.t('minapps.tencent-yuanbao'),
     logo: TencentYuanbaoAppLogo,
     url: 'https://yuanbao.tencent.com/chat',
     bodered: true
   },
   {
     id: 'sensetime-chat',
-    name: '商量',
+    name: i18n.t('minapps.sensechat'),
     logo: SensetimeAppLogo,
     url: 'https://chat.sensetime.com/wb/chat',
     bodered: true
@@ -228,7 +234,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'metaso',
-    name: '秘塔AI搜索',
+    name: i18n.t('minapps.metaso'),
     logo: MetasoAppLogo,
     url: 'https://metaso.cn/'
   },
@@ -252,16 +258,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'tiangong-ai',
-    name: '天工AI',
+    name: i18n.t('minapps.tiangong-ai'),
     logo: TiangongAiLogo,
     url: 'https://www.tiangong.cn/',
-    bodered: true
-  },
-  {
-    id: 'hugging-chat',
-    name: 'HuggingChat',
-    logo: HuggingChatLogo,
-    url: 'https://huggingface.co/chat/',
     bodered: true
   },
   {
@@ -286,16 +285,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'nm',
-    name: '纳米AI',
+    name: i18n.t('minapps.nami-ai'),
     logo: NamiAiLogo,
     url: 'https://bot.n.cn/',
-    bodered: true
-  },
-  {
-    id: 'nm-search',
-    name: '纳米AI搜索',
-    logo: NamiAiSearchLogo,
-    url: 'https://www.n.cn/',
     bodered: true
   },
   {
@@ -307,13 +299,6 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 5
     }
-  },
-  {
-    id: 'hika',
-    name: 'Hika',
-    logo: HikaLogo,
-    url: 'https://hika.fyi/',
-    bodered: true
   },
   {
     id: 'github-copilot',
@@ -369,7 +354,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'xiaoyi',
-    name: '小艺',
+    name: i18n.t('minapps.xiaoyi'),
     logo: XiaoYiAppLogo,
     url: 'https://xiaoyi.huawei.com/chat/',
     bodered: true
@@ -399,7 +384,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'wpslingxi',
-    name: 'WPS灵犀',
+    name: i18n.t('minapps.wps-copilot'),
     logo: WPSLingXiLogo,
     url: 'https://copilot.wps.cn/',
     bodered: true
@@ -440,14 +425,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'zhihu',
-    name: '知乎直答',
+    name: i18n.t('minapps.zhihu'),
     logo: ZhihuAppLogo,
     url: 'https://zhida.zhihu.com/',
     bodered: true
   },
   {
     id: 'dangbei',
-    name: '当贝AI',
+    name: i18n.t('minapps.dangbei'),
     logo: DangbeiLogo,
     url: 'https://ai.dangbei.com/',
     bodered: true
@@ -470,6 +455,33 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true,
     style: {
       padding: 5
+    }
+  },
+  {
+    id: 'longcat',
+    name: 'LongCat',
+    logo: LongCatAppLogo,
+    url: 'https://longcat.chat/',
+    bodered: true
+  },
+  {
+    id: 'ling',
+    name: i18n.t('minapps.ant-ling'),
+    url: 'https://ling.tbox.cn/chat',
+    logo: LingAppLogo,
+    bodered: true,
+    style: {
+      padding: 6
+    }
+  },
+  {
+    id: 'huggingchat',
+    name: 'HuggingChat',
+    url: 'https://huggingface.co/chat/',
+    logo: HuggingChatLogo,
+    bodered: true,
+    style: {
+      padding: 6
     }
   }
 ]

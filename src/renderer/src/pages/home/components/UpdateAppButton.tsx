@@ -1,29 +1,40 @@
 import { SyncOutlined } from '@ant-design/icons'
-import { useRuntime } from '@renderer/hooks/useRuntime'
+import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { Button } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const UpdateAppButton: FC = () => {
-  const { update } = useRuntime()
+  const { appUpdateState } = useAppUpdateState()
+  const { autoCheckUpdate } = useSettings()
   const { t } = useTranslation()
 
-  if (!update) {
+  if (!appUpdateState) {
     return null
   }
 
-  if (!update.downloaded) {
+  if (!appUpdateState.downloaded || !autoCheckUpdate) {
     return null
+  }
+
+  if (appUpdateState.ignore) {
+    return null
+  }
+
+  const handleOpenUpdateDialog = () => {
+    UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
   }
 
   return (
     <Container>
       <UpdateButton
         className="nodrag"
-        onClick={() => window.api.showUpdateDialog()}
+        onClick={handleOpenUpdateDialog}
         icon={<SyncOutlined />}
-        color="orange"
+        color="primary"
         variant="outlined"
         size="small">
         {t('button.update_available')}

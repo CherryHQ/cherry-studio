@@ -1,6 +1,7 @@
 import 'katex/dist/katex.min.css'
 
-import React, { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -41,11 +42,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
   return (
     <EditorContainer style={{ height }}>
       <InputArea value={inputValue} onChange={handleChange} placeholder={placeholder} autoFocus={autoFocus} />
-      <PreviewArea>
+      <PreviewArea className="markdown">
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkCjkFriendly, remarkMath]}
-          rehypePlugins={[rehypeRaw, rehypeKatex]}
-          className="markdown">
+          rehypePlugins={[rehypeRaw, rehypeKatex]}>
           {inputValue || t('settings.provider.notes.markdown_editor_default_value')}
         </ReactMarkdown>
       </PreviewArea>

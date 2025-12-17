@@ -1,1 +1,8 @@
-<svg fill="currentColor" fill-rule="evenodd" height="1em" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><title>Dify</title><clipPath id="lobe-icons-dify-fill"><path d="M1 0h10.286c6.627 0 12 5.373 12 12s-5.373 12-12 12H1V0z"></path></clipPath><foreignObject clip-path="url(#lobe-icons-dify-fill)" height="24" style="background:conic-gradient(from 180deg at 50% 50%, #0222C3, #8FB1F4, #FFFFFF)" width="24"></foreignObject></svg>
+<svg width="22" height="22" viewBox="13 -2 25 22" xmlns="http://www.w3.org/2000/svg">
+<g id="White=False">
+<g id="if">
+<path d="M21.2002 3.73454C22.5633 3.73454 23.0666 2.89917 23.0666 1.86812C23.0666 0.837081 22.5623 0.00170898 21.2002 0.00170898C19.838 0.00170898 19.3337 0.837081 19.3337 1.86812C19.3337 2.89917 19.838 3.73454 21.2002 3.73454Z" fill="#0033FF"/>
+<path d="M27.7336 4.13435V5.33473H24.6668V8.00171H27.7336V14.6687H22.6668V5.33567H15.9998V8.00265H19.7336V14.6696H15.3337V17.3366H35.3337V14.6696H30.6668V8.00265H35.3337V5.33567H30.6668V2.66869H35.3337V0.00170898H31.8671C29.5877 0.00170898 27.7336 1.8559 27.7336 4.13529V4.13435Z" fill="#0033FF"/>
+</g>
+</g>
+</svg>

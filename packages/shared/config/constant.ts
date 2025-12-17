@@ -1,311 +1,132 @@
+import { languages } from './languages'
+
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
 export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
-export const documentExts = ['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods']
+export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods']
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
-const textExtsByCategory = new Map([
+
+export const API_SERVER_DEFAULTS = {
+  HOST: '127.0.0.1',
+  PORT: 23333
+}
+
+/**
+ * A flat array of all file extensions known by the linguist database.
+ * This is the primary source for identifying code files.
+ */
+const linguistExtSet = new Set<string>()
+for (const lang of Object.values(languages)) {
+  if (lang.extensions) {
+    for (const ext of lang.extensions) {
+      linguistExtSet.add(ext)
+    }
+  }
+}
+export const codeLangExts = Array.from(linguistExtSet)
+
+/**
+ * A categorized map of custom text-based file extensions that are NOT included
+ * in the linguist database. This is for special cases or project-specific files.
+ */
+export const customTextExts = new Map([
   [
     'language',
     [
-      '.js',
-      '.mjs',
-      '.cjs',
-      '.ts',
-      '.jsx',
-      '.tsx', // JavaScript/TypeScript
-      '.py', // Python
-      '.java', // Java
-      '.cs', // C#
-      '.cpp',
-      '.c',
-      '.h',
-      '.hpp',
-      '.cc',
-      '.cxx',
-      '.cppm',
-      '.ipp',
-      '.ixx', // C/C++
-      '.php', // PHP
-      '.rb', // Ruby
-      '.pl', // Perl
-      '.go', // Go
-      '.rs', // Rust
-      '.swift', // Swift
-      '.kt',
-      '.kts', // Kotlin
-      '.scala', // Scala
-      '.lua', // Lua
-      '.groovy', // Groovy
-      '.dart', // Dart
-      '.hs', // Haskell
-      '.clj',
-      '.cljs', // Clojure
-      '.elm', // Elm
-      '.erl', // Erlang
-      '.ex',
-      '.exs', // Elixir
-      '.ml',
-      '.mli', // OCaml
-      '.fs', // F#
-      '.r',
       '.R', // R
-      '.sol', // Solidity
-      '.awk', // AWK
-      '.cob', // COBOL
-      '.asm',
-      '.s', // Assembly
-      '.lisp',
-      '.lsp', // Lisp
-      '.coffee', // CoffeeScript
-      '.ino', // Arduino
-      '.jl', // Julia
-      '.nim', // Nim
-      '.zig', // Zig
-      '.d', // D语言
-      '.pas', // Pascal
-      '.vb', // Visual Basic
-      '.rkt', // Racket
-      '.scm', // Scheme
-      '.hx', // Haxe
-      '.as', // ActionScript
-      '.pde', // Processing
-      '.f90',
-      '.f',
-      '.f03',
-      '.for',
-      '.f95', // Fortran
-      '.adb',
-      '.ads', // Ada
-      '.pro', // Prolog
-      '.m',
-      '.mm', // Objective-C/MATLAB
-      '.rpy', // Ren'Py
       '.ets', // OpenHarmony,
       '.uniswap', // DeFi
-      '.vy', // Vyper
-      '.shader',
-      '.glsl',
-      '.frag',
-      '.vert',
-      '.gd' // Godot
-    ]
-  ],
-  [
-    'script',
-    [
-      '.sh', // Shell
-      '.bat',
-      '.cmd', // Windows批处理
-      '.ps1', // PowerShell
-      '.tcl',
-      '.do', // Tcl
-      '.ahk', // AutoHotkey
-      '.zsh', // Zsh
-      '.fish', // Fish shell
-      '.csh', // C shell
-      '.vbs', // VBScript
-      '.applescript', // AppleScript
-      '.au3', // AutoIt
-      '.bash',
-      '.nu'
-    ]
-  ],
-  [
-    'style',
-    [
-      '.css', // CSS
-      '.less', // Less
-      '.scss',
-      '.sass', // Sass
-      '.styl', // Stylus
-      '.pcss', // PostCSS
-      '.postcss' // PostCSS
+      '.usf', // Unreal shader format
+      '.ush' // Unreal shader header
     ]
   ],
   [
     'template',
     [
-      '.vue', // Vue.js
-      '.pug',
-      '.jade', // Pug/Jade
-      '.haml', // Haml
-      '.slim', // Slim
-      '.tpl', // 通用模板
-      '.ejs', // EJS
-      '.hbs', // Handlebars
-      '.mustache', // Mustache
-      '.twig', // Twig
-      '.blade', // Blade (Laravel)
-      '.liquid', // Liquid
-      '.jinja',
-      '.jinja2',
-      '.j2', // Jinja
-      '.erb', // ERB
-      '.vm', // Velocity
-      '.ftl', // FreeMarker
-      '.svelte', // Svelte
-      '.astro' // Astro
+      '.vm' // Velocity
     ]
   ],
   [
     'config',
     [
-      '.ini', // INI配置
+      '.babelrc', // Babel
+      '.bashrc',
+      '.browserslistrc',
       '.conf',
       '.config', // 通用配置
-      '.env', // 环境变量
-      '.toml', // TOML
-      '.cfg', // 通用配置
-      '.properties', // Java属性
-      '.desktop', // Linux桌面文件
-      '.service', // systemd服务
-      '.rc',
-      '.bashrc',
-      '.zshrc', // Shell配置
-      '.fishrc', // Fish shell配置
-      '.vimrc', // Vim配置
-      '.htaccess', // Apache配置
-      '.robots', // robots.txt
-      '.editorconfig', // EditorConfig
-      '.eslintrc', // ESLint
-      '.prettierrc', // Prettier
-      '.babelrc', // Babel
-      '.npmrc', // npm
       '.dockerignore', // Docker ignore
-      '.npmignore',
-      '.yarnrc',
-      '.prettierignore',
       '.eslintignore',
-      '.browserslistrc',
-      '.json5',
-      '.tfvars'
+      '.eslintrc', // ESLint
+      '.fishrc', // Fish shell配置
+      '.htaccess', // Apache配置
+      '.npmignore',
+      '.npmrc', // npm
+      '.prettierignore',
+      '.prettierrc', // Prettier
+      '.rc',
+      '.robots', // robots.txt
+      '.yarnrc',
+      '.zshrc'
     ]
   ],
   [
     'document',
     [
-      '.txt',
-      '.text', // 纯文本
-      '.md',
-      '.mdx', // Markdown
-      '.html',
-      '.htm',
-      '.xhtml', // HTML
-      '.xml', // XML
-      '.org', // Org-mode
-      '.wiki', // Wiki
-      '.tex',
-      '.bib', // LaTeX
-      '.rst', // reStructuredText
-      '.rtf', // 富文本
-      '.nfo', // 信息文件
-      '.adoc',
-      '.asciidoc', // AsciiDoc
-      '.pod', // Perl文档
-      '.1',
-      '.2',
-      '.3',
-      '.4',
-      '.5',
-      '.6',
-      '.7',
-      '.8',
-      '.9', // man页面
-      '.man', // man页面
-      '.texi',
-      '.texinfo', // Texinfo
-      '.readme',
-      '.me', // README
+      '.authors', // 作者文件
       '.changelog', // 变更日志
       '.license', // 许可证
-      '.authors', // 作者文件
-      '.po',
-      '.pot'
+      '.nfo', // 信息文件
+      '.readme',
+      '.text' // 纯文本
     ]
   ],
   [
     'data',
     [
-      '.json', // JSON
-      '.jsonc', // JSON with comments
-      '.yaml',
-      '.yml', // YAML
-      '.csv',
-      '.tsv', // 分隔值文件
-      '.edn', // Clojure数据
-      '.jsonl',
-      '.ndjson', // 换行分隔JSON
-      '.geojson', // GeoJSON
-      '.gpx', // GPS Exchange
-      '.kml', // Keyhole Markup
-      '.rss',
       '.atom', // Feed格式
-      '.vcf', // vCard
-      '.ics', // iCalendar
-      '.ldif', // LDAP数据交换
-      '.pbtxt',
-      '.map'
+      '.ldif',
+      '.map',
+      '.ndjson' // 换行分隔JSON
     ]
   ],
   [
     'build',
     [
-      '.gradle', // Gradle
-      '.make',
-      '.mk', // Make
-      '.cmake', // CMake
-      '.sbt', // SBT
-      '.rake', // Rake
-      '.spec', // RPM spec
-      '.pom',
+      '.bazel', // Bazel
       '.build', // Meson
-      '.bazel' // Bazel
+      '.pom'
     ]
   ],
   [
     'database',
     [
-      '.sql', // SQL
-      '.ddl',
       '.dml', // DDL/DML
-      '.plsql', // PL/SQL
-      '.psql', // PostgreSQL
-      '.cypher', // Cypher
-      '.sparql' // SPARQL
+      '.psql' // PostgreSQL
     ]
   ],
   [
     'web',
     [
-      '.graphql',
-      '.gql', // GraphQL
-      '.proto', // Protocol Buffers
-      '.thrift', // Thrift
-      '.wsdl', // WSDL
-      '.raml', // RAML
-      '.swagger',
-      '.openapi' // API文档
+      '.openapi', // API文档
+      '.swagger'
     ]
   ],
   [
     'version',
     [
-      '.gitignore', // Git ignore
-      '.gitattributes', // Git attributes
-      '.gitconfig', // Git config
-      '.hgignore', // Mercurial ignore
       '.bzrignore', // Bazaar ignore
-      '.svnignore', // SVN ignore
-      '.githistory' // Git history
+      '.gitattributes', // Git attributes
+      '.githistory', // Git history
+      '.hgignore', // Mercurial ignore
+      '.svnignore' // SVN ignore
     ]
   ],
   [
     'subtitle',
     [
-      '.srt',
-      '.sub',
-      '.ass' // 字幕格式
+      '.ass', // 字幕格式
+      '.sub'
     ]
   ],
   [
@@ -318,54 +139,26 @@ const textExtsByCategory = new Map([
   [
     'eda',
     [
-      '.v',
-      '.sv',
-      '.svh', // Verilog/SystemVerilog
-      '.vhd',
-      '.vhdl', // VHDL
-      '.lef',
+      '.cir',
       '.def', // LEF/DEF
       '.edif', // EDIF
-      '.sdf', // SDF
-      '.sdc',
-      '.xdc', // 约束文件
-      '.sp',
-      '.spi',
-      '.cir',
-      '.net', // SPICE
-      '.scs', // Spectre
-      '.asc', // LTspice
-      '.tf', // Technology File
       '.il',
-      '.ils' // SKILL
-    ]
-  ],
-  [
-    'game',
-    [
-      '.mtl', // Material Template Library
-      '.x3d', // X3D文件
-      '.gltf', // glTF JSON
-      '.prefab', // Unity预制体 (YAML格式)
-      '.meta' // Unity元数据文件 (YAML格式)
-    ]
-  ],
-  [
-    'other',
-    [
-      '.mcfunction', // Minecraft函数
-      '.jsp', // JSP
-      '.aspx', // ASP.NET
-      '.ipynb', // Jupyter Notebook
-      '.cake',
-      '.ctp', // CakePHP
-      '.cfm',
-      '.cfc' // ColdFusion
+      '.ils', // SKILL
+      '.lef',
+      '.net',
+      '.scs', // Spectre
+      '.sdf', // SDF
+      '.spi'
     ]
   ]
 ])
 
-export const textExts = Array.from(textExtsByCategory.values()).flat()
+/**
+ * A comprehensive list of all text-based file extensions, combining the
+ * extensive list from the linguist database with our custom additions.
+ * The Set ensures there are no duplicates.
+ */
+export const textExts = [...new Set([...Array.from(customTextExts.values()).flat(), ...codeLangExts])]
 
 export const ZOOM_LEVELS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
 
@@ -406,5 +199,292 @@ export const defaultLanguage = 'en-US'
 
 export enum FeedUrl {
   PRODUCTION = 'https://releases.cherry-ai.com',
-  EARLY_ACCESS = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
+  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
 }
+
+export enum UpdateConfigUrl {
+  GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json',
+  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
+}
+
+// export enum UpgradeChannel {
+//   LATEST = 'latest', // 最新稳定版本
+//   RC = 'rc', // 公测版本
+//   BETA = 'beta' // 预览版本
+// }
+
+export enum UpdateMirror {
+  GITHUB = 'github',
+  GITCODE = 'gitcode'
+}
+
+export const defaultTimeout = 10 * 1000 * 60
+
+export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
+
+export const MIN_WINDOW_WIDTH = 960
+export const SECOND_MIN_WINDOW_WIDTH = 520
+export const MIN_WINDOW_HEIGHT = 600
+export const defaultByPassRules = 'localhost,127.0.0.1,::1'
+
+export enum codeTools {
+  qwenCode = 'qwen-code',
+  claudeCode = 'claude-code',
+  geminiCli = 'gemini-cli',
+  openaiCodex = 'openai-codex',
+  iFlowCli = 'iflow-cli',
+  githubCopilotCli = 'github-copilot-cli'
+}
+
+export enum terminalApps {
+  systemDefault = 'Terminal',
+  iterm2 = 'iTerm2',
+  kitty = 'kitty',
+  alacritty = 'Alacritty',
+  wezterm = 'WezTerm',
+  ghostty = 'Ghostty',
+  tabby = 'Tabby',
+  // Windows terminals
+  windowsTerminal = 'WindowsTerminal',
+  powershell = 'PowerShell',
+  cmd = 'CMD',
+  wsl = 'WSL'
+}
+
+export interface TerminalConfig {
+  id: string
+  name: string
+  bundleId?: string
+  customPath?: string // For user-configured terminal paths on Windows
+}
+
+export interface TerminalConfigWithCommand extends TerminalConfig {
+  command: (directory: string, fullCommand: string) => { command: string; args: string[] }
+}
+
+export const MACOS_TERMINALS: TerminalConfig[] = [
+  {
+    id: terminalApps.systemDefault,
+    name: 'Terminal',
+    bundleId: 'com.apple.Terminal'
+  },
+  {
+    id: terminalApps.iterm2,
+    name: 'iTerm2',
+    bundleId: 'com.googlecode.iterm2'
+  },
+  {
+    id: terminalApps.kitty,
+    name: 'kitty',
+    bundleId: 'net.kovidgoyal.kitty'
+  },
+  {
+    id: terminalApps.alacritty,
+    name: 'Alacritty',
+    bundleId: 'org.alacritty'
+  },
+  {
+    id: terminalApps.wezterm,
+    name: 'WezTerm',
+    bundleId: 'com.github.wez.wezterm'
+  },
+  {
+    id: terminalApps.ghostty,
+    name: 'Ghostty',
+    bundleId: 'com.mitchellh.ghostty'
+  },
+  {
+    id: terminalApps.tabby,
+    name: 'Tabby',
+    bundleId: 'org.tabby'
+  }
+]
+
+export const WINDOWS_TERMINALS: TerminalConfig[] = [
+  {
+    id: terminalApps.cmd,
+    name: 'Command Prompt'
+  },
+  {
+    id: terminalApps.powershell,
+    name: 'PowerShell'
+  },
+  {
+    id: terminalApps.windowsTerminal,
+    name: 'Windows Terminal'
+  },
+  {
+    id: terminalApps.wsl,
+    name: 'WSL (Ubuntu/Debian)'
+  },
+  {
+    id: terminalApps.alacritty,
+    name: 'Alacritty'
+  },
+  {
+    id: terminalApps.wezterm,
+    name: 'WezTerm'
+  }
+]
+
+export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
+  {
+    id: terminalApps.cmd,
+    name: 'Command Prompt',
+    command: (_: string, fullCommand: string) => ({
+      command: 'cmd',
+      args: ['/c', 'start', 'cmd', '/k', fullCommand]
+    })
+  },
+  {
+    id: terminalApps.powershell,
+    name: 'PowerShell',
+    command: (_: string, fullCommand: string) => ({
+      command: 'cmd',
+      args: ['/c', 'start', 'powershell', '-NoExit', '-Command', `& '${fullCommand}'`]
+    })
+  },
+  {
+    id: terminalApps.windowsTerminal,
+    name: 'Windows Terminal',
+    command: (_: string, fullCommand: string) => ({
+      command: 'wt',
+      args: ['cmd', '/k', fullCommand]
+    })
+  },
+  {
+    id: terminalApps.wsl,
+    name: 'WSL (Ubuntu/Debian)',
+    command: (_: string, fullCommand: string) => {
+      // Start WSL in a new window and execute the batch file from within WSL using cmd.exe
+      // The batch file will run in Windows context but output will be in WSL terminal
+      return {
+        command: 'cmd',
+        args: ['/c', 'start', 'wsl', '-e', 'bash', '-c', `cmd.exe /c '${fullCommand}' ; exec bash`]
+      }
+    }
+  },
+  {
+    id: terminalApps.alacritty,
+    name: 'Alacritty',
+    customPath: '', // Will be set by user in settings
+    command: (_: string, fullCommand: string) => ({
+      command: 'alacritty', // Will be replaced with customPath if set
+      args: ['-e', 'cmd', '/k', fullCommand]
+    })
+  },
+  {
+    id: terminalApps.wezterm,
+    name: 'WezTerm',
+    customPath: '', // Will be set by user in settings
+    command: (_: string, fullCommand: string) => ({
+      command: 'wezterm', // Will be replaced with customPath if set
+      args: ['start', 'cmd', '/k', fullCommand]
+    })
+  }
+]
+
+// Helper function to escape strings for AppleScript
+const escapeForAppleScript = (str: string): string => {
+  // In AppleScript strings, backslashes and double quotes need to be escaped
+  // When passed through osascript -e with single quotes, we need:
+  // 1. Backslash: \ -> \\
+  // 2. Double quote: " -> \"
+  return str
+    .replace(/\\/g, '\\\\') // Escape backslashes first
+    .replace(/"/g, '\\"') // Then escape double quotes
+}
+
+export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
+  {
+    id: terminalApps.systemDefault,
+    name: 'Terminal',
+    bundleId: 'com.apple.Terminal',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `open -na Terminal && sleep 0.5 && osascript -e 'tell application "Terminal" to activate' -e 'tell application "Terminal" to do script "${escapeForAppleScript(fullCommand)}" in front window'`
+      ]
+    })
+  },
+  {
+    id: terminalApps.iterm2,
+    name: 'iTerm2',
+    bundleId: 'com.googlecode.iterm2',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `open -na iTerm && sleep 0.8 && osascript -e 'on waitUntilRunning()\n  repeat 50 times\n    tell application "System Events"\n      if (exists process "iTerm2") then exit repeat\n    end tell\n    delay 0.1\n  end repeat\nend waitUntilRunning\n\nwaitUntilRunning()\n\ntell application "iTerm2"\n  if (count of windows) = 0 then\n    create window with default profile\n    delay 0.3\n  else\n    tell current window\n      create tab with default profile\n    end tell\n    delay 0.3\n  end if\n  tell current session of current window to write text "${escapeForAppleScript(fullCommand)}"\n  activate\nend tell'`
+      ]
+    })
+  },
+  {
+    id: terminalApps.kitty,
+    name: 'kitty',
+    bundleId: 'net.kovidgoyal.kitty',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `cd "${_directory}" && open -na kitty --args --directory="${_directory}" sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "kitty" to activate'`
+      ]
+    })
+  },
+  {
+    id: terminalApps.alacritty,
+    name: 'Alacritty',
+    bundleId: 'org.alacritty',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `open -na Alacritty --args --working-directory "${_directory}" -e sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Alacritty" to activate'`
+      ]
+    })
+  },
+  {
+    id: terminalApps.wezterm,
+    name: 'WezTerm',
+    bundleId: 'com.github.wez.wezterm',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `open -na WezTerm --args start --new-tab --cwd "${_directory}" -- sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "WezTerm" to activate'`
+      ]
+    })
+  },
+  {
+    id: terminalApps.ghostty,
+    name: 'Ghostty',
+    bundleId: 'com.mitchellh.ghostty',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `cd "${_directory}" && open -na Ghostty --args --working-directory="${_directory}" -e sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Ghostty" to activate'`
+      ]
+    })
+  },
+  {
+    id: terminalApps.tabby,
+    name: 'Tabby',
+    bundleId: 'org.tabby',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `if pgrep -x "Tabby" > /dev/null; then
+          open -na Tabby --args open && sleep 0.3
+        else
+          open -na Tabby --args open && sleep 2
+        fi && osascript -e 'tell application "Tabby" to activate' -e 'set the clipboard to "${escapeForAppleScript(fullCommand)}"' -e 'tell application "System Events" to tell process "Tabby" to keystroke "v" using {command down}' -e 'tell application "System Events" to key code 36'`
+      ]
+    })
+  }
+]
+
+// resources/scripts should be maintained manually
+export const HOME_CHERRY_DIR = '.cherrystudio'

@@ -1,7 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { runAsyncFunction } from '../index'
-import { compareVersions, hasPath, isFreeModel, isValidProxyUrl, removeQuotes, removeSpecialCharacters } from '../index'
+import { hasPath, isValidProxyUrl, removeQuotes, removeSpecialCharacters } from '../index'
+
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
 
 describe('Unclassified Utils', () => {
   describe('runAsyncFunction', () => {
@@ -21,22 +31,6 @@ describe('Unclassified Utils', () => {
           throw new Error('Test error')
         })
       ).rejects.toThrow('Test error')
-    })
-  })
-
-  describe('isFreeModel', () => {
-    const base = { provider: '', group: '' }
-    it('should return true if id or name contains "free" (case-insensitive)', () => {
-      expect(isFreeModel({ id: 'free-model', name: 'test', ...base })).toBe(true)
-      expect(isFreeModel({ id: 'model', name: 'FreePlan', ...base })).toBe(true)
-      expect(isFreeModel({ id: 'model', name: 'notfree', ...base })).toBe(true)
-      expect(isFreeModel({ id: 'model', name: 'test', ...base })).toBe(false)
-    })
-
-    it('should handle empty id or name', () => {
-      expect(isFreeModel({ id: '', name: 'free', ...base })).toBe(true)
-      expect(isFreeModel({ id: 'free', name: '', ...base })).toBe(true)
-      expect(isFreeModel({ id: '', name: '', ...base })).toBe(false)
     })
   })
 
@@ -108,34 +102,6 @@ describe('Unclassified Utils', () => {
     it('should return false for invalid url', () => {
       expect(hasPath('not a url')).toBe(false)
       expect(hasPath('')).toBe(false)
-    })
-  })
-
-  describe('compareVersions', () => {
-    it('should return 1 if v1 > v2', () => {
-      expect(compareVersions('1.2.3', '1.2.2')).toBe(1)
-      expect(compareVersions('2.0.0', '1.9.9')).toBe(1)
-      expect(compareVersions('1.2.0', '1.1.9')).toBe(1)
-      expect(compareVersions('1.2.3', '1.2')).toBe(1)
-    })
-
-    it('should return -1 if v1 < v2', () => {
-      expect(compareVersions('1.2.2', '1.2.3')).toBe(-1)
-      expect(compareVersions('1.9.9', '2.0.0')).toBe(-1)
-      expect(compareVersions('1.1.9', '1.2.0')).toBe(-1)
-      expect(compareVersions('1.2', '1.2.3')).toBe(-1)
-    })
-
-    it('should return 0 if v1 == v2', () => {
-      expect(compareVersions('1.2.3', '1.2.3')).toBe(0)
-      expect(compareVersions('1.2', '1.2.0')).toBe(0)
-      expect(compareVersions('1.0.0', '1')).toBe(0)
-    })
-
-    it('should handle non-numeric and empty string', () => {
-      expect(compareVersions('', '')).toBe(0)
-      expect(compareVersions('a.b.c', '1.2.3')).toBe(-1)
-      expect(compareVersions('1.2.3', 'a.b.c')).toBe(1)
     })
   })
 })

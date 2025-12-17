@@ -1,0 +1,214 @@
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { DeleteIcon } from '@renderer/components/Icons'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
+import Scrollbar from '@renderer/components/Scrollbar'
+import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
+import { SettingHelpText } from '@renderer/pages/settings'
+import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import type { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
+import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
+import { Card, List, Popconfirm, Space, Typography } from 'antd'
+import { Plus } from 'lucide-react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+import { isLlmProvider, useApiKeys } from './hook'
+import ApiKeyItem from './item'
+import type { ApiProvider, UpdateApiProviderFunc } from './types'
+
+interface ApiKeyListProps {
+  provider: ApiProvider
+  updateProvider: UpdateApiProviderFunc
+  showHealthCheck?: boolean
+}
+
+/**
+ * Api key 列表，管理 CRUD 操作、连接检查
+ */
+export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, showHealthCheck = true }) => {
+  const { t } = useTranslation()
+
+  // 临时新项状态
+  const [pendingNewKey, setPendingNewKey] = useState<{ key: string; id: string } | null>(null)
+
+  const {
+    keys,
+    addKey,
+    updateKey,
+    removeKey,
+    removeInvalidKeys,
+    checkKeyConnectivity,
+    checkAllKeysConnectivity,
+    isChecking
+  } = useApiKeys({ provider, updateProvider })
+
+  // 创建一个临时新项
+  const handleAddNew = () => {
+    setPendingNewKey({ key: '', id: Date.now().toString() })
+  }
+
+  const handleUpdate = (index: number, newKey: string, isNew: boolean) => {
+    if (isNew) {
+      // 新项保存时，调用真正的 addKey，然后清除临时状态
+      const result = addKey(newKey)
+      if (result.isValid) {
+        setPendingNewKey(null)
+      }
+      return result
+    } else {
+      // 现有项更新
+      return updateKey(index, newKey)
+    }
+  }
+
+  const handleRemove = (index: number, isNew: boolean) => {
+    if (isNew) {
+      setPendingNewKey(null) // 新项取消时，直接清除临时状态
+    } else {
+      removeKey(index) // 现有项删除
+    }
+  }
+
+  const shouldAutoFocus = () => {
+    if (provider.apiKey) return false
+    return isLlmProvider(provider) && provider.enabled && !isProviderSupportAuth(provider)
+  }
+
+  // 合并真实 keys 和临时新项
+  const displayKeys: ApiKeyWithStatus[] = pendingNewKey
+    ? [
+        ...keys,
+        {
+          key: pendingNewKey.key,
+          status: HealthStatus.NOT_CHECKED,
+          checking: false
+        }
+      ]
+    : keys
+
+  return (
+    <ListContainer>
+      {/* Keys 列表 */}
+      <Card
+        size="small"
+        type="inner"
+        styles={{ body: { padding: 0 } }}
+        style={{ marginBottom: '5px', border: '0.5px solid var(--color-border)' }}>
+        {displayKeys.length === 0 ? (
+          <Typography.Text type="secondary" style={{ padding: '4px 11px', display: 'block' }}>
+            {t('error.no_api_key')}
+          </Typography.Text>
+        ) : (
+          <Scrollbar style={{ maxHeight: '60vh', overflowX: 'hidden' }}>
+            <List
+              size="small"
+              dataSource={displayKeys}
+              renderItem={(keyStatus, index) => {
+                const isNew = pendingNewKey && index === displayKeys.length - 1
+                return (
+                  <ApiKeyItem
+                    key={isNew ? pendingNewKey.id : index}
+                    keyStatus={keyStatus}
+                    showHealthCheck={showHealthCheck}
+                    isNew={!!isNew}
+                    onUpdate={(newKey) => handleUpdate(index, newKey, !!isNew)}
+                    onRemove={() => handleRemove(index, !!isNew)}
+                    onCheck={() => checkKeyConnectivity(index)}
+                  />
+                )
+              }}
+            />
+          </Scrollbar>
+        )}
+      </Card>
+
+      <Flex className="mt-[15px] flex-row items-center justify-between">
+        {/* 帮助文本 */}
+        <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+
+        {/* 标题和操作按钮 */}
+        <Space style={{ gap: 6 }}>
+          {/* 批量删除无效 keys */}
+          {showHealthCheck && keys.length > 1 && (
+            <Space style={{ gap: 0 }}>
+              <Popconfirm
+                title={t('common.delete_confirm')}
+                onConfirm={removeInvalidKeys}
+                okText={t('common.confirm')}
+                cancelText={t('common.cancel')}
+                okButtonProps={{ color: 'danger' }}>
+                <Tooltip content={t('settings.provider.remove_invalid_keys')} closeDelay={0}>
+                  <Button variant="ghost" disabled={isChecking || !!pendingNewKey} size="icon">
+                    <DeleteIcon size={16} className="lucide-custom" />
+                  </Button>
+                </Tooltip>
+              </Popconfirm>
+
+              {/* 批量检查 */}
+              <Tooltip content={t('settings.provider.check_all_keys')} closeDelay={0}>
+                <Button
+                  variant="ghost"
+                  onClick={checkAllKeysConnectivity}
+                  disabled={isChecking || !!pendingNewKey}
+                  size="icon">
+                  <StreamlineGoodHealthAndWellBeing size={'1.2em'} />
+                </Button>
+              </Tooltip>
+            </Space>
+          )}
+
+          {/* 添加新 key */}
+          <Button
+            key="add"
+            onClick={handleAddNew}
+            autoFocus={shouldAutoFocus()}
+            disabled={isChecking || !!pendingNewKey}>
+            <Plus size={16} />
+            {t('common.add')}
+          </Button>
+        </Space>
+      </Flex>
+    </ListContainer>
+  )
+}
+
+interface SpecificApiKeyListProps {
+  providerId: string
+  showHealthCheck?: boolean
+}
+
+type WebSearchApiKeyList = SpecificApiKeyListProps & {
+  providerId: WebSearchProviderId
+}
+
+type DocPreprocessApiKeyListProps = SpecificApiKeyListProps & {
+  providerId: PreprocessProviderId
+}
+
+export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {
+  const { provider, updateProvider } = useProvider(providerId)
+
+  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
+}
+
+export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId, showHealthCheck = true }) => {
+  const { provider, updateProvider } = useWebSearchProvider(providerId)
+
+  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
+}
+
+export const DocPreprocessApiKeyList: FC<DocPreprocessApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {
+  const { provider, updateProvider } = usePreprocessProvider(providerId)
+
+  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
+}
+
+const ListContainer = styled.div`
+  padding-top: 15px;
+  padding-bottom: 15px;
+`

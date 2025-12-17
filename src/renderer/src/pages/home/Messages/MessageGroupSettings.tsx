@@ -1,36 +1,38 @@
 import { SettingOutlined } from '@ant-design/icons'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { usePreference } from '@data/hooks/usePreference'
+import Selector from '@renderer/components/Selector'
 import { SettingDivider } from '@renderer/pages/settings'
 import { SettingRow } from '@renderer/pages/settings'
-import { useAppDispatch } from '@renderer/store'
-import { setGridColumns, setGridPopoverTrigger } from '@renderer/store/settings'
-import { Col, Row, Select, Slider } from 'antd'
+import { Col, Row, Slider } from 'antd'
 import { Popover } from 'antd'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const MessageGroupSettings: FC = () => {
-  const dispatch = useAppDispatch()
+  const [gridPopoverTrigger, setGridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
+  const [gridColumns, setGridColumns] = usePreference('chat.message.multi_model.grid_columns')
   const { t } = useTranslation()
 
-  const { gridColumns, gridPopoverTrigger } = useSettings()
   const [gridColumnsValue, setGridColumnsValue] = useState(gridColumns)
 
   return (
     <Popover
+      arrow={false}
       trigger={undefined}
-      showArrow
       content={
-        <div style={{ padding: 10 }}>
+        <div style={{ padding: 8 }}>
           <SettingRow>
-            <div style={{ marginRight: 10 }}>{t('settings.messages.grid_popover_trigger')}</div>
-            <Select
+            <div style={{ marginRight: 10 }}>{t('settings.messages.grid_popover_trigger.label')}</div>
+            <Selector
+              size={14}
               value={gridPopoverTrigger || 'hover'}
-              onChange={(value) => dispatch(setGridPopoverTrigger(value as 'hover' | 'click'))}
-              size="small">
-              <Select.Option value="hover">{t('settings.messages.grid_popover_trigger.hover')}</Select.Option>
-              <Select.Option value="click">{t('settings.messages.grid_popover_trigger.click')}</Select.Option>
-            </Select>
+              onChange={(value) => setGridPopoverTrigger(value as 'hover' | 'click')}
+              options={[
+                { label: t('settings.messages.grid_popover_trigger.hover'), value: 'hover' },
+                { label: t('settings.messages.grid_popover_trigger.click'), value: 'click' }
+              ]}
+            />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -42,7 +44,7 @@ const MessageGroupSettings: FC = () => {
                 value={gridColumnsValue}
                 style={{ width: '100%' }}
                 onChange={(value) => setGridColumnsValue(value)}
-                onChangeComplete={(value) => dispatch(setGridColumns(value))}
+                onChangeComplete={(value) => setGridColumns(value)}
                 min={2}
                 max={6}
                 step={1}

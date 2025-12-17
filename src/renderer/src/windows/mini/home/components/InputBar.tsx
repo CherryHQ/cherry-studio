@@ -1,15 +1,17 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useTimer } from '@renderer/hooks/useTimer'
+import type { Assistant } from '@renderer/types'
 import { Input as AntdInput } from 'antd'
-import { InputRef } from 'rc-input/lib/interface'
+import type { InputRef } from 'rc-input/lib/interface'
 import React, { useRef } from 'react'
 import styled from 'styled-components'
 
 interface InputBarProps {
   text: string
-  model: any
+  assistant: Assistant
   referenceText: string
   placeholder: string
+  loading: boolean
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }
@@ -17,19 +19,20 @@ interface InputBarProps {
 const InputBar = ({
   ref,
   text,
-  model,
+  assistant,
   placeholder,
+  loading,
   handleKeyDown,
   handleChange
 }: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
-  const { generating } = useRuntime()
   const inputRef = useRef<InputRef>(null)
-  if (!generating) {
-    setTimeout(() => inputRef.current?.input?.focus(), 0)
+  const { setTimeoutTimer } = useTimer()
+  if (!loading) {
+    setTimeoutTimer('focus', () => inputRef.current?.input?.focus(), 0)
   }
   return (
     <InputWrapper ref={ref}>
-      <ModelAvatar model={model} size={30} />
+      {assistant.model && <ModelAvatar model={assistant.model} size={30} />}
       <Input
         value={text}
         placeholder={placeholder}
@@ -37,7 +40,6 @@ const InputBar = ({
         autoFocus
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        disabled={generating}
         ref={inputRef}
       />
     </InputWrapper>

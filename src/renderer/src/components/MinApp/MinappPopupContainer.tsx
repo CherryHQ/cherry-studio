@@ -10,26 +10,31 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { isLinux, isMac, isWindows } from '@renderer/config/constant'
+import { Avatar, Button, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import WindowControls from '@renderer/components/WindowControls'
+import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
-import { MinAppType } from '@renderer/types'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useTimer } from '@renderer/hooks/useTimer'
+import type { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
-import { Avatar, Drawer, Tooltip } from 'antd'
-import { WebviewTag } from 'electron'
+import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { Alert, Drawer } from 'antd'
+import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import WebviewContainer from './WebviewContainer'
+
+const logger = loggerService.withContext('MinappPopupContainer')
 
 interface AppExtraInfo {
   canPinned: boolean
@@ -39,14 +44,110 @@ interface AppExtraInfo {
 
 type AppInfo = MinAppType & AppExtraInfo
 
+/** Google login tip component */
+const GoogleLoginTip = ({
+  isReady,
+  currentUrl,
+  currentAppId
+}: {
+  appId?: string | null
+  isReady: boolean
+  currentUrl: string | null
+  currentAppId: string | null
+}) => {
+  const { t } = useTranslation()
+  const [visible, setVisible] = useState(false)
+  const { openMinappById } = useMinappPopup()
+
+  // 判断当前URL是否涉及Google登录
+  const needsGoogleLogin = useMemo(() => {
+    // 如果当前已经在Google小程序中，不需要显示提示
+    if (currentAppId === 'google') return false
+
+    if (!currentUrl) return false
+
+    const googleLoginPatterns = [
+      'accounts.google.com',
+      'signin/oauth',
+      'auth/google',
+      'login/google',
+      'sign-in/google',
+      'google.com/signin',
+      'gsi/client'
+    ]
+
+    return googleLoginPatterns.some((pattern) => currentUrl.toLowerCase().includes(pattern.toLowerCase()))
+  }, [currentUrl, currentAppId])
+
+  // 在URL更新时检查是否需要显示提示
+  useEffect(() => {
+    let showTimer: NodeJS.Timeout | null = null
+    let hideTimer: NodeJS.Timeout | null = null
+
+    // 如果是Google登录相关URL且小程序已加载完成，则延迟显示提示
+    if (needsGoogleLogin && isReady) {
+      showTimer = setTimeout(() => {
+        setVisible(true)
+        hideTimer = setTimeout(() => {
+          setVisible(false)
+        }, 30000)
+      }, 500)
+    } else {
+      setVisible(false)
+    }
+
+    return () => {
+      if (showTimer) clearTimeout(showTimer)
+      if (hideTimer) clearTimeout(hideTimer)
+    }
+  }, [needsGoogleLogin, isReady, currentUrl])
+
+  // 处理关闭提示
+  const handleClose = () => {
+    setVisible(false)
+  }
+
+  // 跳转到Google小程序
+  const openGoogleMinApp = () => {
+    // 使用openMinappById方法打开Google小程序
+    openMinappById('google', true)
+    // 关闭提示
+    setVisible(false)
+  }
+
+  // 只在需要Google登录时显示提示
+  if (!needsGoogleLogin || !visible) return null
+
+  // 使用直接的消息文本
+  const message = t('miniwindow.alert.google_login')
+
+  return (
+    <Alert
+      message={message}
+      type="warning"
+      showIcon
+      closable
+      banner
+      onClose={handleClose}
+      action={
+        <Button color="primary" size="sm" onClick={openGoogleMinApp}>
+          {t('common.open')} Google
+        </Button>
+      }
+      style={{ zIndex: 10, animation: 'fadeIn 0.3s ease-in-out' }}
+    />
+  )
+}
+
 /** The main container for MinApp popup */
 const MinappPopupContainer: React.FC = () => {
-  const { openedKeepAliveMinapps, openedOneOffMinapp, currentMinappId, minappShow } = useRuntime()
+  const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
   const { closeMinapp, hideMinappPopup } = useMinappPopup()
-  const { pinned, updatePinnedMinapps } = useMinapps()
+  const { pinned, updatePinnedMinapps, openedKeepAliveMinapps, openedOneOffMinapp, currentMinappId, minappShow } =
+    useMinapps()
   const { t } = useTranslation()
   const backgroundColor = useNavBackgroundColor()
-  const dispatch = useAppDispatch()
+  const { isTopNavbar } = useNavbarPosition()
 
   /** control the drawer open or close */
   const [isPopupShow, setIsPopupShow] = useState(true)
@@ -62,12 +163,12 @@ const MinappPopupContainer: React.FC = () => {
 
   /** store the webview refs, one of the key to make them keepalive */
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
-  /** indicate whether the webview has loaded  */
-  const webviewLoadedRefs = useRef<Map<string, boolean>>(new Map())
+  /** Note: WebView loaded states now managed globally via webviewStateManager */
   /** whether the minapps open link external is enabled */
-  const { minappsOpenLinkExternal } = useSettings()
 
-  const isInDevelopment = process.env.NODE_ENV === 'development'
+  const { isLeftNavbar } = useNavbarPosition()
+
+  const { setTimeoutTimer } = useTimer()
 
   useBridge()
 
@@ -81,7 +182,7 @@ const MinappPopupContainer: React.FC = () => {
 
       setIsPopupShow(true)
 
-      if (webviewLoadedRefs.current.get(currentMinappId)) {
+      if (getWebviewLoaded(currentMinappId)) {
         setIsReady(true)
         /** the case that open the minapp from sidebar */
       } else if (lastMinappId.current !== currentMinappId && lastMinappShow.current === minappShow) {
@@ -112,17 +213,21 @@ const MinappPopupContainer: React.FC = () => {
       webviewRef.style.display = appid === currentMinappId ? 'inline-flex' : 'none'
     })
 
-    //delete the extra webviewLoadedRefs
-    webviewLoadedRefs.current.forEach((_, appid) => {
-      if (!webviewRefs.current.has(appid)) {
-        webviewLoadedRefs.current.delete(appid)
-      } else if (appid === currentMinappId) {
-        const webviewId = webviewRefs.current.get(appid)?.getWebContentsId()
-        if (webviewId) {
-          window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+    // Set external link behavior for current minapp
+    if (currentMinappId) {
+      const webviewElement = webviewRefs.current.get(currentMinappId)
+      if (webviewElement) {
+        try {
+          const webviewId = webviewElement.getWebContentsId()
+          if (webviewId) {
+            window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+          }
+        } catch (error) {
+          // WebView not ready yet, will be set when it's loaded
+          logger.debug(`WebView ${currentMinappId} not ready for getWebContentsId()`)
         }
       }
-    })
+    }
   }, [currentMinappId, minappsOpenLinkExternal])
 
   /** only the keepalive minapp can be minimized */
@@ -151,15 +256,17 @@ const MinappPopupContainer: React.FC = () => {
   /** get the current app info with extra info */
   let currentAppInfo: AppInfo | null = null
   if (currentMinappId) {
-    const currentApp = combinedApps.find((item) => item.id === currentMinappId) as MinAppType
-    currentAppInfo = { ...currentApp, ...appsExtraInfo[currentApp.id] }
+    const currentApp = combinedApps.find((item) => item.id === currentMinappId)
+    if (currentApp) {
+      currentAppInfo = { ...currentApp, ...appsExtraInfo[currentApp.id] }
+    }
   }
 
   /** will close the popup and delete the webview */
   const handlePopupClose = async (appid: string) => {
     setIsPopupShow(false)
     await delay(0.3)
-    webviewLoadedRefs.current.delete(appid)
+    clearWebviewState(appid)
     closeMinapp(appid)
   }
 
@@ -172,13 +279,6 @@ const MinappPopupContainer: React.FC = () => {
 
   /** the callback function to set the webviews ref */
   const handleWebviewSetRef = (appid: string, element: WebviewTag | null) => {
-    webviewRefs.current.set(appid, element)
-
-    if (!webviewRefs.current.has(appid)) {
-      webviewRefs.current.set(appid, null)
-      return
-    }
-
     if (element) {
       webviewRefs.current.set(appid, element)
     } else {
@@ -188,19 +288,28 @@ const MinappPopupContainer: React.FC = () => {
 
   /** the callback function to set the webviews loaded indicator */
   const handleWebviewLoaded = (appid: string) => {
-    webviewLoadedRefs.current.set(appid, true)
-    const webviewId = webviewRefs.current.get(appid)?.getWebContentsId()
-    if (webviewId) {
-      window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+    setWebviewLoaded(appid, true)
+    const webviewElement = webviewRefs.current.get(appid)
+    if (webviewElement) {
+      try {
+        const webviewId = webviewElement.getWebContentsId()
+        if (webviewId) {
+          window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+        }
+      } catch (error) {
+        logger.debug(`WebView ${appid} not ready for getWebContentsId() in handleWebviewLoaded`)
+      }
     }
     if (appid == currentMinappId) {
-      setTimeout(() => setIsReady(true), 200)
+      setTimeoutTimer('handleWebviewLoaded', () => setIsReady(true), 200)
     }
   }
 
-  /** the callback function to handle the webview navigate to new url */
+  /** the callback function to handle webview navigation */
   const handleWebviewNavigate = (appid: string, url: string) => {
+    // 记录当前URL，用于GoogleLoginTip判断
     if (appid === currentMinappId) {
+      logger.debug(`URL changed: ${url}`)
       setCurrentUrl(url)
     }
   }
@@ -240,22 +349,34 @@ const MinappPopupContainer: React.FC = () => {
 
   /** set the open external status */
   const handleToggleOpenExternal = () => {
-    dispatch(setMinappsOpenLinkExternal(!minappsOpenLinkExternal))
+    setMinappsOpenLinkExternal(!minappsOpenLinkExternal)
   }
 
   /** navigate back in webview history */
   const handleGoBack = (appid: string) => {
     const webview = webviewRefs.current.get(appid)
-    if (webview && webview.canGoBack()) {
-      webview.goBack()
+    if (webview) {
+      try {
+        if (webview.canGoBack()) {
+          webview.goBack()
+        }
+      } catch (error) {
+        logger.debug(`WebView ${appid} not ready for goBack()`)
+      }
     }
   }
 
   /** navigate forward in webview history */
   const handleGoForward = (appid: string) => {
     const webview = webviewRefs.current.get(appid)
-    if (webview && webview.canGoForward()) {
-      webview.goForward()
+    if (webview) {
+      try {
+        if (webview.canGoForward()) {
+          webview.goForward()
+        }
+      } catch (error) {
+        logger.debug(`WebView ${appid} not ready for goForward()`)
+      }
     }
   }
 
@@ -269,98 +390,109 @@ const MinappPopupContainer: React.FC = () => {
       navigator.clipboard
         .writeText(url)
         .then(() => {
-          window.message.success('URL ' + t('message.copy.success'))
+          window.toast.success('URL ' + t('message.copy.success'))
         })
         .catch(() => {
-          window.message.error('URL ' + t('message.copy.failed'))
+          window.toast.error('URL ' + t('message.copy.failed'))
         })
     }
 
     return (
       <TitleContainer style={{ backgroundColor: backgroundColor }}>
         <Tooltip
-          title={
+          placement="right-end"
+          className="max-w-100"
+          content={
             <TitleTextTooltip>
               {url ?? appInfo.url} <br />
               <CopyOutlined className="icon-copy" />
               {t('minapp.popup.rightclick_copyurl')}
             </TitleTextTooltip>
-          }
-          mouseEnterDelay={0.8}
-          placement="rightBottom"
-          styles={{
-            root: {
-              maxWidth: '400px'
-            }
-          }}>
+          }>
           <TitleText onContextMenu={(e) => handleCopyUrl(e, url ?? appInfo.url)}>{appInfo.name}</TitleText>
         </Tooltip>
         {appInfo.canOpenExternalLink && (
-          <Tooltip title={t('minapp.popup.openExternal')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleOpenLink(url ?? appInfo.url)}>
+          <Tooltip placement="bottom" content={t('minapp.popup.openExternal')} delay={800}>
+            <TitleButton onClick={() => handleOpenLink(url ?? appInfo.url)}>
               <ExportOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
         )}
         <Spacer />
-        <ButtonsGroup className={isWindows || isLinux ? 'windows' : ''}>
-          <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleGoBack(appInfo.id)}>
+        <ButtonsGroup
+          className={isWin || isLinux ? 'windows' : ''}
+          style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
+          isTopNavbar={isTopNavbar}>
+          <Tooltip placement="bottom" content={t('minapp.popup.goBack')} delay={800}>
+            <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
-          <Tooltip title={t('minapp.popup.goForward')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleGoForward(appInfo.id)}>
+          <Tooltip placement="bottom" content={t('minapp.popup.goForward')} delay={800}>
+            <TitleButton onClick={() => handleGoForward(appInfo.id)}>
               <ArrowRightOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
-          <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleReload(appInfo.id)}>
+          <Tooltip placement="bottom" content={t('minapp.popup.refresh')} delay={800}>
+            <TitleButton onClick={() => handleReload(appInfo.id)}>
               <ReloadOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
           {appInfo.canPinned && (
             <Tooltip
-              title={appInfo.isPinned ? t('minapp.sidebar.remove.title') : t('minapp.sidebar.add.title')}
-              mouseEnterDelay={0.8}
-              placement="bottom">
-              <Button onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
+              content={
+                appInfo.isPinned
+                  ? isTopNavbar
+                    ? t('minapp.remove_from_launchpad')
+                    : t('minapp.remove_from_sidebar')
+                  : isTopNavbar
+                    ? t('minapp.add_to_launchpad')
+                    : t('minapp.add_to_sidebar')
+              }
+              placement="bottom"
+              delay={800}>
+              <TitleButton onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
                 <PushpinOutlined style={{ fontSize: 16 }} />
-              </Button>
+              </TitleButton>
             </Tooltip>
           )}
           <Tooltip
-            title={
+            content={
               minappsOpenLinkExternal
                 ? t('minapp.popup.open_link_external_on')
                 : t('minapp.popup.open_link_external_off')
             }
-            mouseEnterDelay={0.8}
-            placement="bottom">
-            <Button onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
+            placement="bottom"
+            delay={800}>
+            <TitleButton onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
               <LinkOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
-          {isInDevelopment && (
-            <Tooltip title={t('minapp.popup.devtools')} mouseEnterDelay={0.8} placement="bottom">
-              <Button onClick={() => handleOpenDevTools(appInfo.id)}>
+          {isDev && (
+            <Tooltip placement="bottom" content={t('minapp.popup.devtools')} delay={800}>
+              <TitleButton onClick={() => handleOpenDevTools(appInfo.id)}>
                 <CodeOutlined />
-              </Button>
+              </TitleButton>
             </Tooltip>
           )}
           {canMinimize && (
-            <Tooltip title={t('minapp.popup.minimize')} mouseEnterDelay={0.8} placement="bottom">
-              <Button onClick={() => handlePopupMinimize()}>
+            <Tooltip placement="bottom" content={t('minapp.popup.minimize')} delay={800}>
+              <TitleButton onClick={() => handlePopupMinimize()}>
                 <MinusOutlined />
-              </Button>
+              </TitleButton>
             </Tooltip>
           )}
-          <Tooltip title={t('minapp.popup.close')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handlePopupClose(appInfo.id)}>
+          <Tooltip placement="bottom" content={t('minapp.popup.close')} delay={800}>
+            <TitleButton onClick={() => handlePopupClose(appInfo.id)}>
               <CloseOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
         </ButtonsGroup>
+        {(isWin || isLinux) && (
+          <div style={{ position: 'absolute', right: 0, top: 0, height: '100%' }}>
+            <WindowControls />
+          </div>
+        )}
       </TitleContainer>
     )
   }
@@ -384,26 +516,36 @@ const MinappPopupContainer: React.FC = () => {
 
   return (
     <Drawer
-      title={<Title appInfo={currentAppInfo} url={currentUrl} />}
+      title={isTopNavbar ? null : <Title appInfo={currentAppInfo} url={currentUrl} />}
       placement="bottom"
       onClose={handlePopupMinimize}
       open={isPopupShow}
-      destroyOnClose={false}
       mask={false}
       rootClassName="minapp-drawer"
       maskClassName="minapp-mask"
-      height={'100%'}
+      height={isTopNavbar ? 'calc(100% - var(--navbar-height))' : '100%'}
       maskClosable={false}
       closeIcon={null}
-      style={{
-        marginLeft: 'var(--sidebar-width)',
-        backgroundColor: window.root.style.background
+      styles={{
+        wrapper: {
+          position: 'fixed',
+          marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
+          marginTop: isTopNavbar ? 'var(--navbar-height)' : 0
+        },
+        content: {
+          backgroundColor: window.root.style.background
+        },
+        body: {
+          borderTopLeftRadius: '10px'
+        }
       }}>
+      {/* 在所有小程序中显示GoogleLoginTip */}
+      <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (
-        <EmptyView>
+        <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>
           <Avatar
             src={currentAppInfo?.logo}
-            size={80}
+            className="h-20 w-20"
             style={{ border: '1px solid var(--color-border)', marginTop: -150 }}
           />
           <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />
@@ -418,7 +560,6 @@ const TitleContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding-left: ${isMac ? '20px' : '10px'};
   padding-right: 10px;
   position: absolute;
   top: 0;
@@ -426,6 +567,13 @@ const TitleContainer = styled.div`
   right: 0;
   bottom: 0;
   background-color: transparent;
+  [navbar-position='left'] & {
+    padding-left: ${isMac ? '20px' : '10px'};
+  }
+  [navbar-position='top'] & {
+    padding-left: ${isMac ? '80px' : '10px'};
+    border-bottom: 0.5px solid var(--color-border);
+  }
 `
 
 const TitleText = styled.div`
@@ -445,14 +593,13 @@ const TitleTextTooltip = styled.span`
   }
 `
 
-const ButtonsGroup = styled.div`
+const ButtonsGroup = styled.div<{ isTopNavbar: boolean }>`
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 5px;
   -webkit-app-region: no-drag;
   &.windows {
-    margin-right: ${isWindows ? '130px' : isLinux ? '100px' : 0};
     background-color: var(--color-background-mute);
     border-radius: 50px;
     padding: 0 3px;
@@ -460,7 +607,7 @@ const ButtonsGroup = styled.div`
   }
 `
 
-const Button = styled.div`
+const TitleButton = styled.div`
   cursor: pointer;
   width: 30px;
   height: 30px;

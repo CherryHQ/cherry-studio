@@ -1,17 +1,20 @@
-import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
+import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
+import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { Citation } from '@renderer/pages/home/Messages/CitationsList'
-import { WebSearchProviderResponse, WebSearchSource } from '@renderer/types'
+import type { AISDKWebSearchResult, Citation, WebSearchProviderResponse } from '@renderer/types'
+import { WebSearchSource } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
-import type OpenAI from 'openai'
 
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
 
+// Create a simplified type for the entity adapter to avoid circular type issues
+type MessageBlockEntity = MessageBlock
+
 // 1. 创建实体适配器 (Entity Adapter)
 // 我们使用块的 `id` 作为唯一标识符。
-const messageBlocksAdapter = createEntityAdapter<MessageBlock>()
+const messageBlocksAdapter = createEntityAdapter<MessageBlockEntity>()
 
 // 2. 使用适配器定义初始状态 (Initial State)
 // 如果需要，可以在规范化实体的旁边添加其他状态属性。
@@ -21,7 +24,8 @@ const initialState = messageBlocksAdapter.getInitialState({
 })
 
 // 3. 创建 Slice
-const messageBlocksSlice = createSlice({
+// @ts-ignore ignore
+export const messageBlocksSlice = createSlice({
   name: 'messageBlocks',
   initialState,
   reducers: {
@@ -77,8 +81,13 @@ export const messageBlocksSelectors = messageBlocksAdapter.getSelectors<RootStat
 // --- Selector Integration --- START
 
 // Selector to get the raw block entity by ID
-const selectBlockEntityById = (state: RootState, blockId: string | undefined) =>
-  blockId ? messageBlocksSelectors.selectById(state, blockId) : undefined // Use adapter selector
+const selectBlockEntityById = (state: RootState, blockId: string | undefined): MessageBlock | undefined => {
+  const entity = blockId ? messageBlocksSelectors.selectById(state, blockId) : undefined
+  if (!entity) return undefined
+
+  // Convert back to full MessageBlock type
+  return entity
+}
 
 // --- Centralized Citation Formatting Logic ---
 export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Citation[] => {
@@ -160,17 +169,30 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
+      case WebSearchSource.PERPLEXITY: {
+        formattedCitations =
+          (block.response.results as any[])?.map((result, index) => ({
+            number: index + 1,
+            url: result.url || result, // 兼容旧数据
+            title: result.title || new URL(result).hostname, // 兼容旧数据
+            showFavicon: true,
+            type: 'websearch'
+          })) || []
+        break
+      }
       case WebSearchSource.GROK:
       case WebSearchSource.OPENROUTER:
-      case WebSearchSource.PERPLEXITY:
         formattedCitations =
-          (block.response.results as any[])?.map((url, index) => {
+          (block.response.results as AISDKWebSearchResult[])?.map((result, index) => {
+            const url = result.url
             try {
-              const hostname = new URL(url).hostname
+              const hostname = new URL(result.url).hostname
+              const content = result.providerMetadata && result.providerMetadata['openrouter']?.content
               return {
                 number: index + 1,
                 url,
-                hostname,
+                title: result.title || hostname,
+                content: content as string,
                 showFavicon: true,
                 type: 'websearch'
               }
@@ -207,10 +229,21 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             type: 'websearch'
           })) || []
         break
+      case WebSearchSource.AISDK:
+        formattedCitations =
+          (block.response?.results as AISDKWebSearchResult[])?.map((result, index) => ({
+            number: index + 1,
+            url: result.url,
+            title: result.title || new URL(result.url).hostname,
+            showFavicon: true,
+            type: 'websearch',
+            providerMetadata: result?.providerMetadata
+          })) || []
+        break
     }
   }
   // 3. Handle Knowledge Base References
-  if (block.knowledge && block.knowledge.length > 0) {
+  if (block.knowledge && Array.isArray(block.knowledge) && block.knowledge.length > 0) {
     formattedCitations.push(
       ...block.knowledge.map((result, index) => {
         const filePattern = /\[(.*?)]\(http:\/\/file\/(.*?)\)/
@@ -237,11 +270,26 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
       })
     )
   }
+
+  if (block.memories && Array.isArray(block.memories) && block.memories.length > 0) {
+    // 5. Handle Memory References
+    formattedCitations.push(
+      ...block.memories.map((memory, index) => ({
+        number: index + 1,
+        url: '',
+        title: `Memory ${memory.hash?.slice(0, 8)}`,
+        content: memory.memory,
+        showFavicon: false,
+        type: 'memory'
+      }))
+    )
+  }
+
   // 4. Deduplicate non-knowledge citations by URL and Renumber Sequentially
   const urlSet = new Set<string>()
   return formattedCitations
     .filter((citation) => {
-      if (citation.type === 'knowledge') return true
+      if (citation.type === 'knowledge' || citation.type === 'memory') return true
       if (!citation.url || urlSet.has(citation.url)) return false
       urlSet.add(citation.url)
       return true

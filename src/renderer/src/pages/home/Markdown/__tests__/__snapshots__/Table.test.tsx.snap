@@ -1,0 +1,82 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Table > rendering > should match snapshot 1`] = `
+.c0 {
+  position: relative;
+}
+
+.c0 .table-toolbar {
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
+.c0:hover .table-toolbar {
+  opacity: 1;
+}
+
+.c1 {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+}
+
+.c2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  opacity: 1;
+  color: var(--color-text-3);
+  background-color: var(--color-background-mute);
+  will-change: background-color,opacity;
+}
+
+.c2:hover {
+  background-color: var(--color-background-soft);
+}
+
+<div
+  class="c0 table-wrapper"
+>
+  <table>
+    <tbody>
+      <tr>
+        <td>
+          Cell 1
+        </td>
+        <td>
+          Cell 2
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <div
+    class="c1 table-toolbar"
+  >
+    <div
+      data-testid="tooltip"
+      title="common.copy"
+    >
+      <div
+        aria-label="common.copy"
+        class="c2"
+        role="button"
+      >
+        <div
+          data-testid="copy-icon"
+          style="width: 14px; height: 14px;"
+        />
+      </div>
+    </div>
+  </div>
+</div>
+`;

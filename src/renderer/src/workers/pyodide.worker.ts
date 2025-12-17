@@ -1,11 +1,62 @@
 /// <reference lib="webworker" />
 
+interface WorkerResponse {
+  type: 'initialized' | 'init-error' | 'system-error'
+  id?: string
+  output?: PyodideOutput
+  error?: string
+}
+
 // 定义输出结构类型
 interface PyodideOutput {
   result: any
   text: string | null
   error: string | null
+  image?: string
 }
+
+const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.28.0/full/'
+const PYODIDE_MODULE_URL = PYODIDE_INDEX_URL + 'pyodide.mjs'
+
+// 垫片代码，用于在 Worker 中捕获 Matplotlib 绘图
+const MATPLOTLIB_SHIM_CODE = `
+def __cherry_studio_matplotlib_setup():
+    import os
+    # 在导入 pyplot 前设置后端
+    os.environ["MPLBACKEND"] = "AGG"
+    import io
+    import base64
+    import matplotlib.pyplot as plt
+
+    # 保存原始的 show 函数
+    _original_show = plt.show
+
+    # 定义并替换为新的 show 函数
+    def _new_show(*args, **kwargs):
+        global pyodide_matplotlib_image
+        fig = plt.gcf()
+
+        if not fig.canvas.get_renderer()._renderer:
+            return
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png')
+        buf.seek(0)
+
+        img_str = base64.b64encode(buf.read()).decode('utf-8')
+
+        # 通过全局变量传递数据
+        pyodide_matplotlib_image = f"data:image/png;base64,{img_str}"
+
+        plt.clf()
+        plt.close(fig)
+
+    # 替换全局的 show 函数
+    plt.show = _new_show
+
+__cherry_studio_matplotlib_setup()
+del __cherry_studio_matplotlib_setup
+`
 
 // 声明全局变量用于输出
 let output: PyodideOutput = {
@@ -24,12 +75,11 @@ const pyodidePromise = (async () => {
 
   try {
     // 动态加载 Pyodide 脚本
-    // @ts-ignore - 忽略动态导入错误
-    const pyodideModule = await import('https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.mjs')
+    const pyodideModule = await import(/* @vite-ignore */ PYODIDE_MODULE_URL)
 
     // 加载 Pyodide 并捕获标准输出/错误
     return await pyodideModule.loadPyodide({
-      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.27.5/full/',
+      indexURL: PYODIDE_INDEX_URL,
       stdout: (text: string) => {
         if (output.text) {
           output.text += `${text}\n`
@@ -47,13 +97,12 @@ const pyodidePromise = (async () => {
     })
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    console.error('Failed to load Pyodide:', errorMessage)
 
     // 通知主线程初始化错误
     self.postMessage({
-      type: 'error',
+      type: 'init-error',
       error: errorMessage
-    })
+    } as WorkerResponse)
 
     throw error
   }
@@ -77,7 +126,6 @@ function processResult(result: any): any {
     return result
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    console.error('Result processing error:', errorMessage)
     return { __error__: 'Result processing failed', details: errorMessage }
   }
 }
@@ -85,17 +133,19 @@ function processResult(result: any): any {
 // 通知主线程已加载
 pyodidePromise
   .then(() => {
-    self.postMessage({ type: 'initialized' })
+    self.postMessage({ type: 'initialized' } as WorkerResponse)
   })
   .catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    console.error('Failed to load Pyodide:', errorMessage)
-    self.postMessage({ type: 'error', error: errorMessage })
+    self.postMessage({
+      type: 'init-error',
+      error: errorMessage
+    } as WorkerResponse)
   })
 
 // 处理消息
 self.onmessage = async (event) => {
-  const { id, python, context } = event.data
+  const { id, python } = event.data
 
   // 重置输出变量
   output = {
@@ -104,14 +154,12 @@ self.onmessage = async (event) => {
     error: null
   }
 
+  let globals
+
   try {
     const pyodide = await pyodidePromise
-
-    // 将上下文变量设置为全局作用域变量
-    const globalContext: Record<string, any> = {}
-    for (const key of Object.keys(context || {})) {
-      globalContext[key] = context[key]
-    }
+    // 创建一个新的全局作用域
+    globals = pyodide.globals.get('dict')()
 
     // 载入需要的包
     try {
@@ -121,14 +169,23 @@ self.onmessage = async (event) => {
       throw new Error(`Failed to load required packages: ${errorMessage}`)
     }
 
-    // 创建 Python 上下文
-    const globals = pyodide.globals.get('dict')(Object.entries(context || {}))
-
     // 执行代码
     try {
+      // 注入 Matplotlib 垫片代码
+      if (python.includes('matplotlib')) {
+        await pyodide.runPythonAsync(MATPLOTLIB_SHIM_CODE, { globals })
+      }
+
       output.result = await pyodide.runPythonAsync(python, { globals })
+
       // 处理结果，确保安全序列化
       output.result = processResult(output.result)
+
+      // 检查是否有 Matplotlib 图像输出
+      const image = globals.get('pyodide_matplotlib_image')
+      if (image) {
+        output.image = image
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       // 不设置 output.result，但设置错误信息
@@ -141,15 +198,21 @@ self.onmessage = async (event) => {
   } catch (error: unknown) {
     // 处理所有其他错误
     const errorMessage = error instanceof Error ? error.message : String(error)
-    console.error('Python processing error:', errorMessage)
 
     if (output.error) {
       output.error += `\nSystem error:\n${errorMessage}`
     } else {
       output.error = `System error:\n${errorMessage}`
     }
+
+    // 发送错误信息
+    self.postMessage({
+      type: 'system-error',
+      id,
+      error: errorMessage
+    } as WorkerResponse)
   } finally {
-    // 统一发送处理后的输出对象
-    self.postMessage({ id, output })
+    globals?.destroy()
+    self.postMessage({ id, output } as WorkerResponse)
   }
 }

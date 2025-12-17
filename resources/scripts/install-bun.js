@@ -2,12 +2,12 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
-const AdmZip = require('adm-zip')
+const StreamZip = require('node-stream-zip')
 const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading bun binaries
 const BUN_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/bun/releases/download'
-const DEFAULT_BUN_VERSION = '1.2.9' // Default fallback version
+const DEFAULT_BUN_VERSION = '1.3.1' // Default fallback version
 
 // Mapping of platform+arch to binary package name
 const BUN_PACKAGES = {
@@ -43,7 +43,7 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
 
   if (!packageName) {
     console.error(`No binary available for ${platformKey}`)
-    return false
+    return 101
   }
 
   // Create output directory structure
@@ -66,38 +66,41 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
 
     // Extract the zip file using adm-zip
     console.log(`Extracting ${packageName} to ${binDir}...`)
-    const zip = new AdmZip(tempFilename)
-    zip.extractAllTo(tempdir, true)
+    const zip = new StreamZip.async({ file: tempFilename })
 
-    // Move files using Node.js fs
-    const sourceDir = path.join(tempdir, packageName.split('.')[0])
-    const files = fs.readdirSync(sourceDir)
+    // Get all entries in the zip file
+    const entries = await zip.entries()
 
-    for (const file of files) {
-      const sourcePath = path.join(sourceDir, file)
-      const destPath = path.join(binDir, file)
+    // Extract files directly to binDir, flattening the directory structure
+    for (const entry of Object.values(entries)) {
+      if (!entry.isDirectory) {
+        // Get just the filename without path
+        const filename = path.basename(entry.name)
+        const outputPath = path.join(binDir, filename)
 
-      fs.copyFileSync(sourcePath, destPath)
-      fs.unlinkSync(sourcePath)
-
-      // Set executable permissions for non-Windows platforms
-      if (platform !== 'win32') {
-        try {
-          // 755 permission: rwxr-xr-x
-          fs.chmodSync(destPath, '755')
-        } catch (error) {
-          console.warn(`Warning: Failed to set executable permissions: ${error.message}`)
+        console.log(`Extracting ${entry.name} -> ${filename}`)
+        await zip.extract(entry.name, outputPath)
+        // Make executable files executable on Unix-like systems
+        if (platform !== 'win32') {
+          try {
+            fs.chmodSync(outputPath, 0o755)
+          } catch (chmodError) {
+            console.error(`Warning: Failed to set executable permissions on ${filename}`)
+            return 102
+          }
         }
+        console.log(`Extracted ${entry.name} -> ${outputPath}`)
       }
     }
+    await zip.close()
 
     // Clean up
     fs.unlinkSync(tempFilename)
-    fs.rmSync(sourceDir, { recursive: true })
-
     console.log(`Successfully installed bun ${version} for ${platformKey}`)
-    return true
+    return 0
   } catch (error) {
+    let retCode = 103
+
     console.error(`Error installing bun for ${platformKey}: ${error.message}`)
     // Clean up temporary file if it exists
     if (fs.existsSync(tempFilename)) {
@@ -113,9 +116,10 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
       }
     } catch (cleanupError) {
       console.warn(`Warning: Failed to clean up directory: ${cleanupError.message}`)
+      retCode = 104
     }
 
-    return false
+    return retCode
   }
 }
 
@@ -158,16 +162,21 @@ async function installBun() {
     `Installing bun ${version} for ${platform}-${arch}${isMusl ? ' (MUSL)' : ''}${isBaseline ? ' (baseline)' : ''}...`
   )
 
-  await downloadBunBinary(platform, arch, version, isMusl, isBaseline)
+  return await downloadBunBinary(platform, arch, version, isMusl, isBaseline)
 }
 
 // Run the installation
 installBun()
-  .then(() => {
-    console.log('Installation successful')
-    process.exit(0)
+  .then((retCode) => {
+    if (retCode === 0) {
+      console.log('Installation successful')
+      process.exit(0)
+    } else {
+      console.error('Installation failed')
+      process.exit(retCode)
+    }
   })
   .catch((error) => {
     console.error('Installation failed:', error)
-    process.exit(1)
+    process.exit(100)
   })

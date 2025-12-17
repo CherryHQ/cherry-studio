@@ -1,8 +1,9 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 
-import { WebDAVSyncState } from './backup'
+import type { RemoteSyncState } from './backup'
 
-export interface NutstoreSyncState extends WebDAVSyncState {}
+export interface NutstoreSyncState extends RemoteSyncState {}
 
 export interface NutstoreState {
   nutstoreToken: string | null
@@ -11,6 +12,7 @@ export interface NutstoreState {
   nutstoreSyncInterval: number
   nutstoreSyncState: NutstoreSyncState
   nutstoreSkipBackupFile: boolean
+  nutstoreMaxBackups: number
 }
 
 const initialState: NutstoreState = {
@@ -23,7 +25,8 @@ const initialState: NutstoreState = {
     syncing: false,
     lastSyncError: null
   },
-  nutstoreSkipBackupFile: false
+  nutstoreSkipBackupFile: false,
+  nutstoreMaxBackups: 0
 }
 
 const nutstoreSlice = createSlice({
@@ -42,11 +45,14 @@ const nutstoreSlice = createSlice({
     setNutstoreSyncInterval: (state, action: PayloadAction<number>) => {
       state.nutstoreSyncInterval = action.payload
     },
-    setNutstoreSyncState: (state, action: PayloadAction<Partial<WebDAVSyncState>>) => {
+    setNutstoreSyncState: (state, action: PayloadAction<Partial<RemoteSyncState>>) => {
       state.nutstoreSyncState = { ...state.nutstoreSyncState, ...action.payload }
     },
     setNutstoreSkipBackupFile: (state, action: PayloadAction<boolean>) => {
       state.nutstoreSkipBackupFile = action.payload
+    },
+    setNutstoreMaxBackups: (state, action: PayloadAction<number>) => {
+      state.nutstoreMaxBackups = action.payload
     }
   }
 })
@@ -57,7 +63,8 @@ export const {
   setNutstoreAutoSync,
   setNutstoreSyncInterval,
   setNutstoreSyncState,
-  setNutstoreSkipBackupFile
+  setNutstoreSkipBackupFile,
+  setNutstoreMaxBackups
 } = nutstoreSlice.actions
 
 export default nutstoreSlice.reducer

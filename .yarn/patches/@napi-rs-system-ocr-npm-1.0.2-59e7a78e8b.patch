@@ -1,0 +1,30 @@
+diff --git a/index.js b/index.js
+index dc071739e79876dff88e1be06a9168e294222d13..b9df7525c62bdf777e89e732e1b0c81f84d872f2 100644
+--- a/index.js
++++ b/index.js
+@@ -380,7 +380,7 @@ if (!nativeBinding || process.env.NAPI_RS_FORCE_WASI) {
+   }
+ }
+ 
+-if (!nativeBinding) {
++if (!nativeBinding && process.platform !== 'linux') {
+   if (loadErrors.length > 0) {
+     throw new Error(
+       `Cannot find native binding. ` +
+@@ -392,6 +392,13 @@ if (!nativeBinding) {
+   throw new Error(`Failed to load native binding`)
+ }
+ 
+-module.exports = nativeBinding
+-module.exports.OcrAccuracy = nativeBinding.OcrAccuracy
+-module.exports.recognize = nativeBinding.recognize
++if (process.platform === 'linux') {
++  module.exports = {OcrAccuracy: {
++    Fast: 0,
++    Accurate: 1
++  }, recognize: () => Promise.resolve({text: '', confidence: 1.0})}
++}else{
++  module.exports = nativeBinding
++  module.exports.OcrAccuracy = nativeBinding.OcrAccuracy
++  module.exports.recognize = nativeBinding.recognize
++}

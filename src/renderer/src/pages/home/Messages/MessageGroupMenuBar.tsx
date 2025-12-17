@@ -3,15 +3,20 @@ import {
   ColumnWidthOutlined,
   DeleteOutlined,
   FolderOutlined,
-  NumberOutlined
+  NumberOutlined,
+  ReloadOutlined
 } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { Button, Tooltip } from 'antd'
-import { FC, memo } from 'react'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import type { FC } from 'react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -36,7 +41,8 @@ const MessageGroupMenuBar: FC<Props> = ({
   topic
 }) => {
   const { t } = useTranslation()
-  const { deleteGroupMessages } = useMessageOperations(topic)
+  const { deleteGroupMessages, regenerateAssistantMessage } = useMessageOperations(topic)
+  const { assistant } = useAssistant(messages[0]?.assistantId)
 
   const handleDeleteGroup = async () => {
     const askId = messages[0]?.askId
@@ -53,17 +59,61 @@ const MessageGroupMenuBar: FC<Props> = ({
       onOk: () => deleteGroupMessages(askId)
     })
   }
+
+  const isFailedMessage = (m: Message) => {
+    if (m.role !== 'assistant') return false
+    const isError = (m.status || '').toLowerCase() === 'error'
+    const content = getMainTextContent(m)
+    const noContent = !content || content.trim().length === 0
+    const noBlocks = !m.blocks || m.blocks.length === 0
+    return isError || noContent || noBlocks
+  }
+
+  const isTransmittingMessage = (m: Message) => {
+    if (m.role !== 'assistant') return false
+    const status = m.status as AssistantMessageStatus
+    return (
+      status === AssistantMessageStatus.PROCESSING ||
+      status === AssistantMessageStatus.PENDING ||
+      status === AssistantMessageStatus.SEARCHING
+    )
+  }
+
+  const hasFailedMessages = messages.some((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+
+  const handleRetryAll = async () => {
+    const candidates = messages.filter((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+
+    for (const msg of candidates) {
+      try {
+        await regenerateAssistantMessage(msg, assistant)
+      } catch (e) {
+        // swallow per-item errors to continue others
+      }
+    }
+  }
+
+  const multiModelMessageStyleTextByLayout = {
+    fold: t('message.message.multi_model_style.fold.label'),
+    vertical: t('message.message.multi_model_style.vertical'),
+    horizontal: t('message.message.multi_model_style.horizontal'),
+    grid: t('message.message.multi_model_style.grid')
+  } as const
+
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
-      <HStack style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
+      <RowFlex className="flex-1 items-center overflow-hidden">
         <LayoutContainer>
-          {['fold', 'vertical', 'horizontal', 'grid'].map((layout) => (
+          {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
+              delay={500}
               key={layout}
-              title={t(`message.message.multi_model_style`) + ': ' + t(`message.message.multi_model_style.${layout}`)}>
+              content={
+                t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]
+              }>
               <LayoutOption
                 $active={multiModelMessageStyle === layout}
-                onClick={() => setMultiModelMessageStyle(layout as MultiModelMessageStyle)}>
+                onClick={() => setMultiModelMessageStyle(layout)}>
                 {layout === 'fold' ? (
                   <FolderOutlined />
                 ) : layout === 'horizontal' ? (
@@ -85,13 +135,17 @@ const MessageGroupMenuBar: FC<Props> = ({
           />
         )}
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
-      </HStack>
-      <Button
-        type="text"
-        size="small"
-        icon={<DeleteOutlined style={{ color: 'var(--color-error)' }} />}
-        onClick={handleDeleteGroup}
-      />
+      </RowFlex>
+      {hasFailedMessages && (
+        <Tooltip content={t('message.group.retry_failed')} delay={600}>
+          <Button variant="ghost" size="sm" onClick={handleRetryAll} className="mr-1">
+            <ReloadOutlined />
+          </Button>
+        </Tooltip>
+      )}
+      <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
+        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+      </Button>
     </GroupMenuBar>
   )
 }
@@ -101,15 +155,13 @@ const GroupMenuBar = styled.div<{ $layout: MultiModelMessageStyle }>`
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  margin: 0 20px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  margin-top: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  margin: 8px 10px 16px;
   justify-content: space-between;
   overflow: hidden;
   border: 0.5px solid var(--color-border);
   height: 40px;
-  background-color: var(--color-background);
 `
 
 const LayoutContainer = styled.div`

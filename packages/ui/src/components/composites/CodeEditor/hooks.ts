@@ -1,0 +1,204 @@
+import { linter } from '@codemirror/lint' // statically imported by @uiw/codemirror-extensions-basic-setup
+import { EditorView } from '@codemirror/view'
+import type { Extension } from '@uiw/react-codemirror'
+import { keymap } from '@uiw/react-codemirror'
+import { useEffect, useMemo, useState } from 'react'
+
+import type { LanguageConfig } from './types'
+import { getNormalizedExtension } from './utils'
+
+/** 语言对应的 linter 加载器
+ * key: 语言文件扩展名（不包含 `.`）
+ */
+const linterLoaders: Record<string, () => Promise<any>> = {
+  json: async () => {
+    const jsonParseLinter = await import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter)
+    return linter(jsonParseLinter())
+  }
+}
+
+/**
+ * 特殊语言加载器
+ * key: 语言文件扩展名（不包含 `.`）
+ */
+const specialLanguageLoaders: Record<string, () => Promise<Extension>> = {
+  dot: async () => {
+    const mod = await import('@viz-js/lang-dot')
+    return mod.dot()
+  },
+  // @uiw/codemirror-extensions-langs 4.25.1 移除了 mermaid 支持，这里加回来
+  mmd: async () => {
+    const mod = await import('codemirror-lang-mermaid')
+    return mod.mermaid()
+  }
+}
+
+/**
+ * 加载语言扩展
+ */
+async function loadLanguageExtension(language: string, languageConfig?: LanguageConfig): Promise<Extension | null> {
+  const fileExt = await getNormalizedExtension(language, languageConfig)
+
+  // 尝试加载特殊语言
+  const specialLoader = specialLanguageLoaders[fileExt]
+  if (specialLoader) {
+    try {
+      return await specialLoader()
+    } catch (error) {
+      console.debug(`Failed to load language ${language} (${fileExt})`, error as Error)
+      return null
+    }
+  }
+
+  // 回退到 uiw/codemirror 包含的语言
+  try {
+    const { loadLanguage } = await import('@uiw/codemirror-extensions-langs')
+    const extension = loadLanguage(fileExt as any)
+    return extension || null
+  } catch (error) {
+    console.debug(`Failed to load language ${language} (${fileExt})`, error as Error)
+    return null
+  }
+}
+
+/**
+ * 加载 linter 扩展
+ */
+async function loadLinterExtension(language: string, languageConfig?: LanguageConfig): Promise<Extension | null> {
+  const fileExt = await getNormalizedExtension(language, languageConfig)
+
+  const loader = linterLoaders[fileExt]
+  if (!loader) return null
+
+  try {
+    return await loader()
+  } catch (error) {
+    console.debug(`Failed to load linter for ${language} (${fileExt})`, error as Error)
+    return null
+  }
+}
+
+/**
+ * 加载语言相关扩展
+ */
+export const useLanguageExtensions = (language: string, lint?: boolean, languageConfig?: LanguageConfig) => {
+  const [extensions, setExtensions] = useState<Extension[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadAllExtensions = async () => {
+      try {
+        // 加载所有扩展
+        const [languageResult, linterResult] = await Promise.allSettled([
+          loadLanguageExtension(language, languageConfig),
+          lint ? loadLinterExtension(language, languageConfig) : Promise.resolve(null)
+        ])
+
+        if (cancelled) return
+
+        const results: Extension[] = []
+
+        // 语言扩展
+        if (languageResult.status === 'fulfilled' && languageResult.value) {
+          results.push(languageResult.value)
+        }
+
+        // linter 扩展
+        if (linterResult.status === 'fulfilled' && linterResult.value) {
+          results.push(linterResult.value)
+        }
+
+        setExtensions(results)
+      } catch (error) {
+        if (!cancelled) {
+          console.debug('Failed to load language extensions:', error as Error)
+          setExtensions([])
+        }
+      }
+    }
+
+    loadAllExtensions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [language, lint, languageConfig])
+
+  return extensions
+}
+
+interface UseSaveKeymapProps {
+  onSave?: (content: string) => void
+  enabled?: boolean
+}
+
+/**
+ * CodeMirror 扩展，用于处理保存快捷键 (Cmd/Ctrl + S)
+ * @param onSave 保存时触发的回调函数
+ * @param enabled 是否启用此快捷键
+ * @returns 扩展或空数组
+ */
+export function useSaveKeymap({ onSave, enabled = true }: UseSaveKeymapProps) {
+  return useMemo(() => {
+    if (!enabled || !onSave) {
+      return []
+    }
+
+    return keymap.of([
+      {
+        key: 'Mod-s',
+        run: (view: EditorView) => {
+          onSave(view.state.doc.toString())
+          return true
+        },
+        preventDefault: true
+      }
+    ])
+  }, [onSave, enabled])
+}
+
+interface UseBlurHandlerProps {
+  onBlur?: (content: string) => void
+}
+
+/**
+ * CodeMirror 扩展，用于处理编辑器的 blur 事件
+ * @param onBlur blur 事件触发时的回调函数
+ * @returns 扩展或空数组
+ */
+export function useBlurHandler({ onBlur }: UseBlurHandlerProps) {
+  return useMemo(() => {
+    if (!onBlur) {
+      return []
+    }
+    return EditorView.domEventHandlers({
+      blur: (_event, view) => {
+        onBlur(view.state.doc.toString())
+      }
+    })
+  }, [onBlur])
+}
+
+interface UseHeightListenerProps {
+  onHeightChange?: (scrollHeight: number) => void
+}
+
+/**
+ * CodeMirror 扩展，用于监听编辑器高度变化
+ * @param onHeightChange 高度变化时触发的回调函数
+ * @returns 扩展或空数组
+ */
+export function useHeightListener({ onHeightChange }: UseHeightListenerProps) {
+  return useMemo(() => {
+    if (!onHeightChange) {
+      return []
+    }
+
+    return EditorView.updateListener.of((update) => {
+      if (update.docChanged || update.heightChanged) {
+        onHeightChange(update.view.scrollDOM?.scrollHeight ?? 0)
+      }
+    })
+  }, [onHeightChange])
+}

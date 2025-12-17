@@ -1,25 +1,22 @@
-import { SyncOutlined } from '@ant-design/icons'
-import CodeEditor from '@renderer/components/CodeEditor'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
+import { CodeEditor } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { ResetIcon } from '@renderer/components/Icons'
+import TextBadge from '@renderer/components/TextBadge'
 import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import useUserTheme from '@renderer/hooks/useUserTheme'
-import { useAppDispatch } from '@renderer/store'
-import {
-  AssistantIconType,
-  DEFAULT_SIDEBAR_ICONS,
-  setAssistantIconType,
-  setClickAssistantToShowTopic,
-  setCustomCss,
-  setPinTopicsToTop,
-  setShowTopicTime,
-  setSidebarIcons
-} from '@renderer/store/settings'
-import { ThemeMode } from '@renderer/types'
-import { Button, ColorPicker, Segmented, Switch } from 'antd'
-import { Minus, Plus, RotateCcw } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { ColorPicker, Segmented, Select } from 'antd'
+import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -54,28 +51,26 @@ const ColorCircle = styled.div<{ color: string; isActive?: boolean }>`
 `
 
 const DisplaySettings: FC = () => {
-  const {
-    windowStyle,
-    setWindowStyle,
-    topicPosition,
-    setTopicPosition,
-    clickAssistantToShowTopic,
-    showTopicTime,
-    pinTopicsToTop,
-    customCss,
-    sidebarIcons,
-    setTheme,
-    assistantIconType,
-    userTheme
-  } = useSettings()
-  const { theme, settedTheme } = useTheme()
-  const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const [currentZoom, setCurrentZoom] = useState(1.0)
-  const { setUserTheme } = useUserTheme()
+  const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
+  const [customCss, setCustomCss] = usePreference('ui.custom_css')
+  const [visibleIcons, setVisibleIcons] = usePreference('ui.sidebar.icons.visible')
+  const [invisibleIcons, setInvisibleIcons] = usePreference('ui.sidebar.icons.invisible')
+  const [topicPosition, setTopicPosition] = usePreference('topic.position')
+  const [clickAssistantToShowTopic, setClickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
+  const [pinTopicsToTop, setPinTopicsToTop] = usePreference('topic.tab.pin_to_top')
+  const [showTopicTime, setShowTopicTime] = usePreference('topic.tab.show_time')
+  const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
+  const [fontSize] = usePreference('chat.message.font_size')
 
-  const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
-  const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
+  const { navbarPosition, setNavbarPosition } = useNavbarPosition()
+  const { theme, settedTheme, setTheme } = useTheme()
+  const { t } = useTranslation()
+  const [currentZoom, setCurrentZoom] = useState(1.0)
+  const { userTheme, setUserTheme } = useUserTheme()
+  const { activeCmTheme } = useCodeStyle()
+  // const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
+  // const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
+  const [fontList, setFontList] = useState<string[]>([])
 
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
@@ -95,10 +90,9 @@ const DisplaySettings: FC = () => {
   )
 
   const handleReset = useCallback(() => {
-    setVisibleIcons([...DEFAULT_SIDEBAR_ICONS])
-    setDisabledIcons([])
-    dispatch(setSidebarIcons({ visible: DEFAULT_SIDEBAR_ICONS, disabled: [] }))
-  }, [dispatch])
+    setVisibleIcons(DefaultPreferences.default['ui.sidebar.icons.visible'])
+    setInvisibleIcons(DefaultPreferences.default['ui.sidebar.icons.invisible'])
+  }, [setVisibleIcons, setInvisibleIcons])
 
   const themeOptions = useMemo(
     () => [
@@ -106,7 +100,7 @@ const DisplaySettings: FC = () => {
         value: ThemeMode.light,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <i className="iconfont icon-theme icon-theme-light" />
+            <Sun size={16} />
             <span>{t('settings.theme.light')}</span>
           </div>
         )
@@ -115,7 +109,7 @@ const DisplaySettings: FC = () => {
         value: ThemeMode.dark,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <i className="iconfont icon-theme icon-dark1" />
+            <Moon size={16} />
             <span>{t('settings.theme.dark')}</span>
           </div>
         )
@@ -124,7 +118,7 @@ const DisplaySettings: FC = () => {
         value: ThemeMode.system,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <SyncOutlined />
+            <Monitor size={16} />
             <span>{t('settings.theme.system')}</span>
           </div>
         )
@@ -134,6 +128,11 @@ const DisplaySettings: FC = () => {
   )
 
   useEffect(() => {
+    // 初始化获取所有系统字体
+    window.api.getSystemFonts().then((fonts: string[]) => {
+      setFontList(fonts)
+    })
+
     // 初始化获取当前缩放值
     window.api.handleZoomFactor(0).then((factor) => {
       setCurrentZoom(factor)
@@ -158,6 +157,26 @@ const DisplaySettings: FC = () => {
     setCurrentZoom(zoomFactor)
   }
 
+  const handleUserFontChange = useCallback(
+    (value: string) => {
+      setUserTheme({
+        ...userTheme,
+        userFontFamily: value
+      })
+    },
+    [setUserTheme, userTheme]
+  )
+
+  const handleUserCodeFontChange = useCallback(
+    (value: string) => {
+      setUserTheme({
+        ...userTheme,
+        userCodeFontFamily: value
+      })
+    },
+    [setUserTheme, userTheme]
+  )
+
   const assistantIconTypeOptions = useMemo(
     () => [
       { value: 'model', label: t('settings.assistant.icon.type.model') },
@@ -179,8 +198,8 @@ const DisplaySettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
-          <HStack gap="12px" alignItems="center">
-            <HStack gap="12px">
+          <RowFlex className="items-center gap-3">
+            <RowFlex className="gap-3">
               {THEME_COLOR_PRESETS.map((color) => (
                 <ColorCircleWrapper key={color}>
                   <ColorCircle
@@ -190,13 +209,14 @@ const DisplaySettings: FC = () => {
                   />
                 </ColorCircleWrapper>
               ))}
-            </HStack>
+            </RowFlex>
             <ColorPicker
+              style={{ fontFamily: 'inherit' }}
               className="color-picker"
               value={userTheme.colorPrimary}
               onChange={(color) => handleColorPrimaryChange(color.toHexString())}
               showText
-              style={{ width: '110px' }}
+              size="small"
               presets={[
                 {
                   label: 'Presets',
@@ -204,17 +224,35 @@ const DisplaySettings: FC = () => {
                 }
               ]}
             />
-          </HStack>
+          </RowFlex>
         </SettingRow>
         {isMac && (
           <>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
-              <Switch checked={windowStyle === 'transparent'} onChange={handleWindowStyleChange} />
+              <Switch checked={windowStyle === 'transparent'} onCheckedChange={handleWindowStyleChange} />
             </SettingRow>
           </>
         )}
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
+          {t('settings.display.navbar.title')} <TextBadge text="New" />
+        </SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.navbar.position.label')}</SettingRowTitle>
+          <Segmented
+            value={navbarPosition}
+            shape="round"
+            onChange={setNavbarPosition}
+            options={[
+              { label: t('settings.display.navbar.position.left'), value: 'left' },
+              { label: t('settings.display.navbar.position.top'), value: 'top' }
+            ]}
+          />
+        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.zoom.title')}</SettingTitle>
@@ -222,22 +260,85 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
-            <Button onClick={() => handleZoomFactor(-0.1)} icon={<Minus size="14" />} />
+            <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
+              <Minus size="14" />
+            </Button>
             <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} icon={<Plus size="14" />} />
-            <Button
-              onClick={() => handleZoomFactor(0, true)}
-              style={{ marginLeft: 8 }}
-              icon={<RotateCcw size="14" />}
-            />
+            <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
+              <Plus size="14" />
+            </Button>
+            <Button onClick={() => handleZoomFactor(0, true)} className="ml-2" variant="ghost" size="icon">
+              <ResetIcon size="14" />
+            </Button>
           </ZoomButtonGroup>
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
+          {t('settings.display.font.title')} <TextBadge text="New" />
+        </SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
+          <SelectRow>
+            <Select
+              style={{ width: 200 }}
+              placeholder={t('settings.display.font.select')}
+              options={[
+                {
+                  label: (
+                    <span style={{ fontFamily: 'Ubuntu, -apple-system, system-ui, Arial, sans-serif' }}>
+                      {t('settings.display.font.default')}
+                    </span>
+                  ),
+                  value: ''
+                },
+                ...fontList.map((font) => ({ label: <span style={{ fontFamily: font }}>{font}</span>, value: font }))
+              ]}
+              value={userTheme.userFontFamily || ''}
+              onChange={(font) => handleUserFontChange(font)}
+              showSearch
+              getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
+            />
+            <Button onClick={() => handleUserFontChange('')} className="ml-2" variant="ghost" size="icon">
+              <ResetIcon size="14" />
+            </Button>
+          </SelectRow>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
+          <SelectRow>
+            <Select
+              style={{ width: 200 }}
+              placeholder={t('settings.display.font.select')}
+              options={[
+                {
+                  label: (
+                    <span style={{ fontFamily: 'Ubuntu, -apple-system, system-ui, Arial, sans-serif' }}>
+                      {t('settings.display.font.default')}
+                    </span>
+                  ),
+                  value: ''
+                },
+                ...fontList.map((font) => ({ label: <span style={{ fontFamily: font }}>{font}</span>, value: font }))
+              ]}
+              value={userTheme.userCodeFontFamily || ''}
+              onChange={(font) => handleUserCodeFontChange(font)}
+              showSearch
+              getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
+            />
+            <Button onClick={() => handleUserCodeFontChange('')} className="ml-2" variant="ghost" size="icon">
+              <ResetIcon size="14" />
+            </Button>
+          </SelectRow>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.topic.position')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.topic.position.label')}</SettingRowTitle>
           <Segmented
             value={topicPosition || 'right'}
             shape="round"
@@ -255,7 +356,7 @@ const DisplaySettings: FC = () => {
               <SettingRowTitle>{t('settings.advanced.auto_switch_to_topics')}</SettingRowTitle>
               <Switch
                 checked={clickAssistantToShowTopic}
-                onChange={(checked) => dispatch(setClickAssistantToShowTopic(checked))}
+                onCheckedChange={(checked) => setClickAssistantToShowTopic(checked)}
               />
             </SettingRow>
             <SettingDivider />
@@ -263,60 +364,64 @@ const DisplaySettings: FC = () => {
         )}
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
-          <Switch checked={showTopicTime} onChange={(checked) => dispatch(setShowTopicTime(checked))} />
+          <Switch checked={showTopicTime} onCheckedChange={(checked) => setShowTopicTime(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
-          <Switch checked={pinTopicsToTop} onChange={(checked) => dispatch(setPinTopicsToTop(checked))} />
+          <Switch checked={pinTopicsToTop} onCheckedChange={(checked) => setPinTopicsToTop(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.icon.type')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.assistant.icon.type.label')}</SettingRowTitle>
           <Segmented
             value={assistantIconType}
             shape="round"
-            onChange={(value) => dispatch(setAssistantIconType(value as AssistantIconType))}
+            onChange={(value) => setAssistantIconType(value as AssistantIconType)}
             options={assistantIconTypeOptions}
           />
         </SettingRow>
       </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle
-          style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{t('settings.display.sidebar.title')}</span>
-          <ResetButtonWrapper>
-            <Button onClick={handleReset}>{t('common.reset')}</Button>
-          </ResetButtonWrapper>
-        </SettingTitle>
-        <SettingDivider />
-        <SidebarIconsManager
-          visibleIcons={visibleIcons}
-          disabledIcons={disabledIcons}
-          setVisibleIcons={setVisibleIcons}
-          setDisabledIcons={setDisabledIcons}
-        />
-      </SettingGroup>
+      {navbarPosition === 'left' && (
+        <SettingGroup theme={theme}>
+          <SettingTitle
+            style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{t('settings.display.sidebar.title')}</span>
+            <ResetButtonWrapper>
+              <Button onClick={handleReset}>{t('common.reset')}</Button>
+            </ResetButtonWrapper>
+          </SettingTitle>
+          <SettingDivider />
+          <SidebarIconsManager
+            visibleIcons={visibleIcons}
+            invisibleIcons={invisibleIcons}
+            setVisibleIcons={setVisibleIcons}
+            setInvisibleIcons={setInvisibleIcons}
+          />
+        </SettingGroup>
+      )}
       <SettingGroup theme={theme}>
         <SettingTitle>
-          {t('settings.display.custom.css')}
+          {t('settings.display.custom.css.label')}
           <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
             {t('settings.display.custom.css.cherrycss')}
           </TitleExtra>
         </SettingTitle>
         <SettingDivider />
         <CodeEditor
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={customCss}
           language="css"
           placeholder={t('settings.display.custom.css.placeholder')}
-          onChange={(value) => dispatch(setCustomCss(value))}
-          height="350px"
+          onChange={(value) => setCustomCss(value)}
+          height="60vh"
+          expanded={false}
+          wrapped
           options={{
-            collapsible: true,
-            wrappable: true,
             autocompletion: true,
             lineNumbers: true,
             foldGutter: true,
@@ -353,6 +458,13 @@ const ZoomValue = styled.span`
   width: 40px;
   text-align: center;
   margin: 0 5px;
+`
+
+const SelectRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 300px;
 `
 
 export default DisplaySettings

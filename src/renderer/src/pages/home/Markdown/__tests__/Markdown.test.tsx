@@ -17,7 +17,11 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => mockUseTranslation()
+  useTranslation: () => mockUseTranslation(),
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  }
 }))
 
 // Mock services
@@ -42,31 +46,28 @@ vi.mock('@renderer/utils', () => ({
 }))
 
 vi.mock('@renderer/utils/formats', () => ({
-  escapeBrackets: vi.fn((str) => str),
   removeSvgEmptyLines: vi.fn((str) => str)
 }))
 
 vi.mock('@renderer/utils/markdown', () => ({
   findCitationInChildren: vi.fn(() => '{"id": 1, "url": "https://example.com"}'),
-  getCodeBlockId: vi.fn(() => 'code-block-1')
+  getCodeBlockId: vi.fn(() => 'code-block-1'),
+  processLatexBrackets: vi.fn((str) => str)
 }))
 
 // Mock components with more realistic behavior
 vi.mock('../CodeBlock', () => ({
   __esModule: true,
-  default: ({ id, onSave, children }: any) => (
-    <div data-testid="code-block" data-id={id}>
+  default: ({ children, blockId }: any) => (
+    <div data-testid="code-block" data-block-id={blockId}>
       <code>{children}</code>
-      <button type="button" onClick={() => onSave(id, 'new content')}>
-        Save
-      </button>
     </div>
   )
 }))
 
-vi.mock('../ImagePreview', () => ({
+vi.mock('@renderer/components/ImageViewer', () => ({
   __esModule: true,
-  default: (props: any) => <img data-testid="image-preview" {...props} />
+  default: (props: any) => <img data-testid="image-viewer" {...props} />
 }))
 
 vi.mock('../Link', () => ({
@@ -78,18 +79,52 @@ vi.mock('../Link', () => ({
   )
 }))
 
+vi.mock('../Table', () => ({
+  __esModule: true,
+  default: ({ children, blockId }: any) => (
+    <div data-testid="table-component" data-block-id={blockId}>
+      <table>{children}</table>
+      <button type="button" data-testid="copy-table-button">
+        Copy Table
+      </button>
+    </div>
+  )
+}))
+
+vi.mock('../MarkdownSvgRenderer', () => ({
+  __esModule: true,
+  default: ({ children }: any) => <div data-testid="svg-renderer">{children}</div>
+}))
+
 vi.mock('@renderer/components/MarkdownShadowDOMRenderer', () => ({
   __esModule: true,
   default: ({ children }: any) => <div data-testid="shadow-dom">{children}</div>
 }))
 
 // Mock plugins
+vi.mock('remark-alert', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('remark-gfm', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('remark-cjk-friendly', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('remark-math', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('rehype-katex', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('rehype-mathjax', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('rehype-raw', () => ({ __esModule: true, default: vi.fn() }))
+
+// Mock custom plugins
+vi.mock('../plugins/remarkDisableConstructs', () => ({
+  __esModule: true,
+  default: vi.fn()
+}))
+
+vi.mock('../plugins/rehypeHeadingIds', () => ({
+  __esModule: true,
+  default: vi.fn()
+}))
+
+vi.mock('../plugins/rehypeScalableSvg', () => ({
+  __esModule: true,
+  default: vi.fn()
+}))
 
 // Mock ReactMarkdown with realistic rendering
 vi.mock('react-markdown', () => ({
@@ -104,6 +139,11 @@ vi.mock('react-markdown', () => ({
           {components.code({ children: 'test code', node: { position: { start: { line: 1 } } } })}
         </div>
       )}
+      {components?.table && (
+        <div data-testid="has-table-component">
+          {components.table({ children: 'test table', node: { position: { start: { line: 1 } } } })}
+        </div>
+      )}
       {components?.img && <span data-testid="has-img-component">img</span>}
       {components?.style && <span data-testid="has-style-component">style</span>}
     </div>
@@ -111,20 +151,14 @@ vi.mock('react-markdown', () => ({
 }))
 
 describe('Markdown', () => {
-  let mockEventEmitter: any
-
   beforeEach(async () => {
     vi.clearAllMocks()
 
     // Default settings
-    mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX' })
+    mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
     mockUseTranslation.mockReturnValue({
       t: (key: string) => (key === 'message.chat.completion.paused' ? 'Paused' : key)
     })
-
-    // Get mocked EventEmitter
-    const { EventEmitter } = await import('@renderer/services/EventService')
-    mockEventEmitter = EventEmitter
   })
 
   afterEach(() => {
@@ -145,12 +179,16 @@ describe('Markdown', () => {
   describe('rendering', () => {
     it('should render markdown content with correct structure', () => {
       const block = createMainTextBlock({ content: 'Test content' })
-      render(<Markdown block={block} />)
+      const { container } = render(<Markdown block={block} />)
 
-      const markdown = screen.getByTestId('markdown-content')
-      expect(markdown).toBeInTheDocument()
-      expect(markdown).toHaveClass('markdown')
-      expect(markdown).toHaveTextContent('Test content')
+      // Check that the outer container has the markdown class
+      const markdownContainer = container.querySelector('.markdown')
+      expect(markdownContainer).toBeInTheDocument()
+
+      // Check that the markdown content is rendered inside
+      const markdownContent = screen.getByTestId('markdown-content')
+      expect(markdownContent).toBeInTheDocument()
+      expect(markdownContent).toHaveTextContent('Test content')
     })
 
     it('should handle empty content gracefully', () => {
@@ -183,16 +221,6 @@ describe('Markdown', () => {
       const markdown = screen.getByTestId('markdown-content')
       expect(markdown).toHaveTextContent('Real content')
       expect(markdown).not.toHaveTextContent('Paused')
-    })
-
-    it('should process content through format utilities', async () => {
-      const { escapeBrackets, removeSvgEmptyLines } = await import('@renderer/utils/formats')
-      const content = 'Content with [brackets] and SVG'
-
-      render(<Markdown block={createMainTextBlock({ content })} />)
-
-      expect(escapeBrackets).toHaveBeenCalledWith(content)
-      expect(removeSvgEmptyLines).toHaveBeenCalledWith(content)
     })
 
     it('should match snapshot', () => {
@@ -249,7 +277,7 @@ describe('Markdown', () => {
 
   describe('math engine configuration', () => {
     it('should configure KaTeX when mathEngine is KaTeX', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
 
       render(<Markdown block={createMainTextBlock()} />)
 
@@ -258,7 +286,7 @@ describe('Markdown', () => {
     })
 
     it('should configure MathJax when mathEngine is MathJax', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax', mathEnableSingleDollar: true })
 
       render(<Markdown block={createMainTextBlock()} />)
 
@@ -267,7 +295,7 @@ describe('Markdown', () => {
     })
 
     it('should not load math plugins when mathEngine is none', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'none' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'none', mathEnableSingleDollar: true })
 
       render(<Markdown block={createMainTextBlock()} />)
 
@@ -283,24 +311,22 @@ describe('Markdown', () => {
       expect(screen.getByTestId('has-link-component')).toBeInTheDocument()
     })
 
-    it('should integrate CodeBlock component with edit functionality', () => {
-      const block = createMainTextBlock({ id: 'test-block-123' })
-      render(<Markdown block={block} />)
-
+    it('should integrate CodeBlock component', () => {
+      render(<Markdown block={createMainTextBlock()} />)
       expect(screen.getByTestId('has-code-component')).toBeInTheDocument()
-
-      // Test code block edit event
-      const saveButton = screen.getByText('Save')
-      saveButton.click()
-
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith('EDIT_CODE_BLOCK', {
-        msgBlockId: 'test-block-123',
-        codeBlockId: 'code-block-1',
-        newContent: 'new content'
-      })
     })
 
-    it('should integrate ImagePreview component', () => {
+    it('should integrate Table component with copy functionality', () => {
+      const block = createMainTextBlock({ id: 'test-block-456' })
+      render(<Markdown block={block} />)
+
+      expect(screen.getByTestId('has-table-component')).toBeInTheDocument()
+
+      const tableComponent = screen.getByTestId('table-component')
+      expect(tableComponent).toHaveAttribute('data-block-id', 'test-block-456')
+    })
+
+    it('should integrate ImageViewer component', () => {
       render(<Markdown block={createMainTextBlock()} />)
 
       expect(screen.getByTestId('has-img-component')).toBeInTheDocument()
@@ -353,12 +379,12 @@ describe('Markdown', () => {
     })
 
     it('should re-render when math engine changes', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
       const { rerender } = render(<Markdown block={createMainTextBlock()} />)
 
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
 
-      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax', mathEnableSingleDollar: true })
       rerender(<Markdown block={createMainTextBlock()} />)
 
       // Should still render correctly with new math engine

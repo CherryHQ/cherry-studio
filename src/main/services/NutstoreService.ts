@@ -1,11 +1,15 @@
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
+import { net } from 'electron'
 import { XMLParser } from 'fast-xml-parser'
 import { isNil, partial } from 'lodash'
 import { type FileStat } from 'webdav'
 
 import { createOAuthUrl, decryptSecret } from '../integration/nutstore/sso/lib/index.mjs'
+
+const logger = loggerService.withContext('NutstoreService')
 
 interface OAuthResponse {
   username: string
@@ -45,7 +49,7 @@ export async function decryptToken(token: string) {
     })
     return JSON.parse(decrypted) as OAuthResponse
   } catch (error) {
-    console.error('解密失败:', error)
+    logger.error('Failed to decrypt token:', error as Error)
     return null
   }
 }
@@ -59,7 +63,7 @@ export async function getDirectoryContents(token: string, target: string): Promi
   let currentUrl = `${NUTSTORE_HOST}${target}`
 
   while (true) {
-    const response = await fetch(currentUrl, {
+    const response = await net.fetch(currentUrl, {
       method: 'PROPFIND',
       headers: {
         Authorization: `Basic ${token}`,

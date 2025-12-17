@@ -1,19 +1,24 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import { getBackupProgressLabel } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
-import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
-import Logger from 'electron-log'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
 
+const logger = loggerService.withContext('BackupPopup')
+
 interface Props {
   resolve: (data: any) => void
 }
 
+type ProgressStageType = 'reading_data' | 'preparing' | 'extracting' | 'extracted' | 'copying_files' | 'completed'
+
 interface ProgressData {
-  stage: string
+  stage: ProgressStageType
   progress: number
   total: number
 }
@@ -22,7 +27,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
-  const skipBackupFile = store.getState().settings.skipBackupFile
+  const [skipBackupFile] = usePreference('data.backup.general.skip_backup_file')
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.BackupProgress, (_, data: ProgressData) => {
@@ -35,7 +40,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [])
 
   const onOk = async () => {
-    Logger.log('[BackupManager] ', skipBackupFile)
+    logger.debug(`skipBackupFile: ${skipBackupFile}`)
     await backup(skipBackupFile)
     setOpen(false)
   }
@@ -52,11 +57,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     if (!progressData) return ''
 
     if (progressData.stage === 'copying_files') {
-      return t(`backup.progress.${progressData.stage}`, {
+      return t('backup.progress.copying_files', {
         progress: Math.floor(progressData.progress)
       })
     }
-    return t(`backup.progress.${progressData.stage}`)
+    return getBackupProgressLabel(progressData.stage)
   }
 
   BackupPopup.hide = onCancel

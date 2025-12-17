@@ -1,13 +1,20 @@
+import type { Message } from '@renderer/types/newMessage'
 import {
+  AssistantMessageStatus,
+  type CitationMessageBlock,
   type CodeMessageBlock,
+  type CompactMessageBlock,
   type ErrorMessageBlock,
   type FileMessageBlock,
   type ImageMessageBlock,
   type MainTextMessageBlock,
   type MessageBlock,
   MessageBlockType,
+  type PlaceholderMessageBlock,
   type ThinkingMessageBlock,
-  type TranslationMessageBlock
+  type ToolMessageBlock,
+  type TranslationMessageBlock,
+  type VideoMessageBlock
 } from '@renderer/types/newMessage'
 
 /**
@@ -101,5 +108,63 @@ export function isTextLikeBlock(
     block.type === MessageBlockType.TRANSLATION ||
     block.type === MessageBlockType.CODE ||
     block.type === MessageBlockType.ERROR
+  )
+}
+
+/**
+ * Checks if a message block is a Video block.
+ * Acts as a TypeScript type guard.
+ * @param block - The message block to check.
+ * @returns True if the block is a VideoMessageBlock, false otherwise.
+ */
+export function isVideoBlock(block: MessageBlock): block is VideoMessageBlock {
+  return block.type === MessageBlockType.VIDEO
+}
+
+/**
+ * Checks if a message block is a Tool block.
+ * Acts as a TypeScript type guard.
+ * @param block - The message block to check.
+ * @returns True if the block is a ToolMessageBlock, false otherwise.
+ */
+export function isToolBlock(block: MessageBlock): block is ToolMessageBlock {
+  return block.type === MessageBlockType.TOOL
+}
+
+/**
+ * Checks if a message block is a Citation block.
+ * Acts as a TypeScript type guard.
+ * @param block - The message block to check.
+ * @returns True if the block is a CitationMessageBlock, false otherwise.
+ */
+export function isCitationBlock(block: MessageBlock): block is CitationMessageBlock {
+  return block.type === MessageBlockType.CITATION
+}
+
+/**
+ * Checks if a message block is a Placeholder block.
+ * Acts as a TypeScript type guard.
+ * @param block - The message block to check.
+ * @returns True if the block is a PlaceholderMessageBlock, false otherwise.
+ */
+export function isPlaceholderBlock(block: MessageBlock): block is PlaceholderMessageBlock {
+  return block.type === MessageBlockType.UNKNOWN
+}
+
+/**
+ * Checks if a message block is a Compact block.
+ * Acts as a TypeScript type guard.
+ * @param block - The message block to check.
+ * @returns True if the block is a CompactMessageBlock, false otherwise.
+ */
+export function isCompactBlock(block: MessageBlock): block is CompactMessageBlock {
+  return block.type === MessageBlockType.COMPACT
+}
+
+export function isMessageProcessing(message: Message): boolean {
+  return (
+    message.status === AssistantMessageStatus.PROCESSING ||
+    message.status === AssistantMessageStatus.PENDING ||
+    message.status === AssistantMessageStatus.SEARCHING
   )
 }

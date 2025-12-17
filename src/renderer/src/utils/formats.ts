@@ -53,26 +53,8 @@ export function escapeDollarNumber(text: string) {
   return escapedText
 }
 
-export function escapeBrackets(text: string) {
-  const pattern = /(```[\s\S]*?```|`.*?`)|\\\[([\s\S]*?[^\\])\\]|\\\((.*?)\\\)/g
-  return text.replace(pattern, (match, codeBlock, squareBracket, roundBracket) => {
-    if (codeBlock) {
-      return codeBlock
-    } else if (squareBracket) {
-      return `
-$$
-${squareBracket}
-$$
-`
-    } else if (roundBracket) {
-      return `$${roundBracket}$`
-    }
-    return match
-  })
-}
-
-export function extractTitle(html: string): string | null {
-  if (!html) return null
+export function extractHtmlTitle(html: string): string {
+  if (!html) return ''
 
   // 处理标准闭合的标题标签
   const titleRegex = /<title>(.*?)<\/title>/i
@@ -90,7 +72,17 @@ export function extractTitle(html: string): string | null {
     return malformedMatch[1] ? malformedMatch[1].trim() : ''
   }
 
-  return null
+  return ''
+}
+
+/**
+ * 从 HTML 标题中提取文件名（不包含扩展名）
+ * @param title HTML 标题
+ * @returns 文件名
+ */
+export function getFileNameFromHtmlTitle(title: string): string {
+  if (!title) return ''
+  return title.replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, '-')
 }
 
 export function removeSvgEmptyLines(text: string): string {
@@ -105,34 +97,6 @@ export function removeSvgEmptyLines(text: string): string {
       .join('\n')
   })
 }
-
-// export function withGeminiGrounding(block: MainTextMessageBlock | TranslationMessageBlock): string {
-//   // TODO
-//   // const citationBlock = findCitationBlockWithGrounding(block)
-//   // const groundingSupports = citationBlock?.groundingMetadata?.groundingSupports
-
-//   const content = block.content
-
-//   // if (!groundingSupports || groundingSupports.length === 0) {
-//   //   return content
-//   // }
-
-//   // groundingSupports.forEach((support) => {
-//   //   const text = support?.segment?.text
-//   //   const indices = support?.groundingChunkIndices
-
-//   //   if (!text || !indices) return
-
-//   //   const nodes = indices.reduce((acc, index) => {
-//   //     acc.push(`<sup>${index + 1}</sup>`)
-//   //     return acc
-//   //   }, [] as string[])
-
-//   //   content = content.replace(text, `${text} ${nodes.join(' ')}`)
-//   // })
-
-//   return content
-// }
 
 export function withGenerateImage(message: Message): { content: string; images?: string[] } {
   const originalContent = getMainTextContent(message)

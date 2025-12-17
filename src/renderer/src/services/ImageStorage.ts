@@ -1,5 +1,8 @@
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { convertToBase64 } from '@renderer/utils'
+
+const logger = loggerService.withContext('ImageStorage')
 
 const IMAGE_PREFIX = 'image://'
 
@@ -26,7 +29,7 @@ export default class ImageStorage {
         }
       }
     } catch (error) {
-      console.error('Error storing the image', error)
+      logger.error('Error storing the image', error as Error)
     }
   }
 
@@ -43,7 +46,7 @@ export default class ImageStorage {
         await db.settings.delete(id)
       }
     } catch (error) {
-      console.error('Error removing the image', error)
+      logger.error('Error removing the image', error as Error)
       throw error
     }
   }

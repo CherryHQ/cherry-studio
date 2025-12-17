@@ -1,499 +1,605 @@
-import Logger from '@renderer/config/logger'
-import { getOpenAIWebSearchParams, isOpenAIWebSearch } from '@renderer/config/models'
-import {
-  SEARCH_SUMMARY_PROMPT,
-  SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
-  SEARCH_SUMMARY_PROMPT_WEB_ONLY
-} from '@renderer/config/prompts'
+/**
+ * 职责：提供原子化的、无状态的API调用函数
+ */
+import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
+import { loggerService } from '@logger'
+import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
+import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
+import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import {
-  Assistant,
-  ExternalToolResult,
-  KnowledgeReference,
-  MCPTool,
-  Model,
-  Provider,
-  Suggestion,
-  WebSearchResponse,
-  WebSearchSource
-} from '@renderer/types'
+import store from '@renderer/store'
+import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
+import { type FetchChatCompletionParams, isSystemProvider } from '@renderer/types'
+import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
+import type { Message, ResponseError } from '@renderer/types/newMessage'
+import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
+import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isAbortError } from '@renderer/utils/error'
-import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
-import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { findLast, isEmpty } from 'lodash'
+import { purifyMarkdownImages } from '@renderer/utils/markdown'
+import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
+import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
+import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
+import { isEmpty, takeRight } from 'lodash'
 
-import AiProvider from '../providers/AiProvider'
+import type { ModernAiProviderConfig } from '../aiCore/index_new'
+import AiProviderNew from '../aiCore/index_new'
 import {
-  getAssistantProvider,
+  // getAssistantProvider,
+  // getAssistantSettings,
+  getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel,
-  getTranslateModel
+  getQuickModel
 } from './AssistantService'
-import { getDefaultAssistant } from './AssistantService'
-import { processKnowledgeSearch } from './KnowledgeService'
-import { filterContextMessages, filterMessages, filterUsefulMessages } from './MessagesService'
-import WebSearchService from './WebSearchService'
+// import { processKnowledgeSearch } from './KnowledgeService'
+// import {
+//   filterContextMessages,
+//   filterEmptyMessages,
+//   filterUsefulMessages,
+//   filterUserRoleStartMessages
+// } from './MessagesService'
+// import WebSearchService from './WebSearchService'
 
-// TODO：考虑拆开
-async function fetchExternalTool(
-  lastUserMessage: Message,
-  assistant: Assistant,
-  onChunkReceived: (chunk: Chunk) => void,
-  lastAnswer?: Message
-): Promise<ExternalToolResult> {
-  // 可能会有重复？
-  const knowledgeBaseIds = getKnowledgeBaseIds(lastUserMessage)
-  const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
-  const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
+// FIXME: 这里太多重复逻辑，需要重构
 
-  const shouldWebSearch = !!assistant.webSearchProviderId && webSearchProvider !== null
-  const shouldKnowledgeSearch = hasKnowledgeBase
+const logger = loggerService.withContext('ApiService')
 
-  // 在工具链开始时发送进度通知
-  const willUseTools = shouldWebSearch || shouldKnowledgeSearch
-  if (willUseTools) {
-    onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
-  }
+export async function fetchMcpTools(assistant: Assistant) {
+  // Get MCP tools (Fix duplicate declaration)
+  let mcpTools: MCPTool[] = [] // Initialize as empty array
+  const allMcpServers = store.getState().mcp.servers || []
+  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+  const assistantMcpServers = assistant.mcpServers || []
 
-  // --- Keyword/Question Extraction Function ---
-  const extract = async (): Promise<ExtractResults | undefined> => {
-    if (!lastUserMessage) return undefined
+  const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
 
-    // 根据配置决定是否需要提取
-    const needWebExtract = shouldWebSearch
-    const needKnowledgeExtract = hasKnowledgeBase && knowledgeRecognition === 'on'
-
-    if (!needWebExtract && !needKnowledgeExtract) return undefined
-
-    let prompt: string
-    if (needWebExtract && !needKnowledgeExtract) {
-      prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
-    } else if (!needWebExtract && needKnowledgeExtract) {
-      prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
-    } else {
-      prompt = SEARCH_SUMMARY_PROMPT
-    }
-
-    const summaryAssistant = getDefaultAssistant()
-    summaryAssistant.model = assistant.model || getDefaultModel()
-    summaryAssistant.prompt = prompt
-
+  if (enabledMCPs && enabledMCPs.length > 0) {
     try {
-      const keywords = await fetchSearchSummary({
-        messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
-        assistant: summaryAssistant
-      })
-
-      if (!keywords) return getFallbackResult()
-
-      const extracted = extractInfoFromXML(keywords)
-      // 根据需求过滤结果
-      return {
-        websearch: needWebExtract ? extracted?.websearch : undefined,
-        knowledge: needKnowledgeExtract ? extracted?.knowledge : undefined
-      }
-    } catch (e: any) {
-      console.error('extract error', e)
-      if (isAbortError(e)) throw e
-      return getFallbackResult()
-    }
-  }
-
-  const getFallbackResult = (): ExtractResults => {
-    const fallbackContent = getMainTextContent(lastUserMessage)
-    return {
-      websearch: shouldWebSearch ? { question: [fallbackContent || 'search'] } : undefined,
-      knowledge: shouldKnowledgeSearch
-        ? {
-            question: [fallbackContent || 'search'],
-            rewrite: fallbackContent
-          }
-        : undefined
-    }
-  }
-
-  // --- Web Search Function ---
-  const searchTheWeb = async (extractResults: ExtractResults | undefined): Promise<WebSearchResponse | undefined> => {
-    if (!shouldWebSearch) return
-
-    // Add check for extractResults existence early
-    if (!extractResults?.websearch) {
-      console.warn('searchTheWeb called without valid extractResults.websearch')
-      return
-    }
-
-    if (extractResults.websearch.question[0] === 'not_needed') return
-
-    // Add check for assistant.model before using it
-    if (!assistant.model) {
-      console.warn('searchTheWeb called without assistant.model')
-      return undefined
-    }
-
-    // Pass the guaranteed model to the check function
-    const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
-    if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model)) {
-      return
-    }
-
-    try {
-      // Use the consolidated processWebsearch function
-      WebSearchService.createAbortSignal(lastUserMessage.id)
-      return {
-        results: await WebSearchService.processWebsearch(webSearchProvider!, extractResults),
-        source: WebSearchSource.WEBSEARCH
-      }
-    } catch (error) {
-      if (isAbortError(error)) throw error
-      console.error('Web search failed:', error)
-      return
-    }
-  }
-
-  // --- Knowledge Base Search Function ---
-  const searchKnowledgeBase = async (
-    extractResults: ExtractResults | undefined
-  ): Promise<KnowledgeReference[] | undefined> => {
-    if (!hasKnowledgeBase) return
-
-    // 知识库搜索条件
-    let searchCriteria: { question: string[]; rewrite: string }
-    if (knowledgeRecognition === 'off') {
-      const directContent = getMainTextContent(lastUserMessage)
-      searchCriteria = { question: [directContent || 'search'], rewrite: directContent }
-    } else {
-      // auto mode
-      if (!extractResults?.knowledge) {
-        console.warn('searchKnowledgeBase: No valid search criteria in auto mode')
-        return
-      }
-      searchCriteria = extractResults.knowledge
-    }
-
-    if (searchCriteria.question[0] === 'not_needed') return
-
-    try {
-      const tempExtractResults: ExtractResults = {
-        websearch: undefined,
-        knowledge: searchCriteria
-      }
-      // Attempt to get knowledgeBaseIds from the main text block
-      // NOTE: This assumes knowledgeBaseIds are ONLY on the main text block
-      // NOTE: processKnowledgeSearch needs to handle undefined ids gracefully
-      // const mainTextBlock = mainTextBlocks
-      //   ?.map((blockId) => store.getState().messageBlocks.entities[blockId])
-      //   .find((block) => block?.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock | undefined
-      return await processKnowledgeSearch(tempExtractResults, knowledgeBaseIds)
-    } catch (error) {
-      console.error('Knowledge base search failed:', error)
-      return
-    }
-  }
-
-  // --- Execute Extraction and Searches ---
-  let extractResults: ExtractResults | undefined
-
-  try {
-    // 根据配置决定是否需要提取
-    if (shouldWebSearch || hasKnowledgeBase) {
-      extractResults = await extract()
-      Logger.log('[fetchExternalTool] Extraction results:', extractResults)
-    }
-
-    let webSearchResponseFromSearch: WebSearchResponse | undefined
-    let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
-
-    // 并行执行搜索
-    if (shouldWebSearch || shouldKnowledgeSearch) {
-      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
-        searchTheWeb(extractResults),
-        searchKnowledgeBase(extractResults)
-      ])
-    }
-
-    // 存储搜索结果
-    if (lastUserMessage) {
-      if (webSearchResponseFromSearch) {
-        window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
-      }
-      if (knowledgeReferencesFromSearch) {
-        window.keyv.set(`knowledge-search-${lastUserMessage.id}`, knowledgeReferencesFromSearch)
-      }
-    }
-
-    // 发送工具执行完成通知
-    if (willUseTools) {
-      onChunkReceived({
-        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
-        external_tool: {
-          webSearch: webSearchResponseFromSearch,
-          knowledge: knowledgeReferencesFromSearch
-        }
-      })
-    }
-
-    // Get MCP tools (Fix duplicate declaration)
-    let mcpTools: MCPTool[] = [] // Initialize as empty array
-    const enabledMCPs = lastUserMessage?.enabledMCPs
-    if (enabledMCPs && enabledMCPs.length > 0) {
-      try {
-        const toolPromises = enabledMCPs.map(async (mcpServer) => {
+      const toolPromises = enabledMCPs.map(async (mcpServer: MCPServer) => {
+        try {
           const tools = await window.api.mcp.listTools(mcpServer)
           return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
-        })
-        const results = await Promise.all(toolPromises)
-        mcpTools = results.flat() // Flatten the array of arrays
-      } catch (toolError) {
-        console.error('Error fetching MCP tools:', toolError)
-      }
-    }
-
-    return { mcpTools }
-  } catch (error) {
-    if (isAbortError(error)) throw error
-    console.error('Tool execution failed:', error)
-
-    // 发送错误状态
-    if (willUseTools) {
-      onChunkReceived({
-        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
-        external_tool: {
-          webSearch: undefined,
-          knowledge: undefined
+        } catch (error) {
+          logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
+          return []
         }
       })
+      const results = await Promise.allSettled(toolPromises)
+      mcpTools = results
+        .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+        .map((result) => result.value)
+        .flat()
+    } catch (toolError) {
+      logger.error('Error fetching MCP tools:', toolError as Error)
     }
-
-    return { mcpTools: [] }
   }
+  return mcpTools
 }
 
 export async function fetchChatCompletion({
   messages,
+  prompt,
   assistant,
-  onChunkReceived
-}: {
-  messages: Message[]
-  assistant: Assistant
-  onChunkReceived: (chunk: Chunk) => void
-  // TODO
-  // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
-}) {
-  console.log('fetchChatCompletion', messages, assistant)
+  requestOptions,
+  onChunkReceived,
+  topicId,
+  uiMessages
+}: FetchChatCompletionParams) {
+  logger.info('fetchChatCompletion called with detailed context', {
+    messageCount: messages?.length || 0,
+    prompt: prompt,
+    assistantId: assistant.id,
+    topicId,
+    hasTopicId: !!topicId,
+    modelId: assistant.model?.id,
+    modelName: assistant.model?.name
+  })
 
-  const provider = getAssistantProvider(assistant)
-  const AI = new AiProvider(provider)
-
-  // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
-  messages = filterContextMessages(messages)
-
-  const lastUserMessage = findLast(messages, (m) => m.role === 'user')
-  const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
-  if (!lastUserMessage) {
-    console.error('fetchChatCompletion returning early: Missing lastUserMessage or lastAnswer')
-    return
+  // Get base provider and apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
+  const providerWithRotatedKey = {
+    ...baseProvider,
+    apiKey: getRotatedApiKey(baseProvider)
   }
-  // try {
-  // NOTE: The search results are NOT added to the messages sent to the AI here.
-  // They will be retrieved and used by the messageThunk later to create CitationBlocks.
-  const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
 
-  const filteredMessages = filterUsefulMessages(messages)
+  const AI = new AiProviderNew(assistant.model || getDefaultModel(), providerWithRotatedKey)
+  const provider = AI.getActualProvider()
+
+  const mcpTools: MCPTool[] = []
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+
+  if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
+    mcpTools.push(...(await fetchMcpTools(assistant)))
+  }
+  if (prompt) {
+    messages = [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+  }
+
+  // 使用 transformParameters 模块构建参数
+  const {
+    params: aiSdkParams,
+    modelId,
+    capabilities,
+    webSearchPluginConfig
+  } = await buildStreamTextParams(messages, assistant, provider, {
+    mcpTools: mcpTools,
+    webSearchProviderId: assistant.webSearchProviderId,
+    requestOptions
+  })
+
+  // Safely fallback to prompt tool use when function calling is not supported by model.
+  const usePromptToolUse =
+    isPromptToolUse(assistant) || (isToolUseModeFunction(assistant) && !isFunctionCallingModel(assistant.model))
+
+  const middlewareConfig: AiSdkMiddlewareConfig = {
+    streamOutput: assistant.settings?.streamOutput ?? true,
+    onChunk: onChunkReceived,
+    model: assistant.model,
+    enableReasoning: capabilities.enableReasoning,
+    isPromptToolUse: usePromptToolUse,
+    isSupportedToolUse: isSupportedToolUse(assistant),
+    isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
+    webSearchPluginConfig: webSearchPluginConfig,
+    enableWebSearch: capabilities.enableWebSearch,
+    enableGenerateImage: capabilities.enableGenerateImage,
+    enableUrlContext: capabilities.enableUrlContext,
+    mcpTools,
+    uiMessages,
+    knowledgeRecognition: assistant.knowledgeRecognition
+  }
 
   // --- Call AI Completions ---
-  await AI.completions({
-    messages: filteredMessages,
+  await AI.completions(modelId, aiSdkParams, {
+    ...middlewareConfig,
     assistant,
-    onFilterMessages: () => {},
-    onChunk: onChunkReceived,
-    mcpTools: mcpTools
+    topicId,
+    callType: 'chat',
+    uiMessages
   })
 }
 
-interface FetchTranslateProps {
-  content: string
-  assistant: Assistant
-  onResponse?: (text: string, isComplete: boolean) => void
-}
-
-export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel()
-
-  if (!model) {
-    throw new Error(i18n.t('error.provider_disabled'))
-  }
-
-  const provider = getProviderByModel(model)
-
-  if (!hasApiKey(provider)) {
-    throw new Error(i18n.t('error.no_api_key'))
-  }
-
-  const AI = new AiProvider(provider)
-
-  try {
-    return await AI.translate(content, assistant, onResponse)
-  } catch (error: any) {
-    return ''
-  }
-}
-
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
+  const model = getQuickModel() || assistant?.model || getDefaultModel()
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
+
+  // 总结上下文总是取最后5条消息
+  const contextMessages = takeRight(messages, 5)
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
     return null
   }
 
-  const AI = new AiProvider(provider)
+  // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const providerWithRotatedKey = {
+    ...provider,
+    apiKey: getRotatedApiKey(provider)
+  }
 
+  const AI = new AiProviderNew(model, providerWithRotatedKey)
+
+  const topicId = messages?.find((message) => message.topicId)?.topicId || ''
+
+  // LLM对多条消息的总结有问题，用单条结构化的消息表示会话内容会更好
+  const structredMessages = contextMessages.map((message) => {
+    const structredMessage = {
+      role: message.role,
+      mainText: purifyMarkdownImages(getMainTextContent(message))
+    }
+
+    // 让LLM知道消息中包含的文件，但只提供文件名
+    // 对助手消息而言，没有提供工具调用结果等更多信息，仅提供文本上下文。
+    const fileBlocks = findFileBlocks(message)
+    let fileList: Array<string> = []
+    if (fileBlocks.length && fileBlocks.length > 0) {
+      fileList = fileBlocks.map((fileBlock) => fileBlock.file.origin_name)
+    }
+    return {
+      ...structredMessage,
+      files: fileList.length > 0 ? fileList : undefined
+    }
+  })
+  const conversation = JSON.stringify(structredMessages)
+
+  // // 复制 assistant 对象，并强制关闭思考预算
+  // const summaryAssistant = {
+  //   ...assistant,
+  //   settings: {
+  //     ...assistant.settings,
+  //     reasoning_effort: undefined,
+  //     qwenThinkMode: false
+  //   }
+  // }
+  const summaryAssistant = {
+    ...assistant,
+    settings: {
+      ...assistant.settings,
+      reasoning_effort: undefined,
+      qwenThinkMode: false
+    },
+    prompt,
+    model
+  }
+
+  const llmMessages = {
+    system: prompt,
+    prompt: conversation
+  }
+
+  const middlewareConfig: AiSdkMiddlewareConfig = {
+    streamOutput: false,
+    enableReasoning: false,
+    isPromptToolUse: false,
+    isSupportedToolUse: false,
+    isImageGenerationEndpoint: false,
+    enableWebSearch: false,
+    enableGenerateImage: false,
+    enableUrlContext: false,
+    mcpTools: []
+  }
   try {
-    const text = await AI.summaries(filterMessages(messages), assistant)
-    return text?.replace(/["']/g, '') || null
+    // 从 messages 中找到有 traceId 的助手消息，用于绑定现有 trace
+    const messageWithTrace = messages.find((m) => m.role === 'assistant' && m.traceId)
+
+    if (messageWithTrace && messageWithTrace.traceId) {
+      // 导入并调用 appendTrace 来绑定现有 trace，传入summary使用的模型名
+      const { appendTrace } = await import('@renderer/services/SpanManagerService')
+      await appendTrace({ topicId, traceId: messageWithTrace.traceId, model })
+    }
+
+    const { getText } = await AI.completions(model.id, llmMessages, {
+      ...middlewareConfig,
+      assistant: summaryAssistant,
+      topicId,
+      callType: 'summary'
+    })
+    const text = getText()
+    return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
     return null
   }
 }
 
-export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = assistant.model || getDefaultModel()
+export async function fetchNoteSummary({ content, assistant }: { content: string; assistant?: Assistant }) {
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
+  const resolvedAssistant = assistant || getDefaultAssistant()
+  const model = getQuickModel() || resolvedAssistant.model || getDefaultModel()
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
+
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
     return null
   }
 
-  const AI = new AiProvider(provider)
-
-  return await AI.summaryForSearch(messages, assistant)
-}
-
-export async function fetchGenerate({ prompt, content }: { prompt: string; content: string }): Promise<string> {
-  const model = getDefaultModel()
-  const provider = getProviderByModel(model)
-
-  if (!hasApiKey(provider)) {
-    return ''
+  // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const providerWithRotatedKey = {
+    ...provider,
+    apiKey: getRotatedApiKey(provider)
   }
 
-  const AI = new AiProvider(provider)
+  const AI = new AiProviderNew(model, providerWithRotatedKey)
+
+  // only 2000 char and no images
+  const truncatedContent = content.substring(0, 2000)
+  const purifiedContent = purifyMarkdownImages(truncatedContent)
+
+  const summaryAssistant = {
+    ...resolvedAssistant,
+    settings: {
+      ...resolvedAssistant.settings,
+      reasoning_effort: undefined,
+      qwenThinkMode: false
+    },
+    prompt,
+    model
+  }
+
+  const llmMessages = {
+    system: prompt,
+    prompt: purifiedContent
+  }
+
+  const middlewareConfig: AiSdkMiddlewareConfig = {
+    streamOutput: false,
+    enableReasoning: false,
+    isPromptToolUse: false,
+    isSupportedToolUse: false,
+    isImageGenerationEndpoint: false,
+    enableWebSearch: false,
+    enableGenerateImage: false,
+    enableUrlContext: false,
+    mcpTools: []
+  }
 
   try {
-    return await AI.generateText({ prompt, content })
+    const { getText } = await AI.completions(model.id, llmMessages, {
+      ...middlewareConfig,
+      assistant: summaryAssistant,
+      callType: 'summary'
+    })
+    const text = getText()
+    return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
-    return ''
+    return null
   }
 }
 
-export async function fetchSuggestions({
-  messages,
-  assistant
+// export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+//   const model = getQuickModel() || assistant.model || getDefaultModel()
+//   const provider = getProviderByModel(model)
+
+//   if (!hasApiKey(provider)) {
+//     return null
+//   }
+
+//   const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
+
+//   const AI = new AiProvider(provider)
+
+//   const params: CompletionsParams = {
+//     callType: 'search',
+//     messages: messages,
+//     assistant,
+//     streamOutput: false,
+//     topicId
+//   }
+
+//   return await AI.completionsForTrace(params)
+// }
+
+export async function fetchGenerate({
+  prompt,
+  content,
+  model
 }: {
-  messages: Message[]
-  assistant: Assistant
-}): Promise<Suggestion[]> {
-  const model = assistant.model
-  if (!model || model.id.endsWith('global')) {
-    return []
+  prompt: string
+  content: string
+  model?: Model
+}): Promise<string> {
+  if (!model) {
+    model = getDefaultModel()
+  }
+  const provider = getProviderByModel(model)
+
+  if (!hasApiKey(provider)) {
+    return ''
   }
 
-  const provider = getAssistantProvider(assistant)
-  const AI = new AiProvider(provider)
+  // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const providerWithRotatedKey = {
+    ...provider,
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(model, providerWithRotatedKey)
+
+  const assistant = getDefaultAssistant()
+  assistant.model = model
+  assistant.prompt = prompt
+
+  // const params: CompletionsParams = {
+  //   callType: 'generate',
+  //   messages: content,
+  //   assistant,
+  //   streamOutput: false
+  // }
+
+  const middlewareConfig: AiSdkMiddlewareConfig = {
+    streamOutput: assistant.settings?.streamOutput ?? false,
+    enableReasoning: false,
+    isPromptToolUse: false,
+    isSupportedToolUse: false,
+    isImageGenerationEndpoint: false,
+    enableWebSearch: false,
+    enableGenerateImage: false,
+    enableUrlContext: false
+  }
 
   try {
-    return await AI.suggestions(filterMessages(messages), assistant)
+    const result = await AI.completions(
+      model.id,
+      {
+        system: prompt,
+        prompt: content
+      },
+      {
+        ...middlewareConfig,
+        assistant,
+        callType: 'generate'
+      }
+    )
+    return result.getText() || ''
   } catch (error: any) {
-    return []
+    return ''
   }
 }
 
-function hasApiKey(provider: Provider) {
+export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
+  if (provider.id === 'cherryai') return true
+  if (
+    (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) ||
+    NOT_SUPPORT_API_KEY_PROVIDER_TYPES.includes(provider.type)
+  )
+    return true
   return !isEmpty(provider.apiKey)
 }
 
-export async function fetchModels(provider: Provider) {
-  const AI = new AiProvider(provider)
+/**
+ * Get rotated API key for providers that support multiple keys
+ * Returns empty string for providers that don't require API keys
+ */
+function getRotatedApiKey(provider: Provider): string {
+  // Handle providers that don't require API keys
+  if (!provider.apiKey || provider.apiKey.trim() === '') {
+    return ''
+  }
+
+  const keys = provider.apiKey
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean)
+
+  if (keys.length === 0) {
+    return ''
+  }
+
+  const keyName = `provider:${provider.id}:last_used_key`
+
+  // If only one key, return it directly
+  if (keys.length === 1) {
+    return keys[0]
+  }
+
+  const lastUsedKey = cacheService.getCasual<string>(keyName)
+  if (!lastUsedKey) {
+    cacheService.setCasual(keyName, keys[0])
+    return keys[0]
+  }
+
+  const currentIndex = keys.indexOf(lastUsedKey)
+
+  // Log when the last used key is no longer in the list
+  if (currentIndex === -1) {
+    logger.debug('Last used API key no longer found in provider keys, falling back to first key', {
+      providerId: provider.id,
+      lastUsedKey: lastUsedKey.substring(0, 8) + '...' // Only log first 8 chars for security
+    })
+  }
+
+  const nextIndex = (currentIndex + 1) % keys.length
+  const nextKey = keys[nextIndex]
+  cacheService.setCasual(keyName, nextKey)
+
+  return nextKey
+}
+
+export async function fetchModels(provider: Provider): Promise<Model[]> {
+  // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const providerWithRotatedKey = {
+    ...provider,
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(providerWithRotatedKey)
 
   try {
     return await AI.models()
   } catch (error) {
+    logger.error('Failed to fetch models from provider', {
+      providerId: provider.id,
+      providerName: provider.name,
+      error: error as Error
+    })
     return []
   }
 }
 
-export const formatApiKeys = (value: string) => {
-  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
-}
+export function checkApiProvider(provider: Provider): void {
+  const isExcludedProvider =
+    (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) ||
+    NOT_SUPPORT_API_KEY_PROVIDER_TYPES.includes(provider.type)
 
-export function checkApiProvider(provider: Provider): {
-  valid: boolean
-  error: Error | null
-} {
-  const key = 'api-check'
-  const style = { marginTop: '3vh' }
-
-  if (provider.id !== 'ollama' && provider.id !== 'lmstudio') {
+  if (!isExcludedProvider) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      return {
-        valid: false,
-        error: new Error(i18n.t('message.error.enter.api.key'))
-      }
+      window.toast.error(i18n.t('message.error.enter.api.label'))
+      throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 
-  if (!provider.apiHost) {
-    window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
-    return {
-      valid: false,
-      error: new Error(i18n.t('message.error.enter.api.host'))
-    }
+  if (!provider.apiHost && provider.type !== 'vertexai') {
+    window.toast.error(i18n.t('message.error.enter.api.host'))
+    throw new Error(i18n.t('message.error.enter.api.host'))
   }
 
   if (isEmpty(provider.models)) {
-    window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
-    return {
-      valid: false,
-      error: new Error(i18n.t('message.error.enter.model'))
-    }
-  }
-
-  return {
-    valid: true,
-    error: null
+    window.toast.error(i18n.t('message.error.enter.model'))
+    throw new Error(i18n.t('message.error.enter.model'))
   }
 }
 
-export async function checkApi(provider: Provider, model: Model): Promise<{ valid: boolean; error: Error | null }> {
-  const validation = checkApiProvider(provider)
-  if (!validation.valid) {
-    return {
-      valid: validation.valid,
-      error: validation.error
+export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
+  checkApiProvider(provider)
+
+  const ai = new AiProviderNew(model, provider)
+
+  const assistant = getDefaultAssistant()
+  assistant.model = model
+  assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
+
+  if (isEmbeddingModel(model)) {
+    // race 超时 15s
+    logger.silly("it's a embedding model")
+    const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+    await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
+  } else {
+    const abortId = uuid()
+    const signal = readyToAbort(abortId)
+    let streamError: ResponseError | undefined
+    const params: StreamTextParams = {
+      system: assistant.prompt,
+      prompt: 'hi',
+      abortSignal: signal
+    }
+    const config: ModernAiProviderConfig = {
+      streamOutput: true,
+      enableReasoning: false,
+      isSupportedToolUse: false,
+      isImageGenerationEndpoint: false,
+      enableWebSearch: false,
+      enableGenerateImage: false,
+      isPromptToolUse: false,
+      enableUrlContext: false,
+      assistant,
+      callType: 'check',
+      onChunk: (chunk: Chunk) => {
+        if (chunk.type === ChunkType.ERROR) {
+          streamError = chunk.error
+        } else {
+          abortCompletion(abortId)
+        }
+      }
+    }
+
+    try {
+      await ai.completions(model.id, params, config)
+    } catch (e) {
+      if (!isAbortError(e) && !isAbortError(streamError)) {
+        throw streamError ?? e
+      }
     }
   }
+}
 
-  const ai = new AiProvider(provider)
-
-  // Try streaming check first
-  const result = await ai.check(model, true)
-
-  if (result.valid && !result.error) {
-    return result
-  }
-
-  // 不应该假设错误由流式引发。多次发起检测请求可能触发429，掩盖了真正的问题。
-  // 但这里错误类型做的很粗糙，暂时先这样
-  if (result.error && result.error.message.includes('stream')) {
-    return ai.check(model, false)
-  } else {
-    return result
-  }
+export async function checkModel(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+  const startTime = performance.now()
+  await checkApi(provider, model, timeout)
+  return { latency: performance.now() - startTime }
 }

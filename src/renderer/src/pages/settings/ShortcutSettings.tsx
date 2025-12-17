@@ -1,14 +1,18 @@
 import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
-import { isMac, isWindows } from '@renderer/config/constant'
+import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { getShortcutLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
-import { Shortcut } from '@renderer/types'
-import { Button, Input, InputRef, Switch, Table as AntTable, Tooltip } from 'antd'
+import type { Shortcut } from '@renderer/types'
+import type { InputRef } from 'antd'
+import { Input, Table as AntTable } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import React, { FC, useRef, useState } from 'react'
+import type { FC } from 'react'
+import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,10 +25,11 @@ const ShortcutSettings: FC = () => {
   const { shortcuts: originalShortcuts } = useShortcuts()
   const inputRefs = useRef<Record<string, InputRef>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
+  const { setTimeoutTimer } = useTimer()
 
   //if shortcut is not available on all the platforms, block the shortcut here
   let shortcuts = originalShortcuts
-  if (!isWindows) {
+  if (!isWin && !isMac) {
     //Selection Assistant only available on Windows now
     const excludedShortcuts = ['selection_assistant_toggle', 'selection_assistant_select_text']
     shortcuts = shortcuts.filter((s) => !excludedShortcuts.includes(s.key))
@@ -41,9 +46,13 @@ const ShortcutSettings: FC = () => {
 
   const handleAddShortcut = (record: Shortcut) => {
     setEditingKey(record.key)
-    setTimeout(() => {
-      inputRefs.current[record.key]?.focus()
-    }, 0)
+    setTimeoutTimer(
+      'handleAddShortcut',
+      () => {
+        inputRefs.current[record.key]?.focus()
+      },
+      0
+    )
   }
 
   const isShortcutModified = (record: Shortcut) => {
@@ -64,8 +73,14 @@ const ShortcutSettings: FC = () => {
   }
 
   const isValidShortcut = (keys: string[]): boolean => {
-    const hasModifier = keys.some((key) => ['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
-    const hasNonModifier = keys.some((key) => !['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
+    // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
+    // const hasModifier = keys.some((key) => ['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
+    // const hasNonModifier = keys.some((key) => !['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
+
+    // NEW WAY FOR MODIFIER KEYS
+    const hasModifier = keys.some((key) => ['CommandOrControl', 'Ctrl', 'Alt', 'Meta', 'Shift'].includes(key))
+    const hasNonModifier = keys.some((key) => !['CommandOrControl', 'Ctrl', 'Alt', 'Meta', 'Shift'].includes(key))
+
     const hasFnKey = keys.some((key) => /^F\d+$/.test(key))
 
     return (hasModifier && hasNonModifier && keys.length >= 2) || hasFnKey
@@ -77,22 +92,44 @@ const ShortcutSettings: FC = () => {
     )
   }
 
+  // how the shortcut is displayed in the UI
   const formatShortcut = (shortcut: string[]): string => {
     return shortcut
       .map((key) => {
         switch (key) {
-          case 'Control':
-            return isMac ? '⌃' : 'Ctrl'
-          case 'Ctrl':
-            return isMac ? '⌃' : 'Ctrl'
-          case 'Command':
-            return isMac ? '⌘' : isWindows ? 'Win' : 'Super'
-          case 'Alt':
-            return isMac ? '⌥' : 'Alt'
-          case 'Shift':
-            return isMac ? '⇧' : 'Shift'
+          // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
+          // case 'Control':
+          //   return isMac ? '⌃' : 'Ctrl'
+          // case 'Ctrl':
+          //   return isMac ? '⌃' : 'Ctrl'
+          // case 'Command':
+          //   return isMac ? '⌘' : isWin ? 'Win' : 'Super'
+          // case 'Alt':
+          //   return isMac ? '⌥' : 'Alt'
+          // case 'Shift':
+          //   return isMac ? '⇧' : 'Shift'
+          // case 'CommandOrControl':
+          //   return isMac ? '⌘' : 'Ctrl'
+
+          // new way for modifier keys
           case 'CommandOrControl':
             return isMac ? '⌘' : 'Ctrl'
+          case 'Ctrl':
+            return isMac ? '⌃' : 'Ctrl'
+          case 'Alt':
+            return isMac ? '⌥' : 'Alt'
+          case 'Meta':
+            return isMac ? '⌘' : isWin ? 'Win' : 'Super'
+          case 'Shift':
+            return isMac ? '⇧' : 'Shift'
+
+          // for backward compatibility with old data
+          case 'Command':
+          case 'Cmd':
+            return isMac ? '⌘' : 'Ctrl'
+          case 'Control':
+            return isMac ? '⌃' : 'Ctrl'
+
           case 'ArrowUp':
             return '↑'
           case 'ArrowDown':
@@ -239,10 +276,21 @@ const ShortcutSettings: FC = () => {
     e.preventDefault()
 
     const keys: string[] = []
-    if (e.ctrlKey) keys.push(isMac ? 'Control' : 'Ctrl')
-    if (e.metaKey) keys.push('Command')
+
+    // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
+    // if (e.ctrlKey) keys.push(isMac ? 'Control' : 'Ctrl')
+    // if (e.metaKey) keys.push('Command')
+    // if (e.altKey) keys.push('Alt')
+    // if (e.shiftKey) keys.push('Shift')
+
+    // NEW WAY FOR MODIFIER KEYS
+    // for capability across platforms, we transform the modifier keys to the really meaning keys
+    // mainly consider the habit of users on different platforms
+    if (e.ctrlKey) keys.push(isMac ? 'Ctrl' : 'CommandOrControl') // for win&linux, ctrl key is almost the same as command key in macOS
     if (e.altKey) keys.push('Alt')
+    if (e.metaKey) keys.push(isMac ? 'CommandOrControl' : 'Meta') // for macOS, meta(Command) key is almost the same as Ctrl key in win&linux
     if (e.shiftKey) keys.push('Shift')
+
     const endKey = usableEndKeys(e)
     if (endKey) {
       keys.push(endKey)
@@ -268,14 +316,15 @@ const ShortcutSettings: FC = () => {
     })
   }
 
+  // 由于启用了showHeader = false，不再需要title字段
   const columns: ColumnsType<Shortcut> = [
     {
-      title: t('settings.shortcuts.action'),
+      // title: t('settings.shortcuts.action'),
       dataIndex: 'name',
       key: 'name'
     },
     {
-      title: t('settings.shortcuts.key'),
+      // title: t('settings.shortcuts.label'),
       dataIndex: 'shortcut',
       key: 'shortcut',
       align: 'right',
@@ -285,8 +334,8 @@ const ShortcutSettings: FC = () => {
         const isEditable = shortcutConfig?.editable !== false
 
         return (
-          <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <HStack alignItems="center" style={{ position: 'relative' }}>
+          <RowFlex className="items-center justify-end gap-2">
+            <RowFlex className="relative items-center">
               {isEditing ? (
                 <ShortcutInput
                   ref={(el) => {
@@ -309,46 +358,41 @@ const ShortcutSettings: FC = () => {
                   {shortcut.length > 0 ? formatShortcut(shortcut) : t('settings.shortcuts.press_shortcut')}
                 </ShortcutText>
               )}
-            </HStack>
-          </HStack>
+            </RowFlex>
+          </RowFlex>
         )
       }
     },
     {
-      title: t('settings.shortcuts.actions'),
+      // title: t('settings.shortcuts.actions'),
       key: 'actions',
       align: 'right',
       width: '70px',
       render: (record: Shortcut) => (
-        <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <Tooltip title={t('settings.shortcuts.reset_to_default')}>
-            <Button
-              icon={<UndoOutlined />}
-              size="small"
-              shape="circle"
-              onClick={() => handleResetShortcut(record)}
-              disabled={!isShortcutModified(record)}
-            />
+        <RowFlex className="items-center justify-end gap-2">
+          <Tooltip content={t('settings.shortcuts.reset_to_default')}>
+            <Button size="icon-sm" onClick={() => handleResetShortcut(record)} disabled={!isShortcutModified(record)}>
+              <UndoOutlined />
+            </Button>
           </Tooltip>
-          <Tooltip title={t('settings.shortcuts.clear_shortcut')}>
+          <Tooltip content={t('settings.shortcuts.clear_shortcut')}>
             <Button
-              icon={<ClearOutlined />}
-              size="small"
-              shape="circle"
+              size="icon-sm"
               onClick={() => handleClear(record)}
-              disabled={record.shortcut.length === 0 || !record.editable}
-            />
+              disabled={record.shortcut.length === 0 || !record.editable}>
+              <ClearOutlined />
+            </Button>
           </Tooltip>
-        </HStack>
+        </RowFlex>
       )
     },
     {
-      title: t('settings.shortcuts.enabled'),
+      // title: t('settings.shortcuts.enabled'),
       key: 'enabled',
       align: 'right',
       width: '50px',
       render: (record: Shortcut) => (
-        <Switch size="small" checked={record.enabled} onChange={() => dispatch(toggleShortcut(record.key))} />
+        <Switch checked={record.enabled} onCheckedChange={() => dispatch(toggleShortcut(record.key))} />
       )
     }
   ]
@@ -360,15 +404,15 @@ const ShortcutSettings: FC = () => {
         <SettingDivider style={{ marginBottom: 0 }} />
         <Table
           columns={columns as ColumnsType<unknown>}
-          dataSource={shortcuts.map((s) => ({ ...s, name: t(`settings.shortcuts.${s.key}`) }))}
+          dataSource={shortcuts.map((s) => ({ ...s, name: getShortcutLabel(s.key) }))}
           pagination={false}
           size="middle"
           showHeader={false}
         />
         <SettingDivider style={{ marginBottom: 0 }} />
-        <HStack justifyContent="flex-end" padding="16px 0">
+        <RowFlex className="justify-end p-4">
           <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
-        </HStack>
+        </RowFlex>
       </SettingGroup>
     </SettingContainer>
   )

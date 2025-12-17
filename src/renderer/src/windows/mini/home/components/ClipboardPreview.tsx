@@ -1,7 +1,7 @@
 import { CloseOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { Typography } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 interface ClipboardPreviewProps {

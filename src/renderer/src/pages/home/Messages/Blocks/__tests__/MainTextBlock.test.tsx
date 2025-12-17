@@ -12,10 +12,15 @@ import MainTextBlock from '../MainTextBlock'
 // Mock dependencies
 const mockUseSettings = vi.fn()
 const mockUseSelector = vi.fn()
+let mockUsePreference: any
 
 // Mock hooks
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => mockUseSettings()
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: vi.fn()
 }))
 
 vi.mock('react-redux', async () => {
@@ -48,6 +53,28 @@ vi.mock('@renderer/utils/formats', () => ({
   encodeHTML: vi.fn((content: string) => content.replace(/"/g, '&quot;'))
 }))
 
+// Mock citation utilities
+vi.mock('@renderer/utils/citation', () => ({
+  withCitationTags: vi.fn((content: string, citations: any[]) => {
+    // Simple mock implementation that simulates citation processing
+    if (citations.length > 0) {
+      return `${content} [processed-citations]`
+    }
+    return content
+  }),
+  determineCitationSource: vi.fn((citationReferences: any[], citationBlock?: any) => {
+    // Mock implementation that returns the first valid source from citationReferences
+    if (citationBlock?.response?.source) {
+      return citationBlock.response.source
+    }
+    if (citationReferences?.length) {
+      const validReference = citationReferences.find((ref) => ref.citationBlockSource)
+      return validReference?.citationBlockSource
+    }
+    return undefined
+  })
+}))
+
 // Mock services
 vi.mock('@renderer/services/ModelService', () => ({
   getModelUniqId: vi.fn()
@@ -56,17 +83,21 @@ vi.mock('@renderer/services/ModelService', () => ({
 // Mock Markdown component
 vi.mock('@renderer/pages/home/Markdown/Markdown', () => ({
   __esModule: true,
-  default: ({ block }: any) => (
-    <div data-testid="mock-markdown" data-content={block.content}>
-      Markdown: {block.content}
-    </div>
-  )
+  default: ({ block, postProcess }: any) => {
+    const content = postProcess ? postProcess(block.content) : block.content
+    return (
+      <div data-testid="mock-markdown" data-content={content}>
+        Markdown: {content}
+      </div>
+    )
+  }
 }))
 
 describe('MainTextBlock', () => {
   // Get references to mocked modules
   let mockGetModelUniqId: any
-  let mockCleanMarkdownContent: any
+  let mockWithCitationTags: any
+  let mockDetermineCitationSource: any
 
   // Create a mock store for Provider
   const mockStore = configureStore({
@@ -80,12 +111,16 @@ describe('MainTextBlock', () => {
 
     // Get the mocked functions
     const { getModelUniqId } = await import('@renderer/services/ModelService')
-    const { cleanMarkdownContent } = await import('@renderer/utils/formats')
+    const { withCitationTags, determineCitationSource } = await import('@renderer/utils/citation')
+    const { usePreference } = await import('@data/hooks/usePreference')
     mockGetModelUniqId = getModelUniqId as any
-    mockCleanMarkdownContent = cleanMarkdownContent as any
+    mockWithCitationTags = withCitationTags as any
+    mockDetermineCitationSource = determineCitationSource as any
+    mockUsePreference = usePreference as any
 
     // Default mock implementations
     mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: false })
+    mockUsePreference.mockReturnValue([false, vi.fn()]) // usePreference returns [value, setter]
     mockUseSelector.mockReturnValue([]) // Empty citations by default
     mockGetModelUniqId.mockImplementation((model: Model) => `${model.id}-${model.name}`)
   })
@@ -140,7 +175,7 @@ describe('MainTextBlock', () => {
     })
 
     it('should render in plain text mode for user messages when setting disabled', () => {
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: false })
+      mockUsePreference.mockReturnValue([false, vi.fn()])
       const block = createMainTextBlock({ content: 'User message\nWith line breaks' })
       renderMainTextBlock({ block, role: 'user' })
 
@@ -155,7 +190,7 @@ describe('MainTextBlock', () => {
     })
 
     it('should render user messages as markdown when setting enabled', () => {
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: true })
+      mockUsePreference.mockReturnValue([true, vi.fn()])
       const block = createMainTextBlock({ content: 'User **bold** content' })
       renderMainTextBlock({ block, role: 'user' })
 
@@ -164,7 +199,7 @@ describe('MainTextBlock', () => {
     })
 
     it('should preserve complex formatting in plain text mode', () => {
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: false })
+      mockUsePreference.mockReturnValue([false, vi.fn()])
       const complexContent = `Line 1
   Indented line
 **Bold not parsed**
@@ -227,64 +262,26 @@ describe('MainTextBlock', () => {
       const mentionElement = screen.getByText('@Test Model')
       expect(mentionElement).toHaveStyle({ color: 'var(--color-link)' })
 
-      // Check container layout
-      const container = mentionElement.closest('[style*="gap"]')
-      expect(container).toHaveStyle({
-        gap: '8px',
-        marginBottom: '10px'
-      })
+      // Check container layout - now using Tailwind classes
+      const container = mentionElement.closest('.gap-2')
+      expect(container).toHaveClass('gap-2')
+      expect(container).toHaveClass('flex-wrap')
+      expect(container).toHaveClass('mb-2.5')
     })
   })
 
   describe('content processing', () => {
-    it('should filter tool_use tags from content', () => {
-      const testCases = [
-        {
-          name: 'single tool_use tag',
-          content: 'Before <tool_use>tool content</tool_use> after',
-          expectsFiltering: true
-        },
-        {
-          name: 'multiple tool_use tags',
-          content: 'Start <tool_use>tool1</tool_use> middle <tool_use>tool2</tool_use> end',
-          expectsFiltering: true
-        },
-        {
-          name: 'multiline tool_use',
-          content: `Text before
-<tool_use>
-  multiline
-  tool content
-</tool_use>
-text after`,
-          expectsFiltering: true
-        },
-        {
-          name: 'malformed tool_use',
-          content: 'Before <tool_use>unclosed tag',
-          expectsFiltering: false // Should preserve malformed tags
-        }
-      ]
-
-      testCases.forEach(({ content, expectsFiltering }) => {
-        const block = createMainTextBlock({ content })
-        const { unmount } = renderMainTextBlock({ block, role: 'assistant' })
-
-        const renderedContent = getRenderedMarkdown()
-        expect(renderedContent).toBeInTheDocument()
-
-        if (expectsFiltering) {
-          // Check that tool_use content is not visible to user
-          expect(screen.queryByText(/tool content|tool1|tool2|multiline/)).not.toBeInTheDocument()
-        }
-
-        unmount()
-      })
-    })
-
     it('should process content through format utilities', () => {
-      const block = createMainTextBlock({ content: 'Content to process' })
-      mockUseSelector.mockReturnValue([{ id: '1', content: 'Citation content', number: 1 }])
+      const block = createMainTextBlock({
+        content: 'Content to process',
+        citationReferences: [{ citationBlockSource: 'DEFAULT' as any }]
+      })
+      const mockCitations = [{ id: '1', content: 'Citation content', number: 1 }]
+
+      // Mock the useSelector calls - first call for citations, second call for citationBlock
+      mockUseSelector
+        .mockReturnValueOnce(mockCitations) // selectFormattedCitationsByBlockId
+        .mockReturnValueOnce(undefined) // messageBlocksSelectors.selectById
 
       renderMainTextBlock({
         block,
@@ -292,8 +289,14 @@ text after`,
         citationBlockId: 'test-citations'
       })
 
-      // Verify utility functions are called
-      expect(mockCleanMarkdownContent).toHaveBeenCalled()
+      // Verify determineCitationSource was called with correct parameters
+      expect(mockDetermineCitationSource).toHaveBeenCalledWith(block.citationReferences)
+
+      // Verify citation processing was called with correct parameters
+      expect(mockWithCitationTags).toHaveBeenCalledWith('Content to process', mockCitations, 'DEFAULT')
+
+      // Verify the processed content is rendered
+      expect(screen.getByText('Markdown: Content to process [processed-citations]')).toBeInTheDocument()
     })
   })
 
@@ -308,7 +311,7 @@ text after`,
       expect(mockUseSelector).toHaveBeenCalled()
     })
 
-    it('should integrate with citation system when citations exist', () => {
+    it('should integrate with citation processing when all conditions are met', () => {
       const block = createMainTextBlock({
         content: 'Content with citation [1]',
         citationReferences: [{ citationBlockSource: WebSearchSource.OPENAI }]
@@ -324,7 +327,11 @@ text after`,
         }
       ]
 
-      mockUseSelector.mockReturnValue(mockCitations)
+      // Mock the useSelector calls - first call for citations, second call for citationBlock
+      mockUseSelector
+        .mockReturnValueOnce(mockCitations) // selectFormattedCitationsByBlockId
+        .mockReturnValueOnce(undefined) // messageBlocksSelectors.selectById
+
       renderMainTextBlock({
         block,
         role: 'assistant',
@@ -335,28 +342,58 @@ text after`,
       expect(mockUseSelector).toHaveBeenCalled()
       expect(getRenderedMarkdown()).toBeInTheDocument()
 
-      // Verify content processing occurred
-      expect(mockCleanMarkdownContent).toHaveBeenCalledWith('Citation content')
+      // Verify determineCitationSource was called
+      expect(mockDetermineCitationSource).toHaveBeenCalledWith(block.citationReferences)
+
+      // Verify withCitationTags was called with correct parameters
+      expect(mockWithCitationTags).toHaveBeenCalledWith(
+        'Content with citation [1]',
+        mockCitations,
+        WebSearchSource.OPENAI
+      )
+
+      // Verify the processed content is rendered
+      expect(screen.getByText('Markdown: Content with citation [1] [processed-citations]')).toBeInTheDocument()
     })
 
-    it('should handle different citation sources correctly', () => {
-      const testSources = [WebSearchSource.OPENAI, 'DEFAULT' as any, 'CUSTOM' as any]
+    it('should skip citation processing when conditions are not met', () => {
+      const testCases = [
+        {
+          name: 'no citationReferences',
+          block: createMainTextBlock({ content: 'Content [1]' }),
+          citationBlockId: 'test'
+        },
+        {
+          name: 'no citationBlockId',
+          block: createMainTextBlock({
+            content: 'Content [1]',
+            citationReferences: [{ citationBlockSource: 'DEFAULT' as any }]
+          }),
+          citationBlockId: undefined
+        },
+        {
+          name: 'no citations data',
+          block: createMainTextBlock({
+            content: 'Content [1]',
+            citationReferences: [{ citationBlockSource: 'DEFAULT' as any }]
+          }),
+          citationBlockId: 'test'
+        }
+      ]
 
-      testSources.forEach((source) => {
-        const block = createMainTextBlock({
-          content: `Citation test for ${source}`,
-          citationReferences: [{ citationBlockSource: source }]
-        })
-
-        mockUseSelector.mockReturnValue([{ id: '1', number: 1, url: 'https://test.com', title: 'Test' }])
+      testCases.forEach(({ block, citationBlockId }) => {
+        mockUseSelector.mockReturnValue([]) // No citations
 
         const { unmount } = renderMainTextBlock({
           block,
           role: 'assistant',
-          citationBlockId: `test-${source}`
+          citationBlockId
         })
 
         expect(getRenderedMarkdown()).toBeInTheDocument()
+        // Should render original content without citation processing
+        expect(screen.getByText(`Markdown: ${block.content}`)).toBeInTheDocument()
+
         unmount()
       })
     })
@@ -387,64 +424,20 @@ text after`,
       const block = createMainTextBlock({ content: 'Settings test content' })
 
       // Test with markdown enabled
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: true })
+      mockUsePreference.mockReturnValue([true, vi.fn()])
       const { unmount } = renderMainTextBlock({ block, role: 'user' })
       expect(getRenderedMarkdown()).toBeInTheDocument()
       unmount()
 
       // Test with markdown disabled
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: false })
+      mockUsePreference.mockReturnValue([false, vi.fn()])
       renderMainTextBlock({ block, role: 'user' })
       expect(getRenderedPlainText()).toBeInTheDocument()
       expect(getRenderedMarkdown()).not.toBeInTheDocument()
     })
   })
 
-  describe('edge cases and robustness', () => {
-    it('should handle large content without performance issues', () => {
-      const largeContent = 'A'.repeat(1000) + ' with citations [1]'
-      const block = createMainTextBlock({ content: largeContent })
-
-      const largeCitations = [
-        {
-          id: '1',
-          number: 1,
-          url: 'https://large.com',
-          title: 'Large',
-          content: 'B'.repeat(500)
-        }
-      ]
-
-      mockUseSelector.mockReturnValue(largeCitations)
-
-      expect(() => {
-        renderMainTextBlock({
-          block,
-          role: 'assistant',
-          citationBlockId: 'large-test'
-        })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-    })
-
-    it('should handle special characters and Unicode gracefully', () => {
-      const specialContent = '测试内容 🚀 📝 ✨ <>&"\'` [1]'
-      const block = createMainTextBlock({ content: specialContent })
-
-      mockUseSelector.mockReturnValue([{ id: '1', number: 1, title: '特殊字符测试', content: '内容 with 🎉' }])
-
-      expect(() => {
-        renderMainTextBlock({
-          block,
-          role: 'assistant',
-          citationBlockId: 'unicode-test'
-        })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-    })
-
+  describe('integration and robustness', () => {
     it('should handle null and undefined values gracefully', () => {
       const block = createMainTextBlock({ content: 'Null safety test' })
 
@@ -460,7 +453,7 @@ text after`,
       expect(getRenderedMarkdown()).toBeInTheDocument()
     })
 
-    it('should integrate properly with Redux store', () => {
+    it('should integrate properly with Redux store for citations', () => {
       const block = createMainTextBlock({
         content: 'Redux integration test',
         citationReferences: [{ citationBlockSource: 'DEFAULT' as any }]

@@ -1,3 +1,4 @@
+import { isProd } from '@renderer/config/constant'
 import { Alert } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,9 +18,7 @@ const ErrorFallback = ({ fallback, error }: { fallback?: React.ReactNode; error?
 
   // 如果有详细错误信息，添加到描述中
   const errorDescription =
-    process.env.NODE_ENV !== 'production' && error
-      ? `${t('error.render.description')}: ${error.message}`
-      : t('error.render.description')
+    !isProd && error ? `${t('error.render.description')}: ${error.message}` : t('error.render.description')
 
   return fallback || <Alert message={t('error.render.title')} description={errorDescription} type="error" showIcon />
 }

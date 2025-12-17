@@ -1,14 +1,21 @@
-import { DeleteOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
+import { Button, HelpTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { HStack } from '@renderer/components/Layout'
-import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import EditableNumber from '@renderer/components/EditableNumber'
+import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
+import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import Selector from '@renderer/components/Selector'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
-import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
+import type { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
 import { isNull } from 'lodash'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { PlusIcon } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -23,19 +30,24 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
-  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
-  const [toolUseMode, setToolUseMode] = useState(assistant?.settings?.toolUseMode ?? 'prompt')
+  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput)
+  const [toolUseMode, setToolUseMode] = useState<AssistantSettings['toolUseMode']>(
+    assistant?.settings?.toolUseMode ?? 'function'
+  )
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
+  const [enableTopP, setEnableTopP] = useState(assistant?.settings?.enableTopP ?? false)
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
+  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? true)
 
   const customParametersRef = useRef(customParameters)
 
   customParametersRef.current = customParameters
 
   const { t } = useTranslation()
+  const { setTimeoutTimer } = useTimer()
 
   const onTemperatureChange = (value) => {
     if (!isNaN(value as number)) {
@@ -107,9 +119,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         )
       case 'boolean':
         return (
-          <Switch
-            checked={param.value as boolean}
-            onChange={(checked) => onUpdateCustomParameter(index, 'value', checked)}
+          <Select
+            value={param.value as boolean}
+            onChange={(value) => onUpdateCustomParameter(index, 'value', value)}
+            style={{ width: '100%' }}
+            options={[
+              { label: 'true', value: true },
+              { label: 'false', value: false }
+            ]}
           />
         )
       case 'json':
@@ -117,12 +134,18 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Input
             value={typeof param.value === 'string' ? param.value : JSON.stringify(param.value, null, 2)}
             onChange={(e) => {
-              try {
-                const jsonValue = JSON.parse(e.target.value)
-                onUpdateCustomParameter(index, 'value', jsonValue)
-              } catch {
-                onUpdateCustomParameter(index, 'value', e.target.value)
-              }
+              // For JSON type parameters, always store the value as a STRING
+              //
+              // Data Flow:
+              // 1. UI stores: { name: "config", value: '{"key":"value"}', type: "json" } ← STRING format
+              // 2. API parses: getCustomParameters() in src/renderer/src/aiCore/utils/reasoning.ts:687-696
+              //                calls JSON.parse() to convert string to object
+              // 3. Request sends: The parsed object is sent to the AI provider
+              //
+              // Previously this code was parsing JSON here and storing
+              // the object directly, which caused getCustomParameters() to fail when trying
+              // to JSON.parse() an already-parsed object.
+              onUpdateCustomParameter(index, 'value', e.target.value)
             }}
           />
         )
@@ -143,29 +166,23 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   }
 
   const onReset = () => {
-    setTemperature(DEFAULT_TEMPERATURE)
-    setContextCount(DEFAULT_CONTEXTCOUNT)
-    setEnableMaxTokens(false)
-    setMaxTokens(0)
-    setStreamOutput(true)
-    setTopP(1)
-    setCustomParameters([])
-    setToolUseMode('prompt')
-    updateAssistantSettings({
-      temperature: DEFAULT_TEMPERATURE,
-      contextCount: DEFAULT_CONTEXTCOUNT,
-      enableMaxTokens: false,
-      maxTokens: 0,
-      streamOutput: true,
-      topP: 1,
-      customParameters: [],
-      toolUseMode: 'prompt'
-    })
+    setTemperature(DEFAULT_ASSISTANT_SETTINGS.temperature)
+    setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? true)
+    setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
+    setEnableMaxTokens(DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens ?? false)
+    setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)
+    setStreamOutput(DEFAULT_ASSISTANT_SETTINGS.streamOutput)
+    setTopP(DEFAULT_ASSISTANT_SETTINGS.topP)
+    setEnableTopP(DEFAULT_ASSISTANT_SETTINGS.enableTopP ?? false)
+    setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
+    setToolUseMode(DEFAULT_ASSISTANT_SETTINGS.toolUseMode)
+    updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
   }
+  const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
 
   const onSelectModel = useCallback(async () => {
     const currentModel = defaultModel ? assistant?.model : undefined
-    const selectedModel = await SelectModelPopup.show({ model: currentModel })
+    const selectedModel = await SelectModelPopup.show({ model: currentModel, filter: modelFilter })
     if (selectedModel) {
       setDefaultModel(selectedModel)
       updateAssistant({
@@ -173,8 +190,16 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         model: selectedModel,
         defaultModel: selectedModel
       })
+      // TODO: 需要根据配置来设置默认值
+      if (selectedModel.name.includes('kimi-k2')) {
+        setTemperature(0.6)
+        setTimeoutTimer('onSelectModel_1', () => updateAssistantSettings({ temperature: 0.6 }), 500)
+      } else if (selectedModel.name.includes('moonshot')) {
+        setTemperature(0.3)
+        setTimeoutTimer('onSelectModel_2', () => updateAssistantSettings({ temperature: 0.3 }), 500)
+      }
     }
-  }, [assistant, defaultModel, updateAssistant])
+  }, [assistant, defaultModel, setTimeoutTimer, updateAssistant, updateAssistantSettings])
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
@@ -188,149 +213,182 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   return (
     <Container>
-      <Row align="middle" style={{ marginBottom: 10 }}>
-        <Label style={{ marginBottom: 10 }}>{t('assistants.settings.default_model')}</Label>
-        <Col span={24}>
-          <HStack alignItems="center" gap={5}>
+      <RowFlex className="mb-2.5 items-center justify-between">
+        <Label>{t('assistants.settings.default_model')}</Label>
+        <RowFlex className="items-center gap-[5px]">
+          <ModelSelectButton onClick={onSelectModel}>
+            {defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
+            <ModelName>{defaultModel ? defaultModel.name : t('assistants.presets.edit.model.select.title')}</ModelName>
+          </ModelSelectButton>
+          {defaultModel && (
             <Button
-              icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusOutlined />}
-              onClick={onSelectModel}>
-              {defaultModel ? defaultModel.name : t('agents.edit.model.select.title')}
+              variant="destructive"
+              size="icon"
+              onClick={() => {
+                setDefaultModel(undefined)
+                updateAssistant({ ...assistant, defaultModel: undefined })
+              }}>
+              <DeleteIcon size={14} className="lucide-custom" />
             </Button>
-            {defaultModel && (
-              <Button
-                icon={<DeleteOutlined />}
-                type="text"
-                onClick={() => {
-                  setDefaultModel(undefined)
-                  updateAssistant({ ...assistant, defaultModel: undefined })
-                }}
-                danger
-              />
-            )}
-          </HStack>
-        </Col>
-      </Row>
+          )}
+        </RowFlex>
+      </RowFlex>
       <Divider style={{ margin: '10px 0' }} />
-      <Row align="middle">
-        <Label>{t('chat.settings.temperature')}</Label>
-        <Tooltip title={t('chat.settings.temperature.tip')}>
-          <QuestionIcon />
-        </Tooltip>
-      </Row>
-      <Row align="middle" gutter={20}>
-        <Col span={20}>
-          <Slider
-            min={0}
-            max={2}
-            onChange={setTemperature}
-            onChangeComplete={onTemperatureChange}
-            value={typeof temperature === 'number' ? temperature : 0}
-            marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
-            step={0.01}
+
+      <SettingRow style={{ minHeight: 30 }}>
+        <RowFlex className="items-center">
+          <Label>
+            {t('chat.settings.temperature.label')}
+            <HelpTooltip
+              content={t('chat.settings.temperature.tip')}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            />
+          </Label>
+        </RowFlex>
+        <Switch
+          checked={enableTemperature}
+          onCheckedChange={(enabled) => {
+            setEnableTemperature(enabled)
+            updateAssistantSettings({ enableTemperature: enabled })
+          }}
+        />
+      </SettingRow>
+      {enableTemperature && (
+        <Row align="middle" gutter={12}>
+          <Col span={20}>
+            <Slider
+              min={0}
+              max={2}
+              onChange={setTemperature}
+              onChangeComplete={onTemperatureChange}
+              value={typeof temperature === 'number' ? temperature : 0}
+              marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
+              step={0.01}
+            />
+          </Col>
+          <Col span={4}>
+            <EditableNumber
+              min={0}
+              max={2}
+              step={0.01}
+              value={temperature}
+              changeOnBlur
+              onChange={(value) => {
+                if (!isNull(value)) {
+                  setTemperature(value)
+                  setTimeoutTimer('temperature_onChange', () => updateAssistantSettings({ temperature: value }), 500)
+                }
+              }}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+      )}
+      <Divider style={{ margin: '10px 0' }} />
+
+      <SettingRow style={{ minHeight: 30 }}>
+        <RowFlex className="items-center">
+          <Label>{t('chat.settings.top_p.label')}</Label>
+          <HelpTooltip
+            content={t('chat.settings.top_p.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
           />
+        </RowFlex>
+        <Switch
+          checked={enableTopP}
+          onCheckedChange={(enabled) => {
+            setEnableTopP(enabled)
+            updateAssistantSettings({ enableTopP: enabled })
+          }}
+        />
+      </SettingRow>
+      {enableTopP && (
+        <Row align="middle" gutter={12}>
+          <Col span={20}>
+            <Slider
+              min={0}
+              max={1}
+              onChange={setTopP}
+              onChangeComplete={onTopPChange}
+              value={typeof topP === 'number' ? topP : 1}
+              marks={{ 0: '0', 1: '1' }}
+              step={0.01}
+            />
+          </Col>
+          <Col span={4}>
+            <EditableNumber
+              min={0}
+              max={1}
+              step={0.01}
+              value={topP}
+              changeOnBlur
+              onChange={(value) => {
+                if (!isNull(value)) {
+                  setTopP(value)
+                  setTimeoutTimer('topP_onChange', () => updateAssistantSettings({ topP: value }), 500)
+                }
+              }}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+      )}
+      <Divider style={{ margin: '10px 0' }} />
+
+      <Row align="middle">
+        <Col span={20}>
+          <Label>
+            {t('chat.settings.context_count.label')}{' '}
+            <HelpTooltip
+              content={t('chat.settings.context_count.tip')}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            />
+          </Label>
         </Col>
         <Col span={4}>
-          <InputNumber
+          <EditableNumber
             min={0}
-            max={2}
-            step={0.01}
-            value={temperature}
-            changeOnBlur
-            onChange={(value) => {
-              if (!isNull(value)) {
-                setTemperature(value)
-                setTimeout(() => updateAssistantSettings({ temperature: value }), 500)
-              }
-            }}
-            style={{ width: '100%' }}
-          />
-        </Col>
-      </Row>
-      <Row align="middle">
-        <Label>{t('chat.settings.top_p')}</Label>
-        <Tooltip title={t('chat.settings.top_p.tip')}>
-          <QuestionIcon />
-        </Tooltip>
-      </Row>
-      <Row align="middle" gutter={20}>
-        <Col span={20}>
-          <Slider
-            min={0}
-            max={1}
-            onChange={setTopP}
-            onChangeComplete={onTopPChange}
-            value={typeof topP === 'number' ? topP : 1}
-            marks={{ 0: '0', 1: '1' }}
-            step={0.01}
-          />
-        </Col>
-        <Col span={4}>
-          <InputNumber
-            min={0}
-            max={1}
-            step={0.01}
-            value={topP}
-            changeOnBlur
-            onChange={(value) => {
-              if (!isNull(value)) {
-                setTopP(value)
-                setTimeout(() => updateAssistantSettings({ topP: value }), 500)
-              }
-            }}
-            style={{ width: '100%' }}
-          />
-        </Col>
-      </Row>
-      <Row align="middle">
-        <Label>
-          {t('chat.settings.context_count')}{' '}
-          <Tooltip title={t('chat.settings.context_count.tip')}>
-            <QuestionIcon />
-          </Tooltip>
-        </Label>
-      </Row>
-      <Row align="middle" gutter={20}>
-        <Col span={20}>
-          <Slider
-            min={0}
-            max={100}
-            onChange={setContextCount}
-            onChangeComplete={onContextCountChange}
-            value={typeof contextCount === 'number' ? contextCount : 0}
-            marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: t('chat.settings.max') }}
-            step={1}
-            tooltip={{ formatter: formatSliderTooltip }}
-          />
-        </Col>
-        <Col span={4}>
-          <InputNumber
-            min={0}
-            max={20}
+            max={MAX_CONTEXT_COUNT}
             step={1}
             value={contextCount}
             changeOnBlur
             onChange={(value) => {
               if (!isNull(value)) {
                 setContextCount(value)
-                setTimeout(() => updateAssistantSettings({ contextCount: value }), 500)
+                setTimeoutTimer('contextCount_onChange', () => updateAssistantSettings({ contextCount: value }), 500)
               }
             }}
+            formatter={(value) => (value === MAX_CONTEXT_COUNT ? t('chat.settings.max') : (value ?? ''))}
             style={{ width: '100%' }}
+          />
+        </Col>
+      </Row>
+      <Row align="middle" gutter={24}>
+        <Col span={24}>
+          <Slider
+            min={0}
+            max={MAX_CONTEXT_COUNT}
+            onChange={setContextCount}
+            onChangeComplete={onContextCountChange}
+            value={typeof contextCount === 'number' ? contextCount : 0}
+            marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: t('chat.settings.max') }}
+            step={1}
+            tooltip={{ formatter: formatSliderTooltip, open: false }}
           />
         </Col>
       </Row>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
-        <HStack alignItems="center">
-          <Label>{t('chat.settings.max_tokens')}</Label>
-          <Tooltip title={t('chat.settings.max_tokens.tip')}>
-            <QuestionIcon />
-          </Tooltip>
-        </HStack>
+        <RowFlex className="items-center">
+          <Label>{t('chat.settings.max_tokens.label')}</Label>
+          <HelpTooltip
+            content={t('chat.settings.max_tokens.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+          />
+        </RowFlex>
         <Switch
           checked={enableMaxTokens}
-          onChange={async (enabled) => {
+          onCheckedChange={async (enabled) => {
             if (enabled) {
               const confirmed = await modalConfirm({
                 title: t('chat.settings.max_tokens.confirm'),
@@ -360,7 +418,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               onChange={(value) => {
                 if (!isNull(value)) {
                   setMaxTokens(value)
-                  setTimeout(() => updateAssistantSettings({ maxTokens: value }), 1000)
+                  setTimeoutTimer('maxTokens_onChange', () => updateAssistantSettings({ maxTokens: value }), 1000)
                 }
               }}
               style={{ width: '100%' }}
@@ -373,7 +431,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Label>{t('models.stream_output')}</Label>
         <Switch
           checked={streamOutput}
-          onChange={(checked) => {
+          onCheckedChange={(checked) => {
             setStreamOutput(checked)
             updateAssistantSettings({ streamOutput: checked })
           }}
@@ -381,22 +439,25 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </SettingRow>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
-        <Label>{t('assistants.settings.tool_use_mode')}</Label>
-        <Select
+        <Label>{t('assistants.settings.tool_use_mode.label')}</Label>
+        <Selector
           value={toolUseMode}
-          style={{ width: 110 }}
+          options={[
+            { label: t('assistants.settings.tool_use_mode.prompt'), value: 'prompt' },
+            { label: t('assistants.settings.tool_use_mode.function'), value: 'function' }
+          ]}
           onChange={(value) => {
             setToolUseMode(value)
             updateAssistantSettings({ toolUseMode: value })
-          }}>
-          <Select.Option value="prompt">{t('assistants.settings.tool_use_mode.prompt')}</Select.Option>
-          <Select.Option value="function">{t('assistants.settings.tool_use_mode.function')}</Select.Option>
-        </Select>
+          }}
+          size={14}
+        />
       </SettingRow>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.custom_parameters')}</Label>
-        <Button icon={<PlusOutlined />} onClick={onAddCustomParameter}>
+        <Button onClick={onAddCustomParameter}>
+          <PlusIcon size={18} />
           {t('models.add_parameter')}
         </Button>
       </SettingRow>
@@ -409,7 +470,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               onChange={(e) => onUpdateCustomParameter(index, 'name', e.target.value)}
             />
           </Col>
-          <Col span={4}>
+          <Col span={6}>
             <Select
               value={param.type}
               onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
@@ -420,18 +481,21 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               <Select.Option value="json">{t('models.parameter_type.json')}</Select.Option>
             </Select>
           </Col>
-          <Col span={12}>{renderParameterValueInput(param, index)}</Col>
+          <Col span={10}>{renderParameterValueInput(param, index)}</Col>
           <Col span={2} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button icon={<DeleteOutlined />} onClick={() => onDeleteCustomParameter(index)} danger />
+            <Button size="sm" variant="destructive" onClick={() => onDeleteCustomParameter(index)}>
+              <DeleteIcon size={14} className="lucide-custom" />
+            </Button>
           </Col>
         </Row>
       ))}
       <Divider style={{ margin: '15px 0' }} />
-      <HStack justifyContent="flex-end">
-        <Button onClick={onReset} style={{ width: 80 }} danger type="primary">
+      <RowFlex className="justify-end">
+        <Button onClick={onReset} variant="destructive">
+          <ResetIcon size={16} />
           {t('chat.settings.reset')}
         </Button>
-      </HStack>
+      </RowFlex>
     </Container>
   )
 }
@@ -440,19 +504,33 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
-  overflow: hidden;
   padding: 5px;
 `
 
 const Label = styled.p`
   margin-right: 5px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
 `
 
-const QuestionIcon = styled(QuestionCircleOutlined)`
-  font-size: 12px;
-  cursor: pointer;
-  color: var(--color-text-3);
+const ModelSelectButton = styled(Button)`
+  max-width: 300px;
+  justify-content: flex-start;
+
+  .ant-btn-icon {
+    flex-shrink: 0;
+  }
+`
+
+const ModelName = styled.span`
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
 `
 
 export default AssistantModelSettings

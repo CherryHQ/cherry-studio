@@ -12,18 +12,18 @@
 
   <body id="app">
     <div :class="isDark ? 'dark-bg' : 'bg'" class="min-h-screen">
-      <div class="max-w-3xl mx-auto py-12 px-4">
-        <h1 class="text-3xl font-bold mb-8" :class="isDark ? 'text-white' : 'text-gray-900'">Release Timeline</h1>
+      <div class="mx-auto max-w-3xl px-4 py-12">
+        <h1 class="mb-8 text-3xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">Release Timeline</h1>
 
         <!-- Loading状态 -->
-        <div v-if="loading" class="text-center py-8">
+        <div v-if="loading" class="py-8 text-center">
           <div
-            class="inline-block animate-spin rounded-full h-8 w-8 border-4"
+            class="inline-block h-8 w-8 animate-spin rounded-full border-4"
             :class="isDark ? 'border-gray-700 border-t-blue-500' : 'border-gray-300 border-t-blue-500'"></div>
         </div>
 
         <!-- Error 状态 -->
-        <div v-else-if="error" class="text-red-500 text-center py-8">{{ error }}</div>
+        <div v-else-if="error" class="py-8 text-center text-red-500">{{ error }}</div>
 
         <!-- Release 列表 -->
         <div v-else class="space-y-8">
@@ -32,21 +32,21 @@
             :key="release.id"
             class="relative pl-8"
             :class="isDark ? 'border-l-2 border-gray-700' : 'border-l-2 border-gray-200'">
-            <div class="absolute -left-2 top-0 w-4 h-4 rounded-full bg-green-500"></div>
+            <div class="absolute top-0 -left-2 h-4 w-4 rounded-full bg-green-500"></div>
             <div
-              class="rounded-lg shadow-sm p-6 transition-shadow"
+              class="rounded-lg p-6 shadow-sm transition-shadow"
               :class="isDark ? 'bg-black hover:shadow-md hover:shadow-black' : 'bg-white hover:shadow-md'">
-              <div class="flex items-start justify-between mb-4">
+              <div class="mb-4 flex items-start justify-between">
                 <div>
                   <h2 class="text-xl font-semibold" :class="isDark ? 'text-white' : 'text-gray-900'">
                     {{ release.name || release.tag_name }}
                   </h2>
-                  <p class="text-sm mt-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+                  <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
                     {{ formatDate(release.published_at) }}
                   </p>
                 </div>
                 <span
-                  class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                  class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium"
                   :class="isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800'">
                   {{ release.tag_name }}
                 </span>

@@ -1,21 +1,32 @@
-import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
+import { Flex, Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import { DeleteIcon } from '@renderer/components/Icons'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
-import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
-import { Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
+import type { MCPServerLogEntry } from '@shared/config/types'
+import type { TabsProps } from 'antd'
+import { Badge, Form, Input, Modal, Radio, Select, Tabs, Tag, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
 import MCPPromptsSection from './McpPrompt'
 import MCPResourcesSection from './McpResource'
 import MCPToolsSection from './McpTool'
+
+const logger = loggerService.withContext('McpSettings')
 
 interface MCPFormValues {
   name: string
@@ -28,6 +39,7 @@ interface MCPFormValues {
   env?: string
   isActive: boolean
   headers?: string
+  longRunning?: boolean
   timeout?: number
 
   provider?: string
@@ -41,7 +53,10 @@ interface Registry {
   url: string
 }
 
-const NpmRegistry: Registry[] = [{ name: '淘宝 NPM Mirror', url: 'https://registry.npmmirror.com' }]
+const NpmRegistry: Registry[] = [
+  { name: '淘宝 NPM Mirror', url: 'https://registry.npmmirror.com' },
+  { name: '自定义', url: 'custom' }
+]
 const PipRegistry: Registry[] = [
   { name: '清华大学', url: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
   { name: '阿里云', url: 'http://mirrors.aliyun.com/pypi/simple/' },
@@ -52,28 +67,13 @@ const PipRegistry: Registry[] = [
 
 type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
 
-const parseKeyValueString = (str: string): Record<string, string> => {
-  const result: Record<string, string> = {}
-  str.split('\n').forEach((line) => {
-    if (line.trim()) {
-      const [key, ...value] = line.split('=')
-      const formatValue = value.join('=').trim()
-      const formatKey = key.trim()
-      if (formatKey && formatValue) {
-        result[formatKey] = formatValue
-      }
-    }
-  })
-  return result
-}
-
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const {
-    server: { id: serverId }
-  } = useLocation().state as { server: MCPServer }
-  const server = useMCPServer(serverId).server as MCPServer
+  const { serverId } = useParams<{ serverId: string }>()
+  const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
+  const server = useMCPServer(decodedServerId).server as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
+  const { ensureServerTrusted } = useMCPServerTrust()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
   const [loading, setLoading] = useState(false)
@@ -86,10 +86,16 @@ const McpSettings: React.FC = () => {
   const [resources, setResources] = useState<MCPResource[]>([])
   const [isShowRegistry, setIsShowRegistry] = useState(false)
   const [registry, setRegistry] = useState<Registry[]>()
+  const [customRegistryUrl, setCustomRegistryUrl] = useState('')
+  const [selectedRegistryType, setSelectedRegistryType] = useState<string>('')
 
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [serverVersion, setServerVersion] = useState<string | null>(null)
+  const [logModalOpen, setLogModalOpen] = useState(false)
+  const [logs, setLogs] = useState<(MCPServerLogEntry & { serverId?: string })[]>([])
 
   const { theme } = useTheme()
+  const { Text } = Typography
 
   const navigate = useNavigate()
 
@@ -107,14 +113,33 @@ const McpSettings: React.FC = () => {
         setIsShowRegistry(true)
 
         // Determine registry type based on command
+        let currentRegistry: Registry[] = []
         if (server.command.includes('uv') || server.command.includes('uvx')) {
+          currentRegistry = PipRegistry
           setRegistry(PipRegistry)
         } else if (
           server.command.includes('npx') ||
           server.command.includes('bun') ||
           server.command.includes('bunx')
         ) {
+          currentRegistry = NpmRegistry
           setRegistry(NpmRegistry)
+        }
+
+        // Check if the registryUrl is a custom URL (not in the predefined list)
+        const isCustomRegistry =
+          currentRegistry.length > 0 &&
+          !currentRegistry.some((reg) => reg.url === server.registryUrl) &&
+          server.registryUrl !== '' // empty string is default
+
+        if (isCustomRegistry) {
+          // Set custom registry state
+          setSelectedRegistryType('custom')
+          setCustomRegistryUrl(server.registryUrl)
+        } else {
+          // Reset custom registry state for predefined registries
+          setSelectedRegistryType('')
+          setCustomRegistryUrl('')
         }
       }
     }
@@ -128,6 +153,7 @@ const McpSettings: React.FC = () => {
       command: server.command || '',
       registryUrl: server.registryUrl || '',
       isActive: server.isActive,
+      longRunning: server.longRunning,
       timeout: server.timeout,
       args: server.args ? server.args.join('\n') : '',
       env: server.env
@@ -203,11 +229,54 @@ const McpSettings: React.FC = () => {
     }
   }
 
+  const fetchServerVersion = async () => {
+    if (server.isActive) {
+      try {
+        const version = await window.api.mcp.getServerVersion(server)
+        setServerVersion(version)
+      } catch (error) {
+        setServerVersion(null)
+      }
+    }
+  }
+
+  const fetchServerLogs = async () => {
+    try {
+      const history = await window.api.mcp.getServerLogs(server)
+      setLogs(history)
+    } catch (error) {
+      logger.warn('Failed to load server logs', error as Error)
+    }
+  }
+
+  useEffect(() => {
+    const unsubscribe = window.api.mcp.onServerLog((log) => {
+      if (log.serverId && log.serverId !== server.id) return
+      setLogs((prev) => {
+        const merged = [...prev, log]
+        if (merged.length > 200) {
+          return merged.slice(merged.length - 200)
+        }
+        return merged
+      })
+    })
+
+    return () => {
+      unsubscribe?.()
+    }
+  }, [server.id])
+
+  useEffect(() => {
+    setLogs([])
+  }, [server.id])
+
   useEffect(() => {
     if (server.isActive) {
       fetchTools()
       fetchPrompts()
       fetchResources()
+      fetchServerVersion()
+      fetchServerLogs()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, server.isActive])
@@ -224,6 +293,7 @@ const McpSettings: React.FC = () => {
 
       // set basic fields
       const mcpServer: MCPServer = {
+        ...server,
         id: server.id,
         name: values.name,
         type: values.serverType || server.type,
@@ -232,11 +302,12 @@ const McpSettings: React.FC = () => {
         registryUrl: values.registryUrl,
         searchKey: server.searchKey,
         timeout: values.timeout || server.timeout,
-        // Preserve existing advanced properties if not set in the form
-        provider: values.provider || server.provider,
-        providerUrl: values.providerUrl || server.providerUrl,
-        logoUrl: values.logoUrl || server.logoUrl,
-        tags: values.tags || server.tags
+        longRunning: values.longRunning,
+        // Use nullish coalescing to allow empty strings (for deletion)
+        provider: values.provider ?? server.provider,
+        providerUrl: values.providerUrl ?? server.providerUrl,
+        logoUrl: values.logoUrl ?? server.logoUrl,
+        tags: values.tags ?? server.tags
       }
 
       // set stdio or sse server
@@ -256,24 +327,29 @@ const McpSettings: React.FC = () => {
         mcpServer.headers = parseKeyValueString(values.headers)
       }
 
-      try {
-        await window.api.mcp.restartServer(mcpServer)
-        updateMCPServer({ ...mcpServer, isActive: true })
-        window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
-        setLoading(false)
-        setIsFormChanged(false)
-      } catch (error: any) {
+      if (server.isActive) {
+        try {
+          await window.api.mcp.restartServer(mcpServer)
+          updateMCPServer({ ...mcpServer, isActive: true })
+          window.toast.success(t('settings.mcp.updateSuccess'))
+          setIsFormChanged(false)
+        } catch (error: any) {
+          updateMCPServer({ ...mcpServer, isActive: false })
+          window.modal.error({
+            title: t('settings.mcp.updateError'),
+            content: error.message,
+            centered: true
+          })
+        }
+      } else {
         updateMCPServer({ ...mcpServer, isActive: false })
-        window.modal.error({
-          title: t('settings.mcp.updateError'),
-          content: error.message,
-          centered: true
-        })
-        setLoading(false)
+        window.toast.success(t('settings.mcp.updateSuccess'))
+        setIsFormChanged(false)
       }
+      setLoading(false)
     } catch (error: any) {
       setLoading(false)
-      console.error('Failed to save MCP server settings:', error)
+      logger.error('Failed to save MCP server settings:', error)
     }
   }
 
@@ -294,6 +370,16 @@ const McpSettings: React.FC = () => {
   const onSelectRegistry = (url: string) => {
     const command = form.getFieldValue('command') || ''
 
+    // If custom registry is selected
+    if (url === 'custom') {
+      setSelectedRegistryType('custom')
+      // Don't set the registryUrl yet, wait for user input
+      return
+    }
+
+    setSelectedRegistryType('')
+    setCustomRegistryUrl('')
+
     // Add new registry env variables
     if (command.includes('uv') || command.includes('uvx')) {
       // envs['PIP_INDEX_URL'] = url
@@ -308,6 +394,12 @@ const McpSettings: React.FC = () => {
     setIsFormChanged(true)
   }
 
+  const onCustomRegistryChange = (url: string) => {
+    setCustomRegistryUrl(url)
+    form.setFieldsValue({ registryUrl: url })
+    setIsFormChanged(true)
+  }
+
   const onDeleteMcpServer = useCallback(
     async (server: MCPServer) => {
       try {
@@ -318,15 +410,12 @@ const McpSettings: React.FC = () => {
           onOk: async () => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
-            window.message.success({ content: t('settings.mcp.deleteSuccess'), key: 'mcp-list' })
+            window.toast.success(t('settings.mcp.deleteSuccess'))
             navigate('/settings/mcp')
           }
         })
       } catch (error: any) {
-        window.message.error({
-          content: `${t('settings.mcp.deleteError')}: ${error.message}`,
-          key: 'mcp-list'
-        })
+        window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -340,30 +429,43 @@ const McpSettings: React.FC = () => {
     }
 
     await form.validateFields()
-    setLoadingServer(server.id)
-    const oldActiveState = server.isActive
+    let serverForUpdate = server
+    if (active) {
+      const trustedServer = await ensureServerTrusted(server)
+      if (!trustedServer) {
+        return
+      }
+      serverForUpdate = trustedServer
+    }
+
+    setLoadingServer(serverForUpdate.id)
+    const oldActiveState = serverForUpdate.isActive
 
     try {
       if (active) {
-        const localTools = await window.api.mcp.listTools(server)
+        const localTools = await window.api.mcp.listTools(serverForUpdate)
         setTools(localTools)
 
-        const localPrompts = await window.api.mcp.listPrompts(server)
+        const localPrompts = await window.api.mcp.listPrompts(serverForUpdate)
         setPrompts(localPrompts)
 
-        const localResources = await window.api.mcp.listResources(server)
+        const localResources = await window.api.mcp.listResources(serverForUpdate)
         setResources(localResources)
+
+        const version = await window.api.mcp.getServerVersion(serverForUpdate)
+        setServerVersion(version)
       } else {
-        await window.api.mcp.stopServer(server)
+        await window.api.mcp.stopServer(serverForUpdate)
+        setServerVersion(null)
       }
-      updateMCPServer({ ...server, isActive: active })
+      updateMCPServer({ ...serverForUpdate, isActive: active })
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
-        content: formatMcpError(error),
+        content: formatMcpError(error as McpError),
         centered: true
       })
-      updateMCPServer({ ...server, isActive: oldActiveState })
+      updateMCPServer({ ...serverForUpdate, isActive: oldActiveState })
     } finally {
       setLoadingServer(null)
     }
@@ -398,7 +500,34 @@ const McpSettings: React.FC = () => {
     [server, updateMCPServer]
   )
 
-  const tabs = [
+  // Handle toggling auto-approve for a tool
+  const handleToggleAutoApprove = useCallback(
+    async (tool: MCPTool, autoApprove: boolean) => {
+      let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
+
+      if (autoApprove) {
+        disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== tool.name)
+      } else {
+        // Add tool to disabledTools if it's being disabled
+        if (!disabledAutoApproveTools.includes(tool.name)) {
+          disabledAutoApproveTools.push(tool.name)
+        }
+      }
+
+      // Update the server with new disabledTools
+      const updatedServer = {
+        ...server,
+        disabledAutoApproveTools
+      }
+
+      // Save the updated server configuration
+      // await window.api.mcp.updateServer(updatedServer)
+      updateMCPServer(updatedServer)
+    },
+    [server, updateMCPServer]
+  )
+
+  const tabs: TabsProps['items'] = [
     {
       key: 'settings',
       label: t('settings.mcp.tabs.general'),
@@ -484,7 +613,8 @@ const McpSettings: React.FC = () => {
                   name="registryUrl"
                   label={t('settings.mcp.registry')}
                   tooltip={t('settings.mcp.registryTooltip')}>
-                  <Radio.Group>
+                  <Radio.Group
+                    value={selectedRegistryType === 'custom' ? 'custom' : form.getFieldValue('registryUrl') || ''}>
                     <Radio
                       key="no-proxy"
                       value=""
@@ -504,6 +634,17 @@ const McpSettings: React.FC = () => {
                       </Radio>
                     ))}
                   </Radio.Group>
+                  {selectedRegistryType === 'custom' && (
+                    <Input
+                      placeholder={t(
+                        'settings.mcp.customRegistryPlaceholder',
+                        '请输入私有仓库地址，如: https://npm.company.com'
+                      )}
+                      value={customRegistryUrl}
+                      onChange={(e) => onCustomRegistryChange(e.target.value)}
+                      style={{ marginTop: 8 }}
+                    />
+                  )}
                 </Form.Item>
               )}
 
@@ -527,6 +668,14 @@ const McpSettings: React.FC = () => {
               </Form.Item>
             </>
           )}
+          <Form.Item
+            name="longRunning"
+            label={t('settings.mcp.longRunning', 'Long Running')}
+            tooltip={t('settings.mcp.longRunningTooltip')}
+            layout="horizontal"
+            valuePropName="checked">
+            <Switch className="ml-2.5" />
+          </Form.Item>
           <Form.Item
             name="timeout"
             label={t('settings.mcp.timeout', 'Timeout')}
@@ -557,11 +706,11 @@ const McpSettings: React.FC = () => {
               </Form.Item>
 
               <Form.Item name="providerUrl" label={t('settings.mcp.providerUrl', 'Provider URL')}>
-                <Input placeholder={t('settings.mcp.providerUrlPlaceholder', 'https://provider-website.com')} />
+                <Input placeholder="https://provider-website.com" />
               </Form.Item>
 
               <Form.Item name="logoUrl" label={t('settings.mcp.logoUrl', 'Logo URL')}>
-                <Input placeholder={t('settings.mcp.logoUrlPlaceholder', 'https://example.com/logo.png')} />
+                <Input placeholder="https://example.com/logo.png" />
               </Form.Item>
 
               <Form.Item name="tags" label={t('settings.mcp.tags', 'Tags')}>
@@ -591,59 +740,111 @@ const McpSettings: React.FC = () => {
     tabs.push(
       {
         key: 'tools',
-        label: t('settings.mcp.tabs.tools'),
-        children: <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />
+        label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
+        children: (
+          <MCPToolsSection
+            tools={tools}
+            server={server}
+            onToggleTool={handleToggleTool}
+            onToggleAutoApprove={handleToggleAutoApprove}
+          />
+        )
       },
       {
         key: 'prompts',
-        label: t('settings.mcp.tabs.prompts'),
+        label: t('settings.mcp.tabs.prompts') + (prompts.length > 0 ? ` (${prompts.length})` : ''),
         children: <MCPPromptsSection prompts={prompts} />
       },
       {
         key: 'resources',
-        label: t('settings.mcp.tabs.resources'),
+        label: t('settings.mcp.tabs.resources') + (resources.length > 0 ? ` (${resources.length})` : ''),
         children: <MCPResourcesSection resources={resources} />
       }
     )
   }
 
   return (
-    <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-      <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
-        <SettingTitle>
-          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-            <ServerName className="text-nowrap">{server?.name}</ServerName>
-            <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
-          </Flex>
-          <Flex align="center" gap={16}>
-            <Switch
-              value={server.isActive}
-              key={server.id}
-              loading={loadingServer === server.id}
-              onChange={onToggleActive}
-            />
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={onSave}
-              loading={loading}
-              shape="round"
-              disabled={!isFormChanged || activeTab !== 'settings'}>
-              {t('common.save')}
-            </Button>
-          </Flex>
-        </SettingTitle>
-        <SettingDivider />
-        <Tabs
-          defaultActiveKey="settings"
-          items={tabs}
-          onChange={(key) => setActiveTab(key as TabKey)}
-          style={{ marginTop: 8, backgroundColor: 'transparent' }}
-        />
-      </SettingGroup>
-    </SettingContainer>
+    <Container>
+      <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
+        <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
+          <SettingTitle>
+            <Flex className="mr-10 items-center justify-between gap-5">
+              <Flex className="items-center gap-2">
+                <ServerName className="text-nowrap">{server?.name}</ServerName>
+                {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+              </Flex>
+              <Button size="sm" variant="ghost" onClick={() => setLogModalOpen(true)}>
+                {t('settings.mcp.logs', 'View Logs')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
+                <DeleteIcon size={14} className="lucide-custom text-destructive" />
+              </Button>
+            </Flex>
+            <Flex className="items-center gap-4">
+              <Switch
+                checked={server.isActive}
+                key={server.id}
+                loading={loadingServer === server.id}
+                onCheckedChange={onToggleActive}
+              />
+              <Button
+                size="sm"
+                variant="default"
+                onClick={onSave}
+                disabled={loading || !isFormChanged || activeTab !== 'settings'}
+                className="rounded-full">
+                <SaveIcon size={14} />
+                {t('common.save')}
+              </Button>
+            </Flex>
+          </SettingTitle>
+          <SettingDivider />
+          <Tabs
+            defaultActiveKey="settings"
+            items={tabs}
+            onChange={(key) => setActiveTab(key as TabKey)}
+            style={{ marginTop: 8, backgroundColor: 'transparent' }}
+          />
+        </SettingGroup>
+      </SettingContainer>
+
+      <Modal
+        title={t('settings.mcp.logs', 'Server Logs')}
+        open={logModalOpen}
+        onCancel={() => setLogModalOpen(false)}
+        footer={null}
+        width={720}
+        centered
+        transitionName="animation-move-down"
+        bodyStyle={{ maxHeight: '60vh', minHeight: '40vh', overflowY: 'auto' }}
+        afterOpenChange={(open) => {
+          if (open) {
+            fetchServerLogs()
+          }
+        }}>
+        <LogList>
+          {logs.length === 0 && <Text type="secondary">{t('settings.mcp.noLogs', 'No logs yet')}</Text>}
+          {logs.map((log, idx) => (
+            <LogItem key={`${log.timestamp}-${idx}`}>
+              <Flex className="items-baseline gap-8">
+                <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
+                <Tag color={mapLogLevelColor(log.level)}>{log.level}</Tag>
+                <Text>{log.message}</Text>
+              </Flex>
+              {log.data && (
+                <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
+              )}
+            </LogItem>
+          ))}
+        </LogList>
+      </Modal>
+    </Container>
   )
 }
+
+const Container = styled(Scrollbar)`
+  height: calc(100vh - var(--navbar-height));
+`
 
 const ServerName = styled.span`
   font-size: 14px;
@@ -657,6 +858,67 @@ const AdvancedSettingsButton = styled.div`
   color: var(--color-primary);
   display: flex;
   align-items: center;
+`
+
+const LogList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`
+
+const LogItem = styled.div`
+  background: var(--color-bg-2, #1f1f1f);
+  color: var(--color-text-1, #e6e6e6);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+`
+
+const Timestamp = styled.span`
+  color: var(--color-text-3, #9aa2b1);
+  font-size: 12px;
+`
+
+const PreBlock = styled.pre`
+  margin: 6px 0 0;
+  padding: 8px;
+  background: var(--color-bg-3, #111418);
+  color: var(--color-text-1, #e6e6e6);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+`
+
+function mapLogLevelColor(level: MCPServerLogEntry['level']) {
+  switch (level) {
+    case 'error':
+    case 'stderr':
+      return 'red'
+    case 'warn':
+      return 'orange'
+    case 'info':
+    case 'stdout':
+      return 'blue'
+    default:
+      return 'default'
+  }
+}
+
+const VersionBadge = styled(Badge)`
+  .ant-badge-count {
+    background-color: var(--color-primary);
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 0 6px;
+    height: 18px;
+    line-height: 18px;
+    border-radius: 9px;
+    min-width: 18px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
 `
 
 export default McpSettings

@@ -1,6 +1,9 @@
 import { CloseOutlined, LinkOutlined, RedoOutlined, UploadOutlined } from '@ant-design/icons'
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { convertToBase64 } from '@renderer/utils'
-import { Button, Input, InputNumber, Select, Switch, Upload } from 'antd'
+import { Input, InputNumber, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useCallback } from 'react'
 
@@ -10,6 +13,8 @@ interface DynamicFormRenderProps {
   value: any
   onChange: (field: string, value: any) => void
 }
+
+const logger = loggerService.withContext('DynamicFormRender')
 
 export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
   schemaProperty,
@@ -31,7 +36,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           if (fileOrUrl.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
             onChange(propertyName, fileOrUrl)
           } else {
-            window.message?.error('Invalid image URL format')
+            window.toast?.error('Invalid image URL format')
           }
         } else {
           // Handle File case - convert to base64
@@ -39,11 +44,11 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           if (typeof base64Image === 'string') {
             onChange(propertyName, base64Image)
           } else {
-            console.error('Failed to convert image to base64')
+            logger.error('Failed to convert image to base64')
           }
         }
       } catch (error) {
-        console.error('Error processing image:', error)
+        logger.error('Error processing image:', error as Error)
       }
     },
     []
@@ -71,15 +76,9 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
               handleImageUpload(propertyName, file, onChange)
               return false
             }}>
-            <Button
-              icon={<UploadOutlined />}
-              title="Upload image file"
-              style={{
-                borderTopLeftRadius: 0,
-                borderBottomLeftRadius: 0,
-                height: '32px'
-              }}
-            />
+            <Button title="Upload image file" className="h-8 rounded-l-none">
+              <UploadOutlined />
+            </Button>
           </Upload>
         </div>
 
@@ -119,13 +118,13 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
               {value.startsWith('data:') ? 'Uploaded image' : 'Image URL'}
             </div>
             <Button
-              size="small"
-              danger
-              icon={<CloseOutlined />}
+              size="sm"
+              variant="destructive"
               onClick={() => onChange(propertyName, '')}
               title="Remove image"
-              style={{ flexShrink: 0, minWidth: 'auto', padding: '0 8px' }}
-            />
+              className="min-w-0 shrink-0 px-2">
+              <CloseOutlined />
+            </Button>
           </div>
         )}
       </div>
@@ -175,12 +174,9 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           min={schemaProperty.minimum}
           max={schemaProperty.maximum}
         />
-        <Button
-          size="small"
-          icon={<RedoOutlined />}
-          onClick={() => onChange(propertyName, generateRandomSeed())}
-          title="Generate random seed"
-        />
+        <Button size="sm" onClick={() => onChange(propertyName, generateRandomSeed())} title="Generate random seed">
+          <RedoOutlined />
+        </Button>
       </div>
     )
   }
@@ -203,7 +199,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
     return (
       <Switch
         checked={value !== undefined ? value : defaultValue}
-        onChange={(checked) => onChange(propertyName, checked)}
+        onCheckedChange={(checked) => onChange(propertyName, checked)}
         style={{ width: '2px' }}
       />
     )

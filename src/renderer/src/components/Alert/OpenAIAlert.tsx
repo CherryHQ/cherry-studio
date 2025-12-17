@@ -1,24 +1,28 @@
 import { Alert } from 'antd'
+import { t } from 'i18next'
 import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const LOCALSTORAGE_KEY = 'openai_alert_closed'
 
-const OpenAIAlert = () => {
-  const { t } = useTranslation()
+interface Props {
+  message?: string
+  key?: string
+}
+
+const OpenAIAlert = ({ message = t('settings.provider.openai.alert'), key = LOCALSTORAGE_KEY }: Props) => {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    const closed = localStorage.getItem(LOCALSTORAGE_KEY)
+    const closed = localStorage.getItem(key)
     setVisible(!closed)
-  }, [])
+  }, [key])
 
   if (!visible) return null
 
   return (
     <Alert
       style={{ width: '100%', marginTop: 5, marginBottom: 5 }}
-      message={t('settings.provider.openai.alert')}
+      message={message}
       closable
       afterClose={() => {
         localStorage.setItem(LOCALSTORAGE_KEY, '1')

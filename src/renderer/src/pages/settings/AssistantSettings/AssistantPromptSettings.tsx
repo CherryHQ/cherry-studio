@@ -1,14 +1,21 @@
 import 'emoji-picker-element'
 
-import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
+import CloseCircleFilled from '@ant-design/icons/lib/icons/CloseCircleFilled'
+import { Box, RowFlex, SpaceBetweenRowFlex } from '@cherrystudio/ui'
+import { CodeEditor } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { Popover, PopoverContent, PopoverTrigger, Tooltip } from '@heroui/react'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import { Assistant, AssistantSettings } from '@renderer/types'
+import type { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
-import { Button, Input, Popover } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
-import { useEffect, useState } from 'react'
+import { Input } from 'antd'
+import { Edit, HelpCircle, Save } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
@@ -23,12 +30,15 @@ interface Props {
 }
 
 const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
   const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
   const [prompt, setPrompt] = useState(assistant.prompt)
+  const [showPreview, setShowPreview] = useState(assistant.prompt.length > 0)
   const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
-  const [showMarkdown, setShowMarkdown] = useState(prompt.length > 0)
+  const editorRef = useRef<RichEditorRef>(null)
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -38,9 +48,15 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     updateTokenCount()
   }, [prompt])
 
+  const processedPrompt = usePromptProcessor({
+    prompt,
+    modelName: assistant.model?.name
+  })
+
   const onUpdate = () => {
     const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
     updateAssistant(_assistant)
+    window.toast.success(t('common.saved'))
   }
 
   const handleEmojiSelect = (selectedEmoji: string) => {
@@ -55,37 +71,40 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     updateAssistant(_assistant)
   }
 
-  const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
+  const promptVarsContent = <pre>{t('assistants.presets.add.prompt.variables.tip.content')}</pre>
 
   return (
     <Container>
-      <Box mb={8} style={{ fontWeight: 'bold' }}>
-        {t('common.name')}
-      </Box>
-      <HStack gap={8} alignItems="center">
-        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
-          <EmojiButtonWrapper>
-            <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
-            {emoji && (
-              <CloseCircleFilled
-                className="delete-icon"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleEmojiDelete()
-                }}
-                style={{
-                  display: 'none',
-                  position: 'absolute',
-                  top: '-8px',
-                  right: '-8px',
-                  fontSize: '16px',
-                  color: '#ff4d4f',
-                  cursor: 'pointer'
-                }}
-              />
-            )}
-          </EmojiButtonWrapper>
-        </Popover>
+      <Box className="mb-2 font-bold">{t('common.name')}</Box>
+      <RowFlex className="items-center gap-2">
+        <EmojiDeleteButtonWrapper>
+          <Popover>
+            <PopoverTrigger>
+              <Button className="h-7 min-w-7 p-1 text-lg">{emoji}</Button>
+            </PopoverTrigger>
+            <PopoverContent>
+              <EmojiPicker onEmojiClick={handleEmojiSelect} />
+            </PopoverContent>
+          </Popover>
+          {emoji && (
+            <CloseCircleFilled
+              className="delete-icon z-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEmojiDelete()
+              }}
+              style={{
+                display: 'none',
+                position: 'absolute',
+                top: '-8px',
+                right: '-8px',
+                fontSize: '16px',
+                color: '#ff4d4f',
+                cursor: 'pointer'
+              }}
+            />
+          )}
+        </EmojiDeleteButtonWrapper>
         <Input
           placeholder={t('common.assistant') + t('common.name')}
           value={name}
@@ -93,48 +112,69 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           onBlur={onUpdate}
           style={{ flex: 1 }}
         />
-      </HStack>
+      </RowFlex>
       <SettingDivider />
-      <HStack mb={8} alignItems="center" gap={4}>
+      <RowFlex className="mb-2 items-center gap-1">
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
-        <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
-          <QuestionCircleOutlined size={14} color="var(--color-text-2)" />
-        </Popover>
-      </HStack>
+        <Tooltip
+          content={
+            <>
+              <h1 className="text-lg">{t('assistants.presets.add.prompt.variables.tip.title')}</h1>
+              {promptVarsContent}
+            </>
+          }
+          showArrow>
+          <HelpCircle size={14} color="var(--color-text-2)" />
+        </Tooltip>
+      </RowFlex>
       <TextAreaContainer>
-        {showMarkdown ? (
-          <MarkdownContainer onClick={() => setShowMarkdown(false)}>
-            <ReactMarkdown className="markdown">{prompt}</ReactMarkdown>
-            <div style={{ height: '30px' }} />
-          </MarkdownContainer>
-        ) : (
-          <TextArea
-            rows={10}
-            placeholder={t('common.assistant') + t('common.prompt')}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onBlur={() => {
-              onUpdate()
-            }}
-            autoFocus={true}
-            spellCheck={false}
-            style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 200px)', paddingBottom: '30px' }}
-          />
-        )}
+        <RichEditorContainer>
+          {showPreview ? (
+            <MarkdownContainer
+              onDoubleClick={() => {
+                const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
+                setShowPreview(false)
+                requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+              }}>
+              <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
+            </MarkdownContainer>
+          ) : (
+            <CodeEditor
+              theme={activeCmTheme}
+              fontSize={fontSize - 1}
+              value={prompt}
+              language="markdown"
+              onChange={setPrompt}
+              className="h-full"
+              expanded={false}
+              style={{
+                height: '100%'
+              }}
+            />
+          )}
+        </RichEditorContainer>
       </TextAreaContainer>
-      <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
+      <SpaceBetweenRowFlex className="mt-2.5 w-full justify-end">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
-
-        {showMarkdown ? (
-          <Button type="primary" onClick={() => setShowMarkdown(false)}>
-            {t('common.edit')}
-          </Button>
-        ) : (
-          <Button type="primary" onClick={() => setShowMarkdown(true)}>
-            {t('common.save')}
-          </Button>
-        )}
-      </HSpaceBetweenStack>
+        <Button
+          variant="default"
+          onClick={() => {
+            const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
+            if (showPreview) {
+              setShowPreview(false)
+              requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+            } else {
+              onUpdate()
+              requestAnimationFrame(() => {
+                setShowPreview(true)
+                requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+              })
+            }
+          }}>
+          {showPreview ? <Edit size={14} /> : <Save size={14} />}
+          {showPreview ? t('common.edit') : t('common.save')}
+        </Button>
+      </SpaceBetweenRowFlex>
     </Container>
   )
 }
@@ -146,7 +186,7 @@ const Container = styled.div`
   overflow: hidden;
 `
 
-const EmojiButtonWrapper = styled.div`
+const EmojiDeleteButtonWrapper = styled.div`
   position: relative;
   display: inline-block;
 
@@ -168,12 +208,33 @@ const TokenCount = styled.div`
   user-select: none;
 `
 
-const MarkdownContainer = styled.div`
-  min-height: calc(80vh - 200px);
-  max-height: calc(80vh - 200px);
-  padding-right: 2px;
+const RichEditorContainer = styled.div`
+  height: calc(80vh - 202px);
+  border: 0.5px solid var(--color-border);
+  border-radius: 5px;
+  overflow: hidden;
+
+  .prompt-rich-editor {
+    border: none;
+    height: 100%;
+
+    .rich-editor-wrapper {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .rich-editor-content {
+      flex: 1;
+      overflow: auto;
+    }
+  }
+`
+
+const MarkdownContainer = styled.div.attrs({ className: 'markdown' })`
+  height: 100%;
+  padding: 0.5em;
   overflow: auto;
-  overflow-x: hidden;
 `
 
 export default AssistantPromptSettings

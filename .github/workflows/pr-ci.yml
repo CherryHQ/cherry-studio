@@ -1,27 +1,35 @@
 name: Pull Request CI
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   pull_request:
     branches:
       - main
       - develop
+      - v2
+    types: [ready_for_review, synchronize, opened]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PRCI: true
+    if: github.event.pull_request.draft == false || github.head_ref == 'v2'
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install corepack
-        run: corepack enable && corepack prepare yarn@4.6.0 --activate
+        run: corepack enable && corepack prepare yarn@4.9.1 --activate
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
@@ -40,8 +48,17 @@ jobs:
       - name: Install Dependencies
         run: yarn install
 
-      - name: Build Check
-        run: yarn build:check
-
       - name: Lint Check
-        run: yarn lint
+        run: yarn test:lint
+
+      - name: Format Check
+        run: yarn format:check
+
+      - name: Type Check
+        run: yarn typecheck
+
+      - name: i18n Check
+        run: yarn check:i18n
+
+      - name: Test
+        run: yarn test

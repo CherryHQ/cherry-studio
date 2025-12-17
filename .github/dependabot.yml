@@ -1,86 +1,17 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 7
-    target-branch: "main"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-    groups:
-      # 核心框架
-      core-framework:
-        patterns:
-          - "react"
-          - "react-dom"
-          - "electron"
-          - "typescript"
-          - "@types/react*"
-          - "@types/node"
-        update-types:
-          - "minor"
-          - "patch"
-
-      # Electron 生态和构建工具
-      electron-build:
-        patterns:
-          - "electron-*"
-          - "@electron*"
-          - "vite"
-          - "@vitejs/*"
-          - "dotenv-cli"
-          - "rollup-plugin-*"
-          - "@swc/*"
-        update-types:
-          - "minor"
-          - "patch"
-
-      # 测试工具
-      testing-tools:
-        patterns:
-          - "vitest"
-          - "@vitest/*"
-          - "playwright"
-          - "@playwright/*"
-          - "eslint*"
-          - "@eslint*"
-          - "prettier"
-          - "husky"
-          - "lint-staged"
-        update-types:
-          - "minor"
-          - "patch"
-
-      # CherryStudio 自定义包
-      cherrystudio-packages:
-        patterns:
-          - "@cherrystudio/*"
-        update-types:
-          - "minor"
-          - "patch"
-
-      # 兜底其他 dependencies
-      other-dependencies:
-        dependency-type: "production"
-
-      # 兜底其他 devDependencies
-      other-dev-dependencies:
-        dependency-type: "development"
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
+      interval: 'monthly'
     open-pull-requests-limit: 3
     commit-message:
-      prefix: "ci"
-      include: "scope"
+      prefix: 'ci'
+      include: 'scope'
     groups:
       github-actions:
         patterns:
-          - "*"
+          - '*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'

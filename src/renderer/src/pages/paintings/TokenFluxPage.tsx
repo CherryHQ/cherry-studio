@@ -1,22 +1,22 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Avatar, Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
+import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Select, Tooltip } from 'antd'
+import { Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,10 +28,15 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import { DynamicFormRender } from './components/DynamicFormRender'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
+import { checkProviderEnabled } from './utils'
 import TokenFluxService from './utils/TokenFluxService'
 
+const logger = loggerService.withContext('TokenFluxPage')
+
 const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
+  const [generating, setGenerating] = useCache('chat.generating')
   const [models, setModels] = useState<TokenFluxModel[]>([])
   const [selectedModel, setSelectedModel] = useState<TokenFluxModel | null>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
@@ -43,25 +48,15 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
-  const { addPainting, removePainting, updatePainting, persistentData } = usePaintings()
-  const tokenFluxPaintings = useMemo(() => persistentData.tokenFluxPaintings || [], [persistentData.tokenFluxPaintings])
+  const { addPainting, removePainting, updatePainting, tokenflux_paintings } = usePaintings()
+  const tokenFluxPaintings = tokenflux_paintings
   const [painting, setPainting] = useState<TokenFluxPainting>(
     tokenFluxPaintings[0] || { ...DEFAULT_TOKENFLUX_PAINTING, id: uuid() }
   )
 
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    return {
-      label: t(`provider.${provider?.id}`),
-      value: provider?.id
-    }
-  })
-
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
   const navigate = useNavigate()
   const location = useLocation()
-  const { autoTranslateWithSpace } = useSettings()
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
   const textareaRef = useRef<any>(null)
@@ -93,7 +88,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     (updates: Partial<TokenFluxPainting>) => {
       setPainting((prevPainting) => {
         const updatedPainting = { ...prevPainting, ...updates }
-        updatePainting('tokenFluxPaintings', updatedPainting)
+        updatePainting('tokenflux_paintings', updatedPainting)
         return updatedPainting
       })
     },
@@ -125,6 +120,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    await checkProviderEnabled(tokenfluxProvider, t)
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -137,22 +134,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
 
-    if (!tokenfluxProvider.enabled) {
-      window.modal.error({
-        content: t('error.provider_disabled'),
-        centered: true
-      })
-      return
-    }
-
-    if (!tokenfluxProvider.apiKey) {
-      window.modal.error({
-        content: t('error.no_api_key'),
-        centered: true
-      })
-      return
-    }
-
     if (!selectedModel || !prompt) {
       window.modal.error({
         content: t('paintings.text_desc_required'),
@@ -164,7 +145,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
 
     try {
       const requestBody = {
@@ -198,12 +179,12 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
 
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     } catch (error: unknown) {
       handleError(error)
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -211,7 +192,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onCancel = () => {
     abortController?.abort()
     setIsLoading(false)
-    dispatch(setGenerating(false))
+    setGenerating(false)
     setAbortController(null)
   }
 
@@ -224,8 +205,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleAddPainting = () => {
-    const newPainting = addPainting('tokenFluxPaintings', getNewPainting())
-    updatePainting('tokenFluxPaintings', newPainting)
+    const newPainting = addPainting('tokenflux_paintings', getNewPainting())
+    updatePainting('tokenflux_paintings', newPainting)
     setPainting(newPainting as TokenFluxPainting)
     return newPainting
   }
@@ -241,7 +222,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting('tokenFluxPaintings', paintingToDelete)
+    removePainting('tokenflux_paintings', paintingToDelete)
   }
 
   const translate = async () => {
@@ -255,10 +236,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, 'english')
+      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      console.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }
@@ -299,7 +280,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     // Set form data from painting's input params
     if (newPainting.inputParams) {
       // Filter out the prompt from inputParams since it's handled separately
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // oxlint-disable-next-line @typescript-eslint/no-unused-vars
       const { prompt, ...formInputParams } = newPainting.inputParams
       setFormData(formInputParams)
     } else {
@@ -319,14 +300,14 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const readI18nContext = (property: Record<string, any>, key: string): string => {
     const lang = i18n.language.split('-')[0] // Get the base language code (e.g., 'en' from 'en-US')
-    console.log('readI18nContext', { property, key, lang })
+    logger.debug('readI18nContext', { property, key, lang })
     return property[`${key}_${lang}`] || property[key]
   }
 
   useEffect(() => {
     if (tokenFluxPaintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('tokenFluxPaintings', newPainting)
+      addPainting('tokenflux_paintings', newPainting)
       setPainting(newPainting)
     }
   }, [tokenFluxPaintings, addPainting, getNewPainting])
@@ -345,7 +326,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       tokenFluxService
         .pollGenerationResult(painting.generationId, {
           onStatusUpdate: (updates) => {
-            console.log('Polling status update:', updates)
+            logger.debug('Polling status update:', updates)
             updatePaintingState(updates)
           }
         })
@@ -359,7 +340,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
         })
         .catch((error) => {
-          console.error('Polling failed:', error)
+          logger.error('Polling failed:', error)
           updatePaintingState({ status: 'failed' })
         })
     }
@@ -371,7 +352,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+            <Button size="sm" className="nodrag" onClick={handleAddPainting}>
+              <PlusOutlined />
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -384,23 +366,15 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href="https://tokenflux.ai">
               {t('paintings.learn_more')}
-              <ProviderLogo shape="square" src={getProviderLogo('tokenflux')} size={16} style={{ marginLeft: 5 }} />
+              <Avatar
+                radius="md"
+                src={getProviderLogo('tokenflux')}
+                className="ml-[5px] h-4 w-4 border-[0.5px] border-[var(--color-border)]"
+              />
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <Select
-            value={providerOptions.find((p) => p.value === 'tokenflux')?.value}
-            onChange={handleProviderChange}
-            style={{ width: '100%' }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect provider={tokenfluxProvider} options={Options} onChange={handleProviderChange} />
 
           {/* Model & Pricing Section */}
           <SectionTitle
@@ -436,7 +410,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               <Select.OptGroup key={provider} label={provider}>
                 {providerModels.map((model) => (
                   <Select.Option key={model.id} value={model.id}>
-                    <Tooltip title={model.description} placement="right">
+                    <Tooltip placement="right" content={model.description}>
                       <ModelOptionContainer>
                         <ModelName>{model.name}</ModelName>
                       </ModelOptionContainer>
@@ -464,11 +438,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                           {readI18nContext(property, 'title')}
                           {isRequired && <RequiredIndicator> *</RequiredIndicator>}
                         </ParameterName>
-                        {property.description && (
-                          <Tooltip title={readI18nContext(property, 'description')}>
-                            <InfoIcon />
-                          </Tooltip>
-                        )}
+                        {property.description && <InfoTooltip content={readI18nContext(property, 'description')} />}
                       </ParameterLabel>
                       <DynamicFormRender
                         schemaProperty={property}
@@ -561,7 +531,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         </MainContainer>
 
         <PaintingsList
-          namespace="tokenFluxPaintings"
+          namespace="tokenflux_paintings"
           paintings={tokenFluxPaintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting as any}
@@ -753,34 +723,10 @@ const ToolbarMenu = styled.div`
   gap: 6px;
 `
 
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 14px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
-`
-
 const ProviderTitleContainer = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 5px;
 `
-
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
 export default TokenFluxPage

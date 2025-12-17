@@ -1,15 +1,16 @@
-import { CopyOutlined } from '@ant-design/icons'
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import { RowFlex } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
-import { FileType, KnowledgeBase } from '@renderer/types'
-import { Input, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
-import { useRef, useState } from 'react'
+import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
+import type { InputRef } from 'antd'
+import { Divider, Input, List, Modal, Spin } from 'antd'
+import { Search } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const { Search } = Input
-const { Text, Paragraph } = Typography
+import SearchItemRenderer from './KnowledgeSearchItem'
 
 interface ShowParams {
   base: KnowledgeBase
@@ -19,13 +20,15 @@ interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
+const logger = loggerService.withContext('KnowledgeSearchPopup')
+
 const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileType | null }>>([])
+  const [results, setResults] = useState<Array<KnowledgeSearchResult & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
-  const searchInputRef = useRef<any>(null)
+  const searchInputRef = useRef<InputRef>(null)
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) {
@@ -38,9 +41,11 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
     setLoading(true)
     try {
       const searchResults = await searchKnowledgeBase(value, base)
+      logger.debug(`KnowledgeSearchPopup Search Results: ${searchResults}`)
       setResults(searchResults)
     } catch (error) {
-      console.error('Search failed:', error)
+      logger.error(`Failed to search knowledge base ${base.name}:`, error as Error)
+      setResults([])
     } finally {
       setLoading(false)
     }
@@ -60,101 +65,83 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
 
   KnowledgeSearchPopup.hide = onCancel
 
-  const highlightText = (text: string) => {
-    if (!searchKeyword) return text
-
-    // Escape special characters in the search keyword
-    const escapedKeyword = searchKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const parts = text.split(new RegExp(`(${escapedKeyword})`, 'gi'))
-
-    return parts.map((part, i) =>
-      part.toLowerCase() === searchKeyword.toLowerCase() ? <mark key={i}>{part}</mark> : part
-    )
-  }
-
-  const handleCopy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      message.success(t('message.copied'))
-    } catch (error) {
-      console.error('Failed to copy text:', error)
-      message.error(t('message.copyError') || 'Failed to copy text')
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
     }
-  }
+  }, [])
 
   return (
     <Modal
-      title={t('knowledge.search')}
+      title={null}
       open={open}
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      afterOpenChange={(visible) => visible && searchInputRef.current?.focus()}
-      width={800}
+      width={700}
       footer={null}
       centered
-      transitionName="animation-move-down">
-      <SearchContainer>
-        <Search
-          placeholder={t('knowledge.search_placeholder')}
-          allowClear
-          enterButton
-          size="large"
-          onSearch={handleSearch}
+      closable={false}
+      transitionName="animation-move-down"
+      styles={{
+        content: {
+          borderRadius: 20,
+          padding: 0,
+          overflow: 'hidden',
+          paddingBottom: 12
+        },
+        body: {
+          maxHeight: '80vh',
+          overflow: 'hidden',
+          padding: 0
+        }
+      }}>
+      <RowFlex className="mt-2 px-3">
+        <Input
           ref={searchInputRef}
+          prefix={
+            <SearchIcon>
+              <Search size={15} />
+            </SearchIcon>
+          }
+          value={searchKeyword}
+          placeholder={t('knowledge.search')}
+          allowClear
+          autoFocus
+          spellCheck={false}
+          style={{ paddingLeft: 0 }}
+          variant="borderless"
+          size="middle"
+          onChange={(e) => setSearchKeyword(e.target.value)}
+          onPressEnter={() => handleSearch(searchKeyword)}
         />
-        <ResultsContainer>
-          {loading ? (
-            <LoadingContainer>
-              <Spin size="large" />
-            </LoadingContainer>
-          ) : (
-            <List
-              dataSource={results}
-              renderItem={(item) => (
-                <List.Item>
-                  <ResultItem>
-                    <TagContainer>
-                      <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>
-                      <Tooltip title={t('common.copy')}>
-                        <CopyButton onClick={() => handleCopy(item.pageContent)}>
-                          <CopyOutlined />
-                        </CopyButton>
-                      </Tooltip>
-                    </TagContainer>
-                    <Paragraph style={{ userSelect: 'text' }}>{highlightText(item.pageContent)}</Paragraph>
-                    <MetadataContainer>
-                      <Text type="secondary">
-                        {t('knowledge.source')}:{' '}
-                        {item.file ? (
-                          <a href={`http://file/${item.file.name}`} target="_blank" rel="noreferrer">
-                            {item.file.origin_name}
-                          </a>
-                        ) : (
-                          item.metadata.source
-                        )}
-                      </Text>
-                    </MetadataContainer>
-                  </ResultItem>
-                </List.Item>
-              )}
-            />
-          )}
-        </ResultsContainer>
-      </SearchContainer>
+      </RowFlex>
+      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+
+      <ResultsContainer>
+        {loading ? (
+          <LoadingContainer>
+            <Spin size="large" />
+          </LoadingContainer>
+        ) : (
+          <List
+            dataSource={results}
+            renderItem={(item) => (
+              <List.Item>
+                <SearchItemRenderer item={item} searchKeyword={searchKeyword} />
+              </List.Item>
+            )}
+          />
+        )}
+      </ResultsContainer>
     </Modal>
   )
 }
 
-const SearchContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-`
-
 const ResultsContainer = styled.div`
-  max-height: 60vh;
+  padding: 0 16px;
   overflow-y: auto;
+  max-height: 70vh;
 `
 
 const LoadingContainer = styled.div`
@@ -164,54 +151,23 @@ const LoadingContainer = styled.div`
   height: 200px;
 `
 
-const ResultItem = styled.div`
-  width: 100%;
-  position: relative;
-  padding: 16px;
-  background: var(--color-background-soft);
-  border-radius: 8px;
-`
-
-const TagContainer = styled.div`
-  position: absolute;
-  top: 8px;
-  right: 8px;
+const SearchIcon = styled.div`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
-const ScoreTag = styled.div`
-  padding: 2px 8px;
-  background: var(--color-primary);
-  color: white;
-  border-radius: 4px;
-  font-size: 12px;
-`
-
-const CopyButton = styled.div`
-  display: flex;
-  align-items: center;
+  flex-direction: row;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: var(--color-background);
-  color: var(--color-text);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--color-primary);
-    color: white;
+  align-items: center;
+  background-color: var(--color-background-soft);
+  margin-right: 2px;
+  &.back-icon {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    &:hover {
+      background-color: var(--color-background-mute);
+    }
   }
-`
-
-const MetadataContainer = styled.div`
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--color-border);
-  user-select: text;
 `
 
 const TopViewKey = 'KnowledgeSearchPopup'

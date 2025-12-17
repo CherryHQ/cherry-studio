@@ -1,6 +1,10 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { loggerService } from '@logger'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import FileManager from '@renderer/services/FileManager'
-import { FileType, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import type { FileMetadata, KnowledgeBase, KnowledgeItem, PreprocessProvider, ProcessingStatus } from '@renderer/types'
+
+const logger = loggerService.withContext('Store:Knowledge')
 
 export interface KnowledgeState {
   bases: KnowledgeBase[]
@@ -23,7 +27,7 @@ const knowledgeSlice = createSlice({
       if (base) {
         state.bases = state.bases.filter((b) => b.id !== action.payload.baseId)
         const files = base.items.filter((item) => item.type === 'file')
-        FileManager.deleteFiles(files.map((item) => item.content) as FileType[])
+        FileManager.deleteFiles(files.map((item) => item.content) as FileMetadata[])
         window.api.knowledgeBase.delete(action.payload.baseId)
       }
     },
@@ -74,6 +78,9 @@ const knowledgeSlice = createSlice({
           }
         }
         if (action.payload.item.type === 'note') {
+          base.items.push(action.payload.item)
+        }
+        if (action.payload.item.type === 'video') {
           base.items.push(action.payload.item)
         }
         base.updated_at = Date.now()
@@ -171,16 +178,44 @@ const knowledgeSlice = createSlice({
       }
     },
 
+    syncPreprocessProvider(state, action: PayloadAction<Partial<PreprocessProvider>>) {
+      const updatedProvider = action.payload
+      state.bases.forEach((base) => {
+        if (base.preprocessProvider && base.preprocessProvider.provider.id === updatedProvider.id) {
+          base.preprocessProvider.provider = {
+            ...base.preprocessProvider.provider,
+            ...updatedProvider
+          }
+        }
+      })
+    },
+
     updateBaseItemUniqueId(
       state,
       action: PayloadAction<{ baseId: string; itemId: string; uniqueId: string; uniqueIds: string[] }>
     ) {
       const base = state.bases.find((b) => b.id === action.payload.baseId)
+      logger.silly('base2', base)
       if (base) {
         const item = base.items.find((item) => item.id === action.payload.itemId)
         if (item) {
           item.uniqueId = action.payload.uniqueId
           item.uniqueIds = action.payload.uniqueIds
+        }
+      }
+    },
+
+    updateBaseItemIsPreprocessed(
+      state,
+      action: PayloadAction<{ baseId: string; itemId: string; isPreprocessed: boolean }>
+    ) {
+      const base = state.bases.find((b) => b.id === action.payload.baseId)
+      logger.silly('base', base)
+      if (base) {
+        const item = base.items.find((item) => item.id === action.payload.itemId)
+        logger.silly('item', item)
+        if (item) {
+          item.isPreprocessed = action.payload.isPreprocessed
         }
       }
     }
@@ -201,7 +236,9 @@ export const {
   updateItemProcessingStatus,
   clearCompletedProcessing,
   clearAllProcessing,
-  updateBaseItemUniqueId
+  updateBaseItemUniqueId,
+  updateBaseItemIsPreprocessed,
+  syncPreprocessProvider
 } = knowledgeSlice.actions
 
 export default knowledgeSlice.reducer

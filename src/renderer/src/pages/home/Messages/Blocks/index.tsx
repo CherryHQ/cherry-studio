@@ -1,13 +1,16 @@
+import { loggerService } from '@logger'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { ImageMessageBlock, MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { AnimatePresence, motion } from 'motion/react'
+import { isMainTextBlock, isMessageProcessing, isVideoBlock } from '@renderer/utils/messageUtils/is'
+import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import CitationBlock from './CitationBlock'
+import CompactBlock from './CompactBlock'
 import ErrorBlock from './ErrorBlock'
 import FileBlock from './FileBlock'
 import ImageBlock from './ImageBlock'
@@ -16,13 +19,16 @@ import PlaceholderBlock from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import ToolBlock from './ToolBlock'
 import TranslationBlock from './TranslationBlock'
+import VideoBlock from './VideoBlock'
+
+const logger = loggerService.withContext('MessageBlockRenderer')
 
 interface AnimatedBlockWrapperProps {
   children: React.ReactNode
   enableAnimation: boolean
 }
 
-const blockWrapperVariants = {
+const blockWrapperVariants: Variants = {
   visible: {
     opacity: 1,
     x: 0,
@@ -57,12 +63,34 @@ interface Props {
   message: Message
 }
 
-const filterImageBlockGroups = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => {
+const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => {
   return blocks.reduce((acc: (MessageBlock[] | MessageBlock)[], currentBlock) => {
     if (currentBlock.type === MessageBlockType.IMAGE) {
+      // 对于IMAGE类型，按连续分组
       const prevGroup = acc[acc.length - 1]
       if (Array.isArray(prevGroup) && prevGroup[0].type === MessageBlockType.IMAGE) {
         prevGroup.push(currentBlock)
+      } else {
+        acc.push([currentBlock])
+      }
+    } else if (currentBlock.type === MessageBlockType.VIDEO) {
+      // 对于VIDEO类型，按相同filePath分组
+      if (!isVideoBlock(currentBlock)) {
+        logger.warn('Block type is VIDEO but failed type guard check', currentBlock)
+        acc.push(currentBlock)
+        return acc
+      }
+      const videoBlock = currentBlock
+      const existingGroup = acc.find(
+        (group) =>
+          Array.isArray(group) &&
+          group[0].type === MessageBlockType.VIDEO &&
+          isVideoBlock(group[0]) &&
+          group[0].filePath === videoBlock.filePath
+      ) as MessageBlock[] | undefined
+
+      if (existingGroup) {
+        existingGroup.push(currentBlock)
       } else {
         acc.push([currentBlock])
       }
@@ -78,38 +106,65 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
-  const groupedBlocks = useMemo(() => filterImageBlockGroups(renderedBlocks), [renderedBlocks])
+  const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
+
+  // Check if message is still processing
+  const isProcessing = isMessageProcessing(message)
+
   return (
     <AnimatePresence mode="sync">
       {groupedBlocks.map((block) => {
         if (Array.isArray(block)) {
-          const groupKey = block.map((imageBlock) => imageBlock.id).join('-')
-          return (
-            <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
-              <ImageBlockGroup>
-                {block.map((imageBlock) => (
-                  <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
-                ))}
-              </ImageBlockGroup>
-            </AnimatedBlockWrapper>
-          )
+          const groupKey = block.map((b) => b.id).join('-')
+
+          if (block[0].type === MessageBlockType.IMAGE) {
+            if (block.length === 1) {
+              return (
+                <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+                  <ImageBlock key={block[0].id} block={block[0] as ImageMessageBlock} isSingle={true} />
+                </AnimatedBlockWrapper>
+              )
+            }
+            // 多张图片使用 ImageBlockGroup 包装
+            return (
+              <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+                <ImageBlockGroup count={block.length}>
+                  {block.map((imageBlock) => (
+                    <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} isSingle={false} />
+                  ))}
+                </ImageBlockGroup>
+              </AnimatedBlockWrapper>
+            )
+          } else if (block[0].type === MessageBlockType.VIDEO) {
+            // 对于相同路径的video，只渲染第一个
+            if (!isVideoBlock(block[0])) {
+              logger.warn('Expected video block but got different type', block[0])
+              return null
+            }
+            const firstVideoBlock = block[0]
+            return (
+              <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+                <VideoBlock key={firstVideoBlock.id} block={firstVideoBlock} />
+              </AnimatedBlockWrapper>
+            )
+          }
+          return null
         }
 
         let blockComponent: React.ReactNode = null
 
         switch (block.type) {
           case MessageBlockType.UNKNOWN:
-            if (block.status === MessageBlockStatus.PROCESSING) {
-              blockComponent = <PlaceholderBlock key={block.id} block={block} />
-            }
             break
           case MessageBlockType.MAIN_TEXT:
           case MessageBlockType.CODE: {
-            const mainTextBlock = block as MainTextMessageBlock
+            if (!isMainTextBlock(block)) {
+              logger.warn('Expected main text block but got different type', block)
+              break
+            }
+            const mainTextBlock = block
             // Find the associated citation block ID from the references
             const citationBlockId = mainTextBlock.citationReferences?.[0]?.citationBlockId
-            // No longer need to retrieve the full citation block here
-            // const citationBlock = citationBlockId ? (blockEntities[citationBlockId] as CitationMessageBlock) : undefined
 
             blockComponent = (
               <MainTextBlock
@@ -135,7 +190,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             blockComponent = <CitationBlock key={block.id} block={block} />
             break
           case MessageBlockType.ERROR:
-            blockComponent = <ErrorBlock key={block.id} block={block} />
+            blockComponent = <ErrorBlock key={block.id} block={block} message={message} />
             break
           case MessageBlockType.THINKING:
             blockComponent = <ThinkingBlock key={block.id} block={block} />
@@ -143,8 +198,14 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           case MessageBlockType.TRANSLATION:
             blockComponent = <TranslationBlock key={block.id} block={block} />
             break
+          case MessageBlockType.VIDEO:
+            blockComponent = <VideoBlock key={block.id} block={block} />
+            break
+          case MessageBlockType.COMPACT:
+            blockComponent = <CompactBlock key={block.id} block={block} />
+            break
           default:
-            console.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)
+            logger.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)
             break
         }
 
@@ -156,26 +217,28 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           </AnimatedBlockWrapper>
         )
       })}
+      {isProcessing && (
+        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+          <PlaceholderBlock
+            block={{
+              id: `loading-${message.id}`,
+              messageId: message.id,
+              type: MessageBlockType.UNKNOWN,
+              status: MessageBlockStatus.PROCESSING,
+              createdAt: new Date().toISOString()
+            }}
+          />
+        </AnimatedBlockWrapper>
+      )}
     </AnimatePresence>
   )
 }
 
 export default React.memo(MessageBlockRenderer)
 
-const ImageBlockGroup = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(200px, 1fr));
-  gap: 8px;
-  width: 100%;
-  max-width: 960px;
-  > * {
-    min-width: 200px;
-  }
-  @media (min-width: 1536px) {
-    grid-template-columns: repeat(4, minmax(250px, 1fr));
-    max-width: 1280px;
-    > * {
-      min-width: 250px;
-    }
-  }
+const ImageBlockGroup = styled.div<{ count: number }>`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: 100%;
 `

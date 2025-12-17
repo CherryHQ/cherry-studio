@@ -1,6 +1,7 @@
-/* eslint-disable no-case-declarations */
+/* oxlint-disable no-case-declarations */
 // ExportService
 
+import { loggerService } from '@logger'
 import {
   AlignmentType,
   BorderStyle,
@@ -18,17 +19,15 @@ import {
   WidthType
 } from 'docx'
 import { dialog } from 'electron'
-import Logger from 'electron-log'
 import MarkdownIt from 'markdown-it'
 
-import FileStorage from './FileStorage'
+import { fileStorage } from './FileStorage'
 
+const logger = loggerService.withContext('ExportService')
 export class ExportService {
-  private fileManager: FileStorage
   private md: MarkdownIt
 
-  constructor(fileManager: FileStorage) {
-    this.fileManager = fileManager
+  constructor() {
     this.md = new MarkdownIt()
   }
 
@@ -398,11 +397,11 @@ export class ExportService {
       })
 
       if (filePath) {
-        await this.fileManager.writeFile(_, filePath, buffer)
-        Logger.info('[ExportService] Document exported successfully')
+        await fileStorage.writeFile(_, filePath, buffer)
+        logger.debug('Document exported successfully')
       }
     } catch (error) {
-      Logger.error('[ExportService] Export to Word failed:', error)
+      logger.error('Export to Word failed:', error as Error)
       throw error
     }
   }

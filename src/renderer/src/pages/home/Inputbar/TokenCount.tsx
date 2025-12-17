@@ -1,8 +1,9 @@
-import { ArrowUpOutlined, MenuOutlined } from '@ant-design/icons'
-import { HStack, VStack } from '@renderer/components/Layout'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import MaxContextCount from '@renderer/components/MaxContextCount'
 import { Divider, Popover } from 'antd'
-import { FC } from 'react'
+import { ArrowUp, MenuIcon } from 'lucide-react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -10,46 +11,56 @@ type Props = {
   estimateTokenCount: number
   inputTokenCount: number
   contextCount: { current: number; max: number }
-  ToolbarButton: any
 } & React.HTMLAttributes<HTMLDivElement>
 
 const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCount }) => {
   const { t } = useTranslation()
-  const { showInputEstimatedTokens } = useSettings()
+  const [showInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
 
   if (!showInputEstimatedTokens) {
     return null
   }
 
-  const formatMaxCount = (max: number) => {
-    return max.toString()
-  }
-
   const PopoverContent = () => {
     return (
-      <VStack w="185px" background="100%">
-        <HStack justifyContent="space-between" w="100%">
+      <ColFlex className="w-full" style={{ width: '185px', background: '100%' }}>
+        <RowFlex className="w-full justify-between">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
-            {contextCount.current} / {contextCount.max}
+            <RowFlex className="items-center">
+              {contextCount.current}
+              <SlashSeparatorSpan>/</SlashSeparatorSpan>
+              <MaxContextCount maxContext={contextCount.max} />
+            </RowFlex>
           </Text>
-        </HStack>
+        </RowFlex>
         <Divider style={{ margin: '5px 0' }} />
-        <HStack justifyContent="space-between" w="100%">
+        <RowFlex className="w-full justify-between">
           <Text>{t('chat.input.estimated_tokens.tip')}</Text>
           <Text>{estimateTokenCount}</Text>
-        </HStack>
-      </VStack>
+        </RowFlex>
+      </ColFlex>
     )
   }
 
   return (
     <Container>
-      <Popover content={PopoverContent}>
-        <MenuOutlined /> {contextCount.current} / {formatMaxCount(contextCount.max)}
-        <Divider type="vertical" style={{ marginTop: 0, marginLeft: 5, marginRight: 5 }} />
-        <ArrowUpOutlined />
-        {inputTokenCount} / {estimateTokenCount}
+      <Popover content={PopoverContent} arrow={false}>
+        <RowFlex>
+          <RowFlex className="items-center">
+            <MenuIcon size={12} className="icon" />
+            {contextCount.current}
+            <SlashSeparatorSpan>/</SlashSeparatorSpan>
+            <MaxContextCount maxContext={contextCount.max} />
+          </RowFlex>
+          <Divider type="vertical" style={{ marginTop: 3, marginLeft: 5, marginRight: 3 }} />
+          <RowFlex className="items-center">
+            <ArrowUp size={12} className="icon" />
+            {inputTokenCount}
+            <SlashSeparatorSpan>/</SlashSeparatorSpan>
+            {estimateTokenCount}
+          </RowFlex>
+        </RowFlex>
       </Popover>
     </Container>
   )
@@ -66,8 +77,7 @@ const Container = styled.div`
   display: flex;
   align-items: center;
   cursor: pointer;
-  .anticon {
-    font-size: 10px;
+  .icon {
     margin-right: 3px;
   }
   @media (max-width: 800px) {
@@ -78,6 +88,11 @@ const Container = styled.div`
 const Text = styled.div`
   font-size: 12px;
   color: var(--color-text-1);
+`
+
+const SlashSeparatorSpan = styled.span`
+  margin-left: 2px;
+  margin-right: 2px;
 `
 
 export default TokenCount

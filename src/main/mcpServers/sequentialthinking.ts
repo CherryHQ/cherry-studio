@@ -1,10 +1,14 @@
 // Sequential Thinking MCP Server
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/sequentialthinking/index.ts
 
+import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema, Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 // Fixed chalk import for ESM
 import chalk from 'chalk'
+
+const logger = loggerService.withContext('MCPServer:SequentialThinkingServer')
 
 interface ThoughtData {
   thought: string
@@ -98,7 +102,7 @@ class SequentialThinkingServer {
       }
 
       const formattedThought = this.formatThought(validatedInput)
-      console.error(formattedThought)
+      logger.error(formattedThought)
 
       return {
         content: [
@@ -106,6 +110,7 @@ class SequentialThinkingServer {
             type: 'text',
             text: JSON.stringify(
               {
+                thought: validatedInput.thought,
                 thoughtNumber: validatedInput.thoughtNumber,
                 totalThoughts: validatedInput.totalThoughts,
                 nextThoughtNeeded: validatedInput.nextThoughtNeeded,

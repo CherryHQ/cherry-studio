@@ -10,9 +10,11 @@ import {
   FileZipFilled,
   FolderOpenFilled,
   GlobalOutlined,
-  LinkOutlined
+  LinkOutlined,
+  VideoCameraFilled
 } from '@ant-design/icons'
-import { Flex } from 'antd'
+import { ColFlex } from '@cherrystudio/ui'
+import { videoExts } from '@shared/config/constant'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
@@ -72,6 +74,10 @@ const getFileIcon = (type?: string) => {
     return <FolderOpenFilled />
   }
 
+  if (videoExts.includes(ext)) {
+    return <VideoCameraFilled />
+  }
+
   return <FileUnknownFilled />
 }
 
@@ -82,10 +88,10 @@ const FileItem: React.FC<FileItemProps> = ({ fileInfo, style }) => {
     <FileItemCard style={style}>
       <CardContent>
         <FileIcon>{icon || getFileIcon(ext)}</FileIcon>
-        <Flex vertical justify="center" gap={0} flex={1} style={{ width: '0px' }}>
+        <ColFlex className="w-0 flex-1 justify-center gap-0">
           <FileName>{name}</FileName>
           {extra && <FileInfo>{extra}</FileInfo>}
-        </Flex>
+        </ColFlex>
         <FileActions>{actions}</FileActions>
       </CardContent>
     </FileItemCard>

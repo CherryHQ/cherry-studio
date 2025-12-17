@@ -1,12 +1,13 @@
+import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { DEFAULT_CONTEXTCOUNT } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import { getTopicById } from '@renderer/hooks/useTopic'
-import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { Assistant, FileType, MCPServer, Model, Topic, Usage } from '@renderer/types'
+import type { Assistant, FileMetadata, Model, Topic, Usage } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -20,19 +21,22 @@ import {
   createMessage,
   resetMessage
 } from '@renderer/utils/messageUtils/create'
+import { filterContextMessages } from '@renderer/utils/messageUtils/filters'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
-import { takeRight } from 'lodash'
-import { NavigateFunction } from 'react-router'
+import type { NavigateFunction } from 'react-router'
 
 import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
 import FileManager from './FileManager'
 
+const logger = loggerService.withContext('MessagesService')
+
 export {
-  filterContextMessages,
+  filterAfterContextClearMessages,
   filterEmptyMessages,
+  filterErrorOnlyMessagesWithRelated,
   filterMessages,
   filterUsefulMessages,
   filterUserRoleStartMessages,
@@ -40,23 +44,14 @@ export {
 } from '@renderer/utils/messageUtils/filters'
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
-  const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const maxContextCount = rawContextCount === 100 ? 100000 : rawContextCount
+  const settingContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
+  const actualContextCount = settingContextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : settingContextCount
 
-  const _messages = takeRight(messages, maxContextCount)
-
-  const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
-
-  let currentContextCount = 0
-  if (clearIndex === -1) {
-    currentContextCount = _messages.length
-  } else {
-    currentContextCount = _messages.length - (clearIndex + 1)
-  }
+  const contextMsgs = filterContextMessages(messages, actualContextCount)
 
   return {
-    current: currentContextCount,
-    max: rawContextCount
+    current: contextMsgs.length,
+    max: settingContextCount
   }
 }
 
@@ -65,7 +60,7 @@ export function deleteMessageFiles(message: Message) {
   message.blocks?.forEach((blockId) => {
     const block = messageBlocksSelectors.selectById(state, blockId)
     if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
-      const fileData = (block as any).file as FileType | undefined
+      const fileData = (block as any).file as FileMetadata | undefined
       if (fileData) {
         FileManager.deleteFiles([fileData])
       }
@@ -73,16 +68,8 @@ export function deleteMessageFiles(message: Message) {
   })
 }
 
-export function isGenerating() {
-  return new Promise((resolve, reject) => {
-    const generating = store.getState().runtime.generating
-    generating && window.message.warning({ content: i18n.t('message.switch.disabled'), key: 'switch-assistant' })
-    generating ? reject(false) : resolve(true)
-  })
-}
-
 export async function locateToMessage(navigate: NavigateFunction, message: Message) {
-  await isGenerating()
+  await modelGenerating()
 
   SearchPopup.hide()
   const assistant = getAssistantById(message.assistantId)
@@ -108,19 +95,16 @@ export function getUserMessage({
   content,
   files,
   // Keep other potential params if needed by createMessage
-  knowledgeBaseIds,
   mentions,
-  enabledMCPs,
   usage
 }: {
   assistant: Assistant
   topic: Topic
   type?: Message['type']
   content?: string
-  files?: FileType[]
+  files?: FileMetadata[]
   knowledgeBaseIds?: string[]
   mentions?: Model[]
-  enabledMCPs?: MCPServer[]
   usage?: Usage
 }): { message: Message; blocks: MessageBlock[] } {
   const defaultModel = getDefaultModel()
@@ -133,8 +117,7 @@ export function getUserMessage({
   if (content !== undefined) {
     // Pass messageId when creating blocks
     const textBlock = createMainTextBlock(messageId, content, {
-      status: MessageBlockStatus.SUCCESS,
-      knowledgeBaseIds
+      status: MessageBlockStatus.SUCCESS
     })
     blocks.push(textBlock)
     blockIds.push(textBlock.id)
@@ -165,7 +148,7 @@ export function getUserMessage({
       blocks: blockIds,
       // 移除knowledgeBaseIds
       mentions,
-      enabledMCPs,
+      // 移除mcp
       type,
       usage
     }
@@ -203,7 +186,6 @@ export function resetAssistantMessage(message: Message, model?: Model): Message 
     useful: undefined,
     askId: undefined,
     mentions: undefined,
-    enabledMCPs: undefined,
     blocks: [],
     createdAt: new Date().toISOString()
   }
@@ -214,26 +196,25 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 
   if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
     try {
-      window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
-
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
         blocks: message.blocks
       })
 
-      const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
+      const titlePromise = fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
+      window.toast.loading({ title: t('chat.topics.export.wait_for_title_naming'), promise: titlePromise })
+      const title = await titlePromise
 
       // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
 
       // store.dispatch(messageBlocksActions.removeOneBlock(tempTextBlock.id))
-
       if (title) {
-        window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
+        window.toast.success(t('chat.topics.export.title_naming_success'))
         return title
       }
     } catch (e) {
-      window.message.error({ content: t('chat.topics.export.title_naming_failed'), key: 'message-title-naming' })
-      console.error('Failed to generate title using topic naming, downgraded to default logic', e)
+      window.toast.error(t('chat.topics.export.title_naming_failed'))
+      logger.error('Failed to generate title using topic naming, downgraded to default logic', e as Error)
     }
   }
 
@@ -249,7 +230,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 export function checkRateLimit(assistant: Assistant): boolean {
   const provider = getAssistantProvider(assistant)
 
-  if (!provider.rateLimit) {
+  if (!provider?.rateLimit) {
     return false
   }
 
@@ -269,11 +250,7 @@ export function checkRateLimit(assistant: Assistant): boolean {
   if (timeDiff < rateLimitMs) {
     const waitTimeSeconds = Math.ceil((rateLimitMs - timeDiff) / 1000)
 
-    window.message.warning({
-      content: t('message.warning.rate.limit', { seconds: waitTimeSeconds }),
-      duration: 5,
-      key: 'rate-limit-message'
-    })
+    window.toast.warning(t('message.warning.rate.limit', { seconds: waitTimeSeconds }))
     return true
   }
 

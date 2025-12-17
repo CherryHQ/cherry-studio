@@ -1,30 +1,34 @@
 import { CheckOutlined } from '@ant-design/icons'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import ThinkingEffect from '@renderer/components/ThinkingEffect'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { lightbulbVariants } from '@renderer/utils/motionVariants'
-import { Collapse, message as antdMessage, Tooltip } from 'antd'
-import { Lightbulb } from 'lucide-react'
-import { motion } from 'motion/react'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { Collapse } from 'antd'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Markdown from '../../Markdown/Markdown'
 
+const logger = loggerService.withContext('ThinkingBlock')
 interface Props {
   block: ThinkingMessageBlock
 }
 
 const ThinkingBlock: React.FC<Props> = ({ block }) => {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useTemporaryValue(false, 2000)
   const { t } = useTranslation()
-  const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
+  const [messageFont] = usePreference('chat.message.font')
+  const [fontSize] = usePreference('chat.message.font_size')
+  const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
 
   useEffect(() => {
-    if (!isThinking && thoughtAutoCollapse) {
+    if (thoughtAutoCollapse) {
       setActiveKey('')
     } else {
       setActiveKey('thought')
@@ -36,16 +40,15 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
       navigator.clipboard
         .writeText(block.content)
         .then(() => {
-          antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
+          window.toast.success(t('message.copied'))
           setCopied(true)
-          setTimeout(() => setCopied(false), 2000)
         })
         .catch((error) => {
-          console.error('Failed to copy text:', error)
-          antdMessage.error({ content: t('message.copy.failed'), key: 'copy-message-error' })
+          logger.error('Failed to copy text:', error)
+          window.toast.error(t('message.copy.failed'))
         })
     }
-  }, [block.content, t])
+  }, [block.content, setCopied, t])
 
   if (!block.content) {
     return null
@@ -57,25 +60,29 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
       size="small"
       onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
       className="message-thought-container"
-      expandIconPosition="end"
+      ghost
       items={[
         {
           key: 'thought',
           label: (
-            <MessageTitleLabel>
-              <motion.span
-                style={{ height: '18px' }}
-                variants={lightbulbVariants}
-                animate={isThinking ? 'active' : 'idle'}
-                initial="idle">
-                <Lightbulb size={18} />
-              </motion.span>
-              <ThinkingText>
+            <ThinkingEffect
+              expanded={activeKey === 'thought'}
+              isThinking={isThinking}
+              thinkingTimeText={
                 <ThinkingTimeSeconds blockThinkingTime={block.thinking_millsec} isThinking={isThinking} />
-              </ThinkingText>
-              {/* {isThinking && <BarLoader color="#9254de" />} */}
+              }
+              content={block.content}
+            />
+          ),
+          children: (
+            //  FIXME: 临时兼容
+            <ThinkingContent
+              style={{
+                fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+                fontSize
+              }}>
               {!isThinking && (
-                <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
+                <Tooltip content={t('common.copy')} delay={800}>
                   <ActionButton
                     className="message-action-button"
                     onClick={(e) => {
@@ -88,73 +95,79 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
                   </ActionButton>
                 </Tooltip>
               )}
-            </MessageTitleLabel>
-          ),
-          children: (
-            //  FIXME: 临时兼容
-            <div
-              style={{
-                fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-                fontSize
-              }}>
               <Markdown block={block} />
-            </div>
-          )
+            </ThinkingContent>
+          ),
+          showArrow: false
         }
       ]}
     />
   )
 }
 
+const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
+
 const ThinkingTimeSeconds = memo(
-  ({ blockThinkingTime, isThinking }: { blockThinkingTime?: number; isThinking: boolean }) => {
+  ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
     const { t } = useTranslation()
+    const [displayTime, setDisplayTime] = useState(normalizeThinkingTime(blockThinkingTime))
 
-    const [thinkingTime, setThinkingTime] = useState(blockThinkingTime || 0)
+    const timer = useRef<NodeJS.Timeout | null>(null)
 
-    // FIXME: 这里统计的和请求处统计的有一定误差
     useEffect(() => {
-      let timer: NodeJS.Timeout | null = null
       if (isThinking) {
-        timer = setInterval(() => {
-          setThinkingTime((prev) => prev + 100)
-        }, 100)
-      } else if (timer) {
-        // 立即清除计时器
-        clearInterval(timer)
-        timer = null
+        if (!timer.current) {
+          timer.current = setInterval(() => {
+            setDisplayTime((prev) => prev + 100)
+          }, 100)
+        }
+      } else {
+        if (timer.current) {
+          clearInterval(timer.current)
+          timer.current = null
+        }
+        setDisplayTime(normalizeThinkingTime(blockThinkingTime))
       }
 
       return () => {
-        if (timer) {
-          clearInterval(timer)
-          timer = null
+        if (timer.current) {
+          clearInterval(timer.current)
+          timer.current = null
         }
       }
-    }, [isThinking])
+    }, [isThinking, blockThinkingTime])
 
-    const thinkingTimeSeconds = useMemo(() => (thinkingTime / 1000).toFixed(1), [thinkingTime])
+    const thinkingTimeSeconds = useMemo(() => {
+      const safeTime = normalizeThinkingTime(displayTime)
+      return ((safeTime < 1000 ? 100 : safeTime) / 1000).toFixed(1)
+    }, [displayTime])
 
-    return t(isThinking ? 'chat.thinking' : 'chat.deeply_thought', {
-      seconds: thinkingTimeSeconds
-    })
+    return isThinking
+      ? t('chat.thinking', {
+          seconds: thinkingTimeSeconds
+        })
+      : t('chat.deeply_thought', {
+          seconds: thinkingTimeSeconds
+        })
   }
 )
 
 const CollapseContainer = styled(Collapse)`
   margin-bottom: 15px;
+  .ant-collapse-header {
+    padding: 0 !important;
+  }
+  .ant-collapse-content-box {
+    padding: 16px !important;
+    border-width: 0 0.5px 0.5px 0.5px;
+    border-style: solid;
+    border-color: var(--color-border);
+    border-radius: 0 0 12px 12px;
+  }
 `
 
-const MessageTitleLabel = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  height: 22px;
-  gap: 4px;
-`
-
-const ThinkingText = styled.span`
-  color: var(--color-text-2);
+const ThinkingContent = styled.div`
+  position: relative;
 `
 
 const ActionButton = styled.button`
@@ -169,6 +182,9 @@ const ActionButton = styled.button`
   margin-left: auto;
   opacity: 0.6;
   transition: all 0.3s;
+  position: absolute;
+  right: -12px;
+  top: -12px;
 
   &:hover {
     opacity: 1;

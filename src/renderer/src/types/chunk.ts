@@ -1,5 +1,14 @@
-import { ExternalToolResult, KnowledgeReference, MCPToolResponse, WebSearchResponse } from '.'
-import { Response, ResponseError } from './newMessage'
+import type {
+  ExternalToolResult,
+  KnowledgeReference,
+  MCPTool,
+  MCPToolResponse,
+  NormalToolResponse,
+  ToolUseResponse,
+  WebSearchResponse
+} from '.'
+import type { Response, ResponseError } from './newMessage'
+import type { SdkToolCall } from './sdk'
 
 // Define Enum for Chunk Types
 // 目前用到的，并没有列出完整的生命周期
@@ -11,18 +20,23 @@ export enum ChunkType {
   WEB_SEARCH_COMPLETE = 'web_search_complete',
   KNOWLEDGE_SEARCH_IN_PROGRESS = 'knowledge_search_in_progress',
   KNOWLEDGE_SEARCH_COMPLETE = 'knowledge_search_complete',
+  MCP_TOOL_CREATED = 'mcp_tool_created',
+  MCP_TOOL_PENDING = 'mcp_tool_pending',
   MCP_TOOL_IN_PROGRESS = 'mcp_tool_in_progress',
   MCP_TOOL_COMPLETE = 'mcp_tool_complete',
   EXTERNEL_TOOL_COMPLETE = 'externel_tool_complete',
   LLM_RESPONSE_CREATED = 'llm_response_created',
   LLM_RESPONSE_IN_PROGRESS = 'llm_response_in_progress',
+  TEXT_START = 'text.start',
   TEXT_DELTA = 'text.delta',
   TEXT_COMPLETE = 'text.complete',
+  AUDIO_START = 'audio.start',
   AUDIO_DELTA = 'audio.delta',
   AUDIO_COMPLETE = 'audio.complete',
   IMAGE_CREATED = 'image.created',
   IMAGE_DELTA = 'image.delta',
   IMAGE_COMPLETE = 'image.complete',
+  THINKING_START = 'thinking.start',
   THINKING_DELTA = 'thinking.delta',
   THINKING_COMPLETE = 'thinking.complete',
   LLM_WEB_SEARCH_IN_PROGRESS = 'llm_websearch_in_progress',
@@ -31,7 +45,10 @@ export enum ChunkType {
   BLOCK_COMPLETE = 'block_complete',
   ERROR = 'error',
   SEARCH_IN_PROGRESS_UNION = 'search_in_progress_union',
-  SEARCH_COMPLETE_UNION = 'search_complete_union'
+  SEARCH_COMPLETE_UNION = 'search_complete_union',
+  VIDEO_SEARCHED = 'video.searched',
+  IMAGE_SEARCHED = 'image.searched',
+  RAW = 'raw'
 }
 
 export interface LLMResponseCreatedChunk {
@@ -54,6 +71,17 @@ export interface LLMResponseInProgressChunk {
   type: ChunkType.LLM_RESPONSE_IN_PROGRESS
 }
 
+export interface TextStartChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.TEXT_START
+
+  /**
+   * The ID of the chunk
+   */
+  chunk_id?: number
+}
 export interface TextDeltaChunk {
   /**
    * The text content of the chunk
@@ -88,6 +116,13 @@ export interface TextCompleteChunk {
   type: ChunkType.TEXT_COMPLETE
 }
 
+export interface AudioStartChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.AUDIO_START
+}
+
 export interface AudioDeltaChunk {
   /**
    * A chunk of Base64 encoded audio data
@@ -118,7 +153,7 @@ export interface ImageDeltaChunk {
   /**
    * A chunk of Base64 encoded image data
    */
-  image: string
+  image: { type: 'base64'; images: string[] }
 
   /**
    * The type of the chunk
@@ -135,7 +170,14 @@ export interface ImageCompleteChunk {
   /**
    * The image content of the chunk
    */
-  image: { type: 'base64'; images: string[] }
+  image?: { type: 'url' | 'base64'; images: string[] }
+}
+
+export interface ThinkingStartChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.THINKING_START
 }
 
 export interface ThinkingDeltaChunk {
@@ -253,6 +295,17 @@ export interface ExternalToolCompleteChunk {
   type: ChunkType.EXTERNEL_TOOL_COMPLETE
 }
 
+export interface MCPToolCreatedChunk {
+  type: ChunkType.MCP_TOOL_CREATED
+  tool_calls?: SdkToolCall[] // 工具调用
+  tool_use_responses?: (Omit<ToolUseResponse, 'tool'> & { tool: MCPTool })[] // 工具使用响应
+}
+
+export interface MCPToolPendingChunk {
+  type: ChunkType.MCP_TOOL_PENDING
+  responses: MCPToolResponse[] | NormalToolResponse[]
+}
+
 export interface MCPToolInProgressChunk {
   /**
    * The type of the chunk
@@ -261,14 +314,14 @@ export interface MCPToolInProgressChunk {
   /**
    * The tool responses of the chunk
    */
-  responses: MCPToolResponse[]
+  responses: MCPToolResponse[] | NormalToolResponse[]
 }
 
 export interface MCPToolCompleteChunk {
   /**
    * The tool response of the chunk
    */
-  responses: MCPToolResponse[]
+  responses: MCPToolResponse[] | NormalToolResponse[]
 
   /**
    * The type of the chunk
@@ -337,6 +390,42 @@ export interface SearchCompleteUnionChunk {
   type: ChunkType.SEARCH_COMPLETE_UNION
 }
 
+export interface VideoSearchedChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.VIDEO_SEARCHED
+
+  /**
+   * The video content of the chunk
+   */
+  video?: { type: 'url' | 'path'; content: string }
+
+  metadata?: Record<string, any>
+}
+
+export interface ImageSearchedChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.IMAGE_SEARCHED
+
+  content: string
+
+  metadata: Record<string, any>
+}
+
+export interface RawChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.RAW
+
+  content: unknown
+
+  metadata?: Record<string, any>
+}
+
 export type Chunk =
   | BlockCreatedChunk // 消息块创建，无意义
   | BlockInProgressChunk // 消息块进行中，无意义
@@ -345,18 +434,23 @@ export type Chunk =
   | WebSearchCompleteChunk // 互联网搜索完成
   | KnowledgeSearchInProgressChunk // 知识库搜索进行中
   | KnowledgeSearchCompleteChunk // 知识库搜索完成
+  | MCPToolCreatedChunk // MCP工具被大模型创建
+  | MCPToolPendingChunk // MCP工具调用等待中
   | MCPToolInProgressChunk // MCP工具调用中
   | MCPToolCompleteChunk // MCP工具调用完成
   | ExternalToolCompleteChunk // 外部工具调用完成，外部工具包含搜索互联网，知识库，MCP服务器
   | LLMResponseCreatedChunk // 大模型响应创建，返回即将创建的块类型
   | LLMResponseInProgressChunk // 大模型响应进行中
+  | TextStartChunk // 文本内容生成开始
   | TextDeltaChunk // 文本内容生成中
   | TextCompleteChunk // 文本内容生成完成
+  | AudioStartChunk // 音频内容生成开始
   | AudioDeltaChunk // 音频内容生成中
   | AudioCompleteChunk // 音频内容生成完成
   | ImageCreatedChunk // 图片内容创建
   | ImageDeltaChunk // 图片内容生成中
   | ImageCompleteChunk // 图片内容生成完成
+  | ThinkingStartChunk // 思考内容生成开始
   | ThinkingDeltaChunk // 思考内容生成中
   | ThinkingCompleteChunk // 思考内容生成完成
   | LLMWebSearchInProgressChunk // 大模型内部搜索进行中，无明显特征
@@ -366,3 +460,6 @@ export type Chunk =
   | ErrorChunk // 错误
   | SearchInProgressUnionChunk // 搜索(知识库/互联网)进行中
   | SearchCompleteUnionChunk // 搜索(知识库/互联网)完成
+  | VideoSearchedChunk // 知识库检索视频
+  | ImageSearchedChunk // 知识库检索图片
+  | RawChunk

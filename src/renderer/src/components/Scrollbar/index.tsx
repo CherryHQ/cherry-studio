@@ -1,13 +1,14 @@
 import { throttle } from 'lodash'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
-interface Props extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
-  ref?: React.RefObject<HTMLDivElement | null>
+export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
+  ref?: React.Ref<HTMLDivElement | null>
   onScroll?: () => void // Custom onScroll prop for useScrollPosition's handleScroll
 }
 
-const Scrollbar: FC<Props> = ({ ref: passedRef, children, onScroll: externalOnScroll, ...htmlProps }) => {
+const Scrollbar: FC<ScrollbarProps> = ({ ref: passedRef, children, onScroll: externalOnScroll, ...htmlProps }) => {
   const [isScrolling, setIsScrolling] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -48,17 +49,17 @@ const Scrollbar: FC<Props> = ({ ref: passedRef, children, onScroll: externalOnSc
   }, [throttledInternalScrollHandler, clearScrollingTimeout])
 
   return (
-    <Container
+    <ScrollBarContainer
       {...htmlProps} // Pass other HTML attributes
       $isScrolling={isScrolling}
       onScroll={combinedOnScroll} // Use the combined handler
       ref={passedRef}>
       {children}
-    </Container>
+    </ScrollBarContainer>
   )
 }
 
-const Container = styled.div<{ $isScrolling: boolean }>`
+const ScrollBarContainer = styled.div<{ $isScrolling: boolean }>`
   overflow-y: auto;
   &::-webkit-scrollbar-thumb {
     transition: background 2s ease;

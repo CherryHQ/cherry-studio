@@ -1,10 +1,14 @@
+import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { DeleteIcon } from '@renderer/components/Icons'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { handleDelete } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
-import { FileType, FileTypes } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Col, Image, Row, Spin } from 'antd'
 import { t } from 'i18next'
-import VirtualList from 'rc-virtual-list'
-import React, { memo } from 'react'
+import React, { memo, useCallback } from 'react'
 import styled from 'styled-components'
 
 import FileItem from './FileItem'
@@ -14,17 +18,19 @@ interface FileItemProps {
   list: {
     key: FileTypes | 'all' | string
     file: React.ReactNode
-    files?: FileType[]
+    files?: FileMetadata[]
     count?: number
     size: string
     ext: string
     created_at: string
     actions: React.ReactNode
   }[]
-  files?: FileType[]
+  files?: FileMetadata[]
 }
 
 const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
+  const estimateSize = useCallback(() => 75, [])
+
   if (id === FileTypes.IMAGE && files?.length && files?.length > 0) {
     return (
       <div style={{ padding: 16, overflowY: 'auto' }}>
@@ -48,6 +54,24 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
                   <ImageInfo>
                     <div>{formatFileSize(file.size)}</div>
                   </ImageInfo>
+                  <DeleteButton
+                    title={t('files.delete.title')}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.modal.confirm({
+                        title: t('files.delete.title'),
+                        content: t('files.delete.content'),
+                        okText: t('common.confirm'),
+                        cancelText: t('common.cancel'),
+                        centered: true,
+                        onOk: () => {
+                          handleDelete(file.id, t)
+                        },
+                        icon: <ExclamationCircleOutlined style={{ color: 'red' }} />
+                      })
+                    }}>
+                    <DeleteIcon size={14} className="lucide-custom" />
+                  </DeleteButton>
                 </ImageWrapper>
               </Col>
             ))}
@@ -58,38 +82,29 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
   }
 
   return (
-    <VirtualList
-      data={list}
-      height={window.innerHeight - 100}
-      itemHeight={75}
-      itemKey="key"
-      style={{ padding: '0 16px 16px 16px' }}
-      styles={{
-        verticalScrollBar: {
-          width: 6
-        },
-        verticalScrollBarThumb: {
-          background: 'var(--color-scrollbar-thumb)'
-        }
+    <DynamicVirtualList
+      list={list}
+      estimateSize={estimateSize}
+      overscan={2}
+      scrollerStyle={{
+        padding: '0 16px 16px 16px'
+      }}
+      itemContainerStyle={{
+        height: '75px',
+        paddingTop: '12px'
       }}>
       {(item) => (
-        <div
-          style={{
-            height: '75px',
-            paddingTop: '12px'
-          }}>
-          <FileItem
-            key={item.key}
-            fileInfo={{
-              name: item.file,
-              ext: item.ext,
-              extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
-              actions: item.actions
-            }}
-          />
-        </div>
+        <FileItem
+          key={item.key}
+          fileInfo={{
+            name: item.file,
+            ext: item.ext,
+            extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
+            actions: item.actions
+          }}
+        />
       )}
-    </VirtualList>
+    </DynamicVirtualList>
   )
 }
 
@@ -156,6 +171,28 @@ const ImageInfo = styled.div`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+`
+
+const DeleteButton = styled.div`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+
+  &:hover {
+    background-color: rgba(255, 0, 0, 0.8);
   }
 `
 

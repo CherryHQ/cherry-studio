@@ -1,26 +1,35 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import BochaLogo from '@renderer/assets/images/search/bocha.webp'
+import ExaLogo from '@renderer/assets/images/search/exa.png'
+import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
+import TavilyLogo from '@renderer/assets/images/search/tavily.png'
+import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
+import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
+import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
-import { formatApiKeys } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { WebSearchProvider } from '@renderer/types'
-import { hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Flex, Form, Input, Tooltip } from 'antd'
+import type { WebSearchProviderId } from '@renderer/types'
+import { formatApiKeys, hasObjectKey } from '@renderer/utils'
+import { Divider, Form, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { Info } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { List } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
-import ApiCheckPopup from '../ProviderSettings/ApiCheckPopup'
 
+const logger = loggerService.withContext('WebSearchProviderSetting')
 interface Props {
-  provider: WebSearchProvider
+  providerId: WebSearchProviderId
 }
 
-const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
-  const { provider, updateProvider } = useWebSearchProvider(_provider.id)
+const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
+  const { provider, updateProvider } = useWebSearchProvider(providerId)
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState(provider.apiKey || '')
   const [apiHost, setApiHost] = useState(provider.apiHost || '')
@@ -28,6 +37,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
   const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
   const [apiValid, setApiValid] = useState(false)
+  const { setTimeoutTimer } = useTimer()
 
   const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
@@ -35,7 +45,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
-      updateProvider({ ...provider, apiKey })
+      updateProvider({ apiKey })
     }
   }
 
@@ -45,7 +55,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       trimmedHost = trimmedHost.slice(0, -1)
     }
     if (trimmedHost !== provider.apiHost) {
-      updateProvider({ ...provider, apiHost: trimmedHost })
+      updateProvider({ apiHost: trimmedHost })
     } else {
       setApiHost(provider.apiHost || '')
     }
@@ -55,7 +65,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     const currentValue = basicAuthUsername || ''
     const savedValue = provider.basicAuthUsername || ''
     if (currentValue !== savedValue) {
-      updateProvider({ ...provider, basicAuthUsername: basicAuthUsername })
+      updateProvider({ basicAuthUsername })
     } else {
       setBasicAuthUsername(provider.basicAuthUsername || '')
     }
@@ -65,40 +75,30 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     const currentValue = basicAuthPassword || ''
     const savedValue = provider.basicAuthPassword || ''
     if (currentValue !== savedValue) {
-      updateProvider({ ...provider, basicAuthPassword: basicAuthPassword })
+      updateProvider({ basicAuthPassword })
     } else {
       setBasicAuthPassword(provider.basicAuthPassword || '')
     }
   }
 
+  const openApiKeyList = async () => {
+    await ApiKeyListPopup.show({
+      providerId: provider.id,
+      title: `${provider.name} ${t('settings.provider.api.key.list.title')}`
+    })
+  }
+
   async function checkSearch() {
     if (!provider) {
-      window.message.error({
-        content: t('settings.websearch.no_provider_selected'),
-        duration: 3,
-        icon: <Info size={18} />,
-        key: 'no-provider-selected'
+      window.toast.error({
+        title: t('settings.no_provider_selected'),
+        timeout: 3000
       })
       return
     }
 
     if (apiKey.includes(',')) {
-      const keys = apiKey
-        .split(',')
-        .map((k) => k.trim())
-        .filter((k) => k)
-
-      const result = await ApiCheckPopup.show({
-        title: t('settings.provider.check_multiple_keys'),
-        provider: { ...provider, apiHost },
-        apiKeys: keys,
-        type: 'websearch'
-      })
-
-      if (result?.validKeys) {
-        setApiKey(result.validKeys.join(','))
-        updateProvider({ ...provider, apiKey: result.validKeys.join(',') })
-      }
+      await openApiKeyList()
       return
     }
 
@@ -107,26 +107,24 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       const { valid, error } = await WebSearchService.checkSearch(provider)
 
       const errorMessage = error && error?.message ? ' ' + error?.message : ''
-      window.message[valid ? 'success' : 'error']({
-        key: 'api-check',
-        style: { marginTop: '3vh' },
-        duration: valid ? 2 : 8,
-        content: valid ? t('settings.websearch.check_success') : t('settings.websearch.check_failed') + errorMessage
+      window.toast[valid ? 'success' : 'error']({
+        timeout: valid ? 2000 : 8000,
+        title: valid
+          ? t('settings.tool.websearch.check_success')
+          : t('settings.tool.websearch.check_failed') + errorMessage
       })
 
       setApiValid(valid)
     } catch (err) {
-      console.error('Check search error:', err)
+      logger.error('Check search error:', err as Error)
       setApiValid(false)
-      window.message.error({
-        key: 'check-search-error',
-        style: { marginTop: '3vh' },
-        duration: 8,
-        content: t('settings.websearch.check_failed')
+      window.toast.error({
+        timeout: 8000,
+        title: t('settings.tool.websearch.check_failed')
       })
     } finally {
       setApiChecking(false)
-      setTimeout(() => setApiValid(false), 2500)
+      setTimeoutTimer('checkSearch', () => setApiValid(false), 2500)
     }
   }
 
@@ -137,10 +135,27 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     setBasicAuthPassword(provider.basicAuthPassword ?? '')
   }, [provider.apiKey, provider.apiHost, provider.basicAuthUsername, provider.basicAuthPassword])
 
+  const getWebSearchProviderLogo = (providerId: WebSearchProviderId) => {
+    switch (providerId) {
+      case 'zhipu':
+        return ZhipuLogo
+      case 'tavily':
+        return TavilyLogo
+      case 'searxng':
+        return SearxngLogo
+      case 'exa':
+        return ExaLogo
+      case 'bocha':
+        return BochaLogo
+      default:
+        return undefined
+    }
+  }
+
   return (
     <>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <ProviderLogo src={getWebSearchProviderLogo(provider.id)} />
           <ProviderName> {provider.name}</ProviderName>
           {officialWebsite && webSearchProviderConfig?.websites && (
@@ -153,29 +168,49 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {hasObjectKey(provider, 'apiKey') && (
         <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-          <Flex gap={8}>
+          <SettingSubtitle
+            style={{
+              marginTop: 5,
+              marginBottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+            {t('settings.provider.api_key.label')}
+            <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+              <Button variant="ghost" size="icon-sm" onClick={openApiKeyList}>
+                <List size={14} />
+              </Button>
+            </Tooltip>
+          </SettingSubtitle>
+          <Flex className="gap-2">
             <Input.Password
               value={apiKey}
-              placeholder={t('settings.provider.api_key')}
+              placeholder={t('settings.provider.api_key.label')}
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
               spellCheck={false}
               type="password"
               autoFocus={apiKey === ''}
             />
-            <Button
-              ghost={apiValid}
-              type={apiValid ? 'primary' : 'default'}
-              onClick={checkSearch}
-              disabled={apiChecking}>
-              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
+            <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={apiChecking}>
+              {apiChecking ? (
+                <LoadingOutlined spin />
+              ) : apiValid ? (
+                <CheckOutlined />
+              ) : (
+                t('settings.tool.websearch.check')
+              )}
             </Button>
           </Flex>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.websearch.get_api_key')}
-            </SettingHelpLink>
+            <RowFlex>
+              {apiKeyWebsite && (
+                <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                  {t('settings.provider.get_api_key')}
+                </SettingHelpLink>
+              )}
+            </RowFlex>
             <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
           </SettingHelpTextRow>
         </>
@@ -185,7 +220,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
           </SettingSubtitle>
-          <Flex gap={8}>
+          <Flex className="gap-2">
             <Input
               value={apiHost}
               placeholder={t('settings.provider.api_host')}
@@ -199,14 +234,21 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
-            {t('settings.provider.basic_auth')}
-            <Tooltip title={t('settings.provider.basic_auth.tip')} placement="right">
-              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-            </Tooltip>
+            {t('settings.provider.basic_auth.label')}
+            <InfoTooltip
+              placement="right"
+              content={t('settings.provider.basic_auth.tip')}
+              iconProps={{
+                size: 16,
+                color: 'var(--color-icon)',
+                className: 'ml-1 cursor-pointer'
+              }}
+            />
           </SettingSubtitle>
           <Flex>
             <Form
-              layout="inline"
+              layout="vertical"
+              style={{ width: '100%' }}
               initialValues={{
                 username: basicAuthUsername,
                 password: basicAuthPassword
@@ -220,14 +262,14 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
                   setBasicAuthPassword(changedValues.password || '')
                 }
               }}>
-              <Form.Item label={t('settings.provider.basic_auth.user_name')} name="username">
+              <Form.Item label={t('settings.provider.basic_auth.user_name.label')} name="username">
                 <Input
                   placeholder={t('settings.provider.basic_auth.user_name.tip')}
                   onBlur={onUpdateBasicAuthUsername}
                 />
               </Form.Item>
               <Form.Item
-                label={t('settings.provider.basic_auth.password')}
+                label={t('settings.provider.basic_auth.password.label')}
                 name="password"
                 rules={[{ required: !!basicAuthUsername, validateTrigger: ['onBlur', 'onChange'] }]}
                 help=""

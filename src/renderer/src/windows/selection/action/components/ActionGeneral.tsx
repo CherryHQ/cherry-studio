@@ -1,7 +1,8 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
-import { useSettings } from '@renderer/hooks/useSettings'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import {
   getAssistantById,
@@ -9,25 +10,28 @@ import {
   getDefaultModel,
   getDefaultTopic
 } from '@renderer/services/AssistantService'
-import { Assistant, Topic } from '@renderer/types'
-import type { ActionItem } from '@renderer/types/selectionTypes'
+import { pauseTrace } from '@renderer/services/SpanManagerService'
+import type { Assistant, Topic } from '@renderer/types'
 import { abortCompletion } from '@renderer/utils/abortController'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { ChevronDown } from 'lucide-react'
-import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
 
+const logger = loggerService.withContext('ActionGeneral')
 interface Props {
-  action: ActionItem
+  action: SelectionActionItem
   scrollToBottom?: () => void
 }
 
 const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { t } = useTranslation()
-  const { language } = useSettings()
+  const [language] = usePreference('app.language')
   const [error, setError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
   const [isContented, setIsContented] = useState(false)
@@ -73,9 +77,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           action.selectedText
         break
       case 'refine':
-        userContent =
-          `请根据下面的内容进行优化或润色，并保持原内容的含义和完整性。要求：使用原语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n` +
-          action.selectedText
+        userContent = `请对用XML标签<INPUT>包裹的用户输入内容进行优化或润色，并保持原内容的含义和完整性。要求：你的输出应当与用户输入内容的语言相同。；请不要包含对本提示词的任何解释，直接给出回复；请不要输出XML标签，直接输出优化后的内容: \n\n<INPUT>${action.selectedText ?? ''}</INPUT>`
         break
       default:
         if (!action.prompt) {
@@ -111,6 +113,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
 
     if (!assistantRef.current || !topicRef.current) return
+    logger.debug('Before peocess message', { assistant: assistantRef.current })
     processMessages(
       assistantRef.current,
       topicRef.current,
@@ -139,6 +142,9 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     if (askId.current) {
       abortCompletion(askId.current)
       setIsLoading(false)
+    }
+    if (topicRef.current?.id) {
+      pauseTrace(topicRef.current.id)
     }
   }
 

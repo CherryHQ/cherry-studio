@@ -1,7 +1,11 @@
-import { createEntityAdapter, createSlice, EntityState, PayloadAction } from '@reduxjs/toolkit'
+import { loggerService } from '@logger'
+import type { EntityState, PayloadAction } from '@reduxjs/toolkit'
+import { createEntityAdapter, createSlice } from '@reduxjs/toolkit'
 // Separate type-only imports from value imports
 import type { Message } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+
+const logger = loggerService.withContext('newMessage')
 
 // 1. Create the Adapter
 const messagesAdapter = createEntityAdapter<Message>()
@@ -11,6 +15,7 @@ export interface MessagesState extends EntityState<Message, string> {
   messageIdsByTopic: Record<string, string[]> // Map: topicId -> ordered message IDs
   currentTopicId: string | null
   loadingByTopic: Record<string, boolean>
+  fulfilledByTopic: Record<string, boolean>
   displayCount: number
 }
 
@@ -19,7 +24,8 @@ const initialState: MessagesState = messagesAdapter.getInitialState({
   messageIdsByTopic: {},
   currentTopicId: null,
   loadingByTopic: {},
-  displayCount: 20
+  fulfilledByTopic: {},
+  displayCount: 10
 })
 
 // Payload for receiving messages (used by loadTopicMessagesThunk)
@@ -34,11 +40,18 @@ interface SetTopicLoadingPayload {
   loading: boolean
 }
 
+// Payload for setting topic loading state
+interface SetTopicFulfilledPayload {
+  topicId: string
+  fulfilled: boolean
+}
+
 // Payload for upserting a block reference
 interface UpsertBlockReferencePayload {
   messageId: string
   blockId: string
   status?: MessageBlockStatus
+  blockType?: MessageBlockType
 }
 
 // Payload for removing a single message
@@ -67,7 +80,7 @@ interface InsertMessageAtIndexPayload {
 }
 
 // 4. Create the Slice with Refactored Reducers
-const messagesSlice = createSlice({
+export const messagesSlice = createSlice({
   name: 'newMessages',
   initialState,
   reducers: {
@@ -82,11 +95,16 @@ const messagesSlice = createSlice({
       const { topicId, loading } = action.payload
       state.loadingByTopic[topicId] = loading
     },
+    setTopicFulfilled(state, action: PayloadAction<SetTopicFulfilledPayload>) {
+      const { topicId, fulfilled } = action.payload
+      state.fulfilledByTopic[topicId] = fulfilled
+    },
     setDisplayCount(state, action: PayloadAction<number>) {
       state.displayCount = action.payload
     },
     messagesReceived(state, action: PayloadAction<MessagesReceivedPayload>) {
       const { topicId, messages } = action.payload
+      // @ts-ignore ts-2589 false positive
       messagesAdapter.upsertMany(state, messages)
       state.messageIdsByTopic[topicId] = messages.map((m) => m.id)
       state.currentTopicId = topicId
@@ -101,6 +119,9 @@ const messagesSlice = createSlice({
       if (!(topicId in state.loadingByTopic)) {
         state.loadingByTopic[topicId] = false
       }
+      if (!(topicId in state.fulfilledByTopic)) {
+        state.fulfilledByTopic[topicId] = false
+      }
     },
     insertMessageAtIndex(state, action: PayloadAction<InsertMessageAtIndexPayload>) {
       const { topicId, message, index } = action.payload
@@ -114,6 +135,9 @@ const messagesSlice = createSlice({
 
       if (!(topicId in state.loadingByTopic)) {
         state.loadingByTopic[topicId] = false
+      }
+      if (!(topicId in state.fulfilledByTopic)) {
+        state.fulfilledByTopic[topicId] = false
       }
     },
     updateMessage(
@@ -145,7 +169,7 @@ const messagesSlice = createSlice({
             }
           }
         } else {
-          console.warn(`[updateMessage] Message ${messageId} not found in entities.`)
+          logger.warn(`[updateMessage] Message ${messageId} not found in entities.`)
         }
       } else {
         messagesAdapter.updateOne(state, { id: messageId, changes: otherUpdates })
@@ -159,6 +183,7 @@ const messagesSlice = createSlice({
       }
       delete state.messageIdsByTopic[topicId]
       state.loadingByTopic[topicId] = false
+      state.fulfilledByTopic[topicId] = false
     },
     removeMessage(state, action: PayloadAction<RemoveMessagePayload>) {
       const { topicId, messageId } = action.payload
@@ -195,11 +220,11 @@ const messagesSlice = createSlice({
       messagesAdapter.removeMany(state, messageIds)
     },
     upsertBlockReference(state, action: PayloadAction<UpsertBlockReferencePayload>) {
-      const { messageId, blockId, status } = action.payload
+      const { messageId, blockId, status, blockType } = action.payload
 
       const messageToUpdate = state.entities[messageId]
       if (!messageToUpdate) {
-        console.error(`[upsertBlockReference] Message ${messageId} not found.`)
+        logger.error(`[upsertBlockReference] Message ${messageId} not found.`)
         return
       }
 
@@ -208,7 +233,11 @@ const messagesSlice = createSlice({
       // Update Block ID
       const currentBlocks = messageToUpdate.blocks || []
       if (!currentBlocks.includes(blockId)) {
-        changes.blocks = [...currentBlocks, blockId]
+        if (blockType === MessageBlockType.THINKING) {
+          changes.blocks = [blockId, ...currentBlocks]
+        } else {
+          changes.blocks = [...currentBlocks, blockId]
+        }
       }
 
       // Update Message Status based on Block Status

@@ -1,7 +1,6 @@
 import type { ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { render, screen } from '@testing-library/react'
-import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThinkingBlock from '../ThinkingBlock'
@@ -9,10 +8,15 @@ import ThinkingBlock from '../ThinkingBlock'
 // Mock dependencies
 const mockUseSettings = vi.fn()
 const mockUseTranslation = vi.fn()
+let mockUsePreference: any
 
 // Mock hooks
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => mockUseSettings()
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -38,15 +42,18 @@ vi.mock('antd', () => ({
       ))}
     </div>
   ),
-  Tooltip: ({ title, children, mouseEnterDelay }: any) => (
-    <div data-testid="tooltip" title={title} data-mouse-enter-delay={mouseEnterDelay}>
-      {children}
-    </div>
-  ),
   message: {
     success: vi.fn(),
     error: vi.fn()
   }
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Tooltip: ({ title, children, mouseEnterDelay }: any) => (
+    <div data-testid="tooltip" title={title} data-mouse-enter-delay={mouseEnterDelay}>
+      {children}
+    </div>
+  )
 }))
 
 // Mock icons
@@ -63,12 +70,18 @@ vi.mock('lucide-react', () => ({
     <span data-testid="lightbulb-icon" data-size={size}>
       💡
     </span>
-  )
+  ),
+  ChevronRight: (props: any) => <svg data-testid="chevron-right-icon" {...props} />,
+  CheckIcon: () => <span>check</span>,
+  CircleXIcon: () => <span>error</span>,
+  AlertTriangleIcon: () => <span>alert</span>
 }))
 
 // Mock motion
 vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: any) => <div data-testid="animate-presence">{children}</div>,
   motion: {
+    div: (props: any) => <div {...props} />,
     span: ({ children, variants, animate, initial, style }: any) => (
       <span
         data-testid="motion-span"
@@ -100,15 +113,50 @@ vi.mock('@renderer/pages/home/Markdown/Markdown', () => ({
   )
 }))
 
+// Mock ThinkingEffect component
+vi.mock('@renderer/components/ThinkingEffect', () => ({
+  __esModule: true,
+  default: ({ isThinking, thinkingTimeText, content, expanded }: any) => (
+    <div
+      data-testid="mock-marquee-component"
+      data-is-thinking={isThinking}
+      data-expanded={expanded}
+      data-content={content}>
+      <div data-testid="thinking-time-text">{thinkingTimeText}</div>
+    </div>
+  )
+}))
+
 describe('ThinkingBlock', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
+
+    // Get the mocked functions
+    const { usePreference } = await import('@data/hooks/usePreference')
+    mockUsePreference = usePreference as any
 
     // Default mock implementations
     mockUseSettings.mockReturnValue({
       messageFont: 'sans-serif',
       fontSize: 14,
       thoughtAutoCollapse: false
+    })
+
+    // Mock usePreference calls - component uses these hooks:
+    // - usePreference('chat.message.font')
+    // - usePreference('chat.message.font_size')
+    // - usePreference('chat.message.thought.auto_collapse')
+    mockUsePreference.mockImplementation((key: string) => {
+      switch (key) {
+        case 'chat.message.font':
+          return ['sans-serif', vi.fn()]
+        case 'chat.message.font_size':
+          return [14, vi.fn()]
+        case 'chat.message.thought.auto_collapse':
+          return [false, vi.fn()]
+        default:
+          return [undefined, vi.fn()]
+      }
     })
 
     mockUseTranslation.mockReturnValue({
@@ -153,7 +201,7 @@ describe('ThinkingBlock', () => {
 
   const getThinkingContent = () => screen.queryByText(/markdown:/i)
   const getCopyButton = () => screen.queryByRole('button', { name: /copy/i })
-  const getThinkingTimeText = () => screen.getByText(/thinking|thought/i)
+  const getThinkingTimeText = () => screen.getByTestId('thinking-time-text')
 
   describe('basic rendering', () => {
     it('should render thinking content when provided', () => {
@@ -162,7 +210,7 @@ describe('ThinkingBlock', () => {
 
       // User should see the thinking content
       expect(screen.getByText('Markdown: Deep thoughts about AI')).toBeInTheDocument()
-      expect(screen.getByTestId('lightbulb-icon')).toBeInTheDocument()
+      expect(screen.getByTestId('mock-marquee-component')).toBeInTheDocument()
     })
 
     it('should not render when content is empty', () => {
@@ -219,32 +267,12 @@ describe('ThinkingBlock', () => {
       renderThinkingBlock(thinkingBlock)
 
       const activeTimeText = getThinkingTimeText()
-      expect(activeTimeText).toHaveTextContent('1.0s')
       expect(activeTimeText).toHaveTextContent('Thinking...')
-    })
-
-    it('should update thinking time in real-time when active', () => {
-      const block = createThinkingBlock({
-        thinking_millsec: 1000,
-        status: MessageBlockStatus.STREAMING
-      })
-      renderThinkingBlock(block)
-
-      // Initial state
-      expect(getThinkingTimeText()).toHaveTextContent('1.0s')
-
-      // After time passes
-      act(() => {
-        vi.advanceTimersByTime(500)
-      })
-
-      expect(getThinkingTimeText()).toHaveTextContent('1.5s')
     })
 
     it('should handle extreme thinking times correctly', () => {
       const testCases = [
-        { thinking_millsec: 0, expectedTime: '0.0s' },
-        { thinking_millsec: undefined, expectedTime: '0.0s' },
+        { thinking_millsec: 0, expectedTime: '0.1s' }, // New logic: values < 1000ms display as 0.1s
         { thinking_millsec: 86400000, expectedTime: '86400.0s' }, // 1 day
         { thinking_millsec: 259200000, expectedTime: '259200.0s' } // 3 days
       ]
@@ -260,36 +288,18 @@ describe('ThinkingBlock', () => {
       })
     })
 
-    it('should stop timer when thinking status changes to completed', () => {
-      const block = createThinkingBlock({
-        thinking_millsec: 1000,
-        status: MessageBlockStatus.STREAMING
-      })
-      const { rerender } = renderThinkingBlock(block)
+    it('should clamp invalid thinking times to a safe default', () => {
+      const testCases = [undefined, Number.NaN, Number.POSITIVE_INFINITY]
 
-      // Advance timer while thinking
-      act(() => {
-        vi.advanceTimersByTime(1000)
+      testCases.forEach((thinking_millsec) => {
+        const block = createThinkingBlock({
+          thinking_millsec: thinking_millsec as any,
+          status: MessageBlockStatus.SUCCESS
+        })
+        const { unmount } = renderThinkingBlock(block)
+        expect(getThinkingTimeText()).toHaveTextContent('0.1s')
+        unmount()
       })
-      expect(getThinkingTimeText()).toHaveTextContent('2.0s')
-
-      // Complete thinking
-      const completedBlock = createThinkingBlock({
-        thinking_millsec: 1000, // Original time doesn't matter
-        status: MessageBlockStatus.SUCCESS
-      })
-      rerender(<ThinkingBlock block={completedBlock} />)
-
-      // Timer should stop - text should change from "Thinking..." to "Thought for"
-      const timeText = getThinkingTimeText()
-      expect(timeText).toHaveTextContent('Thought for')
-      expect(timeText).toHaveTextContent('2.0s')
-
-      // Further time advancement shouldn't change the display
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-      expect(timeText).toHaveTextContent('2.0s')
     })
   })
 
@@ -310,10 +320,17 @@ describe('ThinkingBlock', () => {
       unmount()
 
       // Test collapsed by default (auto-collapse enabled)
-      mockUseSettings.mockReturnValue({
-        messageFont: 'sans-serif',
-        fontSize: 14,
-        thoughtAutoCollapse: true
+      mockUsePreference.mockImplementation((key: string) => {
+        switch (key) {
+          case 'chat.message.font':
+            return ['sans-serif', vi.fn()]
+          case 'chat.message.font_size':
+            return [14, vi.fn()]
+          case 'chat.message.thought.auto_collapse':
+            return [true, vi.fn()] // Enable auto-collapse
+          default:
+            return [undefined, vi.fn()]
+        }
       })
 
       renderThinkingBlock(block)
@@ -323,23 +340,30 @@ describe('ThinkingBlock', () => {
     })
 
     it('should auto-collapse when thinking completes if setting enabled', () => {
-      mockUseSettings.mockReturnValue({
-        messageFont: 'sans-serif',
-        fontSize: 14,
-        thoughtAutoCollapse: true
+      mockUsePreference.mockImplementation((key: string) => {
+        switch (key) {
+          case 'chat.message.font':
+            return ['sans-serif', vi.fn()]
+          case 'chat.message.font_size':
+            return [14, vi.fn()]
+          case 'chat.message.thought.auto_collapse':
+            return [true, vi.fn()] // Enable auto-collapse
+          default:
+            return [undefined, vi.fn()]
+        }
       })
 
       const streamingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
       const { rerender } = renderThinkingBlock(streamingBlock)
 
-      // Should be expanded while thinking
-      expect(getThinkingContent()).toBeInTheDocument()
+      // With thoughtAutoCollapse enabled, it should be collapsed even while thinking
+      expect(getThinkingContent()).not.toBeInTheDocument()
 
       // Stop thinking
       const completedBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
       rerender(<ThinkingBlock block={completedBlock} />)
 
-      // Should be collapsed after thinking completes
+      // Should remain collapsed after thinking completes
       expect(getThinkingContent()).not.toBeInTheDocument()
     })
   })
@@ -360,9 +384,17 @@ describe('ThinkingBlock', () => {
       ]
 
       testCases.forEach(({ settings, expectedFont, expectedSize }) => {
-        mockUseSettings.mockReturnValue({
-          ...settings,
-          thoughtAutoCollapse: false
+        mockUsePreference.mockImplementation((key: string) => {
+          switch (key) {
+            case 'chat.message.font':
+              return [settings.messageFont, vi.fn()]
+            case 'chat.message.font_size':
+              return [settings.fontSize, vi.fn()]
+            case 'chat.message.thought.auto_collapse':
+              return [false, vi.fn()] // Keep expanded to test styling
+            default:
+              return [undefined, vi.fn()]
+          }
         })
 
         const block = createThinkingBlock()
@@ -394,16 +426,6 @@ describe('ThinkingBlock', () => {
 
       expect(screen.getByText('Markdown: Updated thought')).toBeInTheDocument()
       expect(screen.queryByText('Markdown: Original thought')).not.toBeInTheDocument()
-    })
-
-    it('should clean up timer on unmount', () => {
-      const block = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
-      const { unmount } = renderThinkingBlock(block)
-
-      const clearIntervalSpy = vi.spyOn(global, 'clearInterval')
-      unmount()
-
-      expect(clearIntervalSpy).toHaveBeenCalled()
     })
 
     it('should handle rapid status changes gracefully', () => {

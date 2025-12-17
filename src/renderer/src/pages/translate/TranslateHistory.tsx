@@ -1,0 +1,321 @@
+import { DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
+import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import db from '@renderer/databases'
+import useTranslate from '@renderer/hooks/useTranslate'
+import { clearHistory, deleteHistory, updateTranslateHistory } from '@renderer/services/TranslateService'
+import type { TranslateHistory, TranslateLanguage } from '@renderer/types'
+import { Drawer, Empty, Input, Popconfirm } from 'antd'
+import dayjs from 'dayjs'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { isEmpty } from 'lodash'
+import { SearchIcon } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+type DisplayedTranslateHistoryItem = TranslateHistory & {
+  _sourceLanguage: TranslateLanguage
+  _targetLanguage: TranslateLanguage
+}
+
+type TranslateHistoryProps = {
+  isOpen: boolean
+  onHistoryItemClick: (history: DisplayedTranslateHistoryItem) => void
+  onClose: () => void
+}
+
+// const logger = loggerService.withContext('TranslateHistory')
+
+// px
+const ITEM_HEIGHT = 160
+
+const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItemClick, onClose }) => {
+  const { t } = useTranslation()
+  const { getLanguageByLangcode } = useTranslate()
+  const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
+  const [search, setSearch] = useState('')
+  const [displayedHistory, setDisplayedHistory] = useState<DisplayedTranslateHistoryItem[]>([])
+  const [showStared, setShowStared] = useState<boolean>(false)
+
+  const translateHistory: DisplayedTranslateHistoryItem[] = useMemo(() => {
+    if (!_translateHistory) return []
+
+    return _translateHistory.map((item) => ({
+      ...item,
+      _sourceLanguage: getLanguageByLangcode(item.sourceLanguage),
+      _targetLanguage: getLanguageByLangcode(item.targetLanguage),
+      createdAt: dayjs(item.createdAt).format('MM/DD HH:mm')
+    }))
+  }, [_translateHistory, getLanguageByLangcode])
+
+  const searchFilter = useCallback(
+    (item: DisplayedTranslateHistoryItem) => {
+      if (isEmpty(search)) return true
+      const content = `${item._sourceLanguage.label()} ${item._targetLanguage.label()} ${item.sourceText} ${item.targetText} ${item.createdAt}`
+      return content.includes(search)
+    },
+    [search]
+  )
+
+  const starFilter = useMemo(
+    () => (showStared ? (item: DisplayedTranslateHistoryItem) => !!item.star : () => true),
+    [showStared]
+  )
+
+  const finalFilter = useCallback(
+    (item: DisplayedTranslateHistoryItem) => searchFilter(item) && starFilter(item),
+    [searchFilter, starFilter]
+  )
+
+  const handleStar = useCallback(
+    (id: string) => {
+      const origin = translateHistory.find((item) => item.id === id)
+      if (!origin) {
+        return
+      }
+      updateTranslateHistory(id, { star: !origin.star })
+    },
+    [translateHistory]
+  )
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      try {
+        deleteHistory(id)
+      } catch (e) {
+        window.toast.error(t('translate.history.error.delete'))
+      }
+    },
+    [t]
+  )
+
+  useEffect(() => {
+    setDisplayedHistory(translateHistory.filter(finalFilter))
+  }, [finalFilter, translateHistory])
+
+  const Title = () => {
+    return (
+      <Flex className="items-center">
+        {t('translate.history.title')}
+        <Button
+          size="icon"
+          className="text-yellow-300"
+          variant="ghost"
+          onClick={() => {
+            setShowStared(!showStared)
+          }}>
+          {showStared ? <StarFilled /> : <StarOutlined />}
+        </Button>
+      </Flex>
+    )
+  }
+
+  const deferredHistory = useDeferredValue(displayedHistory)
+
+  return (
+    <Drawer
+      title={<Title />}
+      closeIcon={null}
+      open={isOpen}
+      maskClosable
+      onClose={onClose}
+      placement="left"
+      extra={
+        !isEmpty(translateHistory) && (
+          <Popconfirm
+            title={t('translate.history.clear')}
+            description={t('translate.history.clear_description')}
+            onConfirm={clearHistory}>
+            <Button variant="ghost" size="sm">
+              <DeleteOutlined />
+              {t('translate.history.clear')}
+            </Button>
+          </Popconfirm>
+        )
+      }
+      styles={{
+        body: {
+          padding: 0,
+          overflow: 'hidden'
+        },
+        header: {
+          paddingTop: 'var(--navbar-height)'
+        }
+      }}>
+      <HistoryContainer>
+        {/* Search Bar */}
+        <RowFlex className="px-3" style={{ borderBottom: '1px solid var(--ant-color-split)' }}>
+          <Input
+            prefix={
+              <IconWrapper>
+                <SearchIcon size={18} />
+              </IconWrapper>
+            }
+            placeholder={t('translate.history.search.placeholder')}
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+            }}
+            allowClear
+            autoFocus
+            spellCheck={false}
+            style={{ paddingLeft: 0, height: '3em' }}
+            variant="borderless"
+            size="middle"
+          />
+        </RowFlex>
+
+        {/* Virtual List */}
+        {deferredHistory.length > 0 ? (
+          <HistoryList>
+            <DynamicVirtualList list={deferredHistory} estimateSize={() => ITEM_HEIGHT}>
+              {(item) => {
+                return (
+                  <HistoryListItemContainer>
+                    <HistoryListItem onClick={() => onHistoryItemClick(item)}>
+                      <ColFlex className="h-full w-full flex-1 justify-between gap-1">
+                        <Flex className="h-[30px] items-center justify-between">
+                          <Flex className="items-center gap-1.5">
+                            <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
+                            <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
+                          </Flex>
+                          {/* tool bar */}
+                          <Flex className="mt-2 items-center justify-end">
+                            <Button
+                              size="icon"
+                              className="text-yellow-300"
+                              variant="ghost"
+                              onClick={() => {
+                                handleStar(item.id)
+                              }}>
+                              {item.star ? <StarFilled /> : <StarOutlined />}
+                            </Button>
+                            <Popconfirm
+                              title={t('translate.history.delete')}
+                              onConfirm={() => {
+                                handleDelete(item.id)
+                              }}
+                              onPopupClick={(e) => {
+                                e.stopPropagation()
+                              }}>
+                              <Button size="icon" variant="ghost">
+                                <DeleteOutlined />
+                              </Button>
+                            </Popconfirm>
+                          </Flex>
+                        </Flex>
+                        <HistoryListItemTextContainer>
+                          <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
+                          <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
+                            {item.targetText}
+                          </HistoryListItemTitle>
+                        </HistoryListItemTextContainer>
+                        <HistoryListItemDate>{item.createdAt}</HistoryListItemDate>
+                      </ColFlex>
+                    </HistoryListItem>
+                  </HistoryListItemContainer>
+                )
+              }}
+            </DynamicVirtualList>
+          </HistoryList>
+        ) : (
+          <Flex className="items-center justify-center" style={{ flex: 1 }}>
+            <Empty description={t('translate.history.empty')} />
+          </Flex>
+        )}
+      </HistoryContainer>
+    </Drawer>
+  )
+}
+
+const HistoryContainer = styled.div`
+  width: 100%;
+  height: calc(100vh - var(--navbar-height) - 40px);
+  transition:
+    width 0.2s,
+    opacity 0.2s;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-right: 2px;
+  padding-bottom: 5px;
+`
+
+const HistoryList = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+`
+
+const HistoryListItemContainer = styled.div`
+  height: ${ITEM_HEIGHT}px;
+  padding: 10px 24px;
+  transition: background-color 0.2s;
+  position: relative;
+  cursor: pointer;
+  &:hover {
+    background-color: var(--color-background-mute);
+    button {
+      opacity: 1;
+    }
+  }
+
+  border-top: 1px dashed var(--color-border-soft);
+
+  &:last-child {
+    border-bottom: 1px dashed var(--color-border-soft);
+  }
+`
+
+const HistoryListItem = styled.div`
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+
+  button {
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+`
+
+const HistoryListItemTitle = styled.div`
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+`
+
+const HistoryListItemDate = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const HistoryListItemLanguage = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const HistoryListItemTextContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+`
+
+const IconWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 30px;
+  width: 30px;
+  border-radius: 15px;
+  background-color: var(--color-background-soft);
+`
+
+export default TranslateHistoryList

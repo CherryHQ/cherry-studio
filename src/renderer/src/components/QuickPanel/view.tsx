@@ -1,17 +1,19 @@
 import { RightOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
+import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { classNames } from '@renderer/utils'
-import { Flex } from 'antd'
 import { t } from 'i18next'
+import { debounce } from 'lodash'
 import { Check } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { FixedSizeList } from 'react-window'
 import styled from 'styled-components'
-import * as tinyPinyin from 'tiny-pinyin'
 
+import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 import { QuickPanelContext } from './provider'
-import {
+import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelListItem,
@@ -50,64 +52,111 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const [isMouseOver, setIsMouseOver] = useState(false)
 
   const scrollTriggerRef = useRef<QuickPanelScrollTrigger>('initial')
-  const [_index, setIndex] = useState(ctx.defaultIndex)
+  const [_index, setIndex] = useState(-1)
   const index = useDeferredValue(_index)
   const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
   const bodyRef = useRef<HTMLDivElement>(null)
-  const listRef = useRef<FixedSizeList>(null)
+  const listRef = useRef<DynamicVirtualListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
 
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
+  const setSearchTextDebounced = useMemo(() => debounce((val: string) => setSearchText(val), 50), [])
+
   const searchTextRef = useRef('')
 
-  // 处理搜索，过滤列表
+  // 缓存：按 item 缓存拼音文本，避免重复转换
+  const pinyinCacheRef = useRef<WeakMap<QuickPanelListItem, string>>(new WeakMap())
+
+  // 跟踪上一次的搜索文本和符号，用于判断是否需要重置index
+  const prevSearchTextRef = useRef('')
+  const prevSymbolRef = useRef('')
+  const { setTimeoutTimer } = useTimer()
+
+  // Use injected filter and sort functions, or fall back to defaults
+  const filterFn = ctx.filterFn || defaultFilterFn
+  const sortFn = ctx.sortFn || defaultSortFn
+  // 处理搜索，过滤列表（始终保留 alwaysVisible 项在顶部）
   const list = useMemo(() => {
     if (!ctx.isVisible && !ctx.symbol) return []
-    const newList = ctx.list?.filter((item) => {
-      const _searchText = searchText.replace(/^[/@]/, '')
-      if (!_searchText) return true
 
-      let filterText = item.filterText || ''
-      if (typeof item.label === 'string') {
-        filterText += item.label
-      }
-      if (typeof item.description === 'string') {
-        filterText += item.description
-      }
+    const baseList = (ctx.list || []).filter((item) => !item.hidden)
 
-      const lowerFilterText = filterText.toLowerCase()
-      const lowerSearchText = _searchText.toLowerCase()
-
-      if (lowerFilterText.includes(lowerSearchText)) {
-        return true
-      }
-
-      const pattern = lowerSearchText
-        .split('')
-        .map((char) => {
-          return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        })
-        .join('.*')
-      if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
-        try {
-          const pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
-          const regex = new RegExp(pattern, 'ig')
-          return regex.test(pinyinText)
-        } catch (error) {
-          return true
-        }
+    if (ctx.manageListExternally) {
+      const combinedLength = baseList.length
+      const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
+      if (isSymbolChanged) {
+        const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
+        const desiredIndex =
+          typeof ctx.defaultIndex === 'number' ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex) : -1
+        setIndex(desiredIndex)
       } else {
-        const regex = new RegExp(pattern, 'ig')
-        return regex.test(filterText.toLowerCase())
+        setIndex((prevIndex) => {
+          if (prevIndex >= combinedLength) {
+            return combinedLength > 0 ? combinedLength - 1 : -1
+          }
+          return prevIndex
+        })
       }
+
+      prevSearchTextRef.current = ''
+      prevSymbolRef.current = ctx.symbol
+
+      return baseList
+    }
+
+    const _searchText = searchText.replace(/^[/@]/, '')
+    const lowerSearchText = _searchText.toLowerCase()
+    const fuzzyPattern = lowerSearchText
+      .split('')
+      .map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('.*')
+    const fuzzyRegex = new RegExp(fuzzyPattern, 'ig')
+
+    // 拆分：固定显示项（不参与过滤）与普通项
+    const pinnedItems = baseList.filter((item) => item.alwaysVisible)
+    const normalItems = baseList.filter((item) => !item.alwaysVisible)
+
+    // Filter normal items using injected filter function
+    const filteredNormalItems = normalItems.filter((item) => {
+      return filterFn(item, _searchText, fuzzyRegex, pinyinCacheRef.current)
     })
 
-    setIndex(newList.length > 0 ? ctx.defaultIndex || 0 : -1)
+    // Sort filtered items using injected sort function
+    const sortedNormalItems = sortFn(filteredNormalItems, _searchText)
 
-    return newList
-  }, [ctx.defaultIndex, ctx.isVisible, ctx.list, ctx.symbol, searchText])
+    // 只有在搜索文本变化或面板符号变化时才重置index
+    const isSearchChanged = prevSearchTextRef.current !== searchText
+    const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
+
+    if (isSearchChanged || isSymbolChanged) {
+      const combinedLength = pinnedItems.length + sortedNormalItems.length
+      if (isSymbolChanged) {
+        const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
+        const desiredIndex =
+          typeof ctx.defaultIndex === 'number' ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex) : -1
+        setIndex(desiredIndex)
+      } else {
+        setIndex(-1) // 搜索文本变化时不默认高亮
+      }
+    } else {
+      // 如果当前index超出范围，调整到有效范围内
+      setIndex((prevIndex) => {
+        const combinedLength = pinnedItems.length + sortedNormalItems.length
+        if (prevIndex >= combinedLength) {
+          return combinedLength > 0 ? combinedLength - 1 : -1
+        }
+        return prevIndex
+      })
+    }
+
+    prevSearchTextRef.current = searchText
+    prevSymbolRef.current = ctx.symbol
+
+    // 固定项置顶 + 排序后的普通项
+    return [...pinnedItems, ...sortedNormalItems]
+  }, [ctx.isVisible, ctx.symbol, ctx.manageListExternally, ctx.list, ctx.defaultIndex, searchText, filterFn, sortFn])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
@@ -116,39 +165,100 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
       const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+      if (!textArea) return
+
       const cursorPosition = textArea.selectionStart ?? 0
-      const prevChar = textArea.value[cursorPosition - 1]
-      if ((prevChar === '/' || prevChar === '@') && !searchTextRef.current) {
-        searchTextRef.current = prevChar
-      }
+      const textBeforeCursor = textArea.value.slice(0, cursorPosition)
 
-      const _searchText = includeSymbol ? searchTextRef.current : searchTextRef.current.replace(/^[/@]/, '')
-      if (!_searchText) return
+      // 查找末尾最近的触发符号（@ 或 /），允许位于文本起始或空格后
+      const match = textBeforeCursor.match(/(^| )([@/][^\s]*)$/)
+      if (!match) return
 
-      const inputText = textArea.value
-      let newText = inputText
-      const searchPattern = new RegExp(`${_searchText}$`)
+      const matchIndex = match.index ?? -1
+      if (matchIndex === -1) return
 
-      const match = inputText.slice(0, cursorPosition).match(searchPattern)
-      if (match) {
-        const start = match.index || 0
-        const end = start + match[0].length
-        newText = inputText.slice(0, start) + inputText.slice(end)
-        setInputText(newText)
+      const boundarySegment = match[1] ?? ''
+      const symbolSegment = match[2] ?? ''
+      if (!symbolSegment) return
 
-        setTimeout(() => {
-          textArea.focus()
-          textArea.setSelectionRange(start, start)
-        }, 0)
-      }
+      const boundaryStart = matchIndex
+      const symbolStart = boundaryStart + boundarySegment.length
+
+      // 根据 includeSymbol 决定是否删除符号
+      const deleteStart = includeSymbol ? boundaryStart : symbolStart + 1
+      const deleteEnd = cursorPosition
+
+      if (deleteStart >= deleteEnd) return
+
+      const activeSearchText = searchTextRef.current ?? ''
+
+      setInputText((currentText) => {
+        const safeText = currentText ?? ''
+        const expectedSegment = includeSymbol ? symbolSegment : symbolSegment.slice(1)
+        const typedSearch = activeSearchText
+        const normalizedTyped = includeSymbol
+          ? typedSearch
+          : typedSearch.startsWith(symbolSegment[0] ?? '')
+            ? typedSearch.slice(1)
+            : typedSearch
+
+        if (normalizedTyped && expectedSegment !== normalizedTyped) {
+          return safeText
+        }
+
+        const segmentStart = includeSymbol ? symbolStart : symbolStart + 1
+        const segmentEnd = segmentStart + expectedSegment.length
+
+        if (segmentStart < 0 || segmentStart > safeText.length) {
+          return safeText
+        }
+
+        if (segmentEnd > safeText.length) {
+          return safeText
+        }
+
+        const actualSegment = safeText.slice(segmentStart, segmentEnd)
+        if (actualSegment !== expectedSegment) {
+          return safeText
+        }
+
+        const clampedDeleteStart = Math.max(0, Math.min(deleteStart, safeText.length))
+        const clampedDeleteEnd = Math.max(clampedDeleteStart, Math.min(deleteEnd, safeText.length))
+
+        if (clampedDeleteStart >= clampedDeleteEnd) {
+          return safeText
+        }
+
+        const updatedText = safeText.slice(0, clampedDeleteStart) + safeText.slice(clampedDeleteEnd)
+
+        if (updatedText === safeText) {
+          return safeText
+        }
+
+        setTimeoutTimer(
+          'quickpanel_focus',
+          () => {
+            const textareaEl = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            if (!textareaEl) return
+            textareaEl.focus()
+            textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)
+          },
+          0
+        )
+
+        return updatedText
+      })
+
       setSearchText('')
     },
-    [setInputText]
+    [setInputText, setTimeoutTimer]
   )
 
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
-      ctx.close(action)
+      // 传递 searchText 给 close 函数，去掉第一个字符（@ 或 /）
+      const cleanSearchText = searchText.length > 1 ? searchText.slice(1) : ''
+      ctx.close(action, cleanSearchText)
       setHistoryPanel([])
       scrollTriggerRef.current = 'initial'
 
@@ -157,23 +267,52 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         if (textArea) {
           setInputText(textArea.value)
         }
-      } else if (action && !['outsideclick', 'esc', 'enter_empty'].includes(action)) {
-        clearSearchText(true)
+      } else if (
+        action &&
+        !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action) &&
+        ctx.triggerInfo?.type === 'input'
+      ) {
+        setTimeoutTimer(
+          'quickpanel_deferred_clear',
+          () => {
+            clearSearchText(true)
+          },
+          0
+        )
       }
     },
-    [ctx, clearSearchText, setInputText]
+    [ctx, clearSearchText, setInputText, searchText, setTimeoutTimer]
   )
 
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
       if (item.disabled) return
 
+      // 在多选模式下，先更新选中状态
+      if (ctx.multiple && !item.isMenu) {
+        const newSelectedState = !item.isSelected
+        ctx.updateItemSelection(item, newSelectedState)
+
+        // 创建更新后的item对象用于回调
+        const updatedItem = { ...item, isSelected: newSelectedState }
+        const quickPanelCallBackOptions: QuickPanelCallBackOptions = {
+          context: ctx,
+          action,
+          item: updatedItem,
+          searchText: searchText
+        }
+
+        ctx.beforeAction?.(quickPanelCallBackOptions)
+        item?.action?.(quickPanelCallBackOptions)
+        ctx.afterAction?.(quickPanelCallBackOptions)
+        return
+      }
+
       const quickPanelCallBackOptions: QuickPanelCallBackOptions = {
-        symbol: ctx.symbol,
+        context: ctx,
         action,
         item,
-        searchText: searchText,
-        multiple: isAssistiveKeyPressed
+        searchText: searchText
       }
 
       ctx.beforeAction?.(quickPanelCallBackOptions)
@@ -200,23 +339,98 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         return
       }
 
-      if (ctx.multiple && isAssistiveKeyPressed) return
+      // 多选模式下不关闭面板
+      if (ctx.multiple) return
 
       handleClose(action)
     },
-    [ctx, searchText, isAssistiveKeyPressed, handleClose, clearSearchText, index]
+    [ctx, searchText, handleClose, clearSearchText, index]
   )
 
   useEffect(() => {
     searchTextRef.current = searchText
   }, [searchText])
 
+  // Track onSearchChange callback and search state for debouncing
+  const prevSearchCallbackTextRef = useRef('')
+  const isFirstSearchRef = useRef(true)
+  const searchCallbackTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const onSearchChangeRef = useRef(ctx.onSearchChange)
+
+  // Keep onSearchChange ref up to date
+  useEffect(() => {
+    onSearchChangeRef.current = ctx.onSearchChange
+  }, [ctx.onSearchChange])
+
+  // Reset search history when panel closes
+  useEffect(() => {
+    if (!ctx.isVisible) {
+      prevSearchCallbackTextRef.current = ''
+      isFirstSearchRef.current = true
+      if (searchCallbackTimerRef.current) {
+        clearTimeout(searchCallbackTimerRef.current)
+        searchCallbackTimerRef.current = null
+      }
+    }
+  }, [ctx.isVisible])
+
+  // Trigger onSearchChange with debounce (called from handleInput)
+  const triggerSearchChange = useCallback((searchText: string) => {
+    if (!onSearchChangeRef.current) return
+
+    // Clean search text: remove leading symbol (/ or @) and trim
+    const cleanSearchText = searchText.replace(/^[/@]/, '').trim()
+
+    // Don't trigger if search text hasn't changed
+    if (cleanSearchText === prevSearchCallbackTextRef.current) {
+      return
+    }
+
+    // Don't trigger callback for empty search text
+    if (!cleanSearchText) {
+      prevSearchCallbackTextRef.current = ''
+      return
+    }
+
+    // Clear previous timer
+    if (searchCallbackTimerRef.current) {
+      clearTimeout(searchCallbackTimerRef.current)
+    }
+
+    // First search triggers immediately (0ms), subsequent searches have 300ms debounce
+    const delay = isFirstSearchRef.current ? 0 : 300
+
+    searchCallbackTimerRef.current = setTimeout(() => {
+      prevSearchCallbackTextRef.current = cleanSearchText
+      isFirstSearchRef.current = false
+      onSearchChangeRef.current?.(cleanSearchText)
+      searchCallbackTimerRef.current = null
+    }, delay)
+  }, [])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchCallbackTimerRef.current) {
+        clearTimeout(searchCallbackTimerRef.current)
+        searchCallbackTimerRef.current = null
+      }
+    }
+  }, [])
+
   // 获取当前输入的搜索词
   const isComposing = useRef(false)
+  useEffect(() => {
+    return () => {
+      setSearchTextDebounced.cancel()
+    }
+  }, [setSearchTextDebounced])
+
   useEffect(() => {
     if (!ctx.isVisible) return
 
     const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+    if (!textArea) return
 
     const handleInput = (e: Event) => {
       if (isComposing.current) return
@@ -230,8 +444,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
       if (lastSymbolIndex !== -1) {
         const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
-        setSearchText(newSearchText)
+        setSearchTextDebounced(newSearchText)
+        // Trigger server-side search callback immediately (with its own debounce)
+        triggerSearchChange(newSearchText)
       } else {
+        // 使用本地 handleClose，确保在删除触发符时同步受控输入值
         handleClose('delete-symbol')
       }
     }
@@ -253,23 +470,32 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       textArea.removeEventListener('input', handleInput)
       textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
       textArea.removeEventListener('compositionend', handleCompositionEnd)
-      setTimeout(() => {
-        setSearchText('')
-      }, 200) // 等待面板关闭动画结束后，再清空搜索词
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.isVisible, ctx.symbol, handleClose, setSearchTextDebounced, triggerSearchChange])
+
+  useEffect(() => {
+    if (ctx.isVisible) return
+
+    const timer = setTimeout(() => {
+      setSearchText('')
+    }, 200)
+
+    return () => clearTimeout(timer)
   }, [ctx.isVisible])
 
   useLayoutEffect(() => {
     if (!listRef.current || index < 0 || scrollTriggerRef.current === 'none') return
 
-    const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : 'smart'
-    listRef.current?.scrollToItem(index, alignment)
+    const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : 'center'
+    listRef.current?.scrollToIndex(index, { align: alignment })
 
     scrollTriggerRef.current = 'none'
   }, [index])
 
-  // 处理键盘事件
+  // 处理键盘事件：
+  // - 可见且未折叠时：拦截 Enter 及其组合键（纯 Enter 选择项；带修饰键仅拦截不处理）。
+  // - 软隐藏/折叠时：不拦截 Enter，允许输入框处理（用于发送消息等）。
+  // - 不可见时：不拦截，输入框按常规处理。
   useEffect(() => {
     if (!ctx.isVisible) return
 
@@ -294,12 +520,16 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           scrollTriggerRef.current = 'keyboard'
           if (isAssistiveKeyPressed) {
             setIndex((prev) => {
+              if (prev === -1) return list.length > 0 ? list.length - 1 : -1
               const newIndex = prev - ctx.pageSize
               if (prev === 0) return list.length - 1
               return newIndex < 0 ? 0 : newIndex
             })
           } else {
-            setIndex((prev) => (prev > 0 ? prev - 1 : list.length - 1))
+            setIndex((prev) => {
+              if (prev === -1) return list.length > 0 ? list.length - 1 : -1
+              return prev > 0 ? prev - 1 : list.length - 1
+            })
           }
           break
 
@@ -307,18 +537,23 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           scrollTriggerRef.current = 'keyboard'
           if (isAssistiveKeyPressed) {
             setIndex((prev) => {
+              if (prev === -1) return list.length > 0 ? 0 : -1
               const newIndex = prev + ctx.pageSize
               if (prev + 1 === list.length) return 0
               return newIndex >= list.length ? list.length - 1 : newIndex
             })
           } else {
-            setIndex((prev) => (prev < list.length - 1 ? prev + 1 : 0))
+            setIndex((prev) => {
+              if (prev === -1) return list.length > 0 ? 0 : -1
+              return prev < list.length - 1 ? prev + 1 : 0
+            })
           }
           break
 
         case 'PageUp':
           scrollTriggerRef.current = 'keyboard'
           setIndex((prev) => {
+            if (prev === -1) return list.length > 0 ? Math.max(0, list.length - ctx.pageSize) : -1
             const newIndex = prev - ctx.pageSize
             return newIndex < 0 ? 0 : newIndex
           })
@@ -327,6 +562,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         case 'PageDown':
           scrollTriggerRef.current = 'keyboard'
           setIndex((prev) => {
+            if (prev === -1) return list.length > 0 ? Math.min(ctx.pageSize - 1, list.length - 1) : -1
             const newIndex = prev + ctx.pageSize
             return newIndex >= list.length ? list.length - 1 : newIndex
           })
@@ -354,8 +590,29 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           break
 
         case 'Enter':
-        case 'NumpadEnter':
+        case 'NumpadEnter': {
           if (isComposing.current) return
+
+          // 折叠/软隐藏时不拦截，让输入框处理（用于发送消息）
+          const hasSearch = searchText.replace(/^[/@]/, '').length > 0
+          const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
+          const isCollapsed = hasSearch && nonPinnedCount === 0
+          if (isCollapsed) return
+
+          // 面板可见且未折叠时：拦截所有 Enter 变体；
+          // 纯 Enter 选择项，带修饰键仅拦截不处理
+          if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            // Don't prevent default or stop propagation - let it create a newline
+            setIsMouseOver(false)
+            break
+          }
+
+          if (e.ctrlKey || e.metaKey || e.altKey) {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsMouseOver(false)
+            break
+          }
 
           if (list?.[index]) {
             e.preventDefault()
@@ -367,7 +624,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             handleClose('enter_empty')
           }
           break
+        }
         case 'Escape':
+          e.stopPropagation()
           handleClose('esc')
           break
       }
@@ -387,16 +646,26 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('click', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('keyup', handleKeyUp, true)
+    window.addEventListener('click', handleClickOutside, true)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('click', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('keyup', handleKeyUp, true)
+      window.removeEventListener('click', handleClickOutside, true)
     }
-  }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose, clearSearchText])
+  }, [
+    index,
+    isAssistiveKeyPressed,
+    historyPanel,
+    ctx,
+    list,
+    handleItemAction,
+    handleClose,
+    clearSearchText,
+    searchText
+  ])
 
   const [footerWidth, setFooterWidth] = useState(0)
 
@@ -416,123 +685,29 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const listHeight = useMemo(() => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   }, [ctx.pageSize, list.length])
+  const hasSearchText = useMemo(() => searchText.replace(/^[/@]/, '').length > 0, [searchText])
+  // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
+  const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
+  const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
 
-  const RowData = useMemo(
-    (): VirtualizedRowData => ({
-      list,
-      focusedIndex: index,
-      handleItemAction,
-      setIndex
-    }),
-    [list, index, handleItemAction, setIndex]
-  )
+  const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 
-  return (
-    <QuickPanelContainer
-      $pageSize={ctx.pageSize}
-      $selectedColor={selectedColor}
-      $selectedColorHover={selectedColorHover}
-      className={ctx.isVisible ? 'visible' : ''}
-      data-testid="quick-panel">
-      <QuickPanelBody
-        ref={bodyRef}
-        onMouseMove={() =>
-          setIsMouseOver((prev) => {
-            scrollTriggerRef.current = 'initial'
-            return prev ? prev : true
-          })
-        }>
-        <FixedSizeList
-          ref={listRef}
-          itemCount={list.length}
-          itemSize={ITEM_HEIGHT}
-          itemData={RowData}
-          height={listHeight}
-          width="100%"
-          overscanCount={4}
-          style={{
-            pointerEvents: isMouseOver ? 'auto' : 'none'
-          }}>
-          {VirtualizedRow}
-        </FixedSizeList>
-        <QuickPanelFooter ref={footerRef}>
-          <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
-          <QuickPanelFooterTips $footerWidth={footerWidth}>
-            <span>ESC {t('settings.quickPanel.close')}</span>
+  const rowRenderer = useCallback(
+    (item: QuickPanelListItem, itemIndex: number) => {
+      if (!item) return null
 
-            <Flex align="center" gap={4}>
-              ▲▼ {t('settings.quickPanel.select')}
-            </Flex>
-
-            {footerWidth >= 500 && (
-              <>
-                <Flex align="center" gap={4}>
-                  <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
-                    {ASSISTIVE_KEY}
-                  </span>
-                  + ▲▼ {t('settings.quickPanel.page')}
-                </Flex>
-
-                {canForwardAndBackward && (
-                  <Flex align="center" gap={4}>
-                    <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
-                      {ASSISTIVE_KEY}
-                    </span>
-                    + ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
-                  </Flex>
-                )}
-              </>
-            )}
-
-            <Flex align="center" gap={4}>
-              ↩︎ {t('settings.quickPanel.confirm')}
-            </Flex>
-
-            {ctx.multiple && (
-              <Flex align="center" gap={4}>
-                <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
-                  {ASSISTIVE_KEY}
-                </span>
-                + ↩︎ {t('settings.quickPanel.multiple')}
-              </Flex>
-            )}
-          </QuickPanelFooterTips>
-        </QuickPanelFooter>
-      </QuickPanelBody>
-    </QuickPanelContainer>
-  )
-}
-
-interface VirtualizedRowData {
-  list: QuickPanelListItem[]
-  focusedIndex: number
-  handleItemAction: (item: QuickPanelListItem, action?: QuickPanelCloseAction) => void
-  setIndex: (index: number) => void
-}
-
-/**
- * 虚拟化列表行组件，用于避免重新渲染
- */
-const VirtualizedRow = React.memo(
-  ({ data, index, style }: { data: VirtualizedRowData; index: number; style: React.CSSProperties }) => {
-    const { list, focusedIndex, handleItemAction, setIndex } = data
-    const item = list[index]
-    if (!item) return null
-
-    return (
-      <div style={style}>
+      return (
         <QuickPanelItem
           className={classNames({
-            focused: index === focusedIndex,
+            focused: itemIndex === index,
             selected: item.isSelected,
             disabled: item.disabled
           })}
-          data-id={index}
+          data-id={itemIndex}
           onClick={(e) => {
             e.stopPropagation()
             handleItemAction(item, 'click')
-          }}
-          onMouseEnter={() => setIndex(index)}>
+          }}>
           <QuickPanelItemLeft>
             <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
             <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
@@ -551,15 +726,82 @@ const VirtualizedRow = React.memo(
             </QuickPanelItemSuffixIcon>
           </QuickPanelItemRight>
         </QuickPanelItem>
-      </div>
-    )
-  }
-)
+      )
+    },
+    [index, handleItemAction]
+  )
+
+  return (
+    <QuickPanelContainer
+      $pageSize={ctx.pageSize}
+      $selectedColor={selectedColor}
+      $selectedColorHover={selectedColorHover}
+      $collapsed={collapsed}
+      className={ctx.isVisible ? 'visible' : ''}
+      data-testid="quick-panel">
+      <QuickPanelBody
+        ref={bodyRef}
+        onMouseMove={() =>
+          setIsMouseOver((prev) => {
+            scrollTriggerRef.current = 'initial'
+            return prev ? prev : true
+          })
+        }>
+        {collapsed ? (
+          <QuickPanelEmpty>{t('settings.quickPanel.noResult', 'No results')}</QuickPanelEmpty>
+        ) : (
+          <DynamicVirtualList
+            ref={listRef}
+            list={list}
+            size={listHeight}
+            estimateSize={estimateSize}
+            overscan={5}
+            scrollerStyle={{
+              pointerEvents: isMouseOver ? 'auto' : 'none'
+            }}>
+            {rowRenderer}
+          </DynamicVirtualList>
+        )}
+        <QuickPanelFooter ref={footerRef}>
+          <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
+          <QuickPanelFooterTips $footerWidth={footerWidth}>
+            <span>ESC {t('settings.quickPanel.close')}</span>
+
+            <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
+
+            {footerWidth >= 500 && (
+              <>
+                <Flex className="items-center gap-1">
+                  <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
+                    {ASSISTIVE_KEY}
+                  </span>
+                  + ▲▼ {t('settings.quickPanel.page')}
+                </Flex>
+
+                {canForwardAndBackward && (
+                  <Flex className="items-center gap-1">
+                    <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
+                      {ASSISTIVE_KEY}
+                    </span>
+                    + ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
+                  </Flex>
+                )}
+              </>
+            )}
+
+            <Flex className="items-center gap-1">↩︎ {t('settings.quickPanel.confirm')}</Flex>
+          </QuickPanelFooterTips>
+        </QuickPanelFooter>
+      </QuickPanelBody>
+    </QuickPanelContainer>
+  )
+}
 
 const QuickPanelContainer = styled.div<{
   $pageSize: number
   $selectedColor: string
   $selectedColorHover: string
+  $collapsed?: boolean
 }>`
   --focused-color: rgba(0, 0, 0, 0.06);
   --selected-color: ${(props) => props.$selectedColor};
@@ -570,7 +812,7 @@ const QuickPanelContainer = styled.div<{
   left: 0;
   right: 0;
   width: 100%;
-  padding: 0 30px 0 30px;
+  padding: 0 35px 0 35px;
   transform: translateY(-100%);
   transform-origin: bottom;
   transition: max-height 0.2s ease;
@@ -578,8 +820,8 @@ const QuickPanelContainer = styled.div<{
   pointer-events: none;
 
   &.visible {
-    pointer-events: auto;
-    max-height: ${(props) => props.$pageSize * ITEM_HEIGHT + 100}px;
+    pointer-events: ${(props) => (props.$collapsed ? 'none' : 'auto')};
+    max-height: ${(props) => (props.$collapsed ? 0 : props.$pageSize * ITEM_HEIGHT + 100)}px;
   }
   body[theme-mode='dark'] & {
     --focused-color: rgba(255, 255, 255, 0.1);
@@ -611,6 +853,13 @@ const QuickPanelBody = styled.div`
   ::-webkit-scrollbar {
     width: 3px;
   }
+`
+
+const QuickPanelEmpty = styled.div`
+  padding: 16px;
+  text-align: center;
+  color: var(--color-text-3);
+  font-size: 13px;
 `
 
 const QuickPanelFooter = styled.div`
@@ -651,9 +900,17 @@ const QuickPanelItem = styled.div`
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.1s ease;
+
+  &:hover:not(.disabled) {
+    background-color: var(--focused-color);
+  }
+
   &.selected {
     background-color: var(--selected-color);
     &.focused {
+      background-color: var(--selected-color-dark);
+    }
+    &:hover:not(.disabled) {
       background-color: var(--selected-color-dark);
     }
   }

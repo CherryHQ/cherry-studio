@@ -1,25 +1,29 @@
-import '@renderer/assets/styles/selection-toolbar.scss'
+import '@renderer/assets/styles/selection-toolbar.css'
 
+import { Avatar } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
-import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
-import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Avatar } from 'antd'
 import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
-import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TextSelectionData } from 'selection-hook'
+import type { TextSelectionData } from 'selection-hook'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('SelectionToolbar')
 
 //tell main the actual size of the content
 const updateWindowSize = () => {
   const rootElement = document.getElementById('root')
   if (!rootElement) {
-    console.error('SelectionToolbar: Root element not found')
+    logger.error('Root element not found')
     return
   }
   window.api?.selection.determineToolbarSize(rootElement.scrollWidth, rootElement.scrollHeight)
@@ -29,9 +33,9 @@ const updateWindowSize = () => {
  * ActionIcons is a component that renders the action icons
  */
 const ActionIcons: FC<{
-  actionItems: ActionItem[]
+  actionItems: SelectionActionItem[]
   isCompact: boolean
-  handleAction: (action: ActionItem) => void
+  handleAction: (action: SelectionActionItem) => void
   copyIconStatus: 'normal' | 'success' | 'fail'
   copyIconAnimation: 'none' | 'enter' | 'exit'
 }> = memo(({ actionItems, isCompact, handleAction, copyIconStatus, copyIconAnimation }) => {
@@ -64,11 +68,25 @@ const ActionIcons: FC<{
   }, [copyIconStatus, copyIconAnimation])
 
   const renderActionButton = useCallback(
-    (action: ActionItem) => {
+    (action: SelectionActionItem) => {
       const displayName = action.isBuiltIn ? t(action.name) : action.name
 
+      const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleAction(action)
+        }
+      }
+
       return (
-        <ActionButton key={action.id} onClick={() => handleAction(action)} title={isCompact ? displayName : undefined}>
+        <ActionButton
+          key={action.id}
+          onClick={() => handleAction(action)}
+          onKeyDown={handleKeyDown}
+          title={isCompact ? displayName : undefined}
+          role="button"
+          aria-label={displayName}
+          tabIndex={0}>
           <ActionIcon>
             {action.id === 'copy' ? (
               renderCopyIcon()
@@ -95,30 +113,48 @@ const ActionIcons: FC<{
  * demo is used in the settings page
  */
 const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
-  const { language, customCss } = useSettings()
-  const { isCompact, actionItems } = useSelectionAssistant()
+  const [language] = usePreference('app.language')
+  const [customCss] = usePreference('ui.custom_css')
+  const [isCompact] = usePreference('feature.selection.compact')
+  const [actionItems] = usePreference('feature.selection.action_items')
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
-  const copyIconTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
   const realActionItems = useMemo(() => {
     return actionItems?.filter((item) => item.enabled)
   }, [actionItems])
 
   const selectedText = useRef('')
+  // [macOS] only macOS has the fullscreen mode
+  const isFullScreen = useRef(false)
+
+  const onHideCleanUp = useCallback(() => {
+    setCopyIconStatus('normal')
+    setCopyIconAnimation('none')
+    clearTimeoutTimer('textSelection')
+    clearTimeoutTimer('copyIcon')
+  }, [clearTimeoutTimer])
 
   // listen to selectionService events
   useEffect(() => {
+    const cleanups: (() => void)[] = []
     // TextSelection
     const textSelectionListenRemover = window.electron?.ipcRenderer.on(
       IpcChannel.Selection_TextSelected,
       (_, selectionData: TextSelectionData) => {
         selectedText.current = selectionData.text
-        setTimeout(() => {
-          //make sure the animation is active
-          setAnimateKey((prev) => prev + 1)
-        }, 400)
+        isFullScreen.current = selectionData.isFullscreen ?? false
+        const cleanup = setTimeoutTimer(
+          'textSelection',
+          () => {
+            //make sure the animation is active
+            setAnimateKey((prev) => prev + 1)
+          },
+          400
+        )
+        cleanups.push(cleanup)
       }
     )
 
@@ -133,13 +169,12 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       }
     )
 
-    if (!demo) updateWindowSize()
-
     return () => {
       textSelectionListenRemover()
       toolbarVisibilityChangeListenRemover()
+      cleanups.forEach((cleanup) => cleanup())
     }
-  }, [demo])
+  }, [demo, onHideCleanUp, setTimeoutTimer])
 
   //make sure the toolbar size is updated when the compact mode/actionItems is changed
   useEffect(() => {
@@ -159,7 +194,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     }
 
     if (customCss) {
-      const newCustomCss = customCss.replace(/background(-image|-color)?\s*:[^;]+;/gi, '')
+      const newCustomCss = customCss.replace(/(^|\s)background(-image|-color)?\s*:[^;]+;/gi, '')
 
       customCssElement = document.createElement('style')
       customCssElement.id = 'user-defined-custom-css'
@@ -168,14 +203,86 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     }
   }, [customCss, demo])
 
-  const onHideCleanUp = () => {
-    setCopyIconStatus('normal')
-    setCopyIconAnimation('none')
-    clearTimeout(copyIconTimeoutRef.current)
+  /**
+   * Check if text is a valid URI or file path
+   */
+  const isUriOrFilePath = (text: string): boolean => {
+    const trimmed = text.trim()
+    // Must not contain newlines or whitespace
+    if (/\s/.test(trimmed)) {
+      return false
+    }
+    // URI patterns: http://, https://, ftp://, file://, etc.
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
+      return true
+    }
+    // Windows absolute path: C:\, D:\, etc.
+    if (/^[a-zA-Z]:[/\\]/.test(trimmed)) {
+      return true
+    }
+    // Unix absolute path: /path/to/file
+    if (/^\/[^/]/.test(trimmed)) {
+      return true
+    }
+    return false
+  }
+
+  // copy selected text to clipboard
+  const handleCopy = useCallback(async () => {
+    if (selectedText.current) {
+      const result = await window.api?.selection.writeToClipboard(selectedText.current)
+
+      setCopyIconStatus(result ? 'success' : 'fail')
+      setCopyIconAnimation('enter')
+      setTimeoutTimer(
+        'copyIcon',
+        () => {
+          setCopyIconAnimation('exit')
+        },
+        2000
+      )
+    }
+  }, [setTimeoutTimer])
+
+  const handleSearch = useCallback((action: SelectionActionItem) => {
+    if (!action.selectedText) return
+
+    const selectedText = action.selectedText.trim()
+
+    let actionString = ''
+    if (isUriOrFilePath(selectedText)) {
+      actionString = selectedText
+    } else {
+      if (!action.searchEngine) return
+
+      const customUrl = action.searchEngine.split('|')[1]
+      if (!customUrl) return
+
+      actionString = customUrl.replace('{{queryString}}', encodeURIComponent(selectedText))
+    }
+
+    window.api?.openWebsite(actionString)
+    window.api?.selection.hideToolbar()
+  }, [])
+
+  /**
+   * Quote the selected text to the inputbar of the main window
+   */
+  const handleQuote = (action: SelectionActionItem) => {
+    if (action.selectedText) {
+      window.api?.quoteToMainWindow(action.selectedText)
+      window.api?.selection.hideToolbar()
+    }
+  }
+
+  const handleDefaultAction = (action: SelectionActionItem) => {
+    // [macOS] only macOS has the available isFullscreen mode
+    window.api?.selection.processAction(action, isFullScreen.current)
+    window.api?.selection.hideToolbar()
   }
 
   const handleAction = useCallback(
-    (action: ActionItem) => {
+    (action: SelectionActionItem) => {
       if (demo) return
 
       /** avoid mutating the original action, it will cause syncing issue */
@@ -196,47 +303,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
           break
       }
     },
-    [demo]
+    [demo, handleCopy, handleSearch]
   )
-
-  // copy selected text to clipboard
-  const handleCopy = async () => {
-    if (selectedText.current) {
-      const result = await window.api?.selection.writeToClipboard(selectedText.current)
-
-      setCopyIconStatus(result ? 'success' : 'fail')
-      setCopyIconAnimation('enter')
-      copyIconTimeoutRef.current = setTimeout(() => {
-        setCopyIconAnimation('exit')
-      }, 2000)
-    }
-  }
-
-  const handleSearch = (action: ActionItem) => {
-    if (!action.searchEngine) return
-
-    const customUrl = action.searchEngine.split('|')[1]
-    if (!customUrl) return
-
-    const searchUrl = customUrl.replace('{{queryString}}', encodeURIComponent(action.selectedText || ''))
-    window.api?.openWebsite(searchUrl)
-    window.api?.selection.hideToolbar()
-  }
-
-  /**
-   * Quote the selected text to the inputbar of the main window
-   */
-  const handleQuote = (action: ActionItem) => {
-    if (action.selectedText) {
-      window.api?.quoteToMainWindow(action.selectedText)
-      window.api?.selection.hideToolbar()
-    }
-  }
-
-  const handleDefaultAction = (action: ActionItem) => {
-    window.api?.selection.processAction(action)
-    window.api?.selection.hideToolbar()
-  }
 
   return (
     <Container>
@@ -259,33 +327,36 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
 const Container = styled.div`
   display: inline-flex;
   flex-direction: row;
-  align-items: center;
-  border-radius: 6px;
-  background-color: var(--color-selection-toolbar-background);
-  border-color: var(--color-selection-toolbar-border);
-  box-shadow: 0px 2px 3px var(--color-selection-toolbar-shadow);
-  padding: 2px;
-  margin: 2px 3px 5px 3px;
+  align-items: stretch;
+  height: var(--selection-toolbar-height);
+  border-radius: var(--selection-toolbar-border-radius);
+  border: var(--selection-toolbar-border);
+  box-shadow: var(--selection-toolbar-box-shadow);
+  background: var(--selection-toolbar-background);
+  padding: var(--selection-toolbar-padding) !important;
+  margin: var(--selection-toolbar-margin) !important;
   user-select: none;
-  border-width: 1px;
-  border-style: solid;
-  height: 36px;
-  padding-right: 4px;
   box-sizing: border-box;
+  overflow: hidden;
 `
 
 const LogoWrapper = styled.div<{ $draggable: boolean }>`
-  display: flex;
+  display: var(--selection-toolbar-logo-display);
   align-items: center;
   justify-content: center;
-  margin-left: 5px;
-  background-color: transparent;
-  ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'}
+  margin: var(--selection-toolbar-logo-margin);
+  padding: var(--selection-toolbar-logo-padding);
+  background-color: var(--selection-toolbar-logo-background);
+  border-width: var(--selection-toolbar-logo-border-width);
+  border-style: var(--selection-toolbar-logo-border-style);
+  border-color: var(--selection-toolbar-logo-border-color);
+  border-radius: var(--selection-toolbar-border-radius) 0 0 var(--selection-toolbar-border-radius);
+  ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'};
 `
 
 const Logo = styled(Avatar)`
-  height: 22px;
-  width: 22px;
+  height: var(--selection-toolbar-logo-size);
+  width: var(--selection-toolbar-logo-size);
   &.animate {
     animation: rotate 1s ease;
   }
@@ -310,45 +381,55 @@ const ActionWrapper = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  margin-left: 3px;
   background-color: transparent;
+  border-width: var(--selection-toolbar-buttons-border-width);
+  border-style: var(--selection-toolbar-buttons-border-style);
+  border-color: var(--selection-toolbar-buttons-border-color);
+  border-radius: var(--selection-toolbar-buttons-border-radius);
 `
 const ActionButton = styled.div`
+  height: 100%;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  margin: 0 2px;
-  background-color: transparent;
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 4px 6px;
+  gap: 2px;
+  cursor: pointer !important;
+  margin: var(--selection-toolbar-button-margin);
+  padding: var(--selection-toolbar-button-padding);
+  background-color: var(--selection-toolbar-button-bgcolor);
+  border-radius: var(--selection-toolbar-button-border-radius);
+  border: var(--selection-toolbar-button-border);
+  box-shadow: var(--selection-toolbar-button-box-shadow);
   transition: all 0.1s ease-in-out;
   will-change: color, background-color;
+  &:last-child {
+    border-radius: 0 var(--selection-toolbar-border-radius) var(--selection-toolbar-border-radius) 0;
+    padding: var(--selection-toolbar-button-last-padding);
+  }
 
   .btn-icon {
-    width: 16px;
-    height: 16px;
-    color: var(--color-selection-toolbar-text);
+    width: var(--selection-toolbar-button-icon-size);
+    height: var(--selection-toolbar-button-icon-size);
+    color: var(--selection-toolbar-button-icon-color);
     background-color: transparent;
     transition: color 0.1s ease-in-out;
     will-change: color;
   }
   .btn-title {
-    color: var(--color-selection-toolbar-text);
-    --font-size: 14px;
+    color: var(--selection-toolbar-button-text-color);
     transition: color 0.1s ease-in-out;
     will-change: color;
+    line-height: 1.1;
   }
   &:hover {
-    color: var(--color-primary);
     .btn-icon {
       color: var(--color-primary);
     }
     .btn-title {
       color: var(--color-primary);
     }
-    background-color: var(--color-selection-toolbar-hover-bg);
+    background-color: var(--selection-toolbar-button-bgcolor-hover);
   }
 `
 const ActionIcon = styled.div`
@@ -356,8 +437,8 @@ const ActionIcon = styled.div`
   align-items: center;
   justify-content: center;
   position: relative;
-  height: 16px;
-  width: 16px;
+  height: var(--selection-toolbar-button-icon-size);
+  width: var(--selection-toolbar-button-icon-size);
   background-color: transparent;
 
   .btn-icon {
@@ -372,11 +453,11 @@ const ActionIcon = styled.div`
   }
 
   .icon-fail {
-    color: var(--color-error);
+    color: var(--selection-toolbar-color-error);
   }
 
   .icon-success {
-    color: var(--color-primary);
+    color: var(--selection-toolbar-color-primary);
   }
 
   .icon-scale-in {
@@ -436,12 +517,12 @@ const ActionIcon = styled.div`
   }
 `
 const ActionTitle = styled.span`
-  font-size: 14px;
+  font-size: var(--selection-toolbar-font-size);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-left: 3px;
+  margin: var(--selection-toolbar-button-text-margin);
   background-color: transparent;
 `
 

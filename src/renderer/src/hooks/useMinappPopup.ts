@@ -1,14 +1,16 @@
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings' // 使用设置中的值
-import { useAppDispatch } from '@renderer/store'
-import {
-  setCurrentMinappId,
-  setMinappShow,
-  setOpenedKeepAliveMinapps,
-  setOpenedOneOffMinapp
-} from '@renderer/store/runtime'
-import { MinAppType } from '@renderer/types'
+import { usePreference } from '@data/hooks/usePreference'
+import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { useMinapps } from '@renderer/hooks/useMinapps'
+import NavigationService from '@renderer/services/NavigationService'
+import TabsService from '@renderer/services/TabsService'
+import type { MinAppType } from '@renderer/types'
+import { clearWebviewState } from '@renderer/utils/webviewStateManager'
+import { LRUCache } from 'lru-cache'
 import { useCallback } from 'react'
+
+import { useNavbarPosition } from './useNavbar'
+
+let minAppsCache: LRUCache<string, MinAppType>
 
 /**
  * Usage:
@@ -25,42 +27,89 @@ import { useCallback } from 'react'
  *     const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
  */
 export const useMinappPopup = () => {
-  const dispatch = useAppDispatch()
-  const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
-  const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
+  const {
+    openedKeepAliveMinapps,
+    openedOneOffMinapp,
+    minappShow,
+    setOpenedKeepAliveMinapps,
+    setOpenedOneOffMinapp,
+    setCurrentMinappId,
+    setMinappShow
+  } = useMinapps()
+  const [maxKeepAliveMinapps] = usePreference('feature.minapp.max_keep_alive')
+  const { isTopNavbar } = useNavbarPosition()
+
+  const createLRUCache = useCallback(() => {
+    return new LRUCache<string, MinAppType>({
+      max: maxKeepAliveMinapps ?? 10,
+      disposeAfter: (_value, key) => {
+        // Clean up WebView state when app is disposed from cache
+        clearWebviewState(key)
+
+        // Close corresponding tab if it exists
+        const tabs = TabsService.getTabs()
+        const tabToClose = tabs.find((tab) => tab.path === `/apps/${key}`)
+        if (tabToClose) {
+          TabsService.closeTab(tabToClose.id)
+        }
+
+        // Update Redux state
+        setOpenedKeepAliveMinapps(Array.from(minAppsCache.values()))
+      },
+      onInsert: () => {
+        setOpenedKeepAliveMinapps(Array.from(minAppsCache.values()))
+      },
+      updateAgeOnGet: true,
+      updateAgeOnHas: true
+    })
+  }, [maxKeepAliveMinapps, setOpenedKeepAliveMinapps])
+
+  // 缓存不存在
+  if (!minAppsCache) {
+    minAppsCache = createLRUCache()
+  }
+
+  // 缓存数量大小发生了改变
+  if (minAppsCache.max !== maxKeepAliveMinapps) {
+    // 1. 当前小程序数量小于等于设置的缓存数量，直接重新建立缓存
+    if (minAppsCache.size <= maxKeepAliveMinapps) {
+      // LRU cache 机制，后 set 的会被放到前面，所以需要反转一下
+      const oldEntries = Array.from(minAppsCache.entries()).reverse()
+      minAppsCache = createLRUCache()
+      oldEntries.forEach(([key, value]) => {
+        minAppsCache.set(key, value)
+      })
+    }
+    // 2. 大于设置的缓存的话，就直到数量减少到设置的缓存数量
+  }
 
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = useCallback(
     (app: MinAppType, keepAlive: boolean = false) => {
       if (keepAlive) {
+        // 通过 get 和 set 去更新缓存，避免重复添加
+        const cacheApp = minAppsCache.get(app.id)
+        if (!cacheApp) minAppsCache.set(app.id, app)
+
         // 如果小程序已经打开，只切换显示
         if (openedKeepAliveMinapps.some((item) => item.id === app.id)) {
-          dispatch(setCurrentMinappId(app.id))
-          dispatch(setMinappShow(true))
+          setCurrentMinappId(app.id)
+          setMinappShow(true)
           return
         }
-
-        // 如果缓存数量未达上限，添加到缓存列表
-        if (openedKeepAliveMinapps.length < maxKeepAliveMinapps) {
-          dispatch(setOpenedKeepAliveMinapps([app, ...openedKeepAliveMinapps]))
-        } else {
-          // 缓存数量达到上限，移除最后一个，添加新的
-          dispatch(setOpenedKeepAliveMinapps([app, ...openedKeepAliveMinapps.slice(0, maxKeepAliveMinapps - 1)]))
-        }
-
-        dispatch(setOpenedOneOffMinapp(null))
-        dispatch(setCurrentMinappId(app.id))
-        dispatch(setMinappShow(true))
+        setOpenedOneOffMinapp(null)
+        setCurrentMinappId(app.id)
+        setMinappShow(true)
         return
       }
 
       //if the minapp is not keep alive, open it as one-off minapp
-      dispatch(setOpenedOneOffMinapp(app))
-      dispatch(setCurrentMinappId(app.id))
-      dispatch(setMinappShow(true))
+      setOpenedOneOffMinapp(app)
+      setCurrentMinappId(app.id)
+      setMinappShow(true)
       return
     },
-    [dispatch, maxKeepAliveMinapps, openedKeepAliveMinapps]
+    [openedKeepAliveMinapps, setOpenedOneOffMinapp, setCurrentMinappId, setMinappShow]
   )
 
   /** a wrapper of openMinapp(app, true) */
@@ -74,12 +123,10 @@ export const useMinappPopup = () => {
   /** Open a minapp by id (look up the minapp in DEFAULT_MIN_APPS) */
   const openMinappById = useCallback(
     (id: string, keepAlive: boolean = false) => {
-      import('@renderer/config/minapps').then(({ DEFAULT_MIN_APPS }) => {
-        const app = DEFAULT_MIN_APPS.find((app) => app?.id === id)
-        if (app) {
-          openMinapp(app, keepAlive)
-        }
-      })
+      const app = DEFAULT_MIN_APPS.find((app) => app?.id === id)
+      if (app) {
+        openMinapp(app, keepAlive)
+      }
     },
     [openMinapp]
   )
@@ -88,36 +135,66 @@ export const useMinappPopup = () => {
   const closeMinapp = useCallback(
     (appid: string) => {
       if (openedKeepAliveMinapps.some((item) => item.id === appid)) {
-        dispatch(setOpenedKeepAliveMinapps(openedKeepAliveMinapps.filter((item) => item.id !== appid)))
+        minAppsCache.delete(appid)
       } else if (openedOneOffMinapp?.id === appid) {
-        dispatch(setOpenedOneOffMinapp(null))
+        setOpenedOneOffMinapp(null)
       }
 
-      dispatch(setCurrentMinappId(''))
-      dispatch(setMinappShow(false))
+      setCurrentMinappId('')
+      setMinappShow(false)
       return
     },
-    [dispatch, openedKeepAliveMinapps, openedOneOffMinapp]
+    [openedKeepAliveMinapps, openedOneOffMinapp, setOpenedOneOffMinapp, setCurrentMinappId, setMinappShow]
   )
 
   /** Close all minapps (popup hides and all minapps unloaded) */
   const closeAllMinapps = useCallback(() => {
-    dispatch(setOpenedKeepAliveMinapps([]))
-    dispatch(setOpenedOneOffMinapp(null))
-    dispatch(setCurrentMinappId(''))
-    dispatch(setMinappShow(false))
-  }, [dispatch])
+    // minAppsCache.clear 会多次调用 dispose 方法
+    // 重新创建一个 LRU Cache 替换
+    minAppsCache = createLRUCache()
+    setOpenedKeepAliveMinapps([])
+    setOpenedOneOffMinapp(null)
+    setCurrentMinappId('')
+    setMinappShow(false)
+  }, [createLRUCache, setOpenedKeepAliveMinapps, setOpenedOneOffMinapp, setCurrentMinappId, setMinappShow])
 
   /** Hide the minapp popup (only one-off minapp unloaded) */
   const hideMinappPopup = useCallback(() => {
     if (!minappShow) return
 
     if (openedOneOffMinapp) {
-      dispatch(setOpenedOneOffMinapp(null))
-      dispatch(setCurrentMinappId(''))
+      setOpenedOneOffMinapp(null)
+      setCurrentMinappId('')
     }
-    dispatch(setMinappShow(false))
-  }, [dispatch, minappShow, openedOneOffMinapp])
+    setMinappShow(false)
+  }, [minappShow, openedOneOffMinapp, setOpenedOneOffMinapp, setCurrentMinappId, setMinappShow])
+
+  /** Smart open minapp that adapts to navbar position */
+  const openSmartMinapp = useCallback(
+    (config: MinAppType, keepAlive: boolean = false) => {
+      if (isTopNavbar) {
+        // For top navbar mode, need to add to cache first for temporary apps
+        const cacheApp = minAppsCache.get(config.id)
+        if (!cacheApp) {
+          // Add temporary app to cache so MinAppPage can find it
+          minAppsCache.set(config.id, config)
+        }
+
+        // Set current minapp and show state
+        setCurrentMinappId(config.id)
+        setMinappShow(true)
+
+        // Then navigate to the app tab using NavigationService
+        if (NavigationService.navigate) {
+          NavigationService.navigate(`/apps/${config.id}`)
+        }
+      } else {
+        // For side navbar, use the traditional popup system
+        openMinapp(config, keepAlive)
+      }
+    },
+    [isTopNavbar, openMinapp, setCurrentMinappId, setMinappShow]
+  )
 
   return {
     openMinapp,
@@ -125,6 +202,9 @@ export const useMinappPopup = () => {
     openMinappById,
     closeMinapp,
     hideMinappPopup,
-    closeAllMinapps
+    closeAllMinapps,
+    openSmartMinapp,
+    // Expose cache instance for TabsService integration
+    minAppsCache
   }
 }

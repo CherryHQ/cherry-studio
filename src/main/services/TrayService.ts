@@ -1,13 +1,14 @@
-import { isMac } from '@main/constant'
-import { locales } from '@main/utils/locales'
-import { app, Menu, MenuItemConstructorOptions, nativeImage, nativeTheme, Tray } from 'electron'
+import { preferenceService } from '@data/PreferenceService'
+import { isLinux, isMac, isWin } from '@main/constant'
+import { getI18n } from '@main/utils/language'
+import type { MenuItemConstructorOptions } from 'electron'
+import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
 
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
-import { ConfigKeys, configManager } from './ConfigManager'
+import selectionService from './SelectionService'
 import { windowService } from './WindowService'
-
 export class TrayService {
   private static instance: TrayService
   private tray: Tray | null = null
@@ -29,14 +30,14 @@ export class TrayService {
     const iconPath = isMac ? (nativeTheme.shouldUseDarkColors ? iconLight : iconDark) : icon
     const tray = new Tray(iconPath)
 
-    if (process.platform === 'win32') {
+    if (isWin) {
       tray.setImage(iconPath)
-    } else if (process.platform === 'darwin') {
+    } else if (isMac) {
       const image = nativeImage.createFromPath(iconPath)
       const resizedImage = image.resize({ width: 16, height: 16 })
       resizedImage.setTemplateImage(true)
       tray.setImage(resizedImage)
-    } else if (process.platform === 'linux') {
+    } else if (isLinux) {
       const image = nativeImage.createFromPath(iconPath)
       const resizedImage = image.resize({ width: 16, height: 16 })
       tray.setImage(resizedImage)
@@ -46,7 +47,7 @@ export class TrayService {
 
     this.updateContextMenu()
 
-    if (process.platform === 'linux') {
+    if (isLinux) {
       this.tray.setContextMenu(this.contextMenu)
     }
 
@@ -59,7 +60,10 @@ export class TrayService {
     })
 
     this.tray.on('click', () => {
-      if (configManager.getEnableQuickAssistant() && configManager.getClickTrayToShowQuickAssistant()) {
+      const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
+      const clickTrayToShowQuickAssistant = preferenceService.get('feature.quick_assistant.click_tray_to_show')
+
+      if (quickAssistantEnabled && clickTrayToShowQuickAssistant) {
         windowService.showMiniWindow()
       } else {
         windowService.showMainWindow()
@@ -68,19 +72,29 @@ export class TrayService {
   }
 
   private updateContextMenu() {
-    const locale = locales[configManager.getLanguage()]
-    const { tray: trayLocale } = locale.translation
+    const i18n = getI18n()
+    const { tray: trayLocale, selection: selectionLocale } = i18n.translation
 
-    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+    const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
+    const selectionAssistantEnabled = preferenceService.get('feature.selection.enabled')
 
     const template = [
       {
         label: trayLocale.show_window,
         click: () => windowService.showMainWindow()
       },
-      enableQuickAssistant && {
+      quickAssistantEnabled && {
         label: trayLocale.show_mini_window,
         click: () => windowService.showMiniWindow()
+      },
+      (isWin || isMac) && {
+        label: selectionLocale.name + (selectionAssistantEnabled ? ' - On' : ' - Off'),
+        click: () => {
+          if (selectionService) {
+            selectionService.toggleEnabled()
+            this.updateContextMenu()
+          }
+        }
       },
       { type: 'separator' },
       {
@@ -93,7 +107,7 @@ export class TrayService {
   }
 
   private updateTray() {
-    const showTray = configManager.getTray()
+    const showTray = preferenceService.get('app.tray.enabled')
     if (showTray) {
       this.createTray()
     } else {
@@ -109,15 +123,10 @@ export class TrayService {
   }
 
   private watchConfigChanges() {
-    configManager.subscribe(ConfigKeys.Tray, () => this.updateTray())
-
-    configManager.subscribe(ConfigKeys.Language, () => {
-      this.updateContextMenu()
-    })
-
-    configManager.subscribe(ConfigKeys.EnableQuickAssistant, () => {
-      this.updateContextMenu()
-    })
+    preferenceService.subscribeChange('app.tray.enabled', () => this.updateTray())
+    preferenceService.subscribeChange('app.language', () => this.updateContextMenu())
+    preferenceService.subscribeChange('feature.quick_assistant.enabled', () => this.updateContextMenu())
+    preferenceService.subscribeChange('feature.selection.enabled', () => this.updateContextMenu())
   }
 
   private quit() {

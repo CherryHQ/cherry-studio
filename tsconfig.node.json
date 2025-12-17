@@ -2,22 +2,36 @@
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
     "electron.vite.config.*",
+    "scripts",
     "src/main/**/*",
-    "src/preload/**/*",
     "src/main/env.d.ts",
+    "src/preload/**/*",
+    "src/renderer/src/services/traceApi.ts",
     "src/renderer/src/types/*",
-    "packages/shared/**/*"
+    "packages/mcp-trace/**/*",
+    "packages/shared/**/*",
+    "tests/__mocks__/**/*"
   ],
   "compilerOptions": {
     "composite": true,
+    "incremental": true,
+    "moduleResolution": "bundler",
+    "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
     "types": [
-      "electron-vite/node"
+      "electron-vite/node",
+      "vitest/globals"
     ],
-    "baseUrl": ".",
     "paths": {
-      "@main/*": ["src/main/*"],
-      "@types": ["src/renderer/src/types/index.ts"],
-      "@shared/*": ["packages/shared/*"]
-    }
+      "@logger": ["./src/main/services/LoggerService"],
+      "@data/*": ["./src/main/data/*"],
+      "@main/*": ["./src/main/*"],
+      "@types": ["./src/renderer/src/types/index.ts"],
+      "@shared/*": ["./packages/shared/*"],
+      "@mcp-trace/*": ["./packages/mcp-trace/*"],
+      "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"]
+    },
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": true
   }
 }

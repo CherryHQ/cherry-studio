@@ -1,17 +1,30 @@
+import { UploadOutlined } from '@ant-design/icons'
+import { CodeEditor } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import CodeEditor from '@renderer/components/CodeEditor'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
-import { MCPServer } from '@renderer/types'
-import { Form, Modal } from 'antd'
-import { FC, useCallback, useState } from 'react'
+import type { MCPServer } from '@renderer/types'
+import { objectKeys, safeValidateMcpConfig } from '@renderer/types'
+import { parseJSON } from '@renderer/utils'
+import { formatZodError } from '@renderer/utils/error'
+import { Form, Modal, Upload } from 'antd'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('AddMcpServerModal')
 
 interface AddMcpServerModalProps {
   visible: boolean
   onClose: () => void
   onSuccess: (server: MCPServer) => void
   existingServers: MCPServer[]
+  initialImportMethod?: 'json' | 'dxt'
 }
 
 interface ParsedServerData extends MCPServer {
@@ -44,85 +57,243 @@ const initialJsonExample = `// 示例 JSON (stdio):
 //   "mcpServers": {
 //     "streamable-http-example": {
 //       "type": "streamableHttp",
-//       "url": "http://localhost:3001"
+//       "url": "http://localhost:3001",
+//       "headers": {
+//         "Content-Type": "application/json",
+//         "Authorization": "Bearer your-token"
+//       }
 //     }
 //   }
 // }
 `
 
-const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuccess, existingServers }) => {
+const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
+  visible,
+  onClose,
+  onSuccess,
+  existingServers,
+  initialImportMethod = 'json'
+}) => {
   const { t } = useTranslation()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
+  const [importMethod, setImportMethod] = useState<'json' | 'dxt'>(initialImportMethod)
+  const [dxtFile, setDxtFile] = useState<File | null>(null)
   const dispatch = useAppDispatch()
+  const { setTimeoutTimer } = useTimer()
+
+  // Update import method when initialImportMethod changes
+  useEffect(() => {
+    setImportMethod(initialImportMethod)
+  }, [initialImportMethod])
+
+  /**
+   * 从JSON字符串中解析MCP服务器配置
+   * @param inputValue - JSON格式的服务器配置字符串
+   * @returns 包含解析后的服务器配置和可能的错误信息的对象
+   * - serverToAdd: 解析成功时返回服务器配置对象，失败时返回null
+   * - error: 解析失败时返回错误信息，成功时返回null
+   */
+  const getServerFromJson = (
+    inputValue: string
+  ): { serverToAdd: Partial<ParsedServerData>; error: null } | { serverToAdd: null; error: string } => {
+    const trimmedInput = inputValue.trim()
+    const parsedJson = parseJSON(trimmedInput)
+    if (parsedJson === null) {
+      logger.error('Failed to parse json.', { input: trimmedInput })
+      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
+    }
+
+    const { data: validConfig, error } = safeValidateMcpConfig(parsedJson)
+    if (error) {
+      logger.error('Failed to validate json.', { parsedJson, error })
+      return { serverToAdd: null, error: formatZodError(error, t('settings.mcp.addServer.importFrom.invalid')) }
+    }
+
+    let serverToAdd: Partial<ParsedServerData> | null = null
+
+    if (objectKeys(validConfig.mcpServers).length > 1) {
+      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
+    }
+
+    if (objectKeys(validConfig.mcpServers).length > 0) {
+      const key = objectKeys(validConfig.mcpServers)[0]
+      serverToAdd = validConfig.mcpServers[key]
+      if (!serverToAdd.name) {
+        serverToAdd.name = key
+      }
+    } else {
+      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
+    }
+
+    // zod 太好用了你们知道吗
+    return { serverToAdd, error: null }
+  }
 
   const handleOk = async () => {
     try {
-      const values = await form.validateFields()
-      const inputValue = values.serverConfig.trim()
       setLoading(true)
 
-      const { serverToAdd, error } = parseAndExtractServer(inputValue, t)
+      if (importMethod === 'dxt') {
+        if (!dxtFile) {
+          window.toast.error(t('settings.mcp.addServer.importFrom.noDxtFile'))
+          setLoading(false)
+          return
+        }
 
-      if (error) {
-        form.setFields([
-          {
-            name: 'serverConfig',
-            errors: [error]
+        // Process DXT file
+        try {
+          const installTimestamp = Date.now()
+          const result = await window.api.mcp.uploadDxt(dxtFile)
+
+          if (!result.success) {
+            window.toast.error(result.error || t('settings.mcp.addServer.importFrom.dxtProcessFailed'))
+            setLoading(false)
+            return
           }
-        ])
-        setLoading(false)
-        return
-      }
 
-      // 檢查重複名稱
-      if (existingServers && existingServers.some((server) => server.name === serverToAdd!.name)) {
-        form.setFields([
-          {
-            name: 'serverConfig',
-            errors: [t('settings.mcp.addServer.importFrom.nameExists', { name: serverToAdd!.name })]
+          const { manifest, extractDir } = result.data
+
+          // Check for duplicate names
+          if (existingServers && existingServers.some((server) => server.name === manifest.name)) {
+            window.toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
+            setLoading(false)
+            return
           }
-        ])
-        setLoading(false)
-        return
-      }
 
-      // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
-      const newServer: MCPServer = {
-        id: nanoid(),
-        name: serverToAdd!.name!,
-        description: serverToAdd!.description ?? '',
-        baseUrl: serverToAdd!.baseUrl ?? serverToAdd!.url ?? '',
-        command: serverToAdd!.command ?? '',
-        args: Array.isArray(serverToAdd!.args) ? serverToAdd!.args : [],
-        env: serverToAdd!.env || {},
-        isActive: false,
-        type: serverToAdd!.type,
-        logoUrl: serverToAdd!.logoUrl,
-        provider: serverToAdd!.provider,
-        providerUrl: serverToAdd!.providerUrl,
-        tags: serverToAdd!.tags,
-        configSample: serverToAdd!.configSample
-      }
+          // Process args with variable substitution
+          const processedArgs = manifest.server.mcp_config.args
+            .map((arg) => {
+              // Replace ${__dirname} with the extraction directory
+              let processedArg = arg.replace(/\$\{__dirname\}/g, extractDir)
 
-      onSuccess(newServer)
-      form.resetFields()
-      onClose()
+              // For now, remove user_config variables and their values
+              processedArg = processedArg.replace(/--[^=]*=\$\{user_config\.[^}]+\}/g, '')
 
-      // 在背景非同步檢查伺服器可用性並更新狀態
-      window.api.mcp
-        .checkMcpConnectivity(newServer)
-        .then((isConnected) => {
-          console.log(`Connectivity check for ${newServer.name}: ${isConnected}`)
-          dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
-        })
-        .catch((connError: any) => {
-          console.error(`Connectivity check failed for ${newServer.name}:`, connError)
-          window.message.error({
-            content: t(`${newServer.name} settings.mcp.addServer.importFrom.connectionFailed`),
-            key: 'mcp-quick-add-failed'
+              return processedArg.trim()
+            })
+            .filter((arg) => arg.trim() !== '' && arg !== '--' && arg !== '=' && !arg.startsWith('--='))
+
+          logger.debug('Processed DXT args:', processedArgs)
+
+          // Create MCPServer from DXT manifest
+          const newServer: MCPServer = {
+            id: nanoid(),
+            name: manifest.display_name || manifest.name,
+            description: manifest.description || manifest.long_description || '',
+            baseUrl: '',
+            command: manifest.server.mcp_config.command,
+            args: processedArgs,
+            env: manifest.server.mcp_config.env || {},
+            isActive: false,
+            type: 'stdio',
+            // Add DXT-specific metadata
+            dxtVersion: manifest.dxt_version,
+            dxtPath: extractDir,
+            // Add additional metadata from manifest
+            logoUrl: manifest.icon ? `${extractDir}/${manifest.icon}` : undefined,
+            provider: manifest.author?.name,
+            providerUrl: manifest.homepage || manifest.repository?.url,
+            tags: manifest.keywords,
+            installSource: 'manual',
+            isTrusted: true,
+            installedAt: installTimestamp,
+            trustedAt: installTimestamp
+          }
+
+          onSuccess(newServer)
+          form.resetFields()
+          setDxtFile(null)
+          onClose()
+
+          // Check server connectivity in background (with timeout)
+          setTimeoutTimer(
+            'handleOk',
+            () => {
+              window.api.mcp
+                .checkMcpConnectivity(newServer)
+                .then((isConnected) => {
+                  logger.debug(`Connectivity check for ${newServer.name}: ${isConnected}`)
+                  dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
+                })
+                .catch((connError: any) => {
+                  logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
+                  // Don't show error for DXT servers as they might need additional setup
+                  logger.warn(
+                    `DXT server ${newServer.name} connectivity check failed, this is normal for servers requiring additional configuration`
+                  )
+                })
+            },
+            1000
+          ) // Delay to ensure server is properly added to store
+        } catch (error) {
+          logger.error('DXT processing error:', error as Error)
+          window.toast.error(t('settings.mcp.addServer.importFrom.dxtProcessFailed'))
+          setLoading(false)
+          return
+        }
+      } else {
+        // Original JSON import logic
+        const values = await form.validateFields()
+        const inputValue = values.serverConfig.trim()
+
+        const { serverToAdd, error } = getServerFromJson(inputValue)
+
+        if (error !== null) {
+          form.setFields([
+            {
+              name: 'serverConfig',
+              errors: [error]
+            }
+          ])
+          setLoading(false)
+          return
+        }
+
+        // 檢查重複名稱
+        if (existingServers && existingServers.some((server) => server.name === serverToAdd.name)) {
+          form.setFields([
+            {
+              name: 'serverConfig',
+              errors: [t('settings.mcp.addServer.importFrom.nameExists', { name: serverToAdd.name })]
+            }
+          ])
+          setLoading(false)
+          return
+        }
+
+        // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
+        const installTimestamp = Date.now()
+        const newServer: MCPServer = {
+          id: nanoid(),
+          ...serverToAdd,
+          name: serverToAdd.name || t('settings.mcp.newServer'),
+          baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
+          isActive: false, // 初始狀態為非啟用
+          installSource: 'manual',
+          isTrusted: true,
+          installedAt: installTimestamp,
+          trustedAt: installTimestamp
+        }
+
+        onSuccess(newServer)
+        form.resetFields()
+        onClose()
+
+        // 在背景非同步檢查伺服器可用性並更新狀態
+        window.api.mcp
+          .checkMcpConnectivity(newServer)
+          .then((isConnected) => {
+            logger.debug(`Connectivity check for ${newServer.name}: ${isConnected}`)
+            dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
           })
-        })
+          .catch((connError: any) => {
+            logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
+            window.toast.error(newServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
+          })
+      }
     } finally {
       setLoading(false)
     }
@@ -142,121 +313,72 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
 
   return (
     <Modal
-      title={t('settings.mcp.addServer.importFrom')}
+      title={
+        importMethod === 'dxt'
+          ? t('settings.mcp.addServer.importFrom.dxt')
+          : t('settings.mcp.addServer.importFrom.json')
+      }
       open={visible}
       onOk={handleOk}
-      onCancel={onClose}
+      onCancel={() => {
+        form.resetFields()
+        setDxtFile(null)
+        setImportMethod(initialImportMethod)
+        onClose()
+      }}
       confirmLoading={loading}
-      destroyOnClose
+      destroyOnHidden
       centered
       transitionName="animation-move-down"
       width={600}>
       <Form form={form} layout="vertical" name="add_mcp_server_form">
-        <Form.Item
-          name="serverConfig"
-          label={t('settings.mcp.addServer.importFrom.tooltip')}
-          rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
-          <CodeEditor
-            // 如果表單值為空，顯示範例 JSON；否則顯示表單值
-            value={serverConfigValue}
-            placeholder={initialJsonExample}
-            language="json"
-            onChange={handleEditorChange}
-            maxHeight="300px"
-            options={{
-              lint: true,
-              collapsible: true,
-              wrappable: true,
-              lineNumbers: true,
-              foldGutter: true,
-              highlightActiveLine: true,
-              keymap: true
-            }}
-          />
-        </Form.Item>
+        {importMethod === 'json' ? (
+          <Form.Item
+            name="serverConfig"
+            label={t('settings.mcp.addServer.importFrom.tooltip')}
+            rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
+            <CodeEditor
+              theme={activeCmTheme}
+              fontSize={fontSize - 1}
+              value={serverConfigValue}
+              placeholder={initialJsonExample}
+              language="json"
+              onChange={handleEditorChange}
+              height="60vh"
+              expanded={false}
+              wrapped
+              options={{
+                lint: true,
+                lineNumbers: true,
+                foldGutter: true,
+                highlightActiveLine: true,
+                keymap: true
+              }}
+            />
+          </Form.Item>
+        ) : (
+          <Form.Item
+            label={t('settings.mcp.addServer.importFrom.dxtFile')}
+            help={t('settings.mcp.addServer.importFrom.dxtHelp')}>
+            <Upload
+              accept=".dxt"
+              maxCount={1}
+              beforeUpload={(file) => {
+                setDxtFile(file)
+                return false // Prevent automatic upload
+              }}
+              onRemove={() => setDxtFile(null)}
+              fileList={dxtFile ? [{ uid: '-1', name: dxtFile.name, status: 'done' } as any] : []}>
+              <Button>
+                <UploadOutlined />
+                {t('settings.mcp.addServer.importFrom.selectDxtFile')}
+              </Button>
+            </Upload>
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   )
-}
-
-// 解析 JSON 提取伺服器資料
-const parseAndExtractServer = (
-  inputValue: string,
-  t: (key: string, options?: any) => string
-): { serverToAdd: Partial<ParsedServerData> | null; error: string | null } => {
-  const trimmedInput = inputValue.trim()
-
-  let parsedJson
-  try {
-    parsedJson = JSON.parse(trimmedInput)
-  } catch (e) {
-    // JSON 解析失敗，返回錯誤
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
-  }
-
-  let serverToAdd: Partial<ParsedServerData> | null = null
-
-  // 檢查是否包含多個伺服器配置 (適用於 JSON 格式)
-  if (
-    parsedJson.mcpServers &&
-    typeof parsedJson.mcpServers === 'object' &&
-    Object.keys(parsedJson.mcpServers).length > 1
-  ) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
-  } else if (Array.isArray(parsedJson) && parsedJson.length > 1) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
-  }
-
-  if (
-    parsedJson.mcpServers &&
-    typeof parsedJson.mcpServers === 'object' &&
-    Object.keys(parsedJson.mcpServers).length > 0
-  ) {
-    // Case 1: {"mcpServers": {"serverName": {...}}}
-    const firstServerKey = Object.keys(parsedJson.mcpServers)[0]
-    const potentialServer = parsedJson.mcpServers[firstServerKey]
-    if (typeof potentialServer === 'object' && potentialServer !== null) {
-      serverToAdd = { ...potentialServer }
-      serverToAdd!.name = potentialServer.name ?? firstServerKey
-    } else {
-      console.error('Invalid server data under mcpServers key:', potentialServer)
-      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
-    }
-  } else if (Array.isArray(parsedJson) && parsedJson.length > 0) {
-    // Case 2: [{...}, ...] - 取第一個伺服器，確保它是物件
-    if (typeof parsedJson[0] === 'object' && parsedJson[0] !== null) {
-      serverToAdd = { ...parsedJson[0] }
-      serverToAdd!.name = parsedJson[0].name ?? t('settings.mcp.newServer')
-    } else {
-      console.error('Invalid server data in array:', parsedJson[0])
-      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
-    }
-  } else if (
-    typeof parsedJson === 'object' &&
-    !Array.isArray(parsedJson) &&
-    !parsedJson.mcpServers // 確保是直接的伺服器物件
-  ) {
-    // Case 3: {...} (單一伺服器物件)
-    // 檢查物件是否為空
-    if (Object.keys(parsedJson).length > 0) {
-      serverToAdd = { ...parsedJson }
-      serverToAdd!.name = parsedJson.name ?? t('settings.mcp.newServer')
-    } else {
-      // 空物件，視為無效
-      serverToAdd = null
-    }
-  } else {
-    // 無效結構或空的 mcpServers
-    serverToAdd = null
-  }
-
-  // 確保 serverToAdd 存在且 name 存在
-  if (!serverToAdd || !serverToAdd.name) {
-    console.error('Invalid JSON structure for server config or missing name:', parsedJson)
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
-  }
-
-  return { serverToAdd, error: null }
 }
 
 export default AddMcpServerModal

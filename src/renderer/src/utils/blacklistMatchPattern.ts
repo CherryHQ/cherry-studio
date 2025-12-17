@@ -1,6 +1,8 @@
-import Logger from '@renderer/config/logger'
-import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProviderResponse } from '@renderer/types'
+import { loggerService } from '@logger'
+import type { WebSearchState } from '@renderer/store/websearch'
+import type { WebSearchProviderResponse } from '@renderer/types'
+
+const logger = loggerService.withContext('BlacklistMatchPattern')
 
 /*
  * MIT License
@@ -180,7 +182,7 @@ export async function parseSubscribeContent(url: string): Promise<string[]> {
   try {
     // 获取订阅源内容
     const response = await fetch(url)
-    Logger.log('[parseSubscribeContent] response', response)
+    logger.debug('[parseSubscribeContent] response', response)
     if (!response.ok) {
       throw new Error('Failed to fetch subscribe content')
     }
@@ -196,15 +198,52 @@ export async function parseSubscribeContent(url: string): Promise<string[]> {
       .map((line) => line.trim())
       .filter((pattern) => parseMatchPattern(pattern) !== null)
   } catch (error) {
-    console.error('Error parsing subscribe content:', error)
+    logger.error('Error parsing subscribe content:', error as Error)
     throw error
   }
 }
+
+export function mapRegexToPatterns(patterns: string[]): string[] {
+  const patternSet = new Set<string>()
+  const domainMatcher = /[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g
+
+  patterns.forEach((pattern) => {
+    if (!pattern) {
+      return
+    }
+
+    // Handle regex patterns (wrapped in /)
+    if (pattern.startsWith('/') && pattern.endsWith('/')) {
+      const rawPattern = pattern.slice(1, -1)
+      const normalizedPattern = rawPattern.replace(/\\\./g, '.').replace(/\\\//g, '/')
+      const matches = normalizedPattern.match(domainMatcher)
+
+      if (matches) {
+        matches.forEach((match) => {
+          patternSet.add(match.replace(/http(s)?:\/\//g, '').toLowerCase())
+        })
+      }
+    } else if (pattern.includes('://')) {
+      // Handle URLs with protocol (e.g., https://baidu.com)
+      const matches = pattern.match(domainMatcher)
+      if (matches) {
+        matches.forEach((match) => {
+          patternSet.add(match.replace(/http(s)?:\/\//g, '').toLowerCase())
+        })
+      }
+    } else {
+      patternSet.add(pattern.toLowerCase())
+    }
+  })
+
+  return Array.from(patternSet)
+}
+
 export async function filterResultWithBlacklist(
   response: WebSearchProviderResponse,
   websearch: WebSearchState
 ): Promise<WebSearchProviderResponse> {
-  Logger.log('[filterResultWithBlacklist]', response)
+  logger.debug('[filterResultWithBlacklist]', response)
 
   // 没有结果或者没有黑名单规则时，直接返回原始结果
   if (
@@ -238,14 +277,14 @@ export async function filterResultWithBlacklist(
         const regexPattern = pattern.slice(1, -1)
         regexPatterns.push(new RegExp(regexPattern, 'i'))
       } catch (error) {
-        console.error('Invalid regex pattern:', pattern, error)
+        logger.error(`Invalid regex pattern: ${pattern}`, error as Error)
       }
     } else {
       // 处理匹配模式格式
       try {
         patternMap.set(pattern, pattern)
       } catch (error) {
-        console.error('Invalid match pattern:', pattern, error)
+        logger.error(`Invalid match pattern: ${pattern}`, error as Error)
       }
     }
   })
@@ -265,12 +304,12 @@ export async function filterResultWithBlacklist(
       const matchesPattern = patternMap.get(result.url).length > 0
       return !matchesPattern
     } catch (error) {
-      console.error('Error processing URL:', result.url, error)
+      logger.error(`Error processing URL: ${result.url}`, error as Error)
       return true // 如果URL解析失败，保留该结果
     }
   })
 
-  Logger.log('filterResultWithBlacklist filtered results:', filteredResults)
+  logger.debug('filterResultWithBlacklist filtered results:', filteredResults)
 
   return {
     ...response,

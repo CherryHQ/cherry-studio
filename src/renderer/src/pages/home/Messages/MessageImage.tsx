@@ -8,15 +8,18 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined
 } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import type { ImageMessageBlock } from '@renderer/types/newMessage'
 import { Image as AntdImage, Space } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
   block: ImageMessageBlock
 }
+
+const logger = loggerService.withContext('MessageImage')
 
 const MessageImage: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
@@ -29,10 +32,10 @@ const MessageImage: FC<Props> = ({ block }) => {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      window.message.success(t('message.download.success'))
+      window.toast.success(t('message.download.success'))
     } catch (error) {
-      console.error('下载图片失败:', error)
-      window.message.error(t('message.download.failed'))
+      logger.error('下载图片失败:', error as Error)
+      window.toast.error(t('message.download.failed'))
     }
   }
 
@@ -59,7 +62,7 @@ const MessageImage: FC<Props> = ({ block }) => {
               byteArrays.push(byteArray)
             }
 
-            const blob = new Blob(byteArrays, { type: mimeType })
+            const blob = new Blob(byteArrays as unknown as BlobPart[], { type: mimeType })
             await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })])
           } else {
             throw new Error('无效的 base64 图片格式')
@@ -81,10 +84,10 @@ const MessageImage: FC<Props> = ({ block }) => {
           break
       }
 
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     } catch (error) {
-      console.error('复制图片失败:', error)
-      window.message.error(t('message.copy.failed'))
+      logger.error('复制图片失败:', error as Error)
+      window.toast.error(t('message.copy.failed'))
     }
   }
 

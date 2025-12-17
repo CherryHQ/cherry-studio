@@ -1,14 +1,28 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { PaintingAction, PaintingsState } from '@renderer/types'
+import { loggerService } from '@logger'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
+import type { PaintingAction, PaintingsState } from '@renderer/types'
+
+const logger = loggerService.withContext('Store:paintings')
 
 const initialState: PaintingsState = {
-  paintings: [],
-  generate: [],
-  remix: [],
-  edit: [],
-  upscale: [],
-  DMXAPIPaintings: [],
-  tokenFluxPaintings: []
+  // SiliconFlow
+  siliconflow_paintings: [],
+  // DMXAPI
+  dmxapi_paintings: [],
+  // TokenFlux
+  tokenflux_paintings: [],
+  zhipu_paintings: [],
+  // Aihubmix
+  aihubmix_image_generate: [],
+  aihubmix_image_remix: [],
+  aihubmix_image_edit: [],
+  aihubmix_image_upscale: [],
+  // OpenAI
+  openai_image_generate: [],
+  openai_image_edit: [],
+  // OVMS
+  ovms_paintings: []
 }
 
 const paintingsSlice = createSlice({
@@ -44,7 +58,7 @@ const paintingsSlice = createSlice({
       if (existingIndex !== -1) {
         state[namespace] = state[namespace].map((c) => (c.id === painting.id ? painting : c))
       } else {
-        console.error(`Painting with id ${painting.id} not found in ${namespace}`)
+        logger.error(`Painting with id ${painting.id} not found in ${namespace}`)
       }
     },
     updatePaintings: (

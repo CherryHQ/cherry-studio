@@ -1,18 +1,21 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Modal, ModalProps } from 'antd'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import useTranslate from '@renderer/hooks/useTranslate'
+import { translateText } from '@renderer/services/TranslateService'
+import type { ModalProps } from 'antd'
+import { Modal } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { TextAreaProps } from 'antd/lib/input'
-import { TextAreaRef } from 'antd/lib/input/TextArea'
+import type { TextAreaProps } from 'antd/lib/input'
+import type { TextAreaRef } from 'antd/lib/input/TextArea'
 import { Languages } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { TopView } from '../TopView'
+
+const logger = loggerService.withContext('TextEditPopup')
 
 interface ShowParams {
   text: string
@@ -36,11 +39,12 @@ const PopupContainer: React.FC<Props> = ({
 }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
+  const { getLanguageByLangcode } = useTranslate()
   const [textValue, setTextValue] = useState(text)
   const [isTranslating, setIsTranslating] = useState(false)
   const textareaRef = useRef<TextAreaRef>(null)
-  const { translateModel } = useDefaultModel()
-  const { targetLanguage, showTranslateConfirm } = useSettings()
+  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const isMounted = useRef(true)
 
   useEffect(() => {
@@ -72,7 +76,8 @@ const PopupContainer: React.FC<Props> = ({
   }
 
   useEffect(() => {
-    setTimeout(resizeTextArea, 0)
+    const timer = setTimeout(resizeTextArea, 0)
+    return () => clearTimeout(timer)
   }, [])
 
   const handleAfterOpenChange = (visible: boolean) => {
@@ -98,30 +103,18 @@ const PopupContainer: React.FC<Props> = ({
       if (!confirmed) return
     }
 
-    if (!translateModel) {
-      window.message.error({
-        content: t('translate.error.not_configured'),
-        key: 'translate-message'
-      })
-      return
-    }
-
     if (isMounted.current) {
       setIsTranslating(true)
     }
 
     try {
-      const assistant = getDefaultTranslateAssistant(targetLanguage, textValue)
-      const translatedText = await fetchTranslate({ content: textValue, assistant })
+      const translatedText = await translateText(textValue, getLanguageByLangcode(targetLanguage))
       if (isMounted.current) {
         setTextValue(translatedText)
       }
     } catch (error) {
-      console.error('Translation failed:', error)
-      window.message.error({
-        content: t('translate.error.failed'),
-        key: 'translate-message'
-      })
+      logger.error('Translation failed:', error as Error)
+      window.toast.error(t('translate.error.failed'))
     } finally {
       if (isMounted.current) {
         setIsTranslating(false)

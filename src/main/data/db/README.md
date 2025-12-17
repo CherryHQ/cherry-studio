@@ -1,0 +1,2 @@
+- All the database table names use **singular** form, snake_casing
+- Export table names use `xxxxTable`

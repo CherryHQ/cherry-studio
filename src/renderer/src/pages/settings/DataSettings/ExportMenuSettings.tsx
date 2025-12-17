@@ -1,27 +1,31 @@
+import { Switch } from '@cherrystudio/ui'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { RootState, useAppDispatch } from '@renderer/store'
-import { setExportMenuOptions } from '@renderer/store/settings'
-import { Switch } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-
 const ExportMenuOptions: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
 
-  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const [exportMenuOptions, setExportMenuOptions] = useMultiplePreferences({
+    image: 'data.export.menus.image',
+    markdown: 'data.export.menus.markdown',
+    markdown_reason: 'data.export.menus.markdown_reason',
+    notion: 'data.export.menus.notion',
+    yuque: 'data.export.menus.yuque',
+    joplin: 'data.export.menus.joplin',
+    obsidian: 'data.export.menus.obsidian',
+    siyuan: 'data.export.menus.siyuan',
+    docx: 'data.export.menus.docx',
+    plain_text: 'data.export.menus.plain_text'
+  })
 
   const handleToggleOption = (option: string, checked: boolean) => {
-    dispatch(
-      setExportMenuOptions({
-        ...exportMenuOptions,
-        [option]: checked
-      })
-    )
+    setExportMenuOptions({
+      [option]: checked
+    })
   }
 
   return (
@@ -31,13 +35,16 @@ const ExportMenuOptions: FC = () => {
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.image')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.image} onChange={(checked) => handleToggleOption('image', checked)} />
+        <Switch checked={exportMenuOptions.image} onCheckedChange={(checked) => handleToggleOption('image', checked)} />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.markdown')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.markdown} onChange={(checked) => handleToggleOption('markdown', checked)} />
+        <Switch
+          checked={exportMenuOptions.markdown}
+          onCheckedChange={(checked) => handleToggleOption('markdown', checked)}
+        />
       </SettingRow>
       <SettingDivider />
 
@@ -45,44 +52,65 @@ const ExportMenuOptions: FC = () => {
         <SettingRowTitle>{t('settings.data.export_menu.markdown_reason')}</SettingRowTitle>
         <Switch
           checked={exportMenuOptions.markdown_reason}
-          onChange={(checked) => handleToggleOption('markdown_reason', checked)}
+          onCheckedChange={(checked) => handleToggleOption('markdown_reason', checked)}
         />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.notion')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.notion} onChange={(checked) => handleToggleOption('notion', checked)} />
+        <Switch
+          checked={exportMenuOptions.notion}
+          onCheckedChange={(checked) => handleToggleOption('notion', checked)}
+        />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.yuque')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.yuque} onChange={(checked) => handleToggleOption('yuque', checked)} />
+        <Switch checked={exportMenuOptions.yuque} onCheckedChange={(checked) => handleToggleOption('yuque', checked)} />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.joplin')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.joplin} onChange={(checked) => handleToggleOption('joplin', checked)} />
+        <Switch
+          checked={exportMenuOptions.joplin}
+          onCheckedChange={(checked) => handleToggleOption('joplin', checked)}
+        />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.obsidian')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.obsidian} onChange={(checked) => handleToggleOption('obsidian', checked)} />
+        <Switch
+          checked={exportMenuOptions.obsidian}
+          onCheckedChange={(checked) => handleToggleOption('obsidian', checked)}
+        />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.siyuan')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.siyuan} onChange={(checked) => handleToggleOption('siyuan', checked)} />
+        <Switch
+          checked={exportMenuOptions.siyuan}
+          onCheckedChange={(checked) => handleToggleOption('siyuan', checked)}
+        />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.docx} onChange={(checked) => handleToggleOption('docx', checked)} />
+        <Switch checked={exportMenuOptions.docx} onCheckedChange={(checked) => handleToggleOption('docx', checked)} />
+      </SettingRow>
+      <SettingDivider />
+
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.export_menu.plain_text')}</SettingRowTitle>
+        <Switch
+          checked={exportMenuOptions.plain_text}
+          onCheckedChange={(checked) => handleToggleOption('plain_text', checked)}
+        />
       </SettingRow>
     </SettingGroup>
   )

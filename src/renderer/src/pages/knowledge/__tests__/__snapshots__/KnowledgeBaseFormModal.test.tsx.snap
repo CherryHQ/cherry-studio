@@ -1,0 +1,89 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = `
+.c0 .ant-modal-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.c0 .ant-modal-close {
+  top: 8px;
+  right: 8px;
+}
+
+.c1 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+<div
+  class="c0"
+  data-testid="modal"
+  styles="[object Object]"
+  transitionname="animation-move-down"
+  width="min(500px, 60vw)"
+>
+  <div
+    data-testid="modal-body"
+  >
+    <div
+      class="c1"
+    >
+      <div>
+        <div
+          data-testid="general-panel"
+        >
+          General Settings Content
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    data-testid="modal-footer"
+  >
+    <div
+      class="c2"
+    >
+      <div
+        style="display: flex; gap: 8px;"
+      >
+        <button
+          data-testid="button"
+          type="button"
+        >
+          <span
+            data-testid="chevron-down"
+          >
+            ▼
+          </span>
+          settings.advanced.title
+        </button>
+      </div>
+      <div
+        style="display: flex; gap: 8px;"
+      >
+        <button
+          data-testid="button"
+          type="button"
+        >
+          common.cancel
+        </button>
+        <button
+          data-testid="button"
+          data-type="primary"
+          type="button"
+        >
+          common.confirm
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;

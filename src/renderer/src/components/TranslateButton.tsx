@@ -1,13 +1,13 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Button, Tooltip } from 'antd'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import useTranslate from '@renderer/hooks/useTranslate'
+import { translateText } from '@renderer/services/TranslateService'
 import { Languages } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   text?: string
@@ -17,11 +17,14 @@ interface Props {
   isLoading?: boolean
 }
 
+const logger = loggerService.withContext('TranslateButton')
+
 const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading }) => {
   const { t } = useTranslation()
-  const { translateModel } = useDefaultModel()
   const [isTranslating, setIsTranslating] = useState(false)
-  const { targetLanguage, showTranslateConfirm } = useSettings()
+  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
+  const { getLanguageByLangcode } = useTranslate()
 
   const translateConfirm = () => {
     if (!showTranslateConfirm) {
@@ -41,28 +44,16 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
       return
     }
 
-    if (!translateModel) {
-      window.message.error({
-        content: t('translate.error.not_configured'),
-        key: 'translate-message'
-      })
-      return
-    }
-
     // 先复制原文到剪贴板
     await navigator.clipboard.writeText(text)
 
     setIsTranslating(true)
     try {
-      const assistant = getDefaultTranslateAssistant(targetLanguage, text)
-      const translatedText = await fetchTranslate({ content: text, assistant })
+      const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
       onTranslated(translatedText)
     } catch (error) {
-      console.error('Translation failed:', error)
-      window.message.error({
-        content: t('translate.error.failed'),
-        key: 'translate-message'
-      })
+      logger.error('Translation failed:', error as Error)
+      window.toast.error(t('translate.error.failed'))
     } finally {
       setIsTranslating(false)
     }
@@ -74,50 +65,19 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
 
   return (
     <Tooltip
-      placement="top"
-      title={t('chat.input.translate', { target_language: t(`languages.${targetLanguage.toString()}`) })}
-      arrow>
-      <ToolbarButton onClick={handleTranslate} disabled={disabled || isTranslating} style={style} type="text">
+      content={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}
+      closeDelay={0}>
+      <Button
+        onClick={handleTranslate}
+        disabled={disabled || isTranslating}
+        style={style}
+        variant="ghost"
+        size="icon-sm"
+        className="rounded-full">
         {isTranslating ? <LoadingOutlined spin /> : <Languages size={18} />}
-      </ToolbarButton>
+      </Button>
     </Tooltip>
   )
 }
-
-const ToolbarButton = styled(Button)`
-  min-width: 30px;
-  height: 30px;
-  font-size: 16px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  color: var(--color-icon);
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-  &.anticon,
-  &.iconfont {
-    transition: all 0.3s ease;
-    color: var(--color-icon);
-  }
-  &:hover {
-    background-color: var(--color-background-soft);
-    .anticon,
-    .iconfont {
-      color: var(--color-text-1);
-    }
-  }
-  &.active {
-    background-color: var(--color-primary) !important;
-    .anticon,
-    .iconfont {
-      color: var(--color-white-soft);
-    }
-    &:hover {
-      background-color: var(--color-primary);
-    }
-  }
-`
 
 export default TranslateButton

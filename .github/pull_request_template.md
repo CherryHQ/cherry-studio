@@ -3,6 +3,18 @@
 1. Consider creating this PR as draft: https://github.com/CherryHQ/cherry-studio/blob/main/CONTRIBUTING.md
 -->
 
+<!--
+
+⚠️ Important: Redux/IndexedDB Data-Changing Feature PRs Temporarily On Hold ⚠️
+
+Please note: For our current development cycle, we are not accepting feature Pull Requests that introduce changes to Redux data models or IndexedDB schemas.
+
+While we value your contributions, PRs of this nature will be blocked without merge. We welcome all other contributions (bug fixes, perf enhancements, docs, etc.). Thank you!
+
+Once version 2.0.0 is released, we will resume reviewing feature PRs.
+
+-->
+
 ### What this PR does
 
 Before this PR:

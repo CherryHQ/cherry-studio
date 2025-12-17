@@ -1,15 +1,18 @@
+import { Tooltip } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
-import { Tooltip } from 'antd'
 import React, { memo, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
+import * as z from 'zod'
+
+export const CitationSchema = z.object({
+  url: z.url(),
+  title: z.string().optional(),
+  content: z.string().optional()
+})
 
 interface CitationTooltipProps {
   children: React.ReactNode
-  citation: {
-    url: string
-    title?: string
-    content?: string
-  }
+  citation: z.infer<typeof CitationSchema>
 }
 
 const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation }) => {
@@ -32,7 +35,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
   // 自定义悬浮卡片内容
   const tooltipContent = useMemo(
     () => (
-      <div>
+      <div style={{ userSelect: 'text' }}>
         <TooltipHeader role="button" aria-label={`Open ${sourceTitle} in new tab`} onClick={handleClick}>
           <Favicon hostname={hostname} alt={sourceTitle} />
           <TooltipTitle role="heading" aria-level={3} title={sourceTitle}>
@@ -54,16 +57,9 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
 
   return (
     <Tooltip
-      overlay={tooltipContent}
-      placement="top"
-      color="var(--color-background-mute)"
-      styles={{
-        body: {
-          border: '1px solid var(--color-border)',
-          padding: '12px',
-          borderRadius: '8px'
-        }
-      }}>
+      content={tooltipContent}
+      showArrow={false}
+      className="rounded-[8px] border border-[var(--color-border)] bg-[var(--color-background)] p-3">
       {children}
     </Tooltip>
   )

@@ -1,11 +1,14 @@
+import { preferenceService } from '@data/PreferenceService'
+import { loggerService } from '@logger'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { Shortcut } from '@types'
-import { BrowserWindow, globalShortcut } from 'electron'
-import Logger from 'electron-log'
+import type { Shortcut } from '@types'
+import type { BrowserWindow } from 'electron'
+import { globalShortcut } from 'electron'
 
 import { configManager } from './ConfigManager'
 import selectionService from './SelectionService'
 import { windowService } from './WindowService'
+const logger = loggerService.withContext('ShortcutService')
 
 let showAppAccelerator: string | null = null
 let showMiniWindowAccelerator: string | null = null
@@ -32,6 +35,15 @@ function getShortcutHandler(shortcut: Shortcut) {
       }
     case 'mini_window':
       return () => {
+        // 在处理器内部检查QuickAssistant状态，而不是在注册时检查
+        const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
+        logger.info(`mini_window shortcut triggered, QuickAssistant enabled: ${quickAssistantEnabled}`)
+
+        if (!quickAssistantEnabled) {
+          logger.warn('QuickAssistant is disabled, ignoring mini_window shortcut trigger')
+          return
+        }
+
         windowService.toggleMiniWindow()
       }
     case 'selection_assistant_toggle':
@@ -55,7 +67,8 @@ function formatShortcutKey(shortcut: string[]): string {
   return shortcut.join('+')
 }
 
-// convert the shortcut recorded by keyboard event key value to electron global shortcut format
+// convert the shortcut recorded by JS keyboard event key value to electron global shortcut format
+// see: https://www.electronjs.org/zh/docs/latest/api/accelerator
 const convertShortcutFormat = (shortcut: string | string[]): string => {
   const accelerator = (() => {
     if (Array.isArray(shortcut)) {
@@ -68,12 +81,34 @@ const convertShortcutFormat = (shortcut: string | string[]): string => {
   return accelerator
     .map((key) => {
       switch (key) {
+        // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
+        // case 'Command':
+        //   return 'CommandOrControl'
+        // case 'Control':
+        //   return 'Control'
+        // case 'Ctrl':
+        //   return 'Control'
+
+        // NEW WAY FOR MODIFIER KEYS
+        // you can see all the modifier keys in the same
+        case 'CommandOrControl':
+          return 'CommandOrControl'
+        case 'Ctrl':
+          return 'Ctrl'
+        case 'Alt':
+          return 'Alt' // Use `Alt` instead of `Option`. The `Option` key only exists on macOS, whereas the `Alt` key is available on all platforms.
+        case 'Meta':
+          return 'Meta' // `Meta` key is mapped to the Windows key on Windows and Linux, `Cmd` on macOS.
+        case 'Shift':
+          return 'Shift'
+
+        // For backward compatibility with old data
         case 'Command':
+        case 'Cmd':
           return 'CommandOrControl'
         case 'Control':
-          return 'Control'
-        case 'Ctrl':
-          return 'Control'
+          return 'Ctrl'
+
         case 'ArrowUp':
           return 'Up'
         case 'ArrowDown':
@@ -83,7 +118,7 @@ const convertShortcutFormat = (shortcut: string | string[]): string => {
         case 'ArrowRight':
           return 'Right'
         case 'AltGraph':
-          return 'Alt'
+          return 'AltGr'
         case 'Slash':
           return '/'
         case 'Semicolon':
@@ -112,7 +147,7 @@ const convertShortcutFormat = (shortcut: string | string[]): string => {
 export function registerShortcuts(window: BrowserWindow) {
   if (isRegisterOnBoot) {
     window.once('ready-to-show', () => {
-      if (configManager.getLaunchToTray()) {
+      if (preferenceService.get('app.tray.on_launch')) {
         registerOnlyUniversalShortcuts()
       }
     })
@@ -164,11 +199,10 @@ export function registerShortcuts(window: BrowserWindow) {
             break
 
           case 'mini_window':
-            //available only when QuickAssistant enabled
-            if (!configManager.getEnableQuickAssistant()) {
-              return
-            }
+            // 移除注册时的条件检查，在处理器内部进行检查
+            logger.info(`Processing mini_window shortcut, enabled: ${shortcut.enabled}`)
             showMiniWindowAccelerator = formatShortcutKey(shortcut.shortcut)
+            logger.debug(`Mini window accelerator set to: ${showMiniWindowAccelerator}`)
             break
 
           case 'selection_assistant_toggle':
@@ -179,7 +213,7 @@ export function registerShortcuts(window: BrowserWindow) {
             selectionAssistantSelectTextAccelerator = formatShortcutKey(shortcut.shortcut)
             break
 
-          //the following ZOOMs will register shortcuts seperately, so will return
+          //the following ZOOMs will register shortcuts separately, so will return
           case 'zoom_in':
             globalShortcut.register('CommandOrControl+=', () => handler(window))
             globalShortcut.register('CommandOrControl+numadd', () => handler(window))
@@ -199,7 +233,7 @@ export function registerShortcuts(window: BrowserWindow) {
 
         globalShortcut.register(accelerator, () => handler(window))
       } catch (error) {
-        Logger.error(`[ShortcutService] Failed to register shortcut ${shortcut.key}`)
+        logger.warn(`Failed to register shortcut ${shortcut.key}`)
       }
     })
   }
@@ -234,7 +268,7 @@ export function registerShortcuts(window: BrowserWindow) {
         handler && globalShortcut.register(accelerator, () => handler(window))
       }
     } catch (error) {
-      Logger.error('[ShortcutService] Failed to unregister shortcuts')
+      logger.warn('Failed to unregister shortcuts')
     }
   }
 
@@ -267,6 +301,6 @@ export function unregisterAllShortcuts() {
     windowOnHandlers.clear()
     globalShortcut.unregisterAll()
   } catch (error) {
-    Logger.error('[ShortcutService] Failed to unregister all shortcuts')
+    logger.warn('Failed to unregister all shortcuts')
   }
 }

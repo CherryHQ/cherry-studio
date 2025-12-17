@@ -1,42 +1,48 @@
+import { useCache } from '@data/hooks/useCache'
+import { loggerService } from '@logger'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { RootState } from '@renderer/store'
+import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { setActiveTopic, setSelectedMessageIds, toggleMultiSelectMode } from '@renderer/store/runtime'
-import { Topic } from '@renderer/types'
+// import { setActiveTopic, setSelectedMessageIds, toggleMultiSelectMode } from '@renderer/store/runtime'
+import type { Topic } from '@renderer/types'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch, useSelector, useStore } from 'react-redux'
+import { useStore } from 'react-redux'
+const logger = loggerService.withContext('useChatContext')
 
 export const useChatContext = (activeTopic: Topic) => {
   const { t } = useTranslation()
-  const dispatch = useDispatch()
   const store = useStore<RootState>()
   const { deleteMessage } = useMessageOperations(activeTopic)
 
+  const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
+  const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
+  const [, setActiveTopic] = useCache('topic.active')
+
   const [messageRefs, setMessageRefs] = useState<Map<string, HTMLElement>>(new Map())
-
-  const isMultiSelectMode = useSelector((state: RootState) => state.runtime.chat.isMultiSelectMode)
-  const selectedMessageIds = useSelector((state: RootState) => state.runtime.chat.selectedMessageIds)
-
-  useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.CHANGE_TOPIC, () => {
-      dispatch(toggleMultiSelectMode(false))
-    })
-    return () => unsubscribe()
-  }, [dispatch])
-
-  useEffect(() => {
-    dispatch(setActiveTopic(activeTopic))
-  }, [dispatch, activeTopic])
 
   const handleToggleMultiSelectMode = useCallback(
     (value: boolean) => {
-      dispatch(toggleMultiSelectMode(value))
+      setIsMultiSelectMode(value)
+      if (!value) {
+        setSelectedMessageIds([])
+      }
     },
-    [dispatch]
+    [setIsMultiSelectMode, setSelectedMessageIds]
   )
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.CHANGE_TOPIC, () => {
+      handleToggleMultiSelectMode(false)
+    })
+    return () => unsubscribe()
+  }, [handleToggleMultiSelectMode])
+
+  useEffect(() => {
+    setActiveTopic(activeTopic)
+  }, [activeTopic, setActiveTopic])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     setMessageRefs((prev) => {
@@ -78,23 +84,21 @@ export const useChatContext = (activeTopic: Topic) => {
 
   const handleSelectMessage = useCallback(
     (messageId: string, selected: boolean) => {
-      dispatch(
-        setSelectedMessageIds(
-          selected
-            ? selectedMessageIds.includes(messageId)
-              ? selectedMessageIds
-              : [...selectedMessageIds, messageId]
-            : selectedMessageIds.filter((id) => id !== messageId)
-        )
+      setSelectedMessageIds(
+        selected
+          ? selectedMessageIds.includes(messageId)
+            ? selectedMessageIds
+            : [...selectedMessageIds, messageId]
+          : selectedMessageIds.filter((id) => id !== messageId)
       )
     },
-    [dispatch, selectedMessageIds]
+    [selectedMessageIds, setSelectedMessageIds]
   )
 
   const handleMultiSelectAction = useCallback(
     async (actionType: string, messageIds: string[]) => {
       if (messageIds.length === 0) {
-        window.message.warning(t('chat.multiple.select.empty'))
+        window.toast.warning(t('chat.multiple.select.empty'))
         return
       }
 
@@ -112,16 +116,17 @@ export const useChatContext = (activeTopic: Topic) => {
             onOk: async () => {
               try {
                 await Promise.all(messageIds.map((messageId) => deleteMessage(messageId)))
-                window.message.success(t('message.delete.success'))
+                window.toast.success(t('message.delete.success'))
                 handleToggleMultiSelectMode(false)
               } catch (error) {
-                console.error('Failed to delete messages:', error)
-                window.message.error(t('message.delete.failed'))
+                logger.error('Failed to delete messages:', error as Error)
+                window.toast.error(t('message.delete.failed'))
               }
             }
           })
           break
         case 'save': {
+          // 筛选消息，实际并非assistant messages，而是可能包含user messages
           const assistantMessages = messages.filter((msg) => messageIds.includes(msg.id))
           if (assistantMessages.length > 0) {
             const contentToSave = assistantMessages
@@ -138,10 +143,10 @@ export const useChatContext = (activeTopic: Topic) => {
               .join('\n\n---\n\n')
             const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
             await window.api.file.save(fileName, contentToSave)
-            window.message.success({ content: t('message.save.success.title'), key: 'save-messages' })
+            window.toast.success(t('message.save.success.title'))
             handleToggleMultiSelectMode(false)
           } else {
-            window.message.warning(t('message.save.no.assistant'))
+            // 这个分支不会进入 因为 messageIds.length === 0 已提前返回，需要简化掉
           }
           break
         }
@@ -161,10 +166,10 @@ export const useChatContext = (activeTopic: Topic) => {
               })
               .join('\n\n---\n\n')
             navigator.clipboard.writeText(contentToCopy)
-            window.message.success({ content: t('message.copied'), key: 'copy-messages' })
+            window.toast.success(t('message.copied'))
             handleToggleMultiSelectMode(false)
           } else {
-            window.message.warning(t('message.copy.no.assistant'))
+            // 和上面一样
           }
           break
         }

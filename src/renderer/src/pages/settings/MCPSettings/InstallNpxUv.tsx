@@ -1,9 +1,11 @@
 import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
-import { Center, VStack } from '@renderer/components/Layout'
+import { Center, ColFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
-import { Alert, Button } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { Alert } from 'antd'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -26,6 +28,15 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   const [binariesDir, setBinariesDir] = useState<string | null>(null)
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const checkBinariesTimerRef = useRef<NodeJS.Timeout>(undefined)
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      clearTimeout(checkBinariesTimerRef.current)
+    }
+  }, [])
+
   const checkBinaries = useCallback(async () => {
     const uvExists = await window.api.isBinaryExist('uv')
     const bunExists = await window.api.isBinaryExist('bun')
@@ -42,29 +53,28 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     try {
       setIsInstallingUv(true)
       await window.api.installUVBinary()
-      setIsUvInstalled(true)
       setIsInstallingUv(false)
+      dispatch(setIsUvInstalled(true))
     } catch (error: any) {
-      window.message.error({ content: `${t('settings.mcp.installError')}: ${error.message}`, key: 'mcp-install-error' })
+      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
       setIsInstallingUv(false)
     }
-    setTimeout(checkBinaries, 1000)
+    clearTimeout(checkBinariesTimerRef.current)
+    checkBinariesTimerRef.current = setTimeout(checkBinaries, 1000)
   }
 
   const installBun = async () => {
     try {
       setIsInstallingBun(true)
       await window.api.installBunBinary()
-      setIsBunInstalled(true)
       setIsInstallingBun(false)
+      dispatch(setIsBunInstalled(true))
     } catch (error: any) {
-      window.message.error({
-        content: `${t('settings.mcp.installError')}: ${error.message}`,
-        key: 'mcp-install-error'
-      })
+      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
       setIsInstallingBun(false)
     }
-    setTimeout(checkBinaries, 1000)
+    clearTimeout(checkBinariesTimerRef.current)
+    checkBinariesTimerRef.current = setTimeout(checkBinaries, 1000)
   }
 
   useEffect(() => {
@@ -75,15 +85,12 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     const installed = isUvInstalled && isBunInstalled
     return (
       <Button
-        type="primary"
-        size="small"
-        variant="filled"
-        shape="circle"
-        icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
-        className="nodrag"
-        color={installed ? 'green' : 'danger'}
+        className="nodrag rounded-full"
+        variant={installed ? 'default' : 'destructive'}
         onClick={() => navigate('/settings/mcp/mcp-install')}
-      />
+        size="icon">
+        {installed ? <CheckCircleOutlined /> : <WarningOutlined />}
+      </Button>
     )
   }
 
@@ -101,21 +108,15 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     <Container>
       <Alert
         type={isUvInstalled ? 'success' : 'warning'}
-        banner
         style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
-          <VStack>
+          <ColFlex>
             <SettingRow style={{ width: '100%' }}>
               <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
                 {isUvInstalled ? 'UV Installed' : `UV ${t('settings.mcp.missingDependencies')}`}
               </SettingSubtitle>
               {!isUvInstalled && (
-                <Button
-                  type="primary"
-                  onClick={installUV}
-                  loading={isInstallingUv}
-                  disabled={isInstallingUv}
-                  size="small">
+                <Button onClick={installUV} disabled={isInstallingUv} size="sm">
                   {isInstallingUv ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
                 </Button>
               )}
@@ -127,26 +128,20 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                 {uvPath}
               </SettingDescription>
             </SettingRow>
-          </VStack>
+          </ColFlex>
         }
       />
       <Alert
         type={isBunInstalled ? 'success' : 'warning'}
-        banner
         style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
-          <VStack>
+          <ColFlex>
             <SettingRow style={{ width: '100%' }}>
               <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
                 {isBunInstalled ? 'Bun Installed' : `Bun ${t('settings.mcp.missingDependencies')}`}
               </SettingSubtitle>
               {!isBunInstalled && (
-                <Button
-                  type="primary"
-                  onClick={installBun}
-                  loading={isInstallingBun}
-                  disabled={isInstallingBun}
-                  size="small">
+                <Button onClick={installBun} disabled={isInstallingBun} size="sm">
                   {isInstallingBun ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
                 </Button>
               )}
@@ -158,11 +153,12 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                 {bunPath}
               </SettingDescription>
             </SettingRow>
-          </VStack>
+          </ColFlex>
         }
       />
       <Center>
-        <Button type="link" onClick={onHelp} icon={<QuestionCircleOutlined />}>
+        <Button variant="ghost" onClick={onHelp}>
+          <QuestionCircleOutlined />
           {t('settings.mcp.installHelp')}
         </Button>
       </Center>

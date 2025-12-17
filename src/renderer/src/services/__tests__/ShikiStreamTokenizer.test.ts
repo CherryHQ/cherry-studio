@@ -1,4 +1,5 @@
-import { createHighlighter, HighlighterCore } from 'shiki'
+import type { HighlighterCore } from 'shiki'
+import { createHighlighter } from 'shiki'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { ShikiStreamTokenizer } from '../ShikiStreamTokenizer'

@@ -6,9 +6,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   addImageFileToContents,
   encodeHTML,
-  escapeBrackets,
   escapeDollarNumber,
-  extractTitle,
+  extractHtmlTitle,
+  getFileNameFromHtmlTitle,
   removeSvgEmptyLines,
   withGenerateImage
 } from '../formats'
@@ -180,69 +180,65 @@ describe('formats', () => {
     })
   })
 
-  describe('escapeBrackets', () => {
-    it('should convert \\[...\\] to display math format', () => {
-      expect(escapeBrackets('The formula is \\[a+b=c\\]')).toBe('The formula is \n$$\na+b=c\n$$\n')
-    })
-
-    it('should convert \\(...\\) to inline math format', () => {
-      expect(escapeBrackets('The formula is \\(a+b=c\\)')).toBe('The formula is $a+b=c$')
-    })
-
-    it('should not affect code blocks', () => {
-      const codeBlock = 'This is text with a code block ```const x = \\[1, 2, 3\\]```'
-      expect(escapeBrackets(codeBlock)).toBe(codeBlock)
-    })
-
-    it('should not affect inline code', () => {
-      const inlineCode = 'This is text with `const x = \\[1, 2, 3\\]` inline code'
-      expect(escapeBrackets(inlineCode)).toBe(inlineCode)
-    })
-
-    it('should handle multiple occurrences', () => {
-      const input = 'Formula 1: \\[a+b=c\\] and formula 2: \\(x+y=z\\)'
-      const expected = 'Formula 1: \n$$\na+b=c\n$$\n and formula 2: $x+y=z$'
-      expect(escapeBrackets(input)).toBe(expected)
-    })
-
-    it('should handle empty string', () => {
-      expect(escapeBrackets('')).toBe('')
-    })
-  })
-
-  describe('extractTitle', () => {
+  describe('extractHtmlTitle', () => {
     it('should extract title from HTML string', () => {
       const html = '<html><head><title>Page Title</title></head><body>Content</body></html>'
-      expect(extractTitle(html)).toBe('Page Title')
+      expect(extractHtmlTitle(html)).toBe('Page Title')
     })
 
     it('should extract title with case insensitivity', () => {
       const html = '<html><head><TITLE>Page Title</TITLE></head><body>Content</body></html>'
-      expect(extractTitle(html)).toBe('Page Title')
+      expect(extractHtmlTitle(html)).toBe('Page Title')
     })
 
     it('should handle HTML without title tag', () => {
       const html = '<html><head></head><body>Content</body></html>'
-      expect(extractTitle(html)).toBeNull()
+      expect(extractHtmlTitle(html)).toBe('')
     })
 
     it('should handle empty title tag', () => {
       const html = '<html><head><title></title></head><body>Content</body></html>'
-      expect(extractTitle(html)).toBe('')
+      expect(extractHtmlTitle(html)).toBe('')
     })
 
     it('should handle malformed HTML', () => {
       const html = '<title>Partial HTML'
-      expect(extractTitle(html)).toBe('Partial HTML')
+      expect(extractHtmlTitle(html)).toBe('Partial HTML')
     })
 
     it('should handle empty string', () => {
-      expect(extractTitle('')).toBeNull()
+      expect(extractHtmlTitle('')).toBe('')
     })
 
     it('should handle undefined', () => {
       // @ts-ignore for testing
-      expect(extractTitle(undefined)).toBeNull()
+      expect(extractHtmlTitle(undefined)).toBe('')
+    })
+  })
+
+  describe('getFileNameFromHtmlTitle', () => {
+    it('should preserve Chinese characters', () => {
+      expect(getFileNameFromHtmlTitle('中文标题')).toBe('中文标题')
+      expect(getFileNameFromHtmlTitle('中文标题 测试')).toBe('中文标题-测试')
+    })
+
+    it('should preserve alphanumeric characters', () => {
+      expect(getFileNameFromHtmlTitle('Hello123')).toBe('Hello123')
+      expect(getFileNameFromHtmlTitle('Hello World 123')).toBe('Hello-World-123')
+    })
+
+    it('should remove special characters and replace spaces with hyphens', () => {
+      expect(getFileNameFromHtmlTitle('File@Name#Test')).toBe('FileNameTest')
+      expect(getFileNameFromHtmlTitle('File Name Test')).toBe('File-Name-Test')
+    })
+
+    it('should handle mixed languages', () => {
+      expect(getFileNameFromHtmlTitle('中文English123')).toBe('中文English123')
+      expect(getFileNameFromHtmlTitle('中文 English 123')).toBe('中文-English-123')
+    })
+
+    it('should handle empty string', () => {
+      expect(getFileNameFromHtmlTitle('')).toBe('')
     })
   })
 

@@ -4,10 +4,12 @@ import type { Message } from '@renderer/types/newMessage' // Assuming correct Me
 import { MessageBlockType } from '@renderer/types/newMessage'
 // May need Block types if refactoring to use them
 // import type { MessageBlock, MainTextMessageBlock } from '@renderer/types/newMessageTypes';
-import { remove } from 'lodash'
+import { remove, takeRight } from 'lodash'
 import { isEmpty } from 'lodash'
 // Assuming getGroupedMessages is also moved here or imported
 // import { getGroupedMessages } from './path/to/getGroupedMessages';
+
+// const logger = loggerService.withContext('Utils.filter')
 
 /**
  * Filters out messages of type '@' or 'clear' and messages without main text content.
@@ -27,7 +29,7 @@ export const filterMessages = (messages: Message[]) => {
 /**
  * Filters messages to include only those after the last 'clear' type message.
  */
-export function filterContextMessages(messages: Message[]): Message[] {
+export function filterAfterContextClearMessages(messages: Message[]): Message[] {
   const clearIndex = messages.findLastIndex((message) => message.type === 'clear')
 
   if (clearIndex === -1) {
@@ -95,17 +97,16 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
       groups[key] = []
     }
     groups[key].push({ ...message, index }) // Add message with its original index
-    // Sort by index within group to maintain original order
-    groups[key].sort((a, b) => b.index - a.index)
   })
   return groups
 }
 
 /**
  * Filters messages based on the 'useful' flag and message role sequences.
+ * Only remain one message in a group. Either useful or fallback to the first message in the group.
  */
 export function filterUsefulMessages(messages: Message[]): Message[] {
-  let _messages = [...messages]
+  const _messages = [...messages]
   const groupedMessages = getGroupedMessages(messages)
 
   Object.entries(groupedMessages).forEach(([key, groupedMsgs]) => {
@@ -119,8 +120,8 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
           }
         })
       } else if (groupedMsgs.length > 0) {
-        // Keep only the last message if none are marked useful
-        const messagesToRemove = groupedMsgs.slice(0, -1)
+        // Keep only the first message if none are marked useful
+        const messagesToRemove = groupedMsgs.slice(1)
         messagesToRemove.forEach((m) => {
           remove(_messages, (o) => o.id === m.id)
         })
@@ -128,17 +129,72 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
     }
   })
 
+  return _messages
+}
+
+export function filterLastAssistantMessage(messages: Message[]): Message[] {
+  const _messages = [...messages]
   // Remove trailing assistant messages
   while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
     _messages.pop()
   }
+  return _messages
+}
 
+export function filterAdjacentUserMessaegs(messages: Message[]): Message[] {
   // Filter adjacent user messages, keeping only the last one
-  _messages = _messages.filter((message, index, origin) => {
+  return messages.filter((message, index, origin) => {
     return !(message.role === 'user' && index + 1 < origin.length && origin[index + 1].role === 'user')
   })
+}
 
-  return _messages
+/**
+ * Filters out assistant messages that only contain ErrorBlocks and their associated user messages.
+ * An assistant message is associated with a user message via the askId field.
+ */
+export function filterErrorOnlyMessagesWithRelated(messages: Message[]): Message[] {
+  const state = store.getState()
+
+  // Find all assistant messages that only contain ErrorBlocks
+  const errorOnlyAskIds = new Set<string>()
+
+  for (const message of messages) {
+    if (message.role !== 'assistant' || !message.askId) {
+      continue
+    }
+
+    // Check if this assistant message only contains ErrorBlocks
+    let hasNonErrorBlock = false
+    for (const blockId of message.blocks) {
+      const block = messageBlocksSelectors.selectById(state, blockId)
+      if (!block) continue
+
+      if (block.type !== MessageBlockType.ERROR) {
+        hasNonErrorBlock = true
+        break
+      }
+    }
+
+    // If only ErrorBlocks (or no blocks), mark this askId for removal
+    if (!hasNonErrorBlock && message.blocks.length > 0) {
+      errorOnlyAskIds.add(message.askId)
+    }
+  }
+
+  // Filter out both the assistant messages and their associated user messages
+  return messages.filter((message) => {
+    // Remove assistant messages that only have ErrorBlocks
+    if (message.role === 'assistant' && message.askId && errorOnlyAskIds.has(message.askId)) {
+      return false
+    }
+
+    // Remove user messages that are associated with error-only assistant messages
+    if (message.role === 'user' && errorOnlyAskIds.has(message.id)) {
+      return false
+    }
+
+    return true
+  })
 }
 
 // Note: getGroupedMessages might also need to be moved or imported.
@@ -154,3 +210,27 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
 //   })
 //   return groups
 // }
+
+/**
+ * Filters and processes messages based on context requirements
+ * @param messages - Array of messages to be filtered
+ * @param contextCount - Number of messages to keep in context (excluding new user and assistant messages)
+ * @returns Filtered array of messages that:
+ * 1. Only includes messages after the last context clear
+ * 2. Only includes useful message in a group (based on useful flag)
+ * 3. Limited to contextCount + 2 messages (including space for new user/assistant messages)
+ * 4. Starts from first user message
+ * 5. Excludes empty messages
+ */
+export function filterContextMessages(messages: Message[], contextCount: number): Message[] {
+  // NOTE: 和 fetchCompletions 中过滤消息的逻辑相同。
+  // 按理说 fetchCompletions 也可以复用这个函数，不过 fetchCompletions 不敢随便乱改，后面再考虑重构吧
+  const afterContextClearMsgs = filterAfterContextClearMessages(messages)
+  const usefulMsgs = filterUsefulMessages(afterContextClearMsgs)
+  const adjacentRemovedMsgs = filterAdjacentUserMessaegs(usefulMsgs)
+  const filteredMessages = filterUserRoleStartMessages(
+    filterEmptyMessages(takeRight(adjacentRemovedMsgs, contextCount))
+  )
+
+  return filteredMessages
+}

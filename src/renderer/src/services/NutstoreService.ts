@@ -1,19 +1,21 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setNutstoreSyncState } from '@renderer/store/nutstore'
-import { WebDavConfig } from '@renderer/types'
+import type { WebDavConfig } from '@renderer/types'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
 import dayjs from 'dayjs'
 import { type CreateDirectoryOptions } from 'webdav'
 
 import { getBackupData, handleData } from './BackupService'
 
+const logger = loggerService.withContext('NutstoreService')
+
 function getNutstoreToken() {
   const nutstoreToken = store.getState().nutstore.nutstoreToken
 
   if (!nutstoreToken) {
-    window.message.error({ content: i18n.t('message.error.invalid.nutstore_token'), key: 'nutstore' })
+    window.toast.error(i18n.t('message.error.invalid.nutstore_token'))
     return null
   }
   return nutstoreToken
@@ -22,7 +24,7 @@ function getNutstoreToken() {
 async function createNutstoreConfig(nutstoreToken: string): Promise<WebDavConfig | null> {
   const result = await window.api.nutstore.decryptToken(nutstoreToken)
   if (!result) {
-    Logger.log('[createNutstoreConfig] Invalid nutstore token')
+    logger.warn('Invalid nutstore token')
     return null
   }
 
@@ -48,7 +50,7 @@ export async function checkConnection() {
     return false
   }
 
-  const isSuccess = await window.api.backup.checkConnection({
+  const isSuccess = await window.api.backup.checkWebdavConnection({
     ...config,
     webdavPath: '/'
   })
@@ -60,6 +62,50 @@ let autoSyncStarted = false
 let syncTimeout: NodeJS.Timeout | null = null
 let isAutoBackupRunning = false
 let isManualBackupRunning = false
+
+async function cleanupOldBackups(webdavConfig: WebDavConfig, maxBackups: number): Promise<void> {
+  if (maxBackups <= 0) {
+    logger.debug('[cleanupOldBackups] Skip cleanup: maxBackups <= 0')
+    return
+  }
+
+  try {
+    const files = await window.api.backup.listWebdavFiles(webdavConfig)
+
+    if (!files || !Array.isArray(files)) {
+      logger.warn('[cleanupOldBackups] Failed to list nutstore directory contents')
+      return
+    }
+
+    const backupFiles = files
+      .filter((file) => file.fileName.startsWith('cherry-studio') && file.fileName.endsWith('.zip'))
+      .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+
+    if (backupFiles.length < maxBackups) {
+      logger.info(`[cleanupOldBackups] No cleanup needed: ${backupFiles.length}/${maxBackups} backups`)
+      return
+    }
+
+    const filesToDelete = backupFiles.slice(maxBackups - 1)
+    logger.info(`[cleanupOldBackups] Deleting ${filesToDelete.length} old backup files`)
+
+    let deletedCount = 0
+    for (const file of filesToDelete) {
+      try {
+        await window.api.backup.deleteWebdavFile(file.fileName, webdavConfig)
+        deletedCount++
+      } catch (error) {
+        logger.error(`[cleanupOldBackups] Failed to delete ${file.basename}:`, error as Error)
+      }
+    }
+
+    if (deletedCount > 0) {
+      logger.info(`[cleanupOldBackups] Successfully deleted ${deletedCount} old backups`)
+    }
+  } catch (error) {
+    logger.error('[cleanupOldBackups] Error during cleanup:', error as Error)
+  }
+}
 
 export async function backupToNutstore({
   showMessage = false,
@@ -74,7 +120,7 @@ export async function backupToNutstore({
   }
 
   if (isManualBackupRunning) {
-    Logger.log('[backupToNutstore] Backup already in progress')
+    logger.verbose('[backupToNutstore] Backup already in progress')
     return
   }
 
@@ -87,7 +133,7 @@ export async function backupToNutstore({
   try {
     deviceType = (await window.api.system.getDeviceType()) || 'unknown'
   } catch (error) {
-    Logger.error('[backupToNutstore] Failed to get device type:', error)
+    logger.error('[backupToNutstore] Failed to get device type:', error as Error)
   }
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${deviceType}.zip`
@@ -99,7 +145,12 @@ export async function backupToNutstore({
 
   const backupData = await getBackupData()
   const skipBackupFile = store.getState().nutstore.nutstoreSkipBackupFile
+  const maxBackups = store.getState().nutstore.nutstoreMaxBackups
+
   try {
+    // 先清理旧备份
+    await cleanupOldBackups(config, maxBackups)
+
     const isSuccess = await window.api.backup.backupToWebdav(backupData, {
       ...config,
       fileName: finalFileName,
@@ -107,20 +158,16 @@ export async function backupToNutstore({
     })
 
     if (isSuccess) {
-      store.dispatch(
-        setNutstoreSyncState({
-          lastSyncError: null
-        })
-      )
-      showMessage && window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
+      store.dispatch(setNutstoreSyncState({ lastSyncError: null }))
+      showMessage && window.toast.success(i18n.t('message.backup.success'))
     } else {
       store.dispatch(setNutstoreSyncState({ lastSyncError: 'Backup failed' }))
-      window.message.error({ content: i18n.t('message.backup.failed'), key: 'backup' })
+      window.toast.error(i18n.t('message.backup.failed'))
     }
   } catch (error) {
     store.dispatch(setNutstoreSyncState({ lastSyncError: 'Backup failed' }))
-    console.error('[Nutstore] Backup failed:', error)
-    window.message.error({ content: i18n.t('message.backup.failed'), key: 'backup' })
+    logger.error('[Nutstore] Backup failed:', error as Error)
+    window.toast.error(i18n.t('message.backup.failed'))
   } finally {
     store.dispatch(setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false }))
     isManualBackupRunning = false
@@ -143,7 +190,7 @@ export async function restoreFromNutstore(fileName?: string) {
   try {
     data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
   } catch (error: any) {
-    console.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
+    logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
     window.modal.error({
       title: i18n.t('message.restore.failed'),
       content: error.message
@@ -153,8 +200,8 @@ export async function restoreFromNutstore(fileName?: string) {
   try {
     await handleData(JSON.parse(data))
   } catch (error) {
-    console.error('[backup] Error downloading file from WebDAV:', error)
-    window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
+    logger.error('[backup] Error downloading file from WebDAV:', error as Error)
+    window.toast.error(i18n.t('error.backup.file_format'))
   }
 }
 
@@ -166,7 +213,7 @@ export async function startNutstoreAutoSync() {
   const nutstoreToken = getNutstoreToken()
 
   if (!nutstoreToken) {
-    Logger.log('[startNutstoreAutoSync] Invalid nutstore token, nutstore auto sync disabled')
+    logger.warn('[startNutstoreAutoSync] Invalid nutstore token, nutstore auto sync disabled')
     return
   }
 
@@ -185,7 +232,7 @@ export async function startNutstoreAutoSync() {
     const { nutstoreSyncInterval, nutstoreSyncState } = store.getState().nutstore
 
     if (nutstoreSyncInterval <= 0) {
-      Logger.log('[Nutstore AutoSync] Invalid sync interval, nutstore auto sync disabled')
+      logger.warn('[Nutstore AutoSync] Invalid sync interval, nutstore auto sync disabled')
       stopNutstoreAutoSync()
       return
     }
@@ -200,7 +247,7 @@ export async function startNutstoreAutoSync() {
 
     syncTimeout = setTimeout(performAutoBackup, timeUntilNextSync)
 
-    Logger.log(
+    logger.verbose(
       `[Nutstore AutoSync] Next sync scheduled in ${Math.floor(timeUntilNextSync / 1000 / 60)} minutes ${Math.floor(
         (timeUntilNextSync / 1000) % 60
       )} seconds`
@@ -209,17 +256,17 @@ export async function startNutstoreAutoSync() {
 
   async function performAutoBackup() {
     if (isAutoBackupRunning || isManualBackupRunning) {
-      Logger.log('[Nutstore AutoSync] Backup already in progress, rescheduling')
+      logger.verbose('[Nutstore AutoSync] Backup already in progress, rescheduling')
       scheduleNextBackup()
       return
     }
 
     isAutoBackupRunning = true
     try {
-      Logger.log('[Nutstore AutoSync] Starting auto backup...')
+      logger.verbose('[Nutstore AutoSync] Starting auto backup...')
       await backupToNutstore({ showMessage: false })
     } catch (error) {
-      Logger.error('[Nutstore AutoSync] Auto backup failed:', error)
+      logger.error('[Nutstore AutoSync] Auto backup failed:', error as Error)
     } finally {
       isAutoBackupRunning = false
       scheduleNextBackup()
@@ -229,7 +276,7 @@ export async function startNutstoreAutoSync() {
 
 export function stopNutstoreAutoSync() {
   if (syncTimeout) {
-    Logger.log('[Nutstore AutoSync] Stopping nutstore auto sync')
+    logger.verbose('[Nutstore AutoSync] Stopping nutstore auto sync')
     clearTimeout(syncTimeout)
     syncTimeout = null
   }

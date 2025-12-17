@@ -1,31 +1,37 @@
 import { SwapOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
+import LanguageSelect from '@renderer/components/LanguageSelect'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { TranslateLanguageOptions } from '@renderer/config/translate'
+import { LanguagesEnum } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant } from '@renderer/types'
+import useTranslate from '@renderer/hooks/useTranslate'
+import { translateText } from '@renderer/services/TranslateService'
+import type { TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
-import { Select, Space } from 'antd'
+import { Select } from 'antd'
 import { isEmpty } from 'lodash'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('TranslateWindow')
 
 interface Props {
   text: string
 }
 
-let _targetLanguage = 'chinese'
+let _targetLanguage = (await db.settings.get({ id: 'translate:target:language' }))?.value || LanguagesEnum.zhCN
 
 const Translate: FC<Props> = ({ text }) => {
   const [result, setResult] = useState('')
-  const [targetLanguage, setTargetLanguage] = useState(_targetLanguage)
+  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
   const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
   const translatingRef = useRef(false)
+  const { getLanguageByLangcode } = useTranslate()
 
   _targetLanguage = targetLanguage
 
@@ -37,25 +43,11 @@ const Translate: FC<Props> = ({ text }) => {
     try {
       translatingRef.current = true
 
-      const targetLang = await db.settings.get({ id: 'translate:target:language' })
-      const assistant: Assistant = getDefaultTranslateAssistant(targetLang?.value || targetLanguage, text)
-      // const message: Message = {
-      //   id: uuid(),
-      //   role: 'user',
-      //   content: '',
-      //   assistantId: assistant.id,
-      //   topicId: uuid(),
-      //   model: translateModel,
-      //   createdAt: new Date().toISOString(),
-      //   type: 'text',
-      //   status: 'sending'
-      // }
-
-      await fetchTranslate({ content: text, assistant, onResponse: setResult })
+      await translateText(text, targetLanguage, setResult)
 
       translatingRef.current = false
     } catch (error) {
-      console.error(error)
+      logger.error('Error fetching result:', error as Error)
     } finally {
       translatingRef.current = false
     }
@@ -64,9 +56,9 @@ const Translate: FC<Props> = ({ text }) => {
   useEffect(() => {
     runAsyncFunction(async () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
-      targetLang && setTargetLanguage(targetLang.value)
+      targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
     })
-  }, [])
+  }, [getLanguageByLangcode])
 
   useEffect(() => {
     translate()
@@ -74,7 +66,7 @@ const Translate: FC<Props> = ({ text }) => {
 
   useHotkeys('c', () => {
     navigator.clipboard.writeText(result)
-    window.message.success(t('message.copy.success'))
+    window.toast.success(t('message.copy.success'))
   })
 
   return (
@@ -89,24 +81,15 @@ const Translate: FC<Props> = ({ text }) => {
           options={[{ label: t('translate.any.language'), value: 'any' }]}
         />
         <SwapOutlined />
-        <Select
+        <LanguageSelect
           showSearch
-          value={targetLanguage}
+          value={targetLanguage.langCode}
           style={{ maxWidth: 200, minWidth: 130, flex: 1 }}
           optionFilterProp="label"
-          options={TranslateLanguageOptions}
           onChange={async (value) => {
             await db.settings.put({ id: 'translate:target:language', value })
-            setTargetLanguage(value)
+            setTargetLanguage(getLanguageByLangcode(value))
           }}
-          optionRender={(option) => (
-            <Space>
-              <span role="img" aria-label={option.data.label}>
-                {option.data.emoji}
-              </span>
-              {option.label}
-            </Space>
-          )}
         />
       </MenuContainer>
       <Main>

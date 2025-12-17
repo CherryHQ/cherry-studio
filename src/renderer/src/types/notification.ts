@@ -1,5 +1,5 @@
 export type NotificationType = 'progress' | 'success' | 'error' | 'warning' | 'info' | 'action'
-export type NotificationSource = 'assistant' | 'backup' | 'knowledgeEmbed' | 'update'
+export type NotificationSource = 'assistant' | 'backup' | 'knowledge' | 'update'
 
 export interface Notification<T = any> {
   /** 通知唯一标识 */

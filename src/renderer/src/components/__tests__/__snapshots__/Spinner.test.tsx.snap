@@ -1,0 +1,44 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Spinner > should match snapshot 1`] = `
+.c0 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0px;
+}
+
+<div
+  animate="defaultColor,dimmed"
+  class="c0"
+  initial="defaultColor"
+  transition="[object Object]"
+  variants="[object Object]"
+>
+  <svg
+    aria-hidden="true"
+    class="lucide lucide-search"
+    fill="none"
+    height="16"
+    stroke="currentColor"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="2"
+    viewBox="0 0 24 24"
+    width="16"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="m21 21-4.34-4.34"
+    />
+    <circle
+      cx="11"
+      cy="11"
+      r="8"
+    />
+  </svg>
+  <span>
+    Loading files...
+  </span>
+</div>
+`;

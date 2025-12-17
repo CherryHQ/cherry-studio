@@ -1,17 +1,19 @@
+import { usePreference } from '@data/hooks/usePreference'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, Topic } from '@renderer/types'
-import { uuid } from '@renderer/utils'
-import { Segmented as AntSegmented, SegmentedProps } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import type { Assistant, Topic } from '@renderer/types'
+import type { Tab } from '@renderer/types/chat'
+import { classNames, uuid } from '@renderer/utils'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Assistants from './AssistantsTab'
-import Settings from './SettingsTab'
 import Topics from './TopicsTab'
 
 interface Props {
@@ -24,9 +26,7 @@ interface Props {
   style?: React.CSSProperties
 }
 
-type Tab = 'assistants' | 'topic' | 'settings'
-
-let _tab: any = ''
+let _tab: Tab | null = null
 
 const HomeTabs: FC<Props> = ({
   activeAssistant,
@@ -38,38 +38,42 @@ const HomeTabs: FC<Props> = ({
   style
 }) => {
   const { addAssistant } = useAssistants()
-  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
-  const { topicPosition } = useSettings()
+  const [topicPosition] = usePreference('topic.position')
   const { defaultAssistant } = useDefaultAssistant()
-  const { showTopics, toggleShowTopics } = useShowTopics()
-
+  const { toggleShowTopics } = useShowTopics()
+  const { isLeftNavbar } = useNavbarPosition()
   const { t } = useTranslation()
+  const [, setActiveAgentId] = useCache('agent.active_id')
+  const [, setActiveTopicOrSession] = useCache('chat.active_view')
 
+  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const borderStyle = '0.5px solid var(--color-border)'
   const border =
-    position === 'left' ? { borderRight: borderStyle } : { borderLeft: borderStyle, borderTopLeftRadius: 0 }
+    position === 'left'
+      ? { borderRight: isLeftNavbar ? borderStyle : 'none' }
+      : { borderLeft: isLeftNavbar ? borderStyle : 'none', borderTopLeftRadius: 0 }
 
   if (position === 'left' && topicPosition === 'left') {
     _tab = tab
   }
 
-  const showTab = !(position === 'left' && topicPosition === 'right')
-
-  const assistantTab = {
-    label: t('assistants.abbr'),
-    value: 'assistants'
-    // icon: <BotIcon size={16} />
-  }
+  const showTab = position === 'left' && topicPosition === 'left'
 
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
-    assistant && setActiveAssistant(assistant)
+    if (assistant) {
+      setActiveAssistant(assistant)
+      setActiveAgentId(null)
+      setActiveTopicOrSession('topic')
+    }
   }
 
   const onCreateDefaultAssistant = () => {
     const assistant = { ...defaultAssistant, id: uuid() }
     addAssistant(assistant)
     setActiveAssistant(assistant)
+    setActiveAgentId(null)
+    setActiveTopicOrSession('topic')
   }
 
   useEffect(() => {
@@ -80,9 +84,6 @@ const HomeTabs: FC<Props> = ({
       EventEmitter.on(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, (): any => {
         showTab && setTab('topic')
       }),
-      EventEmitter.on(EVENT_NAMES.SHOW_CHAT_SETTINGS, (): any => {
-        showTab && setTab('settings')
-      }),
       EventEmitter.on(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR, () => {
         showTab && setTab('topic')
         if (position === 'left' && topicPosition === 'right') {
@@ -91,47 +92,30 @@ const HomeTabs: FC<Props> = ({
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [position, showTab, tab, toggleShowTopics, topicPosition])
+  }, [position, setTab, showTab, tab, toggleShowTopics, topicPosition])
 
   useEffect(() => {
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
       setTab('topic')
     }
-    if (position === 'left' && topicPosition === 'right' && forceToSeeAllTab != true && tab !== 'assistants') {
+    if (position === 'left' && topicPosition === 'right' && tab === 'topic') {
       setTab('assistants')
     }
   }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
-    <Container style={{ ...border, ...style }} className="home-tabs">
-      {(showTab || (forceToSeeAllTab == true && !showTopics)) && (
-        <>
-          <Segmented
-            value={tab}
-            style={{ borderRadius: 50 }}
-            shape="round"
-            options={
-              [
-                (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
-                  ? assistantTab
-                  : undefined,
-                {
-                  label: t('common.topics'),
-                  value: 'topic'
-                  // icon: <MessageSquareQuote size={16} />
-                },
-                {
-                  label: t('settings.title'),
-                  value: 'settings'
-                  // icon: <SettingsIcon size={16} />
-                }
-              ].filter(Boolean) as SegmentedProps['options']
-            }
-            onChange={(value) => setTab(value as 'topic' | 'settings')}
-            block
-          />
-          <Divider />
-        </>
+    <Container
+      style={{ ...border, ...style }}
+      className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
+      {position === 'left' && topicPosition === 'left' && (
+        <CustomTabs>
+          <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
+            {t('assistants.abbr')}
+          </TabItem>
+          <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
+            {t('common.topics')}
+          </TabItem>
+        </CustomTabs>
       )}
 
       <TabContent className="home-tabs-content">
@@ -144,9 +128,13 @@ const HomeTabs: FC<Props> = ({
           />
         )}
         {tab === 'topic' && (
-          <Topics assistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
+          <Topics
+            assistant={activeAssistant}
+            activeTopic={activeTopic}
+            setActiveTopic={setActiveTopic}
+            position={position}
+          />
         )}
-        {tab === 'settings' && <Settings assistant={activeAssistant} />}
       </TabContent>
     </Container>
   )
@@ -155,9 +143,20 @@ const HomeTabs: FC<Props> = ({
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  max-width: var(--assistants-width);
-  min-width: var(--assistants-width);
-  background-color: transparent;
+  width: var(--assistants-width);
+  transition: width 0.3s;
+  height: calc(100vh - var(--navbar-height));
+
+  &.right {
+    height: calc(100vh - var(--navbar-height));
+  }
+
+  [navbar-position='left'] & {
+    background-color: var(--color-background);
+  }
+  [navbar-position='top'] & {
+    height: calc(100vh - var(--navbar-height));
+  }
   overflow: hidden;
   .collapsed {
     width: 0;
@@ -167,74 +166,66 @@ const Container = styled.div`
 
 const TabContent = styled.div`
   display: flex;
+  transition: width 0.3s;
   flex: 1;
   flex-direction: column;
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
 `
 
-const Divider = styled.div`
-  border-top: 0.5px solid var(--color-border);
-  margin-top: 10px;
-  margin-left: 10px;
-  margin-right: 10px;
+const CustomTabs = styled.div`
+  display: flex;
+  margin: 0 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  -webkit-app-region: no-drag;
+  [navbar-position='top'] & {
+    padding-top: 2px;
+  }
 `
 
-const Segmented = styled(AntSegmented)`
-  font-family: var(--font-family);
+const TabItem = styled.button<{ active: boolean }>`
+  flex: 1;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: ${(props) => (props.active ? 'var(--color-text)' : 'var(--color-text-secondary)')};
+  font-size: 13px;
+  font-weight: ${(props) => (props.active ? '600' : '400')};
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 0 2px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-  &.ant-segmented {
-    background-color: transparent;
-    margin: 0 10px;
-    margin-top: 10px;
-    padding: 0;
-  }
-  .ant-segmented-item {
-    overflow: hidden;
-    transition: none !important;
-    height: 34px;
-    line-height: 34px;
-    background-color: transparent;
-    user-select: none;
-    border-radius: var(--list-item-border-radius);
-    box-shadow: none;
-  }
-  .ant-segmented-item-selected,
-  .ant-segmented-item-selected:active {
-    transition: none !important;
-    background-color: var(--color-list-item);
-  }
-  .ant-segmented-item-label {
-    align-items: center;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    font-size: 13px;
-    height: 100%;
-  }
-  .ant-segmented-item-label[aria-selected='true'] {
+  &:hover {
     color: var(--color-text);
   }
-  .icon-business-smart-assistant {
-    margin-right: -2px;
+
+  &:active {
+    transform: scale(0.98);
   }
-  .ant-segmented-thumb {
-    transition: none !important;
-    background-color: var(--color-list-item);
-    border-radius: var(--list-item-border-radius);
-    box-shadow: none;
-    &:hover {
-      background-color: transparent;
-    }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: ${(props) => (props.active ? '30px' : '0')};
+    height: 3px;
+    background: var(--color-primary);
+    border-radius: 1px;
+    transition: all 0.2s ease;
   }
-  .ant-segmented-item-label,
-  .ant-segmented-item-icon {
-    display: flex;
-    align-items: center;
+
+  &:hover::after {
+    width: ${(props) => (props.active ? '30px' : '16px')};
+    background: ${(props) => (props.active ? 'var(--color-primary)' : 'var(--color-primary-soft)')};
   }
-  /* These styles ensure the same appearance as before */
-  border-radius: 0;
-  box-shadow: none;
 `
 
 export default HomeTabs

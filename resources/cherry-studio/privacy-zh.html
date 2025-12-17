@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隐私协议</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: transparent;
+            margin: 0 auto;
+        }
+
+        body.dark {
+            background: transparent;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1a1a1a;
+        }
+
+        body.dark h1 {
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: #2c2c2c;
+        }
+
+        body.dark h2 {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        p {
+            margin: 12px 0;
+            line-height: 1.8;
+        }
+
+        body.dark p {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        ul {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        li {
+            margin: 6px 0;
+            line-height: 1.6;
+        }
+
+        body.dark li {
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        body.dark a {
+            color: #4da6ff;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 13px;
+            color: #666;
+        }
+
+        body.dark .footer {
+            border-top-color: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .content-wrapper {
+            overflow-y: auto;
+            padding-right: 10px;
+            background: transparent;
+        }
+
+        /* 滚动条样式 - 亮色模式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        /* 滚动条样式 - 暗色模式 */
+        body.dark ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        body.dark ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        body.dark ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+    <script>
+        // 检测主题
+        document.addEventListener('DOMContentLoaded', function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const theme = urlParams.get('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.body.classList.add('dark');
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <div class="content-wrapper">
+        <h1>隐私协议</h1>
+
+        <p>
+            欢迎使用 Cherry Studio（以下简称"本软件"或"我们"）。我们高度重视您的隐私保护，本隐私协议将说明我们如何处理与保护您的个人信息和数据。请在使用本软件前仔细阅读并理解本协议：
+        </p>
+
+        <h2>一、我们收集的信息范围</h2>
+        <p>为了优化用户体验和提升软件质量，我们仅可能会匿名收集以下非个人化信息：</p>
+        <ul>
+            <li>软件版本信息；</li>
+            <li>软件功能的活跃度、使用频次；</li>
+            <li>匿名的崩溃、错误日志信息；</li>
+        </ul>
+        <p>上述信息完全匿名，不会涉及任何个人身份数据，也无法关联到您的个人信息。</p>
+
+        <h2>二、我们不会收集的任何信息</h2>
+        <p>为了最大限度保护您的隐私安全，我们明确承诺：</p>
+        <ul>
+            <li>不会收集、保存、传输或处理您输入到本软件中的模型服务 API Key 信息；</li>
+            <li>不会收集、保存、传输或处理您在使用本软件过程中产生的任何对话数据，包括但不限于聊天内容、指令信息、知识库信息、向量数据及其他自定义内容；</li>
+            <li>不会收集、保存、传输或处理任何可识别个人身份的敏感信息。</li>
+        </ul>
+
+        <h2>三、数据交互说明</h2>
+        <p>
+            本软件采用您自行申请并配置的第三方模型服务提供商的 API Key，以完成相关模型的调用与对话功能。您使用的模型服务（例如大模型、API 接口等）由您选择的第三方提供商直接提供，我们不会介入、监控或干扰数据传输过程。
+        </p>
+        <p>
+            您与第三方模型服务之间的数据交互受第三方服务提供商的隐私政策和用户协议约束，我们建议您在使用前充分了解相关服务商的隐私条款。
+        </p>
+
+        <h2>四、本地数据的安全保护</h2>
+        <p>本软件为本地化应用程序，所有数据默认存储在您的本地设备上。我们采取了以下措施保障数据安全：</p>
+        <ul>
+            <li>对话记录、配置信息等数据仅保存在您的本地设备中；</li>
+            <li>提供数据导入/导出功能，方便您自主管理和备份数据；</li>
+            <li>不会将您的本地数据上传至任何服务器或云端存储。</li>
+        </ul>
+
+        <h2>五、第三方服务</h2>
+        <p>
+            在使用本软件过程中，您可能会接入第三方服务（如 AI 模型 API、翻译服务等）。这些第三方服务的使用受其各自的服务条款和隐私政策约束。我们强烈建议您在使用前仔细阅读并理解相关条款。
+        </p>
+
+        <h2>六、用户权利</h2>
+        <p>您对自己的数据拥有完全的控制权：</p>
+        <ul>
+            <li>您可以随时查看、修改、删除本地存储的所有数据；</li>
+            <li>您可以选择是否启用特定功能或服务；</li>
+            <li>您可以随时停止使用本软件并删除所有相关数据。</li>
+        </ul>
+
+        <h2>七、儿童隐私保护</h2>
+        <p>本软件不面向 18 岁以下的未成年人提供服务。如果您是未成年人，请在监护人的指导下使用本软件。</p>
+
+        <h2>八、隐私政策的更新</h2>
+        <p>
+            我们可能会根据法律法规要求或产品功能的变化更新本隐私协议。更新后的协议将在软件中发布，并在生效前通知您。如果您不同意更新后的条款，您可以选择停止使用本软件。
+        </p>
+
+        <h2>九、联系我们</h2>
+        <p>如果您对本隐私协议有任何疑问、建议或投诉，请通过以下方式联系我们：</p>
+        <ul>
+            <li>
+                GitHub: <a href="https://github.com/CherryHQ/cherry-studio" target="_blank"
+                    rel="noopener noreferrer">https://github.com/CherryHQ/cherry-studio</a>
+            </li>
+            <li>Email: support@cherry-ai.com</li>
+        </ul>
+
+        <div class="footer">
+            最后更新日期：2024年12月
+        </div>
+    </div>
+</body>
+
+</html>

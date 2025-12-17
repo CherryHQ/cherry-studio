@@ -1,16 +1,16 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import type { FileType } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { Popconfirm, Upload } from 'antd'
-import { Button } from 'antd'
 import type { RcFile, UploadProps } from 'antd/es/upload'
 import React from 'react'
 import styled from 'styled-components'
 
 interface ImageUploaderProps {
   fileMap: {
-    imageFiles?: FileType[]
+    imageFiles?: FileMetadata[]
     paths?: string[]
   }
   maxImages: number
@@ -45,7 +45,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     <>
       <HeaderContainer>
         {fileMap.imageFiles && fileMap.imageFiles.length > 0 && (
-          <Button size="small" onClick={onClearImages}>
+          <Button size="sm" onClick={onClearImages}>
             清除全部
           </Button>
         )}

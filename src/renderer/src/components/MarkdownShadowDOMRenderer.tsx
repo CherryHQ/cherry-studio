@@ -47,7 +47,7 @@ const ShadowDOMRenderer: React.FC<Props> = ({ children }) => {
   }
 
   return (
-    <div ref={hostRef}>
+    <div ref={hostRef} style={{ display: 'none' }}>
       {createPortal(
         <StyleSheetManager target={shadowRoot}>
           <StyleProvider container={shadowRoot} layer>

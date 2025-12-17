@@ -1,26 +1,57 @@
-import i18n from '@renderer/i18n'
-import store from '@renderer/store'
-import { Provider } from '@renderer/types'
+import { getStoreProviders } from '@renderer/hooks/useStore'
+import type { Model, Provider } from '@renderer/types'
+import { getFancyProviderName } from '@renderer/utils'
 
-export function getProviderName(id: string) {
-  const provider = store.getState().llm.providers.find((p) => p.id === id)
+export function getProviderName(model?: Model) {
+  const provider = getProviderByModel(model)
+
   if (!provider) {
     return ''
   }
 
-  if (provider.isSystem) {
-    return i18n.t(`provider.${provider.id}`, { defaultValue: provider.name })
+  return getFancyProviderName(provider)
+}
+
+export function getProviderNameById(pid: string) {
+  const provider = getStoreProviders().find((p) => p.id === pid)
+  if (provider) {
+    return getFancyProviderName(provider)
+  } else {
+    return 'Unknown Provider'
+  }
+}
+
+//FIXME: 和 AssistantService.ts 中的同名函数冲突
+export function getProviderByModel(model?: Model) {
+  const id = model?.provider
+  const provider = getStoreProviders().find((p) => p.id === id)
+
+  if (provider?.id === 'cherryai') {
+    const map = {
+      'glm-4.5-flash': 'zhipu',
+      'Qwen/Qwen3-8B': 'silicon'
+    }
+
+    const providerId = map[model?.id as keyof typeof map]
+
+    if (providerId) {
+      return getProviderById(providerId)
+    }
   }
 
-  return provider?.name
+  return provider
 }
 
 export function isProviderSupportAuth(provider: Provider) {
-  const supportProviders = ['silicon', 'aihubmix', 'tokenflux']
+  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly']
   return supportProviders.includes(provider.id)
 }
 
 export function isProviderSupportCharge(provider: Provider) {
-  const supportProviders = ['silicon', 'aihubmix']
+  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio']
   return supportProviders.includes(provider.id)
+}
+
+export function getProviderById(id: string) {
+  return getStoreProviders().find((p) => p.id === id)
 }

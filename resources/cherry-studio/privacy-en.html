@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: transparent;
+            margin: 0 auto;
+        }
+
+        body.dark {
+            background: transparent;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1a1a1a;
+        }
+
+        body.dark h1 {
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: #2c2c2c;
+        }
+
+        body.dark h2 {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        p {
+            margin: 12px 0;
+            line-height: 1.8;
+        }
+
+        body.dark p {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        ul {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        li {
+            margin: 6px 0;
+            line-height: 1.6;
+        }
+
+        body.dark li {
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        body.dark a {
+            color: #4da6ff;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 13px;
+            color: #666;
+        }
+
+        body.dark .footer {
+            border-top-color: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .content-wrapper {
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            padding-right: 10px;
+            background: transparent;
+        }
+
+        /* Scrollbar styles - Light mode */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        /* Scrollbar styles - Dark mode */
+        body.dark ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        body.dark ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        body.dark ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+    <script>
+        // Detect theme
+        document.addEventListener('DOMContentLoaded', function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const theme = urlParams.get('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.body.classList.add('dark');
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <div class="content-wrapper">
+        <h1>Privacy Policy</h1>
+
+        <p>
+            Welcome to Cherry Studio (hereinafter referred to as "the Software" or "we"). We highly value your privacy
+            protection. This Privacy Policy explains how we process and protect your personal information and data.
+            Please read and understand this policy carefully before using the Software:
+        </p>
+
+        <h2>1. Information We Collect</h2>
+        <p>To optimize user experience and improve software quality, we may only collect the following anonymous,
+            non-personal information:</p>
+        <ul>
+            <li>Software version information</li>
+            <li>Activity and usage frequency of software features</li>
+            <li>Anonymous crash and error log information</li>
+        </ul>
+        <p>The above information is completely anonymous, does not involve any personal identity data, and cannot be
+            linked to your personal information.</p>
+
+        <h2>2. Information We Do Not Collect</h2>
+        <p>To maximize the protection of your privacy and security, we explicitly commit that we:</p>
+        <ul>
+            <li>Will not collect, save, transmit, or process model service API Key information you enter into the
+                Software</li>
+            <li>Will not collect, save, transmit, or process any conversation data generated during your use of the
+                Software, including but not limited to chat content, instruction information, knowledge base
+                information, vector data, and other custom content</li>
+            <li>Will not collect, save, transmit, or process any sensitive information that can identify personal
+                identity</li>
+        </ul>
+
+        <h2>3. Data Interaction Description</h2>
+        <p>
+            The Software uses API Keys from third-party model service providers that you apply for and configure
+            yourself to complete model calls and conversation functions. The model services you use (such as large
+            models, API interfaces, etc.) are directly provided by third-party providers of your choice. We do not
+            intervene, monitor, or interfere with the data transmission process.
+        </p>
+        <p>
+            Data interactions between you and third-party model services are governed by the privacy policies and user
+            agreements of third-party service providers. We recommend that you fully understand the privacy terms of
+            relevant service providers before use.
+        </p>
+
+        <h2>4. Local Data Security Protection</h2>
+        <p>The Software is a localized application, and all data is stored on your local device by default. We have
+            taken the following measures to ensure data security:</p>
+        <ul>
+            <li>Conversation records, configuration information, and other data are only saved on your local device</li>
+            <li>Data import/export functions are provided to facilitate your independent management and backup of data
+            </li>
+            <li>Your local data will not be uploaded to any server or cloud storage</li>
+        </ul>
+
+        <h2>5. Third-Party Services</h2>
+        <p>
+            When using the Software, you may access third-party services (such as AI model APIs, translation services,
+            etc.). The use of these third-party services is governed by their respective terms of service and privacy
+            policies. We strongly recommend that you carefully read and understand the relevant terms before use.
+        </p>
+
+        <h2>6. User Rights</h2>
+        <p>You have complete control over your data:</p>
+        <ul>
+            <li>You can view, modify, and delete all locally stored data at any time</li>
+            <li>You can choose whether to enable specific features or services</li>
+            <li>You can stop using the Software and delete all related data at any time</li>
+        </ul>
+
+        <h2>7. Children's Privacy Protection</h2>
+        <p>The Software is not intended for minors under 18 years of age. If you are a minor, please use the Software
+            under the guidance of a guardian.</p>
+
+        <h2>8. Privacy Policy Updates</h2>
+        <p>
+            We may update this Privacy Policy based on legal requirements or changes in product features. The updated
+            policy will be published in the Software and you will be notified before it takes effect. If you do not
+            agree with the updated terms, you can choose to stop using the Software.
+        </p>
+
+        <h2>9. Contact Us</h2>
+        <p>If you have any questions, suggestions, or complaints about this Privacy Policy, please contact us through
+            the following methods:</p>
+        <ul>
+            <li>
+                GitHub: <a href="https://github.com/CherryHQ/cherry-studio" target="_blank"
+                    rel="noopener noreferrer">https://github.com/CherryHQ/cherry-studio</a>
+            </li>
+            <li>Email: support@cherry-ai.com</li>
+        </ul>
+
+        <div class="footer">
+            Last Updated: December 2024
+        </div>
+    </div>
+</body>
+
+</html>

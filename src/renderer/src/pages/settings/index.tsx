@@ -1,16 +1,16 @@
-import { ThemeMode } from '@renderer/types'
+import { cn } from '@cherrystudio/ui'
+import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Divider } from 'antd'
 import Link from 'antd/es/typography/Link'
-import styled, { CSSProp } from 'styled-components'
+import React from 'react'
+import type { CSSProp } from 'styled-components'
+import styled from 'styled-components'
 
 export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   display: flex;
   flex-direction: column;
   flex: 1;
-  height: calc(100vh - var(--navbar-height));
-  padding: 20px;
-  padding-top: 15px;
-  padding-bottom: 75px;
+  padding: 15px 18px;
   overflow-y: scroll;
   background: ${(props) => (props.theme === 'dark' ? 'transparent' : 'var(--color-background-soft)')};
 
@@ -29,13 +29,17 @@ export const SettingTitle = styled.div`
   font-weight: bold;
 `
 
-export const SettingSubtitle = styled.div`
-  font-size: 14px;
-  color: var(--color-text-1);
-  margin: 15px 0 0 0;
-  user-select: none;
-  font-weight: bold;
-`
+export const SettingSubtitle = ({
+  ref,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
+  <div
+    ref={ref}
+    className={cn('mt-4 select-none font-bold text-[var(--color-text-1)] text-sm', className)}
+    {...props}
+  />
+)
 
 export const SettingDescription = styled.div`
   font-size: 12px;

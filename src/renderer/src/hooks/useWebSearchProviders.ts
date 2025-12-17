@@ -1,14 +1,17 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addSubscribeSource as _addSubscribeSource,
+  type CompressionConfig,
   removeSubscribeSource as _removeSubscribeSource,
+  setCompressionConfig,
   setDefaultProvider as _setDefaultProvider,
   setSubscribeSources as _setSubscribeSources,
+  updateCompressionConfig,
   updateSubscribeBlacklist as _updateSubscribeBlacklist,
   updateWebSearchProvider,
   updateWebSearchProviders
 } from '@renderer/store/websearch'
-import { WebSearchProvider } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
 export const useDefaultWebSearchProvider = () => {
   const defaultProvider = useAppSelector((state) => state.websearch.defaultProvider)
@@ -46,7 +49,7 @@ export const useWebSearchProviders = () => {
   }
 }
 
-export const useWebSearchProvider = (id: string) => {
+export const useWebSearchProvider = (id: WebSearchProviderId) => {
   const providers = useAppSelector((state) => state.websearch.providers)
   const provider = providers.find((provider) => provider.id === id)
   const dispatch = useAppDispatch()
@@ -55,11 +58,12 @@ export const useWebSearchProvider = (id: string) => {
     throw new Error(`Web search provider with id ${id} not found`)
   }
 
-  const updateProvider = (provider: WebSearchProvider) => {
-    dispatch(updateWebSearchProvider(provider))
+  return {
+    provider,
+    updateProvider: (updates: Partial<WebSearchProvider>) => {
+      dispatch(updateWebSearchProvider({ id, ...updates }))
+    }
   }
-
-  return { provider, updateProvider }
 }
 
 export const useBlacklist = () => {
@@ -88,5 +92,16 @@ export const useBlacklist = () => {
     removeSubscribeSource,
     updateSubscribeBlacklist,
     setSubscribeSources
+  }
+}
+
+export const useWebSearchSettings = () => {
+  const state = useAppSelector((state) => state.websearch)
+  const dispatch = useAppDispatch()
+
+  return {
+    ...state,
+    setCompressionConfig: (config: CompressionConfig) => dispatch(setCompressionConfig(config)),
+    updateCompressionConfig: (config: Partial<CompressionConfig>) => dispatch(updateCompressionConfig(config))
   }
 }

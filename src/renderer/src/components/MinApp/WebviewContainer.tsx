@@ -1,5 +1,9 @@
-import { WebviewTag } from 'electron'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import type { WebviewTag } from 'electron'
 import { memo, useEffect, useRef } from 'react'
+
+const logger = loggerService.withContext('WebviewContainer')
 
 /**
  * WebviewContainer is a component that renders a webview element.
@@ -21,6 +25,8 @@ const WebviewContainer = memo(
     onNavigateCallback: (appid: string, url: string) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
+    const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+    const [minappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)
@@ -38,32 +44,142 @@ const WebviewContainer = memo(
     useEffect(() => {
       if (!webviewRef.current) return
 
+      let loadCallbackFired = false
+
       const handleLoaded = () => {
-        onLoadedCallback(appid)
+        logger.debug(`WebView did-finish-load for app: ${appid}`)
+        // Only fire callback once per load cycle
+        if (!loadCallbackFired) {
+          loadCallbackFired = true
+          // Small delay to ensure content is actually visible
+          setTimeout(() => {
+            logger.debug(`Calling onLoadedCallback for app: ${appid}`)
+            onLoadedCallback(appid)
+          }, 100)
+        }
+      }
+
+      // Additional callback for when page is ready to show
+      const handleReadyToShow = () => {
+        logger.debug(`WebView ready-to-show for app: ${appid}`)
+        if (!loadCallbackFired) {
+          loadCallbackFired = true
+          logger.debug(`Calling onLoadedCallback from ready-to-show for app: ${appid}`)
+          onLoadedCallback(appid)
+        }
       }
 
       const handleNavigate = (event: any) => {
         onNavigateCallback(appid, event.url)
       }
 
+      const handleDomReady = () => {
+        const webviewId = webviewRef.current?.getWebContentsId()
+        if (webviewId) {
+          window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
+          // Set link opening behavior for this webview
+          window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
+        }
+      }
+
+      const handleStartLoading = () => {
+        // Reset callback flag when starting a new load
+        loadCallbackFired = false
+      }
+
+      webviewRef.current.addEventListener('did-start-loading', handleStartLoading)
+      webviewRef.current.addEventListener('dom-ready', handleDomReady)
       webviewRef.current.addEventListener('did-finish-load', handleLoaded)
+      webviewRef.current.addEventListener('ready-to-show', handleReadyToShow)
       webviewRef.current.addEventListener('did-navigate-in-page', handleNavigate)
 
       // we set the url when the webview is ready
       webviewRef.current.src = url
 
       return () => {
+        webviewRef.current?.removeEventListener('did-start-loading', handleStartLoading)
+        webviewRef.current?.removeEventListener('dom-ready', handleDomReady)
         webviewRef.current?.removeEventListener('did-finish-load', handleLoaded)
+        webviewRef.current?.removeEventListener('ready-to-show', handleReadyToShow)
         webviewRef.current?.removeEventListener('did-navigate-in-page', handleNavigate)
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [appid, url])
 
+    // Setup keyboard shortcuts handler for print and save
+    useEffect(() => {
+      if (!webviewRef.current) return
+
+      const unsubscribe = window.api?.webview?.onFindShortcut?.(async (payload) => {
+        // Get webviewId when event is triggered
+        const webviewId = webviewRef.current?.getWebContentsId()
+
+        // Only handle events for this webview
+        if (!webviewId || payload.webviewId !== webviewId) return
+
+        const key = payload.key?.toLowerCase()
+        const isModifier = payload.control || payload.meta
+
+        if (!isModifier || !key) return
+
+        try {
+          if (key === 'p') {
+            // Print to PDF
+            logger.info(`Printing webview ${appid} to PDF`)
+            const filePath = await window.api.webview.printToPDF(webviewId)
+            if (filePath) {
+              window.toast?.success?.(`PDF saved to: ${filePath}`)
+              logger.info(`PDF saved to: ${filePath}`)
+            }
+          } else if (key === 's') {
+            // Save as HTML
+            logger.info(`Saving webview ${appid} as HTML`)
+            const filePath = await window.api.webview.saveAsHTML(webviewId)
+            if (filePath) {
+              window.toast?.success?.(`HTML saved to: ${filePath}`)
+              logger.info(`HTML saved to: ${filePath}`)
+            }
+          }
+        } catch (error) {
+          logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
+          window.toast?.error?.(`Failed: ${(error as Error).message}`)
+        }
+      })
+
+      return () => {
+        unsubscribe?.()
+      }
+    }, [appid])
+
+    // Update webview settings when they change
+    useEffect(() => {
+      if (!webviewRef.current) return
+
+      try {
+        const webviewId = webviewRef.current.getWebContentsId()
+        if (webviewId) {
+          window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
+          window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
+        }
+      } catch (error) {
+        // WebView may not be ready yet, settings will be applied in dom-ready event
+        logger.debug(`WebView ${appid} not ready for settings update`)
+      }
+    }, [appid, minappsOpenLinkExternal, enableSpellCheck])
+
+    const WebviewStyle: React.CSSProperties = {
+      width: '100%',
+      height: '100%',
+      backgroundColor: 'var(--color-background)',
+      display: 'inline-flex'
+    }
+
     return (
       <webview
         key={appid}
         ref={setRef(appid)}
+        data-minapp-id={appid}
         style={WebviewStyle}
         allowpopups={'true' as any}
         partition="persist:webview"
@@ -76,12 +192,5 @@ const WebviewContainer = memo(
     )
   }
 )
-
-const WebviewStyle: React.CSSProperties = {
-  width: 'calc(100vw - var(--sidebar-width))',
-  height: 'calc(100vh - var(--navbar-height))',
-  backgroundColor: 'var(--color-background)',
-  display: 'inline-flex'
-}
 
 export default WebviewContainer

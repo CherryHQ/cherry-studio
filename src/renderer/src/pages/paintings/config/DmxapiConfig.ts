@@ -1,13 +1,30 @@
-import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
-import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
-import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'
-import ImageSize3_4 from '@renderer/assets/images/paintings/image-size-3-4.svg'
-import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg'
-import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
 import { uuid } from '@renderer/utils'
-import { DmxapiPainting } from '@types'
+import { t } from 'i18next'
 
+import type { DmxapiPainting } from '../../../types'
 import { generationModeType } from '../../../types'
+
+// 模型数据类型
+export type DMXApiModelData = {
+  id: string
+  provider: string
+  name: string
+  price: string
+  image_sizes: Array<{
+    label: string
+    value: string
+  }>
+  is_custom_size: boolean
+  max_image_size?: number
+  min_image_size?: number
+}
+
+// 模型分组类型
+export type DMXApiModelGroups = {
+  TEXT_TO_IMAGES?: Record<string, DMXApiModelData[]>
+  IMAGE_EDIT?: Record<string, DMXApiModelData[]>
+  IMAGE_MERGE?: Record<string, DMXApiModelData[]>
+}
 
 export const STYLE_TYPE_OPTIONS = [
   { label: '吉卜力', value: '吉卜力' },
@@ -39,64 +56,9 @@ export const STYLE_TYPE_OPTIONS = [
   { label: '巴洛克', value: '巴洛克' }
 ]
 
-export const TEXT_TO_IMAGES_MODELS = [
-  {
-    id: 'seedream-3.0',
-    provider: 'DMXAPI',
-    name: ' 即梦 seedream-3.0'
-  }
-]
-
-export const IMAGE_EDIT_MODELS = [
-  {
-    id: 'gpt-image-1',
-    provider: 'DMXAPI',
-    name: 'OpenAI：gpt-image-1'
-  }
-]
-
-export const IMAGE_MERGE_MODELS = [
-  {
-    id: 'gpt-image-1',
-    provider: 'DMXAPI',
-    name: 'OpenAI：gpt-image-1'
-  }
-]
-
-export const IMAGE_SIZES = [
-  {
-    label: '1:1',
-    value: '1328x1328',
-    icon: ImageSize1_1
-  },
-  {
-    label: '1:2',
-    value: '800x1600',
-    icon: ImageSize1_2
-  },
-  {
-    label: '3:2',
-    value: '1584x1056',
-    icon: ImageSize3_2
-  },
-  {
-    label: '3:4',
-    value: '1104x1472',
-    icon: ImageSize3_4
-  },
-  {
-    label: '16:9',
-    value: '1664x936',
-    icon: ImageSize16_9
-  },
-  {
-    label: '9:16',
-    value: '936x1664',
-    icon: ImageSize9_16
-  }
-]
-
 export const COURSE_URL = 'http://seedream.dmxapi.cn/'
+
+export const TOP_UP_URL = 'https://www.dmxapi.cn/topup'
 
 export const DEFAULT_PAINTING: DmxapiPainting = {
   id: uuid(),
@@ -108,13 +70,33 @@ export const DEFAULT_PAINTING: DmxapiPainting = {
   n: 1,
   seed: '',
   style_type: '',
-  model: TEXT_TO_IMAGES_MODELS[0].id,
+  model: '', // 将在运行时动态设置
   autoCreate: false,
   generationMode: generationModeType.GENERATION
 }
 
 export const MODEOPTIONS = [
   { label: 'paintings.mode.generate', value: generationModeType.GENERATION },
-  { label: '改图', value: generationModeType.EDIT },
-  { label: '合并图', value: generationModeType.MERGE }
+  { label: 'paintings.mode.edit', value: generationModeType.EDIT },
+  { label: 'paintings.mode.merge', value: generationModeType.MERGE }
 ]
+
+// 获取模型分组数据
+export const GetModelGroup = async (): Promise<DMXApiModelGroups> => {
+  try {
+    const response = await fetch('https://dmxapi.cn/cherry_painting_models_v2.json')
+
+    if (response.ok) {
+      const data = await response.json()
+
+      if (data) {
+        return data
+      }
+    }
+  } catch {
+    /* empty */
+  }
+  window.toast.error(t('paintings.req_error_model'))
+
+  return {}
+}

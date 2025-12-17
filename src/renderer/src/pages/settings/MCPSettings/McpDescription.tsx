@@ -1,7 +1,8 @@
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { Card } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
-import { FC, memo, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

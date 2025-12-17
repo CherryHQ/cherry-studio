@@ -1,6 +1,6 @@
 import store from '@renderer/store'
 import { formatCitationsFromBlock, messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { FileType } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
@@ -133,19 +133,11 @@ export const getCitationContent = (message: Message): string => {
   return citationBlocks
     .map((block) => formatCitationsFromBlock(block))
     .flat()
-    .map((citation) => `[${citation.number}] [${citation.title || citation.url}](${citation.url})`)
+    .map(
+      (citation) =>
+        `[${citation.number}] [${citation.title || citation.url.slice(0, 1999)}](${citation.url.slice(0, 1999)})`
+    )
     .join('\n\n')
-}
-
-/**
- * Gets the knowledgeBaseIds array from the *first* MainTextMessageBlock of a message.
- * Note: Assumes knowledgeBaseIds are only relevant on the first text block, adjust if needed.
- * @param message - The message object.
- * @returns The knowledgeBaseIds array or undefined if not found.
- */
-export const getKnowledgeBaseIds = (message: Message): string[] | undefined => {
-  const firstTextBlock = findMainTextBlocks(message)
-  return firstTextBlock?.flatMap((block) => block.knowledgeBaseIds).filter((id): id is string => Boolean(id))
 }
 
 /**
@@ -153,8 +145,8 @@ export const getKnowledgeBaseIds = (message: Message): string[] | undefined => {
  * @param message - The message object.
  * @returns The file content or an empty string if no file blocks are found.
  */
-export const getFileContent = (message: Message): FileType[] => {
-  const files: FileType[] = []
+export const getFileContent = (message: Message): FileMetadata[] => {
+  const files: FileMetadata[] = []
   const fileBlocks = findFileBlocks(message)
   for (const block of fileBlocks) {
     if (block.file) {
@@ -203,11 +195,60 @@ export const findTranslationBlocks = (message: Message): TranslationMessageBlock
   const translationBlocks: TranslationMessageBlock[] = []
   for (const blockId of message.blocks) {
     const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === 'translation') {
+    if (block && block.type === MessageBlockType.TRANSLATION) {
       translationBlocks.push(block as TranslationMessageBlock)
     }
   }
   return translationBlocks
+}
+
+/**
+ * 通过消息ID从状态中查询最新的消息，并返回其中的翻译块
+ * @param id - 消息ID
+ * @returns 翻译块数组，如果消息不存在则返回空数组
+ */
+export const findTranslationBlocksById = (id: string): TranslationMessageBlock[] => {
+  const state = store.getState()
+  const message = state.messages.entities[id]
+  return findTranslationBlocks(message)
+}
+
+/**
+ * 构造带工具调用结果的消息内容
+ * @deprecated
+ * @param blocks
+ * @returns
+ */
+export function getContentWithTools(message: Message) {
+  const blocks = findAllBlocks(message)
+  let constructedContent = ''
+  for (const block of blocks) {
+    if (block.type === MessageBlockType.MAIN_TEXT || block.type === MessageBlockType.TOOL) {
+      if (block.type === MessageBlockType.MAIN_TEXT) {
+        constructedContent += block.content
+      } else if (block.type === MessageBlockType.TOOL) {
+        // 如果是工具调用结果，为其添加文本消息
+        let resultString =
+          '\n\nAssistant called a tool.\nTool Name:' +
+          block.metadata?.rawMcpToolResponse?.tool.name +
+          '\nTool call result: \n```json\n'
+        try {
+          resultString += JSON.stringify(
+            {
+              params: block.metadata?.rawMcpToolResponse?.arguments,
+              response: block.metadata?.rawMcpToolResponse?.response
+            },
+            null,
+            2
+          )
+        } catch (e) {
+          resultString += 'Invalid Result'
+        }
+        constructedContent += resultString + '\n```\n\n'
+      }
+    }
+  }
+  return constructedContent
 }
 
 /**

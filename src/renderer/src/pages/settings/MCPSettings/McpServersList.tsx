@@ -1,13 +1,18 @@
-import { EditOutlined } from '@ant-design/icons'
+import { Sortable, useDndReorder } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import DragableList from '@renderer/components/DragableList'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPServer } from '@renderer/types'
+import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
+import type { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
-import { Button, Dropdown, Empty, Switch, Tag } from 'antd'
-import { MonitorCheck, Plus, RefreshCw, Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC, useCallback, useState } from 'react'
+import { matchKeywordsInString } from '@renderer/utils/match'
+import { Button, Dropdown, Empty } from 'antd'
+import { Plus } from 'lucide-react'
+import type { FC } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -15,14 +20,88 @@ import styled from 'styled-components'
 import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
-import SyncServersPopup from './SyncServersPopup'
+import InstallNpxUv from './InstallNpxUv'
+import McpServerCard from './McpServerCard'
+
+const logger = loggerService.withContext('McpServersList')
 
 const McpServersList: FC = () => {
-  const { mcpServers, addMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
+  const { mcpServers, addMCPServer, deleteMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
+  const { ensureServerTrusted } = useMCPServerTrust()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
+  const [modalType, setModalType] = useState<'json' | 'dxt'>('json')
   const [loadingServerIds, setLoadingServerIds] = useState<Set<string>>(new Set())
+  const [serverVersions, setServerVersions] = useState<Record<string, string | null>>({})
+
+  const [searchText, _setSearchText] = useState('')
+
+  const setSearchText = useCallback((text: string) => {
+    startTransition(() => {
+      _setSearchText(text)
+    })
+  }, [])
+
+  const filteredMcpServers = useMemo(() => {
+    if (!searchText.trim()) return mcpServers
+
+    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+
+    return mcpServers.filter((server) => {
+      const searchTarget = `${server.name} ${server.description} ${server.tags?.join(' ')}`
+      return matchKeywordsInString(keywords, searchTarget)
+    })
+  }, [mcpServers, searchText])
+
+  const { onSortEnd } = useDndReorder({
+    originalList: mcpServers,
+    filteredList: filteredMcpServers,
+    onUpdate: updateMcpServers,
+    itemKey: 'id'
+  })
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // 简单的滚动位置记忆
+  useEffect(() => {
+    // 恢复滚动位置
+    const savedScroll = sessionStorage.getItem('mcp-list-scroll')
+    if (savedScroll && scrollRef.current) {
+      scrollRef.current.scrollTop = Number(savedScroll)
+    }
+
+    // 保存滚动位置
+    const handleScroll = () => {
+      if (scrollRef.current) {
+        sessionStorage.setItem('mcp-list-scroll', String(scrollRef.current.scrollTop))
+      }
+    }
+
+    const container = scrollRef.current
+    container?.addEventListener('scroll', handleScroll)
+    return () => container?.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const fetchServerVersion = useCallback(async (server: MCPServer) => {
+    if (!server.isActive) return
+
+    try {
+      const version = await window.api.mcp.getServerVersion(server)
+      setServerVersions((prev) => ({ ...prev, [server.id]: version }))
+    } catch (error) {
+      setServerVersions((prev) => ({ ...prev, [server.id]: null }))
+    }
+  }, [])
+
+  // Fetch versions for all active servers
+  useEffect(() => {
+    mcpServers.forEach((server) => {
+      if (server.isActive) {
+        fetchServerVersion(server)
+      }
+    })
+  }, [mcpServers, fetchServerVersion])
 
   const onAddMcpServer = useCallback(async () => {
     const newServer = {
@@ -36,154 +115,170 @@ const McpServersList: FC = () => {
       isActive: false
     }
     addMCPServer(newServer)
-    navigate(`/settings/mcp/settings`, { state: { server: newServer } })
-    window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
+    navigate(`/settings/mcp/settings/${encodeURIComponent(newServer.id)}`)
+    window.toast.success(t('settings.mcp.addSuccess'))
   }, [addMCPServer, navigate, t])
 
-  const onSyncServers = useCallback(() => {
-    SyncServersPopup.show(mcpServers)
-  }, [mcpServers])
+  const onDeleteMcpServer = useCallback(
+    async (server: MCPServer) => {
+      try {
+        window.modal.confirm({
+          title: t('settings.mcp.deleteServer'),
+          content: t('settings.mcp.deleteServerConfirm'),
+          centered: true,
+          onOk: async () => {
+            await window.api.mcp.removeServer(server)
+            deleteMCPServer(server.id)
+            window.toast.success(t('settings.mcp.deleteSuccess'))
+          }
+        })
+      } catch (error: any) {
+        window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t]
+  )
 
   const handleAddServerSuccess = useCallback(
     async (server: MCPServer) => {
       addMCPServer(server)
       setIsAddModalVisible(false)
-      window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-quick-add' })
+      window.toast.success(t('settings.mcp.addSuccess'))
       // Optionally navigate to the new server's settings page
-      // navigate(`/settings/mcp/settings`, { state: { server } })
+      // navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
     },
     [addMCPServer, t]
   )
 
   const handleToggleActive = async (server: MCPServer, active: boolean) => {
-    setLoadingServerIds((prev) => new Set(prev).add(server.id))
-    const oldActiveState = server.isActive
+    let serverForUpdate = server
+    if (active) {
+      const trustedServer = await ensureServerTrusted(server)
+      if (!trustedServer) {
+        return
+      }
+      serverForUpdate = trustedServer
+    }
 
+    setLoadingServerIds((prev) => new Set(prev).add(serverForUpdate.id))
+    const oldActiveState = serverForUpdate.isActive
+    logger.silly('toggle activate', { serverId: serverForUpdate.id, active })
     try {
       if (active) {
-        await window.api.mcp.listTools(server)
+        await fetchServerVersion({ ...serverForUpdate, isActive: active })
       } else {
-        await window.api.mcp.stopServer(server)
+        await window.api.mcp.stopServer(serverForUpdate)
+        setServerVersions((prev) => ({ ...prev, [serverForUpdate.id]: null }))
       }
-      updateMCPServer({ ...server, isActive: active })
+      updateMCPServer({ ...serverForUpdate, isActive: active })
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
         content: formatMcpError(error),
         centered: true
       })
-      updateMCPServer({ ...server, isActive: oldActiveState })
+      updateMCPServer({ ...serverForUpdate, isActive: oldActiveState })
     } finally {
       setLoadingServerIds((prev) => {
         const next = new Set(prev)
-        next.delete(server.id)
+        next.delete(serverForUpdate.id)
         return next
       })
     }
   }
 
+  const menuItems = useMemo(
+    () => [
+      {
+        key: 'manual',
+        label: t('settings.mcp.addServer.create'),
+        onClick: () => {
+          onAddMcpServer()
+        }
+      },
+      {
+        key: 'json',
+        label: t('settings.mcp.addServer.importFrom.json'),
+        onClick: () => {
+          setModalType('json')
+          setIsAddModalVisible(true)
+        }
+      },
+      {
+        key: 'dxt',
+        label: t('settings.mcp.addServer.importFrom.dxt'),
+        onClick: () => {
+          setModalType('dxt')
+          setIsAddModalVisible(true)
+        }
+      }
+    ],
+    [onAddMcpServer, t]
+  )
+
   return (
-    <Container>
+    <Container ref={scrollRef}>
       <ListHeader>
-        <SettingTitle style={{ gap: 3 }}>
+        <SettingTitle style={{ gap: 6 }}>
           <span>{t('settings.mcp.newServer')}</span>
-          <Button icon={<EditOutlined />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
+          <CollapsibleSearchBar
+            onSearch={setSearchText}
+            placeholder={t('settings.mcp.search.placeholder')}
+            tooltip={t('settings.mcp.search.tooltip')}
+            style={{ borderRadius: 20 }}
+          />
         </SettingTitle>
         <ButtonGroup>
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: 'manual',
-                  label: t('settings.mcp.addServer.create'),
-                  onClick: () => {
-                    onAddMcpServer()
-                  }
-                },
-                {
-                  key: 'quick',
-                  label: t('settings.mcp.addServer.importFrom'),
-                  onClick: () => setIsAddModalVisible(true)
-                }
-              ]
-            }}
-            trigger={['click']}>
+          <InstallNpxUv mini />
+          <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
+            {t('common.edit')}
+          </Button>
+          <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
             <Button icon={<Plus size={16} />} type="default" shape="round">
-              {t('settings.mcp.addServer')}
+              {t('common.add')}
             </Button>
           </Dropdown>
-          <Button icon={<RefreshCw size={16} />} type="default" onClick={onSyncServers} shape="round">
-            {t('settings.mcp.sync.title', 'Sync Servers')}
-          </Button>
         </ButtonGroup>
       </ListHeader>
-      <DragableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
-        {(server: MCPServer) => (
-          <ServerCard key={server.id} onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}>
-            <ServerHeader>
-              <ServerName>
-                {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
-                <ServerNameText>{server.name}</ServerNameText>
-                {server.providerUrl && (
-                  <Button
-                    size="small"
-                    type="text"
-                    onClick={() => window.open(server.providerUrl, '_blank')}
-                    icon={<SquareArrowOutUpRight size={14} />}
-                    className="nodrag"
-                    style={{ fontSize: 13, height: 28, borderRadius: 20 }}></Button>
-                )}
-                <ServerIcon>
-                  <MonitorCheck size={16} color={server.isActive ? 'var(--color-primary)' : 'var(--color-text-3)'} />
-                </ServerIcon>
-              </ServerName>
-              <StatusIndicator onClick={(e) => e.stopPropagation()}>
-                <Switch
-                  value={server.isActive}
-                  key={server.id}
-                  loading={loadingServerIds.has(server.id)}
-                  onChange={(checked) => handleToggleActive(server, checked)}
-                  size="small"
-                />
-                <Button
-                  icon={<Settings2 size={16} />}
-                  type="text"
-                  onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}
-                />
-              </StatusIndicator>
-            </ServerHeader>
-            <ServerDescription>{server.description}</ServerDescription>
-            <ServerFooter>
-              <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
-                {t(`settings.mcp.types.${server.type || 'stdio'}`)}
-              </Tag>
-              {server.provider && (
-                <Tag color="success" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
-                  {server.provider}
-                </Tag>
-              )}
-              {server.tags &&
-                server.tags.map((tag) => (
-                  <Tag key={tag} color="default" style={{ borderRadius: 20, margin: 0 }}>
-                    {tag}
-                  </Tag>
-                ))}
-            </ServerFooter>
-          </ServerCard>
+      <Sortable
+        items={filteredMcpServers}
+        itemKey="id"
+        onSortEnd={onSortEnd}
+        layout="list"
+        horizontal={false}
+        listStyle={{ display: 'flex', flexDirection: 'column', width: '100%' }}
+        itemStyle={{ width: '100%' }}
+        gap="12px"
+        restrictions={{ scrollableAncestor: true }}
+        useDragOverlay
+        showGhost
+        renderItem={(server) => (
+          <McpServerCard
+            server={server}
+            version={serverVersions[server.id]}
+            isLoading={loadingServerIds.has(server.id)}
+            onToggle={async (active) => await handleToggleActive(server, active)}
+            onDelete={() => onDeleteMcpServer(server)}
+            onEdit={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
+            onOpenUrl={(url) => window.open(url, '_blank')}
+          />
         )}
-      </DragableList>
-      {mcpServers.length === 0 && (
+      />
+      {(mcpServers.length === 0 || filteredMcpServers.length === 0) && (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={t('settings.mcp.noServers')}
+          description={mcpServers.length === 0 ? t('settings.mcp.noServers') : t('common.no_results')}
           style={{ marginTop: 20 }}
         />
       )}
+
       <AddMcpServerModal
         visible={isAddModalVisible}
         onClose={() => setIsAddModalVisible(false)}
         onSuccess={handleAddServerSuccess}
         existingServers={mcpServers} // 傳遞現有的伺服器列表
+        initialImportMethod={modalType}
       />
     </Container>
   )
@@ -214,87 +309,9 @@ const ListHeader = styled.div`
   }
 `
 
-const ServerCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--list-item-border-radius);
-  padding: 10px 16px;
-  transition: all 0.2s ease;
-  background-color: var(--color-background);
-  margin-bottom: 5px;
-  height: 125px;
-  cursor: pointer;
-
-  &:hover {
-    border-color: var(--color-primary);
-  }
-`
-
-const ServerLogo = styled.img`
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  object-fit: cover;
-  margin-right: 8px;
-`
-
-const ServerHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 5px;
-`
-
-const ServerIcon = styled.div`
-  font-size: 18px;
-  margin-right: 8px;
-  display: flex;
-`
-
-const ServerName = styled.div`
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const ServerNameText = styled.span`
-  font-size: 15px;
-  font-weight: 500;
-`
-
-const StatusIndicator = styled.div`
-  margin-left: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
-const ServerDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-2);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  width: 100%;
-  word-break: break-word;
-  height: 50px;
-`
-
-const ServerFooter = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  justify-content: flex-start;
-  margin-top: 10px;
-`
-
 const ButtonGroup = styled.div`
   display: flex;
+  align-items: center;
   gap: 8px;
 `
 

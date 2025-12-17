@@ -1,11 +1,12 @@
-import { Assistant, FileType, FileTypes, Usage } from '@renderer/types'
+import type { Assistant, FileMetadata, Usage } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { findFileBlocks, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { flatten, takeRight } from 'lodash'
 import { approximateTokenSize } from 'tokenx'
 
 import { getAssistantSettings } from './AssistantService'
-import { filterContextMessages, filterMessages } from './MessagesService'
+import { filterAfterContextClearMessages, filterMessages } from './MessagesService'
 
 interface MessageItem {
   name?: string
@@ -13,13 +14,13 @@ interface MessageItem {
   content: string
 }
 
-async function getFileContent(file: FileType) {
+async function getFileContent(file: FileMetadata) {
   if (!file) {
     return ''
   }
 
   if (file.type === FileTypes.TEXT) {
-    return await window.api.file.read(file.id + file.ext)
+    return await window.api.file.read(file.id + file.ext, true)
   }
 
   return ''
@@ -67,7 +68,7 @@ export function estimateTextTokens(text: string) {
  * @param file - 图片文件对象
  * @returns 返回估算的 token 数量
  */
-export function estimateImageTokens(file: FileType) {
+export function estimateImageTokens(file: FileMetadata) {
   return Math.floor(file.size / 100)
 }
 
@@ -79,7 +80,7 @@ export function estimateImageTokens(file: FileType) {
  *
  * @param {Object} params - 输入参数对象
  * @param {string} [params.content] - 用户输入的文本内容
- * @param {FileType[]} [params.files] - 用户上传的文件列表（支持图片和文本）
+ * @param {FileMetadata[]} [params.files] - 用户上传的文件列表（支持图片和文本）
  * @returns {Promise<Usage>} 返回一个 Usage 对象，包含 prompt_tokens、completion_tokens、total_tokens
  */
 export async function estimateUserPromptUsage({
@@ -87,7 +88,7 @@ export async function estimateUserPromptUsage({
   files
 }: {
   content?: string
-  files?: FileType[]
+  files?: FileMetadata[]
 }): Promise<Usage> {
   let imageTokens = 0
 
@@ -167,7 +168,7 @@ export async function estimateMessagesUsage({
 export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[]) {
   const { contextCount } = getAssistantSettings(assistant)
   const maxContextCount = contextCount
-  const messages = filterMessages(filterContextMessages(takeRight(msgs, maxContextCount)))
+  const messages = filterMessages(filterAfterContextClearMessages(takeRight(msgs, maxContextCount)))
 
   // 有 usage 数据的消息，快速计算总数
   const uasageTokens = messages

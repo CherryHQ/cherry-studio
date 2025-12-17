@@ -1,10 +1,12 @@
-import Logger from '@renderer/config/logger'
-import type { Assistant, FileType, Topic } from '@renderer/types'
+import { loggerService } from '@logger'
+import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
+import type { SerializedError } from '@renderer/types/error'
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
   CodeMessageBlock,
+  CompactMessageBlock,
   ErrorMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
@@ -12,7 +14,8 @@ import type {
   Message,
   ThinkingMessageBlock,
   ToolMessageBlock,
-  TranslationMessageBlock
+  TranslationMessageBlock,
+  VideoMessageBlock
 } from '@renderer/types/newMessage'
 import {
   AssistantMessageStatus,
@@ -23,6 +26,8 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 
 type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
+
+const logger = loggerService.withContext('Utils:MessageUtils')
 
 /**
  * Creates a base message block with common properties.
@@ -101,7 +106,7 @@ export function createImageBlock(
   overrides: Partial<Omit<ImageMessageBlock, 'id' | 'messageId' | 'type'>> = {}
 ): ImageMessageBlock {
   if (overrides.file && overrides.file.type !== FileTypes.IMAGE) {
-    console.warn('Attempted to create ImageBlock with non-image file type:', overrides.file.type)
+    logger.warn(`Attempted to create ImageBlock with non-image file type: ${overrides.file.type}`)
   }
   const { file, url, metadata, ...baseOverrides } = overrides
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.IMAGE, baseOverrides)
@@ -133,7 +138,7 @@ export function createThinkingBlock(
   return {
     ...baseBlock,
     content,
-    thinking_millsec: overrides.thinking_millsec
+    thinking_millsec: overrides.thinking_millsec || 0
   }
 }
 
@@ -174,11 +179,11 @@ export function createTranslationBlock(
  */
 export function createFileBlock(
   messageId: string,
-  file: FileType,
+  file: FileMetadata,
   overrides: Partial<Omit<FileMessageBlock, 'id' | 'messageId' | 'type' | 'file'>> = {}
 ): FileMessageBlock {
   if (file.type === FileTypes.IMAGE) {
-    console.warn('Use createImageBlock for image file types.')
+    logger.warn('Use createImageBlock for image file types.')
   }
   return {
     ...createBaseMessageBlock(messageId, MessageBlockType.FILE, overrides),
@@ -195,7 +200,7 @@ export function createFileBlock(
  */
 export function createErrorBlock(
   messageId: string,
-  errorData: Record<string, any>,
+  errorData: SerializedError,
   overrides: Partial<Omit<ErrorMessageBlock, 'id' | 'messageId' | 'type' | 'error'>> = {}
 ): ErrorMessageBlock {
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.ERROR, {
@@ -232,9 +237,9 @@ export function createToolBlock(
     metadata: metadata,
     ...baseOnlyOverrides
   }
-  Logger.log('createToolBlock_baseOverrides', baseOverrides.metadata)
+  logger.info('createToolBlock_baseOverrides', baseOverrides.metadata)
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.TOOL, baseOverrides)
-  Logger.log('createToolBlock_baseBlock', baseBlock.metadata)
+  logger.info('createToolBlock_baseBlock', baseBlock.metadata)
   return {
     ...baseBlock,
     toolId,
@@ -256,7 +261,7 @@ export function createCitationBlock(
   citationData: Omit<CitationMessageBlock, keyof BaseMessageBlock | 'type'>,
   overrides: Partial<Omit<CitationMessageBlock, 'id' | 'messageId' | 'type' | keyof typeof citationData>> = {}
 ): CitationMessageBlock {
-  const { response, knowledge, ...baseOverrides } = {
+  const { response, knowledge, memories, ...baseOverrides } = {
     ...citationData,
     ...overrides
   }
@@ -269,7 +274,43 @@ export function createCitationBlock(
   return {
     ...baseBlock,
     response,
-    knowledge
+    knowledge,
+    memories
+  }
+}
+
+export function createVideoBlock(
+  messageId: string,
+  overrides: Partial<Omit<VideoMessageBlock, 'id' | 'messageId' | 'type'>> = {}
+): VideoMessageBlock {
+  const { filePath, url, ...baseOverrides } = overrides
+  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.VIDEO, baseOverrides)
+  return {
+    ...baseBlock,
+    url: url,
+    filePath: filePath
+  }
+}
+
+/**
+ * Creates a Compact Message Block for /compact command responses.
+ * @param messageId - The ID of the parent message.
+ * @param content - The summary text.
+ * @param compactedContent - The compacted content extracted from XML tags.
+ * @param overrides - Optional properties to override the defaults.
+ * @returns A CompactMessageBlock object.
+ */
+export function createCompactBlock(
+  messageId: string,
+  content: string,
+  compactedContent: string,
+  overrides: Partial<Omit<CompactMessageBlock, 'id' | 'messageId' | 'type' | 'content' | 'compactedContent'>> = {}
+): CompactMessageBlock {
+  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.COMPACT, overrides)
+  return {
+    ...baseBlock,
+    content,
+    compactedContent
   }
 }
 
@@ -295,7 +336,7 @@ export function createMessage(
   let blocks: string[] = initialBlocks || []
 
   if (role !== 'system' && (!initialBlocks || initialBlocks.length === 0)) {
-    console.warn('createMessage: initialContent provided but no initialBlocks. Block must be created separately.')
+    logger.warn('createMessage: initialContent provided but no initialBlocks. Block must be created separately.')
   }
 
   blocks = blocks.map(String)
@@ -360,6 +401,7 @@ export function resetMessage(
     role: originalMessage.role,
     topicId: originalMessage.topicId,
     assistantId: originalMessage.assistantId,
+    agentSessionId: originalMessage.agentSessionId,
     type: originalMessage.type,
     createdAt: originalMessage.createdAt, // Keep original creation timestamp
 
@@ -392,7 +434,7 @@ export const resetAssistantMessage = (
 ): Message => {
   // Ensure we are only resetting assistant messages
   if (originalMessage.role !== 'assistant') {
-    console.warn(
+    logger.warn(
       `[resetAssistantMessage] Attempted to reset a non-assistant message (ID: ${originalMessage.id}, Role: ${originalMessage.role}). Returning original.`
     )
     return originalMessage
@@ -408,6 +450,7 @@ export const resetAssistantMessage = (
     // --- Retain Identity ---
     role: 'assistant',
     assistantId: originalMessage.assistantId,
+    agentSessionId: originalMessage.agentSessionId,
     model: originalMessage.model, // Keep the model information
     modelId: originalMessage.modelId,
 

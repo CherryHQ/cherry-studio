@@ -1,7 +1,10 @@
-import { CacheService } from '@renderer/services/CacheService'
-import { FileType, TokenFluxPainting } from '@renderer/types'
+import { cacheService } from '@data/CacheService'
+import { loggerService } from '@logger'
+import type { FileMetadata, TokenFluxPainting } from '@renderer/types'
 
 import type { TokenFluxModel } from '../config/tokenFluxConfig'
+
+const logger = loggerService.withContext('TokenFluxService')
 
 export interface TokenFluxGenerationRequest {
   model: string
@@ -58,7 +61,7 @@ export class TokenFluxService {
     const cacheKey = `tokenflux_models_${this.apiHost}`
 
     // Check cache first
-    const cachedModels = CacheService.get<TokenFluxModel[]>(cacheKey)
+    const cachedModels = cacheService.getCasual<TokenFluxModel[]>(cacheKey)
     if (cachedModels) {
       return cachedModels
     }
@@ -76,7 +79,7 @@ export class TokenFluxService {
     }
 
     // Cache for 60 minutes (3,600,000 milliseconds)
-    CacheService.set(cacheKey, data.data, 60 * 60 * 1000)
+    cacheService.setCasual(cacheKey, data.data, 60 * 60 * 1000)
 
     return data.data
   }
@@ -171,7 +174,7 @@ export class TokenFluxService {
           // Continue polling for other statuses (processing, queued, etc.)
           setTimeout(poll, intervalMs)
         } catch (error) {
-          console.error('Polling error:', error)
+          logger.error('Polling error:', error as Error)
           retryCount++
 
           if (retryCount >= maxRetries) {
@@ -215,22 +218,19 @@ export class TokenFluxService {
       urls.map(async (url) => {
         try {
           if (!url?.trim()) {
-            console.error('Image URL is empty')
-            window.message.warning({
-              content: 'Image URL is empty',
-              key: 'empty-url-warning'
-            })
+            logger.error('Image URL is empty')
+            window.toast.warning('Image URL is empty')
             return null
           }
           return await window.api.file.download(url)
         } catch (error) {
-          console.error('Failed to download image:', error)
+          logger.error('Failed to download image:', error as Error)
           return null
         }
       })
     )
 
-    return downloadedFiles.filter((file): file is FileType => file !== null)
+    return downloadedFiles.filter((file): file is FileMetadata => file !== null)
   }
 }
 

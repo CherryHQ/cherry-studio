@@ -1,28 +1,31 @@
-import { DropResult } from '@hello-pangea/dnd'
-import { defaultActionItems } from '@renderer/store/selectionStore'
-import type { ActionItem } from '@renderer/types/selectionTypes'
+import type { DropResult } from '@hello-pangea/dnd'
+import { loggerService } from '@logger'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DEFAULT_SEARCH_ENGINES } from '../SelectionActionSearchModal'
+import { DEFAULT_SEARCH_ENGINES } from '../components/SelectionActionSearchModal'
 
-const MAX_CUSTOM_ITEMS = 8
-const MAX_ENABLED_ITEMS = 6
+const logger = loggerService.withContext('useSettingsActionsList')
+
+const MAX_CUSTOM_ITEMS = 10
+const MAX_ENABLED_ITEMS = 8
 
 export const useActionItems = (
-  initialItems: ActionItem[] | undefined,
-  setActionItems: (items: ActionItem[]) => void
+  initialItems: SelectionActionItem[] | undefined,
+  setActionItems: (items: SelectionActionItem[]) => void
 ) => {
   const { t } = useTranslation()
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false)
-  const [userEditingAction, setUserEditingAction] = useState<ActionItem | null>(null)
+  const [userEditingAction, setUserEditingAction] = useState<SelectionActionItem | null>(null)
 
   const enabledItems = useMemo(() => initialItems?.filter((item) => item.enabled) ?? [], [initialItems])
   const disabledItems = useMemo(() => initialItems?.filter((item) => !item.enabled) ?? [], [initialItems])
   const customItemsCount = useMemo(() => initialItems?.filter((item) => !item.isBuiltIn).length ?? 0, [initialItems])
 
-  const handleEditActionItem = (item: ActionItem) => {
+  const handleEditActionItem = (item: SelectionActionItem) => {
     if (item.isBuiltIn) {
       if (item.id === 'search') {
         setIsSearchModalOpen(true)
@@ -40,7 +43,7 @@ export const useActionItems = (
     setIsUserModalOpen(true)
   }
 
-  const handleUserModalOk = (actionItem: ActionItem) => {
+  const handleUserModalOk = (actionItem: SelectionActionItem) => {
     if (userEditingAction && initialItems) {
       const updatedItems = initialItems.map((item) => (item.id === userEditingAction.id ? actionItem : item))
       setActionItems(updatedItems)
@@ -49,7 +52,7 @@ export const useActionItems = (
         const currentItems = initialItems || []
         setActionItems([...currentItems, actionItem])
       } catch (error) {
-        console.error('Error adding item:', error)
+        logger.debug('Error adding item:', error as Error)
       }
     }
     setIsUserModalOpen(false)
@@ -80,7 +83,7 @@ export const useActionItems = (
       content: t('selection.settings.actions.reset.confirm'),
       onOk: () => {
         const userItems = initialItems.filter((item) => !item.isBuiltIn).map((item) => ({ ...item, enabled: false }))
-        setActionItems([...defaultActionItems, ...userItems])
+        setActionItems([...DefaultPreferences.default['feature.selection.action_items'], ...userItems])
       }
     })
   }

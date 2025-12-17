@@ -2,7 +2,9 @@
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/brave-search/index.ts
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema, Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { net } from 'electron'
 
 const WEB_SEARCH_TOOL: Tool = {
   name: 'brave_web_search',
@@ -159,7 +161,7 @@ async function performWebSearch(apiKey: string, query: string, count: number = 1
   url.searchParams.set('count', Math.min(count, 20).toString()) // API limit
   url.searchParams.set('offset', offset.toString())
 
-  const response = await fetch(url, {
+  const response = await net.fetch(url.toString(), {
     headers: {
       Accept: 'application/json',
       'Accept-Encoding': 'gzip',
@@ -192,7 +194,7 @@ async function performLocalSearch(apiKey: string, query: string, count: number =
   webUrl.searchParams.set('result_filter', 'locations')
   webUrl.searchParams.set('count', Math.min(count, 20).toString())
 
-  const webResponse = await fetch(webUrl, {
+  const webResponse = await net.fetch(webUrl.toString(), {
     headers: {
       Accept: 'application/json',
       'Accept-Encoding': 'gzip',
@@ -225,7 +227,7 @@ async function getPoisData(apiKey: string, ids: string[]): Promise<BravePoiRespo
   checkRateLimit()
   const url = new URL('https://api.search.brave.com/res/v1/local/pois')
   ids.filter(Boolean).forEach((id) => url.searchParams.append('ids', id))
-  const response = await fetch(url, {
+  const response = await net.fetch(url.toString(), {
     headers: {
       Accept: 'application/json',
       'Accept-Encoding': 'gzip',
@@ -244,7 +246,7 @@ async function getDescriptionsData(apiKey: string, ids: string[]): Promise<Brave
   checkRateLimit()
   const url = new URL('https://api.search.brave.com/res/v1/local/descriptions')
   ids.filter(Boolean).forEach((id) => url.searchParams.append('ids', id))
-  const response = await fetch(url, {
+  const response = await net.fetch(url.toString(), {
     headers: {
       Accept: 'application/json',
       'Accept-Encoding': 'gzip',

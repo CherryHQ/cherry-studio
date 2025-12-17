@@ -1,3 +1,7 @@
+import { getProviderLabel } from '@renderer/i18n/label'
+import type { Provider } from '@renderer/types'
+import { isSystemProvider } from '@renderer/types'
+
 /**
  * 从模型 ID 中提取默认组名。
  * 规则如下：
@@ -44,6 +48,51 @@ export const getDefaultGroupName = (id: string, provider?: string): string => {
   }
 
   return str
+}
+
+/**
+ * 从模型 ID 中提取基础名称。
+ * 例如：
+ * - 'deepseek/deepseek-r1' => 'deepseek-r1'
+ * - 'deepseek-ai/deepseek/deepseek-r1' => 'deepseek-r1'
+ * @param {string} id 模型 ID
+ * @param {string} [delimiter='/'] 分隔符，默认为 '/'
+ * @returns {string} 基础名称
+ */
+export const getBaseModelName = (id: string, delimiter: string = '/'): string => {
+  const parts = id.split(delimiter)
+  return parts[parts.length - 1]
+}
+
+/**
+ * 从模型 ID 中提取基础名称并转换为小写。
+ * 例如：
+ * - 'deepseek/DeepSeek-R1' => 'deepseek-r1'
+ * - 'deepseek-ai/deepseek/DeepSeek-R1' => 'deepseek-r1'
+ * @param {string} id 模型 ID
+ * @param {string} [delimiter='/'] 分隔符，默认为 '/'
+ * @returns {string} 小写的基础名称
+ */
+export const getLowerBaseModelName = (id: string, delimiter: string = '/'): string => {
+  const baseModelName = getBaseModelName(id, delimiter).toLowerCase()
+  // for openrouter
+  if (baseModelName.endsWith(':free')) {
+    return baseModelName.replace(':free', '')
+  }
+  // for cherryin
+  if (baseModelName.endsWith('(free)')) {
+    return baseModelName.replace('(free)', '')
+  }
+  return baseModelName
+}
+
+/**
+ * 获取模型服务商名称，根据是否内置服务商来决定要不要翻译
+ * @param provider 服务商
+ * @returns 描述性的名字
+ */
+export const getFancyProviderName = (provider: Provider) => {
+  return isSystemProvider(provider) ? getProviderLabel(provider.id) : provider.name
 }
 
 /**
@@ -101,35 +150,7 @@ export function isEmoji(str: string): boolean {
  * @returns {string} 处理后的字符串
  */
 export function removeSpecialCharactersForTopicName(str: string): string {
-  return str.replace(/[\r\n]+/g, ' ').trim()
-}
-
-/**
- * 根据字符生成颜色代码，用于 avatar。
- * @param {string} char 输入字符
- * @returns {string} 十六进制颜色字符串
- */
-export function generateColorFromChar(char: string): string {
-  // 使用字符的Unicode值作为随机种子
-  const seed = char.charCodeAt(0)
-
-  // 使用简单的线性同余生成器创建伪随机数
-  const a = 1664525
-  const c = 1013904223
-  const m = Math.pow(2, 32)
-
-  // 生成三个伪随机数作为RGB值
-  let r = (a * seed + c) % m
-  let g = (a * r + c) % m
-  let b = (a * g + c) % m
-
-  // 将伪随机数转换为0-255范围内的整数
-  r = Math.floor((r / m) * 256)
-  g = Math.floor((g / m) * 256)
-  b = Math.floor((b / m) * 256)
-
-  // 返回十六进制颜色字符串
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  return str.replace(/["'\r\n]+/g, ' ').trim()
 }
 
 /**

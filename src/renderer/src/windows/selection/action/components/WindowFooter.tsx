@@ -1,6 +1,9 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { CircleX, Copy, Pause, RefreshCw } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { RefreshIcon } from '@renderer/components/Icons'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { CircleX, Copy, Pause } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -24,6 +27,9 @@ const WindowFooter: FC<FooterProps> = ({
   const [isEscHovered, setIsEscHovered] = useState(false)
   const [isRegenerateHovered, setIsRegenerateHovered] = useState(false)
   const [isContainerHovered, setIsContainerHovered] = useState(false)
+  const [isShowMe, setIsShowMe] = useState(true)
+  const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const { setTimeoutTimer } = useTimer()
 
   useEffect(() => {
     window.addEventListener('focus', handleWindowFocus)
@@ -32,26 +38,61 @@ const WindowFooter: FC<FooterProps> = ({
     return () => {
       window.removeEventListener('focus', handleWindowFocus)
       window.removeEventListener('blur', handleWindowBlur)
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current)
+      }
     }
   }, [])
 
+  useEffect(() => {
+    hideTimerRef.current = setTimeout(() => {
+      setIsShowMe(false)
+      hideTimerRef.current = null
+    }, 3000)
+
+    return () => {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current)
+      }
+    }
+  }, [])
+
+  const showMePeriod = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current)
+    }
+
+    setIsShowMe(true)
+    hideTimerRef.current = setTimeout(() => {
+      setIsShowMe(false)
+      hideTimerRef.current = null
+    }, 2000)
+  }
+
   useHotkeys('c', () => {
+    showMePeriod()
     handleCopy()
   })
 
   useHotkeys('r', () => {
+    showMePeriod()
     handleRegenerate()
   })
 
   useHotkeys('esc', () => {
+    showMePeriod()
     handleEsc()
   })
 
   const handleEsc = () => {
     setIsEscHovered(true)
-    setTimeout(() => {
-      setIsEscHovered(false)
-    }, 200)
+    setTimeoutTimer(
+      'handleEsc',
+      () => {
+        setIsEscHovered(false)
+      },
+      200
+    )
 
     if (loading && onPause) {
       onPause()
@@ -62,9 +103,13 @@ const WindowFooter: FC<FooterProps> = ({
 
   const handleRegenerate = () => {
     setIsRegenerateHovered(true)
-    setTimeout(() => {
-      setIsRegenerateHovered(false)
-    }, 200)
+    setTimeoutTimer(
+      'handleRegenerate_1',
+      () => {
+        setIsRegenerateHovered(false)
+      },
+      200
+    )
 
     if (loading && onPause) {
       onPause()
@@ -72,9 +117,13 @@ const WindowFooter: FC<FooterProps> = ({
 
     if (onRegenerate) {
       //wait for a little time
-      setTimeout(() => {
-        onRegenerate()
-      }, 200)
+      setTimeoutTimer(
+        'handleRegenerate_2',
+        () => {
+          onRegenerate()
+        },
+        200
+      )
     }
   }
 
@@ -84,14 +133,18 @@ const WindowFooter: FC<FooterProps> = ({
     navigator.clipboard
       .writeText(content)
       .then(() => {
-        window.message.success(t('message.copy.success'))
+        window.toast.success(t('message.copy.success'))
         setIsCopyHovered(true)
-        setTimeout(() => {
-          setIsCopyHovered(false)
-        }, 200)
+        setTimeoutTimer(
+          'handleCopy',
+          () => {
+            setIsCopyHovered(false)
+          },
+          200
+        )
       })
       .catch(() => {
-        window.message.error(t('message.copy.failed'))
+        window.toast.error(t('message.copy.failed'))
       })
   }
 
@@ -107,7 +160,8 @@ const WindowFooter: FC<FooterProps> = ({
     <Container
       onMouseEnter={() => setIsContainerHovered(true)}
       onMouseLeave={() => setIsContainerHovered(false)}
-      $isHovered={isContainerHovered}>
+      $isHovered={isContainerHovered}
+      $showInitially={isShowMe}>
       <OpButtonWrapper>
         <OpButton onClick={handleEsc} $isWindowFocus={isWindowFocus} data-hovered={isEscHovered}>
           {loading ? (
@@ -116,7 +170,7 @@ const WindowFooter: FC<FooterProps> = ({
                 <Pause size={14} className="btn-icon loading-icon" style={{ position: 'absolute', left: 1, top: 1 }} />
                 <LoadingOutlined
                   style={{ fontSize: 16, position: 'absolute', left: 0, top: 0 }}
-                  className="btn-icon  loading-icon"
+                  className="btn-icon loading-icon"
                   spin
                 />
               </LoadingIconWrapper>
@@ -131,7 +185,7 @@ const WindowFooter: FC<FooterProps> = ({
         </OpButton>
         {onRegenerate && (
           <OpButton onClick={handleRegenerate} $isWindowFocus={isWindowFocus} data-hovered={isRegenerateHovered}>
-            <RefreshCw size={14} className="btn-icon" />
+            <RefreshIcon size={14} className="btn-icon" />
             {t('selection.action.window.r_regenerate')}
           </OpButton>
         )}
@@ -144,7 +198,7 @@ const WindowFooter: FC<FooterProps> = ({
   )
 }
 
-const Container = styled.div<{ $isHovered: boolean }>`
+const Container = styled.div<{ $isHovered: boolean; $showInitially: boolean }>`
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -160,7 +214,7 @@ const Container = styled.div<{ $isHovered: boolean }>`
   height: 32px;
   backdrop-filter: blur(8px);
   border-radius: 8px;
-  opacity: 0;
+  opacity: ${(props) => (props.$showInitially ? 1 : 0)};
   transition: all 0.3s ease;
 
   &:hover {
@@ -195,6 +249,7 @@ const OpButton = styled.div<{ $isWindowFocus: boolean; $isHovered?: boolean }>`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: none;
 
   .btn-icon {
     color: var(--color-text-secondary);

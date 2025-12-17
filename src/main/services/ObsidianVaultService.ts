@@ -1,8 +1,9 @@
+import { loggerService } from '@logger'
 import { app } from 'electron'
-import Logger from 'electron-log'
 import fs from 'fs'
 import path from 'path'
 
+const logger = loggerService.withContext('ObsidianVaultService')
 interface VaultInfo {
   path: string
   name: string
@@ -31,7 +32,8 @@ class ObsidianVaultService {
       )
     } else {
       // Linux
-      this.obsidianConfigPath = path.join(app.getPath('home'), '.config', 'obsidian', 'obsidian.json')
+      this.obsidianConfigPath = this.resolveLinuxObsidianConfigPath()
+      logger.debug(`Resolved Obsidian config path (linux): ${this.obsidianConfigPath}`)
     }
   }
 
@@ -56,7 +58,7 @@ class ObsidianVaultService {
         name: vault.name || path.basename(vault.path)
       }))
     } catch (error) {
-      console.error('获取Obsidian Vault失败:', error)
+      logger.error('Failed to get Obsidian Vault:', error as Error)
       return []
     }
   }
@@ -70,20 +72,20 @@ class ObsidianVaultService {
     try {
       // 检查vault路径是否存在
       if (!fs.existsSync(vaultPath)) {
-        console.error('Vault路径不存在:', vaultPath)
+        logger.error(`Vault path does not exist: ${vaultPath}`)
         return []
       }
 
       // 检查是否是目录
       const stats = fs.statSync(vaultPath)
       if (!stats.isDirectory()) {
-        console.error('Vault路径不是一个目录:', vaultPath)
+        logger.error(`Vault path is not a directory: ${vaultPath}`)
         return []
       }
 
       this.traverseDirectory(vaultPath, '', results)
     } catch (error) {
-      console.error('读取Vault文件夹结构失败:', error)
+      logger.error('Failed to read Vault folder structure:', error as Error)
     }
 
     return results
@@ -105,7 +107,7 @@ class ObsidianVaultService {
 
       // 确保目录存在且可访问
       if (!fs.existsSync(dirPath)) {
-        console.error('目录不存在:', dirPath)
+        logger.error(`Directory does not exist: ${dirPath}`)
         return
       }
 
@@ -113,7 +115,7 @@ class ObsidianVaultService {
       try {
         items = fs.readdirSync(dirPath, { withFileTypes: true })
       } catch (err) {
-        console.error(`无法读取目录 ${dirPath}:`, err)
+        logger.error(`Failed to read directory ${dirPath}:`, err as Error)
         return
       }
 
@@ -138,7 +140,7 @@ class ObsidianVaultService {
         }
       }
     } catch (error) {
-      console.error(`遍历目录出错 ${dirPath}:`, error)
+      logger.error(`Failed to traverse directory ${dirPath}:`, error as Error)
     }
   }
 
@@ -152,16 +154,67 @@ class ObsidianVaultService {
       const vault = vaults.find((v) => v.name === vaultName)
 
       if (!vault) {
-        console.error('未找到指定名称的Vault:', vaultName)
+        logger.error(`Vault not found: ${vaultName}`)
         return []
       }
 
-      Logger.log('获取Vault文件结构:', vault.name, vault.path)
+      logger.debug(`Get Vault file structure: ${vault.name} ${vault.path}`)
       return this.getVaultStructure(vault.path)
     } catch (error) {
-      console.error('获取Vault文件结构时发生错误:', error)
+      logger.error('Failed to get Vault file structure:', error as Error)
       return []
     }
+  }
+
+  /**
+   * 在 Linux 下解析 Obsidian 配置文件路径，兼容多种安装方式。
+   * 优先返回第一个存在的路径；若均不存在，则返回 XDG 默认路径。
+   */
+  private resolveLinuxObsidianConfigPath(): string {
+    const home = app.getPath('home')
+    const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(home, '.config')
+
+    // 常见目录名与文件名大小写差异做兼容
+    const configDirs = ['obsidian', 'Obsidian']
+    const fileNames = ['obsidian.json', 'Obsidian.json']
+
+    const candidates: string[] = []
+
+    // 1) AppImage/DEB（XDG 标准路径）
+    for (const dir of configDirs) {
+      for (const file of fileNames) {
+        candidates.push(path.join(xdgConfigHome, dir, file))
+      }
+    }
+
+    // 2) Snap 安装：
+    // - 常见：~/snap/obsidian/current/.config/obsidian/obsidian.json
+    // - 兼容：~/snap/obsidian/common/.config/obsidian/obsidian.json
+    for (const dir of configDirs) {
+      for (const file of fileNames) {
+        candidates.push(path.join(home, 'snap', 'obsidian', 'current', '.config', dir, file))
+        candidates.push(path.join(home, 'snap', 'obsidian', 'common', '.config', dir, file))
+      }
+    }
+
+    // 3) Flatpak 安装：~/.var/app/md.obsidian.Obsidian/config/obsidian/obsidian.json
+    for (const dir of configDirs) {
+      for (const file of fileNames) {
+        candidates.push(path.join(home, '.var', 'app', 'md.obsidian.Obsidian', 'config', dir, file))
+      }
+    }
+
+    const existing = candidates.find((p) => {
+      try {
+        return fs.existsSync(p)
+      } catch {
+        return false
+      }
+    })
+
+    if (existing) return existing
+
+    return path.join(xdgConfigHome, 'obsidian', 'obsidian.json')
   }
 }
 
