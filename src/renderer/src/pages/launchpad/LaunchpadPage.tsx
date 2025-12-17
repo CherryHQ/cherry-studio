@@ -175,7 +175,11 @@ const LaunchpadPage: FC = () => {
       }
       assistantIdRef.current = assistantId
       topicIdRef.current = nextTopicId
-      navigate(`/chat/assistant/${assistantId}`)
+      navigate(`/chat/assistant/${assistantId}`, {
+        state: {
+          preferTopicTab: clickAssistantToShowTopic && topicPosition === 'left'
+        }
+      })
     },
     [assistants, clickAssistantToShowTopic, dispatch, navigate, topicPosition, launchpadTopicId, activeTopic]
   )
@@ -190,7 +194,11 @@ const LaunchpadPage: FC = () => {
       }
       assistantIdRef.current = selectedAssistant.id
       topicIdRef.current = topicId
-      navigate(`/chat/topic/${topicId}`)
+      navigate(`/chat/topic/${topicId}`, {
+        state: {
+          preferTopicTab: clickAssistantToShowTopic && topicPosition === 'left'
+        }
+      })
     },
     [clickAssistantToShowTopic, dispatch, navigate, selectedAssistant, topicPosition]
   )
@@ -262,7 +270,11 @@ const LaunchpadPage: FC = () => {
                 }
                 const targetAssistantId = assistantIdRef.current || selectedAssistant?.id
                 if (targetAssistantId) {
-                  navigate(`/chat/assistant/${targetAssistantId}`)
+                  navigate(`/chat/assistant/${targetAssistantId}`, {
+                    state: {
+                      preferTopicTab: clickAssistantToShowTopic && topicPosition === 'left'
+                    }
+                  })
                 }
               }}
             />
@@ -280,7 +292,11 @@ const LaunchpadPage: FC = () => {
                 }
                 const targetTopicId = topicIdRef.current || selectedTopic?.id
                 if (targetTopicId) {
-                  navigate(`/chat/topic/${targetTopicId}`)
+                  navigate(`/chat/topic/${targetTopicId}`, {
+                    state: {
+                      preferTopicTab: clickAssistantToShowTopic && topicPosition === 'left'
+                    }
+                  })
                 }
               }}
             />

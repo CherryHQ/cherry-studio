@@ -87,10 +87,12 @@ const HomePage: FC = () => {
     activeAssistant?.id ?? '',
     topicFromRoute || initialTopicFromState || initialTopicFromTab || activeAssistant?.topics[0] || undefined
   )
-  const { showAssistants, showTopics, topicPosition } = useSettings()
   const { setShowAssistants, toggleShowAssistants } = useShowAssistants()
   const { toggleShowTopics } = useShowTopics()
+  const { showAssistants, showTopics, topicPosition, clickAssistantToShowTopic } = useSettings()
   const dispatch = useDispatch()
+  const preferTopicTab =
+    topicPosition === 'left' && (state?.preferTopicTab || Boolean(params.topicId) || clickAssistantToShowTopic)
 
   const persistTabChatState = useCallback(
     (assistantId: string, topicId: string) => {
@@ -261,6 +263,7 @@ const HomePage: FC = () => {
                   setActiveAssistant={setActiveAssistant}
                   setActiveTopic={setActiveTopic}
                   position="left"
+                  initialTab={preferTopicTab ? 'topic' : undefined}
                 />
               </motion.div>
             </ErrorBoundary>
