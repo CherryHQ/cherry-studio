@@ -109,13 +109,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
     ) as Record<string, string>
 
-    let customGitBashPath: string | null = null
-    if (isWin) {
-      customGitBashPath = autoDiscoverGitBash()
-      if (customGitBashPath) {
-        logger.info('Using Git Bash path for Claude Code', { path: customGitBashPath })
-      }
-    }
+    // Auto-discover Git Bash path on Windows (already logs internally)
+    const customGitBashPath = isWin ? autoDiscoverGitBash() : null
 
     const env = {
       ...loginShellEnvWithoutProxies,

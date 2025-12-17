@@ -709,11 +709,29 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   })
 
   describe('autoDiscoverGitBash', () => {
+    const originalEnvVar = process.env.CLAUDE_CODE_GIT_BASH_PATH
+
     beforeEach(() => {
       vi.mocked(configManager.get).mockReset()
       vi.mocked(configManager.set).mockReset()
       delete process.env.CLAUDE_CODE_GIT_BASH_PATH
     })
+
+    afterEach(() => {
+      // Restore original environment variable
+      if (originalEnvVar !== undefined) {
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = originalEnvVar
+      } else {
+        delete process.env.CLAUDE_CODE_GIT_BASH_PATH
+      }
+    })
+
+    /**
+     * Helper to mock fs.existsSync with a set of valid paths
+     */
+    const mockExistingPaths = (...validPaths: string[]) => {
+      vi.mocked(fs.existsSync).mockImplementation((p) => validPaths.includes(p as string))
+    }
 
     describe('with no existing config path', () => {
       it('should discover and persist Git Bash path when not configured', () => {
@@ -722,10 +740,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         vi.mocked(configManager.get).mockReturnValue(undefined)
         process.env.ProgramFiles = 'C:\\Program Files'
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          return p === gitPath || p === bashPath
-        })
+        mockExistingPaths(gitPath, bashPath)
 
         const result = autoDiscoverGitBash()
 
@@ -754,9 +769,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
         vi.mocked(configManager.get).mockReturnValue(configPath)
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          return p === envPath || p === configPath
-        })
+        mockExistingPaths(envPath, configPath)
 
         const result = autoDiscoverGitBash()
 
@@ -772,11 +785,8 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
         vi.mocked(configManager.get).mockReturnValue(configPath)
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          // Env path is invalid (doesn't exist)
-          if (p === envPath) return false
-          return p === configPath
-        })
+        // Env path is invalid (doesn't exist), only config path exists
+        mockExistingPaths(configPath)
 
         const result = autoDiscoverGitBash()
 
@@ -794,12 +804,8 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
         process.env.ProgramFiles = 'C:\\Program Files'
         vi.mocked(configManager.get).mockReturnValue(configPath)
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          // Both env and config paths are invalid
-          if (p === envPath || p === configPath) return false
-          // But standard Git installation exists
-          return p === gitPath || p === discoveredPath
-        })
+        // Both env and config paths are invalid, only standard Git exists
+        mockExistingPaths(gitPath, discoveredPath)
 
         const result = autoDiscoverGitBash()
 
@@ -813,7 +819,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         const existingPath = 'C:\\CustomGit\\bin\\bash.exe'
 
         vi.mocked(configManager.get).mockReturnValue(existingPath)
-        vi.mocked(fs.existsSync).mockImplementation((p) => p === existingPath)
+        mockExistingPaths(existingPath)
 
         const result = autoDiscoverGitBash()
 
@@ -829,9 +835,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
 
         vi.mocked(configManager.get).mockReturnValue(existingPath)
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          return p === existingPath || p === discoveredPath
-        })
+        mockExistingPaths(existingPath, discoveredPath)
 
         const result = autoDiscoverGitBash()
 
@@ -848,13 +852,8 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         vi.mocked(configManager.get).mockReturnValue(existingPath)
         process.env.ProgramFiles = 'C:\\Program Files'
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          // Invalid path doesn't exist
-          if (p === existingPath) return false
-          // But Git is installed at standard location
-          return p === gitPath || p === discoveredPath
-        })
+        // Invalid path doesn't exist, but Git is installed at standard location
+        mockExistingPaths(gitPath, discoveredPath)
 
         const result = autoDiscoverGitBash()
 
@@ -871,13 +870,9 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         vi.mocked(configManager.get).mockReturnValue(existingPath)
         process.env.ProgramFiles = 'C:\\Program Files'
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          // Invalid path exists but is not bash.exe (validation will fail)
-          if (p === existingPath) return true
-          // Git is installed at standard location
-          return p === gitPath || p === discoveredPath
-        })
+        // Invalid path exists but is not bash.exe (validation will fail)
+        // Git is installed at standard location
+        mockExistingPaths(existingPath, gitPath, discoveredPath)
 
         const result = autoDiscoverGitBash()
 
@@ -912,10 +907,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         vi.mocked(configManager.get).mockReturnValue(undefined)
         process.env.ProgramFiles = 'C:\\Program Files'
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          return p === gitPath || p === bashPath
-        })
+        mockExistingPaths(gitPath, bashPath)
 
         autoDiscoverGitBash()
 
@@ -930,10 +922,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         vi.mocked(configManager.get).mockReturnValue(undefined)
         process.env.ProgramFiles = 'C:\\Program Files'
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          return p === gitPath || p === bashPath
-        })
+        mockExistingPaths(gitPath, bashPath)
 
         autoDiscoverGitBash()
         autoDiscoverGitBash()
@@ -950,10 +939,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         vi.mocked(configManager.get).mockReturnValue(undefined)
         process.env.ProgramFiles = 'C:\\Program Files'
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          return p === gitPath || p === bashPath
-        })
+        mockExistingPaths(gitPath, bashPath)
 
         const result = autoDiscoverGitBash()
 
@@ -990,10 +976,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         const systemPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
 
         vi.mocked(configManager.get).mockReturnValue(userConfiguredPath)
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          return p === userConfiguredPath || p === systemPath
-        })
+        mockExistingPaths(userConfiguredPath, systemPath)
 
         const result = autoDiscoverGitBash()
 
