@@ -97,20 +97,32 @@
 
   Call checkVCRedist
   ${If} $0 != "1"
-    ; Automatically download and install VC++ Redistributable without asking
-    inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable..." "https://aka.ms/vs/17/release/vc_redist.x64.exe" "$TEMP\vc_redist.x64.exe"
+    ; VC++ is required - install automatically since declining would abort anyway
+    inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable..." \
+      "https://aka.ms/vs/17/release/vc_redist.x64.exe" "$TEMP\vc_redist.x64.exe" /END
+    Pop $0  ; Get download status from inetc::get
+    ${If} $0 != "OK"
+      MessageBox MB_ICONSTOP "\
+        Failed to download Microsoft Visual C++ Redistributable.$\r$\n$\r$\n\
+        Error: $0$\r$\n$\r$\n\
+        Please check your internet connection, or download manually from:$\r$\n\
+        https://aka.ms/vs/17/release/vc_redist.x64.exe"
+      Abort
+    ${EndIf}
+
     ExecWait "$TEMP\vc_redist.x64.exe /install /norestart"
-    ;IfErrors InstallError ContinueInstall ; vc_redist exit code is unreliable :(
+    ; Note: vc_redist exit code is unreliable, verify via registry check instead
+
     Call checkVCRedist
     ${If} $0 != "1"
       MessageBox MB_ICONSTOP "\
-        There was an unexpected error installing$\r$\n\
-        Microsoft Visual C++ Redistributable.$\r$\n\
+        Microsoft Visual C++ Redistributable installation failed.$\r$\n$\r$\n\
+        You can install manually from:$\r$\n\
+        https://aka.ms/vs/17/release/vc_redist.x64.exe$\r$\n$\r$\n\
         The installation of ${PRODUCT_NAME} cannot continue."
       Abort
     ${EndIf}
   ${EndIf}
-  ContinueInstall:
     Pop $4
     Pop $3
     Pop $2
