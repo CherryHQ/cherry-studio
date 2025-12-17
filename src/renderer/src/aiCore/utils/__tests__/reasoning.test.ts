@@ -91,7 +91,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isSupportedThinkingTokenHunyuanModel: vi.fn(() => false),
     isSupportedThinkingTokenModel: vi.fn(() => false),
     isGPT51SeriesModel: vi.fn(() => false),
-    findTokenLimit: vi.fn(() => ({ min: 1024, max: 32768 }))
+    findTokenLimit: vi.fn(actual.findTokenLimit)
   }
 })
 
