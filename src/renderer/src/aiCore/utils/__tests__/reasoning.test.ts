@@ -650,7 +650,7 @@ describe('reasoning utils', () => {
       expect(result).toEqual({
         thinking: {
           type: 'enabled',
-          budgetTokens: 2048
+          budgetTokens: 4096
         }
       })
     })
@@ -893,7 +893,7 @@ describe('reasoning utils', () => {
       expect(result).toEqual({
         reasoningConfig: {
           type: 'enabled',
-          budgetTokens: 2048
+          budgetTokens: 4096
         }
       })
     })
@@ -1020,11 +1020,11 @@ describe('reasoning utils', () => {
 
       const result = getAnthropicThinkingBudget(4096, 'medium', 'claude-3-7-sonnet')
       // EFFORT_RATIO['medium'] = 0.5
-      // budgetTokens = Math.max(1024, Math.floor(Math.min(32768 * 0.5, 4096 * 0.5)))
-      // = Math.max(1024, Math.floor(Math.min(16384, 2048)))
-      // = Math.max(1024, 2048)
-      // = 2048
-      expect(result).toBe(2048)
+      // budget = Math.floor((32768 - 1024) * 0.5 + 1024)
+      // = Math.floor(31744 * 0.5 + 1024) = Math.floor(15872 + 1024) = 16896
+      // budgetTokens = Math.min(16896, 4096) = 4096
+      // result = Math.max(1024, 4096) = 4096
+      expect(result).toBe(4096)
     })
 
     it('should use tokenLimit.max when maxTokens is undefined', async () => {
@@ -1032,13 +1032,12 @@ describe('reasoning utils', () => {
       vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
 
       const result = getAnthropicThinkingBudget(undefined, 'medium', 'claude-3-7-sonnet')
-      // When maxTokens is undefined, expectedMaxTokens = tokenLimit.max = 32768
+      // When maxTokens is undefined, budget is not constrained by maxTokens
       // EFFORT_RATIO['medium'] = 0.5
-      // budgetTokens = Math.max(1024, Math.floor(Math.min(32768 * 0.5, 32768 * 0.5)))
-      // = Math.max(1024, Math.floor(16384))
-      // = Math.max(1024, 16384)
-      // = 16384
-      expect(result).toBe(16384)
+      // budget = Math.floor((32768 - 1024) * 0.5 + 1024)
+      // = Math.floor(31744 * 0.5 + 1024) = Math.floor(15872 + 1024) = 16896
+      // result = Math.max(1024, 16896) = 16896
+      expect(result).toBe(16896)
     })
 
     it('should enforce minimum budget of 1024', async () => {
@@ -1047,10 +1046,10 @@ describe('reasoning utils', () => {
 
       const result = getAnthropicThinkingBudget(500, 'low', 'claude-3-7-sonnet')
       // EFFORT_RATIO['low'] = 0.05
-      // budgetTokens = Math.max(1024, Math.floor(Math.min(1000 * 0.05, 500 * 0.05)))
-      // = Math.max(1024, Math.floor(Math.min(50, 25)))
-      // = Math.max(1024, 25)
-      // = 1024
+      // budget = Math.floor((1000 - 100) * 0.05 + 100)
+      // = Math.floor(900 * 0.05 + 100) = Math.floor(45 + 100) = 145
+      // budgetTokens = Math.min(145, 500) = 145
+      // result = Math.max(1024, 145) = 1024
       expect(result).toBe(1024)
     })
 
@@ -1060,11 +1059,11 @@ describe('reasoning utils', () => {
 
       const result = getAnthropicThinkingBudget(8192, 'high', 'claude-3-7-sonnet')
       // EFFORT_RATIO['high'] = 0.8
-      // budgetTokens = Math.max(1024, Math.floor(Math.min(32768 * 0.8, 8192 * 0.8)))
-      // = Math.max(1024, Math.floor(Math.min(26214.4, 6553.6)))
-      // = Math.max(1024, 6553)
-      // = 6553
-      expect(result).toBe(6553)
+      // budget = Math.floor((32768 - 1024) * 0.8 + 1024)
+      // = Math.floor(31744 * 0.8 + 1024) = Math.floor(25395.2 + 1024) = 26419
+      // budgetTokens = Math.min(26419, 8192) = 8192
+      // result = Math.max(1024, 8192) = 8192
+      expect(result).toBe(8192)
     })
 
     it('should use full token limit when maxTokens is undefined and reasoning effort is high', async () => {
@@ -1072,13 +1071,12 @@ describe('reasoning utils', () => {
       vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
 
       const result = getAnthropicThinkingBudget(undefined, 'high', 'claude-3-7-sonnet')
-      // When maxTokens is undefined, expectedMaxTokens = tokenLimit.max = 32768
+      // When maxTokens is undefined, budget is not constrained by maxTokens
       // EFFORT_RATIO['high'] = 0.8
-      // budgetTokens = Math.max(1024, Math.floor(Math.min(32768 * 0.8, 32768 * 0.8)))
-      // = Math.max(1024, Math.floor(26214.4))
-      // = Math.max(1024, 26214)
-      // = 26214
-      expect(result).toBe(26214)
+      // budget = Math.floor((32768 - 1024) * 0.8 + 1024)
+      // = Math.floor(31744 * 0.8 + 1024) = Math.floor(25395.2 + 1024) = 26419
+      // result = Math.max(1024, 26419) = 26419
+      expect(result).toBe(26419)
     })
   })
 })

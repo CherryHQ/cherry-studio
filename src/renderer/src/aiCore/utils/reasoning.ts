@@ -479,17 +479,14 @@ export function getAnthropicThinkingBudget(
     return undefined
   }
 
-  let expectedMaxTokens = maxTokens
-
-  if (expectedMaxTokens === undefined) {
-    expectedMaxTokens = tokenLimit.max
+  const budget = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+  
+  let budgetTokens = budget
+  if (maxTokens !== undefined) {
+    budgetTokens = Math.min(budget, maxTokens)
   }
-
-  const budgetTokens = Math.max(
-    1024,
-    Math.floor(Math.min(tokenLimit.max * effortRatio, expectedMaxTokens * effortRatio))
-  )
-  return budgetTokens
+  
+  return Math.max(1024, budgetTokens)
 }
 
 /**
