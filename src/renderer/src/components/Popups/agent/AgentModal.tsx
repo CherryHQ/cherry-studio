@@ -113,6 +113,16 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }
   }, [checkGitBash, t])
 
+  const handleResetGitBash = useCallback(async () => {
+    try {
+      // Clear manual setting and re-run auto-discovery
+      await window.api.system.setGitBashPath(null)
+      await checkGitBash()
+    } catch (error) {
+      logger.error('Failed to reset Git Bash path', error as Error)
+    }
+  }, [checkGitBash])
+
   const onPermissionModeChange = useCallback((value: PermissionMode) => {
     setForm((prev) => {
       const parsedConfiguration = AgentConfigurationSchema.parse(prev.configuration ?? {})
@@ -383,7 +393,15 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                   <Button size="small" onClick={handlePickGitBash}>
                     {t('common.select', 'Select')}
                   </Button>
+                  {gitBashPathInfo.source === 'manual' && (
+                    <Button size="small" onClick={handleResetGitBash}>
+                      {t('common.reset', 'Reset')}
+                    </Button>
+                  )}
                 </GitBashInputWrapper>
+                {gitBashPathInfo.path && gitBashPathInfo.source === 'auto' && (
+                  <SourceHint>{t('agent.gitBash.autoDiscoveredHint', 'Auto-discovered')}</SourceHint>
+                )}
               </FormItem>
             )}
 
@@ -542,6 +560,11 @@ const GitBashInputWrapper = styled.div`
   input {
     flex: 1;
   }
+`
+
+const SourceHint = styled.span`
+  font-size: 12px;
+  color: var(--color-text-3);
 `
 
 const Label = styled.label`
