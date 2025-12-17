@@ -472,6 +472,7 @@
         "button": "匯入",
         "error": {
           "fetch_failed": "從 URL 取得資料失敗",
+          "file_required": "請先選擇一個檔案",
           "invalid_format": "無效的助手格式：缺少必填欄位",
           "url_required": "請輸入 URL"
         },
@@ -489,8 +490,11 @@
           "button": "批次刪除",
           "confirm": "確定要刪除所選的 {{count}} 個助手嗎？"
         },
+        "batch_export": {
+          "button": "匯出"
+        },
         "mode": {
-          "delete": "刪除",
+          "manage": "管理",
           "sort": "排序"
         },
         "title": "管理助手"
@@ -1027,6 +1031,29 @@
         "yuque": "匯出到語雀"
       },
       "list": "話題列表",
+      "manage": {
+        "clear_selection": "取消選擇",
+        "delete": {
+          "confirm": {
+            "content": "確定要刪除選中的 {{count}} 個話題嗎？此操作不可撤銷。",
+            "title": "刪除話題"
+          },
+          "success": "已刪除 {{count}} 個話題"
+        },
+        "deselect_all": "取消全選",
+        "error": {
+          "at_least_one": "至少需要保留一個話題"
+        },
+        "move": {
+          "button": "移動",
+          "placeholder": "選擇目標助手",
+          "success": "已移動 {{count}} 個話題"
+        },
+        "pinned": "已固定的話題",
+        "selected_count": "已選擇 {{count}} 個",
+        "title": "管理話題",
+        "unpinned": "未固定的話題"
+      },
       "move_to": "移動到",
       "new": "開始新對話",
       "pin": "固定話題",
@@ -1036,6 +1063,10 @@
         },
         "label": "話題提示詞",
         "tips": "話題提示詞：針對目前話題提供額外的補充提示詞"
+      },
+      "search": {
+        "placeholder": "搜尋話題...",
+        "title": "搜尋"
       },
       "title": "話題",
       "unpin": "取消固定"
@@ -1221,11 +1252,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "訂閱",
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
     "unknown": "未知",
     "unnamed": "未命名",
+    "unsubscribe": "取消訂閱",
     "update_success": "更新成功",
     "upload_files": "上傳檔案",
     "warning": "警告",
@@ -2152,6 +2185,7 @@
     "collapse": "收合",
     "content_placeholder": "請輸入筆記內容...",
     "copyContent": "複製內容",
+    "crossPlatformRestoreWarning": "偵測到從其他裝置恢復設定，但筆記目錄為空。請將筆記檔案複製到：{{path}}",
     "delete": "刪除",
     "delete_confirm": "確定要刪除此 {{type}} 嗎？",
     "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",

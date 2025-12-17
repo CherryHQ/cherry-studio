@@ -472,6 +472,7 @@
         "button": "导入",
         "error": {
           "fetch_failed": "从 URL 获取数据失败",
+          "file_required": "请先选择文件",
           "invalid_format": "无效的助手格式：缺少必填字段",
           "url_required": "请输入 URL"
         },
@@ -486,11 +487,14 @@
       },
       "manage": {
         "batch_delete": {
-          "button": "批量删除",
+          "button": "删除",
           "confirm": "确定要删除选中的 {{count}} 个助手吗？"
         },
+        "batch_export": {
+          "button": "导出"
+        },
         "mode": {
-          "delete": "删除",
+          "manage": "管理",
           "sort": "排序"
         },
         "title": "管理助手"
@@ -1027,6 +1031,29 @@
         "yuque": "导出到语雀"
       },
       "list": "话题列表",
+      "manage": {
+        "clear_selection": "取消选择",
+        "delete": {
+          "confirm": {
+            "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
+            "title": "删除话题"
+          },
+          "success": "已删除 {{count}} 个话题"
+        },
+        "deselect_all": "取消全选",
+        "error": {
+          "at_least_one": "至少需要保留一个话题"
+        },
+        "move": {
+          "button": "移动",
+          "placeholder": "选择目标助手",
+          "success": "已移动 {{count}} 个话题"
+        },
+        "pinned": "已固定的话题",
+        "selected_count": "已选择 {{count}} 个",
+        "title": "管理话题",
+        "unpinned": "未固定的话题"
+      },
       "move_to": "移动到",
       "new": "开始新对话",
       "pin": "固定话题",
@@ -1036,6 +1063,10 @@
         },
         "label": "话题提示词",
         "tips": "话题提示词：针对当前话题提供额外的补充提示词"
+      },
+      "search": {
+        "placeholder": "搜索话题...",
+        "title": "搜索"
       },
       "title": "话题",
       "unpin": "取消固定"
@@ -1221,11 +1252,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "订阅",
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
     "unknown": "未知",
     "unnamed": "未命名",
+    "unsubscribe": "退订",
     "update_success": "更新成功",
     "upload_files": "上传文件",
     "warning": "警告",
@@ -1720,7 +1753,7 @@
       "import": {
         "error": "导入失败"
       },
-      "imported": "导入成功"
+      "imported": "成功导入 {{count}} 个助手"
     },
     "api": {
       "check": {
@@ -2152,6 +2185,7 @@
     "collapse": "收起",
     "content_placeholder": "请输入笔记内容...",
     "copyContent": "复制内容",
+    "crossPlatformRestoreWarning": "检测到从其他设备恢复配置，但笔记目录为空。请将笔记文件复制到: {{path}}",
     "delete": "删除",
     "delete_confirm": "确定要删除这个{{type}}吗？",
     "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
