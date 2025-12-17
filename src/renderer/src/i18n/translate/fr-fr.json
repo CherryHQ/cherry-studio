@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Utilisation de Git Bash détecté automatiquement",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "Effacer le chemin personnalisé"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Git Bash est requis pour exécuter des agents sur Windows. L'agent ne peut pas fonctionner sans. Veuillez installer Git pour Windows depuis",
         "recheck": "Revérifier l'installation de Git Bash",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Git Bash requis"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Le fichier sélectionné n'est pas un exécutable Git Bash valide (bash.exe).",
         "title": "Sélectionner l'exécutable Git Bash"
       },
-      "success": "Git Bash détecté avec succès !"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bash détecté avec succès !",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"

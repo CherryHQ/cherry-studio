@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Usando Git Bash detectado automaticamente",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "Limpar caminho personalizado"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "O Git Bash é necessário para executar agentes no Windows. O agente não pode funcionar sem ele. Por favor, instale o Git para Windows a partir de",
         "recheck": "Reverificar a Instalação do Git Bash",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Git Bash Necessário"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "O arquivo selecionado não é um executável válido do Git Bash (bash.exe).",
         "title": "Selecionar executável do Git Bash"
       },
-      "success": "Git Bash detectado com sucesso!"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bash detectado com sucesso!",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando"
