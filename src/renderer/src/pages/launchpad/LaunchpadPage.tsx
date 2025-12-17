@@ -24,7 +24,7 @@ import {
   Sparkle
 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -125,6 +125,21 @@ const LaunchpadPage: FC = () => {
   const selectedAssistantId = selectedAssistant?.id
   const selectedTopicId = selectedTopic?.id
 
+  const assistantIdRef = useRef<string | null>(selectedAssistantId || null)
+  const topicIdRef = useRef<string | null>(selectedTopicId || null)
+
+  useEffect(() => {
+    if (selectedAssistantId) {
+      assistantIdRef.current = selectedAssistantId
+    }
+  }, [selectedAssistantId])
+
+  useEffect(() => {
+    if (selectedTopicId) {
+      topicIdRef.current = selectedTopicId
+    }
+  }, [selectedTopicId])
+
   useEffect(() => {
     if (!selectedAssistantId) return
     if (selectedAssistantId !== launchpadAssistantId) {
@@ -153,6 +168,8 @@ const LaunchpadPage: FC = () => {
 
       dispatch(setLaunchpadAssistantId(assistantId))
       dispatch(setLaunchpadTopicId(nextTopicId))
+      assistantIdRef.current = assistantId
+      topicIdRef.current = nextTopicId
       navigate(`/chat/assistant/${assistantId}`)
     },
     [assistants, dispatch, navigate, launchpadTopicId, activeTopic]
@@ -163,6 +180,8 @@ const LaunchpadPage: FC = () => {
       if (!selectedAssistant) return
       dispatch(setLaunchpadAssistantId(selectedAssistant.id))
       dispatch(setLaunchpadTopicId(topicId))
+      assistantIdRef.current = selectedAssistant.id
+      topicIdRef.current = topicId
       navigate(`/chat/topic/${topicId}`)
     },
     [dispatch, navigate, selectedAssistant]
@@ -229,7 +248,12 @@ const LaunchpadPage: FC = () => {
                 </SoftIconWrapper>
               }
               menuItems={assistantMenuItems}
-              onClick={() => selectedAssistant && navigate(`/chat/assistant/${selectedAssistant.id}`)}
+              onClick={() => {
+                const targetAssistantId = assistantIdRef.current || selectedAssistant?.id
+                if (targetAssistantId) {
+                  navigate(`/chat/assistant/${targetAssistantId}`)
+                }
+              }}
             />
             <SelectableAppIcon
               label={selectedTopic?.name || t('launchpad.topic')}
@@ -239,7 +263,12 @@ const LaunchpadPage: FC = () => {
                 </SoftIconWrapper>
               }
               menuItems={topicMenuItems}
-              onClick={() => selectedTopic && navigate(`/chat/topic/${selectedTopic.id}`)}
+              onClick={() => {
+                const targetTopicId = topicIdRef.current || selectedTopic?.id
+                if (targetTopicId) {
+                  navigate(`/chat/topic/${targetTopicId}`)
+                }
+              }}
             />
             {appMenuItems.map((item) => (
               <AppIcon key={item.path} onClick={() => navigate(item.path)}>
