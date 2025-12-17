@@ -156,13 +156,15 @@ export function normalizeCitationMarks(
       break
     }
     case WebSearchSource.BAIDU_CLOUD: {
-      // 百度云格式: ^[1][4]^ → [cite:1], [cite:4]
-      applyReplacements(/\^\[(\d+(?:\]\[?\d+)*)\]\^/g, (match) => {
-        const citationNums = match[1]
-          .replace(/^\[/, '')
-          .replace(/\]$/g, '')
+      // 百度云格式: ^[1][4]^ → [cite:1][cite:4]
+      applyReplacements(/\^\[([^\]]+)\]\^/g, (match) => {
+        // match[1]包含方括号内的内容，如 "1][4"
+        const content = match[1]
+        // 解析方括号内的数字，如 "1][4" -> ['1', '4']
+        const citationNums = content
           .split('][')
           .map((num) => parseInt(num, 10))
+          .filter((num) => !isNaN(num))
 
         const citations = citationNums
           .filter((num) => citationMap.has(num))
