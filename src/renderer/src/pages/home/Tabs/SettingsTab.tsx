@@ -15,7 +15,6 @@ import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/set
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
-import type { SendMessageShortcut } from '@renderer/store/settings'
 import {
   setAutoTranslateWithSpace,
   setCodeCollapsible,
@@ -47,7 +46,6 @@ import {
 } from '@renderer/store/settings'
 import type { Assistant, CodeStyleVarious, MathEngine } from '@renderer/types'
 import { isGroqSystemProvider, ThemeMode } from '@renderer/types'
-import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import {
   isOpenAICompatibleProvider,
   isSupportServiceTierProvider,
@@ -86,8 +84,6 @@ const SettingsTab: FC<Props> = (props) => {
     showPrompt,
     messageFont,
     showInputEstimatedTokens,
-    sendMessageShortcut,
-    setSendMessageShortcut,
     targetLanguage,
     setTargetLanguage,
     pasteLongTextAsFile,
@@ -559,21 +555,6 @@ const SettingsTab: FC<Props> = (props) => {
               options={translateLanguages.map((item) => {
                 return { value: item.langCode, label: item.emoji + ' ' + item.label() }
               })}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
-            <Selector
-              value={sendMessageShortcut}
-              onChange={(value) => setSendMessageShortcut(value as SendMessageShortcut)}
-              options={[
-                { value: 'Enter', label: getSendMessageShortcutLabel('Enter') },
-                { value: 'Ctrl+Enter', label: getSendMessageShortcutLabel('Ctrl+Enter') },
-                { value: 'Alt+Enter', label: getSendMessageShortcutLabel('Alt+Enter') },
-                { value: 'Command+Enter', label: getSendMessageShortcutLabel('Command+Enter') },
-                { value: 'Shift+Enter', label: getSendMessageShortcutLabel('Shift+Enter') }
-              ]}
             />
           </SettingRow>
         </SettingGroup>

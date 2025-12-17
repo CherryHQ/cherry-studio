@@ -502,6 +502,7 @@ export interface Shortcut {
   editable: boolean
   enabled: boolean
   system: boolean
+  isSelector?: boolean
 }
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'

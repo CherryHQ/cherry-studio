@@ -124,6 +124,14 @@ const initialState: ShortcutsState = {
       editable: false,
       enabled: true,
       system: true
+    },
+    {
+      key: 'send_shortcuts',
+      shortcut: ['Enter'],
+      editable: true,
+      enabled: true,
+      system: true,
+      isSelector: true
     }
   ]
 }
