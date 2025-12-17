@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "使用自动检测的 Git Bash",
+      "autoDiscoveredHint": "自动发现",
       "clear": {
         "button": "清除自定义路径"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
         "recheck": "重新检测 Git Bash 安装",
+        "required": "在 Windows 上需要配置 Git Bash 路径",
         "title": "需要 Git Bash"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "选择的文件不是有效的 Git Bash 可执行文件（bash.exe）。",
         "title": "选择 Git Bash 可执行文件"
       },
-      "success": "成功检测到 Git Bash！"
+      "placeholder": "选择 bash.exe 路径",
+      "success": "成功检测到 Git Bash！",
+      "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"

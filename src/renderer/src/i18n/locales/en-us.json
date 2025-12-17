@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Using auto-detected Git Bash",
+      "autoDiscoveredHint": "Auto-discovered",
       "clear": {
         "button": "Clear custom path"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
         "recheck": "Recheck Git Bash Installation",
+        "required": "Git Bash path is required on Windows",
         "title": "Git Bash Required"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Selected file is not a valid Git Bash executable (bash.exe).",
         "title": "Select Git Bash executable"
       },
-      "success": "Git Bash detected successfully!"
+      "placeholder": "Select bash.exe path",
+      "success": "Git Bash detected successfully!",
+      "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command"
