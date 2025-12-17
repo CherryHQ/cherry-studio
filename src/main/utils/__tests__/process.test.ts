@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { findExecutable, findGitBash } from '../process'
+import { findExecutable, findGitBash, validateGitBashPath } from '../process'
 
 // Mock dependencies
 vi.mock('child_process')
@@ -289,7 +289,133 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     })
   })
 
+  describe('validateGitBashPath', () => {
+    it('returns null when path is null', () => {
+      const result = validateGitBashPath(null)
+
+      expect(result).toBeNull()
+    })
+
+    it('returns null when path is undefined', () => {
+      const result = validateGitBashPath(undefined)
+
+      expect(result).toBeNull()
+    })
+
+    it('returns normalized path when valid bash.exe exists', () => {
+      const customPath = 'C:\\PortableGit\\bin\\bash.exe'
+      vi.mocked(fs.existsSync).mockImplementation((p) => p === 'C:\\PortableGit\\bin\\bash.exe')
+
+      const result = validateGitBashPath(customPath)
+
+      expect(result).toBe('C:\\PortableGit\\bin\\bash.exe')
+    })
+
+    it('returns null when file does not exist', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+
+      const result = validateGitBashPath('C:\\missing\\bash.exe')
+
+      expect(result).toBeNull()
+    })
+
+    it('returns null when path is not bash.exe', () => {
+      const customPath = 'C:\\PortableGit\\bin\\git.exe'
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+
+      const result = validateGitBashPath(customPath)
+
+      expect(result).toBeNull()
+    })
+  })
+
   describe('findGitBash', () => {
+    describe('customPath parameter', () => {
+      beforeEach(() => {
+        delete process.env.CLAUDE_CODE_GIT_BASH_PATH
+      })
+
+      it('uses customPath when valid', () => {
+        const customPath = 'C:\\CustomGit\\bin\\bash.exe'
+        vi.mocked(fs.existsSync).mockImplementation((p) => p === customPath)
+
+        const result = findGitBash(customPath)
+
+        expect(result).toBe(customPath)
+        expect(execFileSync).not.toHaveBeenCalled()
+      })
+
+      it('falls back when customPath is invalid', () => {
+        const customPath = 'C:\\Invalid\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+
+        vi.mocked(fs.existsSync).mockImplementation((p) => {
+          if (p === customPath) return false
+          if (p === gitPath) return true
+          if (p === bashPath) return true
+          return false
+        })
+
+        vi.mocked(execFileSync).mockReturnValue(gitPath)
+
+        const result = findGitBash(customPath)
+
+        expect(result).toBe(bashPath)
+      })
+
+      it('prioritizes customPath over env override', () => {
+        const customPath = 'C:\\CustomGit\\bin\\bash.exe'
+        const envPath = 'C:\\EnvGit\\bin\\bash.exe'
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+
+        vi.mocked(fs.existsSync).mockImplementation((p) => p === customPath || p === envPath)
+
+        const result = findGitBash(customPath)
+
+        expect(result).toBe(customPath)
+      })
+    })
+
+    describe('env override', () => {
+      beforeEach(() => {
+        delete process.env.CLAUDE_CODE_GIT_BASH_PATH
+      })
+
+      it('uses CLAUDE_CODE_GIT_BASH_PATH when valid', () => {
+        const envPath = 'C:\\OverrideGit\\bin\\bash.exe'
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+
+        vi.mocked(fs.existsSync).mockImplementation((p) => p === envPath)
+
+        const result = findGitBash()
+
+        expect(result).toBe(envPath)
+        expect(execFileSync).not.toHaveBeenCalled()
+      })
+
+      it('falls back when CLAUDE_CODE_GIT_BASH_PATH is invalid', () => {
+        const envPath = 'C:\\Invalid\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+
+        vi.mocked(fs.existsSync).mockImplementation((p) => {
+          if (p === envPath) return false
+          if (p === gitPath) return true
+          if (p === bashPath) return true
+          return false
+        })
+
+        vi.mocked(execFileSync).mockReturnValue(gitPath)
+
+        const result = findGitBash()
+
+        expect(result).toBe(bashPath)
+      })
+    })
+
     describe('git.exe path derivation', () => {
       it('should derive bash.exe from standard Git installation (Git/cmd/git.exe)', () => {
         const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'

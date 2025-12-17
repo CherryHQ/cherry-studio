@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Usando Git Bash detectado automaticamente",
+      "clear": {
+        "button": "Limpar caminho personalizado"
+      },
+      "customPath": "Usando caminho personalizado: {{path}}",
       "error": {
         "description": "O Git Bash é necessário para executar agentes no Windows. O agente não pode funcionar sem ele. Por favor, instale o Git para Windows a partir de",
         "recheck": "Reverificar a Instalação do Git Bash",
         "title": "Git Bash Necessário"
       },
+      "found": {
+        "title": "Git Bash configurado"
+      },
       "notFound": "Git Bash não encontrado. Por favor, instale-o primeiro.",
+      "pick": {
+        "button": "Selecionar caminho do Git Bash",
+        "failed": "Falha ao configurar o caminho do Git Bash",
+        "invalidPath": "O arquivo selecionado não é um executável válido do Git Bash (bash.exe).",
+        "title": "Selecionar executável do Git Bash"
+      },
       "success": "Git Bash detectado com sucesso!"
     },
     "input": {
@@ -458,6 +472,7 @@
         "button": "Importar",
         "error": {
           "fetch_failed": "Falha ao obter dados do URL",
+          "file_required": "Por favor, selecione um arquivo primeiro",
           "invalid_format": "Formato de assistente inválido: campos obrigatórios em falta",
           "url_required": "Por favor insere um URL"
         },
@@ -471,6 +486,17 @@
         "url_placeholder": "Inserir URL JSON"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Exclusão em Lote",
+          "confirm": "Tem certeza de que deseja excluir os {{count}} assistentes selecionados?"
+        },
+        "batch_export": {
+          "button": "Exportar"
+        },
+        "mode": {
+          "manage": "Gerenciar",
+          "sort": "Ordenar"
+        },
         "title": "Gerir assistentes"
       },
       "my_agents": "Os meus assistentes",
@@ -524,7 +550,8 @@
         "low": "Curto",
         "medium": "Médio",
         "minimal": "mínimo",
-        "off": "Desligado"
+        "off": "Desligado",
+        "xhigh": "Extra Alta"
       },
       "regular_phrases": {
         "add": "Adicionar Frase",
@@ -1004,6 +1031,29 @@
         "yuque": "Exportar para Yuque"
       },
       "list": "Lista de tópicos",
+      "manage": {
+        "clear_selection": "Limpar Seleção",
+        "delete": {
+          "confirm": {
+            "content": "Tem certeza de que deseja excluir {{count}} tópico(s) selecionado(s)? Esta ação não pode ser desfeita.",
+            "title": "Excluir Tópicos"
+          },
+          "success": "Excluído(s) {{count}} tópico(s)"
+        },
+        "deselect_all": "Desmarcar Todos",
+        "error": {
+          "at_least_one": "Pelo menos um tópico deve ser mantido"
+        },
+        "move": {
+          "button": "Mover",
+          "placeholder": "Selecionar assistente de destino",
+          "success": "Movido(s) {{count}} tópico(s)"
+        },
+        "pinned": "Tópicos Fixados",
+        "selected_count": "{{count}} selecionado",
+        "title": "Gerenciar Tópicos",
+        "unpinned": "Tópicos Desafixados"
+      },
       "move_to": "Mover para",
       "new": "Começar nova conversa",
       "pin": "Fixar tópico",
@@ -1013,6 +1063,10 @@
         },
         "label": "Prompt do tópico",
         "tips": "Prompt do tópico: fornecer prompts adicionais para o tópico atual"
+      },
+      "search": {
+        "placeholder": "Pesquisar tópicos...",
+        "title": "Pesquisar"
       },
       "title": "Tópicos",
       "unpin": "Desfixar"
@@ -1185,6 +1239,7 @@
     "saved": "Guardado",
     "search": "Pesquisar",
     "select": "Selecionar",
+    "select_all": "Selecionar Tudo",
     "selected": "Selecionado",
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
@@ -1197,11 +1252,13 @@
       }
     },
     "stop": "Parar",
+    "subscribe": "Subscrever",
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
     "unknown": "Desconhecido",
     "unnamed": "Sem nome",
+    "unsubscribe": "Cancelar inscrição",
     "update_success": "Atualização bem-sucedida",
     "upload_files": "Carregar arquivo",
     "warning": "Aviso",
@@ -2128,6 +2185,7 @@
     "collapse": "[minimizar]",
     "content_placeholder": "Introduza o conteúdo da nota...",
     "copyContent": "copiar conteúdo",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "eliminar",
     "delete_confirm": "Tem a certeza de que deseja eliminar este {{type}}?",
     "delete_folder_confirm": "Tem a certeza de que deseja eliminar a pasta \"{{name}}\" e todos os seus conteúdos?",
@@ -3891,6 +3949,7 @@
       "builtinServers": "Servidores integrados",
       "builtinServersDescriptions": {
         "brave_search": "uma implementação de servidor MCP integrada com a API de pesquisa Brave, fornecendo funcionalidades de pesquisa web e local. Requer a configuração da variável de ambiente BRAVE_API_KEY",
+        "browser": "Controla uma janela Electron headless via Chrome DevTools Protocol. Ferramentas: abrir URL, executar JS de linha única, reiniciar sessão.",
         "didi_mcp": "Servidor DiDi MCP que fornece serviços de transporte incluindo pesquisa de mapas, estimativa de preços, gestão de pedidos e rastreamento de motoristas. Disponível apenas na China Continental. Requer configuração da variável de ambiente DIDI_API_KEY",
         "dify_knowledge": "Implementação do servidor MCP do Dify, que fornece uma API simples para interagir com o Dify. Requer a configuração da chave Dify",
         "fetch": "servidor MCP para obter o conteúdo da página web do URL",
@@ -3943,6 +4002,7 @@
       "jsonSaveError": "Falha ao salvar configuração JSON",
       "jsonSaveSuccess": "Configuração JSON salva com sucesso",
       "logoUrl": "URL do Logotipo",
+      "logs": "Registros",
       "longRunning": "Modo de execução prolongada",
       "longRunningTooltip": "Quando ativado, o servidor suporta tarefas de longa duração, redefinindo o temporizador de tempo limite ao receber notificações de progresso e estendendo o tempo máximo de tempo limite para 10 minutos.",
       "marketplaces": "Mercados",
@@ -3962,6 +4022,7 @@
       "name": "Nome",
       "newServer": "Servidor MCP",
       "noDescriptionAvailable": "Nenhuma descrição disponível no momento",
+      "noLogs": "Ainda sem registos",
       "noServers": "Nenhum servidor configurado",
       "not_support": "Modelo Não Suportado",
       "npx_list": {

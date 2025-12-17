@@ -1,6 +1,7 @@
 import type {
   Model,
   ReasoningEffortConfig,
+  ReasoningEffortOption,
   SystemProviderId,
   ThinkingModelType,
   ThinkingOptionConfig
@@ -11,7 +12,10 @@ import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
   isGPT5ProModel,
   isGPT5SeriesModel,
+  isGPT51CodexMaxModel,
   isGPT51SeriesModel,
+  isGPT52ProModel,
+  isGPT52SeriesModel,
   isOpenAIDeepResearchModel,
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
@@ -25,7 +29,7 @@ export const REASONING_REGEX =
 
 // 模型类型到支持的reasoning_effort的映射表
 // TODO: refactor this. too many identical options
-export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
+export const MODEL_SUPPORTED_REASONING_EFFORT = {
   default: ['low', 'medium', 'high'] as const,
   o: ['low', 'medium', 'high'] as const,
   openai_deep_research: ['medium'] as const,
@@ -33,7 +37,10 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   gpt5_codex: ['low', 'medium', 'high'] as const,
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
   gpt5_1_codex: ['none', 'medium', 'high'] as const,
+  gpt5_1_codex_max: ['none', 'medium', 'high', 'xhigh'] as const,
+  gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
+  gpt52pro: ['medium', 'high', 'xhigh'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
@@ -48,7 +55,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const
-} as const
+} as const satisfies ReasoningEffortConfig
 
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
@@ -60,6 +67,9 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
   gpt5_1: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1,
   gpt5_1_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex,
+  gpt5_2: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2,
+  gpt5_1_codex_max: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max,
+  gpt52pro: MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   grok4_fast: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
   gemini: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
@@ -84,6 +94,7 @@ const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idR
   }
 }
 
+// TODO: add ut
 const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
@@ -93,8 +104,16 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   if (isGPT51SeriesModel(model)) {
     if (modelId.includes('codex')) {
       thinkingModelType = 'gpt5_1_codex'
+      if (isGPT51CodexMaxModel(model)) {
+        thinkingModelType = 'gpt5_1_codex_max'
+      }
     } else {
       thinkingModelType = 'gpt5_1'
+    }
+  } else if (isGPT52SeriesModel(model)) {
+    thinkingModelType = 'gpt5_2'
+    if (isGPT52ProModel(model)) {
+      thinkingModelType = 'gpt52pro'
     }
   } else if (isGPT5SeriesModel(model)) {
     if (modelId.includes('codex')) {
@@ -148,6 +167,64 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   }
 }
 
+const _getModelSupportedReasoningEffortOptions = (model: Model): ReasoningEffortOption[] | undefined => {
+  if (!isSupportedReasoningEffortModel(model) && !isSupportedThinkingTokenModel(model)) {
+    return undefined
+  }
+  // use private function to avoid redundant function calling
+  const thinkingType = _getThinkModelType(model)
+  return MODEL_SUPPORTED_OPTIONS[thinkingType]
+}
+
+/**
+ * Gets the supported reasoning effort options for a given model.
+ *
+ * This function determines which reasoning effort levels a model supports based on its type.
+ * It works with models that support either `reasoning_effort` parameter (like OpenAI o-series)
+ * or thinking token control (like Claude, Gemini, Qwen, etc.).
+ *
+ * The function implements a fallback mechanism: it first checks the model's `id`, and if that
+ * doesn't match any known patterns, it falls back to checking the model's `name`.
+ *
+ * @param model - The model to check for reasoning effort support. Can be undefined or null.
+ * @returns An array of supported reasoning effort options, or undefined if:
+ *          - The model is null/undefined
+ *          - The model doesn't support reasoning effort or thinking tokens
+ *
+ * @example
+ * // OpenAI o-series models support low, medium, high
+ * getModelSupportedReasoningEffortOptions({ id: 'o3-mini', ... })
+ * // Returns: ['low', 'medium', 'high']
+ *
+ * @example
+ * // GPT-5.1 models support none, low, medium, high
+ * getModelSupportedReasoningEffortOptions({ id: 'gpt-5.1', ... })
+ * // Returns: ['none', 'low', 'medium', 'high']
+ *
+ * @example
+ * // Gemini Flash models support none, low, medium, high, auto
+ * getModelSupportedReasoningEffortOptions({ id: 'gemini-2.5-flash-latest', ... })
+ * // Returns: ['none', 'low', 'medium', 'high', 'auto']
+ *
+ * @example
+ * // Non-reasoning models return undefined
+ * getModelSupportedReasoningEffortOptions({ id: 'gpt-4o', ... })
+ * // Returns: undefined
+ *
+ * @example
+ * // Name fallback when id doesn't match
+ * getModelSupportedReasoningEffortOptions({ id: 'custom-id', name: 'gpt-5.1', ... })
+ * // Returns: ['none', 'low', 'medium', 'high']
+ */
+export const getModelSupportedReasoningEffortOptions = (
+  model: Model | undefined | null
+): ReasoningEffortOption[] | undefined => {
+  if (!model) return undefined
+
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, _getModelSupportedReasoningEffortOptions)
+  return idResult ?? nameResult
+}
+
 function _isSupportedThinkingTokenModel(model: Model): boolean {
   // Specifically for DeepSeek V3.1. White list for now
   if (isDeepSeekHybridInferenceModel(model)) {
@@ -183,12 +260,14 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
 }
 
 /** 用于判断是否支持控制思考，但不一定以reasoning_effort的方式 */
+// TODO: rename it
 export function isSupportedThinkingTokenModel(model?: Model): boolean {
   if (!model) return false
   const { idResult, nameResult } = withModelIdAndNameAsId(model, _isSupportedThinkingTokenModel)
   return idResult || nameResult
 }
 
+// TODO: it should be merged in isSupportedThinkingTokenModel
 export function isSupportedReasoningEffortModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -370,7 +449,7 @@ export function isQwenAlwaysThinkModel(model?: Model): boolean {
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?(?!-(?:thinking)(?:-|$)))(?:-[\w-]+)*/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?(?!-(?:thinking)(?:-|$))|seed-code(?:-preview)?(?:-\d+)?)(?:-[\w-]+)*/i
 
 // 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
 // Auto thinking is no longer supported after version 251015, see https://console.volcengine.com/ark/region:ark+cn-beijing/model/detail?Id=doubao-seed-1-6

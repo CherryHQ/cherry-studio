@@ -42,7 +42,8 @@ vi.mock('@renderer/utils/api', () => ({
   routeToEndpoint: vi.fn((host) => ({
     baseURL: host,
     endpoint: '/chat/completions'
-  }))
+  })),
+  isWithTrailingSharp: vi.fn((host) => host?.endsWith('#') || false)
 }))
 
 vi.mock('@renderer/utils/provider', async (importOriginal) => {
@@ -227,12 +228,19 @@ describe('CherryAI provider configuration', () => {
     // Mock the functions to simulate non-CherryAI provider
     vi.mocked(isCherryAIProvider).mockReturnValue(false)
     vi.mocked(getProviderByModel).mockReturnValue(provider)
+    // Mock isWithTrailingSharp to return false for this test
+    vi.mocked(formatApiHost as any).mockImplementation((host, isSupportedAPIVersion = true) => {
+      if (isSupportedAPIVersion === false) {
+        return host
+      }
+      return `${host}/v1`
+    })
 
     // Call getActualProvider
     const actualProvider = getActualProvider(model)
 
-    // Verify that formatApiHost was called with default parameters (true)
-    expect(formatApiHost).toHaveBeenCalledWith('https://api.openai.com')
+    // Verify that formatApiHost was called with appendApiVersion parameter
+    expect(formatApiHost).toHaveBeenCalledWith('https://api.openai.com', true)
     expect(actualProvider.apiHost).toBe('https://api.openai.com/v1')
   })
 
@@ -303,12 +311,19 @@ describe('Perplexity provider configuration', () => {
     vi.mocked(isCherryAIProvider).mockReturnValue(false)
     vi.mocked(isPerplexityProvider).mockReturnValue(false)
     vi.mocked(getProviderByModel).mockReturnValue(provider)
+    // Mock isWithTrailingSharp to return false for this test
+    vi.mocked(formatApiHost as any).mockImplementation((host, isSupportedAPIVersion = true) => {
+      if (isSupportedAPIVersion === false) {
+        return host
+      }
+      return `${host}/v1`
+    })
 
     // Call getActualProvider
     const actualProvider = getActualProvider(model)
 
-    // Verify that formatApiHost was called with default parameters (true)
-    expect(formatApiHost).toHaveBeenCalledWith('https://api.openai.com')
+    // Verify that formatApiHost was called with appendApiVersion parameter
+    expect(formatApiHost).toHaveBeenCalledWith('https://api.openai.com', true)
     expect(actualProvider.apiHost).toBe('https://api.openai.com/v1')
   })
 

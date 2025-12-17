@@ -88,7 +88,10 @@ const ThinkModelTypes = [
   'gpt5_1',
   'gpt5_codex',
   'gpt5_1_codex',
+  'gpt5_1_codex_max',
+  'gpt5_2',
   'gpt5pro',
+  'gpt52pro',
   'grok',
   'grok4_fast',
   'gemini',
@@ -122,6 +125,7 @@ export const EFFORT_RATIO: EffortRatio = {
   low: 0.05,
   medium: 0.5,
   high: 0.8,
+  xhigh: 0.9,
   auto: 2
 }
 
@@ -596,6 +600,7 @@ export const WebSearchProviderIds = {
   tavily: 'tavily',
   searxng: 'searxng',
   exa: 'exa',
+  'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
   'local-google': 'local-google',
   'local-bing': 'local-bing',
@@ -744,7 +749,8 @@ export const BuiltinMCPServerNames = {
   filesystem: '@cherry/filesystem',
   difyKnowledge: '@cherry/dify-knowledge',
   python: '@cherry/python',
-  didiMCP: '@cherry/didi-mcp'
+  didiMCP: '@cherry/didi-mcp',
+  browser: '@cherry/browser'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]

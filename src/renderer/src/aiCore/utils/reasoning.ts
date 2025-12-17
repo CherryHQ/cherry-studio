@@ -8,16 +8,16 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  getThinkModelType,
+  getModelSupportedReasoningEffortOptions,
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
   isGemini3ThinkingTokenModel,
-  isGPT5SeriesModel,
   isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
+  isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -30,8 +30,7 @@ import {
   isSupportedThinkingTokenHunyuanModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
-  isSupportedThinkingTokenZhipuModel,
-  MODEL_SUPPORTED_REASONING_EFFORT
+  isSupportedThinkingTokenZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
@@ -134,8 +133,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // https://creator.poe.com/docs/external-applications/openai-compatible-api#additional-considerations
   // Poe provider - supports custom bot parameters via extra_body
   if (provider.id === SystemProviderIds.poe) {
-    // GPT-5 series models use reasoning_effort parameter in extra_body
-    if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) {
+    if (isOpenAIReasoningModel(model)) {
       return {
         extra_body: {
           reasoning_effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
@@ -331,16 +329,15 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // Grok models/Perplexity models/OpenAI models, use reasoning_effort
   if (isSupportedReasoningEffortModel(model)) {
     // 检查模型是否支持所选选项
-    const modelType = getThinkModelType(model)
-    const supportedOptions = MODEL_SUPPORTED_REASONING_EFFORT[modelType]
-    if (supportedOptions.includes(reasoningEffort)) {
+    const supportedOptions = getModelSupportedReasoningEffortOptions(model)
+    if (supportedOptions?.includes(reasoningEffort)) {
       return {
         reasoningEffort
       }
     } else {
       // 如果不支持，fallback到第一个支持的值
       return {
-        reasoningEffort: supportedOptions[0]
+        reasoningEffort: supportedOptions?.[0]
       }
     }
   }
@@ -589,6 +586,7 @@ export function getGeminiReasoningParams(
     if (effortRatio > 1) {
       return {
         thinkingConfig: {
+          thinkingBudget: -1,
           includeThoughts: true
         }
       }
@@ -634,6 +632,8 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Pick<
     case 'low':
     case 'high':
       return { reasoningEffort }
+    case 'xhigh':
+      return { reasoningEffort: 'high' }
   }
 }
 

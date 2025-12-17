@@ -316,7 +316,8 @@ const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
   high: 'assistants.settings.reasoning_effort.high',
   low: 'assistants.settings.reasoning_effort.low',
   medium: 'assistants.settings.reasoning_effort.medium',
-  auto: 'assistants.settings.reasoning_effort.default'
+  auto: 'assistants.settings.reasoning_effort.default',
+  xhigh: 'assistants.settings.reasoning_effort.xhigh'
 } as const
 
 export const getReasoningEffortOptionsLabel = (key: string): string => {
@@ -342,7 +343,8 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
   [BuiltinMCPServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
   [BuiltinMCPServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
   [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
-  [BuiltinMCPServerNames.didiMCP]: 'settings.mcp.builtinServersDescriptions.didi_mcp'
+  [BuiltinMCPServerNames.didiMCP]: 'settings.mcp.builtinServersDescriptions.didi_mcp',
+  [BuiltinMCPServerNames.browser]: 'settings.mcp.builtinServersDescriptions.browser'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
