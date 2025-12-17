@@ -368,8 +368,7 @@ describe('reasoning utils', () => {
 
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({
-        enable_thinking: true,
-        thinking_budget: 32768
+        enable_thinking: true
       })
     })
 
