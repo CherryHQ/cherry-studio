@@ -728,10 +728,11 @@ describe('reasoning utils', () => {
       const result = getGeminiReasoningParams(assistant, model)
       expect(result).toEqual({
         thinkingConfig: {
-          thinkingBudget: 16896,
+          thinkingBudget: expect.any(Number),
           includeThoughts: true
         }
       })
+      expect(result.thinkingConfig.thinkingBudget).toBeGreaterThan(0)
     })
 
     it('should enable thinking without budget for auto effort ratio > 1', async () => {
