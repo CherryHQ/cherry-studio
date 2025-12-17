@@ -10,7 +10,7 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  getThinkModelType,
+  getModelSupportedReasoningEffortOptions,
   isDeepSeekHybridInferenceModel,
   isDoubaoThinkingAutoModel,
   isGPT5SeriesModel,
@@ -33,7 +33,6 @@ import {
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
   isVisionModel,
-  MODEL_SUPPORTED_REASONING_EFFORT,
   ZHIPU_RESULT_TOKENS
 } from '@renderer/config/models'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
@@ -304,16 +303,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Grok models/Perplexity models/OpenAI models
     if (isSupportedReasoningEffortModel(model)) {
       // 检查模型是否支持所选选项
-      const modelType = getThinkModelType(model)
-      const supportedOptions = MODEL_SUPPORTED_REASONING_EFFORT[modelType]
-      if (supportedOptions.includes(reasoningEffort)) {
+      const supportedOptions = getModelSupportedReasoningEffortOptions(model)
+      if (supportedOptions?.includes(reasoningEffort)) {
         return {
           reasoning_effort: reasoningEffort
         }
       } else {
         // 如果不支持，fallback到第一个支持的值
         return {
-          reasoning_effort: supportedOptions[0]
+          reasoning_effort: supportedOptions?.[0]
         }
       }
     }
