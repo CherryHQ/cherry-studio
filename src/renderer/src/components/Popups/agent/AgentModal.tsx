@@ -113,16 +113,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }
   }, [checkGitBash, t])
 
-  const handleClearGitBash = useCallback(async () => {
-    try {
-      await window.api.system.setGitBashPath(null)
-      await checkGitBash()
-    } catch (error) {
-      logger.error('Failed to clear Git Bash path', error as Error)
-      window.toast.error(t('agent.gitBash.pick.failed', 'Failed to set Git Bash path'))
-    }
-  }, [checkGitBash, t])
-
   const onPermissionModeChange = useCallback((value: PermissionMode) => {
     setForm((prev) => {
       const parsedConfiguration = AgentConfigurationSchema.parse(prev.configuration ?? {})
@@ -393,15 +383,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                   <Button size="small" onClick={handlePickGitBash}>
                     {t('common.select', 'Select')}
                   </Button>
-                  {gitBashPathInfo.source === 'manual' && gitBashPathInfo.path && (
-                    <Button size="small" onClick={handleClearGitBash}>
-                      {t('common.clear', 'Clear')}
-                    </Button>
-                  )}
                 </GitBashInputWrapper>
-                {gitBashPathInfo.path && gitBashPathInfo.source === 'auto' && (
-                  <SourceHint>{t('agent.gitBash.autoDiscoveredHint', 'Auto-discovered')}</SourceHint>
-                )}
               </FormItem>
             )}
 
@@ -560,12 +542,6 @@ const GitBashInputWrapper = styled.div`
   input {
     flex: 1;
   }
-`
-
-const SourceHint = styled.span`
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin-top: -4px;
 `
 
 const Label = styled.label`
