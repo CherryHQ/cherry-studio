@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   getAnthropicReasoningParams,
+  getAnthropicThinkingBudget,
   getBedrockReasoningParams,
   getCustomParameters,
   getGeminiReasoningParams,
@@ -89,7 +90,8 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isQwenAlwaysThinkModel: vi.fn(() => false),
     isSupportedThinkingTokenHunyuanModel: vi.fn(() => false),
     isSupportedThinkingTokenModel: vi.fn(() => false),
-    isGPT51SeriesModel: vi.fn(() => false)
+    isGPT51SeriesModel: vi.fn(() => false),
+    findTokenLimit: vi.fn(() => ({ min: 1024, max: 32768 }))
   }
 })
 
@@ -366,7 +368,8 @@ describe('reasoning utils', () => {
 
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({
-        enable_thinking: true
+        enable_thinking: true,
+        thinking_budget: 32768
       })
     })
 
@@ -725,7 +728,7 @@ describe('reasoning utils', () => {
       const result = getGeminiReasoningParams(assistant, model)
       expect(result).toEqual({
         thinkingConfig: {
-          thinkingBudget: 16448,
+          thinkingBudget: 16896,
           includeThoughts: true
         }
       })
@@ -988,6 +991,93 @@ describe('reasoning utils', () => {
       expect(result).toEqual({
         valid: 'value3'
       })
+    })
+  })
+
+  describe('getAnthropicThinkingBudget', () => {
+    it('should return undefined when reasoningEffort is undefined', async () => {
+      const result = getAnthropicThinkingBudget(4096, undefined, 'claude-3-7-sonnet')
+      expect(result).toBeUndefined()
+    })
+
+    it('should return undefined when reasoningEffort is none', async () => {
+      const result = getAnthropicThinkingBudget(4096, 'none', 'claude-3-7-sonnet')
+      expect(result).toBeUndefined()
+    })
+
+    it('should return undefined when tokenLimit is not found', async () => {
+      const { findTokenLimit } = await import('@renderer/config/models')
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const result = getAnthropicThinkingBudget(4096, 'medium', 'unknown-model')
+      expect(result).toBeUndefined()
+    })
+
+    it('should calculate budget correctly when maxTokens is provided', async () => {
+      const { findTokenLimit } = await import('@renderer/config/models')
+      vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
+
+      const result = getAnthropicThinkingBudget(4096, 'medium', 'claude-3-7-sonnet')
+      // EFFORT_RATIO['medium'] = 0.5
+      // budgetTokens = Math.max(1024, Math.floor(Math.min(32768 * 0.5, 4096 * 0.5)))
+      // = Math.max(1024, Math.floor(Math.min(16384, 2048)))
+      // = Math.max(1024, 2048)
+      // = 2048
+      expect(result).toBe(2048)
+    })
+
+    it('should use tokenLimit.max when maxTokens is undefined', async () => {
+      const { findTokenLimit } = await import('@renderer/config/models')
+      vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
+
+      const result = getAnthropicThinkingBudget(undefined, 'medium', 'claude-3-7-sonnet')
+      // When maxTokens is undefined, expectedMaxTokens = tokenLimit.max = 32768
+      // EFFORT_RATIO['medium'] = 0.5
+      // budgetTokens = Math.max(1024, Math.floor(Math.min(32768 * 0.5, 32768 * 0.5)))
+      // = Math.max(1024, Math.floor(16384))
+      // = Math.max(1024, 16384)
+      // = 16384
+      expect(result).toBe(16384)
+    })
+
+    it('should enforce minimum budget of 1024', async () => {
+      const { findTokenLimit } = await import('@renderer/config/models')
+      vi.mocked(findTokenLimit).mockReturnValue({ min: 100, max: 1000 })
+
+      const result = getAnthropicThinkingBudget(500, 'low', 'claude-3-7-sonnet')
+      // EFFORT_RATIO['low'] = 0.05
+      // budgetTokens = Math.max(1024, Math.floor(Math.min(1000 * 0.05, 500 * 0.05)))
+      // = Math.max(1024, Math.floor(Math.min(50, 25)))
+      // = Math.max(1024, 25)
+      // = 1024
+      expect(result).toBe(1024)
+    })
+
+    it('should respect effort ratio for high reasoning effort', async () => {
+      const { findTokenLimit } = await import('@renderer/config/models')
+      vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
+
+      const result = getAnthropicThinkingBudget(8192, 'high', 'claude-3-7-sonnet')
+      // EFFORT_RATIO['high'] = 0.8
+      // budgetTokens = Math.max(1024, Math.floor(Math.min(32768 * 0.8, 8192 * 0.8)))
+      // = Math.max(1024, Math.floor(Math.min(26214.4, 6553.6)))
+      // = Math.max(1024, 6553)
+      // = 6553
+      expect(result).toBe(6553)
+    })
+
+    it('should use full token limit when maxTokens is undefined and reasoning effort is high', async () => {
+      const { findTokenLimit } = await import('@renderer/config/models')
+      vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
+
+      const result = getAnthropicThinkingBudget(undefined, 'high', 'claude-3-7-sonnet')
+      // When maxTokens is undefined, expectedMaxTokens = tokenLimit.max = 32768
+      // EFFORT_RATIO['high'] = 0.8
+      // budgetTokens = Math.max(1024, Math.floor(Math.min(32768 * 0.8, 32768 * 0.8)))
+      // = Math.max(1024, Math.floor(26214.4))
+      // = Math.max(1024, 26214)
+      // = 26214
+      expect(result).toBe(26214)
     })
   })
 })
