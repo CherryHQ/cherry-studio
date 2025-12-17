@@ -388,10 +388,11 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                   <Input
                     value={gitBashPathInfo.path ?? ''}
                     readOnly
-                    placeholder={t('agent.gitBash.placeholder', 'Click to select bash.exe')}
-                    onClick={handlePickGitBash}
-                    style={{ cursor: 'pointer' }}
+                    placeholder={t('agent.gitBash.placeholder', 'Select bash.exe path')}
                   />
+                  <Button size="small" onClick={handlePickGitBash}>
+                    {t('common.select', 'Select')}
+                  </Button>
                   {gitBashPathInfo.source === 'manual' && gitBashPathInfo.path && (
                     <Button size="small" onClick={handleClearGitBash}>
                       {t('common.clear', 'Clear')}
