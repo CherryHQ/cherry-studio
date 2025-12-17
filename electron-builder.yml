@@ -134,60 +134,54 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.3 - Feature & Stability Update
+    Cherry Studio 1.7.4 - New Browser MCP & Model Updates
 
-    This release brings new features, UI improvements, and important bug fixes.
+    This release adds a powerful browser automation MCP server, new web search provider, and model support updates.
 
     ✨ New Features
-    - Add MCP server log viewer for better debugging
-    - Support custom Git Bash path configuration
-    - Add print to PDF and save as HTML for mini program webviews
-    - Add CherryIN API host selection settings
-    - Enhance assistant presets with sort and batch delete modes
-    - Open URL directly for SelectionAssistant search action
-    - Enhance web search tool switching with provider-specific context
+    - [MCP] Add @cherry/browser CDP MCP server with session management for browser automation
+    - [Web Search] Add ExaMCP free web search provider (no API key required)
+    - [Model] Support GPT 5.2 series models
+    - [Model] Add capabilities support for Doubao Seed Code models (tool calling, reasoning, vision)
 
     🔧 Improvements
-    - Remove Intel Ultra limit for OVMS
-    - Improve settings tab and assistant item UI
+    - [Translate] Add reasoning effort option to translate service
+    - [i18n] Improve zh-TW Traditional Chinese locale
+    - [Settings] Update MCP Settings layout and styling
 
     🐛 Bug Fixes
-    - Fix stack overflow with base64 images
-    - Fix infinite loop in knowledge queue processing
-    - Fix quick panel closing in multiple selection mode
-    - Fix thinking timer not stopping when reply is aborted
-    - Fix ThinkingButton icon display for fixed reasoning mode
-    - Fix knowledge query prioritization and intent prompt
-    - Fix OpenRouter embeddings support
-    - Fix SelectionAction window resize on Windows
-    - Add gpustack provider support for qwen3 thinking mode
+    - [Chat] Fix line numbers being wrongly copied from code blocks
+    - [Translate] Fix default to first supported reasoning effort when translating
+    - [Chat] Fix preserve thinking block in assistant messages
+    - [Web Search] Fix max search result limit
+    - [Embedding] Fix embedding dimensions retrieval for ModernAiProvider
+    - [Chat] Fix token calculation in prompt tool use plugin
+    - [Model] Fix Ollama provider options for Qwen model support
+    - [UI] Fix Chat component marginRight calculation for improved layout
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.3 - 功能与稳定性更新
+    Cherry Studio 1.7.4 - 新增浏览器 MCP 与模型更新
 
-    本次更新带来新功能、界面改进和重要的问题修复。
+    本次更新新增强大的浏览器自动化 MCP 服务器、新的网页搜索提供商以及模型支持更新。
 
     ✨ 新功能
-    - 新增 MCP 服务器日志查看器，便于调试
-    - 支持自定义 Git Bash 路径配置
-    - 小程序 webview 支持打印 PDF 和保存为 HTML
-    - 新增 CherryIN API 主机选择设置
-    - 助手预设增强：支持排序和批量删除模式
-    - 划词助手搜索操作直接打开 URL
-    - 增强网页搜索工具切换逻辑，支持服务商特定上下文
+    - [MCP] 新增 @cherry/browser CDP MCP 服务器，支持会话管理的浏览器自动化
+    - [网页搜索] 新增 ExaMCP 免费网页搜索提供商（无需 API 密钥）
+    - [模型] 支持 GPT 5.2 系列模型
+    - [模型] 为豆包 Seed Code 模型添加能力支持（工具调用、推理、视觉）
 
     🔧 功能改进
-    - 移除 OVMS 的 Intel Ultra 限制
-    - 优化设置标签页和助手项目 UI
+    - [翻译] 为翻译服务添加推理强度选项
+    - [国际化] 改进繁体中文（zh-TW）本地化
+    - [设置] 优化 MCP 设置布局和样式
 
     🐛 问题修复
-    - 修复 base64 图片导致的栈溢出问题
-    - 修复知识库队列处理的无限循环问题
-    - 修复多选模式下快捷面板意外关闭的问题
-    - 修复回复中止时思考计时器未停止的问题
-    - 修复固定推理模式下思考按钮图标显示问题
-    - 修复知识库查询优先级和意图提示
-    - 修复 OpenRouter 嵌入模型支持
-    - 修复 Windows 上划词助手窗口大小调整问题
-    - 为 gpustack 服务商添加 qwen3 思考模式支持
+    - [聊天] 修复代码块中行号被错误复制的问题
+    - [翻译] 修复翻译时默认使用第一个支持的推理强度
+    - [聊天] 修复助手消息中思考块的保留问题
+    - [网页搜索] 修复最大搜索结果数限制
+    - [嵌入] 修复 ModernAiProvider 嵌入维度获取问题
+    - [聊天] 修复提示词工具使用插件的 token 计算问题
+    - [模型] 修复 Ollama 提供商对 Qwen 模型的支持选项
+    - [界面] 修复聊天组件右边距计算以改善布局
     <!--LANG:END-->

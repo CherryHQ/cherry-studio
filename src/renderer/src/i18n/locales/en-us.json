@@ -472,6 +472,7 @@
         "button": "Import",
         "error": {
           "fetch_failed": "Failed to fetch from URL",
+          "file_required": "Please select a file first",
           "invalid_format": "Invalid assistant format: missing required fields",
           "url_required": "Please enter a URL"
         },
@@ -486,11 +487,14 @@
       },
       "manage": {
         "batch_delete": {
-          "button": "Batch Delete",
+          "button": "Delete",
           "confirm": "Are you sure you want to delete the selected {{count}} assistants?"
         },
+        "batch_export": {
+          "button": "Export"
+        },
         "mode": {
-          "delete": "Delete",
+          "manage": "Manage",
           "sort": "Sort"
         },
         "title": "Manage Assistants"
@@ -1036,6 +1040,29 @@
         "yuque": "Export to Yuque"
       },
       "list": "Topic List",
+      "manage": {
+        "clear_selection": "Clear Selection",
+        "delete": {
+          "confirm": {
+            "content": "Are you sure you want to delete {{count}} selected topic(s)? This action cannot be undone.",
+            "title": "Delete Topics"
+          },
+          "success": "Deleted {{count}} topic(s)"
+        },
+        "deselect_all": "Deselect All",
+        "error": {
+          "at_least_one": "At least one topic must be kept"
+        },
+        "move": {
+          "button": "Move",
+          "placeholder": "Select target assistant",
+          "success": "Moved {{count}} topic(s)"
+        },
+        "pinned": "Pinned Topics",
+        "selected_count": "{{count}} selected",
+        "title": "Manage Topics",
+        "unpinned": "Unpinned Topics"
+      },
       "move_to": "Move to",
       "new": "New Topic",
       "pin": "Pin Topic",
@@ -1045,6 +1072,10 @@
         },
         "label": "Topic Prompts",
         "tips": "Topic Prompts: Additional supplementary prompts provided for the current topic"
+      },
+      "search": {
+        "placeholder": "Search topics...",
+        "title": "Search"
       },
       "title": "Topics",
       "unpin": "Unpin Topic"
@@ -1230,11 +1261,13 @@
       }
     },
     "stop": "Stop",
+    "subscribe": "Subscribe",
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
+    "unsubscribe": "Unsubscribe",
     "update_success": "Update successfully",
     "upload_files": "Upload file",
     "warning": "Warning",
@@ -1729,7 +1762,7 @@
       "import": {
         "error": "Import failed"
       },
-      "imported": "Imported successfully"
+      "imported": "Successfully imported {{count}} assistant(s)"
     },
     "api": {
       "check": {
@@ -2161,6 +2194,7 @@
     "collapse": "Collapse",
     "content_placeholder": "Please enter the note content...",
     "copyContent": "Copy Content",
+    "crossPlatformRestoreWarning": "Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "delete",
     "delete_confirm": "Are you sure you want to delete this {{type}}?",
     "delete_folder_confirm": "Are you sure you want to delete the folder \"{{name}}\" and all of its contents?",

@@ -472,6 +472,7 @@
         "button": "Importer",
         "error": {
           "fetch_failed": "Échec de la récupération des données depuis l'URL",
+          "file_required": "Veuillez d'abord sélectionner un fichier",
           "invalid_format": "Format d'assistant invalide : champs obligatoires manquants",
           "url_required": "Veuillez saisir une URL"
         },
@@ -489,8 +490,11 @@
           "button": "Suppression par lot",
           "confirm": "Êtes-vous sûr de vouloir supprimer les {{count}} assistants sélectionnés ?"
         },
+        "batch_export": {
+          "button": "Exporter"
+        },
         "mode": {
-          "delete": "Supprimer",
+          "manage": "Gérer",
           "sort": "Trier"
         },
         "title": "Gérer les assistants"
@@ -1036,6 +1040,29 @@
         "yuque": "Exporter vers Yuque"
       },
       "list": "Liste des sujets",
+      "manage": {
+        "clear_selection": "Effacer la sélection",
+        "delete": {
+          "confirm": {
+            "content": "Êtes-vous sûr de vouloir supprimer {{count}} sujet(s) sélectionné(s) ? Cette action est irréversible.",
+            "title": "Supprimer des sujets"
+          },
+          "success": "Supprimé {{count}} sujet(s)"
+        },
+        "deselect_all": "Tout désélectionner",
+        "error": {
+          "at_least_one": "Au moins un sujet doit être conservé"
+        },
+        "move": {
+          "button": "Déplacer",
+          "placeholder": "Sélectionner la cible",
+          "success": "Déplacé {{count}} sujet(s)"
+        },
+        "pinned": "Sujets épinglés",
+        "selected_count": "{{count}} sélectionné",
+        "title": "Gérer les sujets",
+        "unpinned": "Sujets non épinglés"
+      },
       "move_to": "Déplacer vers",
       "new": "Commencer une nouvelle conversation",
       "pin": "Fixer le sujet",
@@ -1045,6 +1072,10 @@
         },
         "label": "Indicateurs de sujet",
         "tips": "Indicateurs de sujet : fournir des indications supplémentaires pour le sujet actuel"
+      },
+      "search": {
+        "placeholder": "Rechercher des sujets...",
+        "title": "Rechercher"
       },
       "title": "Sujet",
       "unpin": "Annuler le fixage"
@@ -1230,11 +1261,13 @@
       }
     },
     "stop": "Arrêter",
+    "subscribe": "S'abonner",
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
     "unknown": "Inconnu",
     "unnamed": "Sans nom",
+    "unsubscribe": "Se désabonner",
     "update_success": "Mise à jour réussie",
     "upload_files": "Uploader des fichiers",
     "warning": "Avertissement",
@@ -2161,6 +2194,7 @@
     "collapse": "réduire",
     "content_placeholder": "Veuillez saisir le contenu de la note...",
     "copyContent": "contenu copié",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
     "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",

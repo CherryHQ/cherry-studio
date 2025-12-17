@@ -1,4 +1,4 @@
-import { MenuOutlined } from '@ant-design/icons'
+import { ExportOutlined, MenuOutlined } from '@ant-design/icons'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { Box, HStack } from '@renderer/components/Layout'
@@ -10,13 +10,13 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-type Mode = 'sort' | 'delete'
+type Mode = 'sort' | 'manage'
 
 const PopupContainer: React.FC = () => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
   const { presets, setAssistantPresets } = useAssistantPresets()
-  const [mode, setMode] = useState<Mode>(() => (presets.length > 50 ? 'delete' : 'sort'))
+  const [mode, setMode] = useState<Mode>('manage')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const onCancel = () => {
@@ -88,6 +88,23 @@ const PopupContainer: React.FC = () => {
     })
   }
 
+  const handleBatchExport = async () => {
+    if (selectedIds.size === 0) return
+
+    const selectedPresets = presets.filter((p) => selectedIds.has(p.id))
+    const exportData = selectedPresets.map((p) => ({
+      name: p.name,
+      emoji: p.emoji,
+      prompt: p.prompt,
+      description: p.description,
+      group: p.group
+    }))
+
+    const fileName = selectedIds.size === 1 ? `${selectedPresets[0].name}.json` : `assistants_${selectedIds.size}.json`
+
+    await window.api.file.save(fileName, JSON.stringify(exportData, null, 2))
+  }
+
   const isAllSelected = presets.length > 0 && selectedIds.size === presets.length
   const isIndeterminate = selectedIds.size > 0 && selectedIds.size < presets.length
 
@@ -98,13 +115,14 @@ const PopupContainer: React.FC = () => {
       onCancel={onCancel}
       afterClose={onClose}
       footer={null}
+      width={600}
       transitionName="animation-move-down"
       centered>
       <Container>
         {presets.length > 0 && (
           <>
             <ActionBar>
-              {mode === 'delete' ? (
+              {mode === 'manage' ? (
                 <HStack alignItems="center">
                   <Checkbox checked={isAllSelected} indeterminate={isIndeterminate} onChange={handleSelectAll}>
                     {t('common.select_all')}
@@ -119,15 +137,24 @@ const PopupContainer: React.FC = () => {
                 <div />
               )}
               <HStack gap="8px" alignItems="center">
-                {mode === 'delete' && (
-                  <Button
-                    danger
-                    type="text"
-                    icon={<DeleteIcon size={14} />}
-                    disabled={selectedIds.size === 0}
-                    onClick={handleBatchDelete}>
-                    {t('assistants.presets.manage.batch_delete.button')} ({selectedIds.size})
-                  </Button>
+                {mode === 'manage' && (
+                  <>
+                    <Button
+                      type="text"
+                      icon={<ExportOutlined />}
+                      disabled={selectedIds.size === 0}
+                      onClick={handleBatchExport}>
+                      {t('assistants.presets.manage.batch_export.button')} ({selectedIds.size})
+                    </Button>
+                    <Button
+                      danger
+                      type="text"
+                      icon={<DeleteIcon size={14} />}
+                      disabled={selectedIds.size === 0}
+                      onClick={handleBatchDelete}>
+                      {t('assistants.presets.manage.batch_delete.button')} ({selectedIds.size})
+                    </Button>
+                  </>
                 )}
                 <Segmented
                   size="small"
@@ -135,7 +162,7 @@ const PopupContainer: React.FC = () => {
                   onChange={(value) => handleModeChange(value as Mode)}
                   options={[
                     { label: t('assistants.presets.manage.mode.sort'), value: 'sort' },
-                    { label: t('assistants.presets.manage.mode.delete'), value: 'delete' }
+                    { label: t('assistants.presets.manage.mode.manage'), value: 'manage' }
                   ]}
                 />
               </HStack>
