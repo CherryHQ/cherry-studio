@@ -4579,6 +4579,24 @@
       "remove_invalid_keys": "删除无效密钥",
       "search": "搜索模型平台...",
       "search_placeholder": "搜索模型 ID 或名称",
+      "streaming": {
+        "description": "配置长时间流式请求（例如 OpenAI Responses SSE）的客户端限制。",
+        "label": "流式与超时",
+        "max_tool_steps": {
+          "help": "AI SDK 的工具调用会多轮循环。该值用于防止无限循环；若工作流需要更多轮工具调用请调大。",
+          "label": "最大工具步数"
+        },
+        "request_timeout": {
+          "help": "超过该时间将由客户端中止请求。设为 0 表示不额外限制。",
+          "label": "请求硬超时（分钟）"
+        },
+        "reset": "恢复默认",
+        "sse_idle_timeout": {
+          "help": "在该时间内未收到任何流式事件则中止请求。长时间无输出/工具执行较慢时可调大；设为 0 关闭。",
+          "label": "SSE 空闲超时（分钟）"
+        },
+        "title": "流式与超时"
+      },
       "title": "模型服务",
       "vertex_ai": {
         "api_host_help": "Vertex AI 的 API 地址，不建议填写，通常适用于反向代理",

@@ -4579,6 +4579,24 @@
       "remove_invalid_keys": "Remove Invalid Keys",
       "search": "Search Providers...",
       "search_placeholder": "Search model id or name",
+      "streaming": {
+        "description": "Configure client-side limits for long-running streaming requests (e.g., OpenAI Responses SSE).",
+        "label": "Streaming & Timeouts",
+        "max_tool_steps": {
+          "help": "Maximum tool-calling steps for agent workflows. Increase this if your workflow requires more than 20 steps.",
+          "label": "Max tool steps"
+        },
+        "request_timeout": {
+          "help": "Abort the request after this time. Set to 0 to disable.",
+          "label": "Request hard timeout (minutes)"
+        },
+        "reset": "Reset to defaults",
+        "sse_idle_timeout": {
+          "help": "Abort if no stream events are received for this time. Increase it for long silent reasoning/tool runs; set to 0 to disable.",
+          "label": "SSE idle timeout (minutes)"
+        },
+        "title": "Streaming & Timeouts"
+      },
       "title": "Model Provider",
       "vertex_ai": {
         "api_host_help": "The API host for Vertex AI, not recommended to fill in, generally applicable to reverse proxy",

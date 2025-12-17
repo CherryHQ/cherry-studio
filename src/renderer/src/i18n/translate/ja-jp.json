@@ -4579,6 +4579,24 @@
       "remove_invalid_keys": "無効なキーを削除",
       "search": "プロバイダーを検索...",
       "search_placeholder": "モデルIDまたは名前を検索",
+      "streaming": {
+        "description": "[to be translated]:Configure client-side limits for long-running streaming requests (e.g., OpenAI Responses SSE).",
+        "label": "[to be translated]:Streaming & Timeouts",
+        "max_tool_steps": {
+          "help": "[to be translated]:Maximum tool-calling steps for agent workflows. Increase this if your workflow requires more than 20 steps.",
+          "label": "[to be translated]:Max tool steps"
+        },
+        "request_timeout": {
+          "help": "[to be translated]:Abort the request after this time. Set to 0 to disable.",
+          "label": "[to be translated]:Request hard timeout (minutes)"
+        },
+        "reset": "[to be translated]:Reset to defaults",
+        "sse_idle_timeout": {
+          "help": "[to be translated]:Abort if no stream events are received for this time. Increase it for long silent reasoning/tool runs; set to 0 to disable.",
+          "label": "[to be translated]:SSE idle timeout (minutes)"
+        },
+        "title": "[to be translated]:Streaming & Timeouts"
+      },
       "title": "モデルプロバイダー",
       "vertex_ai": {
         "api_host_help": "Vertex AIのAPIアドレス。逆プロキシに適しています。",

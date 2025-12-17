@@ -40,6 +40,7 @@ import { stepCountIs } from 'ai'
 import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
+import { buildCombinedAbortSignal, normalizeMaxToolSteps, timeoutMinutesToMs } from '../utils/streamingTimeout'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
 import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
@@ -95,6 +96,10 @@ export async function buildStreamTextParams(
     enableUrlContext: boolean
   }
   webSearchPluginConfig?: WebSearchPluginConfig
+  streamingConfig?: {
+    idleTimeoutMs: number
+    idleAbortController: AbortController
+  }
 }> {
   const { mcpTools } = options
 
@@ -218,6 +223,17 @@ export async function buildStreamTextParams(
   // Note: standardParams (topK, frequencyPenalty, presencePenalty, stopSequences, seed)
   // are extracted from custom parameters and passed directly to streamText()
   // instead of being placed in providerOptions
+  const requestTimeoutMs = timeoutMinutesToMs(provider.requestTimeoutMinutes)
+  const idleTimeoutMs = timeoutMinutesToMs(provider.sseIdleTimeoutMinutes)
+  const idleAbortController = idleTimeoutMs ? new AbortController() : undefined
+
+  const abortSignal = buildCombinedAbortSignal([
+    options.requestOptions?.signal,
+    requestTimeoutMs ? AbortSignal.timeout(requestTimeoutMs) : undefined,
+    idleAbortController?.signal
+  ])
+
+  const maxToolSteps = normalizeMaxToolSteps(provider.maxToolSteps)
   const params: StreamTextParams = {
     messages: sdkMessages,
     maxOutputTokens: getMaxTokens(assistant, model),
@@ -225,10 +241,10 @@ export async function buildStreamTextParams(
     topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters
     ...standardParams,
-    abortSignal: options.requestOptions?.signal,
+    abortSignal,
     headers,
     providerOptions,
-    stopWhen: stepCountIs(20),
+    stopWhen: stepCountIs(maxToolSteps),
     maxRetries: 0
   }
 
@@ -246,7 +262,14 @@ export async function buildStreamTextParams(
     params,
     modelId: model.id,
     capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
-    webSearchPluginConfig
+    webSearchPluginConfig,
+    streamingConfig:
+      idleTimeoutMs && idleAbortController
+        ? {
+            idleTimeoutMs,
+            idleAbortController
+          }
+        : undefined
   }
 }
 
