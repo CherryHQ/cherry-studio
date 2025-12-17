@@ -879,11 +879,11 @@ const HeaderIconButton = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
-  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: var(--list-item-border-radius);
   cursor: pointer;
   color: var(--color-text-2);
   transition: all 0.2s;
