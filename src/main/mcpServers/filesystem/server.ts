@@ -26,11 +26,10 @@ export class FileSystemServer {
   public server: Server
   private baseDir: string
 
-  constructor() {
-    const envRoot = process.env.WORKSPACE_ROOT
-    if (envRoot && path.isAbsolute(envRoot)) {
-      this.baseDir = envRoot
-      logger.info(`Using WORKSPACE_ROOT for filesystem MCP baseDir: ${envRoot}`)
+  constructor(baseDir?: string) {
+    if (baseDir && path.isAbsolute(baseDir)) {
+      this.baseDir = baseDir
+      logger.info(`Using provided baseDir for filesystem MCP: ${baseDir}`)
     } else {
       const userData = app.getPath('userData')
       this.baseDir = path.join(userData, 'Data', 'Workspace')
