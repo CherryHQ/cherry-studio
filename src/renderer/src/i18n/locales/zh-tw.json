@@ -4579,6 +4579,24 @@
       "remove_invalid_keys": "刪除無效金鑰",
       "search": "搜尋模型平臺...",
       "search_placeholder": "搜尋模型 ID 或名稱",
+      "streaming": {
+        "description": "設定長時間串流請求（例如 OpenAI Responses SSE）的用戶端限制。",
+        "label": "串流與逾時",
+        "max_tool_steps": {
+          "help": "AI SDK 的工具呼叫會多輪循環。此值用於避免無限循環；若工作流程需要更多輪工具呼叫請調大。",
+          "label": "最大工具步數"
+        },
+        "request_timeout": {
+          "help": "超過此時間用戶端將中止請求。設為 0 表示不額外限制。",
+          "label": "請求硬逾時（分鐘）"
+        },
+        "reset": "還原預設值",
+        "sse_idle_timeout": {
+          "help": "在此時間內未收到任何串流事件則中止請求。長時間無輸出/工具執行較慢時可調大；設為 0 關閉。",
+          "label": "SSE 閒置逾時（分鐘）"
+        },
+        "title": "串流與逾時"
+      },
       "title": "模型提供者",
       "vertex_ai": {
         "api_host_help": "Vertex AI 的 API 位址，不建議填寫，通常適用於反向代理",
