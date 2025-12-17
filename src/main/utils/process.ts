@@ -283,14 +283,21 @@ export function autoDiscoverGitBash(): string | null {
 
 /**
  * Get Git Bash path info including source
+ * If no path is configured, triggers auto-discovery first
  */
 export function getGitBashPathInfo(): GitBashPathInfo {
   if (!isWin) {
     return { path: null, source: null }
   }
 
-  const path = configManager.get<string | null>(ConfigKeys.GitBashPath) ?? null
-  const source = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
+  let path = configManager.get<string | null>(ConfigKeys.GitBashPath) ?? null
+  let source = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
+
+  // If no path configured, trigger auto-discovery (handles upgrade from old versions)
+  if (!path) {
+    path = autoDiscoverGitBash()
+    source = path ? 'auto' : null
+  }
 
   return { path, source }
 }
