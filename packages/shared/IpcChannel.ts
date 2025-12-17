@@ -229,6 +229,8 @@ export enum IpcChannel {
   Backup_ListS3Files = 'backup:listS3Files',
   Backup_DeleteS3File = 'backup:deleteS3File',
   Backup_CheckS3Connection = 'backup:checkS3Connection',
+  Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
+  Backup_DeleteTempBackup = 'backup:deleteTempBackup',
 
   // zip
   Zip_Compress = 'zip:compress',
@@ -377,5 +379,16 @@ export enum IpcChannel {
   WebSocket_Stop = 'webSocket:stop',
   WebSocket_Status = 'webSocket:status',
   WebSocket_SendFile = 'webSocket:send-file',
-  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates'
+  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates',
+
+  // Local Transfer
+  LocalTransfer_ListServices = 'local-transfer:list',
+  LocalTransfer_StartScan = 'local-transfer:start-scan',
+  LocalTransfer_StopScan = 'local-transfer:stop-scan',
+  LocalTransfer_ServicesUpdated = 'local-transfer:services-updated',
+  LocalTransfer_Connect = 'local-transfer:connect',
+  LocalTransfer_Disconnect = 'local-transfer:disconnect',
+  LocalTransfer_ClientEvent = 'local-transfer:client-event',
+  LocalTransfer_SendFile = 'local-transfer:send-file',
+  LocalTransfer_CancelTransfer = 'local-transfer:cancel-transfer'
 }

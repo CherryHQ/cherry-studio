@@ -4,7 +4,15 @@ import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
 import type { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
-import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
+import type {
+  FileChangeEvent,
+  LanClientEvent,
+  LanFileCompleteMessage,
+  LanHandshakeAckMessage,
+  LocalTransferConnectPayload,
+  LocalTransferState,
+  WebviewKeyEvent
+} from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
 import type {
@@ -167,7 +175,11 @@ const api = {
     listS3Files: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_ListS3Files, s3Config),
     deleteS3File: (fileName: string, s3Config: S3Config) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
-    checkS3Connection: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_CheckS3Connection, s3Config)
+    checkS3Connection: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_CheckS3Connection, s3Config),
+    createLanTransferBackup: (data: string): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data),
+    deleteTempBackup: (filePath: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteTempBackup, filePath)
   },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
@@ -569,6 +581,33 @@ const api = {
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ReadContent, sourcePath),
     writeContent: (options: WritePluginContentOptions): Promise<PluginResult<void>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options)
+  },
+  localTransfer: {
+    getState: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_ListServices),
+    startScan: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_StartScan),
+    stopScan: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_StopScan),
+    connect: (payload: LocalTransferConnectPayload): Promise<LanHandshakeAckMessage> =>
+      ipcRenderer.invoke(IpcChannel.LocalTransfer_Connect, payload),
+    disconnect: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_Disconnect),
+    onServicesUpdated: (callback: (state: LocalTransferState) => void): (() => void) => {
+      const channel = IpcChannel.LocalTransfer_ServicesUpdated
+      const listener = (_: Electron.IpcRendererEvent, state: LocalTransferState) => callback(state)
+      ipcRenderer.on(channel, listener)
+      return () => {
+        ipcRenderer.removeListener(channel, listener)
+      }
+    },
+    onClientEvent: (callback: (event: LanClientEvent) => void): (() => void) => {
+      const channel = IpcChannel.LocalTransfer_ClientEvent
+      const listener = (_: Electron.IpcRendererEvent, event: LanClientEvent) => callback(event)
+      ipcRenderer.on(channel, listener)
+      return () => {
+        ipcRenderer.removeListener(channel, listener)
+      }
+    },
+    sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
+      ipcRenderer.invoke(IpcChannel.LocalTransfer_SendFile, { filePath }),
+    cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_CancelTransfer)
   },
   webSocket: {
     start: () => ipcRenderer.invoke(IpcChannel.WebSocket_Start),

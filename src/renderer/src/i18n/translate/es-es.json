@@ -3166,18 +3166,46 @@
           "connected": "Conectado",
           "connection_failed": "Conexión fallida",
           "content": "Asegúrate de que el ordenador y el móvil estén en la misma red para usar la transferencia por LAN. Abre la aplicación Cherry Studio y escanea este código QR.",
+          "device_list_title": "[to be translated]:Local network devices",
+          "discovered_devices": "[to be translated]:Discovered devices",
           "error": {
+            "file_too_large": "[to be translated]:File too large, maximum 500MB supported",
             "init_failed": "Falló la inicialización",
+            "invalid_file_type": "[to be translated]:Only ZIP files are supported",
             "no_file": "Ningún archivo seleccionado",
             "no_ip": "No se puede obtener la dirección IP",
+            "not_connected": "[to be translated]:Please complete handshake first",
             "send_failed": "Error al enviar el archivo"
+          },
+          "file_transfer": {
+            "cancelled": "[to be translated]:Transfer cancelled",
+            "failed": "[to be translated]:File transfer failed: {{message}}",
+            "progress": "[to be translated]:Sending... {{progress}}%",
+            "success": "[to be translated]:File sent successfully"
           },
           "force_close": "Cerrar forzosamente",
           "generating_qr": "Generando código QR...",
+          "handshake": {
+            "button": "[to be translated]:Handshake",
+            "failed": "[to be translated]:Handshake failed: {{message}}",
+            "in_progress": "[to be translated]:Handshaking...",
+            "success": "[to be translated]:Handshake completed with {{device}}",
+            "test_message_received": "[to be translated]:Received pong from {{device}}",
+            "test_message_sent": "[to be translated]:Sent hello world test payload"
+          },
+          "idle_hint": "[to be translated]:Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
+          "ip_addresses": "[to be translated]:IP addresses",
+          "last_seen": "[to be translated]:Last seen at {{time}}",
+          "metadata": "[to be translated]:Metadata",
           "noZipSelected": "No se ha seleccionado ningún archivo comprimido",
+          "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
+          "no_devices": "[to be translated]:No LAN peers found yet",
+          "scan_devices": "[to be translated]:Scan devices",
           "scan_qr": "Por favor, escanea el código QR con tu teléfono",
+          "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
           "selectZip": "Seleccionar archivo comprimido",
           "sendZip": "Comenzar la recuperación de datos",
+          "send_file": "[to be translated]:Send File",
           "status": {
             "completed": "Transferencia completada",
             "connected": "Conectado",
@@ -3189,6 +3217,9 @@
             "sending": "Transfiriendo {{progress}}%",
             "waiting_qr_scan": "Por favor, escanea el código QR para conectarte"
           },
+          "status_badge_idle": "[to be translated]:Idle",
+          "status_badge_scanning": "[to be translated]:Scanning",
+          "stop_scan": "[to be translated]:Stop scan",
           "title": "Transferencia de red local",
           "transfer_progress": "Progreso de transferencia"
         },

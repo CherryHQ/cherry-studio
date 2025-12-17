@@ -11,7 +11,7 @@ import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
-import ExportToPhoneLanPopup from '@renderer/components/Popups/ExportToPhoneLanPopup'
+import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
@@ -628,11 +628,12 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.export_to_phone.title')}</SettingRowTitle>
                 <HStack gap="5px" justifyContent="space-between">
-                  <Button onClick={ExportToPhoneLanPopup.show} icon={<WifiOutlined size={14} />}>
+                  <Button onClick={LanTransferPopup.show} icon={<WifiOutlined size={14} />}>
                     {t('settings.data.export_to_phone.lan.title')}
                   </Button>
                 </HStack>
               </SettingRow>
+              <SettingDivider />
             </SettingGroup>
             <SettingGroup theme={theme}>
               <SettingTitle>{t('settings.data.data.title')}</SettingTitle>

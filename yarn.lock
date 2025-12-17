@@ -4438,6 +4438,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@leichtgewicht/ip-codec@npm:^2.0.1":
+  version: 2.0.5
+  resolution: "@leichtgewicht/ip-codec@npm:2.0.5"
+  checksum: 10c0/14a0112bd59615eef9e3446fea018045720cd3da85a98f801a685a818b0d96ef2a1f7227e8d271def546b2e2a0fe91ef915ba9dc912ab7967d2317b1a051d66b
+  languageName: node
+  linkType: hard
+
 "@lezer/common@npm:^1.0.0, @lezer/common@npm:^1.0.2, @lezer/common@npm:^1.0.3, @lezer/common@npm:^1.1.0, @lezer/common@npm:^1.2.0, @lezer/common@npm:^1.2.1":
   version: 1.2.3
   resolution: "@lezer/common@npm:1.2.3"
@@ -10177,6 +10184,7 @@ __metadata:
     archiver: "npm:^7.0.1"
     async-mutex: "npm:^0.5.0"
     axios: "npm:^1.7.3"
+    bonjour-service: "npm:^1.3.0"
     browser-image-compression: "npm:^2.0.2"
     chardet: "npm:^2.1.0"
     check-disk-space: "npm:3.4.0"
@@ -11126,6 +11134,16 @@ __metadata:
     raw-body: "npm:^3.0.0"
     type-is: "npm:^2.0.0"
   checksum: 10c0/a9ded39e71ac9668e2211afa72e82ff86cc5ef94de1250b7d1ba9cc299e4150408aaa5f1e8b03dd4578472a3ce6d1caa2a23b27a6c18e526e48b4595174c116c
+  languageName: node
+  linkType: hard
+
+"bonjour-service@npm:^1.3.0":
+  version: 1.3.0
+  resolution: "bonjour-service@npm:1.3.0"
+  dependencies:
+    fast-deep-equal: "npm:^3.1.3"
+    multicast-dns: "npm:^7.2.5"
+  checksum: 10c0/5721fd9f9bb968e9cc16c1e8116d770863dd2329cb1f753231de1515870648c225142b7eefa71f14a5c22bc7b37ddd7fdeb018700f28a8c936d50d4162d433c7
   languageName: node
   linkType: hard
 
@@ -13327,6 +13345,15 @@ __metadata:
   bin:
     dmg-license: bin/dmg-license.js
   conditions: os=darwin
+  languageName: node
+  linkType: hard
+
+"dns-packet@npm:^5.2.2":
+  version: 5.6.1
+  resolution: "dns-packet@npm:5.6.1"
+  dependencies:
+    "@leichtgewicht/ip-codec": "npm:^2.0.1"
+  checksum: 10c0/8948d3d03063fb68e04a1e386875f8c3bcc398fc375f535f2b438fad8f41bf1afa6f5e70893ba44f4ae884c089247e0a31045722fa6ff0f01d228da103f1811d
   languageName: node
   linkType: hard
 
@@ -19504,6 +19531,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"multicast-dns@npm:^7.2.5":
+  version: 7.2.5
+  resolution: "multicast-dns@npm:7.2.5"
+  dependencies:
+    dns-packet: "npm:^5.2.2"
+    thunky: "npm:^1.0.2"
+  bin:
+    multicast-dns: cli.js
+  checksum: 10c0/5120171d4bdb1577764c5afa96e413353bff530d1b37081cb29cccc747f989eb1baf40574fe8e27060fc1aef72b59c042f72b9b208413de33bcf411343c69057
+  languageName: node
+  linkType: hard
+
 "mustache@npm:^4.2.0":
   version: 4.2.0
   resolution: "mustache@npm:4.2.0"
@@ -24350,6 +24389,13 @@ __metadata:
   version: 2.3.8
   resolution: "through@npm:2.3.8"
   checksum: 10c0/4b09f3774099de0d4df26d95c5821a62faee32c7e96fb1f4ebd54a2d7c11c57fe88b0a0d49cf375de5fee5ae6bf4eb56dbbf29d07366864e2ee805349970d3cc
+  languageName: node
+  linkType: hard
+
+"thunky@npm:^1.0.2":
+  version: 1.1.0
+  resolution: "thunky@npm:1.1.0"
+  checksum: 10c0/369764f39de1ce1de2ba2fa922db4a3f92e9c7f33bcc9a713241bc1f4a5238b484c17e0d36d1d533c625efb00e9e82c3e45f80b47586945557b45abb890156d2
   languageName: node
   linkType: hard
 

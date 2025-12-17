@@ -3166,18 +3166,46 @@
           "connected": "Connected",
           "connection_failed": "Connection failed",
           "content": "Please ensure your computer and phone are on the same network for LAN transfer. Open the Cherry Studio App to scan this QR code.",
+          "device_list_title": "Local network devices",
+          "discovered_devices": "Discovered devices",
           "error": {
+            "file_too_large": "File too large, maximum 500MB supported",
             "init_failed": "Initialization failed",
+            "invalid_file_type": "Only ZIP files are supported",
             "no_file": "No file selected",
             "no_ip": "Unable to get IP address",
+            "not_connected": "Please complete handshake first",
             "send_failed": "Failed to send file"
+          },
+          "file_transfer": {
+            "cancelled": "Transfer cancelled",
+            "failed": "File transfer failed: {{message}}",
+            "progress": "Sending... {{progress}}%",
+            "success": "File sent successfully"
           },
           "force_close": "Force Close",
           "generating_qr": "Generating QR code...",
+          "handshake": {
+            "button": "Handshake",
+            "failed": "Handshake failed: {{message}}",
+            "in_progress": "Handshaking...",
+            "success": "Handshake completed with {{device}}",
+            "test_message_received": "Received pong from {{device}}",
+            "test_message_sent": "Sent hello world test payload"
+          },
+          "idle_hint": "Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
+          "ip_addresses": "IP addresses",
+          "last_seen": "Last seen at {{time}}",
+          "metadata": "Metadata",
           "noZipSelected": "No compressed file selected",
+          "no_connection_warning": "Please open LAN Transfer on Cherry Studio mobile",
+          "no_devices": "No LAN peers found yet",
+          "scan_devices": "Scan devices",
           "scan_qr": "Please scan QR code with your phone",
+          "scanning_hint": "Scanning your local network for Cherry Studio peers...",
           "selectZip": "Select a compressed file",
           "sendZip": "Begin data recovery",
+          "send_file": "Send File",
           "status": {
             "completed": "Transfer completed",
             "connected": "Connected",
@@ -3189,6 +3217,9 @@
             "sending": "Transferring {{progress}}%",
             "waiting_qr_scan": "Please scan QR code to connect"
           },
+          "status_badge_idle": "Idle",
+          "status_badge_scanning": "Scanning",
+          "stop_scan": "Stop scan",
           "title": "LAN transmission",
           "transfer_progress": "Transfer progress"
         },
