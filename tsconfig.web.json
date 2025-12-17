@@ -10,7 +10,8 @@
     "packages/ai-sdk-provider/**/*",
     "packages/extension-table-plus/**/*",
     "packages/mcp-trace/**/*",
-    "packages/shared/**/*"
+    "packages/shared/**/*",
+    "packages/ui/**/*",
   ],
   "compilerOptions": {
     "composite": true,
