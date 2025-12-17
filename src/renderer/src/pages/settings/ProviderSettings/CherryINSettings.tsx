@@ -51,7 +51,7 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId, apiHost, setA
         value: option.value,
         label: (
           <div className="flex flex-col gap-0.5">
-            <span>{t(option.labelKey)}</span>
+            <span>{option.labelKey}</span>
             <span className="text-[var(--color-text-3)] text-xs">{t(option.description)}</span>
           </div>
         )

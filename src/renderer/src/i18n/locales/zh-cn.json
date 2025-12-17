@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "使用自动检测的 Git Bash",
+      "clear": {
+        "button": "清除自定义路径"
+      },
+      "customPath": "使用自定义路径：{{path}}",
       "error": {
         "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
         "recheck": "重新检测 Git Bash 安装",
         "title": "需要 Git Bash"
       },
+      "found": {
+        "title": "已配置 Git Bash"
+      },
       "notFound": "未找到 Git Bash。请先安装。",
+      "pick": {
+        "button": "选择 Git Bash 路径",
+        "failed": "设置 Git Bash 路径失败",
+        "invalidPath": "选择的文件不是有效的 Git Bash 可执行文件（bash.exe）。",
+        "title": "选择 Git Bash 可执行文件"
+      },
       "success": "成功检测到 Git Bash！"
     },
     "input": {
@@ -458,6 +472,7 @@
         "button": "导入",
         "error": {
           "fetch_failed": "从 URL 获取数据失败",
+          "file_required": "请先选择文件",
           "invalid_format": "无效的助手格式：缺少必填字段",
           "url_required": "请输入 URL"
         },
@@ -471,6 +486,17 @@
         "url_placeholder": "输入 JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "删除",
+          "confirm": "确定要删除选中的 {{count}} 个助手吗？"
+        },
+        "batch_export": {
+          "button": "导出"
+        },
+        "mode": {
+          "manage": "管理",
+          "sort": "排序"
+        },
         "title": "管理助手"
       },
       "my_agents": "我的助手",
@@ -524,7 +550,8 @@
         "low": "浮想",
         "medium": "斟酌",
         "minimal": "微念",
-        "off": "关闭"
+        "off": "关闭",
+        "xhigh": "穷究"
       },
       "regular_phrases": {
         "add": "添加短语",
@@ -1004,6 +1031,29 @@
         "yuque": "导出到语雀"
       },
       "list": "话题列表",
+      "manage": {
+        "clear_selection": "取消选择",
+        "delete": {
+          "confirm": {
+            "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
+            "title": "删除话题"
+          },
+          "success": "已删除 {{count}} 个话题"
+        },
+        "deselect_all": "取消全选",
+        "error": {
+          "at_least_one": "至少需要保留一个话题"
+        },
+        "move": {
+          "button": "移动",
+          "placeholder": "选择目标助手",
+          "success": "已移动 {{count}} 个话题"
+        },
+        "pinned": "已固定的话题",
+        "selected_count": "已选择 {{count}} 个",
+        "title": "管理话题",
+        "unpinned": "未固定的话题"
+      },
       "move_to": "移动到",
       "new": "开始新对话",
       "pin": "固定话题",
@@ -1013,6 +1063,10 @@
         },
         "label": "话题提示词",
         "tips": "话题提示词：针对当前话题提供额外的补充提示词"
+      },
+      "search": {
+        "placeholder": "搜索话题...",
+        "title": "搜索"
       },
       "title": "话题",
       "unpin": "取消固定"
@@ -1185,6 +1239,7 @@
     "saved": "已保存",
     "search": "搜索",
     "select": "选择",
+    "select_all": "全选",
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
@@ -1197,11 +1252,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "订阅",
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
     "unknown": "未知",
     "unnamed": "未命名",
+    "unsubscribe": "退订",
     "update_success": "更新成功",
     "upload_files": "上传文件",
     "warning": "警告",
@@ -1696,7 +1753,7 @@
       "import": {
         "error": "导入失败"
       },
-      "imported": "导入成功"
+      "imported": "成功导入 {{count}} 个助手"
     },
     "api": {
       "check": {
@@ -2128,6 +2185,7 @@
     "collapse": "收起",
     "content_placeholder": "请输入笔记内容...",
     "copyContent": "复制内容",
+    "crossPlatformRestoreWarning": "检测到从其他设备恢复配置，但笔记目录为空。请将笔记文件复制到: {{path}}",
     "delete": "删除",
     "delete_confirm": "确定要删除这个{{type}}吗？",
     "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
@@ -2303,7 +2361,7 @@
     "failed": {
       "install": "安装 OVMS 失败:",
       "install_code_100": "未知错误",
-      "install_code_101": "仅支持 Intel(R) Core(TM) Ultra CPU",
+      "install_code_101": "仅支持 Intel(R) CPU",
       "install_code_102": "仅支持 Windows",
       "install_code_103": "下载 OVMS runtime 失败",
       "install_code_104": "安装 OVMS runtime 失败",
@@ -3860,6 +3918,7 @@
       "builtinServers": "内置服务器",
       "builtinServersDescriptions": {
         "brave_search": "一个集成了Brave 搜索 API 的 MCP 服务器实现，提供网页与本地搜索双重功能。需要配置 BRAVE_API_KEY 环境变量",
+        "browser": "通过 Chrome DevTools 协议控制隐藏的 Electron 窗口，支持打开 URL、执行单行 JS、重置会话",
         "didi_mcp": "一个集成了滴滴 MCP 服务器实现，提供网约车服务包括地图搜索、价格预估、订单管理和司机跟踪。仅支持中国大陆地区。需要配置 DIDI_API_KEY 环境变量",
         "dify_knowledge": "Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互。需要配置 Dify Key",
         "fetch": "用于获取 URL 网页内容的 MCP 服务器",

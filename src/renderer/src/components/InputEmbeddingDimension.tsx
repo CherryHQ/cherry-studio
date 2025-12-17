@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
 import { RefreshIcon } from '@renderer/components/Icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Model } from '@renderer/types'
@@ -7,6 +6,8 @@ import { getErrorMessage } from '@renderer/utils'
 import { Button, InputNumber, Space, Tooltip } from 'antd'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import AiProviderNew from '../aiCore/index_new'
 
 const logger = loggerService.withContext('DimensionsInput')
 
@@ -47,7 +48,7 @@ const InputEmbeddingDimension = ({
 
     setLoading(true)
     try {
-      const aiProvider = new AiProvider(provider)
+      const aiProvider = new AiProviderNew(provider)
       const dimension = await aiProvider.getEmbeddingDimensions(model)
       // for controlled input
       if (ref?.current) {

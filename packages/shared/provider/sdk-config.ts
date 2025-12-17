@@ -13,6 +13,7 @@ import { isOllamaProvider } from './detection'
 import { getAiSdkProviderId } from './mapping'
 import type { MinimalProvider } from './types'
 import { SystemProviderIds } from './types'
+import { defaultAppHeaders } from '@shared/utils'
 
 /**
  * AI SDK configuration result
@@ -191,17 +192,16 @@ export function providerToAiSdkConfig(
   }
 
   // Add extra headers
-  if (provider.extra_headers) {
-    extraOptions.headers = provider.extra_headers
-    if (aiSdkProviderId === 'openai') {
-      extraOptions.headers = {
-        ...(extraOptions.headers as Record<string, string>),
-        'HTTP-Referer': 'https://cherry-ai.com',
-        'X-Title': 'Cherry Studio',
-        'X-Api-Key': baseConfig.apiKey
-      }
-    }
+  const headers: Record<string, string | undefined> = {
+    ...defaultAppHeaders(),
+    ...provider.extra_headers
   }
+
+  if (aiSdkProviderId === 'openai') {
+    headers['X-Api-Key'] = baseConfig.apiKey
+  }
+
+  extraOptions.headers = headers
 
   // Handle Azure modes
   if (aiSdkProviderId === 'azure-responses') {

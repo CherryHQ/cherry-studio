@@ -429,7 +429,7 @@ const FileBlocksContainer = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 0 15px;
+  padding: 0;
   margin: 8px 0;
   background: transparent;
   border-radius: 4px;

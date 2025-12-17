@@ -1,17 +1,15 @@
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
-import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { Assistant, AssistantsSortType } from '@renderer/types'
-import { cn, getLeadingEmoji, uuid } from '@renderer/utils'
+import { cn, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
@@ -22,6 +20,7 @@ import {
   ArrowUpAZ,
   BrushCleaning,
   Check,
+  MoreVertical,
   Plus,
   Save,
   Settings2,
@@ -66,8 +65,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { t } = useTranslation()
   const { allTags } = useTags()
   const { removeAllTopics } = useAssistant(assistant.id)
-  const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
-  const defaultModel = getDefaultModel()
+  const { clickAssistantToShowTopic, topicPosition, setAssistantIconType } = useSettings()
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
@@ -150,6 +148,14 @@ const AssistantItem: FC<AssistantItemProps> = ({
     [assistant.emoji, assistantName]
   )
 
+  const handleMoreClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      AssistantSettingsPopup.show({ assistant })
+    },
+    [assistant]
+  )
+
   return (
     <Dropdown
       menu={{ items: menuItems }}
@@ -157,25 +163,16 @@ const AssistantItem: FC<AssistantItemProps> = ({
       popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
       <Container onClick={handleSwitch} isActive={isActive}>
         <AssistantNameRow className="name" title={fullAssistantName}>
-          {assistantIconType === 'model' ? (
-            <ModelAvatar
-              model={assistant.model || defaultModel}
-              size={24}
-              className={isPending && !isActive ? 'animation-pulse' : ''}
-            />
-          ) : (
-            assistantIconType === 'emoji' && (
-              <EmojiIcon
-                emoji={assistant.emoji || getLeadingEmoji(assistantName)}
-                className={isPending && !isActive ? 'animation-pulse' : ''}
-              />
-            )
-          )}
+          <AssistantAvatar
+            assistant={assistant}
+            size={24}
+            className={isPending && !isActive ? 'animation-pulse' : ''}
+          />
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
         {isActive && (
-          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-            <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
+          <MenuButton onClick={handleMoreClick}>
+            <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
           </MenuButton>
         )}
       </Container>
@@ -441,21 +438,6 @@ const MenuButton = ({
     {...props}
     className={cn(
       'absolute top-[6px] right-[9px] flex h-[22px] min-h-[22px] min-w-[22px] flex-row items-center justify-center rounded-[11px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
-      className
-    )}>
-    {children}
-  </div>
-)
-
-const TopicCount = ({
-  children,
-  className,
-  ...props
-}: PropsWithChildren<{} & React.HTMLAttributes<HTMLDivElement>>) => (
-  <div
-    {...props}
-    className={cn(
-      'flex flex-row items-center justify-center rounded-[10px] text-[10px] text-[var(--color-text)]',
       className
     )}>
     {children}

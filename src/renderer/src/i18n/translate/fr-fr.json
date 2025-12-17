@@ -31,12 +31,26 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Utilisation de Git Bash détecté automatiquement",
+      "clear": {
+        "button": "Effacer le chemin personnalisé"
+      },
+      "customPath": "Utilisation du chemin personnalisé : {{path}}",
       "error": {
         "description": "Git Bash est requis pour exécuter des agents sur Windows. L'agent ne peut pas fonctionner sans. Veuillez installer Git pour Windows depuis",
         "recheck": "Revérifier l'installation de Git Bash",
         "title": "Git Bash requis"
       },
-      "notFound": "Git Bash introuvable. Veuillez l’installer d’abord.",
+      "found": {
+        "title": "Git Bash configuré"
+      },
+      "notFound": "Git Bash non trouvé. Veuillez l'installer d'abord.",
+      "pick": {
+        "button": "Sélectionner le chemin Git Bash",
+        "failed": "Échec de la configuration du chemin Git Bash",
+        "invalidPath": "Le fichier sélectionné n'est pas un exécutable Git Bash valide (bash.exe).",
+        "title": "Sélectionner l'exécutable Git Bash"
+      },
       "success": "Git Bash détecté avec succès !"
     },
     "input": {
@@ -458,6 +472,7 @@
         "button": "Importer",
         "error": {
           "fetch_failed": "Échec de la récupération des données depuis l'URL",
+          "file_required": "Veuillez d'abord sélectionner un fichier",
           "invalid_format": "Format d'assistant invalide : champs obligatoires manquants",
           "url_required": "Veuillez saisir une URL"
         },
@@ -471,6 +486,17 @@
         "url_placeholder": "Saisir l'URL JSON"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Suppression par lot",
+          "confirm": "Êtes-vous sûr de vouloir supprimer les {{count}} assistants sélectionnés ?"
+        },
+        "batch_export": {
+          "button": "Exporter"
+        },
+        "mode": {
+          "manage": "Gérer",
+          "sort": "Trier"
+        },
         "title": "Gérer les assistants"
       },
       "my_agents": "Mes assistants",
@@ -524,7 +550,8 @@
         "low": "Court",
         "medium": "Moyen",
         "minimal": "minimal",
-        "off": "Off"
+        "off": "Off",
+        "xhigh": "Très élevée"
       },
       "regular_phrases": {
         "add": "Добавить фразу",
@@ -1004,6 +1031,29 @@
         "yuque": "Exporter vers Yuque"
       },
       "list": "Liste des sujets",
+      "manage": {
+        "clear_selection": "Effacer la sélection",
+        "delete": {
+          "confirm": {
+            "content": "Êtes-vous sûr de vouloir supprimer {{count}} sujet(s) sélectionné(s) ? Cette action est irréversible.",
+            "title": "Supprimer des sujets"
+          },
+          "success": "Supprimé {{count}} sujet(s)"
+        },
+        "deselect_all": "Tout désélectionner",
+        "error": {
+          "at_least_one": "Au moins un sujet doit être conservé"
+        },
+        "move": {
+          "button": "Déplacer",
+          "placeholder": "Sélectionner la cible",
+          "success": "Déplacé {{count}} sujet(s)"
+        },
+        "pinned": "Sujets épinglés",
+        "selected_count": "{{count}} sélectionné",
+        "title": "Gérer les sujets",
+        "unpinned": "Sujets non épinglés"
+      },
       "move_to": "Déplacer vers",
       "new": "Commencer une nouvelle conversation",
       "pin": "Fixer le sujet",
@@ -1013,6 +1063,10 @@
         },
         "label": "Indicateurs de sujet",
         "tips": "Indicateurs de sujet : fournir des indications supplémentaires pour le sujet actuel"
+      },
+      "search": {
+        "placeholder": "Rechercher des sujets...",
+        "title": "Rechercher"
       },
       "title": "Sujet",
       "unpin": "Annuler le fixage"
@@ -1185,6 +1239,7 @@
     "saved": "enregistré",
     "search": "Rechercher",
     "select": "Sélectionner",
+    "select_all": "Tout sélectionner",
     "selected": "Sélectionné",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
@@ -1197,11 +1252,13 @@
       }
     },
     "stop": "Arrêter",
+    "subscribe": "S'abonner",
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
     "unknown": "Inconnu",
     "unnamed": "Sans nom",
+    "unsubscribe": "Se désabonner",
     "update_success": "Mise à jour réussie",
     "upload_files": "Uploader des fichiers",
     "warning": "Avertissement",
@@ -2128,6 +2185,7 @@
     "collapse": "réduire",
     "content_placeholder": "Veuillez saisir le contenu de la note...",
     "copyContent": "contenu copié",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
     "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",
@@ -3860,6 +3918,7 @@
       "builtinServers": "Serveurs intégrés",
       "builtinServersDescriptions": {
         "brave_search": "Une implémentation de serveur MCP intégrant l'API de recherche Brave, offrant des fonctionnalités de recherche web et locale. Nécessite la configuration de la variable d'environnement BRAVE_API_KEY",
+        "browser": "Contrôle une fenêtre Electron headless via Chrome DevTools Protocol. Outils : ouvrir une URL, exécuter du JS en une ligne, réinitialiser la session.",
         "didi_mcp": "Serveur DiDi MCP fournissant des services de transport incluant la recherche de cartes, l'estimation des prix, la gestion des commandes et le suivi des conducteurs. Disponible uniquement en Chine continentale. Nécessite la configuration de la variable d'environnement DIDI_API_KEY",
         "dify_knowledge": "Implémentation du serveur MCP de Dify, fournissant une API simple pour interagir avec Dify. Nécessite la configuration de la clé Dify",
         "fetch": "serveur MCP utilisé pour récupérer le contenu des pages web URL",
