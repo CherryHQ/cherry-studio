@@ -144,8 +144,8 @@ const HomePage: FC = () => {
         if (newAssistant.id !== 'fake') {
           dispatch(setActiveAgentId(null))
         }
-        const lockedTopic = isTopicLocked && lockedTopicId ? newAssistant.topics.find((t) => t.id === lockedTopicId) : null
-        // 同步更新 active topic，避免不必要的重新渲染
+        const lockedTopic =
+          isTopicLocked && lockedTopicId ? newAssistant.topics.find((t) => t.id === lockedTopicId) : null
         const newTopic = lockedTopic || options?.topic || newAssistant.topics[0]
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
         if (newTopic) {
