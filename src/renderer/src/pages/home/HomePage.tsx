@@ -13,7 +13,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import styled from 'styled-components'
 
 import Chat from './Chat'
@@ -28,6 +28,7 @@ const HomePage: FC = () => {
   const { isLeftNavbar } = useNavbarPosition()
 
   const location = useLocation()
+  const params = useParams<{ assistantId?: string; topicId?: string }>()
   const state = location.state
 
   const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
@@ -107,6 +108,29 @@ const HomePage: FC = () => {
     state?.topic && setActiveTopic(state?.topic)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
+
+  useEffect(() => {
+    if (!assistants.length) return
+    const { assistantId, topicId } = params
+    if (!assistantId && !topicId) return
+
+    const findAssistantByTopic = (tid: string) =>
+      assistants.find((assistant) => assistant.topics?.some((topic) => topic.id === tid))
+
+    const targetAssistant =
+      assistants.find((assistant) => assistant.id === assistantId) || (topicId ? findAssistantByTopic(topicId) : null)
+    if (targetAssistant && targetAssistant.id !== activeAssistant?.id) {
+      setActiveAssistant(targetAssistant)
+    }
+
+    if (topicId && targetAssistant) {
+      const targetTopic = targetAssistant.topics?.find((topic) => topic.id === topicId)
+      if (targetTopic) {
+        setActiveTopic(targetTopic)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assistants, params.assistantId, params.topicId])
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
