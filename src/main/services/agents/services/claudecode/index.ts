@@ -107,7 +107,6 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const customGitBashPath = validateGitBashPath(configManager.get(ConfigKeys.GitBashPath) as string | undefined)
 
-
     // Route through local API Server which handles format conversion via unified adapter
     // This enables Claude Code Agent to work with any provider (OpenAI, Gemini, etc.)
     // The API Server converts AI SDK responses to Anthropic SSE format transparently
