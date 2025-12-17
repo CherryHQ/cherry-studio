@@ -1450,7 +1450,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   mimo: {
     api: {
-      url: 'https://api.xiaomimimo.com/v1'
+      url: 'https://api.xiaomimimo.com'
     },
     websites: {
       official: 'https://platform.xiaomimimo.com/',
