@@ -7,7 +7,7 @@ import { app } from 'electron'
 
 import type { ConnectionContext } from '../types'
 
-export const HANDSHAKE_PROTOCOL_VERSION = '3'
+export const HANDSHAKE_PROTOCOL_VERSION = '1'
 
 const logger = loggerService.withContext('LanTransferConnection')
 

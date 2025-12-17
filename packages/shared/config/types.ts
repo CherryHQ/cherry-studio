@@ -162,7 +162,7 @@ export const LAN_TRANSFER_COMPLETE_TIMEOUT_MS = 60_000 // 60s - wait for file_co
 export const LAN_TRANSFER_GLOBAL_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes - global transfer timeout
 
 // Binary protocol constants (v3)
-export const LAN_TRANSFER_PROTOCOL_VERSION = '3'
+export const LAN_TRANSFER_PROTOCOL_VERSION = '1'
 export const LAN_BINARY_FRAME_MAGIC = 0x4353 // "CS" as uint16
 export const LAN_BINARY_TYPE_FILE_CHUNK = 0x01
 
