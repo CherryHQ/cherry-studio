@@ -116,11 +116,14 @@
       $2 $3 /END
     Pop $0  ; Get download status from inetc::get
     ${If} $0 != "OK"
-      MessageBox MB_ICONSTOP "\
+      MessageBox MB_ICONSTOP|MB_YESNO "\
         Failed to download Microsoft Visual C++ Redistributable.$\r$\n$\r$\n\
         Error: $0$\r$\n$\r$\n\
-        Please check your internet connection, or download manually from:$\r$\n\
-        $2"
+        Would you like to open the download page in your browser?$\r$\n\
+        $2" IDYES openDownloadUrl IDNO skipDownloadUrl
+      openDownloadUrl:
+        ExecShell "open" $2
+      skipDownloadUrl:
       Abort
     ${EndIf}
 
@@ -129,11 +132,14 @@
 
     Call checkVCRedist
     ${If} $0 != "1"
-      MessageBox MB_ICONSTOP "\
+      MessageBox MB_ICONSTOP|MB_YESNO "\
         Microsoft Visual C++ Redistributable installation failed.$\r$\n$\r$\n\
-        You can install manually from:$\r$\n\
+        Would you like to open the download page in your browser?$\r$\n\
         $2$\r$\n$\r$\n\
-        The installation of ${PRODUCT_NAME} cannot continue."
+        The installation of ${PRODUCT_NAME} cannot continue." IDYES openInstallUrl IDNO skipInstallUrl
+      openInstallUrl:
+        ExecShell "open" $2
+      skipInstallUrl:
       Abort
     ${EndIf}
   ${EndIf}
