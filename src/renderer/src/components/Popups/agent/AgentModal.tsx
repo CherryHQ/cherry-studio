@@ -16,6 +16,7 @@ import type {
   UpdateAgentForm
 } from '@renderer/types'
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
+import type { GitBashPathInfo } from '@shared/config/constant'
 import { Alert, Button, Input, Modal, Select } from 'antd'
 import { AlertTriangleIcon } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
@@ -60,7 +61,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
   const [hasGitBash, setHasGitBash] = useState<boolean>(true)
-  const [customGitBashPath, setCustomGitBashPath] = useState<string>('')
+  const [gitBashPathInfo, setGitBashPathInfo] = useState<GitBashPathInfo>({ path: null, source: null })
 
   useEffect(() => {
     if (open) {
@@ -71,11 +72,11 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const checkGitBash = useCallback(
     async (showToast = false) => {
       try {
-        const [gitBashInstalled, savedPath] = await Promise.all([
+        const [gitBashInstalled, pathInfo] = await Promise.all([
           window.api.system.checkGitBash(),
-          window.api.system.getGitBashPath().catch(() => null)
+          window.api.system.getGitBashPathInfo().catch(() => ({ path: null, source: null }))
         ])
-        setCustomGitBashPath(savedPath ?? '')
+        setGitBashPathInfo(pathInfo)
         setHasGitBash(gitBashInstalled)
         if (showToast) {
           if (gitBashInstalled) {
@@ -119,7 +120,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return
       }
 
-      setCustomGitBashPath(pickedPath)
       await checkGitBash(true)
     } catch (error) {
       logger.error('Failed to pick Git Bash path', error as Error)
@@ -130,7 +130,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const handleClearGitBash = useCallback(async () => {
     try {
       await window.api.system.setGitBashPath(null)
-      setCustomGitBashPath('')
       await checkGitBash(true)
     } catch (error) {
       logger.error('Failed to clear Git Bash path', error as Error)
@@ -380,24 +379,31 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               />
             )}
 
-            {hasGitBash && customGitBashPath && (
+            {hasGitBash && gitBashPathInfo.path && (
               <Alert
                 message={t('agent.gitBash.found.title', 'Git Bash configured')}
                 description={
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div>
-                      {t('agent.gitBash.customPath', {
-                        defaultValue: 'Using custom path: {{path}}',
-                        path: customGitBashPath
-                      })}
+                      {gitBashPathInfo.source === 'manual'
+                        ? t('agent.gitBash.customPath', {
+                            defaultValue: 'Using custom path: {{path}}',
+                            path: gitBashPathInfo.path
+                          })
+                        : t('agent.gitBash.autoDiscovered', {
+                            defaultValue: 'Auto-discovered: {{path}}',
+                            path: gitBashPathInfo.path
+                          })}
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <Button size="small" onClick={handlePickGitBash}>
                         {t('agent.gitBash.pick.button', 'Select Git Bash Path')}
                       </Button>
-                      <Button size="small" onClick={handleClearGitBash}>
-                        {t('agent.gitBash.clear.button', 'Clear custom path')}
-                      </Button>
+                      {gitBashPathInfo.source === 'manual' && (
+                        <Button size="small" onClick={handleClearGitBash}>
+                          {t('agent.gitBash.clear.button', 'Clear custom path')}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 }

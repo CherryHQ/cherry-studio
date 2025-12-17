@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
@@ -233,8 +234,8 @@ export function validateGitBashPath(customPath?: string | null): string | null {
  *
  * Precedence order:
  * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (highest - runtime override)
- * 2. Configured path from settings
- * 3. Auto-discovery via findGitBash
+ * 2. Configured path from settings (manual or auto)
+ * 3. Auto-discovery via findGitBash (only if no valid config exists)
  */
 export function autoDiscoverGitBash(): string | null {
   if (!isWin) {
@@ -254,22 +255,42 @@ export function autoDiscoverGitBash(): string | null {
 
   // 2. Check if a path is already configured
   const existingPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
+  const existingSource = configManager.get<GitBashPathSource | undefined>(ConfigKeys.GitBashPathSource)
+
   if (existingPath) {
     const validated = validateGitBashPath(existingPath)
     if (validated) {
       return validated
     }
     // Existing path is invalid, try to auto-discover
-    logger.warn('Existing Git Bash path is invalid, attempting auto-discovery', { path: existingPath })
+    logger.warn('Existing Git Bash path is invalid, attempting auto-discovery', {
+      path: existingPath,
+      source: existingSource
+    })
   }
 
   // 3. Try to find Git Bash via auto-discovery
   const discoveredPath = findGitBash()
   if (discoveredPath) {
-    // Persist the discovered path (overwrites invalid path if present)
+    // Persist the discovered path with 'auto' source
     configManager.set(ConfigKeys.GitBashPath, discoveredPath)
+    configManager.set(ConfigKeys.GitBashPathSource, 'auto')
     logger.info('Auto-discovered Git Bash path', { path: discoveredPath })
   }
 
   return discoveredPath
+}
+
+/**
+ * Get Git Bash path info including source
+ */
+export function getGitBashPathInfo(): GitBashPathInfo {
+  if (!isWin) {
+    return { path: null, source: null }
+  }
+
+  const path = configManager.get<string | null>(ConfigKeys.GitBashPath) ?? null
+  const source = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
+
+  return { path, source }
 }

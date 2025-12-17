@@ -9,6 +9,7 @@ import anthropicService from '@main/services/AnthropicService'
 import {
   autoDiscoverGitBash,
   getBinaryPath,
+  getGitBashPathInfo,
   isBinaryExists,
   runInstallScript,
   validateGitBashPath
@@ -529,13 +530,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return customPath ?? null
   })
 
+  // Returns { path, source } where source is 'manual' | 'auto' | null
+  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
+    return getGitBashPathInfo()
+  })
+
   ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
     if (!isWin) {
       return false
     }
 
     if (!newPath) {
+      // Clear both path and source
       configManager.set(ConfigKeys.GitBashPath, null)
+      configManager.set(ConfigKeys.GitBashPathSource, null)
       return true
     }
 
@@ -544,7 +552,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return false
     }
 
+    // Set path with 'manual' source
     configManager.set(ConfigKeys.GitBashPath, validated)
+    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
     return true
   })
 
