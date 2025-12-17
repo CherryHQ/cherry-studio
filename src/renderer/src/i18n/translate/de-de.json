@@ -1027,6 +1027,29 @@
         "yuque": "Nach Yuque exportieren"
       },
       "list": "Themenliste",
+      "manage": {
+        "clear_selection": "Auswahl aufheben",
+        "delete": {
+          "confirm": {
+            "content": "Sind Sie sicher, dass Sie {{count}} ausgewähltes Thema bzw. ausgewählte Themen löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+            "title": "Themen löschen"
+          },
+          "success": "{{count}} Thema/Themen gelöscht"
+        },
+        "deselect_all": "Alle abwählen",
+        "error": {
+          "at_least_one": "Mindestens ein Thema muss beibehalten werden"
+        },
+        "move": {
+          "button": "Bewegen",
+          "placeholder": "Ziel auswählen",
+          "success": "{{count}} Thema(s) verschoben"
+        },
+        "pinned": "Angepinnte Themen",
+        "selected_count": "{{count}} ausgewählt",
+        "title": "Themen verwalten",
+        "unpinned": "Losgelöste Themen"
+      },
       "move_to": "Verschieben nach",
       "new": "Neues Gespräch starten",
       "pin": "Thema anheften",
@@ -1036,6 +1059,10 @@
         },
         "label": "Themen-Prompt",
         "tips": "Themen-Prompt: Bietet zusätzliche ergänzende Prompts für das aktuelle Thema"
+      },
+      "search": {
+        "placeholder": "Themen durchsuchen...",
+        "title": "Suche"
       },
       "title": "Thema",
       "unpin": "Anheften aufheben"

@@ -1027,6 +1027,29 @@
         "yuque": "匯出到語雀"
       },
       "list": "話題列表",
+      "manage": {
+        "clear_selection": "取消選擇",
+        "delete": {
+          "confirm": {
+            "content": "確定要刪除選中的 {{count}} 個話題嗎？此操作不可撤銷。",
+            "title": "刪除話題"
+          },
+          "success": "已刪除 {{count}} 個話題"
+        },
+        "deselect_all": "取消全選",
+        "error": {
+          "at_least_one": "至少需要保留一個話題"
+        },
+        "move": {
+          "button": "移動",
+          "placeholder": "選擇目標助手",
+          "success": "已移動 {{count}} 個話題"
+        },
+        "pinned": "已固定的話題",
+        "selected_count": "已選擇 {{count}} 個",
+        "title": "管理話題",
+        "unpinned": "未固定的話題"
+      },
       "move_to": "移動到",
       "new": "開始新對話",
       "pin": "固定話題",
@@ -1036,6 +1059,10 @@
         },
         "label": "話題提示詞",
         "tips": "話題提示詞：針對目前話題提供額外的補充提示詞"
+      },
+      "search": {
+        "placeholder": "搜尋話題...",
+        "title": "搜尋"
       },
       "title": "話題",
       "unpin": "取消固定"
