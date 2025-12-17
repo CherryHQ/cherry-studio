@@ -124,7 +124,7 @@
       Abort
     ${EndIf}
 
-    ExecWait "$3 /install /norestart"
+    ExecWait "$3 /install /quiet /norestart"
     ; Note: vc_redist exit code is unreliable, verify via registry check instead
 
     Call checkVCRedist
