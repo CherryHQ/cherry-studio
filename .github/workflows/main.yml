@@ -1,0 +1,12 @@
+            - name: CodeX: PR Checks
+  # You may pin to the exact commit or the version.
+  # uses: codex-team/action-pr-assistant@6e7600580b84b2579eb9d97e399c1d323b97e921
+  uses: codex-team/action-pr-assistant@1.0.1
+  with:
+    # Which check to run: description, linked-issue or both
+    check: # optional, default is description
+    # Modes: strict, draft or comment
+    mode: # optional, default is comment
+    # Optional token with extended permissions. If empty, GITHUB_TOKEN is used.
+    token: # optional, default is 
+          
