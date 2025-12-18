@@ -6,6 +6,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
+import { getModelSupportedReasoningEffortOptions } from '@renderer/config/models'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
 import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
@@ -73,7 +74,9 @@ export function getDefaultTranslateAssistant(
     throw new Error('Unknown target language')
   }
 
-  const reasoningEffort = 'none'  // 翻译不需要思考模式，直接禁用
+  const supportedOptions = getModelSupportedReasoningEffortOptions(model)
+  // disable reasoning if it could be disabled, otherwise no configuration
+  const reasoningEffort = supportedOptions?.includes('none') ? 'none' : 'default'
   const settings = {
     temperature: 0.7,
     reasoning_effort: reasoningEffort,
