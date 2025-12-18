@@ -3218,9 +3218,6 @@
         },
         "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
         "lan": {
-          "auto_close_tip": "Automatisches Schließen in {{seconds}} Sekunden...",
-          "confirm_close_message": "Dateiübertragung läuft. Beim Schließen wird die Übertragung unterbrochen. Möchten Sie wirklich das Schließen erzwingen?",
-          "confirm_close_title": "Schließen bestätigen",
           "connected": "Verbunden",
           "connection_failed": "Verbindung fehlgeschlagen",
           "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
@@ -3241,8 +3238,6 @@
             "progress": "[to be translated]:Sending... {{progress}}%",
             "success": "[to be translated]:File sent successfully"
           },
-          "force_close": "Erzwungenes Schließen",
-          "generating_qr": "QR-Code wird generiert...",
           "handshake": {
             "button": "[to be translated]:Handshake",
             "failed": "[to be translated]:Handshake failed: {{message}}",
@@ -3255,14 +3250,10 @@
           "ip_addresses": "[to be translated]:IP addresses",
           "last_seen": "[to be translated]:Last seen at {{time}}",
           "metadata": "[to be translated]:Metadata",
-          "noZipSelected": "Keine komprimierte Datei ausgewählt",
           "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
           "no_devices": "[to be translated]:No LAN peers found yet",
           "scan_devices": "[to be translated]:Scan devices",
-          "scan_qr": "Bitte scannen Sie den QR-Code mit Ihrem Telefon.",
           "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
-          "selectZip": "Wählen Sie eine komprimierte Datei",
-          "sendZip": "Datenwiederherstellung beginnen",
           "send_file": "[to be translated]:Send File",
           "status": {
             "completed": "Übertragung abgeschlossen",
@@ -3272,8 +3263,7 @@
             "error": "Verbindungsfehler",
             "initializing": "Verbindung wird initialisiert...",
             "preparing": "Übertragung wird vorbereitet...",
-            "sending": "Übertrage {{progress}}%",
-            "waiting_qr_scan": "Bitte QR-Code scannen, um zu verbinden"
+            "sending": "Übertrage {{progress}}%"
           },
           "status_badge_idle": "[to be translated]:Idle",
           "status_badge_scanning": "[to be translated]:Scanning",

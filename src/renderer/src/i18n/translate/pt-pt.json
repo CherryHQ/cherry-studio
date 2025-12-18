@@ -3218,9 +3218,6 @@
         },
         "content": "Exportar parte dos dados, incluindo registros de conversas e configurações. Observe que o processo de backup pode demorar um pouco; agradecemos sua paciência.",
         "lan": {
-          "auto_close_tip": "Fechando automaticamente em {{seconds}} segundos...",
-          "confirm_close_message": "Transferência de arquivo em andamento. Fechar irá interromper a transferência. Tem certeza de que deseja forçar o fechamento?",
-          "confirm_close_title": "Confirmar Fechamento",
           "connected": "Conectado",
           "connection_failed": "Falha na conexão",
           "content": "Certifique-se de que o computador e o telefone estejam na mesma rede para usar a transferência via LAN. Abra o aplicativo Cherry Studio e escaneie este código QR.",
@@ -3241,8 +3238,6 @@
             "progress": "[to be translated]:Sending... {{progress}}%",
             "success": "[to be translated]:File sent successfully"
           },
-          "force_close": "Forçar Fechamento",
-          "generating_qr": "Gerando código QR...",
           "handshake": {
             "button": "[to be translated]:Handshake",
             "failed": "[to be translated]:Handshake failed: {{message}}",
@@ -3255,14 +3250,10 @@
           "ip_addresses": "[to be translated]:IP addresses",
           "last_seen": "[to be translated]:Last seen at {{time}}",
           "metadata": "[to be translated]:Metadata",
-          "noZipSelected": "Nenhum arquivo de compressão selecionado",
           "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
           "no_devices": "[to be translated]:No LAN peers found yet",
           "scan_devices": "[to be translated]:Scan devices",
-          "scan_qr": "Por favor, escaneie o código QR com o seu telefone",
           "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
-          "selectZip": "Selecionar arquivo compactado",
-          "sendZip": "Iniciar recuperação de dados",
           "send_file": "[to be translated]:Send File",
           "status": {
             "completed": "Transferência concluída",
@@ -3272,8 +3263,7 @@
             "error": "Erro de conexão",
             "initializing": "Inicializando conexão...",
             "preparing": "Preparando transferência...",
-            "sending": "Transferindo {{progress}}%",
-            "waiting_qr_scan": "Por favor, escaneie o código QR para conectar"
+            "sending": "Transferindo {{progress}}%"
           },
           "status_badge_idle": "[to be translated]:Idle",
           "status_badge_scanning": "[to be translated]:Scanning",

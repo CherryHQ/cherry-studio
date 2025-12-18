@@ -626,13 +626,6 @@ const api = {
     sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
       ipcRenderer.invoke(IpcChannel.LocalTransfer_SendFile, { filePath }),
     cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_CancelTransfer)
-  },
-  webSocket: {
-    start: () => ipcRenderer.invoke(IpcChannel.WebSocket_Start),
-    stop: () => ipcRenderer.invoke(IpcChannel.WebSocket_Stop),
-    status: () => ipcRenderer.invoke(IpcChannel.WebSocket_Status),
-    sendFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.WebSocket_SendFile, filePath),
-    getAllCandidates: () => ipcRenderer.invoke(IpcChannel.WebSocket_GetAllCandidates)
   }
 }
 

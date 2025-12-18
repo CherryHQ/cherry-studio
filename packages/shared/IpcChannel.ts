@@ -382,13 +382,6 @@ export enum IpcChannel {
   ClaudeCodePlugin_ReadContent = 'claudeCodePlugin:read-content',
   ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
 
-  // WebSocket
-  WebSocket_Start = 'webSocket:start',
-  WebSocket_Stop = 'webSocket:stop',
-  WebSocket_Status = 'webSocket:status',
-  WebSocket_SendFile = 'webSocket:send-file',
-  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates',
-
   // Local Transfer
   LocalTransfer_ListServices = 'local-transfer:list',
   LocalTransfer_StartScan = 'local-transfer:start-scan',

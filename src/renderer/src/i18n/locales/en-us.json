@@ -3218,12 +3218,9 @@
         },
         "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
         "lan": {
-          "auto_close_tip": "Auto-closing in {{seconds}} seconds...",
-          "confirm_close_message": "File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
-          "confirm_close_title": "Confirm Close",
           "connected": "Connected",
           "connection_failed": "Connection failed",
-          "content": "Please ensure your computer and phone are on the same network for LAN transfer. Open the Cherry Studio App to scan this QR code.",
+          "content": "Please ensure your computer and phone are on the same network for LAN transfer.",
           "device_list_title": "Local network devices",
           "discovered_devices": "Discovered devices",
           "error": {
@@ -3241,8 +3238,6 @@
             "progress": "Sending... {{progress}}%",
             "success": "File sent successfully"
           },
-          "force_close": "Force Close",
-          "generating_qr": "Generating QR code...",
           "handshake": {
             "button": "Handshake",
             "failed": "Handshake failed: {{message}}",
@@ -3255,14 +3250,10 @@
           "ip_addresses": "IP addresses",
           "last_seen": "Last seen at {{time}}",
           "metadata": "Metadata",
-          "noZipSelected": "No compressed file selected",
           "no_connection_warning": "Please open LAN Transfer on Cherry Studio mobile",
           "no_devices": "No LAN peers found yet",
           "scan_devices": "Scan devices",
-          "scan_qr": "Please scan QR code with your phone",
           "scanning_hint": "Scanning your local network for Cherry Studio peers...",
-          "selectZip": "Select a compressed file",
-          "sendZip": "Begin data recovery",
           "send_file": "Send File",
           "status": {
             "completed": "Transfer completed",
@@ -3272,8 +3263,7 @@
             "error": "Connection error",
             "initializing": "Initializing connection...",
             "preparing": "Preparing transfer...",
-            "sending": "Transferring {{progress}}%",
-            "waiting_qr_scan": "Please scan QR code to connect"
+            "sending": "Transferring {{progress}}%"
           },
           "status_badge_idle": "Idle",
           "status_badge_scanning": "Scanning",

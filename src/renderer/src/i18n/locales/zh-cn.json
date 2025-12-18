@@ -3218,12 +3218,9 @@
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
         "lan": {
-          "auto_close_tip": "{{seconds}} 秒后自动关闭...",
-          "confirm_close_message": "文件正在传输中，关闭将中断传输。确定要强制关闭吗？",
-          "confirm_close_title": "确认关闭",
           "connected": "连接成功",
           "connection_failed": "连接失败",
-          "content": "请确保电脑和手机处于同一网络以使用局域网传输。请打开 Cherry Studio App 扫描此二维码。",
+          "content": "请确保电脑和手机处于同一网络以使用局域网传输。",
           "device_list_title": "局域网设备列表",
           "discovered_devices": "已发现的设备",
           "error": {
@@ -3241,8 +3238,6 @@
             "progress": "发送中... {{progress}}%",
             "success": "文件发送成功"
           },
-          "force_close": "强制关闭",
-          "generating_qr": "正在生成二维码...",
           "handshake": {
             "button": "握手测试",
             "failed": "握手失败：{{message}}",
@@ -3255,14 +3250,10 @@
           "ip_addresses": "IP 地址",
           "last_seen": "最后活动：{{time}}",
           "metadata": "元数据",
-          "noZipSelected": "未选择压缩文件",
           "no_connection_warning": "请在 Cherry Studio 移动端打开局域网传输",
           "no_devices": "尚未发现局域网设备",
           "scan_devices": "扫描设备",
-          "scan_qr": "请使用手机扫码连接",
           "scanning_hint": "正在扫描局域网中的 Cherry Studio 设备...",
-          "selectZip": "选择压缩文件",
-          "sendZip": "开始恢复数据",
           "send_file": "发送文件",
           "status": {
             "completed": "传输完成",
@@ -3272,8 +3263,7 @@
             "error": "连接出错",
             "initializing": "正在初始化连接...",
             "preparing": "准备传输中...",
-            "sending": "传输中 {{progress}}%",
-            "waiting_qr_scan": "请扫描二维码连接"
+            "sending": "传输中 {{progress}}%"
           },
           "status_badge_idle": "空闲",
           "status_badge_scanning": "扫描中",
