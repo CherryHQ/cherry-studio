@@ -362,7 +362,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     {
       id: 'gemini-3-pro-image-preview',
       provider: 'gemini',
-      name: 'Gemini 3 Pro Image Privew',
+      name: 'Gemini 3 Pro Image Preview',
       group: 'Gemini 3'
     },
     {

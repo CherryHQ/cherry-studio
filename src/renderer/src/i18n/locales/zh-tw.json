@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "使用自動偵測的 Git Bash",
+      "autoDiscoveredHint": "自動發現",
       "clear": {
         "button": "清除自訂路徑"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "在 Windows 上執行 Agent 需要 Git Bash。沒有它 Agent 無法運作。請從以下網址安裝 Git for Windows",
         "recheck": "重新偵測 Git Bash 安裝",
+        "required": "在 Windows 上需要設定 Git Bash 路徑",
         "title": "需要 Git Bash"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "選擇的檔案不是有效的 Git Bash 可執行檔（bash.exe）。",
         "title": "選擇 Git Bash 可執行檔"
       },
-      "success": "成功偵測到 Git Bash！"
+      "placeholder": "選擇 bash.exe 路徑",
+      "success": "成功偵測到 Git Bash！",
+      "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
     },
     "input": {
       "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令"
