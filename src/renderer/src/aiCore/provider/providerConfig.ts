@@ -214,6 +214,15 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   } else if (aiSdkProviderId === 'azure') {
     extraOptions.mode = 'chat'
   }
+  if (isAzureOpenAIProvider(actualProvider)) {
+    const apiVersion = actualProvider.apiVersion?.trim()
+    if (apiVersion) {
+      extraOptions.apiVersion = apiVersion
+      if (!['preview', 'v1'].includes(apiVersion)) {
+        extraOptions.useDeploymentBasedUrls = true
+      }
+    }
+  }
 
   // bedrock
   if (aiSdkProviderId === 'bedrock') {
