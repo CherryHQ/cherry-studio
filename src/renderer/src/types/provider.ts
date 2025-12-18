@@ -114,6 +114,13 @@ export type Provider = {
   serviceTier?: ServiceTier
   verbosity?: OpenAIVerbosity
 
+  /**
+   * Max tool/agent steps for AI SDK multi-step tool calling loop.
+   * - `undefined`: uses the app default (currently 20).
+   * - `> 0`: stop after N steps to avoid infinite loops.
+   */
+  maxToolSteps?: number
+
   /** @deprecated */
   isNotSupportArrayContent?: boolean
   /** @deprecated */

@@ -4558,6 +4558,12 @@
       "docs_check": "檢查",
       "docs_more_details": "檢視更多細節",
       "get_api_key": "點選這裡取得金鑰",
+      "max_tool_steps": {
+        "description": "AI 在單次回應中可執行的最大工具呼叫步數。",
+        "help": "限制 AI 可執行的工具呼叫迭代次數。較高的值允許更複雜的多步驟操作，但可能會增加回應時間。預設值為 20。",
+        "label": "最大工具呼叫步數",
+        "title": "工具步數限制"
+      },
       "misc": "其他",
       "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",
       "not_checked": "未檢查",
