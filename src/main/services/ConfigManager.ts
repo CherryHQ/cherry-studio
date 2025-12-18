@@ -32,7 +32,8 @@ export enum ConfigKeys {
   Proxy = 'proxy',
   EnableDeveloperMode = 'enableDeveloperMode',
   ClientId = 'clientId',
-  GitBashPath = 'gitBashPath'
+  GitBashPath = 'gitBashPath',
+  GitBashPathSource = 'gitBashPathSource' // 'manual' | 'auto' | null
 }
 
 export class ConfigManager {
