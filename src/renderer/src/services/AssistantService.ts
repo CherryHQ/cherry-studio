@@ -74,7 +74,9 @@ export function getDefaultTranslateAssistant(
     throw new Error('Unknown target language')
   }
 
-  const reasoningEffort = getModelSupportedReasoningEffortOptions(model)?.[0]
+  const supportedOptions = getModelSupportedReasoningEffortOptions(model)
+  // disable reasoning if it could be disabled, otherwise no configuration
+  const reasoningEffort = supportedOptions?.includes('none') ? 'none' : 'default'
   const settings = {
     temperature: 0.7,
     reasoning_effort: reasoningEffort,
