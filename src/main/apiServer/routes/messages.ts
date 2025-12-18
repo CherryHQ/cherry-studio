@@ -48,12 +48,12 @@ const providerRouter = express.Router({ mergeParams: true })
  * Estimate token count from messages
  * Uses tokenx library for accurate token estimation and supports images, tools
  */
-interface CountTokensInput {
+export interface CountTokensInput {
   messages: MessageCreateParams['messages']
   system?: MessageCreateParams['system']
 }
 
-function estimateTokenCount(input: CountTokensInput): number {
+export function estimateTokenCount(input: CountTokensInput): number {
   const { messages, system } = input
   let totalTokens = 0
 
