@@ -54,7 +54,6 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   doubao_after_251015: ['minimal', 'low', 'medium', 'high'] as const,
   hunyuan: ['auto'] as const,
   mimo: ['auto'] as const,
-  mimo: ['auto'] as const,
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const
