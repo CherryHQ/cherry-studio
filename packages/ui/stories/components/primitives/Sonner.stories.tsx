@@ -1,7 +1,16 @@
 import { Button } from '@cherrystudio/ui'
 import { toast, Toaster } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
-import { RefreshCwIcon } from 'lucide-react'
+
+interface PlaygroundArgs {
+  type: 'info' | 'success' | 'warning' | 'error' | 'loading'
+  title: string
+  description: string
+  colored: boolean
+  duration: number
+  withButton: boolean
+  buttonLabel: string
+}
 
 const meta: Meta<typeof Toaster> = {
   title: 'Components/Primitives/Sonner',
@@ -29,14 +38,113 @@ const meta: Meta<typeof Toaster> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+// Playground
+export const Playground: StoryObj<PlaygroundArgs> = {
+  args: {
+    type: 'info',
+    title: 'Notification Title',
+    description: 'This is a description that provides more details about the notification.',
+    colored: false,
+    duration: 4000,
+    withButton: false,
+    buttonLabel: 'Action'
+  },
+  argTypes: {
+    type: {
+      control: 'select',
+      options: ['info', 'success', 'warning', 'error', 'loading'],
+      description: 'Type of toast notification'
+    },
+    title: {
+      control: 'text',
+      description: 'Main message of the toast'
+    },
+    description: {
+      control: 'text',
+      description: 'Optional detailed description'
+    },
+    colored: {
+      control: 'boolean',
+      description: 'Enable colored background'
+    },
+    duration: {
+      control: { type: 'number', min: 1000, max: 10000, step: 1000 },
+      description: 'Duration in milliseconds (use Infinity for persistent)'
+    },
+    withButton: {
+      control: 'boolean',
+      description: 'Show action button'
+    },
+    buttonLabel: {
+      control: 'text',
+      description: 'Label for the action button',
+      if: { arg: 'withButton', truthy: true }
+    }
+  },
+  render: (args: PlaygroundArgs) => {
+    const handleToast = () => {
+      const toastOptions: {
+        description?: string
+        colored: boolean
+        duration: number
+        button?: {
+          label: string
+          onClick: () => void
+        }
+        promise?: Promise<void>
+      } = {
+        description: args.description || undefined,
+        colored: args.colored,
+        duration: args.duration
+      }
+
+      if (args.withButton) {
+        toastOptions.button = {
+          label: args.buttonLabel || 'Action',
+          onClick: () => toast.info('Button clicked!')
+        }
+      }
+
+      switch (args.type) {
+        case 'info':
+          toast.info(args.title, toastOptions)
+          break
+        case 'success':
+          toast.success(args.title, toastOptions)
+          break
+        case 'warning':
+          toast.warning(args.title, toastOptions)
+          break
+        case 'error':
+          toast.error(args.title, toastOptions)
+          break
+        case 'loading':
+          toast.loading(args.title, {
+            ...toastOptions,
+            promise: new Promise<void>((resolve) => setTimeout(resolve, 2000))
+          })
+          break
+      }
+    }
+
+    return (
+      <div className="flex flex-col gap-3">
+        <Button onClick={handleToast}>Show Toast</Button>
+        <div className="text-sm text-muted-foreground max-w-md">
+          Use the controls panel below to customize the toast properties and click the button to preview.
+        </div>
+      </div>
+    )
+  }
+}
+
 // Basic Toast Types
 export const Info: Story = {
   render: () => (
     <div className="flex flex-col gap-3">
       <Button
         onClick={() =>
-          toast.info({
-            title: 'Information',
+          toast.info('Information', {
             description: 'This is an informational message.'
           })
         }>
@@ -51,8 +159,7 @@ export const Success: Story = {
     <div className="flex flex-col gap-3">
       <Button
         onClick={() =>
-          toast.success({
-            title: 'Success!',
+          toast.success('Success!', {
             description: 'Operation completed successfully.'
           })
         }>
@@ -67,8 +174,7 @@ export const ErrorToast: Story = {
     <div className="flex flex-col gap-3">
       <Button
         onClick={() =>
-          toast.error({
-            title: 'Error',
+          toast.error('Error', {
             description: 'Something went wrong. Please try again.'
           })
         }>
@@ -83,8 +189,7 @@ export const Warning: Story = {
     <div className="flex flex-col gap-3">
       <Button
         onClick={() =>
-          toast.warning({
-            title: 'Warning',
+          toast.warning('Warning', {
             description: 'Please be careful with this action.'
           })
         }>
@@ -104,8 +209,7 @@ export const Loading: Story = {
       <div className="flex flex-col gap-3">
         <Button
           onClick={() =>
-            toast.loading({
-              title: 'Loading...',
+            toast.loading('Loading...', {
               description: 'Please wait while we process your request.',
               promise: mockPromise
             })
@@ -121,14 +225,13 @@ export const Loading: Story = {
 export const AllTypes: Story = {
   render: () => (
     <div className="flex flex-wrap gap-2">
-      <Button onClick={() => toast.info({ title: 'Info Toast' })}>Info</Button>
-      <Button onClick={() => toast.success({ title: 'Success Toast' })}>Success</Button>
-      <Button onClick={() => toast.warning({ title: 'Warning Toast' })}>Warning</Button>
-      <Button onClick={() => toast.error({ title: 'Error Toast' })}>Error</Button>
+      <Button onClick={() => toast.info('Info Toast')}>Info</Button>
+      <Button onClick={() => toast.success('Success Toast')}>Success</Button>
+      <Button onClick={() => toast.warning('Warning Toast')}>Warning</Button>
+      <Button onClick={() => toast.error('Error Toast')}>Error</Button>
       <Button
         onClick={() =>
-          toast.loading({
-            title: 'Loading Toast',
+          toast.loading('Loading Toast', {
             promise: new Promise((resolve) => setTimeout(resolve, 2000))
           })
         }>
@@ -144,8 +247,7 @@ export const WithDescription: Story = {
     <div className="flex flex-col gap-3">
       <Button
         onClick={() =>
-          toast.success({
-            title: 'Event Created',
+          toast.success('Event Created', {
             description: 'Your event has been created successfully. You can now share it with others.'
           })
         }>
@@ -155,29 +257,88 @@ export const WithDescription: Story = {
   )
 }
 
-// With Colored Message
-export const WithColoredMessage: Story = {
+// With Custom Duration
+export const WithCustomDuration: Story = {
   render: () => (
     <div className="flex flex-wrap gap-2">
       <Button
         onClick={() =>
-          toast.info({
-            title: 'System Update',
-            coloredMessage: 'New version available!',
-            description: 'Click the button to update now.'
+          toast.info('Quick message', {
+            description: 'This will disappear in 1 second',
+            duration: 1000
           })
         }>
-        Info with Colored Message
+        1 Second
       </Button>
       <Button
         onClick={() =>
-          toast.warning({
-            title: 'Disk Space Low',
-            coloredMessage: '95% used',
-            description: 'Please free up some space.'
+          toast.success('Normal duration', {
+            description: 'This uses default duration (4 seconds)'
           })
         }>
-        Warning with Colored Message
+        Default (4s)
+      </Button>
+      <Button
+        onClick={() =>
+          toast.warning('Important message', {
+            description: 'This will stay for 10 seconds',
+            duration: 10000
+          })
+        }>
+        10 Seconds
+      </Button>
+      <Button
+        onClick={() =>
+          toast.info('Persistent message', {
+            description: 'This will stay until manually dismissed',
+            duration: Number.POSITIVE_INFINITY
+          })
+        }>
+        Infinite
+      </Button>
+    </div>
+  )
+}
+
+// With Action Button
+export const WithActionButton: Story = {
+  render: () => (
+    <div className="flex flex-col gap-2">
+      <Button
+        onClick={() =>
+          toast.success('Changes Saved', {
+            description: 'Your changes have been saved successfully.',
+            button: {
+              label: 'Undo',
+              onClick: () => toast.info('Undoing changes...')
+            }
+          })
+        }>
+        Success with Action
+      </Button>
+      <Button
+        onClick={() =>
+          toast.error('Update Failed', {
+            description: 'Failed to update the record.',
+            button: {
+              label: 'Retry',
+              onClick: () => toast.info('Retrying...')
+            }
+          })
+        }>
+        Error with Action
+      </Button>
+      <Button
+        onClick={() =>
+          toast.info('Update Available', {
+            description: 'A new version is ready to install.',
+            button: {
+              label: 'Update',
+              onClick: () => toast.info('Starting update...')
+            }
+          })
+        }>
+        Info with Action
       </Button>
     </div>
   )
@@ -189,40 +350,36 @@ export const WithColoredBackground: Story = {
     <div className="flex flex-wrap gap-2">
       <Button
         onClick={() =>
-          toast.info({
-            title: 'Information',
+          toast.info('Information', {
             description: 'This toast has a colored background.',
-            coloredBackground: true
+            colored: true
           })
         }>
         Info Background
       </Button>
       <Button
         onClick={() =>
-          toast.success({
-            title: 'Success!',
+          toast.success('Success!', {
             description: 'This toast has a colored background.',
-            coloredBackground: true
+            colored: true
           })
         }>
         Success Background
       </Button>
       <Button
         onClick={() =>
-          toast.warning({
-            title: 'Warning',
+          toast.warning('Warning', {
             description: 'This toast has a colored background.',
-            coloredBackground: true
+            colored: true
           })
         }>
         Warning Background
       </Button>
       <Button
         onClick={() =>
-          toast.error({
-            title: 'Error',
+          toast.error('Error', {
             description: 'This toast has a colored background.',
-            coloredBackground: true
+            colored: true
           })
         }>
         Error Background
@@ -231,19 +388,18 @@ export const WithColoredBackground: Story = {
   )
 }
 
-// Colored Background with Actions
-export const ColoredBackgroundWithActions: Story = {
+// Colored Background with Action
+export const ColoredBackgroundWithAction: Story = {
   render: () => (
     <div className="flex flex-wrap gap-2">
       <Button
         onClick={() =>
-          toast.success({
-            title: 'File Uploaded',
+          toast.success('File Uploaded', {
             description: 'Your file has been uploaded successfully.',
-            coloredBackground: true,
+            colored: true,
             button: {
               label: 'View',
-              onClick: () => toast.info({ title: 'Opening file...' })
+              onClick: () => toast.info('Opening file...')
             }
           })
         }>
@@ -251,138 +407,29 @@ export const ColoredBackgroundWithActions: Story = {
       </Button>
       <Button
         onClick={() =>
-          toast.warning({
-            title: 'Action Required',
+          toast.warning('Action Required', {
             description: 'Please review the changes.',
-            coloredBackground: true,
-            link: {
+            colored: true,
+            button: {
               label: 'Review',
-              onClick: () => toast.info({ title: 'Opening review...' })
+              onClick: () => toast.info('Opening review...')
             }
           })
         }>
-        Warning with Link
+        Warning with Button
       </Button>
       <Button
         onClick={() =>
-          toast.error({
-            title: 'Update Failed',
+          toast.error('Update Failed', {
             description: 'Failed to update the record.',
-            coloredBackground: true,
+            colored: true,
             button: {
-              icon: <RefreshCwIcon className="h-4 w-4" />,
               label: 'Retry',
-              onClick: () => toast.info({ title: 'Retrying...' })
-            },
-            link: {
-              label: 'Learn More',
-              onClick: () => toast.info({ title: 'Opening help...' })
+              onClick: () => toast.info('Retrying...')
             }
           })
         }>
-        Error with Button & Link
-      </Button>
-    </div>
-  )
-}
-
-// With Action Button
-export const WithActionButton: Story = {
-  render: () => (
-    <div className="flex flex-col gap-3">
-      <Button
-        onClick={() =>
-          toast.success({
-            title: 'Changes Saved',
-            description: 'Your changes have been saved successfully.',
-            button: {
-              icon: <RefreshCwIcon className="h-4 w-4" />,
-              label: 'Undo',
-              onClick: () => toast.info({ title: 'Undoing changes...' })
-            }
-          })
-        }>
-        Show Toast with Action Button
-      </Button>
-    </div>
-  )
-}
-
-// With Link
-export const WithLink: Story = {
-  render: () => (
-    <div className="flex flex-wrap gap-2">
-      <Button
-        onClick={() =>
-          toast.info({
-            title: 'Update Available',
-            description: 'A new version is ready to install.',
-            link: {
-              label: 'View Details',
-              onClick: () => toast.info({ title: 'Opening details...' })
-            }
-          })
-        }>
-        Toast with Click Handler
-      </Button>
-      <Button
-        onClick={() =>
-          toast.success({
-            title: 'Documentation Updated',
-            description: 'Check out the new features.',
-            link: {
-              label: 'Read More',
-              href: 'https://example.com',
-              onClick: () => console.log('Link clicked')
-            }
-          })
-        }>
-        Toast with Link
-      </Button>
-    </div>
-  )
-}
-
-// With Button and Link
-export const WithButtonAndLink: Story = {
-  render: () => (
-    <div className="flex flex-col gap-3">
-      <Button
-        onClick={() =>
-          toast.warning({
-            title: 'Action Required',
-            description: 'Please review the changes before proceeding.',
-            button: {
-              icon: <RefreshCwIcon className="h-4 w-4" />,
-              label: 'Review',
-              onClick: () => toast.info({ title: 'Opening review...' })
-            },
-            link: {
-              label: 'Learn More',
-              onClick: () => toast.info({ title: 'Opening documentation...' })
-            }
-          })
-        }>
-        Show Toast with Button and Link
-      </Button>
-    </div>
-  )
-}
-
-// Dismissable Toast
-export const DismissableToast: Story = {
-  render: () => (
-    <div className="flex flex-col gap-3">
-      <Button
-        onClick={() =>
-          toast.info({
-            title: 'Dismissable Toast',
-            description: 'You can close this toast by clicking the X button.',
-            dismissable: true,
-            onDismiss: () => console.log('Toast dismissed')
-          })
-        }>
-        Show Dismissable Toast
+        Error with Button
       </Button>
     </div>
   )
@@ -392,10 +439,10 @@ export const DismissableToast: Story = {
 export const MultipleToasts: Story = {
   render: () => {
     const showMultiple = () => {
-      toast.success({ title: 'First notification', description: 'This is the first message' })
-      setTimeout(() => toast.info({ title: 'Second notification', description: 'This is the second message' }), 100)
-      setTimeout(() => toast.warning({ title: 'Third notification', description: 'This is the third message' }), 200)
-      setTimeout(() => toast.error({ title: 'Fourth notification', description: 'This is the fourth message' }), 300)
+      toast.success('First notification', { description: 'This is the first message' })
+      setTimeout(() => toast.info('Second notification', { description: 'This is the second message' }), 100)
+      setTimeout(() => toast.warning('Third notification', { description: 'This is the third message' }), 200)
+      setTimeout(() => toast.error('Fourth notification', { description: 'This is the fourth message' }), 300)
     }
 
     return (
@@ -416,8 +463,7 @@ export const PromiseExample: Story = {
         }, 2000)
       })
 
-      toast.loading({
-        title: 'Fetching data...',
+      toast.loading('Fetching data...', {
         description: 'Please wait while we load your information.',
         promise
       })
@@ -436,60 +482,54 @@ export const RealWorldExamples: Story = {
   render: () => {
     const handleFileSave = () => {
       const promise = new Promise((resolve) => setTimeout(resolve, 1500))
-      toast.loading({
-        title: 'Saving file...',
+      toast.loading('Saving file...', {
         promise
       })
       promise.then(() => {
-        toast.success({
-          title: 'File saved',
-          description: 'Your file has been saved successfully.'
+        toast.success('File saved', {
+          description: 'Your file has been saved successfully.',
+          button: {
+            label: 'View',
+            onClick: () => toast.info('Opening file...')
+          }
         })
       })
     }
 
     const handleFormSubmit = () => {
-      toast.success({
-        title: 'Form submitted',
+      toast.success('Form submitted', {
         description: 'Your changes have been saved successfully.',
         button: {
-          label: 'View',
-          onClick: () => toast.info({ title: 'Opening form...' })
+          label: 'Undo',
+          onClick: () => toast.info('Undoing changes...')
         }
       })
     }
 
     const handleDelete = () => {
-      toast.error({
-        title: 'Failed to delete',
+      toast.error('Failed to delete', {
         description: 'You do not have permission to delete this item.',
         button: {
-          icon: <RefreshCwIcon className="h-4 w-4" />,
           label: 'Retry',
-          onClick: () => toast.info({ title: 'Retrying...' })
+          onClick: () => toast.info('Retrying...')
         }
       })
     }
 
     const handleCopy = () => {
       navigator.clipboard.writeText('https://example.com')
-      toast.success({
-        title: 'Copied to clipboard',
+      toast.success('Copied to clipboard', {
         description: 'The link has been copied to your clipboard.'
       })
     }
 
     const handleUpdate = () => {
-      toast.info({
-        title: 'Update available',
+      toast.info('Update available', {
         description: 'A new version of the application is ready to install.',
+        colored: true,
         button: {
           label: 'Update Now',
-          onClick: () => toast.info({ title: 'Starting update...' })
-        },
-        link: {
-          label: 'Release Notes',
-          onClick: () => toast.info({ title: 'Opening release notes...' })
+          onClick: () => toast.info('Starting update...')
         }
       })
     }
