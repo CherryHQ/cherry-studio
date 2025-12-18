@@ -64,7 +64,7 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
   return (
     <SettingsItem>
       <SettingsTitle
-        actions={
+        contentAfter={
           <Tooltip title={t('agent.session.accessible_paths.add')}>
             <Button type="text" icon={<Plus size={16} />} shape="circle" onClick={addAccessiblePath} />
           </Tooltip>

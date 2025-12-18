@@ -10,7 +10,7 @@ export type LoaderReturn = {
   messageSource?: 'preprocess' | 'embedding' | 'validation'
 }
 
-export type FileChangeEventType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir'
+export type FileChangeEventType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir' | 'refresh'
 
 export type FileChangeEvent = {
   eventType: FileChangeEventType
@@ -21,6 +21,14 @@ export type FileChangeEvent = {
 export type MCPProgressEvent = {
   callId: string
   progress: number // 0-1 range
+}
+
+export type MCPServerLogEntry = {
+  timestamp: number
+  level: 'debug' | 'info' | 'warn' | 'error' | 'stderr' | 'stdout'
+  message: string
+  data?: any
+  source?: string
 }
 
 export type WebviewKeyEvent = {

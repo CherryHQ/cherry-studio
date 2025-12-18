@@ -2,12 +2,11 @@ import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
 import db from '@renderer/databases'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
 import { DbService } from '@renderer/services/db/DbService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
-import { transformMessagesAndFetch } from '@renderer/services/OrchestrateService'
 import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
@@ -814,6 +813,9 @@ const fetchAndProcessAssistantResponseImpl = async (
         messages: messagesForContext,
         assistant,
         topicId,
+        blockManager,
+        assistantMsgId,
+        callbacks,
         options: {
           signal: abortController.signal,
           timeout: 30000,

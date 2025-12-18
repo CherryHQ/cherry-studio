@@ -6,8 +6,8 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
+import { getModelSupportedReasoningEffortOptions } from '@renderer/config/models'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
-import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
@@ -27,7 +27,7 @@ import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('AssistantService')
 
-export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
+export const DEFAULT_ASSISTANT_SETTINGS = {
   temperature: DEFAULT_TEMPERATURE,
   enableTemperature: true,
   contextCount: DEFAULT_CONTEXTCOUNT,
@@ -38,8 +38,9 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableTopP: false,
   // It would gracefully fallback to prompt if not supported by model.
   toolUseMode: 'function',
-  customParameters: []
-} as const
+  customParameters: [],
+  reasoning_effort: 'default'
+} as const satisfies AssistantSettings
 
 export function getDefaultAssistant(): Assistant {
   return {
@@ -55,7 +56,11 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
-export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, text: string): TranslateAssistant {
+export function getDefaultTranslateAssistant(
+  targetLanguage: TranslateLanguage,
+  text: string,
+  _settings?: Partial<AssistantSettings>
+): TranslateAssistant {
   const model = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
 
@@ -69,9 +74,12 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     throw new Error('Unknown target language')
   }
 
+  const reasoningEffort = getModelSupportedReasoningEffortOptions(model)?.[0]
   const settings = {
-    temperature: 0.7
-  }
+    temperature: 0.7,
+    reasoning_effort: reasoningEffort,
+    ..._settings
+  } satisfies Partial<AssistantSettings>
 
   const getTranslateContent = (model: Model, text: string, targetLanguage: TranslateLanguage): string => {
     if (isQwenMTModel(model)) {
@@ -142,7 +150,7 @@ export function getProviderByModel(model?: Model): Provider {
 
   if (!provider) {
     const defaultProvider = providers.find((p) => p.id === getDefaultModel()?.provider)
-    return defaultProvider || CHERRYAI_PROVIDER || providers[0]
+    return defaultProvider || providers[0]
   }
 
   return provider
@@ -179,7 +187,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     streamOutput: assistant?.settings?.streamOutput ?? true,
     toolUseMode: assistant?.settings?.toolUseMode ?? 'function',
     defaultModel: assistant?.defaultModel ?? undefined,
-    reasoning_effort: assistant?.settings?.reasoning_effort ?? undefined,
+    reasoning_effort: assistant?.settings?.reasoning_effort ?? 'default',
     customParameters: assistant?.settings?.customParameters ?? []
   }
 }

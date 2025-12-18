@@ -11,7 +11,7 @@ const OVMS_EX_URL = 'https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/d
 
 /**
  * error code:
- * 101: Unsupported CPU (not Intel Ultra)
+ * 101: Unsupported CPU (not Intel)
  * 102: Unsupported platform (not Windows)
  * 103: Download failed
  * 104: Installation failed
@@ -213,8 +213,8 @@ async function installOvms() {
   console.log(`CPU Name: ${cpuName}`)
 
   // Check if CPU name contains "Ultra"
-  if (!cpuName.toLowerCase().includes('intel') || !cpuName.toLowerCase().includes('ultra')) {
-    console.error('OVMS installation requires an Intel(R) Core(TM) Ultra CPU.')
+  if (!cpuName.toLowerCase().includes('intel')) {
+    console.error('OVMS installation requires an Intel CPU.')
     return 101
   }
 

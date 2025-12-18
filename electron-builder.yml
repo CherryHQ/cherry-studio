@@ -134,108 +134,38 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    A New Era of Intelligence with Cherry Studio 1.7.1
+    Cherry Studio 1.7.5 - Filesystem MCP Overhaul & Topic Management
 
-    Today we're releasing Cherry Studio 1.7.1 — our most ambitious update yet, introducing Agent: autonomous AI that thinks, plans, and acts.
+    This release features a completely rewritten filesystem MCP server, new batch topic management, and improved assistant management.
 
-    For years, AI assistants have been reactive — waiting for your commands, responding to your questions. With Agent, we're changing that. Now, AI can truly work alongside you: understanding complex goals, breaking them into steps, and executing them independently.
+    ✨ New Features
+    - [MCP] Rewrite filesystem MCP server with improved tool set (glob, ls, grep, read, write, edit, delete)
+    - [Topics] Add topic manage mode for batch delete and move operations with search functionality
+    - [Assistants] Merge import/subscribe popups and add export to assistant management
+    - [Knowledge] Use prompt injection for forced knowledge base search (faster response times)
+    - [Settings] Add tool use mode setting (prompt/function) to default assistant settings
 
-    This is what we've been building toward. And it's just the beginning.
-
-    🤖 Meet Agent
-    Imagine having a brilliant colleague who never sleeps. Give Agent a goal — write a report, analyze data, refactor code — and watch it work. It reasons through problems, breaks them into steps, calls the right tools, and adapts when things change.
-
-    - **Think → Plan → Act**: From goal to execution, fully autonomous
-    - **Deep Reasoning**: Multi-turn thinking that solves real problems
-    - **Tool Mastery**: File operations, web search, code execution, and more
-    - **Skill Plugins**: Extend with custom commands and capabilities
-    - **You Stay in Control**: Real-time approval for sensitive actions
-    - **Full Visibility**: Every thought, every decision, fully transparent
-
-    🌐 Expanding Ecosystem
-    - **New Providers**: HuggingFace, Mistral, CherryIN, AI Gateway, Intel OVMS, Didi MCP
-    - **New Models**: Claude 4.5 Haiku, DeepSeek v3.2, GLM-4.6, Doubao, Ling series
-    - **MCP Integration**: Alibaba Cloud, ModelScope, Higress, MCP.so, TokenFlux and more
-
-    📚 Smarter Knowledge Base
-    - **OpenMinerU**: Self-hosted document processing
-    - **Full-Text Search**: Find anything instantly across your notes
-    - **Enhanced Tool Selection**: Smarter configuration for better AI assistance
-
-    📝 Notes, Reimagined
-    - Full-text search with highlighted results
-    - AI-powered smart rename
-    - Export as image
-    - Auto-wrap for tables
-
-    🖼️ Image & OCR
-    - Intel OVMS painting capabilities
-    - Intel OpenVINO NPU-accelerated OCR
-
-    🌍 Now in 10+ Languages
-    - Added German support
-    - Enhanced internationalization
-
-    ⚡ Faster & More Polished
-    - Electron 38 upgrade
-    - New MCP management interface
-    - Dozens of UI refinements
-
-    ❤️ Fully Open Source
-    Commercial restrictions removed. Cherry Studio now follows standard AGPL v3 — free for teams of any size.
-
-    The Agent Era is here. We can't wait to see what you'll create.
+    🐛 Bug Fixes
+    - [Model] Correct typo in Gemini 3 Pro Image Preview model name
+    - [Installer] Auto-install VC++ Redistributable without user prompt
+    - [Notes] Fix notes directory validation and default path reset for cross-platform restore
+    - [OAuth] Bind OAuth callback server to localhost (127.0.0.1) for security
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.1：开启智能新纪元
+    Cherry Studio 1.7.5 - 文件系统 MCP 重构与话题管理
 
-    今天，我们正式发布 Cherry Studio 1.7.1 —— 迄今最具雄心的版本，带来全新的 Agent：能够自主思考、规划和行动的 AI。
+    本次更新完全重写了文件系统 MCP 服务器，新增批量话题管理功能，并改进了助手管理。
 
-    多年来，AI 助手一直是被动的——等待你的指令，回应你的问题。Agent 改变了这一切。现在，AI 能够真正与你并肩工作：理解复杂目标，将其拆解为步骤，并独立执行。
+    ✨ 新功能
+    - [MCP] 重写文件系统 MCP 服务器，提供改进的工具集（glob、ls、grep、read、write、edit、delete）
+    - [话题] 新增话题管理模式，支持批量删除和移动操作，带搜索功能
+    - [助手] 合并导入/订阅弹窗，并在助手管理中添加导出功能
+    - [知识库] 使用提示词注入进行强制知识库搜索（响应更快）
+    - [设置] 在默认助手设置中添加工具使用模式设置（prompt/function）
 
-    这是我们一直在构建的未来。而这，仅仅是开始。
-
-    🤖 认识 Agent
-    想象一位永不疲倦的得力伙伴。给 Agent 一个目标——撰写报告、分析数据、重构代码——然后看它工作。它会推理问题、拆解步骤、调用工具，并在情况变化时灵活应对。
-
-    - **思考 → 规划 → 行动**：从目标到执行，全程自主
-    - **深度推理**：多轮思考，解决真实问题
-    - **工具大师**：文件操作、网络搜索、代码执行，样样精通
-    - **技能插件**：自定义命令，无限扩展
-    - **你掌控全局**：敏感操作，实时审批
-    - **完全透明**：每一步思考，每一个决策，清晰可见
-
-    🌐 生态持续壮大
-    - **新增服务商**：Hugging Face、Mistral、Perplexity、SophNet、AI Gateway、Cerebras AI
-    - **新增模型**：Gemini 3、Gemini 3 Pro（支持图像预览）、GPT-5.1、Claude Opus 4.5
-    - **MCP 集成**：百炼、魔搭、Higress、MCP.so、TokenFlux 等平台
-
-    📚 更智能的知识库
-    - **OpenMinerU**：本地自部署文档处理
-    - **全文搜索**：笔记内容一搜即达
-    - **增强工具选择**：更智能的配置，更好的 AI 协助
-
-    📝 笔记，焕然一新
-    - 全文搜索，结果高亮
-    - AI 智能重命名
-    - 导出为图片
-    - 表格自动换行
-
-    🖼️ 图像与 OCR
-    - Intel OVMS 绘图能力
-    - Intel OpenVINO NPU 加速 OCR
-
-    🌍 支持 10+ 种语言
-    - 新增德语支持
-    - 全面增强国际化
-
-    ⚡ 更快、更精致
-    - 升级 Electron 38
-    - 新的 MCP 管理界面
-    - 数十处 UI 细节打磨
-
-    ❤️ 完全开源
-    商用限制已移除。Cherry Studio 现遵循标准 AGPL v3 协议——任意规模团队均可自由使用。
-
-    Agent 纪元已至。期待你的创造。
+    🐛 问题修复
+    - [模型] 修正 Gemini 3 Pro Image Preview 模型名称的拼写错误
+    - [安装程序] 自动安装 VC++ 运行库，无需用户确认
+    - [笔记] 修复跨平台恢复场景下的笔记目录验证和默认路径重置逻辑
+    - [OAuth] 将 OAuth 回调服务器绑定到 localhost (127.0.0.1) 以提高安全性
     <!--LANG:END-->

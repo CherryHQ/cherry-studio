@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
-import { handleSaveData } from '@renderer/store'
+import { handleSaveData, useAppDispatch } from '@renderer/store'
+import { setUpdateState } from '@renderer/store/runtime'
 import { Button, Modal } from 'antd'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useState } from 'react'
@@ -22,6 +23,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
   const [isInstalling, setIsInstalling] = useState(false)
+  const dispatch = useAppDispatch()
 
   useEffect(() => {
     if (releaseInfo) {
@@ -50,6 +52,11 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
     resolve({})
   }
 
+  const onIgnore = () => {
+    dispatch(setUpdateState({ ignore: true }))
+    setOpen(false)
+  }
+
   UpdateDialogPopup.hide = onCancel
 
   const releaseNotes = releaseInfo?.releaseNotes
@@ -69,7 +76,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
       centered
       width={720}
       footer={[
-        <Button key="later" onClick={onCancel} disabled={isInstalling}>
+        <Button key="later" onClick={onIgnore} disabled={isInstalling}>
           {t('update.later')}
         </Button>,
         <Button key="install" type="primary" onClick={handleInstall} loading={isInstalling}>

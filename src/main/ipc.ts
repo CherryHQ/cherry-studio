@@ -8,6 +8,14 @@ import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import openAIService from '@main/services/OpenAIService'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import {
+  autoDiscoverGitBash,
+  getBinaryPath,
+  getGitBashPathInfo,
+  isBinaryExists,
+  runInstallScript,
+  validateGitBashPath
+} from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { UpgradeChannel } from '@shared/config/constant'
@@ -36,7 +44,7 @@ import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { codeToolsService } from './services/CodeToolsService'
-import { configManager } from './services/ConfigManager'
+import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
@@ -500,38 +508,60 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
 
     try {
-      // Check common Git Bash installation paths
-      const commonPaths = [
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
-        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe')
-      ]
-
-      // Check if any of the common paths exist
-      for (const bashPath of commonPaths) {
-        if (fs.existsSync(bashPath)) {
-          logger.debug('Git Bash found', { path: bashPath })
-          return true
-        }
-      }
-
-      // Check if git is in PATH
-      const { execSync } = require('child_process')
-      try {
-        execSync('git --version', { stdio: 'ignore' })
-        logger.debug('Git found in PATH')
+      // Use autoDiscoverGitBash to handle auto-discovery and persistence
+      const bashPath = autoDiscoverGitBash()
+      if (bashPath) {
+        logger.info('Git Bash is available', { path: bashPath })
         return true
-      } catch {
-        // Git not in PATH
       }
 
-      logger.debug('Git Bash not found on Windows system')
+      logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
       return false
     } catch (error) {
-      logger.error('Error checking Git Bash', error as Error)
+      logger.error('Unexpected error checking Git Bash', error as Error)
       return false
     }
   })
+
+  ipcMain.handle(IpcChannel.System_GetGitBashPath, () => {
+    if (!isWin) {
+      return null
+    }
+
+    const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
+    return customPath ?? null
+  })
+
+  // Returns { path, source } where source is 'manual' | 'auto' | null
+  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
+    return getGitBashPathInfo()
+  })
+
+  ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
+    if (!isWin) {
+      return false
+    }
+
+    if (!newPath) {
+      // Clear manual setting and re-run auto-discovery
+      configManager.set(ConfigKeys.GitBashPath, null)
+      configManager.set(ConfigKeys.GitBashPathSource, null)
+      // Re-run auto-discovery to restore auto-discovered path if available
+      autoDiscoverGitBash()
+      return true
+    }
+
+    const validated = validateGitBashPath(newPath)
+    if (!validated) {
+      return false
+    }
+
+    // Set path with 'manual' source
+    configManager.set(ConfigKeys.GitBashPath, validated)
+    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
+    return true
+  })
+
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     win && win.webContents.toggleDevTools()
@@ -596,6 +626,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_StartWatcher, fileManager.startFileWatcher.bind(fileManager))
   ipcMain.handle(IpcChannel.File_StopWatcher, fileManager.stopFileWatcher.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_PauseWatcher, fileManager.pauseFileWatcher.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_ResumeWatcher, fileManager.resumeFileWatcher.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // file service
@@ -781,6 +814,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
   ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
+  ipcMain.handle(IpcChannel.Mcp_GetServerLogs, mcpService.getServerLogs)
 
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
@@ -857,6 +891,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     const webview = webContents.fromId(webviewId)
     if (!webview) return
     webview.session.setSpellCheckerEnabled(isEnable)
+  })
+
+  // Webview print and save handlers
+  ipcMain.handle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
+    const { printWebviewToPDF } = await import('./services/WebviewService')
+    return await printWebviewToPDF(webviewId)
+  })
+
+  ipcMain.handle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
+    const { saveWebviewAsHTML } = await import('./services/WebviewService')
+    return await saveWebviewAsHTML(webviewId)
   })
 
   // store sync

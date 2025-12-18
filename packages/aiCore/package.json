@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.49",
-    "@ai-sdk/azure": "^2.0.74",
+    "@ai-sdk/azure": "^2.0.87",
     "@ai-sdk/deepseek": "^1.0.31",
     "@ai-sdk/openai-compatible": "patch:@ai-sdk/openai-compatible@npm%3A1.0.27#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.27-06f74278cf.patch",
     "@ai-sdk/provider": "^2.0.0",

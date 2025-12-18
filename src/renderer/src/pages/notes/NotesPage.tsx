@@ -39,6 +39,7 @@ import {
 } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { FileChangeEvent } from '@shared/config/types'
+import { message } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
@@ -246,6 +247,43 @@ const NotesPage: FC = () => {
         updateNotesPath(defaultPath)
         return
       }
+
+      // 验证路径是否有效（处理跨平台恢复场景）
+      try {
+        // 获取当前平台的默认路径
+        const info = await window.api.getAppInfo()
+        const defaultPath = info.notesPath
+
+        // 如果当前路径就是默认路径，跳过验证（默认路径始终有效）
+        if (notesPath === defaultPath) {
+          return
+        }
+
+        const isValid = await window.api.file.validateNotesDirectory(notesPath)
+        if (!isValid) {
+          logger.warn('Invalid notes path detected, resetting to default', { path: notesPath })
+
+          // 重置为默认路径
+          updateNotesPath(defaultPath)
+
+          // 检查默认路径下是否有笔记文件
+          try {
+            const tree = await window.api.file.getDirectoryStructure(defaultPath)
+            if (!tree || tree.length === 0) {
+              // 默认目录为空，提示用户需要迁移文件
+              message.warning({
+                content: t('notes.crossPlatformRestoreWarning', { path: defaultPath }),
+                duration: 10
+              })
+            }
+          } catch (error) {
+            // 目录不存在或读取失败，会由 FileStorage 自动创建
+            logger.debug('Default notes directory will be created', { error })
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to validate notes path:', error as Error)
+      }
     }
 
     initialize()
@@ -291,6 +329,16 @@ const NotesPage: FC = () => {
               const activePath = activeFilePathRef.current
               if (activePath && normalizePathValue(activePath) === normalizedEventPath) {
                 invalidateFileContentRef.current?.(normalizedEventPath)
+              }
+              break
+            }
+
+            case 'refresh': {
+              // 批量操作完成后的单次刷新
+              logger.debug('Received refresh event, triggering tree refresh')
+              const refresh = refreshTreeRef.current
+              if (refresh) {
+                await refresh()
               }
               break
             }
@@ -621,7 +669,27 @@ const NotesPage: FC = () => {
           throw new Error('No folder path selected')
         }
 
-        const result = await uploadNotes(files, targetFolderPath)
+        // Validate uploadNotes function is available
+        if (typeof uploadNotes !== 'function') {
+          logger.error('uploadNotes function is not available', { uploadNotes })
+          window.toast.error(t('notes.upload_failed'))
+          return
+        }
+
+        let result: Awaited<ReturnType<typeof uploadNotes>>
+        try {
+          result = await uploadNotes(files, targetFolderPath)
+        } catch (uploadError) {
+          logger.error('Upload operation failed:', uploadError as Error)
+          throw uploadError
+        }
+
+        // Validate result object
+        if (!result || typeof result !== 'object') {
+          logger.error('Invalid upload result:', { result })
+          window.toast.error(t('notes.upload_failed'))
+          return
+        }
 
         // 检查上传结果
         if (result.fileCount === 0) {

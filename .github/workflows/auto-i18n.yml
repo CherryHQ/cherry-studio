@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: 🐈‍⬛ Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -54,7 +54,7 @@ jobs:
           yarn install
 
       - name: 🏃‍♀️ Translate
-        run: yarn sync:i18n && yarn auto:i18n
+        run: yarn i18n:sync && yarn i18n:translate
 
       - name: 🔍 Format
         run: yarn format
