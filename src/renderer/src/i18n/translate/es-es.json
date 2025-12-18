@@ -3939,6 +3939,7 @@
         "mcp_auto_install": "Instalación automática del servicio MCP (versión beta)",
         "memory": "Implementación básica de memoria persistente basada en un grafo de conocimiento local. Esto permite que el modelo recuerde información relevante del usuario entre diferentes conversaciones. Es necesario configurar la variable de entorno MEMORY_FILE_PATH.",
         "no": "sin descripción",
+        "nowledge_mem": "[to be translated]:Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Ejecuta código Python en un entorno sandbox seguro. Usa Pyodide para ejecutar Python, compatible con la mayoría de las bibliotecas estándar y paquetes de cálculo científico.",
         "sequentialthinking": "Una implementación de servidor MCP que proporciona herramientas para la resolución dinámica y reflexiva de problemas mediante un proceso de pensamiento estructurado"
       },
