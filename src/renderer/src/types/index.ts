@@ -103,6 +103,7 @@ const ThinkModelTypes = [
   'doubao',
   'doubao_no_auto',
   'doubao_after_251015',
+  'mimo',
   'hunyuan',
   'zhipu',
   'perplexity',
@@ -752,7 +753,8 @@ export const BuiltinMCPServerNames = {
   difyKnowledge: '@cherry/dify-knowledge',
   python: '@cherry/python',
   didiMCP: '@cherry/didi-mcp',
-  browser: '@cherry/browser'
+  browser: '@cherry/browser',
+  nowledgeMem: '@cherry/nowledge-mem'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]

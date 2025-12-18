@@ -747,6 +747,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   doubao: [
     {
+      id: 'doubao-seed-1-8-251215',
+      provider: 'doubao',
+      name: 'Doubao-Seed-1.8',
+      group: 'Doubao-Seed-1.8'
+    },
+    {
       id: 'doubao-1-5-vision-pro-32k-250115',
       provider: 'doubao',
       name: 'doubao-1.5-vision-pro',
@@ -1784,6 +1790,14 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'Qwen 3 235B A22B Instruct',
       provider: 'cerebras',
       group: 'qwen'
+    }
+  ],
+  mimo: [
+    {
+      id: 'mimo-v2-flash',
+      name: 'Mimo V2 Flash',
+      provider: 'mimo',
+      group: 'Mimo'
     }
   ]
 }
