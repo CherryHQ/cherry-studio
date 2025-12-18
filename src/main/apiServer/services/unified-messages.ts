@@ -255,7 +255,9 @@ export function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
   }
 }
 
-function convertAnthropicToolsToAiSdk(tools: MessageCreateParams['tools']): Record<string, AiSdkTool> | undefined {
+export function convertAnthropicToolsToAiSdk(
+  tools: MessageCreateParams['tools']
+): Record<string, AiSdkTool> | undefined {
   if (!tools || tools.length === 0) return undefined
 
   const aiSdkTools: Record<string, AiSdkTool> = {}
@@ -277,7 +279,7 @@ function convertAnthropicToolsToAiSdk(tools: MessageCreateParams['tools']): Reco
   return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
 }
 
-function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage[] {
+export function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage[] {
   const messages: ModelMessage[] = []
 
   // System message
