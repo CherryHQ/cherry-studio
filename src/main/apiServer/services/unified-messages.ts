@@ -145,13 +145,13 @@ function convertAnthropicToolResultToAiSdk(
 
 /**
  * JSON Schema type for tool input schemas
- * Uses the standard JSONSchema7 type from the json-schema package (via @ai-sdk/provider)
  */
 export type JsonSchemaLike = JSONSchema7
 
 /**
  * Convert JSON Schema to Zod schema
  * This avoids non-standard fields like input_examples that Anthropic doesn't support
+ * TODO: Anthropic/beta support input_examples
  */
 export function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
   const schemaType = schema.type
