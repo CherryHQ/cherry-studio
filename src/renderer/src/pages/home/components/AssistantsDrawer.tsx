@@ -1,6 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { isMac } from '@renderer/config/constant'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useAppSelector } from '@renderer/store'
 import type { Assistant, Topic } from '@renderer/types'
 import { Drawer } from 'antd'
 import { useState } from 'react'
@@ -27,6 +28,7 @@ const PopupContainer: React.FC<Props> = ({
 }) => {
   const [open, setOpen] = useState(true)
   const { setTimeoutTimer } = useTimer()
+  const tabKey = useAppSelector((s) => s.tabs.activeTabId) || 'home'
 
   const onClose = () => {
     setOpen(false)
@@ -69,6 +71,7 @@ const PopupContainer: React.FC<Props> = ({
           onClose()
         }}
         position="left"
+        tabKey={tabKey}
       />
     </Drawer>
   )

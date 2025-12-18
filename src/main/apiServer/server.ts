@@ -15,6 +15,7 @@ const GLOBAL_KEEPALIVE_TIMEOUT_MS = 60_000
 
 export class ApiServer {
   private server: ReturnType<typeof createServer> | null = null
+  private lastIsRunningSnapshot: { hasServer: boolean; isListening: boolean; result: boolean } | null = null
 
   async start(): Promise<void> {
     if (this.server && this.server.listening) {
@@ -87,7 +88,17 @@ export class ApiServer {
     const isListening = this.server?.listening || false
     const result = hasServer && isListening
 
-    logger.debug('isRunning check', { hasServer, isListening, result })
+    // 高频查询时只在状态发生变化时记录，避免日志刷屏影响交互。
+    const snapshot = { hasServer, isListening, result }
+    if (
+      !this.lastIsRunningSnapshot ||
+      this.lastIsRunningSnapshot.hasServer !== snapshot.hasServer ||
+      this.lastIsRunningSnapshot.isListening !== snapshot.isListening ||
+      this.lastIsRunningSnapshot.result !== snapshot.result
+    ) {
+      logger.debug('isRunning check', snapshot)
+      this.lastIsRunningSnapshot = snapshot
+    }
 
     return result
   }

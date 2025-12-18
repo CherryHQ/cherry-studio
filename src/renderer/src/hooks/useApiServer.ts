@@ -2,10 +2,47 @@ import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setApiServerRunningAction } from '@renderer/store/runtime'
 import { setApiServerEnabled as setApiServerEnabledAction } from '@renderer/store/settings'
+import type { GetApiServerStatusResult } from '@types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useApiServer')
+
+// 避免大量组件同时挂载时，重复通过 IPC 频繁查询状态导致卡顿与日志刷屏：
+// - single-flight：同一时刻只允许一个 in-flight 请求
+// - TTL 缓存：短时间内复用上一次结果
+const STATUS_CACHE_TTL_MS = 1_000
+let cachedStatus: GetApiServerStatusResult | null = null
+let cachedStatusAt = 0
+let inFlightStatusPromise: Promise<GetApiServerStatusResult> | null = null
+
+const invalidateStatusCache = () => {
+  cachedStatus = null
+  cachedStatusAt = 0
+}
+
+const getStatusSingleFlight = async (options?: { bypassCache?: boolean }): Promise<GetApiServerStatusResult> => {
+  const now = Date.now()
+  if (!options?.bypassCache && cachedStatus && now - cachedStatusAt < STATUS_CACHE_TTL_MS) {
+    return cachedStatus
+  }
+  if (inFlightStatusPromise) {
+    return inFlightStatusPromise
+  }
+
+  inFlightStatusPromise = window.api.apiServer
+    .getStatus()
+    .then((status) => {
+      cachedStatus = status
+      cachedStatusAt = Date.now()
+      return status
+    })
+    .finally(() => {
+      inFlightStatusPromise = null
+    })
+
+  return inFlightStatusPromise
+}
 
 // Module-level single instance subscription to prevent EventEmitter memory leak
 // Only one IPC listener will be registered regardless of how many components use this hook
@@ -54,25 +91,29 @@ export const useApiServer = () => {
   )
 
   // API Server functions
-  const checkApiServerStatus = useCallback(async () => {
-    setApiServerLoading(true)
-    try {
-      const status = await window.api.apiServer.getStatus()
-      setApiServerRunning(status.running)
-      if (status.running && !apiServerConfig.enabled) {
-        setApiServerEnabled(true)
+  const checkApiServerStatus = useCallback(
+    async (options?: { bypassCache?: boolean }) => {
+      setApiServerLoading(true)
+      try {
+        const status = await getStatusSingleFlight(options)
+        setApiServerRunning(status.running)
+        if (status.running && !apiServerConfig.enabled) {
+          setApiServerEnabled(true)
+        }
+      } catch (error: any) {
+        logger.error('Failed to check API server status:', error)
+      } finally {
+        setApiServerLoading(false)
       }
-    } catch (error: any) {
-      logger.error('Failed to check API server status:', error)
-    } finally {
-      setApiServerLoading(false)
-    }
-  }, [apiServerConfig.enabled, setApiServerEnabled, setApiServerLoading, setApiServerRunning])
+    },
+    [apiServerConfig.enabled, setApiServerEnabled]
+  )
 
   const startApiServer = useCallback(async () => {
     if (apiServerLoading) return
     setApiServerLoading(true)
     try {
+      invalidateStatusCache()
       const result = await window.api.apiServer.start()
       if (result.success) {
         setApiServerRunning(true)
@@ -92,6 +133,7 @@ export const useApiServer = () => {
     if (apiServerLoading) return
     setApiServerLoading(true)
     try {
+      invalidateStatusCache()
       const result = await window.api.apiServer.stop()
       if (result.success) {
         setApiServerRunning(false)
@@ -111,10 +153,11 @@ export const useApiServer = () => {
     if (apiServerLoading) return
     setApiServerLoading(true)
     try {
+      invalidateStatusCache()
       const result = await window.api.apiServer.restart()
       setApiServerEnabled(result.success)
       if (result.success) {
-        await checkApiServerStatus()
+        await checkApiServerStatus({ bypassCache: true })
         window.toast.success(t('apiServer.messages.restartSuccess'))
       } else {
         window.toast.error(t('apiServer.messages.restartError') + result.error)
@@ -139,7 +182,8 @@ export const useApiServer = () => {
   // Create stable callback for the single instance subscription
   const handleReady = useCallback(() => {
     logger.info('API server ready event received, checking status')
-    void checkStatusRef.current()
+    invalidateStatusCache()
+    void checkStatusRef.current({ bypassCache: true })
   }, [])
 
   // Listen for API server ready event using single instance subscription
