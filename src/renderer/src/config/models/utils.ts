@@ -267,3 +267,43 @@ export const isGemini3ThinkingTokenModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return isGemini3Model(model) && !modelId.includes('image')
 }
+
+/**
+ * Check if the model is a Gemini 3 Flash model
+ * Matches: gemini-3-flash, gemini-3-flash-preview, gemini-3-flash-preview-09-2025, gemini-flash-latest (alias)
+ * Excludes: gemini-3-flash-image-preview
+ * @param model - The model to check
+ * @returns true if the model is a Gemini 3 Flash model
+ */
+export const isGemini3FlashModel = (model: Model | undefined | null): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  // Check for gemini-flash-latest alias (currently points to gemini-3-flash, may change in future)
+  if (modelId === 'gemini-flash-latest') {
+    return true
+  }
+  // Check for gemini-3-flash with optional suffixes, excluding image variants
+  return /gemini-3-flash(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+}
+
+/**
+ * Check if the model is a Gemini 3 Pro model
+ * Matches: gemini-3-pro, gemini-3-pro-preview, gemini-3-pro-preview-09-2025, gemini-pro-latest (alias)
+ * Excludes: gemini-3-pro-image-preview
+ * @param model - The model to check
+ * @returns true if the model is a Gemini 3 Pro model
+ */
+export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  // Check for gemini-pro-latest alias (currently points to gemini-3-pro, may change in future)
+  if (modelId === 'gemini-pro-latest') {
+    return true
+  }
+  // Check for gemini-3-pro with optional suffixes, excluding image variants
+  return /gemini-3-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+}
