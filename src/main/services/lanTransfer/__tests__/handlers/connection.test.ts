@@ -1,11 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import { EventEmitter } from 'node:events'
+import type { Socket } from 'node:net'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   buildHandshakeMessage,
   createDataHandler,
   getAbortError,
   HANDSHAKE_PROTOCOL_VERSION,
-  pickHost
+  pickHost,
+  waitForSocketDrain
 } from '../../handlers/connection'
 
 // Mock electron app
@@ -28,7 +32,7 @@ describe('connection handlers', () => {
       expect(typeof message.platform).toBe('string')
     })
 
-    it('should use protocol version 3', () => {
+    it('should use protocol version 1', () => {
     expect(HANDSHAKE_PROTOCOL_VERSION).toBe('1')
     })
   })
@@ -136,6 +140,105 @@ describe('connection handlers', () => {
       handler.handleData(Buffer.from('\n\n{"type":"test"}\n\n'))
 
       expect(lines).toEqual(['{"type":"test"}'])
+    })
+
+    it('should throw error when buffer exceeds MAX_LINE_BUFFER_SIZE', () => {
+      const handler = createDataHandler(vi.fn())
+
+      // Create a buffer larger than 1MB (MAX_LINE_BUFFER_SIZE)
+      const largeData = 'x'.repeat(1024 * 1024 + 1)
+
+      expect(() => handler.handleData(Buffer.from(largeData))).toThrow('Control message too large')
+    })
+
+    it('should reset buffer after exceeding MAX_LINE_BUFFER_SIZE', () => {
+      const lines: string[] = []
+      const handler = createDataHandler((line) => lines.push(line))
+
+      // Create a buffer larger than 1MB
+      const largeData = 'x'.repeat(1024 * 1024 + 1)
+
+      try {
+        handler.handleData(Buffer.from(largeData))
+      } catch {
+        // Expected error
+      }
+
+      // Buffer should be reset, so lineBuffer should be empty
+      expect(handler.lineBuffer).toBe('')
+    })
+  })
+
+  describe('waitForSocketDrain', () => {
+    let mockSocket: Socket & EventEmitter
+
+    beforeEach(() => {
+      mockSocket = Object.assign(new EventEmitter(), {
+        destroyed: false,
+        writable: true,
+        write: vi.fn(),
+        off: vi.fn(),
+        removeAllListeners: vi.fn()
+      }) as unknown as Socket & EventEmitter
+    })
+
+    afterEach(() => {
+      vi.resetAllMocks()
+    })
+
+    it('should throw error when abort signal is already aborted', async () => {
+      const abortController = new AbortController()
+      abortController.abort(new Error('Already aborted'))
+
+      await expect(waitForSocketDrain(mockSocket, abortController.signal)).rejects.toThrow('Already aborted')
+    })
+
+    it('should throw error when socket is destroyed', async () => {
+      mockSocket.destroyed = true
+      const abortController = new AbortController()
+
+      await expect(waitForSocketDrain(mockSocket, abortController.signal)).rejects.toThrow('Socket is closed')
+    })
+
+    it('should resolve when drain event is emitted', async () => {
+      const abortController = new AbortController()
+
+      const drainPromise = waitForSocketDrain(mockSocket, abortController.signal)
+
+      // Emit drain event after a short delay
+      setImmediate(() => mockSocket.emit('drain'))
+
+      await expect(drainPromise).resolves.toBeUndefined()
+    })
+
+    it('should reject when close event is emitted', async () => {
+      const abortController = new AbortController()
+
+      const drainPromise = waitForSocketDrain(mockSocket, abortController.signal)
+
+      setImmediate(() => mockSocket.emit('close'))
+
+      await expect(drainPromise).rejects.toThrow('Socket closed while waiting for drain')
+    })
+
+    it('should reject when error event is emitted', async () => {
+      const abortController = new AbortController()
+
+      const drainPromise = waitForSocketDrain(mockSocket, abortController.signal)
+
+      setImmediate(() => mockSocket.emit('error', new Error('Network error')))
+
+      await expect(drainPromise).rejects.toThrow('Network error')
+    })
+
+    it('should reject when abort signal is triggered', async () => {
+      const abortController = new AbortController()
+
+      const drainPromise = waitForSocketDrain(mockSocket, abortController.signal)
+
+      setImmediate(() => abortController.abort(new Error('User cancelled')))
+
+      await expect(drainPromise).rejects.toThrow('User cancelled')
     })
   })
 

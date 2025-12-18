@@ -13,6 +13,8 @@ describe('binaryProtocol', () => {
     beforeEach(() => {
       writtenBuffers = []
       mockSocket = Object.assign(new EventEmitter(), {
+        destroyed: false,
+        writable: true,
         write: vi.fn((buffer: Buffer) => {
           writtenBuffers.push(Buffer.from(buffer))
           return true
@@ -78,6 +80,18 @@ describe('binaryProtocol', () => {
       // totalLen = type(1) + tidLen(2) + tid(n) + idx(4) + data(m)
       const expectedTotalLen = 1 + 2 + Buffer.from(transferId).length + 4 + data.length
       expect(totalLen).toBe(expectedTotalLen)
+    })
+
+    it('should throw error when socket is not writable', () => {
+      mockSocket.writable = false
+
+      expect(() => sendBinaryChunk(mockSocket, 'test-id', 0, Buffer.from('data'))).toThrow('Socket is not writable')
+    })
+
+    it('should throw error when socket is destroyed', () => {
+      mockSocket.destroyed = true
+
+      expect(() => sendBinaryChunk(mockSocket, 'test-id', 0, Buffer.from('data'))).toThrow('Socket is not writable')
     })
   })
 

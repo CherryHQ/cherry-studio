@@ -175,7 +175,7 @@ export function sendFileEnd(ctx: FileTransferContext, transferId: string): void 
 }
 
 /**
- * Stream file chunks to the receiver (v3 streaming mode - no per-chunk acknowledgment).
+ * Stream file chunks to the receiver (v1 streaming mode - no per-chunk acknowledgment).
  */
 export async function streamFileChunks(
   socket: Socket,
@@ -201,7 +201,7 @@ export async function streamFileChunks(
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
       bytesSent += buffer.length
 
-      // Send chunk as binary frame (v3 streaming) with backpressure handling
+      // Send chunk as binary frame (v1 streaming) with backpressure handling
       const canContinue = sendBinaryChunk(socket, transferId, chunkIndex, buffer)
       if (!canContinue) {
         await waitForSocketDrain(socket, abortSignal)

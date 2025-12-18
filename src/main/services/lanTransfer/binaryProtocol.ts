@@ -1,12 +1,12 @@
 import type { Socket } from 'node:net'
 
 /**
- * Binary protocol constants (v3)
+ * Binary protocol constants (v1)
  */
 export const BINARY_TYPE_FILE_CHUNK = 0x01
 
 /**
- * Send file chunk as binary frame (protocol v3 - streaming mode)
+ * Send file chunk as binary frame (protocol v1 - streaming mode)
  *
  * Frame format:
  * ```

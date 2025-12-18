@@ -43,7 +43,7 @@ const logger = loggerService.withContext('LanTransferClientService')
  * LAN Transfer Client Service
  *
  * Handles outgoing file transfers to LAN peers via TCP.
- * Protocol v3 with streaming mode (no per-chunk acknowledgment).
+ * Protocol v1 with streaming mode (no per-chunk acknowledgment).
  */
 class LanTransferClientService {
   private socket: Socket | null = null

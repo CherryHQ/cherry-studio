@@ -1,7 +1,7 @@
 /**
  * LAN Transfer Client Module
  *
- * Protocol: v3.0 (streaming mode)
+ * Protocol: v1.0 (streaming mode)
  *
  * Features:
  * - Binary frame format for file chunks (no base64 overhead)
