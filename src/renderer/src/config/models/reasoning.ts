@@ -146,7 +146,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isSupportedThinkingTokenDoubaoModel(model)) {
     if (isDoubaoThinkingAutoModel(model)) {
       thinkingModelType = 'doubao'
-    } else if (isDoubaoSeedAfter251015(model)) {
+    } else if (isDoubaoSeedAfter251015(model) || isDoubaoSeed18Model(model)) {
       thinkingModelType = 'doubao_after_251015'
     } else {
       thinkingModelType = 'doubao_no_auto'
@@ -457,7 +457,7 @@ export function isQwenAlwaysThinkModel(model?: Model): boolean {
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?(?!-(?:thinking)(?:-|$))|seed-code(?:-preview)?(?:-\d+)?)(?:-[\w-]+)*/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-(?:thinking)(?:-|$))|seed-code(?:-preview)?(?:-\d+)?)(?:-[\w-]+)*/i
 
 // 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
 // Auto thinking is no longer supported after version 251015, see https://console.volcengine.com/ark/region:ark+cn-beijing/model/detail?Id=doubao-seed-1-6
@@ -473,6 +473,11 @@ export function isDoubaoSeedAfter251015(model: Model): boolean {
   const pattern = new RegExp(/doubao-seed-1-6-(?:lite-)?251015/i)
   const result = pattern.test(model.id)
   return result
+}
+
+export function isDoubaoSeed18Model(model: Model): boolean {
+  const pattern = /doubao-seed-1[.-]8(?:-[\w-]+)?/i
+  return pattern.test(model.id) || pattern.test(model.name)
 }
 
 export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
