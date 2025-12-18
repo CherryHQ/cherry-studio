@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Automatisch ermitteltes Git Bash wird verwendet",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "Benutzerdefinierten Pfad löschen"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
         "recheck": "Überprüfe die Git Bash-Installation erneut",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Git Bash erforderlich"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Die ausgewählte Datei ist keine gültige Git Bash ausführbare Datei (bash.exe).",
         "title": "Git Bash ausführbare Datei auswählen"
       },
-      "success": "Git Bash erfolgreich erkannt!"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bash erfolgreich erkannt!",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
@@ -544,14 +548,23 @@
       "more": "Assistenteneinstellungen",
       "prompt": "Prompt-Einstellungen",
       "reasoning_effort": {
+        "auto": "Auto",
+        "auto_description": "Denkaufwand flexibel bestimmen",
         "default": "Standard",
+        "default_description": "Vom Standardverhalten des Modells abhängen, ohne Konfiguration.",
         "high": "Tiefes Nachdenken",
+        "high_description": "Ganzheitliches Denken",
         "label": "Gedankenkettenlänge",
         "low": "Spontan",
+        "low_description": "Geringfügige Argumentation",
         "medium": "Überlegt",
+        "medium_description": "Denken auf mittlerem Niveau",
         "minimal": "Minimal",
+        "minimal_description": "Minimales Denken",
         "off": "Aus",
-        "xhigh": "Extra hoch"
+        "off_description": "Denken deaktivieren",
+        "xhigh": "Extra hoch",
+        "xhigh_description": "Extra hohes Denkvermögen"
       },
       "regular_phrases": {
         "add": "Phrase hinzufügen",
@@ -2630,6 +2643,7 @@
     "lanyun": "Lanyun Technologie",
     "lmstudio": "LM Studio",
     "longcat": "Meißner Riesenhamster",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3926,6 +3940,7 @@
         "mcp_auto_install": "MCP-Service automatisch installieren (Beta-Version)",
         "memory": "MCP-Server mit persistenter Erinnerungsbasis auf lokalem Wissensgraphen, der Informationen über verschiedene Dialoge hinweg speichert. MEMORY_FILE_PATH-Umgebungsvariable muss konfiguriert werden",
         "no": "Keine Beschreibung",
+        "nowledge_mem": "Erfordert lokal laufende Nowledge Mem App. Speichert KI-Chats, Tools, Notizen, Agenten und Dateien in einem privaten Speicher auf Ihrem Computer. Download unter https://mem.nowledge.co/",
         "python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
         "sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht"
       },

@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "使用自動偵測的 Git Bash",
+      "autoDiscoveredHint": "自動發現",
       "clear": {
         "button": "清除自訂路徑"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "在 Windows 上執行 Agent 需要 Git Bash。沒有它 Agent 無法運作。請從以下網址安裝 Git for Windows",
         "recheck": "重新偵測 Git Bash 安裝",
+        "required": "在 Windows 上需要設定 Git Bash 路徑",
         "title": "需要 Git Bash"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "選擇的檔案不是有效的 Git Bash 可執行檔（bash.exe）。",
         "title": "選擇 Git Bash 可執行檔"
       },
-      "success": "成功偵測到 Git Bash！"
+      "placeholder": "選擇 bash.exe 路徑",
+      "success": "成功偵測到 Git Bash！",
+      "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
     },
     "input": {
       "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令"
@@ -544,14 +548,23 @@
       "more": "助手設定",
       "prompt": "提示詞設定",
       "reasoning_effort": {
+        "auto": "自動",
+        "auto_description": "彈性決定推理投入的心力",
         "default": "預設",
+        "default_description": "依賴模型的預設行為，無需任何配置。",
         "high": "盡力思考",
+        "high_description": "高級推理",
         "label": "思維鏈長度",
         "low": "稍微思考",
+        "low_description": "低階推理",
         "medium": "正常思考",
+        "medium_description": "中等程度推理",
         "minimal": "最少思考",
+        "minimal_description": "最少推理",
         "off": "關閉",
-        "xhigh": "極力思考"
+        "off_description": "禁用推理",
+        "xhigh": "極力思考",
+        "xhigh_description": "超高階推理"
       },
       "regular_phrases": {
         "add": "新增短語",
@@ -2630,6 +2643,7 @@
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
     "longcat": "龍貓",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -3926,6 +3940,7 @@
         "mcp_auto_install": "自動安裝 MCP 服務（測試版）",
         "memory": "基於本機知識圖譜的持久性記憶基礎實做。這使得模型能夠在不同對話間記住使用者的相關資訊。需要設定 MEMORY_FILE_PATH 環境變數。",
         "no": "無描述",
+        "nowledge_mem": "需要本機執行 Nowledge Mem 應用程式。將 AI 對話、工具、筆記、代理和檔案保存在電腦上的私人記憶體中。請從 https://mem.nowledge.co/ 下載",
         "python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
         "sequentialthinking": "一個 MCP 伺服器實做，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
       },

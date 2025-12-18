@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Χρησιμοποιείται αυτόματα εντοπισμένο Git Bash",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "Διαγραφή προσαρμοσμένης διαδρομής"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Ο πράκτορας δεν μπορεί να λειτουργήσει χωρίς αυτό. Παρακαλούμε εγκαταστήστε το Git για Windows από",
         "recheck": "Επανέλεγχος Εγκατάστασης του Git Bash",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Απαιτείται Git Bash"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Το επιλεγμένο αρχείο δεν είναι έγκυρο εκτελέσιμο Git Bash (bash.exe).",
         "title": "Επιλογή εκτελέσιμου Git Bash"
       },
-      "success": "Το Git Bash εντοπίστηκε με επιτυχία!"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Το Git Bash εντοπίστηκε με επιτυχία!",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
@@ -544,14 +548,23 @@
       "more": "Ρυθμίσεις Βοηθού",
       "prompt": "Ρυθμίσεις προκαλύμματος",
       "reasoning_effort": {
+        "auto": "Αυτοκίνητο",
+        "auto_description": "Ευέλικτος καθορισμός της προσπάθειας συλλογισμού",
         "default": "Προεπιλογή",
+        "default_description": "Εξαρτηθείτε από την προεπιλεγμένη συμπεριφορά του μοντέλου, χωρίς καμία διαμόρφωση.",
         "high": "Μεγάλο",
+        "high_description": "Υψηλού επιπέδου συλλογισμός",
         "label": "Μήκος λογισμικού αλυσίδας",
         "low": "Μικρό",
+        "low_description": "Χαμηλού επιπέδου συλλογιστική",
         "medium": "Μεσαίο",
+        "medium_description": "Αιτιολόγηση μεσαίου επιπέδου",
         "minimal": "ελάχιστος",
+        "minimal_description": "Ελάχιστος συλλογισμός",
         "off": "Απενεργοποίηση",
-        "xhigh": "Εξαιρετικά Υψηλή"
+        "off_description": "Απενεργοποίηση λογικής",
+        "xhigh": "Εξαιρετικά Υψηλή",
+        "xhigh_description": "Εξαιρετικά υψηλού επιπέδου συλλογισμός"
       },
       "regular_phrases": {
         "add": "Προσθήκη φράσης",
@@ -2630,6 +2643,7 @@
     "lanyun": "Λανιούν Τεχνολογία",
     "lmstudio": "LM Studio",
     "longcat": "Τσίρο",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope Magpie",
@@ -3926,6 +3940,7 @@
         "mcp_auto_install": "Αυτόματη εγκατάσταση υπηρεσίας MCP (προβολή)",
         "memory": "Βασική υλοποίηση μόνιμης μνήμης με βάση τοπικό γράφημα γνώσης. Αυτό επιτρέπει στο μοντέλο να θυμάται πληροφορίες σχετικές με τον χρήστη ανάμεσα σε διαφορετικές συνομιλίες. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος MEMORY_FILE_PATH.",
         "no": "Χωρίς περιγραφή",
+        "nowledge_mem": "[to be translated]:Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",
         "sequentialthinking": "ένας εξυπηρετητής MCP που υλοποιείται, παρέχοντας εργαλεία για δυναμική και αναστοχαστική επίλυση προβλημάτων μέσω δομημένων διαδικασιών σκέψης"
       },

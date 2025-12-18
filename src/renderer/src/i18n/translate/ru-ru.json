@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Используется автоматически обнаруженный Git Bash",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "Очистить пользовательский путь"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Для запуска агентов в Windows требуется Git Bash. Без него агент не может работать. Пожалуйста, установите Git для Windows с",
         "recheck": "Повторная проверка установки Git Bash",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Требуется Git Bash"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Выбранный файл не является допустимым исполняемым файлом Git Bash (bash.exe).",
         "title": "Выберите исполняемый файл Git Bash"
       },
-      "success": "Git Bash успешно обнаружен!"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bash успешно обнаружен!",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду"
@@ -544,14 +548,23 @@
       "more": "Настройки ассистента",
       "prompt": "Настройки промптов",
       "reasoning_effort": {
+        "auto": "Авто",
+        "auto_description": "Гибко определяйте усилие на рассуждение",
         "default": "По умолчанию",
+        "default_description": "Полагаться на поведение модели по умолчанию, без какой-либо конфигурации.",
         "high": "Стараюсь думать",
+        "high_description": "Высокоуровневое рассуждение",
         "label": "Настройки размышлений",
         "low": "Меньше думать",
+        "low_description": "Низкоуровневое рассуждение",
         "medium": "Среднее",
+        "medium_description": "Средний уровень рассуждения",
         "minimal": "минимальный",
+        "minimal_description": "Минимальное рассуждение",
         "off": "Выключить",
-        "xhigh": "Сверхвысокое"
+        "off_description": "Отключить рассуждение",
+        "xhigh": "Сверхвысокое",
+        "xhigh_description": "Высочайший уровень рассуждений"
       },
       "regular_phrases": {
         "add": "Добавить подсказку",
@@ -2630,6 +2643,7 @@
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
     "longcat": "Тоторо",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3926,6 +3940,7 @@
         "mcp_auto_install": "Автоматическая установка службы MCP (бета-версия)",
         "memory": "реализация постоянной памяти на основе локального графа знаний. Это позволяет модели запоминать информацию о пользователе между различными диалогами. Требуется настроить переменную среды MEMORY_FILE_PATH.",
         "no": "без описания",
+        "nowledge_mem": "Требуется запущенное локально приложение Nowledge Mem. Хранит чаты ИИ, инструменты, заметки, агентов и файлы в приватной памяти на вашем компьютере. Скачать можно на https://mem.nowledge.co/",
         "python": "Выполняйте код Python в безопасной песочнице. Запускайте Python с помощью Pyodide, поддерживается большинство стандартных библиотек и пакетов для научных вычислений",
         "sequentialthinking": "MCP серверная реализация, предоставляющая инструменты для динамического и рефлексивного решения проблем посредством структурированного мыслительного процесса"
       },

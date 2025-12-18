@@ -2,10 +2,13 @@ import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
 import { ModernAiProvider } from '@renderer/aiCore'
 import AiProvider from '@renderer/aiCore/legacy'
+import { getMessageContent } from '@renderer/aiCore/plugins/searchOrchestrationPlugin'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
+import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
+import type { Assistant } from '@renderer/types'
 import {
   type FileMetadata,
   type KnowledgeBase,
@@ -16,13 +19,17 @@ import {
 } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
+import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
+import type { ModelMessage, UserModelMessage } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
+import type { BlockManager } from './messageStreaming'
 
 const logger = loggerService.withContext('RendererKnowledgeService')
 
@@ -337,4 +344,129 @@ export function processKnowledgeReferences(
       }
     }
   }
+}
+
+export const injectUserMessageWithKnowledgeSearchPrompt = async ({
+  modelMessages,
+  assistant,
+  assistantMsgId,
+  topicId,
+  blockManager,
+  setCitationBlockId
+}: {
+  modelMessages: ModelMessage[]
+  assistant: Assistant
+  assistantMsgId: string
+  topicId?: string
+  blockManager: BlockManager
+  setCitationBlockId: (blockId: string) => void
+}) => {
+  if (assistant.knowledge_bases?.length && modelMessages.length > 0) {
+    const lastUserMessage = modelMessages[modelMessages.length - 1]
+    const isUserMessage = lastUserMessage.role === 'user'
+
+    if (!isUserMessage) {
+      return
+    }
+
+    const knowledgeReferences = await getKnowledgeReferences({
+      assistant,
+      lastUserMessage,
+      topicId: topicId
+    })
+
+    if (knowledgeReferences.length === 0) {
+      return
+    }
+
+    await createKnowledgeReferencesBlock({
+      assistantMsgId,
+      knowledgeReferences,
+      blockManager,
+      setCitationBlockId
+    })
+
+    const question = getMessageContent(lastUserMessage) || ''
+    const references = JSON.stringify(knowledgeReferences, null, 2)
+
+    const knowledgeSearchPrompt = REFERENCE_PROMPT.replace('{question}', question).replace('{references}', references)
+
+    if (typeof lastUserMessage.content === 'string') {
+      lastUserMessage.content = knowledgeSearchPrompt
+    } else if (Array.isArray(lastUserMessage.content)) {
+      const textPart = lastUserMessage.content.find((part) => part.type === 'text')
+      if (textPart) {
+        textPart.text = knowledgeSearchPrompt
+      } else {
+        lastUserMessage.content.push({
+          type: 'text',
+          text: knowledgeSearchPrompt
+        })
+      }
+    }
+  }
+}
+
+export const getKnowledgeReferences = async ({
+  assistant,
+  lastUserMessage,
+  topicId
+}: {
+  assistant: Assistant
+  lastUserMessage: UserModelMessage
+  topicId?: string
+}) => {
+  // 如果助手没有知识库，返回空字符串
+  if (!assistant || isEmpty(assistant.knowledge_bases)) {
+    return []
+  }
+
+  // 获取知识库ID
+  const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
+
+  // 获取用户消息内容
+  const question = getMessageContent(lastUserMessage) || ''
+
+  // 获取知识库引用
+  const knowledgeReferences = await processKnowledgeSearch(
+    {
+      knowledge: {
+        question: [question],
+        rewrite: ''
+      }
+    },
+    knowledgeBaseIds,
+    topicId!
+  )
+
+  // 返回提示词
+  return knowledgeReferences
+}
+
+export const createKnowledgeReferencesBlock = async ({
+  assistantMsgId,
+  knowledgeReferences,
+  blockManager,
+  setCitationBlockId
+}: {
+  assistantMsgId: string
+  knowledgeReferences: KnowledgeReference[]
+  blockManager: BlockManager
+  setCitationBlockId: (blockId: string) => void
+}) => {
+  // 创建引用块
+  const citationBlock = createCitationBlock(
+    assistantMsgId,
+    { knowledge: knowledgeReferences },
+    { status: MessageBlockStatus.SUCCESS }
+  )
+
+  // 处理引用块
+  blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+
+  // 设置引用块ID
+  setCitationBlockId(citationBlock.id)
+
+  // 返回引用块
+  return citationBlock
 }

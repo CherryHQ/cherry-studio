@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Utilisation de Git Bash détecté automatiquement",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "Effacer le chemin personnalisé"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Git Bash est requis pour exécuter des agents sur Windows. L'agent ne peut pas fonctionner sans. Veuillez installer Git pour Windows depuis",
         "recheck": "Revérifier l'installation de Git Bash",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Git Bash requis"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Le fichier sélectionné n'est pas un exécutable Git Bash valide (bash.exe).",
         "title": "Sélectionner l'exécutable Git Bash"
       },
-      "success": "Git Bash détecté avec succès !"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bash détecté avec succès !",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
@@ -544,14 +548,23 @@
       "more": "Paramètres de l'assistant",
       "prompt": "Paramètres de l'invite",
       "reasoning_effort": {
+        "auto": "Auto",
+        "auto_description": "Déterminer de manière flexible l'effort de raisonnement",
         "default": "Par défaut",
+        "default_description": "Dépendre du comportement par défaut du modèle, sans aucune configuration.",
         "high": "Long",
+        "high_description": "Raisonnement de haut niveau",
         "label": "Longueur de la chaîne de raisonnement",
         "low": "Court",
+        "low_description": "Raisonnement de bas niveau",
         "medium": "Moyen",
+        "medium_description": "Raisonnement de niveau moyen",
         "minimal": "minimal",
+        "minimal_description": "Réflexion minimale",
         "off": "Off",
-        "xhigh": "Très élevée"
+        "off_description": "Désactiver le raisonnement",
+        "xhigh": "Très élevée",
+        "xhigh_description": "Raisonnement de très haut niveau"
       },
       "regular_phrases": {
         "add": "Добавить фразу",
@@ -2630,6 +2643,7 @@
     "lanyun": "Technologie Lan Yun",
     "lmstudio": "Studio LM",
     "longcat": "Mon voisin Totoro",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MoDa",
@@ -3926,6 +3940,7 @@
         "mcp_auto_install": "Installation automatique du service MCP (version bêta)",
         "memory": "Implémentation de base de mémoire persistante basée sur un graphe de connaissances local. Cela permet au modèle de se souvenir des informations relatives à l'utilisateur entre différentes conversations. Nécessite la configuration de la variable d'environnement MEMORY_FILE_PATH.",
         "no": "sans description",
+        "nowledge_mem": "[to be translated]:Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
         "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
       },

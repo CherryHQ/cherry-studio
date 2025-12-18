@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "自動検出されたGit Bashを使用中",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "カスタムパスをクリア"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
         "recheck": "Git Bashのインストールを再確認してください",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Git Bashが必要です"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "選択されたファイルは有効なGit Bash実行ファイル（bash.exe）ではありません。",
         "title": "Git Bash実行ファイルを選択"
       },
-      "success": "Git Bashが正常に検出されました！"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bashが正常に検出されました！",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
@@ -544,14 +548,23 @@
       "more": "アシスタント設定",
       "prompt": "プロンプト設定",
       "reasoning_effort": {
+        "auto": "自動",
+        "auto_description": "推論にかける労力を柔軟に調整する",
         "default": "デフォルト",
+        "default_description": "設定なしで、モデルの既定の動作に依存する。",
         "high": "最大限の思考",
+        "high_description": "高度な推論",
         "label": "思考連鎖の長さ",
         "low": "少しの思考",
+        "low_description": "低レベル推論",
         "medium": "普通の思考",
+        "medium_description": "中レベル推論",
         "minimal": "最小限の思考",
+        "minimal_description": "最小限の推論",
         "off": "オフ",
-        "xhigh": "超高"
+        "off_description": "推論を無効にする",
+        "xhigh": "超高",
+        "xhigh_description": "超高度な推論"
       },
       "regular_phrases": {
         "add": "プロンプトを追加",
@@ -2630,6 +2643,7 @@
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
     "longcat": "トトロ",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3926,6 +3940,7 @@
         "mcp_auto_install": "MCPサービスの自動インストール（ベータ版）",
         "memory": "ローカルのナレッジグラフに基づく永続的なメモリの基本的な実装です。これにより、モデルは異なる会話間でユーザーの関連情報を記憶できるようになります。MEMORY_FILE_PATH 環境変数の設定が必要です。",
         "no": "説明なし",
+        "nowledge_mem": "Nowledge Mem アプリをローカルで実行する必要があります。AI チャット、ツール、ノート、エージェント、ファイルをコンピューター上のプライベートメモリに保存します。https://mem.nowledge.co/ からダウンロードしてください",
         "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",
         "sequentialthinking": "構造化された思考プロセスを通じて動的かつ反省的な問題解決を行うためのツールを提供するMCPサーバーの実装"
       },
