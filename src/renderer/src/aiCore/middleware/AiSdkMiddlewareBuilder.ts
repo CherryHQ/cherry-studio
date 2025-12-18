@@ -5,7 +5,7 @@ import type { MCPTool } from '@renderer/types'
 import { type Assistant, type Message, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
-import { openrouterReasoningMiddleware, skipGeminiThoughtSignatureMiddleware } from '@shared/middleware'
+import { openrouterReasoningMiddleware, skipGeminiThoughtSignatureMiddleware } from '@shared/ai-sdk-middlewares'
 import type { LanguageModelMiddleware } from 'ai'
 import { extractReasoningMiddleware, simulateStreamingMiddleware } from 'ai'
 

@@ -46,8 +46,8 @@ vi.mock('@renderer/utils/api', () => ({
   isWithTrailingSharp: vi.fn((host) => host?.endsWith('#') || false)
 }))
 
-// Also mock @shared/api since formatProviderApiHost uses it directly
-vi.mock('@shared/api', async (importOriginal) => {
+// Also mock @shared/utils/url since formatProviderApiHost uses it directly
+vi.mock('@shared/utils/url', async (importOriginal) => {
   const actual = (await importOriginal()) as any
   return {
     ...actual,
@@ -93,7 +93,7 @@ vi.mock('@renderer/services/AssistantService', () => ({
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model, Provider } from '@renderer/types'
 import { isAzureOpenAIProvider, isCherryAIProvider, isPerplexityProvider } from '@renderer/utils/provider'
-import { formatApiHost } from '@shared/api'
+import { formatApiHost } from '@shared/utils/url'
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'

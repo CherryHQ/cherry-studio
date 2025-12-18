@@ -14,7 +14,7 @@ export {
   withoutTrailingApiVersion,
   withoutTrailingSharp,
   withoutTrailingSlash
-} from '@shared/api'
+} from '@shared/utils/url'
 
 /**
  * 格式化 API key 字符串。

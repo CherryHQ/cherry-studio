@@ -9,7 +9,7 @@ import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@che
 import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
-import { routeToEndpoint } from '../api'
+import { routeToEndpoint } from '../utils/url'
 import { isAzureOpenAIProvider, isOllamaProvider } from './detection'
 import { getAiSdkProviderId } from './mapping'
 import type { MinimalProvider } from './types'

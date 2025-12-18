@@ -18,7 +18,7 @@ import anthropicService from '@main/services/AnthropicService'
 import copilotService from '@main/services/CopilotService'
 import { reduxService } from '@main/services/ReduxService'
 import type { OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
-import { isGemini3ModelId } from '@shared/middleware'
+import { isGemini3ModelId } from '@shared/ai-sdk-middlewares'
 import {
   type AiSdkConfig,
   type AiSdkConfigContext,

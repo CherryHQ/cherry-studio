@@ -1,6 +1,6 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
-import { buildSharedMiddlewares, type SharedMiddlewareConfig } from '@shared/middleware'
+import { buildSharedMiddlewares, type SharedMiddlewareConfig } from '@shared/ai-sdk-middlewares'
 import { getAiSdkProviderId } from '@shared/provider'
 import type { Provider } from '@types'
 import type { Request, Response } from 'express'

@@ -14,7 +14,7 @@ import {
   isWithTrailingSharp,
   routeToEndpoint,
   withoutTrailingSlash
-} from '../api'
+} from '../utils/url'
 import {
   isAnthropicProvider,
   isAzureOpenAIProvider,
