@@ -797,10 +797,11 @@ class BackupManager {
   async deleteTempBackup(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> {
     try {
       // Security check: only allow deletion within temp directory
-      const tempBase = path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer')
-      const resolvedPath = path.resolve(filePath)
+      const tempBase = path.normalize(path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer'))
+      const resolvedPath = path.normalize(path.resolve(filePath))
 
-      if (!resolvedPath.startsWith(tempBase)) {
+      // Use normalized paths with trailing separator to prevent prefix attacks (e.g., /temp-evil)
+      if (!resolvedPath.startsWith(tempBase + path.sep) && resolvedPath !== tempBase) {
         logger.warn(`[BackupManager] Attempted to delete file outside temp directory: ${filePath}`)
         return false
       }

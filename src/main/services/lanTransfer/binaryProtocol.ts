@@ -23,6 +23,10 @@ export const BINARY_TYPE_FILE_CHUNK = 0x01
  * @returns true if data was buffered, false if backpressure should be applied
  */
 export function sendBinaryChunk(socket: Socket, transferId: string, chunkIndex: number, data: Buffer): boolean {
+  if (!socket || socket.destroyed || !socket.writable) {
+    throw new Error('Socket is not writable')
+  }
+
   const tidBuffer = Buffer.from(transferId, 'utf8')
   const tidLen = tidBuffer.length
 

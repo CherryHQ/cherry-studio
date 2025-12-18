@@ -9,6 +9,9 @@ import type { ConnectionContext } from '../types'
 
 export const HANDSHAKE_PROTOCOL_VERSION = '1'
 
+/** Maximum size for line buffer to prevent memory exhaustion from malicious peers */
+const MAX_LINE_BUFFER_SIZE = 1024 * 1024 // 1MB limit for control messages
+
 const logger = loggerService.withContext('LanTransferConnection')
 
 /**
@@ -74,6 +77,14 @@ export function createDataHandler(onControlLine: (line: string) => void): {
     },
     handleData(chunk: Buffer) {
       lineBuffer += chunk.toString('utf8')
+
+      // Prevent memory exhaustion from malicious peers sending data without newlines
+      if (lineBuffer.length > MAX_LINE_BUFFER_SIZE) {
+        logger.error('Line buffer exceeded maximum size, resetting')
+        lineBuffer = ''
+        throw new Error('Control message too large')
+      }
+
       let newlineIndex = lineBuffer.indexOf('\n')
       while (newlineIndex !== -1) {
         const line = lineBuffer.slice(0, newlineIndex).trim()

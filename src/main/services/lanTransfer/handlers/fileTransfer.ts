@@ -32,8 +32,17 @@ export async function validateFile(filePath: string): Promise<{ stats: fs.Stats;
   let stats: fs.Stats
   try {
     stats = await fs.promises.stat(filePath)
-  } catch {
-    throw new Error(`File not found: ${filePath}`)
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    if (nodeError.code === 'ENOENT') {
+      throw new Error(`File not found: ${filePath}`)
+    } else if (nodeError.code === 'EACCES') {
+      throw new Error(`Permission denied: ${filePath}`)
+    } else if (nodeError.code === 'ENOTDIR') {
+      throw new Error(`Invalid path: ${filePath}`)
+    } else {
+      throw new Error(`Cannot access file: ${filePath} (${nodeError.code || 'unknown error'})`)
+    }
   }
 
   if (!stats.isFile()) {

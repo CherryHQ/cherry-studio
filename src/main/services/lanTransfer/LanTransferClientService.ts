@@ -53,6 +53,9 @@ class LanTransferClientService {
   private isConnecting = false
   private activeTransfer?: ActiveFileTransfer
   private lastConnectOptions?: LocalTransferConnectPayload
+  private consecutiveJsonErrors = 0
+  private static readonly MAX_CONSECUTIVE_JSON_ERRORS = 3
+  private reconnectPromise: Promise<void> | null = null
 
   constructor() {
     this.responseManager.setTimeoutCallback(() => void this.disconnect())
@@ -296,8 +299,9 @@ class LanTransferClientService {
         transferId,
         reason: 'Cancelled by user'
       })
-    } catch {
-      // Ignore errors when sending cancel message
+    } catch (error) {
+      // Expected when connection is already broken
+      logger.warn('Failed to send cancel message', error as Error)
     }
 
     abortTransfer(this.activeTransfer, new Error('Transfer cancelled by user'))
@@ -317,8 +321,24 @@ class LanTransferClientService {
       throw new Error('No active connection. Please connect to a peer first.')
     }
 
+    // Prevent concurrent reconnection attempts
+    if (this.reconnectPromise) {
+      logger.debug('Waiting for existing reconnection attempt...')
+      await this.reconnectPromise
+      return
+    }
+
     logger.info('Connection lost, attempting to reconnect...')
-    await this.connectAndHandshake(this.lastConnectOptions)
+    this.reconnectPromise = this.connectAndHandshake(this.lastConnectOptions)
+      .then(() => {
+        this.reconnectPromise = null
+      })
+      .catch((error) => {
+        this.reconnectPromise = null
+        throw error
+      })
+
+    await this.reconnectPromise
   }
 
   private async performFileTransfer(
@@ -393,8 +413,21 @@ class LanTransferClientService {
     let payload: Record<string, unknown>
     try {
       payload = JSON.parse(line)
+      this.consecutiveJsonErrors = 0 // Reset on successful parse
     } catch {
-      logger.warn('Received invalid JSON control message', { line })
+      this.consecutiveJsonErrors++
+      logger.warn('Received invalid JSON control message', { line, consecutiveErrors: this.consecutiveJsonErrors })
+
+      if (this.consecutiveJsonErrors >= LanTransferClientService.MAX_CONSECUTIVE_JSON_ERRORS) {
+        const message = `Protocol error: ${this.consecutiveJsonErrors} consecutive invalid messages`
+        logger.error(message)
+        this.broadcastClientEvent({
+          type: 'error',
+          message,
+          timestamp: Date.now()
+        })
+        this.consecutiveJsonErrors = 0
+      }
       return
     }
 
