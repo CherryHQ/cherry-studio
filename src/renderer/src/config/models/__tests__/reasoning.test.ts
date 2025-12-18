@@ -951,6 +951,14 @@ describe('Gemini Models', () => {
       ).toBe(true)
       expect(
         isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
           id: 'google/gemini-3-pro-preview',
           name: '',
           provider: '',
@@ -990,6 +998,31 @@ describe('Gemini Models', () => {
           group: ''
         })
       ).toBe(true)
+      // Version with date suffixes
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash-preview-09-2025',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro-preview-09-2025',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash-exp-1234',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
       // Version with decimals
       expect(
         isSupportedThinkingTokenGeminiModel({
@@ -1009,7 +1042,8 @@ describe('Gemini Models', () => {
       ).toBe(true)
     })
 
-    it('should return true for gemini-3 image models', () => {
+    it('should return true for gemini-3-pro-image models only', () => {
+      // Only gemini-3-pro-image models should return true
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3-pro-image-preview',
@@ -1018,6 +1052,17 @@ describe('Gemini Models', () => {
           group: ''
         })
       ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro-image',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return false for other gemini-3 image models', () => {
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3.0-flash-image-preview',
@@ -1075,6 +1120,22 @@ describe('Gemini Models', () => {
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3-flash-tts',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash-preview-tts',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro-tts',
           name: '',
           provider: '',
           group: ''
@@ -2072,7 +2133,7 @@ describe('getModelSupportedReasoningEffortOptions', () => {
 
       const geminiModel = createModel({ id: 'gemini-2.5-flash-latest' })
       const geminiResult = getModelSupportedReasoningEffortOptions(geminiModel)
-      expect(geminiResult).toEqual(MODEL_SUPPORTED_OPTIONS.gemini)
+      expect(geminiResult).toEqual(MODEL_SUPPORTED_OPTIONS.gemini2_flash)
     })
   })
 })
