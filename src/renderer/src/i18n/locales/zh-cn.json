@@ -1877,6 +1877,7 @@
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
         "no_config": "未配置思源笔记 API 地址或令牌"
       },
+      "sse_idle_timeout": "SSE 空闲超时：{{minutes}} 分钟未收到流事件",
       "unknown": "未知错误",
       "yuque": {
         "export": "导出语雀错误，请检查连接状态并对照文档检查配置",
@@ -4579,6 +4580,20 @@
       "remove_invalid_keys": "删除无效密钥",
       "search": "搜索模型平台...",
       "search_placeholder": "搜索模型 ID 或名称",
+      "streaming": {
+        "description": "为长时间运行的流式请求配置客户端限制（例如 OpenAI Responses SSE）。",
+        "label": "流式与超时",
+        "request_timeout": {
+          "help": "超过此时间将中止请求。设为 0 表示禁用。",
+          "label": "请求硬超时（分钟）"
+        },
+        "reset": "恢复默认",
+        "sse_idle_timeout": {
+          "help": "在此时间内未收到任何流事件将中止请求。对于长时间静默的推理/工具调用可适当调大；设为 0 表示禁用。",
+          "label": "SSE 空闲超时（分钟）"
+        },
+        "title": "流式与超时"
+      },
       "title": "模型服务",
       "vertex_ai": {
         "api_host_help": "Vertex AI 的 API 地址，不建议填写，通常适用于反向代理",

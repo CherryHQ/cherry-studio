@@ -1877,6 +1877,7 @@
         "export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
         "no_config": "未設定思源筆記 API 位址或權杖"
       },
+      "sse_idle_timeout": "SSE 閒置逾時：{{minutes}} 分鐘未收到串流事件",
       "unknown": "未知錯誤",
       "yuque": {
         "export": "匯出語雀失敗，請檢查連線狀態並參考說明文件確認設定",
@@ -4579,6 +4580,20 @@
       "remove_invalid_keys": "刪除無效金鑰",
       "search": "搜尋模型平臺...",
       "search_placeholder": "搜尋模型 ID 或名稱",
+      "streaming": {
+        "description": "為長時間執行的串流請求設定用戶端限制（例如 OpenAI Responses SSE）。",
+        "label": "串流與逾時",
+        "request_timeout": {
+          "help": "超過此時間將中止請求。設定為 0 以停用。",
+          "label": "請求硬逾時（分鐘）"
+        },
+        "reset": "重設為預設值",
+        "sse_idle_timeout": {
+          "help": "在此時間內未收到任何串流事件將中止請求。對於長時間靜默的推理/工具呼叫可適度調大；設定為 0 以停用。",
+          "label": "SSE 閒置逾時（分鐘）"
+        },
+        "title": "串流與逾時"
+      },
       "title": "模型提供者",
       "vertex_ai": {
         "api_host_help": "Vertex AI 的 API 位址，不建議填寫，通常適用於反向代理",

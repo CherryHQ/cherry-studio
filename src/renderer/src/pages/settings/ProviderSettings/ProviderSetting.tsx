@@ -36,7 +36,7 @@ import {
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
+import { Bolt, Check, Settings2, SquareArrowOutUpRight, Timer, TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -61,6 +61,7 @@ import LMStudioSettings from './LMStudioSettings'
 import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
+import StreamingSettingsPopup from './StreamingSettings/StreamingSettingsPopup'
 import VertexAISettings from './VertexAISettings'
 
 interface Props {
@@ -395,6 +396,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
+          <Tooltip title={t('settings.provider.streaming.label')}>
+            <Button
+              type="text"
+              icon={<Timer size={14} />}
+              size="small"
+              onClick={() => StreamingSettingsPopup.show({ providerId: provider.id })}
+            />
+          </Tooltip>
           {!isSystemProvider(provider) && (
             <Tooltip title={t('settings.provider.api.options.label')}>
               <Button

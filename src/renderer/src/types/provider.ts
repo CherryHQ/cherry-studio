@@ -109,6 +109,19 @@ export type Provider = {
   isAuthed?: boolean
   rateLimit?: number
 
+  /**
+   * Client-side hard timeout for a single model request.
+   * - `0`/`undefined`: no additional client-enforced timeout (recommended when upstream supports long-running streams).
+   * - `> 0`: abort the request after N minutes.
+   */
+  requestTimeoutMinutes?: number
+  /**
+   * Client-side idle timeout for SSE streaming.
+   * - `0`/`undefined`: disabled.
+   * - `> 0`: abort the request if no stream events are received for N minutes.
+   */
+  sseIdleTimeoutMinutes?: number
+
   // API options
   apiOptions?: ProviderApiOptions
   serviceTier?: ServiceTier
