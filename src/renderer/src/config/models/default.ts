@@ -1791,5 +1791,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'cerebras',
       group: 'qwen'
     }
+  ],
+  mimo: [
+    {
+      id: 'mimo-v2-flash',
+      name: 'Mimo V2 Flash',
+      provider: 'mimo',
+      group: 'Mimo'
+    }
   ]
 }

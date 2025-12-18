@@ -3046,6 +3046,7 @@ const migrateConfig = {
           assistant.settings.reasoning_effort = 'default'
         }
       })
+      addProvider(state, 'mimo')
       logger.info('migrate 187 success')
       return state
     } catch (error) {

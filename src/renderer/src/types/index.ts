@@ -102,6 +102,7 @@ const ThinkModelTypes = [
   'doubao',
   'doubao_no_auto',
   'doubao_after_251015',
+  'mimo',
   'hunyuan',
   'zhipu',
   'perplexity',

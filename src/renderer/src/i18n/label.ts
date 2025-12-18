@@ -88,7 +88,8 @@ const providerKeyMap = {
   huggingface: 'provider.huggingface',
   sophnet: 'provider.sophnet',
   gateway: 'provider.ai-gateway',
-  cerebras: 'provider.cerebras'
+  cerebras: 'provider.cerebras',
+  mimo: 'provider.mimo'
 } as const
 
 /**
