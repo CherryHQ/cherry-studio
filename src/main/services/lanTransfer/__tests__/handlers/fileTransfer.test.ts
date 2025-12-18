@@ -4,7 +4,13 @@ import type { Socket } from 'node:net'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { abortTransfer, cleanupTransfer, createTransferState, formatFileSize, streamFileChunks } from '../../handlers/fileTransfer'
+import {
+  abortTransfer,
+  cleanupTransfer,
+  createTransferState,
+  formatFileSize,
+  streamFileChunks
+} from '../../handlers/fileTransfer'
 import type { ActiveFileTransfer } from '../../types'
 
 // Mock binaryProtocol

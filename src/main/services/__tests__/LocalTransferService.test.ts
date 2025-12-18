@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { afterEach, beforeEach, describe, expect, it, type Mock,vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // Create mock objects before vi.mock calls
 const mockLogger = {

@@ -96,7 +96,6 @@ describe('LanTransferClientService', () => {
         })
       ).rejects.toThrow('Unable to resolve a reachable host for the peer')
     })
-
   })
 
   describe('cancelTransfer', () => {

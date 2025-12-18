@@ -33,7 +33,7 @@ describe('connection handlers', () => {
     })
 
     it('should use protocol version 1', () => {
-    expect(HANDSHAKE_PROTOCOL_VERSION).toBe('1')
+      expect(HANDSHAKE_PROTOCOL_VERSION).toBe('1')
     })
   })
 

@@ -205,10 +205,7 @@ describe('BackupManager.deleteTempBackup - Security Tests', () => {
       const result = await backupManager.deleteTempBackup({} as Electron.IpcMainInvokeEvent, validPath)
 
       expect(result).toBe(false)
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to delete'),
-        expect.any(Error)
-      )
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to delete'), expect.any(Error))
     })
 
     it('should return false on fs.pathExists error', async () => {
