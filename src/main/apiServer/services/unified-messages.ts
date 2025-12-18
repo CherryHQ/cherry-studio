@@ -1,7 +1,7 @@
 import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
-import type { LanguageModelV2Middleware, LanguageModelV2ToolResultOutput } from '@ai-sdk/provider'
+import type { JSONSchema7, LanguageModelV2Middleware, LanguageModelV2ToolResultOutput } from '@ai-sdk/provider'
 import type { ProviderOptions, ReasoningPart, ToolCallPart, ToolResultPart } from '@ai-sdk/provider-utils'
 import type {
   ImageBlockParam,
@@ -143,18 +143,20 @@ function convertAnthropicToolResultToAiSdk(
   return { type: 'content', value: values }
 }
 
-// Type alias for JSON Schema (compatible with recursive calls)
-type JsonSchemaLike = AnthropicTool.InputSchema | Record<string, unknown>
+/**
+ * JSON Schema type for tool input schemas
+ * Uses the standard JSONSchema7 type from the json-schema package (via @ai-sdk/provider)
+ */
+export type JsonSchemaLike = JSONSchema7
 
 /**
  * Convert JSON Schema to Zod schema
  * This avoids non-standard fields like input_examples that Anthropic doesn't support
  */
-function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
-  const s = schema as Record<string, unknown>
-  const schemaType = s.type as string | string[] | undefined
-  const enumValues = s.enum as unknown[] | undefined
-  const description = s.description as string | undefined
+export function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
+  const schemaType = schema.type
+  const enumValues = schema.enum
+  const description = schema.description
 
   // Handle enum first
   if (enumValues && Array.isArray(enumValues) && enumValues.length > 0) {
@@ -173,7 +175,13 @@ function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
 
   // Handle union types (type: ["string", "null"])
   if (Array.isArray(schemaType)) {
-    const schemas = schemaType.map((t) => jsonSchemaToZod({ ...s, type: t, enum: undefined }))
+    const schemas = schemaType.map((t) =>
+      jsonSchemaToZod({
+        ...schema,
+        type: t,
+        enum: undefined
+      })
+    )
     if (schemas.length === 1) {
       return schemas[0]
     }
@@ -184,17 +192,17 @@ function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
   switch (schemaType) {
     case 'string': {
       let zodString = z.string()
-      if (typeof s.minLength === 'number') zodString = zodString.min(s.minLength)
-      if (typeof s.maxLength === 'number') zodString = zodString.max(s.maxLength)
-      if (typeof s.pattern === 'string') zodString = zodString.regex(new RegExp(s.pattern))
+      if (typeof schema.minLength === 'number') zodString = zodString.min(schema.minLength)
+      if (typeof schema.maxLength === 'number') zodString = zodString.max(schema.maxLength)
+      if (typeof schema.pattern === 'string') zodString = zodString.regex(new RegExp(schema.pattern))
       return description ? zodString.describe(description) : zodString
     }
 
     case 'number':
     case 'integer': {
       let zodNumber = schemaType === 'integer' ? z.number().int() : z.number()
-      if (typeof s.minimum === 'number') zodNumber = zodNumber.min(s.minimum)
-      if (typeof s.maximum === 'number') zodNumber = zodNumber.max(s.maximum)
+      if (typeof schema.minimum === 'number') zodNumber = zodNumber.min(schema.minimum)
+      if (typeof schema.maximum === 'number') zodNumber = zodNumber.max(schema.maximum)
       return description ? zodNumber.describe(description) : zodNumber
     }
 
@@ -207,24 +215,33 @@ function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
       return z.null()
 
     case 'array': {
-      const items = s.items as Record<string, unknown> | undefined
-      let zodArray = items ? z.array(jsonSchemaToZod(items)) : z.array(z.unknown())
-      if (typeof s.minItems === 'number') zodArray = zodArray.min(s.minItems)
-      if (typeof s.maxItems === 'number') zodArray = zodArray.max(s.maxItems)
+      const items = schema.items
+      let zodArray: z.ZodArray<z.ZodTypeAny>
+      if (items && typeof items === 'object' && !Array.isArray(items)) {
+        zodArray = z.array(jsonSchemaToZod(items as JsonSchemaLike))
+      } else {
+        zodArray = z.array(z.unknown())
+      }
+      if (typeof schema.minItems === 'number') zodArray = zodArray.min(schema.minItems)
+      if (typeof schema.maxItems === 'number') zodArray = zodArray.max(schema.maxItems)
       return description ? zodArray.describe(description) : zodArray
     }
 
     case 'object': {
-      const properties = s.properties as Record<string, Record<string, unknown>> | undefined
-      const required = (s.required as string[]) || []
+      const properties = schema.properties
+      const required = schema.required || []
 
       // Always use z.object() to ensure "properties" field is present in output schema
       // OpenAI requires explicit properties field even for empty objects
       const shape: Record<string, z.ZodTypeAny> = {}
-      if (properties) {
+      if (properties && typeof properties === 'object') {
         for (const [key, propSchema] of Object.entries(properties)) {
-          const zodProp = jsonSchemaToZod(propSchema)
-          shape[key] = required.includes(key) ? zodProp : zodProp.optional()
+          if (typeof propSchema === 'boolean') {
+            shape[key] = propSchema ? z.unknown() : z.never()
+          } else {
+            const zodProp = jsonSchemaToZod(propSchema as JsonSchemaLike)
+            shape[key] = required.includes(key) ? zodProp : zodProp.optional()
+          }
         }
       }
 
@@ -246,7 +263,8 @@ function convertAnthropicToolsToAiSdk(tools: MessageCreateParams['tools']): Reco
     if (anthropicTool.type === 'bash_20250124') continue
     const toolDef = anthropicTool as AnthropicTool
     const rawSchema = toolDef.input_schema
-    const schema = jsonSchemaToZod(rawSchema)
+    // Convert Anthropic's InputSchema to JSONSchema7-compatible format
+    const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
 
     // Use tool() with inputSchema (AI SDK v5 API)
     const aiTool = tool({
