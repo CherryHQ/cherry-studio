@@ -1,7 +1,7 @@
 import type { Model, ModelTag } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
-import { getModelTags, isFreeModel } from '../model'
+import { getModelTags, isFreeModel, parseModelId } from '../model'
 
 // Mock the model checking functions from @renderer/config/models
 vi.mock('@renderer/config/models', () => ({
@@ -90,6 +90,58 @@ describe('model', () => {
         web_search: false
       }
       expect(getModelTags(models_2)).toStrictEqual(expected_2)
+    })
+  })
+
+  describe('parseModelId', () => {
+    it('should parse model identifiers with single colon', () => {
+      expect(parseModelId('anthropic:claude-3-sonnet')).toEqual({
+        providerId: 'anthropic',
+        modelId: 'claude-3-sonnet'
+      })
+
+      expect(parseModelId('openai:gpt-4')).toEqual({
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      })
+    })
+
+    it('should parse model identifiers with multiple colons', () => {
+      expect(parseModelId('openrouter:anthropic/claude-3.5-sonnet:free')).toEqual({
+        providerId: 'openrouter',
+        modelId: 'anthropic/claude-3.5-sonnet:free'
+      })
+
+      expect(parseModelId('provider:model:suffix:extra')).toEqual({
+        providerId: 'provider',
+        modelId: 'model:suffix:extra'
+      })
+    })
+
+    it('should return undefined for invalid inputs', () => {
+      expect(parseModelId(undefined)).toBeUndefined()
+      expect(parseModelId('')).toBeUndefined()
+      expect(parseModelId('no-colon')).toBeUndefined()
+      expect(parseModelId(':missing-provider')).toBeUndefined()
+      expect(parseModelId('missing-model:')).toBeUndefined()
+      expect(parseModelId(':')).toBeUndefined()
+    })
+
+    it('should handle edge cases', () => {
+      expect(parseModelId('a:b')).toEqual({
+        providerId: 'a',
+        modelId: 'b'
+      })
+
+      expect(parseModelId('provider:model-with-dashes')).toEqual({
+        providerId: 'provider',
+        modelId: 'model-with-dashes'
+      })
+
+      expect(parseModelId('provider:model/with/slashes')).toEqual({
+        providerId: 'provider',
+        modelId: 'model/with/slashes'
+      })
     })
   })
 })

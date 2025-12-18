@@ -81,3 +81,39 @@ export const apiModelAdapter = (model: ApiModel): AdaptedApiModel => {
     origin: model
   }
 }
+
+/**
+ * Parse a model identifier in the format "provider:modelId"
+ * where modelId may contain additional colons (e.g., "openrouter:anthropic/claude-3.5-sonnet:free")
+ *
+ * @param modelIdentifier - The full model identifier string
+ * @returns Object with providerId and modelId, or undefined if invalid
+ *
+ * @example
+ * parseModelId("openrouter:anthropic/claude-3.5-sonnet:free")
+ * // => { providerId: "openrouter", modelId: "anthropic/claude-3.5-sonnet:free" }
+ *
+ * @example
+ * parseModelId("anthropic:claude-3-sonnet")
+ * // => { providerId: "anthropic", modelId: "claude-3-sonnet" }
+ *
+ * @example
+ * parseModelId("invalid") // => undefined
+ */
+export function parseModelId(modelIdentifier: string | undefined): { providerId: string; modelId: string } | undefined {
+  if (!modelIdentifier || typeof modelIdentifier !== 'string') {
+    return undefined
+  }
+
+  const colonIndex = modelIdentifier.indexOf(':')
+
+  // Must contain at least one colon and have content on both sides
+  if (colonIndex <= 0 || colonIndex >= modelIdentifier.length - 1) {
+    return undefined
+  }
+
+  return {
+    providerId: modelIdentifier.substring(0, colonIndex),
+    modelId: modelIdentifier.substring(colonIndex + 1)
+  }
+}
