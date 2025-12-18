@@ -69,7 +69,7 @@ export abstract class OpenAIBaseClient<
     const sdk = await this.getSdkInstance()
     const response = (await sdk.request({
       method: 'post',
-      path: '/images/generations',
+      path: '/v1/images/generations',
       signal,
       body: {
         model,
