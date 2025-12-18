@@ -83,13 +83,13 @@ describe('binaryProtocol', () => {
     })
 
     it('should throw error when socket is not writable', () => {
-      mockSocket.writable = false
+      ;(mockSocket as any).writable = false
 
       expect(() => sendBinaryChunk(mockSocket, 'test-id', 0, Buffer.from('data'))).toThrow('Socket is not writable')
     })
 
     it('should throw error when socket is destroyed', () => {
-      mockSocket.destroyed = true
+      ;(mockSocket as any).destroyed = true
 
       expect(() => sendBinaryChunk(mockSocket, 'test-id', 0, Buffer.from('data'))).toThrow('Socket is not writable')
     })

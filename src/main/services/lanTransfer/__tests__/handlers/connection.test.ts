@@ -194,7 +194,7 @@ describe('connection handlers', () => {
     })
 
     it('should throw error when socket is destroyed', async () => {
-      mockSocket.destroyed = true
+      ;(mockSocket as any).destroyed = true
       const abortController = new AbortController()
 
       await expect(waitForSocketDrain(mockSocket, abortController.signal)).rejects.toThrow('Socket is closed')

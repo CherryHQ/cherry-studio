@@ -54,8 +54,7 @@ describe('LanTransferClientService', () => {
 
       await expect(
         lanTransferClientService.connectAndHandshake({
-          peerId: 'non-existent',
-          type: 'connect'
+          peerId: 'non-existent'
         })
       ).rejects.toThrow('Selected LAN peer is no longer available')
     })
@@ -72,8 +71,7 @@ describe('LanTransferClientService', () => {
 
       await expect(
         lanTransferClientService.connectAndHandshake({
-          peerId: 'test-peer',
-          type: 'connect'
+          peerId: 'test-peer'
         })
       ).rejects.toThrow('Selected peer does not expose a TCP port')
     })
@@ -91,8 +89,7 @@ describe('LanTransferClientService', () => {
 
       await expect(
         lanTransferClientService.connectAndHandshake({
-          peerId: 'test-peer',
-          type: 'connect'
+          peerId: 'test-peer'
         })
       ).rejects.toThrow('Unable to resolve a reachable host for the peer')
     })
