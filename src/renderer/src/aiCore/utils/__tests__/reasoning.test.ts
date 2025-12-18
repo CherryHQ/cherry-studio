@@ -596,7 +596,7 @@ describe('reasoning utils', () => {
       expect(result).toEqual({})
     })
 
-    it('should return disabled thinking when no reasoning effort', async () => {
+    it('should return disabled thinking when reasoning effort is none', async () => {
       const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
 
       vi.mocked(isReasoningModel).mockReturnValue(true)
@@ -611,7 +611,9 @@ describe('reasoning utils', () => {
       const assistant: Assistant = {
         id: 'test',
         name: 'Test',
-        settings: {}
+        settings: {
+          reasoning_effort: 'none'
+        }
       } as Assistant
 
       const result = getAnthropicReasoningParams(assistant, model)
@@ -675,7 +677,7 @@ describe('reasoning utils', () => {
       expect(result).toEqual({})
     })
 
-    it('should disable thinking for Flash models without reasoning effort', async () => {
+    it('should disable thinking for Flash models when reasoning effort is none', async () => {
       const { isReasoningModel, isSupportedThinkingTokenGeminiModel } = await import('@renderer/config/models')
 
       vi.mocked(isReasoningModel).mockReturnValue(true)
@@ -690,7 +692,9 @@ describe('reasoning utils', () => {
       const assistant: Assistant = {
         id: 'test',
         name: 'Test',
-        settings: {}
+        settings: {
+          reasoning_effort: 'none'
+        }
       } as Assistant
 
       const result = getGeminiReasoningParams(assistant, model)

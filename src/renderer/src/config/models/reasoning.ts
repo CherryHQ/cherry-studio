@@ -59,31 +59,31 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
 
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
-  default: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
-  o: MODEL_SUPPORTED_REASONING_EFFORT.o,
-  openai_deep_research: MODEL_SUPPORTED_REASONING_EFFORT.openai_deep_research,
-  gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
-  gpt5pro: MODEL_SUPPORTED_REASONING_EFFORT.gpt5pro,
-  gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
-  gpt5_1: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1,
-  gpt5_1_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex,
-  gpt5_2: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2,
-  gpt5_1_codex_max: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max,
-  gpt52pro: MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro,
-  grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
-  grok4_fast: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
-  gemini: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
-  gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
-  gemini3: MODEL_SUPPORTED_REASONING_EFFORT.gemini3,
-  qwen: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
-  qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
-  doubao: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
-  doubao_no_auto: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
-  doubao_after_251015: MODEL_SUPPORTED_REASONING_EFFORT.doubao_after_251015,
-  hunyuan: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
-  zhipu: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
-  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity,
-  deepseek_hybrid: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
+  default: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
+  o: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.o] as const,
+  openai_deep_research: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.openai_deep_research] as const,
+  gpt5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
+  gpt5pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5pro] as const,
+  gpt5_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex] as const,
+  gpt5_1: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1] as const,
+  gpt5_1_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex] as const,
+  gpt5_2: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2] as const,
+  gpt5_1_codex_max: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max] as const,
+  gpt52pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro] as const,
+  grok: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
+  grok4_fast: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
+  gemini: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
+  gemini_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro] as const,
+  gemini3: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3] as const,
+  qwen: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
+  qwen_thinking: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking] as const,
+  doubao: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
+  doubao_no_auto: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
+  doubao_after_251015: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_after_251015] as const,
+  hunyuan: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
+  zhipu: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
+  perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
+  deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
 } as const
 
 const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
@@ -191,20 +191,28 @@ const _getModelSupportedReasoningEffortOptions = (model: Model): ReasoningEffort
  *          - The model is null/undefined
  *          - The model doesn't support reasoning effort or thinking tokens
  *
+ *          All reasoning models support the 'default' option (always the first element),
+ *          which represents no additional configuration for thinking behavior.
+ *
  * @example
- * // OpenAI o-series models support low, medium, high
+ * // OpenAI o-series models support default, low, medium, high
  * getModelSupportedReasoningEffortOptions({ id: 'o3-mini', ... })
- * // Returns: ['low', 'medium', 'high']
+ * // Returns: ['default', 'low', 'medium', 'high']
+ * // 'default' = no additional configuration for thinking behavior
  *
  * @example
- * // GPT-5.1 models support none, low, medium, high
+ * // GPT-5.1 models support default, none, low, medium, high
  * getModelSupportedReasoningEffortOptions({ id: 'gpt-5.1', ... })
- * // Returns: ['none', 'low', 'medium', 'high']
+ * // Returns: ['default', 'none', 'low', 'medium', 'high']
+ * // 'default' = no additional configuration
+ * // 'none' = explicitly disable reasoning
  *
  * @example
- * // Gemini Flash models support none, low, medium, high, auto
+ * // Gemini Flash models support default, none, low, medium, high, auto
  * getModelSupportedReasoningEffortOptions({ id: 'gemini-2.5-flash-latest', ... })
- * // Returns: ['none', 'low', 'medium', 'high', 'auto']
+ * // Returns: ['default', 'none', 'low', 'medium', 'high', 'auto']
+ * // 'default' = no additional configuration
+ * // 'auto' = let the model automatically decide
  *
  * @example
  * // Non-reasoning models return undefined
@@ -214,7 +222,7 @@ const _getModelSupportedReasoningEffortOptions = (model: Model): ReasoningEffort
  * @example
  * // Name fallback when id doesn't match
  * getModelSupportedReasoningEffortOptions({ id: 'custom-id', name: 'gpt-5.1', ... })
- * // Returns: ['none', 'low', 'medium', 'high']
+ * // Returns: ['default', 'none', 'low', 'medium', 'high']
  */
 export const getModelSupportedReasoningEffortOptions = (
   model: Model | undefined | null
