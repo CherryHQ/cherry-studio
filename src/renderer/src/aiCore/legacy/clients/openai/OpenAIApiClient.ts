@@ -142,6 +142,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       return { thinking: { type: reasoningEffort ? 'enabled' : 'disabled' } }
     }
 
+    if (reasoningEffort === 'default') {
+      return {}
+    }
+
     if (!reasoningEffort) {
       // DeepSeek hybrid inference models, v3.1 and maybe more in the future
       // 不同的 provider 有不同的思考控制方式，在这里统一解决
@@ -303,7 +307,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Grok models/Perplexity models/OpenAI models
     if (isSupportedReasoningEffortModel(model)) {
       // 检查模型是否支持所选选项
-      const supportedOptions = getModelSupportedReasoningEffortOptions(model)
+      const supportedOptions = getModelSupportedReasoningEffortOptions(model)?.filter((option) => option !== 'default')
       if (supportedOptions?.includes(reasoningEffort)) {
         return {
           reasoning_effort: reasoningEffort

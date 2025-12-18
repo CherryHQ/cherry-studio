@@ -548,14 +548,23 @@
       "more": "Ρυθμίσεις Βοηθού",
       "prompt": "Ρυθμίσεις προκαλύμματος",
       "reasoning_effort": {
+        "auto": "Αυτοκίνητο",
+        "auto_description": "Ευέλικτος καθορισμός της προσπάθειας συλλογισμού",
         "default": "Προεπιλογή",
+        "default_description": "Εξαρτηθείτε από την προεπιλεγμένη συμπεριφορά του μοντέλου, χωρίς καμία διαμόρφωση.",
         "high": "Μεγάλο",
+        "high_description": "Υψηλού επιπέδου συλλογισμός",
         "label": "Μήκος λογισμικού αλυσίδας",
         "low": "Μικρό",
+        "low_description": "Χαμηλού επιπέδου συλλογιστική",
         "medium": "Μεσαίο",
+        "medium_description": "Αιτιολόγηση μεσαίου επιπέδου",
         "minimal": "ελάχιστος",
+        "minimal_description": "Ελάχιστος συλλογισμός",
         "off": "Απενεργοποίηση",
-        "xhigh": "Εξαιρετικά Υψηλή"
+        "off_description": "Απενεργοποίηση λογικής",
+        "xhigh": "Εξαιρετικά Υψηλή",
+        "xhigh_description": "Εξαιρετικά υψηλού επιπέδου συλλογισμός"
       },
       "regular_phrases": {
         "add": "Προσθήκη φράσης",
@@ -2634,6 +2643,7 @@
     "lanyun": "Λανιούν Τεχνολογία",
     "lmstudio": "LM Studio",
     "longcat": "Τσίρο",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope Magpie",
@@ -3951,6 +3961,7 @@
         "mcp_auto_install": "Αυτόματη εγκατάσταση υπηρεσίας MCP (προβολή)",
         "memory": "Βασική υλοποίηση μόνιμης μνήμης με βάση τοπικό γράφημα γνώσης. Αυτό επιτρέπει στο μοντέλο να θυμάται πληροφορίες σχετικές με τον χρήστη ανάμεσα σε διαφορετικές συνομιλίες. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος MEMORY_FILE_PATH.",
         "no": "Χωρίς περιγραφή",
+        "nowledge_mem": "[to be translated]:Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",
         "sequentialthinking": "ένας εξυπηρετητής MCP που υλοποιείται, παρέχοντας εργαλεία για δυναμική και αναστοχαστική επίλυση προβλημάτων μέσω δομημένων διαδικασιών σκέψης"
       },

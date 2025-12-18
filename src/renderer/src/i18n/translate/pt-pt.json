@@ -548,14 +548,23 @@
       "more": "Configurações do Assistente",
       "prompt": "Configurações de Prompt",
       "reasoning_effort": {
+        "auto": "Automóvel",
+        "auto_description": "Determinar flexivelmente o esforço de raciocínio",
         "default": "Padrão",
+        "default_description": "Depender do comportamento padrão do modelo, sem qualquer configuração.",
         "high": "Longo",
+        "high_description": "Raciocínio de alto nível",
         "label": "Comprimento da Cadeia de Raciocínio",
         "low": "Curto",
+        "low_description": "Raciocínio de baixo nível",
         "medium": "Médio",
+        "medium_description": "Raciocínio de nível médio",
         "minimal": "mínimo",
+        "minimal_description": "Raciocínio mínimo",
         "off": "Desligado",
-        "xhigh": "Extra Alta"
+        "off_description": "Desabilitar raciocínio",
+        "xhigh": "Extra Alta",
+        "xhigh_description": "Raciocínio de altíssimo nível"
       },
       "regular_phrases": {
         "add": "Adicionar Frase",
@@ -2634,6 +2643,7 @@
     "lanyun": "Lanyun Tecnologia",
     "lmstudio": "Estúdio LM",
     "longcat": "Totoro",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "Minimax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MôDá",
@@ -3951,6 +3961,7 @@
         "mcp_auto_install": "Instalação automática do serviço MCP (beta)",
         "memory": "Implementação base de memória persistente baseada em grafos de conhecimento locais. Isso permite que o modelo lembre informações relevantes do utilizador entre diferentes conversas. É necessário configurar a variável de ambiente MEMORY_FILE_PATH.",
         "no": "sem descrição",
+        "nowledge_mem": "Requer a aplicação Nowledge Mem em execução localmente. Mantém conversas de IA, ferramentas, notas, agentes e ficheiros numa memória privada no seu computador. Transfira de https://mem.nowledge.co/",
         "python": "Executar código Python num ambiente sandbox seguro. Utilizar Pyodide para executar Python, suportando a maioria das bibliotecas padrão e pacotes de computação científica",
         "sequentialthinking": "Uma implementação de servidor MCP que fornece ferramentas para resolução dinâmica e reflexiva de problemas através de um processo de pensamento estruturado"
       },
