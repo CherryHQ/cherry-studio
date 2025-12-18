@@ -12,7 +12,8 @@ import {
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { motion } from 'framer-motion'
-import { memo, useCallback, useEffect, useRef } from 'react'
+import { throttle } from 'lodash'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -32,22 +33,32 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
   const listRef = useRef<DynamicVirtualListRef>(null)
 
+  // Throttled scroll handler to avoid excessive calls
+  const handleScroll = useMemo(
+    () =>
+      throttle(() => {
+        const scrollElement = listRef.current?.scrollElement()
+        if (!scrollElement) return
+
+        const { scrollTop, scrollHeight, clientHeight } = scrollElement
+        if (scrollHeight - scrollTop - clientHeight < 100 && hasMore && !isLoadingMore) {
+          loadMore()
+        }
+      }, 150),
+    [hasMore, isLoadingMore, loadMore]
+  )
+
   // Handle scroll to load more
   useEffect(() => {
     const scrollElement = listRef.current?.scrollElement()
     if (!scrollElement) return
 
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = scrollElement
-      // Load more when scrolled to bottom (with 100px threshold)
-      if (scrollHeight - scrollTop - clientHeight < 100 && hasMore && !isLoadingMore) {
-        loadMore()
-      }
-    }
-
     scrollElement.addEventListener('scroll', handleScroll)
-    return () => scrollElement.removeEventListener('scroll', handleScroll)
-  }, [hasMore, isLoadingMore, loadMore])
+    return () => {
+      handleScroll.cancel()
+      scrollElement.removeEventListener('scroll', handleScroll)
+    }
+  }, [handleScroll])
 
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {

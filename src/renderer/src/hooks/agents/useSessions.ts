@@ -1,4 +1,9 @@
-import type { CreateAgentSessionResponse, CreateSessionForm, GetAgentSessionResponse } from '@renderer/types'
+import type {
+  CreateAgentSessionResponse,
+  CreateSessionForm,
+  GetAgentSessionResponse,
+  ListAgentSessionsResponse
+} from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +17,7 @@ export const useSessions = (agentId: string | null) => {
   const { t } = useTranslation()
   const client = useAgentClient()
 
-  const getKey = (pageIndex: number, previousPageData: any) => {
+  const getKey = (pageIndex: number, previousPageData: ListAgentSessionsResponse | null) => {
     if (!agentId) return null
     if (previousPageData && previousPageData.data.length === 0) return null
     return [client.getSessionPaths(agentId).base, pageIndex]
@@ -53,13 +58,12 @@ export const useSessions = (agentId: string | null) => {
             if (!prev || prev.length === 0) {
               return [{ data: [result], total: 1, limit: PAGE_SIZE, offset: 0 }]
             }
-            const newData = [...prev]
-            newData[0] = {
-              ...newData[0],
-              data: [result, ...newData[0].data],
-              total: newData[0].total + 1
-            }
-            return newData
+            const newTotal = prev[0].total + 1
+            return prev.map((page, index) => ({
+              ...page,
+              data: index === 0 ? [result, ...page.data] : page.data,
+              total: newTotal
+            }))
           },
           { revalidate: false }
         )
@@ -100,12 +104,15 @@ export const useSessions = (agentId: string | null) => {
       try {
         await client.deleteSession(agentId, id)
         mutate(
-          (prev) =>
-            prev?.map((page) => ({
+          (prev) => {
+            if (!prev || prev.length === 0) return prev
+            const newTotal = prev[0].total - 1
+            return prev.map((page) => ({
               ...page,
               data: page.data.filter((session) => session.id !== id),
-              total: page.total - 1
-            })),
+              total: newTotal
+            }))
+          },
           { revalidate: false }
         )
         return true
