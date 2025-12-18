@@ -590,7 +590,6 @@ export function getGeminiReasoningParams(
       }
     }
 
-    // TODO: 很多中转还不支持
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
     if (isGemini3ThinkingTokenModel(model)) {
       return {
