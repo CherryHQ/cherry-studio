@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { AiSdkToAnthropicSSE, formatSSEDone, formatSSEEvent } from '../AiSdkToAnthropicSSE'
 
-// Helper to create properly typed mock events with all required fields
 const createTextDelta = (text: string, id = 'text_0'): TextStreamPart<ToolSet> => ({
   type: 'text-delta',
   id,
@@ -38,8 +37,7 @@ const createFinish = (
   return event
 }
 
-// Helper to create stream from extended events
-// Note: The adapter runtime accepts both standard and extended events
+// Helper to create stream
 function createMockStream(events: readonly TextStreamPart<ToolSet>[]) {
   return new ReadableStream<TextStreamPart<ToolSet>>({
     start(controller) {
