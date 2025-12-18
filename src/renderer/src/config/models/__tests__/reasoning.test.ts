@@ -695,15 +695,20 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
   })
 
   describe('Gemini models', () => {
-    it('should return gemini for Flash models', () => {
-      expect(getThinkModelType(createModel({ id: 'gemini-2.5-flash-latest' }))).toBe('gemini')
-      expect(getThinkModelType(createModel({ id: 'gemini-flash-latest' }))).toBe('gemini')
-      expect(getThinkModelType(createModel({ id: 'gemini-flash-lite-latest' }))).toBe('gemini')
+    it('should return gemini2_flash for Flash models', () => {
+      expect(getThinkModelType(createModel({ id: 'gemini-2.5-flash-latest' }))).toBe('gemini2_flash')
+    })
+    it('should return gemini3_flash for Gemini 3 Flash models', () => {
+      expect(getThinkModelType(createModel({ id: 'gemini-3-flash-preview' }))).toBe('gemini3_flash')
+      expect(getThinkModelType(createModel({ id: 'gemini-flash-latest' }))).toBe('gemini3_flash')
     })
 
-    it('should return gemini_pro for Pro models', () => {
-      expect(getThinkModelType(createModel({ id: 'gemini-2.5-pro-latest' }))).toBe('gemini_pro')
-      expect(getThinkModelType(createModel({ id: 'gemini-pro-latest' }))).toBe('gemini_pro')
+    it('should return gemini2_pro for Gemini 2.5 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gemini-2.5-pro-latest' }))).toBe('gemini2_pro')
+    })
+    it('should return gemini3_pro for Gemini 3 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gemini-3-pro-preview' }))).toBe('gemini3_pro')
+      expect(getThinkModelType(createModel({ id: 'gemini-pro-latest' }))).toBe('gemini3_pro')
     })
   })
 
@@ -810,7 +815,7 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
             name: 'gemini-2.5-flash-latest'
           })
         )
-      ).toBe('gemini')
+      ).toBe('gemini2_flash')
     })
 
     it('should use id result when id matches', () => {
@@ -835,7 +840,7 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
 
     it('should handle case insensitivity correctly', () => {
       expect(getThinkModelType(createModel({ id: 'GPT-5.1' }))).toBe('gpt5_1')
-      expect(getThinkModelType(createModel({ id: 'Gemini-2.5-Flash-Latest' }))).toBe('gemini')
+      expect(getThinkModelType(createModel({ id: 'Gemini-2.5-Flash-Latest' }))).toBe('gemini2_flash')
       expect(getThinkModelType(createModel({ id: 'DeepSeek-V3.1' }))).toBe('deepseek_hybrid')
     })
 
@@ -855,7 +860,7 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     it('should handle models with version suffixes', () => {
       expect(getThinkModelType(createModel({ id: 'gpt-5-preview-2024' }))).toBe('gpt5')
       expect(getThinkModelType(createModel({ id: 'o3-mini-2024' }))).toBe('o')
-      expect(getThinkModelType(createModel({ id: 'gemini-2.5-flash-latest-001' }))).toBe('gemini')
+      expect(getThinkModelType(createModel({ id: 'gemini-2.5-flash-latest-001' }))).toBe('gemini2_flash')
     })
 
     it('should prioritize GPT-5.1 over GPT-5 detection', () => {
@@ -957,6 +962,14 @@ describe('Gemini Models', () => {
       ).toBe(true)
       expect(
         isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
           id: 'google/gemini-3-pro-preview',
           name: '',
           provider: '',
@@ -996,6 +1009,31 @@ describe('Gemini Models', () => {
           group: ''
         })
       ).toBe(true)
+      // Version with date suffixes
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash-preview-09-2025',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro-preview-09-2025',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash-exp-1234',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
       // Version with decimals
       expect(
         isSupportedThinkingTokenGeminiModel({
@@ -1015,7 +1053,8 @@ describe('Gemini Models', () => {
       ).toBe(true)
     })
 
-    it('should return true for gemini-3 image models', () => {
+    it('should return true for gemini-3-pro-image models only', () => {
+      // Only gemini-3-pro-image models should return true
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3-pro-image-preview',
@@ -1024,6 +1063,17 @@ describe('Gemini Models', () => {
           group: ''
         })
       ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro-image',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return false for other gemini-3 image models', () => {
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3.0-flash-image-preview',
@@ -1081,6 +1131,22 @@ describe('Gemini Models', () => {
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3-flash-tts',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash-preview-tts',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro-tts',
           name: '',
           provider: '',
           group: ''
@@ -1811,7 +1877,7 @@ describe('getModelSupportedReasoningEffortOptions', () => {
 
   describe('Gemini models', () => {
     it('should return correct options for Gemini Flash models', () => {
-      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-2.5-flash-latest' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-2.5-flash' }))).toEqual([
         'default',
         'none',
         'low',
@@ -1819,36 +1885,46 @@ describe('getModelSupportedReasoningEffortOptions', () => {
         'high',
         'auto'
       ])
-      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-flash-latest' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-3-flash-preview' }))).toEqual([
         'default',
-        'none',
+        'minimal',
         'low',
         'medium',
-        'high',
-        'auto'
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-flash-latest' }))).toEqual([
+        'default',
+        'minimal',
+        'low',
+        'medium',
+        'high'
       ])
     })
 
     it('should return correct options for Gemini Pro models', () => {
-      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-2.5-pro-latest' }))).toEqual([
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-2.5-pro' }))).toEqual([
         'default',
         'low',
         'medium',
         'high',
         'auto'
       ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-3-pro-preview' }))).toEqual([
+        'default',
+        'low',
+        'high'
+      ])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-pro-latest' }))).toEqual([
         'default',
         'low',
-        'medium',
-        'high',
-        'auto'
+        'high'
       ])
     })
 
     it('should return correct options for Gemini 3 models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-3-flash' }))).toEqual([
         'default',
+        'minimal',
         'low',
         'medium',
         'high'
@@ -1856,7 +1932,6 @@ describe('getModelSupportedReasoningEffortOptions', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-3-pro-preview' }))).toEqual([
         'default',
         'low',
-        'medium',
         'high'
       ])
     })
@@ -2078,7 +2153,7 @@ describe('getModelSupportedReasoningEffortOptions', () => {
 
       const geminiModel = createModel({ id: 'gemini-2.5-flash-latest' })
       const geminiResult = getModelSupportedReasoningEffortOptions(geminiModel)
-      expect(geminiResult).toEqual(MODEL_SUPPORTED_OPTIONS.gemini)
+      expect(geminiResult).toEqual(MODEL_SUPPORTED_OPTIONS.gemini2_flash)
     })
   })
 })
