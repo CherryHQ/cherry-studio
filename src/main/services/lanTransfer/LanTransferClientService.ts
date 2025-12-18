@@ -331,11 +331,10 @@ class LanTransferClientService {
     logger.info('Connection lost, attempting to reconnect...')
     this.reconnectPromise = this.connectAndHandshake(this.lastConnectOptions)
       .then(() => {
-        this.reconnectPromise = null
+        // Handshake succeeded, connection restored
       })
-      .catch((error) => {
+      .finally(() => {
         this.reconnectPromise = null
-        throw error
       })
 
     await this.reconnectPromise
@@ -406,7 +405,14 @@ class LanTransferClientService {
 
   private attachSocketListeners(socket: Socket): void {
     this.dataHandler = createDataHandler((line) => this.handleControlLine(line))
-    socket.on('data', (chunk: Buffer) => this.dataHandler?.handleData(chunk))
+    socket.on('data', (chunk: Buffer) => {
+      try {
+        this.dataHandler?.handleData(chunk)
+      } catch (error) {
+        logger.error('Data handler error', error as Error)
+        void this.disconnect()
+      }
+    })
   }
 
   private handleControlLine(line: string): void {
@@ -419,14 +425,14 @@ class LanTransferClientService {
       logger.warn('Received invalid JSON control message', { line, consecutiveErrors: this.consecutiveJsonErrors })
 
       if (this.consecutiveJsonErrors >= LanTransferClientService.MAX_CONSECUTIVE_JSON_ERRORS) {
-        const message = `Protocol error: ${this.consecutiveJsonErrors} consecutive invalid messages`
+        const message = `Protocol error: ${this.consecutiveJsonErrors} consecutive invalid messages, disconnecting`
         logger.error(message)
         this.broadcastClientEvent({
           type: 'error',
           message,
           timestamp: Date.now()
         })
-        this.consecutiveJsonErrors = 0
+        void this.disconnect()
       }
       return
     }

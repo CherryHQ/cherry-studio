@@ -161,7 +161,7 @@ export const LAN_TRANSFER_MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
 export const LAN_TRANSFER_COMPLETE_TIMEOUT_MS = 60_000 // 60s - wait for file_complete after file_end
 export const LAN_TRANSFER_GLOBAL_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes - global transfer timeout
 
-// Binary protocol constants (v3)
+// Binary protocol constants (v1)
 export const LAN_TRANSFER_PROTOCOL_VERSION = '1'
 export const LAN_BINARY_FRAME_MAGIC = 0x4353 // "CS" as uint16
 export const LAN_BINARY_TYPE_FILE_CHUNK = 0x01
@@ -182,7 +182,7 @@ export type LanFileStartMessage = {
 
 /**
  * File chunk data (JSON format)
- * @deprecated Use binary frame format in protocol v2. This type is kept for reference only.
+ * @deprecated Use binary frame format in protocol v1. This type is kept for reference only.
  */
 export type LanFileChunkMessage = {
   type: 'file_chunk'
@@ -217,7 +217,7 @@ export type LanFileStartAckMessage = {
 
 /**
  * Acknowledgment of file chunk received
- * @deprecated Protocol v3 uses streaming mode without per-chunk acknowledgment.
+ * @deprecated Protocol v1 uses streaming mode without per-chunk acknowledgment.
  * This type is kept for backward compatibility reference only.
  */
 export type LanFileChunkAckMessage = {
@@ -235,7 +235,7 @@ export type LanFileCompleteMessage = {
   success: boolean
   filePath?: string // Path where file was saved on mobile
   error?: string
-  // v3 enhanced error diagnostics
+  // Enhanced error diagnostics
   errorCode?: 'CHECKSUM_MISMATCH' | 'INCOMPLETE_TRANSFER' | 'DISK_ERROR' | 'CANCELLED'
   receivedChunks?: number
   receivedBytes?: number

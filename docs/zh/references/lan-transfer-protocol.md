@@ -222,52 +222,6 @@ function sendControlMessage(socket: Socket, message: object): void {
 {"type":"message_type",...其他字段...}\n
 ```
 
-### 4.3 消息发送
-
-```typescript
-function sendMessage(socket: Socket, message: object): void {
-  const payload = JSON.stringify(message);
-  socket.write(`${payload}\n`);
-}
-```
-
-### 4.4 消息接收与解析
-
-```typescript
-let buffer = "";
-
-socket.on("data", (chunk: Buffer) => {
-  buffer += chunk.toString("utf8");
-
-  let newlineIndex = buffer.indexOf("\n");
-  while (newlineIndex !== -1) {
-    const line = buffer.slice(0, newlineIndex).trim();
-    buffer = buffer.slice(newlineIndex + 1);
-
-    if (line.length > 0) {
-      const message = JSON.parse(line);
-      handleMessage(message);
-    }
-
-    newlineIndex = buffer.indexOf("\n");
-  }
-});
-```
-
-### 4.5 消息类型汇总
-
-| 类型             | 方向            | 用途         |
-| ---------------- | --------------- | ------------ |
-| `handshake`      | Client → Server | 握手请求     |
-| `handshake_ack`  | Server → Client | 握手响应     |
-| `ping`           | Client → Server | 心跳请求     |
-| `pong`           | Server → Client | 心跳响应     |
-| `file_start`     | Client → Server | 开始文件传输 |
-| `file_start_ack` | Server → Client | 文件传输确认 |
-| `file_chunk`     | Client → Server | 文件数据块（流式，无 per-chunk ACK） |
-| `file_end`       | Client → Server | 文件传输结束 |
-| `file_complete`  | Server → Client | 传输完成结果 |
-
 ---
 
 ## 5. 文件传输协议
@@ -802,7 +756,7 @@ class FileReceiver {
 
 ## 附录 A：TypeScript 类型定义
 
-完整的类型定义位于 `src/types/lanTransfer.ts`：
+完整的类型定义位于 `packages/shared/config/types.ts`：
 
 ```typescript
 // 握手消息
