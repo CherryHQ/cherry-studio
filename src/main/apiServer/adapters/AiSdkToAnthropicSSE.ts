@@ -38,7 +38,7 @@ import type {
 import { loggerService } from '@logger'
 import { type FinishReason, type LanguageModelUsage, type TextStreamPart, type ToolSet } from 'ai'
 
-import { googleReasoningCache, openRouterReasoningCache } from '../../services/CacheService'
+import { googleReasoningCache, openRouterReasoningCache } from '../services/reasoning-cache'
 
 const logger = loggerService.withContext('AiSdkToAnthropicSSE')
 

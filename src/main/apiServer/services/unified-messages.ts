@@ -42,7 +42,7 @@ import { net } from 'electron'
 import type { Response } from 'express'
 import * as z from 'zod'
 
-import { googleReasoningCache, openRouterReasoningCache } from '../../services/CacheService'
+import { googleReasoningCache, openRouterReasoningCache } from './reasoning-cache'
 
 const logger = loggerService.withContext('UnifiedMessagesService')
 
