@@ -2,7 +2,7 @@ import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
-import type { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
+import type { GitBashPathInfo, TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
@@ -126,6 +126,7 @@ const api = {
     getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName),
     checkGitBash: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.System_CheckGitBash),
     getGitBashPath: (): Promise<string | null> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPath),
+    getGitBashPathInfo: (): Promise<GitBashPathInfo> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPathInfo),
     setGitBashPath: (newPath: string | null): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.System_SetGitBashPath, newPath)
   },

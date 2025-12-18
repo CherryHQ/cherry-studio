@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "自動検出されたGit Bashを使用中",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "カスタムパスをクリア"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
         "recheck": "Git Bashのインストールを再確認してください",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Git Bashが必要です"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "選択されたファイルは有効なGit Bash実行ファイル（bash.exe）ではありません。",
         "title": "Git Bash実行ファイルを選択"
       },
-      "success": "Git Bashが正常に検出されました！"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bashが正常に検出されました！",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"

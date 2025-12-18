@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Используется автоматически обнаруженный Git Bash",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "Очистить пользовательский путь"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Для запуска агентов в Windows требуется Git Bash. Без него агент не может работать. Пожалуйста, установите Git для Windows с",
         "recheck": "Повторная проверка установки Git Bash",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Требуется Git Bash"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Выбранный файл не является допустимым исполняемым файлом Git Bash (bash.exe).",
         "title": "Выберите исполняемый файл Git Bash"
       },
-      "success": "Git Bash успешно обнаружен!"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bash успешно обнаружен!",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду"

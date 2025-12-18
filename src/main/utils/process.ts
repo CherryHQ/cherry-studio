@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
@@ -6,6 +7,7 @@ import os from 'os'
 import path from 'path'
 
 import { isWin } from '../constant'
+import { ConfigKeys, configManager } from '../services/ConfigManager'
 import { getResourcePath } from '.'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -59,7 +61,7 @@ export async function getBinaryPath(name?: string): Promise<string> {
 
 export async function isBinaryExists(name: string): Promise<boolean> {
   const cmd = await getBinaryPath(name)
-  return await fs.existsSync(cmd)
+  return fs.existsSync(cmd)
 }
 
 /**
@@ -224,4 +226,78 @@ export function validateGitBashPath(customPath?: string | null): string | null {
 
   logger.debug('Validated custom Git Bash path', { path: resolved })
   return resolved
+}
+
+/**
+ * Auto-discover and persist Git Bash path if not already configured
+ * Only called when Git Bash is actually needed
+ *
+ * Precedence order:
+ * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (highest - runtime override)
+ * 2. Configured path from settings (manual or auto)
+ * 3. Auto-discovery via findGitBash (only if no valid config exists)
+ */
+export function autoDiscoverGitBash(): string | null {
+  if (!isWin) {
+    return null
+  }
+
+  // 1. Check environment variable override first (highest priority)
+  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  if (envOverride) {
+    const validated = validateGitBashPath(envOverride)
+    if (validated) {
+      logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override', { path: validated })
+      return validated
+    }
+    logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
+  }
+
+  // 2. Check if a path is already configured
+  const existingPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
+  const existingSource = configManager.get<GitBashPathSource | undefined>(ConfigKeys.GitBashPathSource)
+
+  if (existingPath) {
+    const validated = validateGitBashPath(existingPath)
+    if (validated) {
+      return validated
+    }
+    // Existing path is invalid, try to auto-discover
+    logger.warn('Existing Git Bash path is invalid, attempting auto-discovery', {
+      path: existingPath,
+      source: existingSource
+    })
+  }
+
+  // 3. Try to find Git Bash via auto-discovery
+  const discoveredPath = findGitBash()
+  if (discoveredPath) {
+    // Persist the discovered path with 'auto' source
+    configManager.set(ConfigKeys.GitBashPath, discoveredPath)
+    configManager.set(ConfigKeys.GitBashPathSource, 'auto')
+    logger.info('Auto-discovered Git Bash path', { path: discoveredPath })
+  }
+
+  return discoveredPath
+}
+
+/**
+ * Get Git Bash path info including source
+ * If no path is configured, triggers auto-discovery first
+ */
+export function getGitBashPathInfo(): GitBashPathInfo {
+  if (!isWin) {
+    return { path: null, source: null }
+  }
+
+  let path = configManager.get<string | null>(ConfigKeys.GitBashPath) ?? null
+  let source = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
+
+  // If no path configured, trigger auto-discovery (handles upgrade from old versions)
+  if (!path) {
+    path = autoDiscoverGitBash()
+    source = path ? 'auto' : null
+  }
+
+  return { path, source }
 }
