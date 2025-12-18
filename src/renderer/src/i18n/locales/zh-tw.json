@@ -4469,6 +4469,16 @@
       "api_host_no_valid": "API 位址不合法",
       "api_host_preview": "預覽：{{url}}",
       "api_host_tooltip": "僅在供應商需要自訂的 OpenAI 相容端點時才覆蓋。",
+      "api_identifier": {
+        "error": {
+          "duplicate": "此識別碼已被其他供應商使用",
+          "invalid": "僅支援字母、數字、“-”、“_”，且不能包含“:”"
+        },
+        "label": "API 識別碼",
+        "placeholder": "例如：my-provider",
+        "preview": "範例：{{model}}",
+        "tip": "用於 API Relay 的模型前綴。留空則使用內部 UUID。"
+      },
       "api_key": {
         "label": "API 金鑰",
         "tip": "多個金鑰使用逗號分隔"
