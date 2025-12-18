@@ -10,7 +10,7 @@ import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
 import { routeToEndpoint } from '../api'
-import { isOllamaProvider } from './detection'
+import { isAzureOpenAIProvider, isOllamaProvider } from './detection'
 import { getAiSdkProviderId } from './mapping'
 import type { MinimalProvider } from './types'
 import { SystemProviderIds } from './types'
@@ -208,6 +208,16 @@ export function providerToAiSdkConfig(
     extraOptions.mode = 'responses'
   } else if (aiSdkProviderId === 'azure') {
     extraOptions.mode = 'chat'
+  }
+
+  if (isAzureOpenAIProvider(provider)) {
+    const apiVersion = provider.apiVersion?.trim()
+    if (apiVersion) {
+      extraOptions.apiVersion = apiVersion
+      if (!['preview', 'v1'].includes(apiVersion)) {
+        extraOptions.useDeploymentBasedUrls = true
+      }
+    }
   }
 
   // Handle AWS Bedrock
