@@ -37,6 +37,7 @@ const HomePage: FC = () => {
   const currentTab = tabByPath || tabs.find((tab) => tab.id === activeTabId)
   const tabChatState = tabByPath?.chatState || currentTab?.chatState
   const tabForPersistenceId = tabByPath?.id || activeTabId
+  const tabKey = currentTab?.id || 'home'
 
   const resolveAssistantFromTab = useCallback((): Assistant | null => {
     const tabAssistantId = tabChatState?.assistantId
@@ -91,8 +92,14 @@ const HomePage: FC = () => {
   const { toggleShowTopics } = useShowTopics()
   const { showAssistants, showTopics, topicPosition, clickAssistantToShowTopic } = useSettings()
   const dispatch = useDispatch()
+  const isChatRoute = location.pathname.startsWith('/chat/')
   const preferTopicTab =
-    topicPosition === 'left' && (state?.preferTopicTab || Boolean(params.topicId) || clickAssistantToShowTopic)
+    topicPosition === 'left' &&
+    isChatRoute &&
+    (state?.preferTopicTab ||
+      Boolean(params.topicId) ||
+      Boolean(tabChatState?.topicId) ||
+      clickAssistantToShowTopic)
 
   const persistTabChatState = useCallback(
     (assistantId: string, topicId: string) => {
@@ -264,6 +271,7 @@ const HomePage: FC = () => {
                   setActiveTopic={setActiveTopic}
                   position="left"
                   initialTab={preferTopicTab ? 'topic' : undefined}
+                  tabKey={tabKey}
                 />
               </motion.div>
             </ErrorBoundary>

@@ -23,9 +23,10 @@ interface Props {
   forceToSeeAllTab?: boolean
   style?: React.CSSProperties
   initialTab?: Tab
+  tabKey: string
 }
 
-let _tab: Tab | null = null
+const tabMemory = new Map<string, Tab>()
 
 const HomeTabs: FC<Props> = ({
   activeAssistant,
@@ -35,7 +36,8 @@ const HomeTabs: FC<Props> = ({
   position,
   forceToSeeAllTab,
   style,
-  initialTab
+  initialTab,
+  tabKey
 }) => {
   const { addAssistant } = useAssistants()
   const { topicPosition } = useSettings()
@@ -46,11 +48,10 @@ const HomeTabs: FC<Props> = ({
 
   const [tab, setTab] = useState<Tab>(() => {
     if (position !== 'left') return 'topic'
-    if (topicPosition === 'left' && initialTab === 'topic') {
-      _tab = 'topic'
-      return 'topic'
-    }
-    return _tab || 'assistants'
+    const remembered = tabMemory.get(tabKey)
+    if (remembered) return remembered
+    if (topicPosition === 'left' && initialTab === 'topic') return 'topic'
+    return 'assistants'
   })
   const borderStyle = '0.5px solid var(--color-border)'
   const border =
@@ -58,15 +59,24 @@ const HomeTabs: FC<Props> = ({
       ? { borderRight: isLeftNavbar ? borderStyle : 'none' }
       : { borderLeft: isLeftNavbar ? borderStyle : 'none', borderTopLeftRadius: 0 }
 
-  if (position === 'left' && topicPosition === 'left') {
-    _tab = tab
-  }
+  useEffect(() => {
+    if (position === 'left') {
+      tabMemory.set(tabKey, tab)
+    }
+  }, [position, tab, tabKey])
 
   useEffect(() => {
-    if (position === 'left' && topicPosition === 'left' && initialTab === 'topic' && tab !== 'topic') {
+    if (position !== 'left') {
+      setTab('topic')
+      return
+    }
+    const remembered = tabMemory.get(tabKey)
+    if (remembered && remembered !== tab) {
+      setTab(remembered)
+    } else if (!remembered && topicPosition === 'left' && initialTab === 'topic' && tab !== 'topic') {
       setTab('topic')
     }
-  }, [initialTab, position, tab, topicPosition])
+  }, [initialTab, position, tab, tabKey, topicPosition])
 
   const showTab = position === 'left' && topicPosition === 'left'
 
