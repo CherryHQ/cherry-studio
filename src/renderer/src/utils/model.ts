@@ -87,7 +87,7 @@ export const apiModelAdapter = (model: ApiModel): AdaptedApiModel => {
  * where modelId may contain additional colons (e.g., "openrouter:anthropic/claude-3.5-sonnet:free")
  *
  * @param modelIdentifier - The full model identifier string
- * @returns Object with providerId and modelId, or undefined if invalid
+ * @returns Object with providerId and modelId. If no provider prefix found, providerId will be undefined
  *
  * @example
  * parseModelId("openrouter:anthropic/claude-3.5-sonnet:free")
@@ -98,20 +98,38 @@ export const apiModelAdapter = (model: ApiModel): AdaptedApiModel => {
  * // => { providerId: "anthropic", modelId: "claude-3-sonnet" }
  *
  * @example
- * parseModelId("invalid") // => undefined
+ * parseModelId("claude-3-sonnet")
+ * // => { providerId: undefined, modelId: "claude-3-sonnet" }
+ *
+ * @example
+ * parseModelId("") // => undefined
  */
-export function parseModelId(modelIdentifier: string | undefined): { providerId: string; modelId: string } | undefined {
-  if (!modelIdentifier || typeof modelIdentifier !== 'string') {
+export function parseModelId(
+  modelIdentifier: string | undefined
+): { providerId: string | undefined; modelId: string } | undefined {
+  if (!modelIdentifier || typeof modelIdentifier !== 'string' || modelIdentifier.trim() === '') {
     return undefined
   }
 
   const colonIndex = modelIdentifier.indexOf(':')
 
-  // Must contain at least one colon and have content on both sides
-  if (colonIndex <= 0 || colonIndex >= modelIdentifier.length - 1) {
-    return undefined
+  // No colon found or colon at the start - treat entire string as modelId
+  if (colonIndex <= 0) {
+    return {
+      providerId: undefined,
+      modelId: modelIdentifier
+    }
   }
 
+  // Colon at the end - treat everything before as modelId
+  if (colonIndex >= modelIdentifier.length - 1) {
+    return {
+      providerId: undefined,
+      modelId: modelIdentifier.substring(0, colonIndex)
+    }
+  }
+
+  // Standard format: "provider:modelId"
   return {
     providerId: modelIdentifier.substring(0, colonIndex),
     modelId: modelIdentifier.substring(colonIndex + 1)

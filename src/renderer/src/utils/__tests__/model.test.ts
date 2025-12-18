@@ -118,13 +118,42 @@ describe('model', () => {
       })
     })
 
+    it('should handle model identifiers without provider prefix', () => {
+      expect(parseModelId('claude-3-sonnet')).toEqual({
+        providerId: undefined,
+        modelId: 'claude-3-sonnet'
+      })
+
+      expect(parseModelId('gpt-4')).toEqual({
+        providerId: undefined,
+        modelId: 'gpt-4'
+      })
+    })
+
     it('should return undefined for invalid inputs', () => {
       expect(parseModelId(undefined)).toBeUndefined()
       expect(parseModelId('')).toBeUndefined()
-      expect(parseModelId('no-colon')).toBeUndefined()
-      expect(parseModelId(':missing-provider')).toBeUndefined()
-      expect(parseModelId('missing-model:')).toBeUndefined()
-      expect(parseModelId(':')).toBeUndefined()
+      expect(parseModelId('   ')).toBeUndefined()
+    })
+
+    it('should handle edge cases with colons', () => {
+      // Colon at start - treat as modelId without provider
+      expect(parseModelId(':missing-provider')).toEqual({
+        providerId: undefined,
+        modelId: ':missing-provider'
+      })
+
+      // Colon at end - treat everything before as modelId
+      expect(parseModelId('missing-model:')).toEqual({
+        providerId: undefined,
+        modelId: 'missing-model'
+      })
+
+      // Only colon - treat as modelId without provider
+      expect(parseModelId(':')).toEqual({
+        providerId: undefined,
+        modelId: ':'
+      })
     })
 
     it('should handle edge cases', () => {
