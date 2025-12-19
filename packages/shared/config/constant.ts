@@ -341,10 +341,14 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: terminalApps.powershell,
     name: 'PowerShell',
-    command: (_: string, fullCommand: string) => ({
-      command: 'cmd',
-      args: ['/c', 'start', 'powershell', '-NoExit', '-Command', `& '${fullCommand}'`]
-    })
+    command: (_: string, fullCommand: string) => {
+      // Escape double quotes in the path
+      const escapedPath = fullCommand.replace(/"/g, '""')
+      return {
+        command: 'cmd',
+        args: ['/c', 'start', 'powershell', '-NoExit', '-Command', `& "${escapedPath}"`]
+      }
+    }
   },
   {
     id: terminalApps.windowsTerminal,
