@@ -357,7 +357,9 @@ class McpService {
                 if (await isBinaryExists('bun')) {
                   // Fall back to bundled bun
                   cmd = await getBinaryPath('bun')
-                  getServerLogger(server).info(`Using bundled bun as fallback (npx not found in PATH)`, { command: cmd })
+                  getServerLogger(server).info(`Using bundled bun as fallback (npx not found in PATH)`, {
+                    command: cmd
+                  })
 
                   // Transform args for bun x format
                   if (args && args.length > 0) {

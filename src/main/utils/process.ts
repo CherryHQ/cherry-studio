@@ -67,8 +67,11 @@ export async function isBinaryExists(name: string): Promise<boolean> {
 // Timeout for command lookup operations (in milliseconds)
 const COMMAND_LOOKUP_TIMEOUT_MS = 5000
 
-// Regex to validate command names - only allow alphanumeric, underscore, hyphen
-const VALID_COMMAND_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
+// Regex to validate command names - must start with alphanumeric or underscore, max 128 chars
+const VALID_COMMAND_NAME_REGEX = /^[a-zA-Z0-9_][a-zA-Z0-9_-]{0,127}$/
+
+// Maximum output size to prevent buffer overflow (10KB)
+const MAX_OUTPUT_SIZE = 10240
 
 /**
  * Check if a command is available in the user's login shell environment
@@ -105,13 +108,15 @@ export async function findCommandInShellEnv(
       let output = ''
       const timeoutId = setTimeout(() => {
         if (resolved) return
-        child.kill()
+        child.kill('SIGKILL')
         logger.debug(`Timeout checking command '${command}' on Windows`)
         safeResolve(null)
       }, COMMAND_LOOKUP_TIMEOUT_MS)
 
       child.stdout.on('data', (data) => {
-        output += data.toString()
+        if (output.length < MAX_OUTPUT_SIZE) {
+          output += data.toString()
+        }
       })
 
       child.on('close', (code) => {
@@ -146,7 +151,8 @@ export async function findCommandInShellEnv(
       // Unix/Linux/macOS: use 'command -v' which is POSIX standard
       // Use /bin/sh for reliability - it's POSIX compliant and always available
       // This avoids issues with user's custom shell (csh, fish, etc.)
-      const child = spawn('/bin/sh', ['-c', `command -v ${command}`], {
+      // SECURITY: Use positional parameter $1 to prevent command injection
+      const child = spawn('/bin/sh', ['-c', 'command -v "$1"', '--', command], {
         env: loginShellEnv,
         stdio: ['ignore', 'pipe', 'pipe']
       })
@@ -154,13 +160,15 @@ export async function findCommandInShellEnv(
       let output = ''
       const timeoutId = setTimeout(() => {
         if (resolved) return
-        child.kill()
+        child.kill('SIGKILL')
         logger.debug(`Timeout checking command '${command}'`)
         safeResolve(null)
       }, COMMAND_LOOKUP_TIMEOUT_MS)
 
       child.stdout.on('data', (data) => {
-        output += data.toString()
+        if (output.length < MAX_OUTPUT_SIZE) {
+          output += data.toString()
+        }
       })
 
       child.on('close', (code) => {
