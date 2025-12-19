@@ -72,7 +72,9 @@ export const isGPT52SeriesModel = (model: Model) => {
 
 export function isSupportVerbosityModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
-  return (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) && !modelId.includes('chat')
+  return (
+    (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) && !modelId.includes('chat')
+  )
 }
 
 export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
