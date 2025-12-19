@@ -71,6 +71,13 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
+      key: 'close_tab',
+      shortcut: ['CommandOrControl', 'W'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
       key: 'rename_topic',
       shortcut: ['CommandOrControl', 'T'],
       editable: true,

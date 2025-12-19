@@ -63,6 +63,12 @@ const tabsSlice = createSlice({
       }
       state.activeTabId = action.payload.id
     },
+    addTabInBackground: (state, action: PayloadAction<Tab>) => {
+      const existingTab = state.tabs.find((tab) => tab.path === action.payload.path)
+      if (!existingTab) {
+        state.tabs.push(action.payload)
+      }
+    },
     removeTab: (state, action: PayloadAction<string>) => {
       const index = state.tabs.findIndex((tab) => tab.id === action.payload)
       if (index !== -1) {
@@ -85,5 +91,5 @@ const tabsSlice = createSlice({
   }
 })
 
-export const { setTabs, addTab, removeTab, setActiveTab, updateTab } = tabsSlice.actions
+export const { setTabs, addTab, removeTab, setActiveTab, updateTab, addTabInBackground } = tabsSlice.actions
 export default tabsSlice.reducer

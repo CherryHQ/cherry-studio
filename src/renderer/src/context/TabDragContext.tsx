@@ -1,6 +1,6 @@
 import { useAppSelector } from '@renderer/store'
 import type { PropsWithChildren } from 'react'
-import React, { createContext, use, useCallback, useMemo, useState } from 'react'
+import React, { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 export type TabDragCandidate = {
@@ -15,6 +15,7 @@ interface TabDragContextValue {
   clearCandidate: () => void
   setIsOverTabBar: (isOver: boolean) => void
   openCandidateTab: (candidate: TabDragCandidate) => void
+  openCandidateIfOverTabBar: () => boolean
 }
 
 const TabDragContext = createContext<TabDragContextValue>({
@@ -23,31 +24,64 @@ const TabDragContext = createContext<TabDragContextValue>({
   setCandidate: () => {},
   clearCandidate: () => {},
   setIsOverTabBar: () => {},
-  openCandidateTab: () => {}
+  openCandidateTab: () => {},
+  openCandidateIfOverTabBar: () => false
 })
 
 export const TabDragProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const navigate = useNavigate()
   const tabs = useAppSelector((state) => state.tabs.tabs)
-  const [candidate, setCandidate] = useState<TabDragCandidate | null>(null)
-  const [isOverTabBar, setIsOverTabBar] = useState(false)
+  const [candidate, setCandidateState] = useState<TabDragCandidate | null>(null)
+  const [isOverTabBar, setIsOverTabBarState] = useState(false)
+  const candidateRef = useRef<TabDragCandidate | null>(null)
+  const isOverTabBarRef = useRef(false)
 
-  const clearCandidate = useCallback(() => setCandidate(null), [])
+  const setCandidate = useCallback((nextCandidate: TabDragCandidate | null) => {
+    candidateRef.current = nextCandidate
+    setCandidateState((prev) => {
+      if (!prev && !nextCandidate) return prev
+      if (prev && nextCandidate && prev.id === nextCandidate.id && prev.type === nextCandidate.type) return prev
+      return nextCandidate
+    })
+  }, [])
+
+  const setIsOverTabBar = useCallback((isOver: boolean) => {
+    isOverTabBarRef.current = isOver
+    setIsOverTabBarState((prev) => (prev === isOver ? prev : isOver))
+  }, [])
+
+  const clearCandidate = useCallback(() => {
+    candidateRef.current = null
+    setCandidateState(null)
+    setIsOverTabBar(false)
+  }, [setIsOverTabBar])
 
   const openCandidateTab = useCallback(
-    (candidate: TabDragCandidate) => {
-      const tabId = `${candidate.type}:${candidate.id}`
+    (targetCandidate: TabDragCandidate) => {
+      const tabId = `${targetCandidate.type}:${targetCandidate.id}`
       const existingTab = tabs.find((tab) => tab.id === tabId)
       if (existingTab) {
         navigate(existingTab.path)
         return
       }
 
-      const path = candidate.type === 'assistant' ? `/chat/assistant/${candidate.id}` : `/chat/topic/${candidate.id}`
+      const path =
+        targetCandidate.type === 'assistant'
+          ? `/chat/assistant/${targetCandidate.id}`
+          : `/chat/topic/${targetCandidate.id}`
       navigate(path)
     },
     [navigate, tabs]
   )
+
+  const openCandidateIfOverTabBar = useCallback(() => {
+    const currentCandidate = candidateRef.current
+    if (!currentCandidate || !isOverTabBarRef.current) {
+      return false
+    }
+    openCandidateTab(currentCandidate)
+    return true
+  }, [openCandidateTab])
 
   const value = useMemo(
     () => ({
@@ -56,9 +90,18 @@ export const TabDragProvider: React.FC<PropsWithChildren> = ({ children }) => {
       setCandidate,
       clearCandidate,
       setIsOverTabBar,
-      openCandidateTab
+      openCandidateTab,
+      openCandidateIfOverTabBar
     }),
-    [candidate, isOverTabBar, clearCandidate, openCandidateTab]
+    [
+      candidate,
+      isOverTabBar,
+      setCandidate,
+      clearCandidate,
+      setIsOverTabBar,
+      openCandidateTab,
+      openCandidateIfOverTabBar
+    ]
   )
 
   return <TabDragContext value={value}>{children}</TabDragContext>

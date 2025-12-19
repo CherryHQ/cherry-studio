@@ -54,7 +54,7 @@ export const AssistantTagGroups: FC<AssistantTagGroupsProps> = (props) => {
   } = props
 
   const { t } = useTranslation()
-  const { candidate, setCandidate, clearCandidate, isOverTabBar, setIsOverTabBar, openCandidateTab } = useTabDrag()
+  const { setCandidate, clearCandidate, openCandidateIfOverTabBar } = useTabDrag()
 
   const renderAssistantItem = useCallback(
     (assistant: Assistant) => {
@@ -113,11 +113,8 @@ export const AssistantTagGroups: FC<AssistantTagGroupsProps> = (props) => {
             }}
             onDragEnd={() => {
               onDragEnd()
-              if (candidate && isOverTabBar) {
-                openCandidateTab(candidate)
-              }
+              openCandidateIfOverTabBar()
               clearCandidate()
-              setIsOverTabBar(false)
             }}>
             {renderAssistantItem}
           </DraggableList>
