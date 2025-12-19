@@ -7,6 +7,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom'
 import Sidebar from './components/app/Sidebar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import TabsContainer from './components/Tab/TabContainer'
+import { TabDragProvider } from './context/TabDragContext'
 import NavigationHandler from './handler/NavigationHandler'
 import { useOnboardingState } from './hooks/useOnboardingState'
 import { useNavbarPosition } from './hooks/useSettings'
@@ -62,17 +63,21 @@ const Router: FC = () => {
   if (navbarPosition === 'left') {
     return (
       <HashRouter>
-        <Sidebar />
-        {routes}
-        <NavigationHandler />
+        <TabDragProvider>
+          <Sidebar />
+          {routes}
+          <NavigationHandler />
+        </TabDragProvider>
       </HashRouter>
     )
   }
 
   return (
     <HashRouter>
-      <NavigationHandler />
-      <TabsContainer>{routes}</TabsContainer>
+      <TabDragProvider>
+        <NavigationHandler />
+        <TabsContainer>{routes}</TabsContainer>
+      </TabDragProvider>
     </HashRouter>
   )
 }

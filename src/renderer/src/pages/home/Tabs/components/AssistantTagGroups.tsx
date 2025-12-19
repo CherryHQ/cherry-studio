@@ -1,4 +1,6 @@
+import type { DragStart } from '@hello-pangea/dnd'
 import { DraggableList } from '@renderer/components/DraggableList'
+import { useTabDrag } from '@renderer/context/TabDragContext'
 import type { Assistant, AssistantsSortType } from '@renderer/types'
 import type { FC } from 'react'
 import { useCallback } from 'react'
@@ -52,6 +54,7 @@ export const AssistantTagGroups: FC<AssistantTagGroupsProps> = (props) => {
   } = props
 
   const { t } = useTranslation()
+  const { candidate, setCandidate, clearCandidate, isOverTabBar, setIsOverTabBar, openCandidateTab } = useTabDrag()
 
   const renderAssistantItem = useCallback(
     (assistant: Assistant) => {
@@ -99,8 +102,23 @@ export const AssistantTagGroups: FC<AssistantTagGroupsProps> = (props) => {
             list={group.items}
             itemKey={(assistant) => `assistant-${assistant.id}`}
             onUpdate={(newList) => onGroupReorder(group.tag, newList)}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}>
+            onDragStart={(start: DragStart) => {
+              onDragStart()
+              const item = group.items[start.source.index]
+              if (item) {
+                setCandidate({ type: 'assistant', id: item.id })
+              } else {
+                clearCandidate()
+              }
+            }}
+            onDragEnd={() => {
+              onDragEnd()
+              if (candidate && isOverTabBar) {
+                openCandidateTab(candidate)
+              }
+              clearCandidate()
+              setIsOverTabBar(false)
+            }}>
             {renderAssistantItem}
           </DraggableList>
         </TagGroup>

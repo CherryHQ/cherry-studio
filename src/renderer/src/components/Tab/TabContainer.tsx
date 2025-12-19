@@ -4,6 +4,7 @@ import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isLinux, isMac } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
+import { useTabDrag } from '@renderer/context/TabDragContext'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -39,7 +40,7 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -142,6 +143,34 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { assistants } = useAssistants()
   const { useSystemTitleBar } = useSettings()
   const { t } = useTranslation()
+  const { candidate, isOverTabBar, setIsOverTabBar } = useTabDrag()
+  const tabsBarRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!candidate) {
+      setIsOverTabBar(false)
+      return
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const bar = tabsBarRef.current
+      if (!bar) {
+        setIsOverTabBar(false)
+        return
+      }
+
+      const rect = bar.getBoundingClientRect()
+      const isOver =
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
+      setIsOverTabBar(isOver)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    return () => window.removeEventListener('pointermove', handlePointerMove)
+  }, [candidate, setIsOverTabBar])
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -259,7 +288,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
 
   return (
     <Container>
-      <TabsBar $isFullscreen={isFullscreen}>
+      <TabsBar ref={tabsBarRef} $isFullscreen={isFullscreen} $isDragOver={Boolean(candidate && isOverTabBar)}>
         <HorizontalScrollContainer dependencies={[tabs]} gap="6px" className="tab-scroll-container">
           <Sortable
             items={visibleTabs}
@@ -344,7 +373,7 @@ const Container = styled.div`
   width: 100%;
 `
 
-const TabsBar = styled.div<{ $isFullscreen: boolean }>`
+const TabsBar = styled.div<{ $isFullscreen: boolean; $isDragOver: boolean }>`
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -355,6 +384,18 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   min-height: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-height)' : '')};
   position: relative;
   -webkit-app-region: drag;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 10px;
+    background: var(--color-primary);
+    opacity: ${({ $isDragOver }) => ($isDragOver ? 0.1 : 0)};
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+    z-index: 0;
+  }
 
   /* 确保交互元素在拖拽区域之上 */
   > * {
