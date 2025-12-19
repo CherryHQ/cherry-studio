@@ -6,7 +6,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-import { isMac, isWin } from '../constant'
+import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
 import { getResourcePath } from '.'
 
