@@ -1,5 +1,5 @@
 import type { Assistant, Topic } from '@renderer/types'
-import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 /**
  * Import result containing parsed data
@@ -7,7 +7,7 @@ import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
 export interface ImportResult {
   topics: Topic[]
   messages: Message[]
-  blocks: MainTextMessageBlock[]
+  blocks: MessageBlock[]
   metadata?: Record<string, unknown>
 }
 

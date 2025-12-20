@@ -9,7 +9,7 @@ import {
   MessageBlockType,
   UserMessageStatus
 } from '@renderer/types/newMessage'
-import { uuid } from '@renderer/utils'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { ConversationImporter, ImportResult } from '../types'
 
@@ -185,8 +185,8 @@ export class ChatGPTImporter implements ConversationImporter {
     topicId: string,
     assistantId: string
   ): { message: Message; block: MainTextMessageBlock } {
-    const messageId = uuid()
-    const blockId = uuid()
+    const messageId = uuidv4()
+    const blockId = uuidv4()
     const role = this.mapRole(chatgptMessage.author.role)
 
     // Extract text content from parts
@@ -238,7 +238,7 @@ export class ChatGPTImporter implements ConversationImporter {
     conversation: ChatGPTConversation,
     assistantId: string
   ): { topic: Topic; messages: Message[]; blocks: MainTextMessageBlock[] } {
-    const topicId = uuid()
+    const topicId = uuidv4()
     const messages: Message[] = []
     const blocks: MainTextMessageBlock[] = []
 
