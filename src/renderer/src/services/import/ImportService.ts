@@ -120,7 +120,7 @@ class ImportServiceClass {
         }),
         emoji: importer.emoji,
         prompt: '',
-        topics: result.topics,
+        topics: result.topics.map((topic) => ({ ...topic, messages: [] })),
         messages: [],
         type: 'assistant',
         settings: DEFAULT_ASSISTANT_SETTINGS

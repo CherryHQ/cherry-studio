@@ -1,4 +1,4 @@
-import { importChatGPTConversations } from '@renderer/services/import'
+import { ImportService } from '@renderer/services/import'
 import { Alert, Modal, Progress, Space, Spin } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,9 +22,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const onOk = async () => {
     setSelecting(true)
     try {
-      // Select ChatGPT JSON file
+      // Select JSON export file
       const file = await window.api.file.open({
-        filters: [{ name: 'ChatGPT Conversations', extensions: ['json'] }]
+        filters: [{ name: t('import.title'), extensions: ['json'] }]
       })
 
       setSelecting(false)
@@ -39,21 +39,21 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       const fileContent = typeof file.content === 'string' ? file.content : new TextDecoder().decode(file.content)
 
       // Import conversations
-      const result = await importChatGPTConversations(fileContent)
+      const result = await ImportService.importConversations(fileContent)
 
       if (result.success) {
         window.toast.success(
-          t('import.chatgpt.success', {
+          t('import.success', {
             topics: result.topicsCount,
             messages: result.messagesCount
           })
         )
         setOpen(false)
       } else {
-        window.toast.error(result.error || t('import.chatgpt.error.unknown'))
+        window.toast.error(result.error || t('import.error.unknown'))
       }
     } catch (error) {
-      window.toast.error(t('import.chatgpt.error.unknown'))
+      window.toast.error(t('import.error.unknown'))
       setOpen(false)
     } finally {
       setSelecting(false)
@@ -73,12 +73,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   return (
     <Modal
-      title={t('import.chatgpt.title')}
+      title={t('import.title')}
       open={open}
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      okText={t('import.chatgpt.button')}
+      okText={t('import.confirm.button')}
       okButtonProps={{ disabled: selecting || importing, loading: selecting }}
       cancelButtonProps={{ disabled: selecting || importing }}
       maskClosable={false}
@@ -86,7 +86,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       centered>
       {!selecting && !importing && (
         <Space direction="vertical" style={{ width: '100%' }}>
-          <div>{t('import.chatgpt.description')}</div>
+          <div>{t('import.content')}</div>
           <Alert
             message={t('import.chatgpt.help.title')}
             description={
@@ -105,13 +105,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       {selecting && (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <Spin size="large" />
-          <div style={{ marginTop: 16 }}>{t('import.chatgpt.selecting')}</div>
+          <div style={{ marginTop: 16 }}>{t('import.selecting')}</div>
         </div>
       )}
       {importing && (
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <Progress percent={100} status="active" strokeColor="var(--color-primary)" showInfo={false} />
-          <div style={{ marginTop: 16 }}>{t('import.chatgpt.importing')}</div>
+          <div style={{ marginTop: 16 }}>{t('import.importing')}</div>
         </div>
       )}
     </Modal>

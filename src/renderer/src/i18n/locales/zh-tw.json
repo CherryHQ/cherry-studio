@@ -1464,6 +1464,15 @@
     "split": "分割畫面"
   },
   "import": {
+    "chatbox": {
+      "assistant_name": "ChatBox 匯入",
+      "error": {
+        "invalid_json": "無效的 JSON 檔案格式",
+        "no_conversations": "檔案中未找到任何對話",
+        "no_valid_conversations": "沒有可匯入的有效對話"
+      },
+      "untitled_conversation": "未命名對話"
+    },
     "chatgpt": {
       "assistant_name": "ChatGPT 匯入",
       "button": "選擇檔案",
@@ -1490,7 +1499,15 @@
       "button": "選擇匯入檔案",
       "label": "確定要匯入外部資料嗎？"
     },
-    "content": "選擇要匯入的外部應用對話檔案，暫時僅支援 ChatGPT 的 JSON 格式檔案",
+    "content": "選擇要匯入的外部應用對話檔案，支援 ChatGPT / ChatBox 的 JSON 匯出檔案",
+    "error": {
+      "invalid_format": "無效的檔案格式",
+      "unknown": "匯入失敗，請檢查檔案格式",
+      "unsupported_format": "不支援的檔案格式"
+    },
+    "importing": "正在匯入對話...",
+    "selecting": "正在選擇檔案...",
+    "success": "成功匯入 {{topics}} 個對話，共 {{messages}} 則訊息",
     "title": "匯入外部對話"
   },
   "knowledge": {
@@ -3270,7 +3287,7 @@
       "hour_interval_other": "{{count}} 小時",
       "import_settings": {
         "button": "匯入 JSON 檔案",
-        "chatgpt": "匯入 ChatGPT 資料",
+        "chatgpt": "匯入 ChatGPT / ChatBox 資料",
         "title": "匯入外部應用程式資料"
       },
       "joplin": {
