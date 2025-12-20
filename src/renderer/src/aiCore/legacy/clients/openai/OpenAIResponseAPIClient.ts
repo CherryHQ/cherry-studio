@@ -41,7 +41,7 @@ import {
   mcpToolsToOpenAIResponseTools,
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
-import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, findImageBlocks, findToolBlocks } from '@renderer/utils/messageUtils/find'
 import { isSupportDeveloperRoleProvider } from '@renderer/utils/provider'
 import { MB } from '@shared/config/constant'
 import { t } from 'i18next'
@@ -169,24 +169,83 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     } as OpenAI.Responses.ResponseInputFile
   }
 
-  public async convertMessageToSdkParam(message: Message, model: Model): Promise<OpenAIResponseSdkMessageParam> {
+  public async convertMessageToSdkParam(
+    message: Message,
+    model: Model
+  ): Promise<OpenAIResponseSdkMessageParam | OpenAIResponseSdkMessageParam[]> {
     const isVision = isVisionModel(model)
     const { textContent, imageContents } = await this.getMessageContent(message)
     const fileBlocks = findFileBlocks(message)
     const imageBlocks = findImageBlocks(message)
 
-    if (fileBlocks.length === 0 && imageBlocks.length === 0 && imageContents.length === 0) {
-      if (message.role === 'assistant') {
-        return {
+    // For assistant messages, also handle tool history replay
+    if (message.role === 'assistant') {
+      const result: OpenAIResponseSdkMessageParam[] = []
+
+      // Add encrypted reasoning content for Responses API history replay
+      if (message.responsesReasoningItemId && message.responsesReasoningEncryptedContent) {
+        result.push({
+          type: 'reasoning',
+          id: message.responsesReasoningItemId,
+          encrypted_content: message.responsesReasoningEncryptedContent
+        } as OpenAIResponseSdkMessageParam)
+      }
+
+      // Handle tool history - create function_call and function_call_output items
+      const toolBlocks = findToolBlocks(message)
+      const toolResponses = toolBlocks.map((block) => (block as any)?.metadata?.rawMcpToolResponse).filter(Boolean)
+      // Only replay client-side tools (function_call/function_call_output)
+      // Provider-executed tools (e.g. web_search) have special replay semantics
+      const replayableTools = toolResponses.filter((tr: any) => tr?.tool?.type !== 'provider')
+
+      for (const tr of replayableTools) {
+        const callId = tr.toolCallId ?? tr.id
+        const toolName = tr.tool?.name ?? tr.toolName
+        const args = typeof tr.arguments === 'string' ? tr.arguments : JSON.stringify(tr.arguments)
+
+        // Add function_call item
+        result.push({
+          type: 'function_call',
+          call_id: callId,
+          name: toolName,
+          arguments: args
+        } as OpenAIResponseSdkMessageParam)
+
+        // Add function_call_output if tool has completed
+        if (tr.status === 'done' || tr.status === 'error' || tr.status === 'cancelled') {
+          const output = (() => {
+            if (typeof tr.response === 'string') return tr.response
+            try {
+              return JSON.stringify(tr.response)
+            } catch {
+              return String(tr.response)
+            }
+          })()
+
+          result.push({
+            type: 'function_call_output',
+            call_id: callId,
+            output
+          } as OpenAIResponseSdkMessageParam)
+        }
+      }
+
+      // Add the assistant text content
+      if (textContent) {
+        result.push({
           role: 'assistant',
           content: textContent
-        }
-      } else {
-        return {
-          role: message.role === 'system' ? 'user' : message.role,
-          content: textContent ? [{ type: 'input_text', text: textContent }] : []
-        } as OpenAI.Responses.EasyInputMessage
+        })
       }
+
+      return result.length > 0 ? result : { role: 'assistant', content: '' }
+    }
+
+    if (fileBlocks.length === 0 && imageBlocks.length === 0 && imageContents.length === 0) {
+      return {
+        role: message.role === 'system' ? 'user' : message.role,
+        content: textContent ? [{ type: 'input_text', text: textContent }] : []
+      } as OpenAI.Responses.EasyInputMessage
     }
 
     const parts: OpenAI.Responses.ResponseInputContent[] = []
@@ -455,7 +514,13 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         } else {
           const processedMessages = addImageFileToContents(messages)
           for (const message of processedMessages) {
-            userMessage.push(await this.convertMessageToSdkParam(message, model))
+            const result = await this.convertMessageToSdkParam(message, model)
+            // Flatten arrays (tool history can return multiple items)
+            if (Array.isArray(result)) {
+              userMessage.push(...result)
+            } else {
+              userMessage.push(result)
+            }
           }
         }
         // FIXME: 最好还是直接使用previous_response_id来处理（或者在数据库中存储image_generation_call的id）
@@ -635,6 +700,19 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
               } else if (chunk.item.type === 'web_search_call') {
                 controller.enqueue({
                   type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+                })
+              }
+              break
+            case 'response.output_item.done':
+              // Capture encrypted reasoning content for Responses API history replay
+              if (chunk.item.type === 'reasoning' && chunk.item.encrypted_content) {
+                controller.enqueue({
+                  type: ChunkType.RAW,
+                  content: {
+                    type: 'responses_reasoning',
+                    itemId: chunk.item.id,
+                    encryptedContent: chunk.item.encrypted_content
+                  }
                 })
               }
               break
