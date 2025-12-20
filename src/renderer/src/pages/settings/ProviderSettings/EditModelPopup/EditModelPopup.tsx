@@ -2,8 +2,6 @@ import { TopView } from '@renderer/components/TopView'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import ModelEditContent from '@renderer/pages/settings/ProviderSettings/EditModelPopup/ModelEditContent'
-import { useAppDispatch } from '@renderer/store'
-import { setModel } from '@renderer/store/assistants'
 import type { Model, Provider } from '@renderer/types'
 import React, { useCallback, useState } from 'react'
 
@@ -19,9 +17,9 @@ interface Props extends ShowParams {
 const PopupContainer: React.FC<Props> = ({ provider: _provider, model, resolve }) => {
   const [open, setOpen] = useState(true)
   const { provider, updateProvider, models } = useProvider(_provider.id)
-  const { assistants } = useAssistants()
-  const { defaultModel, setDefaultModel } = useDefaultModel()
-  const dispatch = useAppDispatch()
+  const { assistants, updateAssistants } = useAssistants()
+  const { defaultModel, setDefaultModel, translateModel, setTranslateModel, quickModel, setQuickModel } =
+    useDefaultModel()
 
   const onOk = () => {
     setOpen(false)
@@ -42,22 +40,46 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, model, resolve }
 
       updateProvider({ models: updatedModels })
 
-      assistants.forEach((assistant) => {
-        if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
-          dispatch(
-            setModel({
-              assistantId: assistant.id,
-              model: updatedModel
-            })
-          )
-        }
-      })
+      updateAssistants(
+        assistants.map((a) => {
+          let model = a.model
+          let defaultModel = a.defaultModel
+          if (a.model?.id === updatedModel.id && a.model.provider === provider.id) {
+            model = updatedModel
+          }
+          if (a.defaultModel?.id === updatedModel.id && a.defaultModel?.provider === provider.id) {
+            defaultModel = updatedModel
+          }
+          return { ...a, model, defaultModel }
+        })
+      )
 
       if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
         setDefaultModel(updatedModel)
       }
+      if (translateModel?.id === updatedModel.id && translateModel?.provider === provider.id) {
+        setTranslateModel(updatedModel)
+      }
+      if (quickModel?.id === updatedModel.id && quickModel?.provider === provider.id) {
+        setQuickModel(updatedModel)
+      }
     },
-    [models, updateProvider, provider.id, assistants, defaultModel, dispatch, setDefaultModel]
+    [
+      models,
+      updateProvider,
+      updateAssistants,
+      assistants,
+      defaultModel?.id,
+      defaultModel?.provider,
+      provider.id,
+      translateModel?.id,
+      translateModel?.provider,
+      quickModel?.id,
+      quickModel?.provider,
+      setDefaultModel,
+      setTranslateModel,
+      setQuickModel
+    ]
   )
 
   return (

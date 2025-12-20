@@ -128,7 +128,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.export_reasoning.title')}</SettingRowTitle>
-        <Switch isSelected={notionExportReasoning} onValueChange={handleNotionExportReasoningChange} />
+        <Switch checked={notionExportReasoning} onCheckedChange={handleNotionExportReasoningChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.notion.export_reasoning.help')}</SettingHelpText>

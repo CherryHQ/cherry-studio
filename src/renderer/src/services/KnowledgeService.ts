@@ -4,20 +4,21 @@ import { ModernAiProvider } from '@renderer/aiCore'
 import AiProvider from '@renderer/aiCore/legacy'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/config/providers'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import type {
-  FileMetadata,
-  KnowledgeBase,
-  KnowledgeBaseParams,
-  KnowledgeReference,
-  KnowledgeSearchResult
+import {
+  type FileMetadata,
+  type KnowledgeBase,
+  type KnowledgeBaseParams,
+  type KnowledgeReference,
+  type KnowledgeSearchResult,
+  SystemProviderIds
 } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
+import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
 import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
@@ -50,6 +51,9 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     baseURL = baseURL + '/openai'
   } else if (isAzureOpenAIProvider(actualProvider)) {
     baseURL = baseURL + '/v1'
+  } else if (actualProvider.id === SystemProviderIds.ollama) {
+    // LangChain生态不需要/api结尾的URL
+    baseURL = baseURL.replace(/\/api$/, '')
   }
 
   logger.info(`Knowledge base ${base.name} using baseURL: ${baseURL}`)
@@ -158,7 +162,7 @@ export const searchKnowledgeBase = async (
 
     const searchResults: KnowledgeSearchResult[] = await window.api.knowledgeBase.search(
       {
-        search: rewrite || query,
+        search: query || rewrite || '',
         base: baseParams
       },
       currentSpan?.spanContext()

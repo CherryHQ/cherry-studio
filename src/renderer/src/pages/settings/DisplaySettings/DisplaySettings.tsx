@@ -231,7 +231,7 @@ const DisplaySettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
-              <Switch isSelected={windowStyle === 'transparent'} onValueChange={handleWindowStyleChange} />
+              <Switch checked={windowStyle === 'transparent'} onCheckedChange={handleWindowStyleChange} />
             </SettingRow>
           </>
         )}
@@ -355,8 +355,8 @@ const DisplaySettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.advanced.auto_switch_to_topics')}</SettingRowTitle>
               <Switch
-                isSelected={clickAssistantToShowTopic}
-                onValueChange={(checked) => setClickAssistantToShowTopic(checked)}
+                checked={clickAssistantToShowTopic}
+                onCheckedChange={(checked) => setClickAssistantToShowTopic(checked)}
               />
             </SettingRow>
             <SettingDivider />
@@ -364,12 +364,12 @@ const DisplaySettings: FC = () => {
         )}
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
-          <Switch isSelected={showTopicTime} onValueChange={(checked) => setShowTopicTime(checked)} />
+          <Switch checked={showTopicTime} onCheckedChange={(checked) => setShowTopicTime(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
-          <Switch isSelected={pinTopicsToTop} onValueChange={(checked) => setPinTopicsToTop(checked)} />
+          <Switch checked={pinTopicsToTop} onCheckedChange={(checked) => setPinTopicsToTop(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

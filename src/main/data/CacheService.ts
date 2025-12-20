@@ -45,6 +45,10 @@ export class CacheService {
   // Main process cache
   private cache = new Map<string, CacheEntry>()
 
+  // GC timer reference and interval time (e.g., every 10 minutes)
+  private gcInterval: NodeJS.Timeout | null = null
+  private readonly GC_INTERVAL_MS = 10 * 60 * 1000
+
   private constructor() {
     // Private constructor for singleton pattern
   }
@@ -56,6 +60,9 @@ export class CacheService {
     }
 
     this.setupIpcHandlers()
+    // Start garbage collection
+    this.startGarbageCollection()
+
     logger.info('CacheService initialized')
   }
 
@@ -70,6 +77,32 @@ export class CacheService {
   }
 
   // ============ Main Process Cache (Internal) ============
+
+  /**
+   * Garbage collection logic
+   */
+  private startGarbageCollection() {
+    if (this.gcInterval) return
+
+    this.gcInterval = setInterval(() => {
+      const now = Date.now()
+      let removedCount = 0
+
+      for (const [key, entry] of this.cache.entries()) {
+        if (entry.expireAt && now > entry.expireAt) {
+          this.cache.delete(key)
+          removedCount++
+        }
+      }
+
+      if (removedCount > 0) {
+        logger.debug(`Garbage collection removed ${removedCount} expired items`)
+      }
+    }, this.GC_INTERVAL_MS)
+
+    // unref allows the process to exit if there are no other activities
+    this.gcInterval.unref()
+  }
 
   /**
    * Get value from main process cache
@@ -158,6 +191,12 @@ export class CacheService {
    * Cleanup resources
    */
   public cleanup(): void {
+    // Clear the garbage collection interval
+    if (this.gcInterval) {
+      clearInterval(this.gcInterval)
+      this.gcInterval = null
+    }
+
     // Clear cache
     this.cache.clear()
 

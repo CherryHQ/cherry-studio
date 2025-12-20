@@ -6,12 +6,14 @@ import {
   MdiLightbulbOn,
   MdiLightbulbOn30,
   MdiLightbulbOn50,
-  MdiLightbulbOn80
+  MdiLightbulbOn80,
+  MdiLightbulbOn90
 } from '@renderer/components/Icons/SVGIcon'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   getThinkModelType,
   isDoubaoThinkingAutoModel,
+  isFixedReasoningModel,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
   MODEL_SUPPORTED_OPTIONS
@@ -36,31 +38,33 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
   const { assistant, updateAssistantSettings } = useAssistant(assistantId)
 
   const currentReasoningEffort = useMemo(() => {
-    return assistant.settings?.reasoning_effort || 'off'
+    return assistant.settings?.reasoning_effort || 'none'
   }, [assistant.settings?.reasoning_effort])
 
   // 确定当前模型支持的选项类型
   const modelType = useMemo(() => getThinkModelType(model), [model])
 
+  const isFixedReasoning = isFixedReasoningModel(model)
+
   // 获取当前模型支持的选项
   const supportedOptions: ThinkingOption[] = useMemo(() => {
     if (modelType === 'doubao') {
       if (isDoubaoThinkingAutoModel(model)) {
-        return ['off', 'auto', 'high']
+        return ['none', 'auto', 'high']
       }
-      return ['off', 'high']
+      return ['none', 'high']
     }
     return MODEL_SUPPORTED_OPTIONS[modelType]
   }, [model, modelType])
 
   const onThinkingChange = useCallback(
     (option?: ThinkingOption) => {
-      const isEnabled = option !== undefined && option !== 'off'
+      const isEnabled = option !== undefined && option !== 'none'
       // 然后更新设置
       if (!isEnabled) {
         updateAssistantSettings({
-          reasoning_effort: undefined,
-          reasoning_effort_cache: undefined,
+          reasoning_effort: option,
+          reasoning_effort_cache: option,
           qwenThinkMode: false
         })
         return
@@ -90,16 +94,16 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       level: option,
       label: getReasoningEffortOptionsLabel(option),
       description: '',
-      icon: ThinkingIcon(option),
+      icon: ThinkingIcon({ option }),
       isSelected: currentReasoningEffort === option,
       action: () => onThinkingChange(option)
     }))
   }, [currentReasoningEffort, supportedOptions, onThinkingChange])
 
-  const isThinkingEnabled = currentReasoningEffort !== undefined && currentReasoningEffort !== 'off'
+  const isThinkingEnabled = currentReasoningEffort !== undefined && currentReasoningEffort !== 'none'
 
   const disableThinking = useCallback(() => {
-    onThinkingChange('off')
+    onThinkingChange('none')
   }, [onThinkingChange])
 
   const openQuickPanel = useCallback(() => {
@@ -111,24 +115,28 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
   }, [quickPanelHook, panelItems, t])
 
   const handleOpenQuickPanel = useCallback(() => {
+    if (isFixedReasoning) return
+
     if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.Thinking) {
       quickPanelHook.close()
       return
     }
 
-    if (isThinkingEnabled && supportedOptions.includes('off')) {
+    if (isThinkingEnabled && supportedOptions.includes('none')) {
       disableThinking()
       return
     }
     openQuickPanel()
-  }, [openQuickPanel, quickPanelHook, isThinkingEnabled, supportedOptions, disableThinking])
+  }, [openQuickPanel, quickPanelHook, isThinkingEnabled, supportedOptions, disableThinking, isFixedReasoning])
 
   useEffect(() => {
+    if (isFixedReasoning) return
+
     const disposeMenu = quickPanel.registerRootMenu([
       {
         label: t('assistants.settings.reasoning_effort.label'),
         description: '',
-        icon: ThinkingIcon(currentReasoningEffort),
+        icon: ThinkingIcon({ option: currentReasoningEffort }),
         isMenu: true,
         action: () => openQuickPanel()
       }
@@ -140,50 +148,59 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       disposeMenu()
       disposeTrigger()
     }
-  }, [currentReasoningEffort, openQuickPanel, quickPanel, t])
+  }, [currentReasoningEffort, openQuickPanel, quickPanel, t, isFixedReasoning])
+
+  const ariaLabel = isFixedReasoning
+    ? t('chat.input.thinking.label')
+    : isThinkingEnabled && supportedOptions.includes('none')
+      ? t('common.close')
+      : t('assistants.settings.reasoning_effort.label')
 
   return (
-    <Tooltip
-      content={
-        isThinkingEnabled && supportedOptions.includes('off')
-          ? t('common.close')
-          : t('assistants.settings.reasoning_effort.label')
-      }
-      closeDelay={0}>
+    <Tooltip placement="top" content={ariaLabel} closeDelay={0}>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
-        active={currentReasoningEffort !== 'off'}
-        icon={ThinkingIcon(currentReasoningEffort)}
+        active={isFixedReasoning || currentReasoningEffort !== 'none'}
+        aria-label={ariaLabel}
+        aria-pressed={currentReasoningEffort !== 'none'}
+        style={isFixedReasoning ? { cursor: 'default' } : undefined}
+        icon={ThinkingIcon({ option: currentReasoningEffort, isFixedReasoning })}
       />
     </Tooltip>
   )
 }
 
-const ThinkingIcon = (option?: ThinkingOption) => {
+const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boolean }) => {
   let IconComponent: React.FC<React.SVGProps<SVGSVGElement>> | null = null
-
-  switch (option) {
-    case 'minimal':
-      IconComponent = MdiLightbulbOn30
-      break
-    case 'low':
-      IconComponent = MdiLightbulbOn50
-      break
-    case 'medium':
-      IconComponent = MdiLightbulbOn80
-      break
-    case 'high':
-      IconComponent = MdiLightbulbOn
-      break
-    case 'auto':
-      IconComponent = MdiLightbulbAutoOutline
-      break
-    case 'off':
-      IconComponent = MdiLightbulbOffOutline
-      break
-    default:
-      IconComponent = MdiLightbulbOffOutline
-      break
+  if (props.isFixedReasoning) {
+    IconComponent = MdiLightbulbAutoOutline
+  } else {
+    switch (props.option) {
+      case 'minimal':
+        IconComponent = MdiLightbulbOn30
+        break
+      case 'low':
+        IconComponent = MdiLightbulbOn50
+        break
+      case 'medium':
+        IconComponent = MdiLightbulbOn80
+        break
+      case 'high':
+        IconComponent = MdiLightbulbOn90
+        break
+      case 'xhigh':
+        IconComponent = MdiLightbulbOn
+        break
+      case 'auto':
+        IconComponent = MdiLightbulbAutoOutline
+        break
+      case 'none':
+        IconComponent = MdiLightbulbOffOutline
+        break
+      default:
+        IconComponent = MdiLightbulbOffOutline
+        break
+    }
   }
 
   return <IconComponent className="icon" width={18} height={18} style={{ marginTop: -2 }} />

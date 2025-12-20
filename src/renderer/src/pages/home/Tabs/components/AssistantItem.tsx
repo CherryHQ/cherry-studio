@@ -3,13 +3,12 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch } from '@renderer/store'
-import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { Assistant } from '@renderer/types'
 import { cn, getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
@@ -23,6 +22,7 @@ import {
   ArrowUpAZ,
   BrushCleaning,
   Check,
+  MoreVertical,
   Plus,
   Save,
   Settings2,
@@ -75,7 +75,6 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
-  const dispatch = useAppDispatch()
 
   useEffect(() => {
     if (isActive) {
@@ -145,13 +144,21 @@ const AssistantItem: FC<AssistantItemProps> = ({
       }
     }
     onSwitch(assistant)
-    dispatch(setActiveTopicOrSessionAction('topic'))
-  }, [clickAssistantToShowTopic, onSwitch, assistant, dispatch, topicPosition])
+    cacheService.set('chat.active_view', 'topic')
+  }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
 
   const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name, t])
   const fullAssistantName = useMemo(
     () => (assistant.emoji ? `${assistant.emoji} ${assistantName}` : assistantName),
     [assistant.emoji, assistantName]
+  )
+
+  const handleMoreClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      AssistantSettingsPopup.show({ assistant })
+    },
+    [assistant]
   )
 
   return (
@@ -178,8 +185,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
         {isActive && (
-          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-            <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
+          <MenuButton onClick={handleMoreClick}>
+            <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
           </MenuButton>
         )}
       </Container>
@@ -445,21 +452,6 @@ const MenuButton = ({
     {...props}
     className={cn(
       'absolute top-[6px] right-[9px] flex h-[22px] min-h-[22px] min-w-[22px] flex-row items-center justify-center rounded-[11px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
-      className
-    )}>
-    {children}
-  </div>
-)
-
-const TopicCount = ({
-  children,
-  className,
-  ...props
-}: PropsWithChildren<{} & React.HTMLAttributes<HTMLDivElement>>) => (
-  <div
-    {...props}
-    className={cn(
-      'flex flex-row items-center justify-center rounded-[10px] text-[10px] text-[var(--color-text)]',
       className
     )}>
     {children}

@@ -7,8 +7,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
-import { isQwenMTModel } from '@renderer/config/models'
-import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
+import { isQwenMTModel } from '@renderer/config/models/qwen'
 import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
@@ -28,7 +27,7 @@ import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('AssistantService')
 
-export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
+export const DEFAULT_ASSISTANT_SETTINGS = {
   temperature: DEFAULT_TEMPERATURE,
   enableTemperature: true,
   contextCount: DEFAULT_CONTEXTCOUNT,
@@ -37,9 +36,10 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   streamOutput: true,
   topP: 1,
   enableTopP: false,
-  toolUseMode: 'prompt',
+  // It would gracefully fallback to prompt if not supported by model.
+  toolUseMode: 'function',
   customParameters: []
-}
+} as const satisfies AssistantSettings
 
 export function getDefaultAssistant(): Assistant {
   return {
@@ -147,7 +147,7 @@ export function getProviderByModel(model?: Model): Provider {
 
   if (!provider) {
     const defaultProvider = providers.find((p) => p.id === getDefaultModel()?.provider)
-    return defaultProvider || CHERRYAI_PROVIDER || providers[0]
+    return defaultProvider || providers[0]
   }
 
   return provider
@@ -182,7 +182,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
     maxTokens: getAssistantMaxTokens(),
     streamOutput: assistant?.settings?.streamOutput ?? true,
-    toolUseMode: assistant?.settings?.toolUseMode ?? 'prompt',
+    toolUseMode: assistant?.settings?.toolUseMode ?? 'function',
     defaultModel: assistant?.defaultModel ?? undefined,
     reasoning_effort: assistant?.settings?.reasoning_effort ?? undefined,
     customParameters: assistant?.settings?.customParameters ?? []

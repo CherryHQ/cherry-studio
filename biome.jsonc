@@ -14,7 +14,7 @@
       }
     },
     "enabled": true,
-    "includes": ["**/*.json", "!*.json", "!**/package.json"]
+    "includes": ["**/*.json", "!*.json", "!**/package.json", "!coverage/**"]
   },
   "css": {
     "formatter": {
@@ -23,7 +23,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/.claude/**"],
+    "includes": ["**", "!**/.claude/**", "!**/.vscode/**"],
     "maxSize": 2097152
   },
   "formatter": {

@@ -122,7 +122,7 @@ const JoplinSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.joplin.export_reasoning.title')}</SettingRowTitle>
-        <Switch isSelected={joplinExportReasoning} onValueChange={handleToggleJoplinExportReasoning} />
+        <Switch checked={joplinExportReasoning} onCheckedChange={handleToggleJoplinExportReasoning} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.joplin.export_reasoning.help')}</SettingHelpText>

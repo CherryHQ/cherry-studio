@@ -1,0 +1,1566 @@
+{
+  "metadata": {
+    "generatedAt": "2025-11-29T03:44:51.977Z",
+    "version": "2.0.0",
+    "description": "Cherry Studio data inventory"
+  },
+  "redux": {
+    "assistants": {
+      "_meta": {
+        "file": "src/renderer/src/store/assistants.ts",
+        "interface": "AssistantsState"
+      },
+      "defaultAssistant": {
+        "file": "src/renderer/src/store/assistants.ts",
+        "type": "unknown",
+        "defaultValue": "getDefaultAssistant()"
+      },
+      "assistants": {
+        "file": "src/renderer/src/store/assistants.ts",
+        "type": "array",
+        "defaultValue": "[getDefaultAssistant()]"
+      },
+      "tagsOrder": {
+        "file": "src/renderer/src/store/assistants.ts",
+        "type": "string",
+        "defaultValue": []
+      },
+      "collapsedTags": {
+        "file": "src/renderer/src/store/assistants.ts",
+        "type": "string",
+        "defaultValue": {}
+      },
+      "presets": {
+        "file": "src/renderer/src/store/assistants.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "unifiedListOrder": {
+        "file": "src/renderer/src/store/assistants.ts",
+        "type": "unknown",
+        "defaultValue": null
+      }
+    },
+    "backup": {
+      "_meta": {
+        "file": "src/renderer/src/store/backup.ts",
+        "interface": "BackupState"
+      },
+      "webdavSync": {
+        "file": "src/renderer/src/store/backup.ts",
+        "type": "unknown",
+        "defaultValue": "{ lastSyncTime: null, syncing: false, lastSyncError: null }"
+      },
+      "localBackupSync": {
+        "file": "src/renderer/src/store/backup.ts",
+        "type": "unknown",
+        "defaultValue": "{ lastSyncTime: null, syncing: false, lastSyncError: null }"
+      },
+      "s3Sync": {
+        "file": "src/renderer/src/store/backup.ts",
+        "type": "unknown",
+        "defaultValue": "{ lastSyncTime: null, syncing: false, lastSyncError: null }"
+      }
+    },
+    "copilot": {
+      "_meta": {
+        "file": "src/renderer/src/store/copilot.ts",
+        "interface": "CopilotState"
+      },
+      "username": {
+        "file": "src/renderer/src/store/copilot.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "avatar": {
+        "file": "src/renderer/src/store/copilot.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "defaultHeaders": {
+        "file": "src/renderer/src/store/copilot.ts",
+        "type": "string",
+        "defaultValue": null
+      }
+    },
+    "inputTools": {
+      "_meta": {
+        "file": "src/renderer/src/store/inputTools.ts",
+        "interface": "InputToolsState"
+      },
+      "toolOrder": {
+        "file": "src/renderer/src/store/inputTools.ts",
+        "type": "string",
+        "defaultValue": "DEFAULT_TOOL_ORDER"
+      },
+      "sessionToolOrder": {
+        "file": "src/renderer/src/store/inputTools.ts",
+        "type": "string",
+        "defaultValue": "DEFAULT_TOOL_ORDER_BY_SCOPE[TopicType.Session]"
+      }
+    },
+    "knowledge": {
+      "_meta": {
+        "file": "src/renderer/src/store/knowledge.ts",
+        "interface": "KnowledgeState"
+      },
+      "bases": {
+        "file": "src/renderer/src/store/knowledge.ts",
+        "type": "array",
+        "defaultValue": null
+      }
+    },
+    "llm": {
+      "_meta": {
+        "file": "src/renderer/src/store/llm.ts",
+        "interface": "LlmState"
+      },
+      "providers": {
+        "file": "src/renderer/src/store/llm.ts",
+        "type": "array",
+        "defaultValue": "SYSTEM_PROVIDERS"
+      },
+      "defaultModel": {
+        "file": "src/renderer/src/store/llm.ts",
+        "type": "unknown",
+        "defaultValue": "SYSTEM_MODELS.defaultModel[0]"
+      },
+      "topicNamingModel": {
+        "file": "src/renderer/src/store/llm.ts",
+        "type": "unknown",
+        "defaultValue": "SYSTEM_MODELS.defaultModel[1]"
+      },
+      "quickModel": {
+        "file": "src/renderer/src/store/llm.ts",
+        "type": "unknown",
+        "defaultValue": "SYSTEM_MODELS.defaultModel[1]"
+      },
+      "translateModel": {
+        "file": "src/renderer/src/store/llm.ts",
+        "type": "unknown",
+        "defaultValue": "SYSTEM_MODELS.defaultModel[2]"
+      },
+      "quickAssistantId": {
+        "file": "src/renderer/src/store/llm.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "settings": {
+        "file": "src/renderer/src/store/llm.ts",
+        "type": "unknown",
+        "defaultValue": "{ ollama: { keepAliveTime: 0 }, lmstudio: { keepAliveTime: 0 }, gpustack: { keepAliveTime: 0 }, vertexai: { serviceAccount: { privateKey: '', clientEmail: '' }, projectId: '', location: '' }, awsBedrock: { authType: 'iam', accessKeyId: '', secretAccessKey: '', apiKey: '', region: '' } }"
+      }
+    },
+    "mcp": {
+      "_meta": {
+        "file": "src/renderer/src/store/mcp.ts",
+        "interface": "McpState"
+      },
+      "servers": {
+        "file": "src/renderer/src/store/mcp.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "isUvInstalled": {
+        "file": "src/renderer/src/store/mcp.ts",
+        "type": "boolean",
+        "defaultValue": true
+      }
+    },
+    "memory": {
+      "_meta": {
+        "file": "src/renderer/src/store/memory.ts",
+        "interface": "MemoryState"
+      },
+      "memoryConfig": {
+        "file": "src/renderer/src/store/memory.ts",
+        "type": "unknown",
+        "defaultValue": "defaultMemoryConfig"
+      },
+      "currentUserId": {
+        "file": "src/renderer/src/store/memory.ts",
+        "type": "string",
+        "defaultValue": "localStorage.getItem('memory_currentUserId') || 'default-user'"
+      },
+      "globalMemoryEnabled": {
+        "file": "src/renderer/src/store/memory.ts",
+        "type": "boolean",
+        "defaultValue": null
+      }
+    },
+    "messageBlock": {
+      "_meta": {
+        "file": "src/renderer/src/store/messageBlock.ts",
+        "interface": "MessageBlockState"
+      }
+    },
+    "migrate": {
+      "_meta": {
+        "file": "src/renderer/src/store/migrate.ts",
+        "interface": "MigrateState"
+      }
+    },
+    "minapps": {
+      "_meta": {
+        "file": "src/renderer/src/store/minapps.ts",
+        "interface": "MinappsState"
+      },
+      "enabled": {
+        "file": "src/renderer/src/store/minapps.ts",
+        "type": "string",
+        "defaultValue": "DEFAULT_MIN_APPS"
+      },
+      "disabled": {
+        "file": "src/renderer/src/store/minapps.ts",
+        "type": "array",
+        "defaultValue": []
+      }
+    },
+    "newMessage": {
+      "_meta": {
+        "file": "src/renderer/src/store/newMessage.ts",
+        "interface": "NewMessageState"
+      }
+    },
+    "nutstore": {
+      "_meta": {
+        "file": "src/renderer/src/store/nutstore.ts",
+        "interface": "NutstoreState"
+      },
+      "nutstoreToken": {
+        "file": "src/renderer/src/store/nutstore.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "nutstorePath": {
+        "file": "src/renderer/src/store/nutstore.ts",
+        "type": "string",
+        "defaultValue": "/cherry-studio"
+      },
+      "nutstoreAutoSync": {
+        "file": "src/renderer/src/store/nutstore.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "nutstoreSyncInterval": {
+        "file": "src/renderer/src/store/nutstore.ts",
+        "type": "number",
+        "defaultValue": 0
+      },
+      "nutstoreSyncState": {
+        "file": "src/renderer/src/store/nutstore.ts",
+        "type": "unknown",
+        "defaultValue": "{ lastSyncTime: null, syncing: false, lastSyncError: null }"
+      },
+      "nutstoreSkipBackupFile": {
+        "file": "src/renderer/src/store/nutstore.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "nutstoreMaxBackups": {
+        "file": "src/renderer/src/store/nutstore.ts",
+        "type": "number",
+        "defaultValue": null
+      }
+    },
+    "paintings": {
+      "_meta": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "interface": "PaintingsState"
+      },
+      "siliconflow_paintings": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "dmxapi_paintings": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "tokenflux_paintings": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "zhipu_paintings": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "aihubmix_image_generate": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "aihubmix_image_remix": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "aihubmix_image_edit": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "aihubmix_image_upscale": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "openai_image_generate": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "openai_image_edit": {
+        "file": "src/renderer/src/store/paintings.ts",
+        "type": "array",
+        "defaultValue": []
+      }
+    },
+    "preprocess": {
+      "_meta": {
+        "file": "src/renderer/src/store/preprocess.ts",
+        "interface": "PreprocessState"
+      },
+      "providers": {
+        "file": "src/renderer/src/store/preprocess.ts",
+        "type": "array",
+        "defaultValue": "[ { id: 'mineru', name: 'MinerU', apiKey: '', apiHost: 'https://mineru.net' }"
+      },
+      "defaultProvider": {
+        "file": "src/renderer/src/store/preprocess.ts",
+        "type": "string",
+        "defaultValue": null
+      }
+    },
+    "runtime": {
+      "_meta": {
+        "file": "src/renderer/src/store/runtime.ts",
+        "interface": "RuntimeState"
+      },
+      "chat": {
+        "file": "src/renderer/src/store/runtime.ts",
+        "type": "unknown",
+        "defaultValue": "{ isMultiSelectMode: false, selectedMessageIds: [], activeTopic: null, activeAgentId: null, activeTopicOrSession: 'topic', activeSessionIdMap: {}, renamingTopics: [], newlyRenamedTopics: [], sessionWaiting: {} }"
+      }
+    },
+    "selectionStore": {
+      "_meta": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "interface": "SelectionState"
+      },
+      "selectionEnabled": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "triggerMode": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "unknown",
+        "defaultValue": "SelectionTriggerMode.Selected"
+      },
+      "isCompact": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "isAutoClose": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "isAutoPin": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "isFollowToolbar": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "isRemeberWinSize": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "filterMode": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "unknown",
+        "defaultValue": "SelectionFilterMode.Default"
+      },
+      "filterList": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "string",
+        "defaultValue": []
+      },
+      "actionWindowOpacity": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "number",
+        "defaultValue": 100
+      },
+      "actionItems": {
+        "file": "src/renderer/src/store/selectionStore.ts",
+        "type": "array",
+        "defaultValue": null
+      }
+    },
+    "settings": {
+      "_meta": {
+        "file": "src/renderer/src/store/settings.ts",
+        "interface": "SettingsState"
+      },
+      "showAssistants": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "showTopics": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "assistantsTabSortType": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "list"
+      },
+      "sendMessageShortcut": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "Enter"
+      },
+      "language": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "navigator.language as LanguageVarious"
+      },
+      "targetLanguage": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "en-us"
+      },
+      "proxyMode": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "system"
+      },
+      "proxyUrl": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "proxyBypassRules": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "userName": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "userId": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": "uuid()"
+      },
+      "showPrompt": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "showMessageDivider": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "messageFont": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "system"
+      },
+      "showInputEstimatedTokens": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "launchOnBoot": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "launchToTray": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "trayOnClose": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "tray": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "theme": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "ThemeMode.system"
+      },
+      "userTheme": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ colorPrimary: '#00b96b', userFontFamily: '', userCodeFontFamily: '' }"
+      },
+      "windowStyle": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "isMac ? 'transparent' : 'opaque'"
+      },
+      "fontSize": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "number",
+        "defaultValue": 14
+      },
+      "topicPosition": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "left"
+      },
+      "showTopicTime": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "pinTopicsToTop": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "assistantIconType": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "emoji"
+      },
+      "pasteLongTextAsFile": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "pasteLongTextThreshold": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "number",
+        "defaultValue": 1500
+      },
+      "clickAssistantToShowTopic": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "autoCheckUpdate": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "testPlan": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "testChannel": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "UpgradeChannel.LATEST"
+      },
+      "renderInputMessageAsMarkdown": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "codeExecution": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ enabled: false, timeoutMinutes: 1 }"
+      },
+      "enabled": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "timeoutMinutes": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "number",
+        "defaultValue": null
+      },
+      "codeEditor": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ enabled: false, themeLight: 'auto', themeDark: 'auto', highlightActiveLine: false, foldGutter: false, autocompletion: true, keymap: false }"
+      },
+      "themeLight": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "themeDark": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "highlightActiveLine": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "foldGutter": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "autocompletion": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "keymap": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "codePreview": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ themeLight: 'auto', themeDark: 'auto' }"
+      },
+      "codeViewer": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ themeLight: 'auto', themeDark: 'auto' }"
+      },
+      "codeShowLineNumbers": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "codeCollapsible": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "codeWrappable": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "codeImageTools": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "codeFancyBlock": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "mathEngine": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "KaTeX"
+      },
+      "mathEnableSingleDollar": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "messageStyle": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "plain"
+      },
+      "foldDisplayMode": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "expanded"
+      },
+      "gridColumns": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "number",
+        "defaultValue": 2
+      },
+      "gridPopoverTrigger": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "click"
+      },
+      "messageNavigation": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "none"
+      },
+      "skipBackupFile": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "webdavHost": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "webdavUser": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "webdavPass": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "webdavPath": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": "/cherry-studio"
+      },
+      "webdavAutoSync": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "webdavSyncInterval": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "number",
+        "defaultValue": 0
+      },
+      "webdavMaxBackups": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "number",
+        "defaultValue": 0
+      },
+      "webdavSkipBackupFile": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "webdavDisableStream": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "translateModelPrompt": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": "TRANSLATE_PROMPT"
+      },
+      "autoTranslateWithSpace": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "showTranslateConfirm": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "enableTopicNaming": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "customCss": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "topicNamingPrompt": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "confirmDeleteMessage": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "confirmRegenerateMessage": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "sidebarIcons": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ visible: DefaultPreferences.default['ui.sidebar.icons.visible'], disabled: [] }"
+      },
+      "visible": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "array",
+        "defaultValue": null
+      },
+      "disabled": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "array",
+        "defaultValue": null
+      },
+      "narrowMode": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "enableQuickAssistant": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "clickTrayToShowQuickAssistant": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "multiModelMessageStyle": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "horizontal"
+      },
+      "readClipboardAtStartup": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "notionDatabaseID": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "notionApiKey": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "notionPageNameKey": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": "Name"
+      },
+      "markdownExportPath": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "forceDollarMathInMarkdown": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "useTopicNamingForMessageTitle": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "showModelNameInMarkdown": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "showModelProviderInMarkdown": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "thoughtAutoCollapse": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "notionExportReasoning": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "excludeCitationsInExport": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "standardizeCitationsInExport": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "yuqueToken": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "yuqueUrl": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "yuqueRepoId": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "joplinToken": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "joplinUrl": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "joplinExportReasoning": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "defaultObsidianVault": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "defaultAgent": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "siyuanApiUrl": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "siyuanToken": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "siyuanBoxId": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "siyuanRootPath": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "agentssubscribeUrl": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "maxKeepAliveMinapps": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "number",
+        "defaultValue": 3
+      },
+      "showOpenedMinappsInSidebar": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "minappsOpenLinkExternal": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "enableDataCollection": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "enableSpellCheck": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "spellCheckLanguages": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": []
+      },
+      "enableQuickPanelTriggers": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "disableHardwareAcceleration": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "exportMenuOptions": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true, notes: true }"
+      },
+      "image": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "markdown": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "markdown_reason": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "notion": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "yuque": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "joplin": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "obsidian": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "siyuan": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "docx": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "plain_text": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "notes": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "openAI": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ summaryText: 'auto', serviceTier: 'auto', verbosity: undefined }"
+      },
+      "summaryText": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "serviceTier": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "verbosity": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "notification": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ assistant: false, backup: false, knowledge: false }"
+      },
+      "assistant": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "backup": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "knowledge": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      },
+      "localBackupDir": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "localBackupAutoSync": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "localBackupSyncInterval": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "number",
+        "defaultValue": 0
+      },
+      "localBackupMaxBackups": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "number",
+        "defaultValue": 0
+      },
+      "localBackupSkipBackupFile": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "defaultPaintingProvider": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "cherryin"
+      },
+      "s3": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', root: '', autoSync: false, syncInterval: 0, maxBackups: 0, skipBackupFile: false }"
+      },
+      "enableDeveloperMode": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "navbarPosition": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "top"
+      },
+      "apiServer": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": "{ enabled: false, host: 'localhost', port: 23333, apiKey: `cs-sk-${uuid()}` }"
+      },
+      "showMessageOutline": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": null
+      }
+    },
+    "shortcuts": {
+      "_meta": {
+        "file": "src/renderer/src/store/shortcuts.ts",
+        "interface": "ShortcutsState"
+      },
+      "shortcuts": {
+        "file": "src/renderer/src/store/shortcuts.ts",
+        "type": "array",
+        "defaultValue": "[ ...ZOOM_SHORTCUTS"
+      }
+    },
+    "tabs": {
+      "_meta": {
+        "file": "src/renderer/src/store/tabs.ts",
+        "interface": "TabsState"
+      },
+      "tabs": {
+        "file": "src/renderer/src/store/tabs.ts",
+        "type": "array",
+        "defaultValue": "[ { id: 'home', path: '/' }"
+      },
+      "activeTabId": {
+        "file": "src/renderer/src/store/tabs.ts",
+        "type": "string",
+        "defaultValue": null
+      }
+    },
+    "toolPermissions": {
+      "_meta": {
+        "file": "src/renderer/src/store/toolPermissions.ts",
+        "interface": "ToolPermissionsState"
+      },
+      "requests": {
+        "file": "src/renderer/src/store/toolPermissions.ts",
+        "type": "string",
+        "defaultValue": {}
+      }
+    },
+    "translate": {
+      "_meta": {
+        "file": "src/renderer/src/store/translate.ts",
+        "interface": "TranslateState"
+      },
+      "translateInput": {
+        "file": "src/renderer/src/store/translate.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "translatedContent": {
+        "file": "src/renderer/src/store/translate.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "settings": {
+        "file": "src/renderer/src/store/translate.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "autoCopy": {
+        "file": "src/renderer/src/store/translate.ts",
+        "type": "boolean",
+        "defaultValue": null
+      }
+    },
+    "websearch": {
+      "_meta": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "interface": "WebSearchState"
+      },
+      "defaultProvider": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "type": "string",
+        "defaultValue": "local-bing"
+      },
+      "providers": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "type": "array",
+        "defaultValue": "WEB_SEARCH_PROVIDERS"
+      },
+      "searchWithTime": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      "maxResults": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "type": "number",
+        "defaultValue": 5
+      },
+      "excludeDomains": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "type": "string",
+        "defaultValue": []
+      },
+      "subscribeSources": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "type": "array",
+        "defaultValue": []
+      },
+      "overwrite": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
+      "compressionConfig": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "type": "unknown",
+        "defaultValue": "{ method: 'none', cutoffUnit: 'char' }"
+      },
+      "providerConfig": {
+        "file": "src/renderer/src/store/websearch.ts",
+        "type": "string",
+        "defaultValue": {}
+      }
+    },
+    "codeTools": {
+      "_meta": {
+        "file": "src/renderer/src/store/codeTools.ts",
+        "interface": "CodeToolsState"
+      },
+      "selectedCliTool": {
+        "file": "src/renderer/src/store/codeTools.ts",
+        "type": "unknown",
+        "defaultValue": "codeTools.qwenCode"
+      },
+      "selectedModels": {
+        "file": "src/renderer/src/store/codeTools.ts",
+        "type": "string",
+        "defaultValue": "{ [codeTools.qwenCode]: null, [codeTools.claudeCode]: null, [codeTools.geminiCli]: null, [codeTools.openaiCodex]: null, [codeTools.iFlowCli]: null, [codeTools.githubCopilotCli]: null }"
+      },
+      "environmentVariables": {
+        "file": "src/renderer/src/store/codeTools.ts",
+        "type": "string",
+        "defaultValue": {
+          "qwen-code": "",
+          "claude-code": "",
+          "gemini-cli": "",
+          "openai-codex": "",
+          "iflow-cli": "",
+          "github-copilot-cli": ""
+        }
+      },
+      "directories": {
+        "file": "src/renderer/src/store/codeTools.ts",
+        "type": "string",
+        "defaultValue": []
+      },
+      "currentDirectory": {
+        "file": "src/renderer/src/store/codeTools.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "selectedTerminal": {
+        "file": "src/renderer/src/store/codeTools.ts",
+        "type": "string",
+        "defaultValue": null
+      }
+    },
+    "ocr": {
+      "_meta": {
+        "file": "src/renderer/src/store/ocr.ts",
+        "interface": "OcrState"
+      },
+      "providers": {
+        "file": "src/renderer/src/store/ocr.ts",
+        "type": "array",
+        "defaultValue": "BUILTIN_OCR_PROVIDERS"
+      },
+      "imageProviderId": {
+        "file": "src/renderer/src/store/ocr.ts",
+        "type": "string",
+        "defaultValue": null
+      }
+    },
+    "note": {
+      "_meta": {
+        "file": "src/renderer/src/store/note.ts",
+        "interface": "NoteState"
+      },
+      "activeNodeId": {
+        "file": "src/renderer/src/store/note.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "activeFilePath": {
+        "file": "src/renderer/src/store/note.ts",
+        "type": "string",
+        "defaultValue": null
+      },
+      "settings": {
+        "file": "src/renderer/src/store/note.ts",
+        "type": "unknown",
+        "defaultValue": "{ isFullWidth: true, fontFamily: 'default', fontSize: 16, showTableOfContents: true, defaultViewMode: 'edit', defaultEditMode: 'preview', showTabStatus: true, showWorkspace: true }"
+      },
+      "notesPath": {
+        "file": "src/renderer/src/store/note.ts",
+        "type": "string",
+        "defaultValue": ""
+      },
+      "sortType": {
+        "file": "src/renderer/src/store/note.ts",
+        "type": "unknown",
+        "defaultValue": "sort_a2z"
+      },
+      "starredPaths": {
+        "file": "src/renderer/src/store/note.ts",
+        "type": "string",
+        "defaultValue": []
+      },
+      "expandedPaths": {
+        "file": "src/renderer/src/store/note.ts",
+        "type": "string",
+        "defaultValue": null
+      }
+    }
+  },
+  "electronStore": {
+    "Language": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.Language",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "Theme": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.Theme",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "LaunchToTray": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.LaunchToTray",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "Tray": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.Tray",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "TrayOnClose": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.TrayOnClose",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "ZoomFactor": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.ZoomFactor",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "Shortcuts": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.Shortcuts",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "ClickTrayToShowQuickAssistant": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.ClickTrayToShowQuickAssistant",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "EnableQuickAssistant": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.EnableQuickAssistant",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "AutoUpdate": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.AutoUpdate",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "TestPlan": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.TestPlan",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "TestChannel": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.TestChannel",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "EnableDataCollection": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.EnableDataCollection",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "SelectionAssistantEnabled": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.SelectionAssistantEnabled",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "SelectionAssistantTriggerMode": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.SelectionAssistantTriggerMode",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "SelectionAssistantFollowToolbar": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.SelectionAssistantFollowToolbar",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "SelectionAssistantRemeberWinSize": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.SelectionAssistantRemeberWinSize",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "SelectionAssistantFilterMode": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.SelectionAssistantFilterMode",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "SelectionAssistantFilterList": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.SelectionAssistantFilterList",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "DisableHardwareAcceleration": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.DisableHardwareAcceleration",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "Proxy": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.Proxy",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "EnableDeveloperMode": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.EnableDeveloperMode",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "ClientId": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.ClientId",
+      "type": "unknown",
+      "defaultValue": null
+    }
+  },
+  "localStorage": {
+    "persist:cherry-studio": {
+      "file": "src\\main\\utils\\index.ts",
+      "type": "string",
+      "defaultValue": null
+    },
+    "memory_currentUserId": {
+      "file": "src\\renderer\\src\\store\\memory.ts",
+      "type": "string",
+      "defaultValue": null
+    }
+  },
+  "dexie": {
+    "files": {
+      "file": "src/renderer/src/databases/index.ts",
+      "type": "EntityTable<FileMetadata, 'id'>",
+      "schema": null
+    },
+    "topics": {
+      "file": "src/renderer/src/databases/index.ts",
+      "type": "EntityTable<{ id: string; messages: NewMessage[] }, 'id'>",
+      "schema": null
+    },
+    "settings": {
+      "file": "src/renderer/src/databases/index.ts",
+      "type": "EntityTable<{ id: string; value: any }, 'id'>",
+      "schema": null
+    },
+    "knowledge_notes": {
+      "file": "src/renderer/src/databases/index.ts",
+      "type": "EntityTable<KnowledgeNoteItem, 'id'>",
+      "schema": null
+    },
+    "translate_history": {
+      "file": "src/renderer/src/databases/index.ts",
+      "type": "EntityTable<TranslateHistory, 'id'>",
+      "schema": null
+    },
+    "quick_phrases": {
+      "file": "src/renderer/src/databases/index.ts",
+      "type": "EntityTable<QuickPhrase, 'id'>",
+      "schema": null
+    },
+    "message_blocks": {
+      "file": "src/renderer/src/databases/index.ts",
+      "type": "EntityTable<MessageBlock, 'id'>",
+      "schema": null
+    },
+    "translate_languages": {
+      "file": "src/renderer/src/databases/index.ts",
+      "type": "EntityTable<CustomTranslateLanguage, 'id'>",
+      "schema": null
+    }
+  }
+}

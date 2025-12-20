@@ -12,7 +12,6 @@ import {
   isSupportVerbosityModel,
   isVisionModel
 } from '@renderer/config/models'
-import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import type {
   FileMetadata,
@@ -43,6 +42,7 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { isSupportDeveloperRoleProvider } from '@renderer/utils/provider'
 import { MB } from '@shared/config/constant'
 import { t } from 'i18next'
 import { isEmpty } from 'lodash'
@@ -122,6 +122,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     if (this.sdkInstance) {
       return this.sdkInstance
     }
+    const baseUrl = this.getBaseURL()
 
     if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
       return new AzureOpenAI({
@@ -134,7 +135,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       return new OpenAI({
         dangerouslyAllowBrowser: true,
         apiKey: this.apiKey,
-        baseURL: this.getBaseURL(),
+        baseURL: baseUrl,
         defaultHeaders: {
           ...this.defaultHeaders(),
           ...this.provider.extra_headers
@@ -297,7 +298,31 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
   private convertResponseToMessageContent(response: OpenAI.Responses.Response): ResponseInput {
     const content: OpenAI.Responses.ResponseInput = []
-    content.push(...response.output)
+    response.output.forEach((item) => {
+      if (item.type !== 'apply_patch_call' && item.type !== 'apply_patch_call_output') {
+        content.push(item)
+      } else if (item.type === 'apply_patch_call') {
+        if (item.operation !== undefined) {
+          const applyPatchToolCall: OpenAI.Responses.ResponseInputItem.ApplyPatchCall = {
+            ...item,
+            operation: item.operation
+          }
+          content.push(applyPatchToolCall)
+        } else {
+          logger.warn('Undefined tool call operation for ApplyPatchToolCall.')
+        }
+      } else if (item.type === 'apply_patch_call_output') {
+        if (item.output !== undefined) {
+          const applyPatchToolCallOutput: OpenAI.Responses.ResponseInputItem.ApplyPatchCallOutput = {
+            ...item,
+            output: item.output === null ? undefined : item.output
+          }
+          content.push(applyPatchToolCallOutput)
+        } else {
+          logger.warn('Undefined tool call operation for ApplyPatchToolCall.')
+        }
+      }
+    })
     return content
   }
 
@@ -496,7 +521,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           ...(isSupportVerbosityModel(model)
             ? {
                 text: {
-                  verbosity: this.getVerbosity()
+                  verbosity: this.getVerbosity(model)
                 }
               }
             : {}),

@@ -6,7 +6,7 @@ import {
   WifiOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
-import { Button, RowFlex } from '@cherrystudio/ui'
+import { Button, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
@@ -17,11 +17,12 @@ import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { useTimer } from '@renderer/hooks/useTimer'
+import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Progress, Switch, Typography } from 'antd'
+import { Progress, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -91,7 +92,13 @@ const DataSettings: FC = () => {
     { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
     { key: 'nutstore', title: t('settings.data.nutstore.title'), icon: <NutstoreIcon /> },
     { key: 's3', title: t('settings.data.s3.title.label'), icon: <CloudServerOutlined style={{ fontSize: 16 }} /> },
-    { key: 'divider_2', isDivider: true, text: t('settings.data.divider.export_settings') },
+    { key: 'divider_2', isDivider: true, text: t('settings.data.divider.import_settings') },
+    {
+      key: 'import_settings',
+      title: t('settings.data.import_settings.title'),
+      icon: <FolderOpen size={16} />
+    },
+    { key: 'divider_3', isDivider: true, text: t('settings.data.divider.export_settings') },
     {
       key: 'export_menu',
       title: t('settings.data.export_menu.title'),
@@ -103,7 +110,7 @@ const DataSettings: FC = () => {
       icon: <FileText size={16} />
     },
 
-    { key: 'divider_3', isDivider: true, text: t('settings.data.divider.third_party') },
+    { key: 'divider_4', isDivider: true, text: t('settings.data.divider.third_party') },
     { key: 'notion', title: t('settings.data.notion.title'), icon: <i className="iconfont icon-notion" /> },
     {
       key: 'yuque',
@@ -284,7 +291,7 @@ const DataSettings: FC = () => {
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
             defaultChecked={shouldCopyData}
-            onChange={(checked) => (shouldCopyData = checked)}
+            onCheckedChange={(checked) => (shouldCopyData = checked)}
             style={{ marginRight: '8px' }}
             title={t('settings.data.app_data.copy_data_option')}
           />
@@ -609,7 +616,7 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-                <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
+                <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
               </SettingRow>
               <SettingRow>
                 <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
@@ -695,6 +702,7 @@ const DataSettings: FC = () => {
         {menu === 'webdav' && <WebDavSettings />}
         {menu === 'nutstore' && <NutstoreSettings />}
         {menu === 's3' && <S3Settings />}
+        {menu === 'import_settings' && <ImportMenuOptions />}
         {menu === 'export_menu' && <ExportMenuOptions />}
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'notion' && <NotionSettings />}

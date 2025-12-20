@@ -8,7 +8,7 @@ export function WebSearchTool({
   input,
   output
 }: {
-  input: WebSearchToolInput
+  input?: WebSearchToolInput
   output?: WebSearchToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算结果数量
@@ -20,7 +20,7 @@ export function WebSearchTool({
       <ToolTitle
         icon={<Globe className="h-4 w-4" />}
         label="Web Search"
-        params={input.query}
+        params={input?.query}
         stats={output ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}` : undefined}
       />
     ),

@@ -1,7 +1,6 @@
 import type { CollapseProps } from 'antd'
 import { Tag } from 'antd'
 import { CheckCircle, Terminal, XCircle } from 'lucide-react'
-import { useMemo } from 'react'
 
 import { ToolTitle } from './GenericTools'
 import type { BashOutputToolInput, BashOutputToolOutput } from './types'
@@ -16,80 +15,72 @@ interface ParsedBashOutput {
   tool_use_error?: string
 }
 
+const parseBashOutput = (output?: BashOutputToolOutput): ParsedBashOutput | null => {
+  if (!output) return null
+
+  try {
+    const parser = new DOMParser()
+    const hasToolError = output.includes('<tool_use_error>')
+    const xmlStr = output.includes('<status>') || hasToolError ? `<root>${output}</root>` : output
+    const xmlDoc = parser.parseFromString(xmlStr, 'application/xml')
+    const parserError = xmlDoc.querySelector('parsererror')
+    if (parserError) return null
+
+    const getElementText = (tagName: string): string | undefined => {
+      const element = xmlDoc.getElementsByTagName(tagName)[0]
+      return element?.textContent?.trim()
+    }
+
+    return {
+      status: getElementText('status'),
+      exit_code: getElementText('exit_code') ? parseInt(getElementText('exit_code')!) : undefined,
+      stdout: getElementText('stdout'),
+      stderr: getElementText('stderr'),
+      timestamp: getElementText('timestamp'),
+      tool_use_error: getElementText('tool_use_error')
+    }
+  } catch {
+    return null
+  }
+}
+
+const getStatusConfig = (parsedOutput: ParsedBashOutput | null) => {
+  if (!parsedOutput) return null
+
+  if (parsedOutput.tool_use_error) {
+    return {
+      color: 'danger',
+      icon: <XCircle className="h-3.5 w-3.5" />,
+      text: 'Error'
+    } as const
+  }
+
+  const isCompleted = parsedOutput.status === 'completed'
+  const isSuccess = parsedOutput.exit_code === 0
+
+  return {
+    color: isCompleted && isSuccess ? 'success' : isCompleted && !isSuccess ? 'danger' : 'warning',
+    icon:
+      isCompleted && isSuccess ? (
+        <CheckCircle className="h-3.5 w-3.5" />
+      ) : isCompleted && !isSuccess ? (
+        <XCircle className="h-3.5 w-3.5" />
+      ) : (
+        <Terminal className="h-3.5 w-3.5" />
+      ),
+    text: isCompleted ? (isSuccess ? 'Success' : 'Failed') : 'Running'
+  } as const
+}
+
 export function BashOutputTool({
   input,
   output
 }: {
-  input: BashOutputToolInput
+  input?: BashOutputToolInput
   output?: BashOutputToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
-  // 解析 XML 输出
-  const parsedOutput = useMemo(() => {
-    if (!output) return null
-
-    try {
-      const parser = new DOMParser()
-      // 检查是否包含 tool_use_error 标签
-      const hasToolError = output.includes('<tool_use_error>')
-      // 包装成有效的 XML（如果还没有根元素）
-      const xmlStr = output.includes('<status>') || hasToolError ? `<root>${output}</root>` : output
-      const xmlDoc = parser.parseFromString(xmlStr, 'application/xml')
-
-      // 检查是否有解析错误
-      const parserError = xmlDoc.querySelector('parsererror')
-      if (parserError) {
-        return null
-      }
-
-      const getElementText = (tagName: string): string | undefined => {
-        const element = xmlDoc.getElementsByTagName(tagName)[0]
-        return element?.textContent?.trim()
-      }
-
-      const result: ParsedBashOutput = {
-        status: getElementText('status'),
-        exit_code: getElementText('exit_code') ? parseInt(getElementText('exit_code')!) : undefined,
-        stdout: getElementText('stdout'),
-        stderr: getElementText('stderr'),
-        timestamp: getElementText('timestamp'),
-        tool_use_error: getElementText('tool_use_error')
-      }
-
-      return result
-    } catch {
-      return null
-    }
-  }, [output])
-
-  // 获取状态配置
-  const statusConfig = useMemo(() => {
-    if (!parsedOutput) return null
-
-    // 如果有 tool_use_error，直接显示错误状态
-    if (parsedOutput.tool_use_error) {
-      return {
-        color: 'danger',
-        icon: <XCircle className="h-3.5 w-3.5" />,
-        text: 'Error'
-      } as const
-    }
-
-    const isCompleted = parsedOutput.status === 'completed'
-    const isSuccess = parsedOutput.exit_code === 0
-
-    return {
-      color: isCompleted && isSuccess ? 'success' : isCompleted && !isSuccess ? 'danger' : 'warning',
-      icon:
-        isCompleted && isSuccess ? (
-          <CheckCircle className="h-3.5 w-3.5" />
-        ) : isCompleted && !isSuccess ? (
-          <XCircle className="h-3.5 w-3.5" />
-        ) : (
-          <Terminal className="h-3.5 w-3.5" />
-        ),
-      text: isCompleted ? (isSuccess ? 'Success' : 'Failed') : 'Running'
-    } as const
-  }, [parsedOutput])
+  const parsedOutput = parseBashOutput(output)
+  const statusConfig = getStatusConfig(parsedOutput)
 
   const children = parsedOutput ? (
     <div className="flex flex-col gap-4">
@@ -153,7 +144,7 @@ export function BashOutputTool({
           label="Bash Output"
           params={
             <div className="flex items-center gap-2">
-              <Tag className="py-0 font-mono text-xs">{input.bash_id}</Tag>
+              <Tag className="py-0 font-mono text-xs">{input?.bash_id}</Tag>
               {statusConfig && (
                 <Tag
                   color={statusConfig.color}

@@ -1,8 +1,6 @@
+import { Button, Spinner } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
-
-import { Button } from '../../../src/components'
-import { Spinner } from '../../../src/components'
 
 const meta: Meta<typeof Spinner> = {
   title: 'Components/Primitives/Spinner',

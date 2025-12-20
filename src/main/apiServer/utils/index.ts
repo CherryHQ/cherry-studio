@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
+import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
@@ -287,6 +288,8 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
       return (m: Model) => m.endpoint_type === 'anthropic'
     case 'aihubmix':
       return (m: Model) => m.id.includes('claude')
+    case 'silicon':
+      return (m: Model) => isSiliconAnthropicCompatibleModel(m.id)
     default:
       // allow all models when checker not configured
       return () => true

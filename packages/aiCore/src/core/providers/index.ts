@@ -44,7 +44,7 @@ export {
 // ==================== 基础数据和类型 ====================
 
 // 基础Provider数据源
-export { baseProviderIds, baseProviders } from './schemas'
+export { baseProviderIds, baseProviders, isBaseProvider } from './schemas'
 
 // 类型定义和Schema
 export type {

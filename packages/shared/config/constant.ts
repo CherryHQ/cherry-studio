@@ -7,6 +7,11 @@ export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', 
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
 
+export const API_SERVER_DEFAULTS = {
+  HOST: '127.0.0.1',
+  PORT: 23333
+}
+
 /**
  * A flat array of all file extensions known by the linguist database.
  * This is the primary source for identifying code files.
@@ -199,7 +204,7 @@ export enum FeedUrl {
 
 export enum UpdateConfigUrl {
   GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json',
-  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files/app-upgrade-config/app-upgrade-config.json'
+  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
 }
 
 // export enum UpgradeChannel {

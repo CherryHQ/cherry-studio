@@ -240,47 +240,35 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
 
   burncloud: [
-    { id: 'claude-3-7-sonnet-20250219-thinking', provider: 'burncloud', name: 'Claude 3.7 thinking', group: 'Claude' },
-    { id: 'claude-3-7-sonnet-20250219', provider: 'burncloud', name: 'Claude 3.7 Sonnet', group: 'Claude 3.7' },
-    { id: 'claude-3-5-sonnet-20241022', provider: 'burncloud', name: 'Claude 3.5 Sonnet', group: 'Claude 3.5' },
-    { id: 'claude-3-5-haiku-20241022', provider: 'burncloud', name: 'Claude 3.5 Haiku', group: 'Claude 3.5' },
+    { id: 'claude-opus-4-5-20251101', provider: 'burncloud', name: 'Claude 4.5 Opus', group: 'Claude 4.5' },
+    { id: 'claude-sonnet-4-5-20250929', provider: 'burncloud', name: 'Claude 4.5 Sonnet', group: 'Claude 4.5' },
+    { id: 'claude-haiku-4-5-20251001', provider: 'burncloud', name: 'Claude 4.5 Haiku', group: 'Claude 4.5' },
 
-    { id: 'gpt-4.5-preview', provider: 'burncloud', name: 'gpt-4.5-preview', group: 'gpt-4.5' },
-    { id: 'gpt-4o', provider: 'burncloud', name: 'GPT-4o', group: 'GPT 4o' },
-    { id: 'gpt-4o-mini', provider: 'burncloud', name: 'GPT-4o-mini', group: 'GPT 4o' },
-    { id: 'o3', provider: 'burncloud', name: 'GPT-o1-mini', group: 'o1' },
-    { id: 'o3-mini', provider: 'burncloud', name: 'GPT-o1-preview', group: 'o1' },
-    { id: 'o1-mini', provider: 'burncloud', name: 'GPT-o1-mini', group: 'o1' },
+    { id: 'gpt-5', provider: 'burncloud', name: 'GPT 5', group: 'GPT 5' },
+    { id: 'gpt-5.1', provider: 'burncloud', name: 'GPT 5.1', group: 'GPT 5.1' },
 
-    { id: 'gemini-2.5-pro-preview-03-25', provider: 'burncloud', name: 'Gemini 2.5 Preview', group: 'Geminit 2.5' },
-    { id: 'gemini-2.5-pro-exp-03-25', provider: 'burncloud', name: 'Gemini 2.5 Pro Exp', group: 'Geminit 2.5' },
-    { id: 'gemini-2.0-flash-lite', provider: 'burncloud', name: 'Gemini 2.0 Flash Lite', group: 'Geminit 2.0' },
-    { id: 'gemini-2.0-flash-exp', provider: 'burncloud', name: 'Gemini 2.0 Flash Exp', group: 'Geminit 2.0' },
-    { id: 'gemini-2.0-flash', provider: 'burncloud', name: 'Gemini 2.0 Flash', group: 'Geminit 2.0' },
+    { id: 'gemini-2.5-flash', provider: 'burncloud', name: 'Gemini 2.5 Flash', group: 'Gemini 2.5' },
+    { id: 'gemini-2.5-flash-image', provider: 'burncloud', name: 'Gemini 2.5 Flash Image', group: 'Gemini 2.5' },
+    { id: 'gemini-2.5-pro', provider: 'burncloud', name: 'Gemini 2.5 Pro', group: 'Gemini 2.5' },
+    { id: 'gemini-3-pro-preview', provider: 'burncloud', name: 'Gemini 3 Pro Preview', group: 'Gemini 3' },
 
-    { id: 'deepseek-r1', name: 'DeepSeek-R1', provider: 'burncloud', group: 'deepseek-ai' },
-    { id: 'deepseek-v3', name: 'DeepSeek-V3', provider: 'burncloud', group: 'deepseek-ai' }
+    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', provider: 'burncloud', group: 'deepseek-ai' },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'burncloud', group: 'deepseek-ai' }
   ],
   ovms: [],
   ollama: [],
   lmstudio: [],
   silicon: [
     {
-      id: 'deepseek-ai/DeepSeek-R1',
-      name: 'deepseek-ai/DeepSeek-R1',
+      id: 'deepseek-ai/DeepSeek-V3.2',
+      name: 'deepseek-ai/DeepSeek-V3.2',
       provider: 'silicon',
       group: 'deepseek-ai'
     },
     {
-      id: 'deepseek-ai/DeepSeek-V3',
-      name: 'deepseek-ai/DeepSeek-V3',
+      id: 'Qwen/Qwen3-8B',
+      name: 'Qwen/Qwen3-8B',
       provider: 'silicon',
-      group: 'deepseek-ai'
-    },
-    {
-      id: 'Qwen/Qwen2.5-7B-Instruct',
-      provider: 'silicon',
-      name: 'Qwen2.5-7B-Instruct',
       group: 'Qwen'
     },
     {
@@ -288,79 +276,31 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'BAAI/bge-m3',
       provider: 'silicon',
       group: 'BAAI'
-    },
-    {
-      id: 'Qwen/Qwen3-8B',
-      name: 'Qwen/Qwen3-8B',
-      provider: 'silicon',
-      group: 'Qwen'
     }
   ],
   ppio: [
     {
-      id: 'deepseek/deepseek-r1-0528',
+      id: 'deepseek/deepseek-v3.2',
       provider: 'ppio',
-      name: 'DeepSeek R1-0528',
+      name: 'DeepSeek V3.2',
       group: 'deepseek'
     },
     {
-      id: 'deepseek/deepseek-v3-0324',
+      id: 'minimax/minimax-m2',
       provider: 'ppio',
-      name: 'DeepSeek V3-0324',
-      group: 'deepseek'
-    },
-    {
-      id: 'deepseek/deepseek-r1-turbo',
-      provider: 'ppio',
-      name: 'DeepSeek R1 Turbo',
-      group: 'deepseek'
-    },
-    {
-      id: 'deepseek/deepseek-v3-turbo',
-      provider: 'ppio',
-      name: 'DeepSeek V3 Turbo',
-      group: 'deepseek'
-    },
-    {
-      id: 'deepseek/deepseek-r1/community',
-      name: 'DeepSeek: DeepSeek R1 (Community)',
-      provider: 'ppio',
-      group: 'deepseek'
-    },
-    {
-      id: 'deepseek/deepseek-v3/community',
-      name: 'DeepSeek: DeepSeek V3 (Community)',
-      provider: 'ppio',
-      group: 'deepseek'
-    },
-    {
-      id: 'minimaxai/minimax-m1-80k',
-      provider: 'ppio',
-      name: 'MiniMax M1-80K',
+      name: 'MiniMax M2',
       group: 'minimaxai'
     },
     {
-      id: 'qwen/qwen3-235b-a22b-fp8',
+      id: 'qwen/qwen3-235b-a22b-instruct-2507',
       provider: 'ppio',
-      name: 'Qwen3 235B',
+      name: 'Qwen3-235b-a22b-instruct-2507',
       group: 'qwen'
     },
     {
-      id: 'qwen/qwen3-32b-fp8',
+      id: 'qwen/qwen3-vl-235b-a22b-instruct',
       provider: 'ppio',
-      name: 'Qwen3 32B',
-      group: 'qwen'
-    },
-    {
-      id: 'qwen/qwen3-30b-a3b-fp8',
-      provider: 'ppio',
-      name: 'Qwen3 30B',
-      group: 'qwen'
-    },
-    {
-      id: 'qwen/qwen2.5-vl-72b-instruct',
-      provider: 'ppio',
-      name: 'Qwen2.5 VL 72B',
+      name: 'Qwen3-vl-235b-a22b-instruct',
       group: 'qwen'
     },
     {
@@ -378,11 +318,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   alayanew: [],
   openai: [
-    { id: 'gpt-4.5-preview', provider: 'openai', name: ' gpt-4.5-preview', group: 'gpt-4.5' },
-    { id: 'gpt-4o', provider: 'openai', name: ' GPT-4o', group: 'GPT 4o' },
-    { id: 'gpt-4o-mini', provider: 'openai', name: ' GPT-4o-mini', group: 'GPT 4o' },
-    { id: 'o1-mini', provider: 'openai', name: ' o1-mini', group: 'o1' },
-    { id: 'o1-preview', provider: 'openai', name: ' o1-preview', group: 'o1' }
+    { id: 'gpt-5.1', provider: 'openai', name: ' GPT 5.1', group: 'GPT 5.1' },
+    { id: 'gpt-5', provider: 'openai', name: ' GPT 5', group: 'GPT 5' },
+    { id: 'gpt-5-mini', provider: 'openai', name: ' GPT 5 Mini', group: 'GPT 5' },
+    { id: 'gpt-5-nano', provider: 'openai', name: ' GPT 5 Nano', group: 'GPT 5' },
+    { id: 'gpt-5-pro', provider: 'openai', name: ' GPT 5 Pro', group: 'GPT 5' },
+    { id: 'gpt-5-chat', provider: 'openai', name: ' GPT 5 Chat', group: 'GPT 5' },
+    { id: 'gpt-image-1', provider: 'openai', name: ' GPT Image 1', group: 'GPT Image' }
   ],
   'azure-openai': [
     {
@@ -400,96 +342,54 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   gemini: [
     {
-      id: 'gemini-1.5-flash',
+      id: 'gemini-2.5-flash',
       provider: 'gemini',
-      name: 'Gemini 1.5 Flash',
-      group: 'Gemini 1.5'
+      name: 'Gemini 2.5 Flash',
+      group: 'Gemini 2.5'
     },
     {
-      id: 'gemini-1.5-flash-8b',
+      id: 'gemini-2.5-pro',
       provider: 'gemini',
-      name: 'Gemini 1.5 Flash (8B)',
-      group: 'Gemini 1.5'
-    },
-    {
-      id: 'gemini-1.5-pro',
-      name: 'Gemini 1.5 Pro',
-      provider: 'gemini',
-      group: 'Gemini 1.5'
-    },
-    {
-      id: 'gemini-2.0-flash',
-      provider: 'gemini',
-      name: 'Gemini 2.0 Flash',
-      group: 'Gemini 2.0'
+      name: 'Gemini 2.5 Pro',
+      group: 'Gemini 2.5'
     },
     {
       id: 'gemini-2.5-flash-image-preview',
       provider: 'gemini',
       name: 'Gemini 2.5 Flash Image',
       group: 'Gemini 2.5'
+    },
+    {
+      id: 'gemini-3-pro-image-preview',
+      provider: 'gemini',
+      name: 'Gemini 3 Pro Image Privew',
+      group: 'Gemini 3'
+    },
+    {
+      id: 'gemini-3-pro-preview',
+      provider: 'gemini',
+      name: 'Gemini 3 Pro Preview',
+      group: 'Gemini 3'
     }
   ],
   anthropic: [
     {
-      id: 'claude-haiku-4-5-20251001',
-      provider: 'anthropic',
-      name: 'Claude Haiku 4.5',
-      group: 'Claude 4.5'
-    },
-    {
-      id: 'claude-sonnet-4-5-20250929',
+      id: 'claude-sonnet-4-5',
       provider: 'anthropic',
       name: 'Claude Sonnet 4.5',
       group: 'Claude 4.5'
     },
     {
-      id: 'claude-sonnet-4-20250514',
+      id: 'claude-haiku-4-5',
       provider: 'anthropic',
-      name: 'Claude Sonnet 4',
-      group: 'Claude 4'
+      name: 'Claude Haiku 4.5',
+      group: 'Claude 4.5'
     },
     {
-      id: 'claude-opus-4-20250514',
+      id: 'claude-opus-4-5',
       provider: 'anthropic',
-      name: 'Claude Opus 4',
-      group: 'Claude 4'
-    },
-    {
-      id: 'claude-3-7-sonnet-20250219',
-      provider: 'anthropic',
-      name: 'Claude 3.7 Sonnet',
-      group: 'Claude 3.7'
-    },
-    {
-      id: 'claude-3-5-sonnet-20241022',
-      provider: 'anthropic',
-      name: 'Claude 3.5 Sonnet',
-      group: 'Claude 3.5'
-    },
-    {
-      id: 'claude-3-5-haiku-20241022',
-      provider: 'anthropic',
-      name: 'Claude 3.5 Haiku',
-      group: 'Claude 3.5'
-    },
-    {
-      id: 'claude-3-5-sonnet-20240620',
-      provider: 'anthropic',
-      name: 'Claude 3.5 Sonnet (Legacy)',
-      group: 'Claude 3.5'
-    },
-    {
-      id: 'claude-3-opus-20240229',
-      provider: 'anthropic',
-      name: 'Claude 3 Opus',
-      group: 'Claude 3'
-    },
-    {
-      id: 'claude-3-haiku-20240307',
-      provider: 'anthropic',
-      name: 'Claude 3 Haiku',
-      group: 'Claude 3'
+      name: 'Claude Opus 4.5',
+      group: 'Claude 4.5'
     }
   ],
   deepseek: [
@@ -1072,18 +972,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       id: 'grok-3-mini-fast',
       provider: 'grok',
       name: 'Grok 3 Mini Fast',
-      group: 'Grok'
-    },
-    {
-      id: 'grok-2-vision-1212',
-      provider: 'grok',
-      name: 'Grok 2 Vision 1212',
-      group: 'Grok'
-    },
-    {
-      id: 'grok-2-1212',
-      provider: 'grok',
-      name: 'Grok 2 1212',
       group: 'Grok'
     }
   ],
@@ -1808,34 +1696,58 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   aionly: [
     {
-      id: 'claude-opus-4.1',
-      name: 'claude-opus-4.1',
+      id: 'claude-opus-4-5-20251101',
+      name: 'Claude Opus 4.5',
       provider: 'aionly',
-      group: 'claude'
+      group: 'Anthropic'
     },
     {
-      id: 'claude-sonnet4',
-      name: 'claude-sonnet4',
+      id: 'claude-haiku-4-5-20251001',
+      name: 'Claude Haiku 4.5',
       provider: 'aionly',
-      group: 'claude'
+      group: 'Anthropic'
     },
     {
-      id: 'claude-3.5-sonnet-v2',
-      name: 'claude-3.5-sonnet-v2',
+      id: 'claude-sonnet-4-5-20250929',
+      name: 'Claude Sonnet 4.5',
       provider: 'aionly',
-      group: 'claude'
+      group: 'Anthropic'
     },
     {
-      id: 'gpt-4.1',
-      name: 'gpt-4.1',
+      id: 'gpt-5.1',
+      name: 'GPT-5.1',
       provider: 'aionly',
-      group: 'gpt'
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5.1-chat',
+      name: 'GPT-5.1 Chat',
+      provider: 'aionly',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5-pro',
+      name: 'GPT 5 Pro',
+      provider: 'aionly',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gemini-3-pro-preview',
+      name: 'Gemini 3 Pro Preview',
+      provider: 'aionly',
+      group: 'Google'
+    },
+    {
+      id: 'gemini-2.5-pro',
+      name: 'Gemini 2.5 Pro',
+      provider: 'aionly',
+      group: 'Google'
     },
     {
       id: 'gemini-2.5-flash',
-      name: 'gemini-2.5-flash',
+      name: 'Gemini 2.5 Flash',
       provider: 'aionly',
-      group: 'gemini'
+      group: 'Google'
     }
   ],
   longcat: [
@@ -1853,7 +1765,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   huggingface: [],
-  'ai-gateway': [],
+  gateway: [],
   cerebras: [
     {
       id: 'gpt-oss-120b',

@@ -12,6 +12,7 @@ export { DescriptionSwitch, Switch } from './primitives/switch'
 export { Tooltip, type TooltipProps } from './primitives/tooltip'
 
 // Composite Components
+export { ConfirmDialog, type ConfirmDialogProps } from './composites/ConfirmDialog'
 export { default as Ellipsis } from './composites/Ellipsis'
 export { default as ExpandableText } from './composites/ExpandableText'
 export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/Flex'
@@ -22,42 +23,10 @@ export { default as Scrollbar } from './composites/Scrollbar'
 export { default as ThinkingEffect } from './composites/ThinkingEffect'
 
 // Icon Components
-export { FilePngIcon, FileSvgIcon } from './icons/FileIcons'
-// export type { LucideIcon, LucideProps } from './icons/Icon'
-// export {
-//   CopyIcon,
-//   createIcon,
-//   DeleteIcon,
-//   EditIcon,
-//   OcrIcon,
-//   RefreshIcon,
-//   ResetIcon,
-//   ToolIcon,
-//   UnWrapIcon,
-//   VisionIcon,
-//   WebSearchIcon,
-//   WrapIcon
-// } from './icons/Icon'
-export { default as SvgSpinners180Ring } from './icons/SvgSpinners180Ring'
-export { default as ToolsCallingIcon } from './icons/ToolsCallingIcon'
 
-// Brand Logo Icons (彩色品牌 Logo 图标 - 84个)
-// 推荐使用 '@cherrystudio/ui/icons' 路径导入
+// Brand Logo Icons (Colorful brand logo icons - 81 items)
+// Recommended to import using '@cherrystudio/ui/icons' path
 export * from './icons'
-
-// /* Selector Components */
-// export { default as Selector } from './primitives/select'
-// export { default as SearchableSelector } from './primitives/Selector/SearchableSelector'
-// export type {
-//   MultipleSearchableSelectorProps,
-//   MultipleSelectorProps,
-//   SearchableSelectorItem,
-//   SearchableSelectorProps,
-//   SelectorItem,
-//   SelectorProps,
-//   SingleSearchableSelectorProps,
-//   SingleSelectorProps
-// } from './primitives/Selector/types'
 
 /* Additional Composite Components */
 // CodeEditor
@@ -81,15 +50,28 @@ export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './
 // ImageToolButton
 export { default as ImageToolButton } from './composites/ImageToolButton'
 // Sortable
+export {
+  CompositeInput,
+  type CompositeInputProps,
+  type SelectGroup as CompositeInputSelectGroup,
+  type SelectItem as CompositeInputSelectItem
+} from './composites/Input'
 export { Sortable } from './composites/Sortable'
 
 /* Shadcn Primitive Components */
+export * from './primitives/breadcrumb'
 export * from './primitives/button'
 export * from './primitives/checkbox'
 export * from './primitives/combobox'
 export * from './primitives/command'
 export * from './primitives/dialog'
+export * from './primitives/input'
+export * from './primitives/input-group'
+export * from './primitives/kbd'
+export * from './primitives/pagination'
 export * from './primitives/popover'
 export * from './primitives/radioGroup'
 export * from './primitives/select'
 export * from './primitives/shadcn-io/dropzone'
+export * from './primitives/tabs'
+export * as Textarea from './primitives/textarea'

@@ -101,8 +101,8 @@ const SelectionAssistantSettings: FC = () => {
             {!isSupportedOS && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}
           </SettingLabel>
           <Switch
-            isSelected={isSupportedOS && selectionEnabled}
-            onValueChange={handleEnableCheckboxChange}
+            checked={isSupportedOS && selectionEnabled}
+            onCheckedChange={handleEnableCheckboxChange}
             disabled={!isSupportedOS}
           />
         </SettingRow>
@@ -162,7 +162,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.toolbar.compact_mode.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.toolbar.compact_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isCompact} onValueChange={setIsCompact} />
+              <Switch checked={isCompact} onCheckedChange={setIsCompact} />
             </SettingRow>
           </SettingGroup>
 
@@ -174,7 +174,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.follow_toolbar.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.follow_toolbar.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isFollowToolbar} onValueChange={setIsFollowToolbar} />
+              <Switch checked={isFollowToolbar} onCheckedChange={setIsFollowToolbar} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -182,7 +182,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.remember_size.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.remember_size.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isRemeberWinSize} onValueChange={setIsRemeberWinSize} />
+              <Switch checked={isRemeberWinSize} onCheckedChange={setIsRemeberWinSize} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -190,7 +190,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.auto_close.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.auto_close.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isAutoClose} onValueChange={setIsAutoClose} />
+              <Switch checked={isAutoClose} onCheckedChange={setIsAutoClose} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -198,7 +198,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.auto_pin.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.auto_pin.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isAutoPin} onValueChange={setIsAutoPin} />
+              <Switch checked={isAutoPin} onCheckedChange={setIsAutoPin} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>

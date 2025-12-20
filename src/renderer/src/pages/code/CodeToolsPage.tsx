@@ -18,6 +18,7 @@ import type { EndpointType, Model } from '@renderer/types'
 import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
+import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import { Alert, Checkbox, Input, Popover, Select, Space } from 'antd'
 import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -81,6 +82,10 @@ const CodeToolsPage: FC = () => {
       if (selectedCliTool === codeTools.claudeCode) {
         if (m.supported_endpoint_types) {
           return m.supported_endpoint_types.includes('anthropic')
+        }
+        // Special handling for silicon provider: only specific models support Anthropic API
+        if (m.provider === 'silicon') {
+          return isSiliconAnthropicCompatibleModel(m.id)
         }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }

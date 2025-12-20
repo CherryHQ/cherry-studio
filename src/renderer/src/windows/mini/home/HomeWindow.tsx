@@ -256,6 +256,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
         let blockId: string | null = null
         let thinkingBlockId: string | null = null
+        let thinkingStartTime: number | null = null
+
+        const resolveThinkingDuration = (duration?: number) => {
+          if (typeof duration === 'number' && Number.isFinite(duration)) {
+            return duration
+          }
+          if (thinkingStartTime !== null) {
+            return Math.max(0, performance.now() - thinkingStartTime)
+          }
+          return 0
+        }
 
         setIsLoading(true)
         setIsOutputted(false)
@@ -285,7 +296,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         await fetchChatCompletion({
           messages: modelMessages,
           assistant: newAssistant,
-          options: {},
+          requestOptions: {},
           topicId,
           uiMessages: uiMessages,
           onChunkReceived: (chunk: Chunk) => {
@@ -293,6 +304,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               case ChunkType.THINKING_START:
                 {
                   setIsOutputted(true)
+                  thinkingStartTime = performance.now()
                   if (thinkingBlockId) {
                     store.dispatch(
                       updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
@@ -317,9 +329,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 {
                   setIsOutputted(true)
                   if (thinkingBlockId) {
+                    if (thinkingStartTime === null) {
+                      thinkingStartTime = performance.now()
+                    }
+                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                     throttledBlockUpdate(thinkingBlockId, {
                       content: chunk.text,
-                      thinking_millsec: chunk.thinking_millsec
+                      thinking_millsec: thinkingDuration
                     })
                   }
                 }
@@ -327,14 +343,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               case ChunkType.THINKING_COMPLETE:
                 {
                   if (thinkingBlockId) {
+                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                     cancelThrottledBlockUpdate(thinkingBlockId)
                     store.dispatch(
                       updateOneBlock({
                         id: thinkingBlockId,
-                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: chunk.thinking_millsec }
+                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: thinkingDuration }
                       })
                     )
                   }
+                  thinkingStartTime = null
+                  thinkingBlockId = null
                 }
                 break
               case ChunkType.TEXT_START:
@@ -406,6 +425,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 if (!isAborted) {
                   throw new Error(chunk.error.message)
                 }
+                thinkingStartTime = null
+                thinkingBlockId = null
               }
               //fall through
               case ChunkType.BLOCK_COMPLETE:

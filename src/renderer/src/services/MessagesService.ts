@@ -36,6 +36,7 @@ const logger = loggerService.withContext('MessagesService')
 export {
   filterAfterContextClearMessages,
   filterEmptyMessages,
+  filterErrorOnlyMessagesWithRelated,
   filterMessages,
   filterUsefulMessages,
   filterUserRoleStartMessages,

@@ -87,10 +87,9 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
                       : undefined
                   }>
                   <Switch
-                    isSelected={isEnabled}
+                    checked={isEnabled}
                     disabled={!server.isActive}
-                    onValueChange={() => handleServerToggle(server.id)}
-                    size="sm"
+                    onCheckedChange={() => handleServerToggle(server.id)}
                   />
                 </Tooltip>
               </ServerItem>

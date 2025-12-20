@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import type {
   CustomTranslateLanguage,
-  FetchChatCompletionOptions,
+  FetchChatCompletionRequestOptions,
   TranslateHistory,
   TranslateLanguage,
   TranslateLanguageCode
@@ -56,15 +56,15 @@ export const translateText = async (
     onResponse?.(translatedText, completed)
   }
 
-  const options = {
+  const requestOptions = {
     signal
-  } satisfies FetchChatCompletionOptions
+  } satisfies FetchChatCompletionRequestOptions
 
   try {
     await fetchChatCompletion({
       prompt: assistant.content,
       assistant,
-      options,
+      requestOptions,
       onChunkReceived: onChunk
     })
   } catch (e) {

@@ -86,6 +86,12 @@ vi.mock('@data/hooks/useCache', async () => {
   return MockUseCache
 })
 
+// Mock uuid globally for renderer tests
+let uuidCounter = 0
+vi.mock('uuid', () => ({
+  v4: () => 'test-uuid-' + ++uuidCounter
+}))
+
 vi.mock('axios', () => {
   const defaultAxiosMock = {
     get: vi.fn().mockResolvedValue({ data: {} }), // Mocking axios GET request

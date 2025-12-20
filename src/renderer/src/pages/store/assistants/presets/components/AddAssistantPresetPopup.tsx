@@ -1,5 +1,3 @@
-import 'emoji-picker-element'
-
 import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'

@@ -42,7 +42,8 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
 
   const toolCallbacks = createToolCallbacks({
     blockManager,
-    assistantMsgId
+    assistantMsgId,
+    dispatch
   })
 
   const imageCallbacks = createImageCallbacks({

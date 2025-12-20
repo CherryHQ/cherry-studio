@@ -1,8 +1,7 @@
+import { Combobox } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { ChevronDown, User } from 'lucide-react'
 import { useState } from 'react'
-
-import { Combobox } from '../../../src/components/primitives/combobox'
 
 const meta: Meta<typeof Combobox> = {
   title: 'Components/Primitives/Combobox',

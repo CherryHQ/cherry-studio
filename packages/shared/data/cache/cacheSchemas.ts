@@ -1,6 +1,28 @@
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
+ * Cache Schema Definitions
+ *
+ * ## Key Naming Convention
+ *
+ * All cache keys MUST follow the format: `namespace.sub.key_name`
+ *
+ * Rules:
+ * - At least 2 segments separated by dots (.)
+ * - Each segment uses lowercase letters, numbers, and underscores only
+ * - Pattern: /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+ *
+ * Examples:
+ * - 'app.user.avatar' (valid)
+ * - 'chat.multi_select_mode' (valid)
+ * - 'minapp.opened_keep_alive' (valid)
+ * - 'userAvatar' (invalid - missing dot separator)
+ * - 'App.user' (invalid - uppercase not allowed)
+ *
+ * This convention is enforced by ESLint rule: data-schema-key/valid-key
+ */
+
+/**
  * Use cache schema for renderer hook
  */
 
@@ -9,12 +31,16 @@ export type UseCacheSchema = {
   'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
   'app.user.avatar': string
 
+  'app.path.files': string
+  'app.path.resources': string
+
   // Chat context
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.generating': boolean
   'chat.websearch.searching': boolean
   'chat.websearch.active_searches': CacheValueTypes.CacheActiveSearches
+  'chat.active_view': 'topic' | 'session'
 
   // Minapp management
   'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
@@ -27,19 +53,10 @@ export type UseCacheSchema = {
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
 
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'test-hook-memory-1': string
-  'test-ttl-cache': string
-  'test-protected-cache': string
-  'test-deep-equal': { nested: { count: number }; tags: string[] }
-  'test-performance': number
-  'test-multi-hook': string
-  'concurrent-test-1': number
-  'concurrent-test-2': number
-  'large-data-test': Record<string, any>
-  'test-number-cache': number
-  'test-object-cache': { name: string; count: number; active: boolean }
+  // Agent management
+  'agent.active_id': string | null
+  'agent.session.active_id_map': Record<string, string | null>
+  'agent.session.waiting_id_map': Record<string, boolean>
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -50,16 +67,19 @@ export const DefaultUseCache: UseCacheSchema = {
     downloading: false,
     downloaded: false,
     downloadProgress: 0,
-    available: false
+    available: false,
+    ignore: false
   },
   'app.user.avatar': '',
-
+  'app.path.files': '',
+  'app.path.resources': '',
   // Chat context
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.generating': false,
   'chat.websearch.searching': false,
   'chat.websearch.active_searches': {},
+  'chat.active_view': 'topic',
 
   // Minapp management
   'minapp.opened_keep_alive': [],
@@ -72,42 +92,21 @@ export const DefaultUseCache: UseCacheSchema = {
   'topic.renaming': [],
   'topic.newly_renamed': [],
 
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'test-hook-memory-1': 'default-memory-value',
-  'test-ttl-cache': 'test-ttl-cache',
-  'test-protected-cache': 'protected-value',
-  'test-deep-equal': { nested: { count: 0 }, tags: ['initial'] },
-  'test-performance': 0,
-  'test-multi-hook': 'hook-1-default',
-  'concurrent-test-1': 0,
-  'concurrent-test-2': 0,
-  'large-data-test': {},
-  'test-number-cache': 42,
-  'test-object-cache': { name: 'test', count: 0, active: true }
+  // Agent management
+  'agent.active_id': null,
+  'agent.session.active_id_map': {},
+  'agent.session.waiting_id_map': {}
 }
 
 /**
  * Use shared cache schema for renderer hook
  */
 export type UseSharedCacheSchema = {
-  'example-key': string
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'test-hook-shared-1': string
-  'test-multi-hook': string
-  'concurrent-shared': number
+  'example_scope.example_key': string
 }
 
 export const DefaultUseSharedCache: UseSharedCacheSchema = {
-  'example-key': 'example default value',
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'concurrent-shared': 0,
-  'test-hook-shared-1': 'default-shared-value',
-  'test-multi-hook': 'hook-3-shared'
+  'example_scope.example_key': 'example default value'
 }
 
 /**
@@ -115,25 +114,11 @@ export const DefaultUseSharedCache: UseSharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'example-key': string
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'example-1': string
-  'example-2': string
-  'example-3': string
-  'example-4': string
+  'example_scope.example_key': string
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'example-key': 'example default value',
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'example-1': 'example default value',
-  'example-2': 'example default value',
-  'example-3': 'example default value',
-  'example-4': 'example default value'
+  'example_scope.example_key': 'example default value'
 }
 
 /**

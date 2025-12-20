@@ -28,7 +28,9 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[]): ToolSet {
   const tools: ToolSet = {}
 
   for (const mcpTool of mcpTools) {
-    tools[mcpTool.name] = tool({
+    // Use mcpTool.id (which includes serverId suffix) to ensure uniqueness
+    // when multiple instances of the same MCP server type are configured
+    tools[mcpTool.id] = tool({
       description: mcpTool.description || `Tool from ${mcpTool.serverName}`,
       inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
       execute: async (params, { toolCallId }) => {

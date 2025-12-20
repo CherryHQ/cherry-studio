@@ -1,3 +1,4 @@
+import { Switch } from '@cherrystudio/ui'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
@@ -13,7 +14,7 @@ import type {
 } from '@renderer/types'
 import { AgentConfigurationSchema } from '@renderer/types'
 import { Modal, Tag } from 'antd'
-import { Alert, Card, Input, Switch } from 'antd'
+import { Alert, Card, Input } from 'antd'
 import { ShieldAlert, Wrench } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -401,8 +402,8 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                           })}
                           checked={isApproved}
                           disabled={isAuto || isUpdatingTools}
-                          size="small"
-                          onChange={(checked) => handleToggleTool(tool.id, checked)}
+                          size="sm"
+                          onCheckedChange={(checked) => handleToggleTool(tool.id, checked)}
                         />
                       </div>
                     }
@@ -483,9 +484,9 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                             name: server.name
                           })}
                           checked={isSelected}
-                          size="small"
+                          size="sm"
                           disabled={!server.isActive || isUpdatingMcp}
-                          onChange={(checked) => handleToggleMcp(server.id, checked)}
+                          onCheckedChange={(checked) => handleToggleMcp(server.id, checked)}
                         />
                       </div>
                     }

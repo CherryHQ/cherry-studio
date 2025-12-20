@@ -19,10 +19,9 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
-  propose-update:
+  update-config:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.draft == false)
 
@@ -135,7 +134,7 @@ jobs:
 
       - name: Checkout default branch
         if: steps.check.outputs.should_run == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: main
@@ -143,7 +142,7 @@ jobs:
 
       - name: Checkout x-files/app-upgrade-config branch
         if: steps.check.outputs.should_run == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: x-files/app-upgrade-config
           path: cs
@@ -187,25 +186,20 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create pull request
+      - name: Commit and push changes
         if: steps.check.outputs.should_run == 'true' && steps.diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
-        with:
-          path: cs
-          base: x-files/app-upgrade-config
-          branch: chore/update-app-upgrade-config/${{ steps.meta.outputs.safe_tag }}
-          commit-message: "🤖 chore: sync app-upgrade-config for ${{ steps.meta.outputs.tag }}"
-          title: "chore: update app-upgrade-config for ${{ steps.meta.outputs.tag }}"
-          body: |
-            Automated update triggered by `${{ steps.meta.outputs.trigger }}`.
+        working-directory: cs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app-upgrade-config.json
+          git commit -m "chore: sync app-upgrade-config for ${{ steps.meta.outputs.tag }}" -m "Automated update triggered by \`${{ steps.meta.outputs.trigger }}\`.
 
-            - Source tag: `${{ steps.meta.outputs.tag }}`
-            - Pre-release: `${{ steps.meta.outputs.prerelease }}`
-            - Latest: `${{ steps.meta.outputs.latest }}`
-            - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          labels: |
-            automation
-            app-upgrade
+          - Source tag: \`${{ steps.meta.outputs.tag }}\`
+          - Pre-release: \`${{ steps.meta.outputs.prerelease }}\`
+          - Latest: \`${{ steps.meta.outputs.latest }}\`
+          - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          git push origin x-files/app-upgrade-config
 
       - name: No changes detected
         if: steps.check.outputs.should_run == 'true' && steps.diff.outputs.changed != 'true'

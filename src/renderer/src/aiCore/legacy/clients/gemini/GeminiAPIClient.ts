@@ -46,6 +46,7 @@ import type {
   GeminiSdkRawOutput,
   GeminiSdkToolCall
 } from '@renderer/types/sdk'
+import { getTrailingApiVersion, withoutTrailingApiVersion } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import {
   geminiFunctionCallToMcpTool,
@@ -163,18 +164,24 @@ export class GeminiAPIClient extends BaseApiClient<
     return models
   }
 
+  override getBaseURL(): string {
+    return withoutTrailingApiVersion(super.getBaseURL())
+  }
+
   override async getSdkInstance() {
     if (this.sdkInstance) {
       return this.sdkInstance
     }
 
+    const apiVersion = this.getApiVersion()
+
     this.sdkInstance = new GoogleGenAI({
       vertexai: false,
       apiKey: this.apiKey,
-      apiVersion: this.getApiVersion(),
+      apiVersion,
       httpOptions: {
         baseUrl: this.getBaseURL(),
-        apiVersion: this.getApiVersion(),
+        apiVersion,
         headers: {
           ...this.provider.extra_headers
         }
@@ -188,7 +195,14 @@ export class GeminiAPIClient extends BaseApiClient<
     if (this.provider.isVertex) {
       return 'v1'
     }
-    return 'v1beta'
+
+    // Extract trailing API version from the URL
+    const trailingVersion = getTrailingApiVersion(this.provider.apiHost || '')
+    if (trailingVersion) {
+      return trailingVersion
+    }
+
+    return ''
   }
 
   /**

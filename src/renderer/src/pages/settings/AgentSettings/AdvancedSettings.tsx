@@ -69,7 +69,7 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ agentBase, u
     <SettingsContainer>
       <SettingsItem divider={false}>
         <SettingsTitle
-          actions={
+          contentAfter={
             <Tooltip title={t('agent.settings.advance.maxTurns.description')} placement="left">
               <Info size={16} className="text-foreground-400" />
             </Tooltip>

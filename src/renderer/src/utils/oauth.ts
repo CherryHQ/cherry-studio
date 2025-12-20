@@ -201,7 +201,7 @@ export const providerCharge = async (provider: string) => {
       height: 700
     },
     aihubmix: {
-      url: `https://aihubmix.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      url: `https://console.aihubmix.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
       width: 720,
       height: 900
     },
@@ -244,7 +244,7 @@ export const providerBills = async (provider: string) => {
       height: 700
     },
     aihubmix: {
-      url: `https://aihubmix.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      url: `https://console.aihubmix.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
       width: 900,
       height: 700
     },
