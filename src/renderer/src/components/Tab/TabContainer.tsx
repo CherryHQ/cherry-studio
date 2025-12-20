@@ -2,7 +2,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import { isMac } from '@renderer/config/constant'
+import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -314,7 +314,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   align-items: center;
   gap: 5px;
   padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'calc(env(titlebar-area-x) + 4px)' : '15px')};
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin || isLinux ? '8px' : '0')};
   height: var(--navbar-height);
   min-height: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-height)' : '')};
   position: relative;
