@@ -5,6 +5,7 @@ import { createBaseCallbacks } from './baseCallbacks'
 import { createCitationCallbacks } from './citationCallbacks'
 import { createCompactCallbacks } from './compactCallbacks'
 import { createImageCallbacks } from './imageCallbacks'
+import { createResponsesReasoningCallbacks } from './responsesReasoningCallbacks'
 import { createTextCallbacks } from './textCallbacks'
 import { createThinkingCallbacks } from './thinkingCallbacks'
 import { createToolCallbacks } from './toolCallbacks'
@@ -59,6 +60,14 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
 
   const videoCallbacks = createVideoCallbacks({ blockManager, assistantMsgId })
 
+  const responsesReasoningCallbacks = createResponsesReasoningCallbacks({
+    dispatch,
+    getState,
+    topicId,
+    assistantMsgId,
+    saveUpdatesToDB
+  })
+
   const compactCallbacks = createCompactCallbacks({
     blockManager,
     assistantMsgId,
@@ -67,6 +76,16 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
     topicId,
     saveUpdatesToDB
   })
+
+  // Prevent onRawData from being overridden by spread order below.
+  // We'll expose the combined handler instead.
+  const { onRawData: compactOnRawData, ...compactCallbacksRest } = compactCallbacks
+
+  // Combine raw handlers (multiple modules need to observe RAW chunks)
+  const onRawData = ((content: unknown, metadata?: Record<string, any>) => {
+    responsesReasoningCallbacks.onRawData?.(content, metadata)
+    compactOnRawData?.(content, metadata)
+  }) as typeof compactOnRawData
 
   // 创建textCallbacks时传入citationCallbacks的getCitationBlockId方法和compactCallbacks的handleTextComplete方法
   const textCallbacks = createTextCallbacks({
@@ -87,7 +106,9 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
     ...imageCallbacks,
     ...citationCallbacks,
     ...videoCallbacks,
-    ...compactCallbacks,
+    ...compactCallbacksRest,
+    ...responsesReasoningCallbacks,
+    onRawData,
     // 清理资源的方法
     cleanup: () => {
       // 清理由 messageThunk 中的节流函数管理，这里不需要特别处理

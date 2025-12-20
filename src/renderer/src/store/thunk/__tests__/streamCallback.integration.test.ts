@@ -502,6 +502,34 @@ describe('streamCallback Integration Tests', () => {
     expect((toolBlock as any)?.toolName).toBe('test-tool')
   })
 
+  it('should persist Responses reasoning encrypted content from RAW chunks', async () => {
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+
+    const rawResponsesReasoningPayload = {
+      type: 'responses_reasoning',
+      itemId: 'rs_123',
+      encryptedContent: 'enc_abc'
+    }
+
+    const chunks: Chunk[] = [
+      { type: ChunkType.LLM_RESPONSE_CREATED },
+      {
+        type: ChunkType.RAW,
+        content: rawResponsesReasoningPayload,
+        metadata: { source: 'ai-sdk', provider: 'openai' }
+      },
+      { type: ChunkType.BLOCK_COMPLETE }
+    ]
+
+    await processChunks(chunks, callbacks)
+
+    const state = getState()
+    const message = state.messages.entities[mockAssistantMsgId]
+    expect(message).toBeDefined()
+    expect((message as any)?.responsesReasoningItemId).toBe('rs_123')
+    expect((message as any)?.responsesReasoningEncryptedContent).toBe('enc_abc')
+  })
+
   it('should handle image generation flow', async () => {
     const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 

@@ -221,6 +221,18 @@ export type Message = {
   // raw data
   // TODO: add this providerMetadata to MessageBlock to save raw provider data for each block
   providerMetadata?: ProviderMetadata
+
+  /**
+   * Responses API reasoning item id (e.g. `rs_...`) for this assistant reply.
+   * Used to replay encrypted reasoning content in follow-up requests.
+   */
+  responsesReasoningItemId?: string
+
+  /**
+   * Responses API encrypted reasoning content for this assistant reply.
+   * Must be echoed back in follow-up requests to preserve internal reasoning state.
+   */
+  responsesReasoningEncryptedContent?: string
 }
 
 export interface Response {

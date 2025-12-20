@@ -59,6 +59,35 @@ export class AiSdkToChunkAdapter {
     this.firstTokenTimestamp = null
   }
 
+  private emitResponsesReasoningEncryptedContent(providerMetadata: unknown) {
+    if (!providerMetadata || typeof providerMetadata !== 'object') return
+
+    for (const [providerKey, value] of Object.entries(providerMetadata as Record<string, unknown>)) {
+      if (!value || typeof value !== 'object') continue
+
+      const itemId = (value as any)?.itemId
+      const encryptedContent = (value as any)?.reasoningEncryptedContent
+
+      if (typeof itemId !== 'string' || itemId.length === 0) continue
+      if (typeof encryptedContent !== 'string' || encryptedContent.length === 0) continue
+
+      this.onChunk({
+        type: ChunkType.RAW,
+        content: {
+          type: 'responses_reasoning',
+          itemId,
+          encryptedContent
+        },
+        metadata: {
+          source: 'ai-sdk',
+          provider: providerKey
+        }
+      })
+
+      return
+    }
+  }
+
   /**
    * 处理 AI SDK 流结果
    * @param aiSdkResult AI SDK 的流结果对象
@@ -199,6 +228,7 @@ export class AiSdkToChunkAdapter {
       case 'reasoning-start':
         // if (final.reasoningId !== chunk.id) {
         final.reasoningId = chunk.id
+        this.emitResponsesReasoningEncryptedContent(chunk.providerMetadata)
         this.onChunk({
           type: ChunkType.THINKING_START
         })
@@ -215,6 +245,7 @@ export class AiSdkToChunkAdapter {
         })
         break
       case 'reasoning-end':
+        this.emitResponsesReasoningEncryptedContent(chunk.providerMetadata)
         this.onChunk({
           type: ChunkType.THINKING_COMPLETE,
           text: final.reasoningContent || ''
