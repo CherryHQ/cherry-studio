@@ -24,6 +24,39 @@ describe('ChatBoxImporter', () => {
     expect(importer.validate('not json')).toBe(false)
   })
 
+  it('throws parse errors for invalid exports', async () => {
+    const { ChatBoxImporter } = await import('../ChatBoxImporter')
+    const importer = new ChatBoxImporter()
+
+    await expect(importer.parse('not json', 'assistant-1')).rejects.toThrow('import.chatbox.error.invalid_json')
+    await expect(importer.parse(JSON.stringify([]), 'assistant-1')).rejects.toThrow('import.chatbox.error.invalid_json')
+
+    await expect(
+      importer.parse(
+        JSON.stringify({
+          __exported_at: '2025-12-18T22:52:30.517Z',
+          'chat-sessions-list': []
+        }),
+        'assistant-1'
+      )
+    ).rejects.toThrow('import.chatbox.error.no_conversations')
+
+    await expect(
+      importer.parse(
+        JSON.stringify({
+          __exported_at: '2025-12-18T22:52:30.517Z',
+          'chat-sessions-list': [{ id: 's1', name: 'Session 1', starred: true, type: 'chat' }],
+          'session:s1': {
+            id: 's1',
+            name: 'Session 1',
+            messages: [{ id: 'm1', role: 'unknown', contentParts: [{ type: 'text', text: 'skip' }] }]
+          }
+        }),
+        'assistant-1'
+      )
+    ).rejects.toThrow('import.chatbox.error.no_valid_conversations')
+  })
+
   it('parses sessions, messages, and blocks (text/image/tool-call)', async () => {
     const { ChatBoxImporter } = await import('../ChatBoxImporter')
     const importer = new ChatBoxImporter()
@@ -76,6 +109,8 @@ describe('ChatBoxImporter', () => {
     expect(result.topics).toHaveLength(1)
     expect(result.messages).toHaveLength(2)
     expect(result.blocks).toHaveLength(6)
+    expect(result.stats?.skippedMessagesCount).toBe(0)
+    expect(result.stats?.skippedTopicsCount).toBe(0)
 
     const topic = result.topics[0]
     expect(topic.assistantId).toBe('assistant-1')
@@ -107,5 +142,64 @@ describe('ChatBoxImporter', () => {
     expect(toolBlock).toBeDefined()
     expect(toolBlock?.status).toBe(MessageBlockStatus.ERROR)
     expect(toolBlock && 'toolId' in toolBlock ? toolBlock.toolId : null).toBe('tc1')
+  })
+
+  it('parses system role, falls back to content, and skips unknown roles', async () => {
+    const { ChatBoxImporter } = await import('../ChatBoxImporter')
+    const importer = new ChatBoxImporter()
+
+    const chatboxExport = JSON.stringify({
+      __exported_at: '2025-12-18T22:52:30.517Z',
+      'chat-sessions-list': [{ id: 's1', name: 'Session 1', starred: false, type: 'chat' }],
+      'session:s1': {
+        id: 's1',
+        name: 'Session 1',
+        messages: [
+          {
+            id: 'm0',
+            role: 'system',
+            contentParts: [{ type: 'text', text: 'System message' }]
+          },
+          {
+            id: 'm1',
+            role: 'unknown',
+            contentParts: [{ type: 'text', text: 'Should be skipped' }]
+          },
+          {
+            id: 'm2',
+            role: 'assistant',
+            contentParts: [],
+            content: 'Fallback content'
+          }
+        ]
+      }
+    })
+
+    const result = await importer.parse(chatboxExport, 'assistant-1')
+    expect(result.messages.map((m) => m.role)).toEqual(['system', 'assistant'])
+    expect(result.stats?.skippedMessagesCount).toBe(1)
+    expect(result.stats?.skippedTopicsCount).toBe(0)
+
+    const systemMessage = result.messages.find((m) => m.role === 'system')
+    const assistantMessage = result.messages.find((m) => m.role === 'assistant')
+    expect(systemMessage).toBeDefined()
+    expect(assistantMessage).toBeDefined()
+
+    const blocksByMessage = new Map<string, { type: MessageBlockType; content?: string }[]>()
+    for (const block of result.blocks) {
+      const list = blocksByMessage.get(block.messageId) ?? []
+      list.push({
+        type: block.type,
+        content: 'content' in block ? (block.content as string) : undefined
+      })
+      blocksByMessage.set(block.messageId, list)
+    }
+
+    expect(blocksByMessage.get(systemMessage!.id)).toEqual([
+      { type: MessageBlockType.MAIN_TEXT, content: 'System message' }
+    ])
+    expect(blocksByMessage.get(assistantMessage!.id)).toEqual([
+      { type: MessageBlockType.MAIN_TEXT, content: 'Fallback content' }
+    ])
   })
 })

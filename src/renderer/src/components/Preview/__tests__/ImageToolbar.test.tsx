@@ -36,8 +36,7 @@ vi.mock('@renderer/components/Icons', () => ({
 
 // Mock utils
 vi.mock('@renderer/utils', () => ({
-  classNames: (...args: any[]) => args.filter(Boolean).join(' '),
-  uuid: vi.fn(() => 'mock-uuid')
+  classNames: (...args: any[]) => args.filter(Boolean).join(' ')
 }))
 
 describe('ImageToolbar', () => {
