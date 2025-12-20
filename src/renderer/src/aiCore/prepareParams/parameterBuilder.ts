@@ -120,11 +120,12 @@ export async function buildStreamTextParams(
       model.id.includes('sonar'))
 
   // Validate provider and model support to prevent stale state from triggering urlContext
-  const enableUrlContext =
+  const enableUrlContext = !!(
     assistant.enableUrlContext &&
     isSupportUrlContextProvider(provider) &&
     !isPureGenerateImageModel(model) &&
     (isGeminiModel(model) || isAnthropicModel(model))
+  )
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
