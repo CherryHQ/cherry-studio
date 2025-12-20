@@ -117,9 +117,10 @@ class ClaudeCodeService implements AgentServiceInterface {
     const proxyEnvVars: Record<string, string> = {}
     const proxyKeys = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'NO_PROXY', 'no_proxy']
     for (const key of proxyKeys) {
-      if (process.env[key]) {
-        proxyEnvVars[key] = process.env[key]!
-        logger.debug(`Preserving proxy env var for Claude Code SDK: ${key}=${process.env[key]}`)
+      const value = process.env[key]
+      if (value) {
+        proxyEnvVars[key] = value
+        logger.debug(`Preserving proxy env var for Claude Code SDK: ${key}=${value}`)
       }
     }
 

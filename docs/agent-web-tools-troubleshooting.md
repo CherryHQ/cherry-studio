@@ -92,7 +92,7 @@ This issue requires one of the following:
 
 Check the following for updates:
 - This GitHub issue/PR
-- [Anthropic Claude Agent SDK releases](https://github.com/anthropics/anthropic-sdk-typescript)
+- [Anthropic SDK releases](https://github.com/anthropics/anthropic-sdk-typescript) (Note: The `@anthropic-ai/claude-agent-sdk` is a separate package but monitored for updates here)
 - Cherry Studio release notes
 
 ## Environment Variables Reference
