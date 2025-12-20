@@ -5,7 +5,7 @@
  * This file is auto-generated from tokens/ directory.
  * To make changes, edit files in tokens/ and run: npm run tokens:build
  *
- * Generated on: 2025-11-07T08:56:09.444Z
+ * Generated on: 2025-12-20T18:19:17.069Z
  */
 
 @theme {
@@ -254,6 +254,8 @@
   --color-rose-800: oklch(0.46 0.173 13);
   --color-rose-900: oklch(0.41 0.148 11);
   --color-rose-950: oklch(0.27 0.102 12);
+  --color-black: oklch(0 0 0);
+  --color-white: oklch(1 0 0);
   --color-brand-50: oklch(0.98 0.015 152);
   --color-brand-100: oklch(0.96 0.034 151);
   --color-brand-200: oklch(0.91 0.073 151);
@@ -273,8 +275,10 @@
   --color-primary-hover: oklch(0.85 0.13 149);
   --color-destructive: oklch(0.64 0.208 25);
   --color-destructive-hover: oklch(0.71 0.166 22);
+  --color-success: oklch(0.72 0.192 149);
+  --color-warning: oklch(0.77 0.165 71);
   --color-background: oklch(0.98 0 0);
-  --color-background-subtle: oklch(0 0 0 / 0.02);
+  --color-background-subtle: oklch(0 0 0 / 0.04);
   --color-foreground: oklch(0 0 0 / 0.9);
   --color-foreground-secondary: oklch(0 0 0 / 0.6);
   --color-foreground-muted: oklch(0 0 0 / 0.4);
@@ -283,7 +287,7 @@
   --color-border: oklch(0 0 0 / 0.1);
   --color-border-hover: oklch(0 0 0 / 0.2);
   --color-border-active: oklch(0 0 0 / 0.3);
-  --color-ring: color-mix(in srgb, oklch(0.77 0.208 146) 40%, transparent);
+  --color-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
   --color-secondary: oklch(0 0 0 / 0.05);
   --color-secondary-hover: oklch(0 0 0 / 0.85);
   --color-secondary-active: oklch(0 0 0 / 0.7);
@@ -322,37 +326,37 @@
   /* --spacing-{value} > --container-{value} */
   /* 下述定义的spacing与container相差巨大,所以先注释掉 */
 
-  /* --spacing-5xs: 0.25rem;
-  --spacing-4xs: 0.5rem;
-  --spacing-3xs: 0.75rem;
-  --spacing-2xs: 1rem;
-  --spacing-xs: 1.5rem;
-  --spacing-sm: 2rem;
-  --spacing-md: 2.5rem;
-  --spacing-lg: 3rem;
-  --spacing-xl: 3.5rem;
-  --spacing-2xl: 4rem;
-  --spacing-3xl: 4.5rem;
-  --spacing-4xl: 5rem;
-  --spacing-5xl: 5.5rem;
-  --spacing-6xl: 6rem;
-  --spacing-7xl: 6.5rem;
-  --spacing-8xl: 7rem; */
+  /* --spacing-5xs: 0.25rem; */
+  /* --spacing-4xs: 0.5rem; */
+  /* --spacing-3xs: 0.75rem; */
+  /* --spacing-2xs: 1rem; */
+  /* --spacing-xs: 1.5rem; */
+  /* --spacing-sm: 2rem; */
+  /* --spacing-md: 2.5rem; */
+  /* --spacing-lg: 3rem; */
+  /* --spacing-xl: 3.5rem; */
+  /* --spacing-2xl: 4rem; */
+  /* --spacing-3xl: 4.5rem; */
+  /* --spacing-4xl: 5rem; */
+  /* --spacing-5xl: 5.5rem; */
+  /* --spacing-6xl: 6rem; */
+  /* --spacing-7xl: 6.5rem; */
+  /* --spacing-8xl: 7rem; */
 
   /* ==================== */
   /* Radius */
   /* ==================== */
-  --radius-4xs: 0.25rem; /* 4px */
-  --radius-3xs: 0.5rem; /* 8px */
-  --radius-2xs: 0.75rem; /* 12px */
-  --radius-xs: 1rem; /* 16px */
-  --radius-sm: 1.5rem; /* 24px */
-  --radius-md: 2rem; /* 32px */
-  --radius-lg: 2.5rem; /* 40px */
-  --radius-xl: 3rem; /* 48px */
-  --radius-2xl: 3.5rem; /* 56px */
-  --radius-3xl: 4rem; /* 64px */
-  --radius-round: 999px; /* 完全圆角 */
+  --radius-4xs: 0.25rem;
+  --radius-3xs: 0.5rem;
+  --radius-2xs: 0.75rem;
+  --radius-xs: 1rem;
+  --radius-sm: 1.5rem;
+  --radius-md: 2rem;
+  --radius-lg: 2.5rem;
+  --radius-xl: 3rem;
+  --radius-2xl: 3.5rem;
+  --radius-3xl: 4rem;
+  --radius-round: 999px;
 
   /* ==================== */
   /* Typography */
@@ -391,6 +395,7 @@
   --paragraph-spacing-heading-lg: 2.5rem;
   --paragraph-spacing-heading-xl: 3rem;
   --paragraph-spacing-heading-2xl: 3.75rem;
+
 }
 
 /* ==================== */
@@ -399,7 +404,7 @@
 @layer theme {
   .dark {
     --color-background: oklch(0.21 0.006 286);
-    --color-background-subtle: oklch(1 0 0 / 0.02);
+    --color-background-subtle: oklch(1 0 0 / 0.06);
     --color-foreground: oklch(1 0 0 / 0.9);
     --color-foreground-secondary: oklch(1 0 0 / 0.6);
     --color-foreground-muted: oklch(1 0 0 / 0.4);
