@@ -262,36 +262,6 @@ function ContextMenuItemContent({
   )
 }
 
-/* -------------------------------------------------------------------------- */
-/*                              Pro Badge Component                            */
-/* -------------------------------------------------------------------------- */
-
-interface ContextMenuProBadgeProps {
-  className?: string
-}
-
-/**
- * PRO badge component matching Figma design
- */
-function ContextMenuProBadge({ className }: ContextMenuProBadgeProps) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-md border border-success-base/20 bg-success-bg px-1.5 py-0.5',
-        className
-      )}>
-      <svg className="size-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-          d="M8 1L10.5 5.5L15 8L10.5 10.5L8 15L5.5 10.5L1 8L5.5 5.5L8 1Z"
-          fill="currentColor"
-          className="text-success-base"
-        />
-      </svg>
-      <span className="text-[10px] font-bold leading-3 text-success-base">PRO</span>
-    </span>
-  )
-}
-
 export {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -301,7 +271,6 @@ export {
   ContextMenuItemContent,
   ContextMenuLabel,
   ContextMenuPortal,
-  ContextMenuProBadge,
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
   ContextMenuSeparator,

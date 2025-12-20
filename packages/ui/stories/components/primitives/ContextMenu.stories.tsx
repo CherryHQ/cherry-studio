@@ -6,7 +6,6 @@ import {
   ContextMenuItem,
   ContextMenuItemContent,
   ContextMenuLabel,
-  ContextMenuProBadge,
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
   ContextMenuSeparator,
@@ -17,7 +16,7 @@ import {
   ContextMenuTrigger
 } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
-import { Cherry, Cloud, Copy, Edit, Folder, Mail, Settings, Trash2, User } from 'lucide-react'
+import { Cloud, Copy, Edit, Folder, Mail, Settings, Trash2, User } from 'lucide-react'
 import * as React from 'react'
 
 const meta: Meta<typeof ContextMenu> = {
@@ -211,38 +210,6 @@ export const WithRadioItems: Story = {
   }
 }
 
-// With Pro Badge
-export const WithProBadge: Story = {
-  render: () => (
-    <ContextMenu>
-      <ContextMenuTrigger className="flex h-[150px] w-[300px] items-center justify-center rounded-md border border-dashed text-sm">
-        Right click here
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-64">
-        <ContextMenuItem>
-          <ContextMenuItemContent icon={<Edit className="size-4" />}>Basic Edit</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem>
-          <ContextMenuItemContent icon={<Settings className="size-4" />} badge={<ContextMenuProBadge />}>
-            Advanced Settings
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem>
-          <ContextMenuItemContent icon={<Cloud className="size-4" />} badge={<ContextMenuProBadge />}>
-            Cloud Sync
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem disabled>
-          <ContextMenuItemContent icon={<Cherry className="size-4" />} badge={<ContextMenuProBadge />}>
-            Premium Feature (Disabled)
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  )
-}
-
 // With Groups and Labels
 export const WithGroupsAndLabels: Story = {
   render: () => (
@@ -384,14 +351,6 @@ export const ComplexExample: Story = {
             <ContextMenuRadioItem value="name">Name</ContextMenuRadioItem>
             <ContextMenuRadioItem value="size">Size</ContextMenuRadioItem>
           </ContextMenuRadioGroup>
-
-          <ContextMenuSeparator />
-
-          <ContextMenuItem>
-            <ContextMenuItemContent icon={<Settings className="size-4" />} badge={<ContextMenuProBadge />}>
-              Advanced Options
-            </ContextMenuItemContent>
-          </ContextMenuItem>
 
           <ContextMenuSeparator />
 
