@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
-import { getBinaryName, getBinaryPath } from '@main/utils/process'
+import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -318,6 +318,10 @@ class McpService {
           } else if (server.command) {
             let cmd = server.command
 
+            // Get login shell environment first - needed for command detection and server execution
+            // Note: getLoginShellEnvironment() is memoized, so subsequent calls are fast
+            const loginShellEnv = await getLoginShellEnvironment()
+
             // For DXT servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {
               const resolvedConfig = this.dxtService.getResolvedMcpConfig(server.dxtPath)
@@ -339,18 +343,45 @@ class McpService {
             }
 
             if (server.command === 'npx') {
-              cmd = await getBinaryPath('bun')
-              getServerLogger(server).debug(`Using command`, { command: cmd })
+              // First, check if npx is available in user's shell environment
+              const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
 
-              // add -x to args if args exist
-              if (args && args.length > 0) {
-                if (!args.includes('-y')) {
-                  args.unshift('-y')
-                }
-                if (!args.includes('x')) {
-                  args.unshift('x')
+              if (npxPath) {
+                // Use system npx
+                cmd = npxPath
+                getServerLogger(server).debug(`Using system npx`, { command: cmd })
+              } else {
+                // System npx not found, try bundled bun as fallback
+                getServerLogger(server).debug(`System npx not found, checking for bundled bun`)
+
+                if (await isBinaryExists('bun')) {
+                  // Fall back to bundled bun
+                  cmd = await getBinaryPath('bun')
+                  getServerLogger(server).info(`Using bundled bun as fallback (npx not found in PATH)`, {
+                    command: cmd
+                  })
+
+                  // Transform args for bun x format
+                  if (args && args.length > 0) {
+                    if (!args.includes('-y')) {
+                      args.unshift('-y')
+                    }
+                    if (!args.includes('x')) {
+                      args.unshift('x')
+                    }
+                  }
+                } else {
+                  // Neither npx nor bun available
+                  throw new Error(
+                    'npx not found in PATH and bundled bun is not available. This may indicate an installation issue.\n' +
+                      'Please either:\n' +
+                      '1. Install Node.js (which includes npx) from https://nodejs.org\n' +
+                      '2. Run the MCP dependencies installer from Settings\n' +
+                      '3. Restart the application if you recently installed Node.js'
+                  )
                 }
               }
+
               if (server.registryUrl) {
                 server.env = {
                   ...server.env,
@@ -365,7 +396,35 @@ class McpService {
                 }
               }
             } else if (server.command === 'uvx' || server.command === 'uv') {
-              cmd = await getBinaryPath(server.command)
+              // First, check if uvx/uv is available in user's shell environment
+              const uvPath = await findCommandInShellEnv(server.command, loginShellEnv)
+
+              if (uvPath) {
+                // Use system uvx/uv
+                cmd = uvPath
+                getServerLogger(server).debug(`Using system ${server.command}`, { command: cmd })
+              } else {
+                // System command not found, try bundled version as fallback
+                getServerLogger(server).debug(`System ${server.command} not found, checking for bundled version`)
+
+                if (await isBinaryExists(server.command)) {
+                  // Fall back to bundled version
+                  cmd = await getBinaryPath(server.command)
+                  getServerLogger(server).info(`Using bundled ${server.command} as fallback (not found in PATH)`, {
+                    command: cmd
+                  })
+                } else {
+                  // Neither system nor bundled available
+                  throw new Error(
+                    `${server.command} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
+                      'Please either:\n' +
+                      '1. Install uv from https://github.com/astral-sh/uv\n' +
+                      '2. Run the MCP dependencies installer from Settings\n' +
+                      `3. Restart the application if you recently installed ${server.command}`
+                  )
+                }
+              }
+
               if (server.registryUrl) {
                 server.env = {
                   ...server.env,
@@ -376,8 +435,6 @@ class McpService {
             }
 
             getServerLogger(server).debug(`Starting server`, { command: cmd, args })
-            // Logger.info(`[MCP] Environment variables for server:`, server.env)
-            const loginShellEnv = await getLoginShellEnvironment()
 
             // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
             if (cmd.includes('bun')) {
