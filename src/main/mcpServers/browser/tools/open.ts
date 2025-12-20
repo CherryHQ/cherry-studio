@@ -10,7 +10,11 @@ export const OpenSchema = z.object({
   sessionId: z
     .string()
     .optional()
-    .describe('Session identifier; separate sessions keep separate pages (default: default)')
+    .describe('Session identifier; separate sessions keep separate pages (default: default)'),
+  tabId: z
+    .string()
+    .optional()
+    .describe('Tab identifier; if not provided, uses active tab or creates new one')
 })
 
 export const openToolDefinition = {
@@ -34,6 +38,10 @@ export const openToolDefinition = {
       sessionId: {
         type: 'string',
         description: 'Session identifier; separate sessions keep separate pages (default: default)'
+      },
+      tabId: {
+        type: 'string',
+        description: 'Tab identifier; if not provided, uses active tab or creates new one'
       }
     },
     required: ['url']
@@ -41,7 +49,7 @@ export const openToolDefinition = {
 }
 
 export async function handleOpen(controller: CdpBrowserController, args: unknown) {
-  const { url, timeout, show, sessionId } = OpenSchema.parse(args)
-  const res = await controller.open(url, timeout ?? 10000, show ?? false, sessionId ?? 'default')
+  const { url, timeout, show, sessionId, tabId } = OpenSchema.parse(args)
+  const res = await controller.open(url, timeout ?? 10000, show ?? false, sessionId ?? 'default', tabId)
   return successResponse(JSON.stringify(res))
 }

@@ -5,7 +5,8 @@ import { successResponse } from './utils'
 
 /** Zod schema for validating reset tool arguments */
 export const ResetSchema = z.object({
-  sessionId: z.string().optional().describe('Session identifier to reset; omit to reset all sessions')
+  sessionId: z.string().optional().describe('Session identifier to reset; omit to reset all sessions'),
+  tabId: z.string().optional().describe('Tab identifier to reset; requires sessionId')
 })
 
 /** MCP tool definition for the reset tool */
@@ -18,6 +19,10 @@ export const resetToolDefinition = {
       sessionId: {
         type: 'string',
         description: 'Session identifier to reset; omit to reset all sessions'
+      },
+      tabId: {
+        type: 'string',
+        description: 'Tab identifier to reset; requires sessionId'
       }
     }
   }
@@ -28,7 +33,7 @@ export const resetToolDefinition = {
  * Closes browser window(s) and detaches debugger for the specified session or all sessions.
  */
 export async function handleReset(controller: CdpBrowserController, args: unknown) {
-  const { sessionId } = ResetSchema.parse(args)
-  await controller.reset(sessionId)
+  const { sessionId, tabId } = ResetSchema.parse(args)
+  await controller.reset(sessionId, tabId)
   return successResponse('reset')
 }

@@ -7,7 +7,8 @@ export const FetchSchema = z.object({
   url: z.url().describe('URL to fetch'),
   format: z.enum(['html', 'txt', 'markdown', 'json']).default('markdown').describe('Output format (default: markdown)'),
   timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)'),
-  sessionId: z.string().optional().describe('Session identifier (default: default)')
+  sessionId: z.string().optional().describe('Session identifier (default: default)'),
+  tabId: z.string().optional().describe('Tab identifier; if not provided, uses active tab')
 })
 
 export const fetchToolDefinition = {
@@ -32,6 +33,10 @@ export const fetchToolDefinition = {
       sessionId: {
         type: 'string',
         description: 'Session identifier (default: default)'
+      },
+      tabId: {
+        type: 'string',
+        description: 'Tab identifier; if not provided, uses active tab'
       }
     },
     required: ['url']
@@ -39,9 +44,9 @@ export const fetchToolDefinition = {
 }
 
 export async function handleFetch(controller: CdpBrowserController, args: unknown) {
-  const { url, format, timeout, sessionId } = FetchSchema.parse(args)
+  const { url, format, timeout, sessionId, tabId } = FetchSchema.parse(args)
   try {
-    const content = await controller.fetch(url, format, timeout ?? 10000, sessionId ?? 'default')
+    const content = await controller.fetch(url, format, timeout ?? 10000, sessionId ?? 'default', tabId)
     return successResponse(typeof content === 'string' ? content : JSON.stringify(content))
   } catch (error) {
     return errorResponse(error as Error)

@@ -10,7 +10,8 @@ export const ExecuteSchema = z.object({
       'JavaScript evaluated via Chrome DevTools Runtime.evaluate. Keep it short; prefer one-line with semicolons for multiple statements.'
     ),
   timeout: z.number().default(5000).describe('Timeout in milliseconds for code execution (default: 5000ms)'),
-  sessionId: z.string().optional().describe('Session identifier to target a specific page (default: default)')
+  sessionId: z.string().optional().describe('Session identifier to target a specific page (default: default)'),
+  tabId: z.string().optional().describe('Tab identifier; if not provided, uses active tab')
 })
 
 export const executeToolDefinition = {
@@ -31,6 +32,10 @@ export const executeToolDefinition = {
       sessionId: {
         type: 'string',
         description: 'Session identifier; targets a specific page (default: default)'
+      },
+      tabId: {
+        type: 'string',
+        description: 'Tab identifier; if not provided, uses active tab'
       }
     },
     required: ['code']
@@ -38,9 +43,9 @@ export const executeToolDefinition = {
 }
 
 export async function handleExecute(controller: CdpBrowserController, args: unknown) {
-  const { code, timeout, sessionId } = ExecuteSchema.parse(args)
+  const { code, timeout, sessionId, tabId } = ExecuteSchema.parse(args)
   try {
-    const value = await controller.execute(code, timeout, sessionId ?? 'default')
+    const value = await controller.execute(code, timeout, sessionId ?? 'default', tabId)
     return successResponse(typeof value === 'string' ? value : JSON.stringify(value))
   } catch (error) {
     return errorResponse(error as Error)
