@@ -75,7 +75,8 @@ export class WindowService {
             trafficLightPosition: { x: 8, y: 13 }
           }
         : {
-            frame: false // Frameless window for Windows and Linux
+            // On Linux, allow using system title bar if setting is enabled
+            frame: isLinux && configManager.getUseSystemTitleBar() ? true : false
           }),
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
