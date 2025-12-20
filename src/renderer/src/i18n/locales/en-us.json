@@ -1466,11 +1466,26 @@
   "import": {
     "chatbox": {
       "assistant_name": "ChatBox Import",
+      "button": "Select File",
+      "description": "Imports conversations from ChatBox exported-data.json",
       "error": {
+        "invalid_format": "Invalid ChatBox export format",
         "invalid_json": "Invalid JSON file format",
         "no_conversations": "No conversations found in file",
-        "no_valid_conversations": "No valid conversations to import"
+        "no_valid_conversations": "No valid conversations to import",
+        "unknown": "Import failed, please check file format"
       },
+      "help": {
+        "step1": "1. Open ChatBox, go to Settings and export data",
+        "step2": "2. Find the exported file (usually exported-data.json)",
+        "step3": "3. Select exported-data.json to import here",
+        "title": "How to export ChatBox conversations?"
+      },
+      "importing": "Importing conversations...",
+      "selecting": "Selecting file...",
+      "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
+      "success_with_skipped": "Successfully imported {{topics}} conversations with {{messages}} messages, skipped {{skippedTopics}} conversations with {{skippedMessages}} messages",
+      "title": "Import ChatBox Conversations",
       "untitled_conversation": "Untitled Conversation"
     },
     "chatgpt": {
@@ -1478,6 +1493,7 @@
       "button": "Select File",
       "description": "Only imports conversation text, does not include images and attachments",
       "error": {
+        "invalid_format": "Invalid ChatGPT export format",
         "invalid_json": "Invalid JSON file format",
         "no_conversations": "No conversations found in file",
         "no_valid_conversations": "No valid conversations to import",
@@ -3287,7 +3303,8 @@
       "hour_interval_other": "{{count}} hours",
       "import_settings": {
         "button": "Import Json File",
-        "chatgpt": "Import from ChatGPT / ChatBox",
+        "chatbox": "Import from ChatBox",
+        "chatgpt": "Import from ChatGPT",
         "title": "Import Outside Application Data"
       },
       "joplin": {

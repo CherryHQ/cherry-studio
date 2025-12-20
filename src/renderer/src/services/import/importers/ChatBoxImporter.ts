@@ -13,7 +13,7 @@ import {
   type ToolMessageBlock,
   UserMessageStatus
 } from '@renderer/types/newMessage'
-import { v4 as uuidv4 } from 'uuid'
+import { uuid } from '@renderer/utils'
 
 import type { ConversationImporter, ImportResult } from '../types'
 
@@ -144,7 +144,8 @@ export class ChatBoxImporter implements ConversationImporter {
       }
 
       return false
-    } catch {
+    } catch (error) {
+      logger.debug('Failed to validate ChatBox export:', error as Error)
       return false
     }
   }
@@ -152,7 +153,13 @@ export class ChatBoxImporter implements ConversationImporter {
   async parse(fileContent: string, assistantId: string): Promise<ImportResult> {
     logger.info('Starting ChatBox import...')
 
-    const parsed = JSON.parse(fileContent) as ChatBoxExport
+    let parsed: ChatBoxExport
+    try {
+      parsed = JSON.parse(fileContent) as ChatBoxExport
+    } catch (error) {
+      logger.debug('Failed to parse ChatBox export JSON:', error as Error)
+      throw new Error(i18n.t('import.chatbox.error.invalid_json'))
+    }
     if (!isRecord(parsed)) {
       throw new Error(i18n.t('import.chatbox.error.invalid_json'))
     }
@@ -176,31 +183,49 @@ export class ChatBoxImporter implements ConversationImporter {
     const topics: Topic[] = []
     const allMessages: Message[] = []
     const allBlocks: MessageBlock[] = []
+    let skippedSessionsCount = 0
+    let skippedMessagesCount = 0
 
     for (const sessionSummary of sessionsList) {
       const sessionId = toNonEmptyString(sessionSummary.id)
-      if (!sessionId) continue
+      if (!sessionId) {
+        skippedSessionsCount++
+        logger.debug('Skipping session: missing id', { sessionSummary })
+        continue
+      }
 
       const sessionRaw = parsed[`session:${sessionId}`]
-      if (!isRecord(sessionRaw)) continue
+      if (!isRecord(sessionRaw)) {
+        skippedSessionsCount++
+        logger.debug('Skipping session: missing session payload', { sessionId })
+        continue
+      }
 
       const session = sessionRaw as ChatBoxSession
-      if (!Array.isArray(session.messages)) continue
+      if (!Array.isArray(session.messages)) {
+        skippedSessionsCount++
+        logger.debug('Skipping session: messages is not an array', { sessionId })
+        continue
+      }
 
       try {
-        const { topic, messages, blocks } = this.convertSessionToTopic(
-          sessionSummary,
-          session,
-          assistantId,
-          exportedAtMs
-        )
+        const {
+          topic,
+          messages,
+          blocks,
+          skippedMessagesCount: skippedInSession
+        } = this.convertSessionToTopic(sessionId, sessionSummary, session, assistantId, exportedAtMs)
+        skippedMessagesCount += skippedInSession
         if (messages.length === 0) {
+          skippedSessionsCount++
+          logger.debug('Skipping session: no valid messages after conversion', { sessionId })
           continue
         }
         topics.push(topic)
         allMessages.push(...messages)
         allBlocks.push(...blocks)
       } catch (error) {
+        skippedSessionsCount++
         logger.warn(`Failed to convert session "${sessionSummary.name ?? sessionSummary.id}":`, error as Error)
       }
     }
@@ -213,6 +238,10 @@ export class ChatBoxImporter implements ConversationImporter {
       topics,
       messages: allMessages,
       blocks: allBlocks,
+      stats: {
+        skippedMessagesCount,
+        skippedTopicsCount: skippedSessionsCount
+      },
       metadata: {
         source: 'chatbox',
         exportedAt: new Date(exportedAtMs).toISOString()
@@ -221,22 +250,31 @@ export class ChatBoxImporter implements ConversationImporter {
   }
 
   private convertSessionToTopic(
+    sessionId: string,
     sessionSummary: ChatBoxSessionSummary,
     session: ChatBoxSession,
     assistantId: string,
     exportedAtMs: number
-  ): { topic: Topic; messages: Message[]; blocks: MessageBlock[] } {
-    const topicId = uuidv4()
+  ): { topic: Topic; messages: Message[]; blocks: MessageBlock[]; skippedMessagesCount: number } {
+    const topicId = uuid()
     const messages: Message[] = []
     const blocks: MessageBlock[] = []
 
-    const rawMessages = (session.messages as unknown[]).filter(isRecord) as unknown as ChatBoxMessage[]
+    const rawMessagesAll = session.messages as unknown[]
+    const rawMessages = rawMessagesAll.filter(isRecord) as unknown as ChatBoxMessage[]
+    let skippedMessagesCount = rawMessagesAll.length - rawMessages.length
+    if (skippedMessagesCount > 0) {
+      logger.debug('Skipping invalid session messages', { sessionId, skippedMessagesCount })
+    }
 
     for (let index = 0; index < rawMessages.length; index++) {
       const chatboxMessage = rawMessages[index]
       const fallbackMs = exportedAtMs + index
-      const converted = this.convertMessage(chatboxMessage, topicId, assistantId, fallbackMs)
-      if (!converted) continue
+      const converted = this.convertMessage(chatboxMessage, topicId, assistantId, fallbackMs, sessionId, index)
+      if (!converted) {
+        skippedMessagesCount++
+        continue
+      }
       messages.push(converted.message)
       blocks.push(...converted.blocks)
     }
@@ -260,27 +298,45 @@ export class ChatBoxImporter implements ConversationImporter {
       isNameManuallyEdited: true
     }
 
-    return { topic, messages, blocks }
+    return { topic, messages, blocks, skippedMessagesCount }
   }
 
   private convertMessage(
     chatboxMessage: ChatBoxMessage,
     topicId: string,
     assistantId: string,
-    fallbackTimestampMs: number
+    fallbackTimestampMs: number,
+    sessionId: string,
+    messageIndex: number
   ): { message: Message; blocks: MessageBlock[] } | null {
     const role = this.mapRole(chatboxMessage.role)
-    if (!role) return null
+    if (!role) {
+      logger.debug('Skipping message: unsupported role', {
+        sessionId,
+        messageIndex,
+        messageId: chatboxMessage.id,
+        role: chatboxMessage.role
+      })
+      return null
+    }
 
     const createdAt =
       (toTimestampMs(chatboxMessage.timestamp) !== null
         ? new Date(toTimestampMs(chatboxMessage.timestamp)!).toISOString()
         : null) ?? new Date(fallbackTimestampMs).toISOString()
 
-    const messageId = uuidv4()
+    const messageId = uuid()
     const blocks = this.createBlocksFromMessage(chatboxMessage, messageId, createdAt)
 
-    if (blocks.length === 0) return null
+    if (blocks.length === 0) {
+      logger.debug('Skipping message: empty content', {
+        sessionId,
+        messageIndex,
+        messageId: chatboxMessage.id,
+        role
+      })
+      return null
+    }
 
     const message: Message = {
       id: messageId,
@@ -318,7 +374,7 @@ export class ChatBoxImporter implements ConversationImporter {
       if (!content) return
 
       const block: MainTextMessageBlock = {
-        id: uuidv4(),
+        id: uuid(),
         messageId,
         type: MessageBlockType.MAIN_TEXT,
         content,
@@ -351,7 +407,7 @@ export class ChatBoxImporter implements ConversationImporter {
         if (!url) continue
         usedImageUrls.add(url)
         const block: ImageMessageBlock = {
-          id: uuidv4(),
+          id: uuid(),
           messageId,
           type: MessageBlockType.IMAGE,
           url,
@@ -367,14 +423,14 @@ export class ChatBoxImporter implements ConversationImporter {
         flushText(textBuffer)
         const toolPart = part as ChatBoxContentPartToolCall
 
-        const toolId = toNonEmptyString(toolPart.toolCallId) ?? uuidv4()
+        const toolId = toNonEmptyString(toolPart.toolCallId) ?? uuid()
         const toolName = toNonEmptyString(toolPart.toolName)
         const argumentsValue = isRecord(toolPart.args) ? (toolPart.args as Record<string, any>) : undefined
         const content = toToolContent(toolPart.result)
         const isError = toNonEmptyString(toolPart.state) === 'error'
 
         const block: ToolMessageBlock = {
-          id: uuidv4(),
+          id: uuid(),
           messageId,
           type: MessageBlockType.TOOL,
           toolId,
@@ -409,7 +465,7 @@ export class ChatBoxImporter implements ConversationImporter {
     const fallbackContent = toNonEmptyString(chatboxMessage.content)
     if (!mainTextAlreadyPresent && fallbackContent) {
       const block: MainTextMessageBlock = {
-        id: uuidv4(),
+        id: uuid(),
         messageId,
         type: MessageBlockType.MAIN_TEXT,
         content: fallbackContent,
@@ -429,7 +485,7 @@ export class ChatBoxImporter implements ConversationImporter {
       if (!url || usedImageUrls.has(url)) continue
       usedImageUrls.add(url)
       const block: ImageMessageBlock = {
-        id: uuidv4(),
+        id: uuid(),
         messageId,
         type: MessageBlockType.IMAGE,
         url,

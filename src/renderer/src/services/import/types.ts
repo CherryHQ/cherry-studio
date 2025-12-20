@@ -1,6 +1,11 @@
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
+export type ImportStats = {
+  skippedTopicsCount?: number
+  skippedMessagesCount?: number
+}
+
 /**
  * Import result containing parsed data
  */
@@ -8,6 +13,7 @@ export interface ImportResult {
   topics: Topic[]
   messages: Message[]
   blocks: MessageBlock[]
+  stats?: ImportStats
   metadata?: Record<string, unknown>
 }
 
@@ -19,6 +25,8 @@ export interface ImportResponse {
   assistant?: Assistant
   topicsCount: number
   messagesCount: number
+  skippedTopicsCount?: number
+  skippedMessagesCount?: number
   error?: string
 }
 

@@ -1466,11 +1466,26 @@
   "import": {
     "chatbox": {
       "assistant_name": "ChatBox 导入",
+      "button": "选择文件",
+      "description": "从 ChatBox 的 exported-data.json 导入对话",
       "error": {
+        "invalid_format": "无效的 ChatBox 导出格式",
         "invalid_json": "无效的 JSON 文件格式",
         "no_conversations": "文件中未找到任何对话",
-        "no_valid_conversations": "没有可导入的有效对话"
+        "no_valid_conversations": "没有可导入的有效对话",
+        "unknown": "导入失败，请检查文件格式"
       },
+      "help": {
+        "step1": "1. 打开 ChatBox，在设置中导出数据",
+        "step2": "2. 找到导出的文件（通常为 exported-data.json）",
+        "step3": "3. 选择 exported-data.json 导入",
+        "title": "如何导出 ChatBox 对话？"
+      },
+      "importing": "正在导入对话...",
+      "selecting": "正在选择文件...",
+      "success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
+      "success_with_skipped": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息，跳过 {{skippedTopics}} 个对话（{{skippedMessages}} 条消息）",
+      "title": "导入 ChatBox 对话",
       "untitled_conversation": "未命名对话"
     },
     "chatgpt": {
@@ -1478,6 +1493,7 @@
       "button": "选择文件",
       "description": "仅导入对话文字，不携带图片和附件",
       "error": {
+        "invalid_format": "无效的 ChatGPT 导出格式",
         "invalid_json": "无效的 JSON 文件格式",
         "no_conversations": "文件中未找到任何对话",
         "no_valid_conversations": "没有可导入的有效对话",
@@ -3287,7 +3303,8 @@
       "hour_interval_other": "{{count}} 小时",
       "import_settings": {
         "button": "导入文件",
-        "chatgpt": "导入 ChatGPT / ChatBox 数据",
+        "chatbox": "导入 ChatBox 数据",
+        "chatgpt": "导入 ChatGPT 数据",
         "title": "导入外部应用数据"
       },
       "joplin": {
