@@ -16,7 +16,8 @@ vi.mock('@renderer/services/ModelService', () => ({
 }))
 
 vi.mock('@renderer/utils', () => ({
-  matchKeywordsInString: (input: string, target: string) => target.toLowerCase().includes(input.toLowerCase())
+  matchKeywordsInString: (input: string, target: string) => target.toLowerCase().includes(input.toLowerCase()),
+  uuid: vi.fn(() => 'mock-uuid')
 }))
 
 vi.mock('@renderer/utils/naming', () => ({

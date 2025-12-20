@@ -42,7 +42,8 @@ vi.mock('@renderer/utils', () => ({
     } catch {
       return {}
     }
-  })
+  }),
+  uuid: vi.fn(() => 'mock-uuid')
 }))
 
 vi.mock('@renderer/utils/formats', () => ({
