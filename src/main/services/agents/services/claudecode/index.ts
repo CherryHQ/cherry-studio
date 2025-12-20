@@ -112,8 +112,20 @@ class ClaudeCodeService implements AgentServiceInterface {
     // Auto-discover Git Bash path on Windows (already logs internally)
     const customGitBashPath = isWin ? autoDiscoverGitBash() : null
 
+    // Preserve proxy settings from process.env (set by ProxyManager) for WebFetch and WebSearch tools
+    // These are needed for the Claude Code SDK to access external URLs through configured proxies
+    const proxyEnvVars: Record<string, string> = {}
+    const proxyKeys = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'NO_PROXY', 'no_proxy']
+    for (const key of proxyKeys) {
+      if (process.env[key]) {
+        proxyEnvVars[key] = process.env[key]!
+        logger.debug(`Preserving proxy env var for Claude Code SDK: ${key}=${process.env[key]}`)
+      }
+    }
+
     const env = {
       ...loginShellEnvWithoutProxies,
+      ...proxyEnvVars,
       // TODO: fix the proxy api server
       // ANTHROPIC_API_KEY: apiConfig.apiKey,
       // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
