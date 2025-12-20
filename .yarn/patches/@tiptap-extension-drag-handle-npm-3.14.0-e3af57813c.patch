@@ -1,8 +1,8 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 506aa37711fdb8452c68c4e1364b769793e56290..a69f9cc11066f5cf224599cb7b01c7ab6d465bb1 100644
+index e96c7203f83b753dd950fd23d4ac5051a337ecc6..bc8b4723a16f72715bd1f83b63dfb177edf73318 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
-@@ -454,6 +454,19 @@ var DragHandlePlugin = ({
+@@ -468,6 +468,19 @@ var DragHandlePlugin = ({
              }
              return false;
            },
@@ -23,10 +23,10 @@ index 506aa37711fdb8452c68c4e1364b769793e56290..a69f9cc11066f5cf224599cb7b01c7ab
              if (locked) {
                return false;
 diff --git a/dist/index.js b/dist/index.js
-index ad58ef1637a6e5544733f4002cd0cfcc8e43022a..ce03e2e2882e8d1828726dcb3de31e9cbeb83374 100644
+index 309bbba9f2dcdfe1f9cb9e98c1ad9cae6258d253..f66be7dfbf4d5185992445246e43e710d9797260 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -428,6 +428,19 @@ var DragHandlePlugin = ({
+@@ -442,6 +442,19 @@ var DragHandlePlugin = ({
              }
              return false;
            },
