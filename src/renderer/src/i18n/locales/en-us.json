@@ -1877,6 +1877,7 @@
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
       },
+      "sse_idle_timeout": "SSE idle timeout after {{minutes}} minutes",
       "unknown": "Unknown error",
       "yuque": {
         "export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
@@ -4910,7 +4911,8 @@
     "paintings": "Paintings",
     "settings": "Settings",
     "store": "Assistant Library",
-    "translate": "Translate"
+    "translate": "Translate",
+    "usage": "Usage"
   },
   "trace": {
     "backList": "Back To List",
@@ -5004,6 +5006,7 @@
       "empty": "No translation history",
       "error": {
         "delete": "Deletion failed",
+        "not_found": "Translation history not found",
         "save": "Failed to save translation history"
       },
       "search": {
@@ -5067,6 +5070,77 @@
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",
     "title": "Update"
+  },
+  "usage": {
+    "categories": {
+      "embedding": "Embedding",
+      "image_generation": "Image Generation",
+      "language": "Language",
+      "multimodal": "Multimodal",
+      "rerank": "Rerank",
+      "web_search": "Web Search"
+    },
+    "filters": {
+      "bucket": {
+        "day": "Day",
+        "month": "Month",
+        "week": "Week"
+      },
+      "category": "Category",
+      "model": "Model",
+      "module": "Module",
+      "provider": "Provider",
+      "reset": "Reset Filters"
+    },
+    "kpi": {
+      "cost_api": "API Cost",
+      "cost_pricing": "Pricing Cost",
+      "images": "Images",
+      "tokens": "Total Tokens"
+    },
+    "metrics": {
+      "cost_api": "API Cost",
+      "cost_pricing": "Pricing Cost",
+      "tokens": "Tokens"
+    },
+    "modules": {
+      "agent": "Agent",
+      "chat": "Chat",
+      "knowledge": "Knowledge Base",
+      "paintings": "Paintings",
+      "translate": "Translate",
+      "websearch": "Web Search"
+    },
+    "open": {
+      "not_found": "Target not found"
+    },
+    "operations": {
+      "completion": "Completion",
+      "embedding": "Embedding",
+      "generate_image": "Image Generation",
+      "ingest": "Ingest",
+      "other": "Other",
+      "rerank": "Rerank",
+      "search": "Search"
+    },
+    "table": {
+      "cost_api": "API Cost",
+      "cost_pricing": "Pricing Cost",
+      "events": "Events",
+      "images": "Images",
+      "model": "Model",
+      "models": "By Model",
+      "module": "Module",
+      "modules": "By Module",
+      "open": "Open",
+      "operation": "Operation",
+      "provider": "Provider",
+      "recent": "Recent Usage",
+      "time": "Time",
+      "tokens": "Tokens"
+    },
+    "title": "Usage",
+    "unknown": "Unknown"
   },
   "warning": {
     "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."

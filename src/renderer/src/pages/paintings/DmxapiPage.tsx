@@ -9,6 +9,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import FileManager from '@renderer/services/FileManager'
+import { buildImageUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata } from '@renderer/types'
@@ -41,6 +42,36 @@ import {
 import { checkProviderEnabled } from './utils'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
+
+const parsePriceModel = (priceModel?: string) => {
+  if (!priceModel) {
+    return undefined
+  }
+
+  const amountMatch = priceModel.match(/(\d+(\.\d+)?)/)
+  if (!amountMatch) {
+    return undefined
+  }
+
+  const amount = Number(amountMatch[1])
+  if (Number.isNaN(amount)) {
+    return undefined
+  }
+
+  const normalized = priceModel.toLowerCase()
+  let currency: string | undefined
+  if (priceModel.includes('$') || normalized.includes('usd')) {
+    currency = '$'
+  } else if (priceModel.includes('¥') || priceModel.includes('元') || normalized.includes('cny')) {
+    currency = '¥'
+  }
+
+  return {
+    price: amount,
+    currency,
+    unit: 1
+  }
+}
 
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { dmxapi_paintings, addPainting, removePainting, updatePainting } = usePaintings()
@@ -184,7 +215,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       id: uuid()
     }
 
-    setPainting(addPainting('dmxapi_paintings', copyPainting))
+    const addedPainting = addPainting('dmxapi_paintings', copyPainting)
+    setPainting(addedPainting)
+    return addedPainting
   }
 
   const onSelectModel = (modelId: string) => {
@@ -551,6 +584,24 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const controller = new AbortController()
       setAbortController(controller)
       dispatch(setGenerating(true))
+      const recordUsage = async (targetId: string, imageCount: number) => {
+        const pricing = parsePriceModel(painting.priceModel)
+        const usageEvent = buildImageUsageEvent({
+          id: `painting:${uuid()}`,
+          occurredAt: Date.now(),
+          module: 'paintings',
+          providerId: dmxapiProvider.id,
+          modelId: painting.model,
+          modelName: painting.model,
+          prompt: painting.prompt,
+          imageCount,
+          pricing,
+          refType: 'painting',
+          refId: targetId,
+          paintingId: targetId
+        })
+        await saveUsageEvent(usageEvent)
+      }
 
       // 准备请求配置
       const requestConfig = await prepareRequestConfig(prompt, painting)
@@ -564,10 +615,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
 
         if (validFiles?.length > 0) {
+          const imageCount = urls.length || validFiles.length || painting.n || 1
           if (painting.autoCreate && painting.files.length > 0) {
             // 保存文件并更新状态
             await FileManager.addFiles(validFiles)
-            getNewPaintingPanel({ files: validFiles, urls })
+            const newPainting = getNewPaintingPanel({ files: validFiles, urls })
+            await recordUsage(newPainting.id, imageCount)
           } else {
             // 删除之前的图片
             await FileManager.deleteFiles(painting.files)
@@ -575,6 +628,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             // 保存文件并更新状态
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls })
+            await recordUsage(painting.id, imageCount)
           }
         } else {
           window.toast.warning(t('paintings.req_error_text'))

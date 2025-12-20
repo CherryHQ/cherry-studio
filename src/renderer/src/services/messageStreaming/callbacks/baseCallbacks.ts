@@ -1,9 +1,12 @@
 import { loggerService } from '@logger'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
+import { isAgentSessionTopicId } from '@renderer/services/db/types'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import { buildTokenUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
+import { getCurrencySymbol } from '@renderer/services/usage/usageUtils'
 import { updateOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
@@ -223,6 +226,27 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         })
       )
       await saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
+
+      if (status === AssistantMessageStatus.SUCCESS && response?.usage && finalAssistantMsg) {
+        const module = isAgentSessionTopicId(topicId) ? 'agent' : 'chat'
+        const usageEvent = buildTokenUsageEvent({
+          id: `msg:${assistantMsgId}`,
+          module,
+          operation: 'completion',
+          occurredAt: Date.now(),
+          model: finalAssistantMsg.model,
+          usage: response.usage,
+          usageSource: finalAssistantMsg.model?.provider === 'openrouter' ? 'api' : 'estimate',
+          costProvider: response.usage.cost,
+          currencyProvider: response.usage.cost !== undefined ? getCurrencySymbol() : undefined,
+          topicId,
+          messageId: assistantMsgId,
+          refType: 'message',
+          refId: assistantMsgId
+        })
+        await saveUsageEvent(usageEvent)
+      }
+
       EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
       logger.debug('onComplete finished')
     }

@@ -3053,6 +3053,21 @@ const migrateConfig = {
       logger.error('migrate 187 error', error as Error)
       return state
     }
+  },
+  '188': (state: RootState) => {
+    try {
+      const visible = state.settings.sidebarIcons.visible
+      const disabled = state.settings.sidebarIcons.disabled
+
+      if (!visible.includes('usage') && !disabled.includes('usage')) {
+        state.settings.sidebarIcons.visible.push('usage')
+      }
+      logger.info('migrate 188 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 188 error', error as Error)
+      return state
+    }
   }
 }
 

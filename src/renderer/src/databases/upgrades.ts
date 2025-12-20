@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { LanguagesEnum } from '@renderer/config/translate'
-import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode } from '@renderer/types'
+import { isAgentSessionTopicId } from '@renderer/services/db/types'
+import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode, UsageEvent } from '@renderer/types'
 import { FileTypes, WebSearchSource } from '@renderer/types' // Import FileTypes enum
 import type {
   BaseMessageBlock,
@@ -12,6 +13,12 @@ import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newM
 import type { Transaction } from 'dexie'
 import { isEmpty } from 'lodash'
 
+import {
+  buildPricingSnapshot,
+  calculatePricingCost,
+  getCurrencySymbol,
+  getUsageCategoryForModel
+} from '../services/usage/usageUtils'
 import {
   createCitationBlock,
   createErrorBlock,
@@ -396,4 +403,68 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
     }
   }
   logger.info('DB migration to version 8 finished.')
+}
+
+export async function upgradeToV11(tx: Transaction): Promise<void> {
+  logger.info('DB migration to version 11: building usage events')
+
+  const topics = await tx.table('topics').toArray()
+  const usageEventsTable = tx.table('usage_events')
+  const usageEvents: UsageEvent[] = []
+
+  for (const topic of topics) {
+    const messages = topic.messages || []
+
+    for (const message of messages) {
+      if (!message?.usage || message.role !== 'assistant') {
+        continue
+      }
+
+      const occurredAt = Date.parse(message.createdAt)
+      if (Number.isNaN(occurredAt)) {
+        continue
+      }
+
+      const model = message.model
+      const pricingSnapshot = buildPricingSnapshot(model?.pricing)
+      const costPricing = calculatePricingCost(
+        { promptTokens: message.usage.prompt_tokens, completionTokens: message.usage.completion_tokens },
+        pricingSnapshot
+      )
+      const costProvider = message.usage.cost
+      const currencyProvider =
+        costProvider !== undefined ? getCurrencySymbol(model?.pricing?.currencySymbol) : undefined
+      const currencyPricing = costPricing !== undefined ? getCurrencySymbol(pricingSnapshot?.currencySymbol) : undefined
+
+      usageEvents.push({
+        id: `msg:${message.id}`,
+        module: isAgentSessionTopicId(message.topicId) ? 'agent' : 'chat',
+        operation: 'completion',
+        occurredAt,
+        providerId: model?.provider,
+        modelId: model?.id ?? message.modelId,
+        modelName: model?.name,
+        category: getUsageCategoryForModel(model),
+        promptTokens: message.usage.prompt_tokens,
+        completionTokens: message.usage.completion_tokens,
+        totalTokens: message.usage.total_tokens,
+        usageSource: 'api',
+        costProvider,
+        costPricing,
+        currencyProvider,
+        currencyPricing,
+        pricingSnapshot,
+        topicId: message.topicId,
+        messageId: message.id,
+        refType: 'message',
+        refId: message.id
+      })
+    }
+  }
+
+  if (usageEvents.length > 0) {
+    await usageEventsTable.bulkPut(usageEvents)
+  }
+
+  logger.info(`DB migration to version 11 finished with ${usageEvents.length} usage events.`)
 }

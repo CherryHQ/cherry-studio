@@ -165,7 +165,7 @@ export class DexieMessageDataSource implements MessageDataSource {
 
   async deleteMessage(topicId: string, messageId: string): Promise<void> {
     try {
-      await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
+      await db.transaction('rw', db.topics, db.message_blocks, db.files, db.usage_events, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
 
@@ -194,6 +194,8 @@ export class DexieMessageDataSource implements MessageDataSource {
         // Remove message from topic
         topic.messages.splice(messageIndex, 1)
         await db.topics.update(topicId, { messages: topic.messages })
+
+        await db.usage_events.where('messageId').equals(messageId).delete()
       })
 
       store.dispatch(updateTopicUpdatedAt({ topicId }))
@@ -205,7 +207,7 @@ export class DexieMessageDataSource implements MessageDataSource {
 
   async deleteMessages(topicId: string, messageIds: string[]): Promise<void> {
     try {
-      await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
+      await db.transaction('rw', db.topics, db.message_blocks, db.files, db.usage_events, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
 
@@ -241,6 +243,10 @@ export class DexieMessageDataSource implements MessageDataSource {
         // Remove messages from topic
         const remainingMessages = topic.messages.filter((m) => !messageIds.includes(m.id))
         await db.topics.update(topicId, { messages: remainingMessages })
+
+        if (messageIds.length > 0) {
+          await db.usage_events.where('messageId').anyOf(messageIds).delete()
+        }
       })
       store.dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {
@@ -334,7 +340,7 @@ export class DexieMessageDataSource implements MessageDataSource {
       }
 
       // Perform the actual database cleanup in a separate write transaction
-      await db.transaction('rw', db.topics, db.message_blocks, async () => {
+      await db.transaction('rw', db.topics, db.message_blocks, db.usage_events, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
 
@@ -345,6 +351,8 @@ export class DexieMessageDataSource implements MessageDataSource {
 
         // Clear messages
         await db.topics.update(topicId, { messages: [] })
+
+        await db.usage_events.where('topicId').equals(topicId).delete()
       })
 
       store.dispatch(updateTopicUpdatedAt({ topicId }))

@@ -1877,6 +1877,7 @@
         "export": "Ошибка экспорта в Siyuan, пожалуйста, проверьте состояние подключения и настройки в документации",
         "no_config": "Не настроен API адрес или токен Siyuan"
       },
+      "sse_idle_timeout": "[to be translated]:SSE idle timeout after {{minutes}} minutes",
       "unknown": "Неизвестная ошибка",
       "yuque": {
         "export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
@@ -4910,7 +4911,8 @@
     "paintings": "Рисунки",
     "settings": "Настройки",
     "store": "Библиотека помощников",
-    "translate": "Перевод"
+    "translate": "Перевод",
+    "usage": "[to be translated]:Usage"
   },
   "trace": {
     "backList": "Вернуться к списку",
@@ -5004,6 +5006,7 @@
       "empty": "История переводов отсутствует",
       "error": {
         "delete": "Удаление не удалось",
+        "not_found": "[to be translated]:Translation history not found",
         "save": "Не удалось сохранить историю переводов"
       },
       "search": {
@@ -5067,6 +5070,77 @@
     "noReleaseNotes": "Нет заметок об обновлении",
     "saveDataError": "Ошибка сохранения данных, повторите попытку",
     "title": "Обновление"
+  },
+  "usage": {
+    "categories": {
+      "embedding": "[to be translated]:Embedding",
+      "image_generation": "[to be translated]:Image Generation",
+      "language": "[to be translated]:Language",
+      "multimodal": "[to be translated]:Multimodal",
+      "rerank": "[to be translated]:Rerank",
+      "web_search": "[to be translated]:Web Search"
+    },
+    "filters": {
+      "bucket": {
+        "day": "[to be translated]:Day",
+        "month": "[to be translated]:Month",
+        "week": "[to be translated]:Week"
+      },
+      "category": "[to be translated]:Category",
+      "model": "[to be translated]:Model",
+      "module": "[to be translated]:Module",
+      "provider": "[to be translated]:Provider",
+      "reset": "[to be translated]:Reset Filters"
+    },
+    "kpi": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "images": "[to be translated]:Images",
+      "tokens": "[to be translated]:Total Tokens"
+    },
+    "metrics": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "tokens": "[to be translated]:Tokens"
+    },
+    "modules": {
+      "agent": "[to be translated]:Agent",
+      "chat": "[to be translated]:Chat",
+      "knowledge": "[to be translated]:Knowledge Base",
+      "paintings": "[to be translated]:Paintings",
+      "translate": "[to be translated]:Translate",
+      "websearch": "[to be translated]:Web Search"
+    },
+    "open": {
+      "not_found": "[to be translated]:Target not found"
+    },
+    "operations": {
+      "completion": "[to be translated]:Completion",
+      "embedding": "[to be translated]:Embedding",
+      "generate_image": "[to be translated]:Image Generation",
+      "ingest": "[to be translated]:Ingest",
+      "other": "[to be translated]:Other",
+      "rerank": "[to be translated]:Rerank",
+      "search": "[to be translated]:Search"
+    },
+    "table": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "events": "[to be translated]:Events",
+      "images": "[to be translated]:Images",
+      "model": "[to be translated]:Model",
+      "models": "[to be translated]:By Model",
+      "module": "[to be translated]:Module",
+      "modules": "[to be translated]:By Module",
+      "open": "[to be translated]:Open",
+      "operation": "[to be translated]:Operation",
+      "provider": "[to be translated]:Provider",
+      "recent": "[to be translated]:Recent Usage",
+      "time": "[to be translated]:Time",
+      "tokens": "[to be translated]:Tokens"
+    },
+    "title": "[to be translated]:Usage",
+    "unknown": "[to be translated]:Unknown"
   },
   "warning": {
     "missing_provider": "Поставщик не существует, возвращение к поставщику по умолчанию {{provider}}. Это может привести к проблемам."

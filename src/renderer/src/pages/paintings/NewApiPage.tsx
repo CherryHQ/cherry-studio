@@ -23,6 +23,7 @@ import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
+import { buildImageUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
@@ -325,11 +326,30 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const data = await response.json()
       const urls = data.data.filter((item) => item.url).map((item) => item.url)
       const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
+      const selectedModel = newApiProvider.models.find((model) => model.id === painting.model)
+      let usageLogged = false
 
       if (urls.length > 0) {
         const validFiles = await downloadImages(urls)
         await FileManager.addFiles(validFiles)
         updatePaintingState({ files: validFiles, urls })
+        if (!usageLogged) {
+          const usageEvent = buildImageUsageEvent({
+            id: `painting:${uuid()}`,
+            occurredAt: Date.now(),
+            module: 'paintings',
+            providerId: newApiProvider.id,
+            modelId: painting.model,
+            modelName: selectedModel?.name || painting.model,
+            prompt: painting.prompt,
+            imageCount: urls.length || validFiles.length || painting.n || 1,
+            refType: 'painting',
+            refId: painting.id,
+            paintingId: painting.id
+          })
+          await saveUsageEvent(usageEvent)
+          usageLogged = true
+        }
       }
 
       if (base64s?.length > 0) {
@@ -340,6 +360,23 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
         await FileManager.addFiles(validFiles)
         updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+        if (!usageLogged) {
+          const usageEvent = buildImageUsageEvent({
+            id: `painting:${uuid()}`,
+            occurredAt: Date.now(),
+            module: 'paintings',
+            providerId: newApiProvider.id,
+            modelId: painting.model,
+            modelName: selectedModel?.name || painting.model,
+            prompt: painting.prompt,
+            imageCount: base64s.length || validFiles.length || painting.n || 1,
+            refType: 'painting',
+            refId: painting.id,
+            paintingId: painting.id
+          })
+          await saveUsageEvent(usageEvent)
+          usageLogged = true
+        }
       }
     } catch (error: unknown) {
       handleError(error)
@@ -407,7 +444,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const { text: translatedText } = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
       logger.error('Translation failed:', error as Error)

@@ -4,6 +4,7 @@
  */
 
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n'
 import type { AISDKWebSearchResult, MCPTool, WebSearchResults } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
@@ -413,15 +414,18 @@ export class AiSdkToChunkAdapter {
         })
         break
       case 'abort':
-        this.onChunk({
-          type: ChunkType.ERROR,
-          error: this.idleTimeoutTriggered
-            ? new DOMException(
-                `SSE idle timeout after ${Math.round((this.idleTimeoutMs ?? 0) / 60000)} minutes`,
-                'TimeoutError'
-              )
-            : new DOMException('Request was aborted', 'AbortError')
-        })
+        if (this.idleTimeoutTriggered) {
+          const minutes = Math.round((this.idleTimeoutMs ?? 0) / 60000)
+          this.onChunk({
+            type: ChunkType.ERROR,
+            error: new DOMException(i18n.t('message.error.sse_idle_timeout', { minutes }), 'TimeoutError')
+          })
+        } else {
+          this.onChunk({
+            type: ChunkType.ERROR,
+            error: new DOMException('Request was aborted', 'AbortError')
+          })
+        }
         break
       case 'error':
         this.onChunk({

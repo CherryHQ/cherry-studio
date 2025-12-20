@@ -206,7 +206,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
+      const { text: translatedText } = await translateText(text, getLanguageByLangcode(targetLanguage))
       translatedText && setText(translatedText)
       setTimeoutTimer('translate', () => resizeTextArea(), 0)
     } catch (error) {

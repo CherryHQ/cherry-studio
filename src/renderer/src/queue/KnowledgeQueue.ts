@@ -3,6 +3,8 @@ import db from '@renderer/databases'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { NotificationService } from '@renderer/services/NotificationService'
+import { estimateImageTokens, estimateTextTokens } from '@renderer/services/TokenService'
+import { buildTokenUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import store from '@renderer/store'
 import {
   clearCompletedProcessing,
@@ -10,12 +12,54 @@ import {
   updateBaseItemUniqueId,
   updateItemProcessingStatus
 } from '@renderer/store/knowledge'
-import type { KnowledgeItem } from '@renderer/types'
+import type { FileMetadata, KnowledgeItem } from '@renderer/types'
+import { FileTypes, isKnowledgeFileItem, isKnowledgeVideoItem } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import type { LoaderReturn } from '@shared/config/types'
 import { t } from 'i18next'
 
 const logger = loggerService.withContext('KnowledgeQueue')
+
+const estimateFileTokens = (file: FileMetadata): number | undefined => {
+  if (file.tokens !== undefined) {
+    return file.tokens
+  }
+
+  if (file.type === FileTypes.IMAGE) {
+    return estimateImageTokens(file)
+  }
+
+  if (file.type === FileTypes.TEXT || file.type === FileTypes.DOCUMENT) {
+    return Math.max(0, Math.ceil(file.size / 4))
+  }
+
+  return undefined
+}
+
+const estimateKnowledgeItemTokens = (item: KnowledgeItem, noteContent?: string): number | undefined => {
+  if (item.type === 'note' && noteContent) {
+    return estimateTextTokens(noteContent)
+  }
+
+  if (typeof item.content === 'string') {
+    return estimateTextTokens(item.content)
+  }
+
+  if (isKnowledgeFileItem(item)) {
+    return estimateFileTokens(item.content)
+  }
+
+  if (isKnowledgeVideoItem(item)) {
+    const files = item.content || []
+    const total = files.reduce((sum, file) => {
+      const tokens = estimateFileTokens(file)
+      return sum + (tokens ?? 0)
+    }, 0)
+    return total || undefined
+  }
+
+  return undefined
+}
 
 class KnowledgeQueue {
   private processing: Map<string, boolean> = new Map()
@@ -226,6 +270,25 @@ class KnowledgeQueue {
         )
       }
       logger.info(`Updated uniqueId for item ${item.id} in base ${baseId} `)
+
+      const estimatedTokens = estimateKnowledgeItemTokens(sourceItem, content)
+      if (estimatedTokens !== undefined || result.entriesAdded > 0) {
+        const usageEvent = buildTokenUsageEvent({
+          id: `knowledge-ingest:${uuid()}`,
+          module: 'knowledge',
+          operation: 'ingest',
+          occurredAt: Date.now(),
+          model: base.model,
+          promptTokens: estimatedTokens,
+          completionTokens: 0,
+          usageSource: estimatedTokens !== undefined ? 'estimate' : 'none',
+          baseId: base.id,
+          itemId: item.id,
+          refType: 'knowledge_base_item',
+          refId: item.id
+        })
+        await saveUsageEvent({ ...usageEvent, documentCount: result.entriesAdded })
+      }
 
       store.dispatch(clearCompletedProcessing({ baseId }))
     } catch (error) {

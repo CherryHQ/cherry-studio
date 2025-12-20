@@ -16,6 +16,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
+import { buildImageUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata } from '@renderer/types'
@@ -173,6 +174,35 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     setAbortController(controller)
     setIsLoading(true)
     dispatch(setGenerating(true))
+    let usageLogged = false
+    const recordUsage = async (files: FileMetadata[], urls: string[]) => {
+      if (usageLogged || (files.length === 0 && urls.length === 0)) {
+        return
+      }
+      usageLogged = true
+      const imageCount = Math.max(
+        files.length,
+        urls.length,
+        painting.numImages ?? 0,
+        painting.numberOfImages ?? 0,
+        painting.n ?? 0,
+        1
+      )
+      const usageEvent = buildImageUsageEvent({
+        id: `painting:${uuid()}`,
+        occurredAt: Date.now(),
+        module: 'paintings',
+        providerId: aihubmixProvider.id,
+        modelId: painting.model,
+        modelName: painting.model,
+        prompt,
+        imageCount,
+        refType: 'painting',
+        refId: painting.id,
+        paintingId: painting.id
+      })
+      await saveUsageEvent(usageEvent)
+    }
 
     let body: string | FormData = ''
     let headers: Record<string, string> = {
@@ -199,6 +229,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             )
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+            await recordUsage(
+              validFiles,
+              validFiles.map((file) => file.name)
+            )
           }
           return
         } else if (painting.model === 'gemini-3-pro-image-preview') {
@@ -267,6 +301,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             )
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+            await recordUsage(
+              validFiles,
+              validFiles.map((file) => file.name)
+            )
           }
           return
         } else if (painting.model === 'V_3') {
@@ -351,6 +389,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               const validFiles = await downloadImages(urls)
               await FileManager.addFiles(validFiles)
               updatePaintingState({ files: validFiles, urls })
+              await recordUsage(validFiles, urls)
             }
             return
           } catch (error: unknown) {
@@ -480,6 +519,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             const validFiles = await downloadImages(urls)
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls })
+            await recordUsage(validFiles, urls)
           }
           return
         } else {
@@ -552,6 +592,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           )
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          await recordUsage(
+            validFiles,
+            validFiles.map((file) => file.name)
+          )
           return
         }
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
@@ -561,6 +605,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           const validFiles = await downloadImages(urls)
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls })
+          await recordUsage(validFiles, urls)
         }
 
         if (base64s?.length > 0) {
@@ -571,6 +616,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           )
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          await recordUsage(
+            validFiles,
+            validFiles.map((file) => file.name)
+          )
         }
       }
     } catch (error: unknown) {
@@ -639,7 +688,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const { text: translatedText } = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
       logger.error('Translation failed:', error as Error)

@@ -1877,6 +1877,7 @@
         "export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
         "no_config": "未設定思源筆記 API 位址或權杖"
       },
+      "sse_idle_timeout": "SSE 閒置逾時：{{minutes}} 分鐘未收到串流事件",
       "unknown": "未知錯誤",
       "yuque": {
         "export": "匯出語雀失敗，請檢查連線狀態並參考說明文件確認設定",
@@ -4910,7 +4911,8 @@
     "paintings": "繪畫",
     "settings": "設定",
     "store": "助手庫",
-    "translate": "翻譯"
+    "translate": "翻譯",
+    "usage": "用量"
   },
   "trace": {
     "backList": "回到清單",
@@ -5004,6 +5006,7 @@
       "empty": "翻譯歷史為空",
       "error": {
         "delete": "刪除失敗",
+        "not_found": "未找到翻譯歷史紀錄",
         "save": "儲存翻譯歷史失敗"
       },
       "search": {
@@ -5067,6 +5070,77 @@
     "noReleaseNotes": "暫無更新日誌",
     "saveDataError": "儲存資料失敗，請重試",
     "title": "更新提示"
+  },
+  "usage": {
+    "categories": {
+      "embedding": "向量",
+      "image_generation": "圖像生成",
+      "language": "語言",
+      "multimodal": "多模態",
+      "rerank": "重排",
+      "web_search": "網路搜尋"
+    },
+    "filters": {
+      "bucket": {
+        "day": "日",
+        "month": "月",
+        "week": "週"
+      },
+      "category": "類型",
+      "model": "模型",
+      "module": "模組",
+      "provider": "供應商",
+      "reset": "重置篩選"
+    },
+    "kpi": {
+      "cost_api": "API 成本",
+      "cost_pricing": "定價成本",
+      "images": "圖片數",
+      "tokens": "總 Token"
+    },
+    "metrics": {
+      "cost_api": "API 成本",
+      "cost_pricing": "定價成本",
+      "tokens": "Token"
+    },
+    "modules": {
+      "agent": "智能體",
+      "chat": "聊天",
+      "knowledge": "知識庫",
+      "paintings": "繪畫",
+      "translate": "翻譯",
+      "websearch": "網路搜尋"
+    },
+    "open": {
+      "not_found": "未找到目標"
+    },
+    "operations": {
+      "completion": "對話",
+      "embedding": "向量",
+      "generate_image": "生成圖片",
+      "ingest": "入庫",
+      "other": "其他",
+      "rerank": "重排",
+      "search": "檢索"
+    },
+    "table": {
+      "cost_api": "API 成本",
+      "cost_pricing": "定價成本",
+      "events": "事件",
+      "images": "圖片",
+      "model": "模型",
+      "models": "按模型",
+      "module": "模組",
+      "modules": "按模組",
+      "open": "開啟",
+      "operation": "操作",
+      "provider": "供應商",
+      "recent": "近期用量",
+      "time": "時間",
+      "tokens": "Token"
+    },
+    "title": "用量",
+    "unknown": "未知"
   },
   "warning": {
     "missing_provider": "供應商不存在，已改用預設供應商 {{provider}}。這可能導致問題。"

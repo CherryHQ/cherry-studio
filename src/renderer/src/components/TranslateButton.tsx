@@ -49,7 +49,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
 
     setIsTranslating(true)
     try {
-      const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
+      const { text: translatedText } = await translateText(text, getLanguageByLangcode(targetLanguage))
       onTranslated(translatedText)
     } catch (error) {
       logger.error('Translation failed:', error as Error)

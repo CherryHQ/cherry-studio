@@ -98,6 +98,7 @@
     "officeparser": "^4.2.0",
     "os-proxy-config": "^1.1.2",
     "qrcode.react": "^4.2.0",
+    "recharts": "^3.6.0",
     "selection-hook": "^1.0.12",
     "sharp": "^0.34.3",
     "socket.io": "^4.8.1",

@@ -12,8 +12,9 @@ import type { MenuProps } from 'antd'
 import { Dropdown, Empty } from 'antd'
 import { Book, Plus, Settings } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AddKnowledgeBasePopup from './components/AddKnowledgeBasePopup'
@@ -25,6 +26,8 @@ const KnowledgePage: FC = () => {
   const { bases, renameKnowledgeBase, deleteKnowledgeBase, updateKnowledgeBases } = useKnowledgeBases()
   const [selectedBase, setSelectedBase] = useState<KnowledgeBase | undefined>(bases[0])
   const [isDragging, setIsDragging] = useState(false)
+  const [searchParams] = useSearchParams()
+  const appliedBaseIdRef = useRef<string | null>(null)
 
   const handleAddKnowledge = useCallback(async () => {
     const newBase = await AddKnowledgeBasePopup.show({ title: t('knowledge.add.title') })
@@ -44,6 +47,19 @@ const KnowledgePage: FC = () => {
     const hasSelectedBase = bases.find((base) => base.id === selectedBase?.id)
     !hasSelectedBase && setSelectedBase(bases[0])
   }, [bases, selectedBase])
+
+  useEffect(() => {
+    const baseId = searchParams.get('baseId')
+    if (!baseId || appliedBaseIdRef.current === baseId) {
+      return
+    }
+
+    const targetBase = bases.find((base) => base.id === baseId)
+    if (targetBase) {
+      setSelectedBase(targetBase)
+      appliedBaseIdRef.current = baseId
+    }
+  }, [bases, searchParams])
 
   const getMenuItems = useCallback(
     (base: KnowledgeBase) => {
