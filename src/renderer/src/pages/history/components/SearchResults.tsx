@@ -32,7 +32,7 @@ const SEARCH_SNIPPET_MAX_LINE_LENGTH = 160
 const SEARCH_SNIPPET_LINE_FRAGMENT_RADIUS = 40
 const SEARCH_SNIPPET_MAX_LINE_FRAGMENTS = 3
 
-const sanitizeSearchText = (text: string) => {
+const stripMarkdownFormatting = (text: string) => {
   return text
     .replace(/```(?:[^\n]*\n)?([\s\S]*?)```/g, '$1')
     .replace(/!\[(.*?)\]\((.*?)\)/g, '$1')
@@ -91,15 +91,19 @@ const buildLineSnippet = (line: string, regexes: RegExp[]) => {
   const limitedRanges = mergedRanges.slice(0, SEARCH_SNIPPET_MAX_LINE_FRAGMENTS)
 
   let result = limitedRanges.map(([start, end]) => line.slice(start, end)).join(' ... ')
+  // 片段未从行首开始，补前置省略号。
   if (limitedRanges[0][0] > 0) {
     result = `...${result}`
   }
+  // 片段未覆盖到行尾，补后置省略号。
   if (limitedRanges[limitedRanges.length - 1][1] < line.length) {
     result = `${result}...`
   }
+  // 还有未展示的匹配片段，提示省略。
   if (mergedRanges.length > SEARCH_SNIPPET_MAX_LINE_FRAGMENTS) {
     result = `${result}...`
   }
+  // 最终长度超限，强制截断并补省略号。
   if (result.length > SEARCH_SNIPPET_MAX_LINE_LENGTH) {
     result = `${result.slice(0, SEARCH_SNIPPET_MAX_LINE_LENGTH)}...`
   }
@@ -107,14 +111,14 @@ const buildLineSnippet = (line: string, regexes: RegExp[]) => {
 }
 
 const buildSearchSnippet = (text: string, terms: string[]) => {
-  const normalized = normalizeText(sanitizeSearchText(text))
+  const normalized = normalizeText(stripMarkdownFormatting(text))
   const lines = normalized.split('\n')
   if (lines.length === 0) {
     return ''
   }
 
-  const effectiveTerms = terms.filter((term) => term.length > 0)
-  const regexes = effectiveTerms.map((term) => new RegExp(escapeRegex(term), 'gi'))
+  const nonEmptyTerms = terms.filter((term) => term.length > 0)
+  const regexes = nonEmptyTerms.map((term) => new RegExp(escapeRegex(term), 'gi'))
   const matchedLineIndexes: number[] = []
 
   if (regexes.length > 0) {
@@ -214,7 +218,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     const blocks = (await db.message_blocks.toArray())
       .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
       .filter((block) => {
-        const searchableContent = sanitizeSearchText(block.content)
+        const searchableContent = stripMarkdownFormatting(block.content)
         return searchRegexes.some((regex) => regex.test(searchableContent))
       })
 
@@ -249,12 +253,17 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   }, [keywords, storeTopicsMap, topics])
 
   const highlightText = (text: string) => {
-    let highlightedText = text
-    searchTerms.forEach((term) => {
-      if (!term) return
-      const regex = new RegExp(escapeRegex(term), 'gi')
-      highlightedText = highlightedText.replace(regex, (match) => `<mark>${match}</mark>`)
-    })
+    const uniqueTerms = Array.from(new Set(searchTerms.filter((term) => term.length > 0)))
+    if (uniqueTerms.length === 0) {
+      return <span dangerouslySetInnerHTML={{ __html: text }} />
+    }
+
+    const pattern = uniqueTerms
+      .sort((a, b) => b.length - a.length)
+      .map((term) => escapeRegex(term))
+      .join('|')
+    const regex = new RegExp(pattern, 'gi')
+    const highlightedText = text.replace(regex, (match) => `<mark>${match}</mark>`)
     return <span dangerouslySetInnerHTML={{ __html: highlightedText }} />
   }
 
