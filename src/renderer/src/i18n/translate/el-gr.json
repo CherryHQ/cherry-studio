@@ -31,27 +31,31 @@
       }
     },
     "gitBash": {
-      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "autoDetected": "Χρησιμοποιείται αυτόματα εντοπισμένο Git Bash",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
-        "button": "[to be translated]:Clear custom path"
+        "button": "Διαγραφή προσαρμοσμένης διαδρομής"
       },
-      "customPath": "[to be translated]:Using custom path: {{path}}",
+      "customPath": "Χρησιμοποιείται προσαρμοσμένη διαδρομή: {{path}}",
       "error": {
         "description": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Ο πράκτορας δεν μπορεί να λειτουργήσει χωρίς αυτό. Παρακαλούμε εγκαταστήστε το Git για Windows από",
         "recheck": "Επανέλεγχος Εγκατάστασης του Git Bash",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Απαιτείται Git Bash"
       },
       "found": {
-        "title": "[to be translated]:Git Bash configured"
+        "title": "Το Git Bash διαμορφώθηκε"
       },
       "notFound": "Το Git Bash δεν βρέθηκε. Παρακαλώ εγκαταστήστε το πρώτα.",
       "pick": {
-        "button": "[to be translated]:Select Git Bash Path",
-        "failed": "[to be translated]:Failed to set Git Bash path",
-        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
-        "title": "[to be translated]:Select Git Bash executable"
+        "button": "Επιλογή διαδρομής Git Bash",
+        "failed": "Αποτυχία ορισμού διαδρομής Git Bash",
+        "invalidPath": "Το επιλεγμένο αρχείο δεν είναι έγκυρο εκτελέσιμο Git Bash (bash.exe).",
+        "title": "Επιλογή εκτελέσιμου Git Bash"
       },
-      "success": "Το Git Bash εντοπίστηκε με επιτυχία!"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Το Git Bash εντοπίστηκε με επιτυχία!",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
@@ -472,6 +476,7 @@
         "button": "Εισαγωγή",
         "error": {
           "fetch_failed": "Αποτυχία λήψης δεδομένων από το URL",
+          "file_required": "Παρακαλώ επιλέξτε πρώτα ένα αρχείο",
           "invalid_format": "Μη έγκυρη μορφή βοηθού: λείπουν υποχρεωτικά πεδία",
           "url_required": "Παρακαλώ εισάγετε ένα URL"
         },
@@ -489,8 +494,11 @@
           "button": "Μαζική Διαγραφή",
           "confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε τους επιλεγμένους {{count}} βοηθούς;"
         },
+        "batch_export": {
+          "button": "Εξαγωγή"
+        },
         "mode": {
-          "delete": "Διαγραφή",
+          "manage": "Διαχειριστείτε",
           "sort": "Ταξινόμηση"
         },
         "title": "Διαχείριση βοηθών"
@@ -540,14 +548,23 @@
       "more": "Ρυθμίσεις Βοηθού",
       "prompt": "Ρυθμίσεις προκαλύμματος",
       "reasoning_effort": {
+        "auto": "Αυτοκίνητο",
+        "auto_description": "Ευέλικτος καθορισμός της προσπάθειας συλλογισμού",
         "default": "Προεπιλογή",
+        "default_description": "Εξαρτηθείτε από την προεπιλεγμένη συμπεριφορά του μοντέλου, χωρίς καμία διαμόρφωση.",
         "high": "Μεγάλο",
+        "high_description": "Υψηλού επιπέδου συλλογισμός",
         "label": "Μήκος λογισμικού αλυσίδας",
         "low": "Μικρό",
+        "low_description": "Χαμηλού επιπέδου συλλογιστική",
         "medium": "Μεσαίο",
+        "medium_description": "Αιτιολόγηση μεσαίου επιπέδου",
         "minimal": "ελάχιστος",
+        "minimal_description": "Ελάχιστος συλλογισμός",
         "off": "Απενεργοποίηση",
-        "xhigh": "[to be translated]:Extra High"
+        "off_description": "Απενεργοποίηση λογικής",
+        "xhigh": "Εξαιρετικά Υψηλή",
+        "xhigh_description": "Εξαιρετικά υψηλού επιπέδου συλλογισμός"
       },
       "regular_phrases": {
         "add": "Προσθήκη φράσης",
@@ -1027,6 +1044,29 @@
         "yuque": "Εξαγωγή στο Yuque"
       },
       "list": "Λίστα θεμάτων",
+      "manage": {
+        "clear_selection": "Καθαρισμός Επιλογής",
+        "delete": {
+          "confirm": {
+            "content": "Είσαι βέβαιος ότι θέλεις να διαγράψεις {{count}} επιλεγμένο(α) θέμα(τα); Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
+            "title": "Διαγραφή Θεμάτων"
+          },
+          "success": "Διαγράφηκαν {{count}} θέμα(τα)"
+        },
+        "deselect_all": "Αποεπιλογή όλων",
+        "error": {
+          "at_least_one": "Τουλάχιστον ένα θέμα πρέπει να διατηρηθεί"
+        },
+        "move": {
+          "button": "Μετακίνηση",
+          "placeholder": "Επιλέξτε στόχο",
+          "success": "Μετακινήθηκαν {{count}} θέματα"
+        },
+        "pinned": "Καρφιτσωμένα Θέματα",
+        "selected_count": "{{count}} επιλεγμένα",
+        "title": "Διαχείριση Θεμάτων",
+        "unpinned": "Ξεκαρφωμένα Θέματα"
+      },
       "move_to": "Μετακίνηση στο",
       "new": "Ξεκινήστε νέα συζήτηση",
       "pin": "Σταθερά θέματα",
@@ -1036,6 +1076,10 @@
         },
         "label": "Προσδοκώμενα όρια",
         "tips": "Προσδοκώμενα όρια: προσθέτει επιπλέον επιστημονικές προσθήκες για το παρόν θέμα"
+      },
+      "search": {
+        "placeholder": "Αναζήτηση θεμάτων...",
+        "title": "Αναζήτηση"
       },
       "title": "Θέματα",
       "unpin": "Ξεκαρφίτσωμα"
@@ -1221,11 +1265,13 @@
       }
     },
     "stop": "σταματήστε",
+    "subscribe": "Εγγραφείτε",
     "success": "Επιτυχία",
     "swap": "Εναλλαγή",
     "topics": "Θέματα",
     "unknown": "Άγνωστο",
     "unnamed": "Χωρίς όνομα",
+    "unsubscribe": "Απεγγραφή",
     "update_success": "Επιτυχής ενημέρωση",
     "upload_files": "Ανέβασμα αρχείου",
     "warning": "Προσοχή",
@@ -2152,6 +2198,7 @@
     "collapse": "σύμπτυξη",
     "content_placeholder": "Παρακαλώ εισαγάγετε το περιεχόμενο των σημειώσεων...",
     "copyContent": "αντιγραφή περιεχομένου",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτό το {{type}};",
     "delete_folder_confirm": "Θέλετε να διαγράψετε τον φάκελο «{{name}}» και όλο το περιεχόμενό του;",
@@ -2596,6 +2643,7 @@
     "lanyun": "Λανιούν Τεχνολογία",
     "lmstudio": "LM Studio",
     "longcat": "Τσίρο",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope Magpie",
@@ -3884,6 +3932,7 @@
       "builtinServers": "Ενσωματωμένοι Διακομιστές",
       "builtinServersDescriptions": {
         "brave_search": "μια εφαρμογή διακομιστή MCP που ενσωματώνει το Brave Search API, παρέχοντας δυνατότητες αναζήτησης στον ιστό και τοπικής αναζήτησης. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος BRAVE_API_KEY",
+        "browser": "Ελέγχει ένα headless παράθυρο Electron μέσω του Chrome DevTools Protocol. Εργαλεία: άνοιγμα URL, εκτέλεση JS μίας γραμμής, επαναφορά συνεδρίας.",
         "didi_mcp": "Διακομιστής DiDi MCP που παρέχει υπηρεσίες μεταφοράς συμπεριλαμβανομένης της αναζήτησης χαρτών, εκτίμησης τιμών, διαχείρισης παραγγελιών και παρακολούθησης οδηγών. Διαθέσιμο μόνο στην ηπειρωτική Κίνα. Απαιτεί διαμόρφωση της μεταβλητής περιβάλλοντος DIDI_API_KEY",
         "dify_knowledge": "Η υλοποίηση του Dify για τον διακομιστή MCP, παρέχει μια απλή API για να αλληλεπιδρά με το Dify. Απαιτείται η ρύθμιση του κλειδιού Dify",
         "fetch": "Εξυπηρετητής MCP για λήψη περιεχομένου ιστοσελίδας URL",
@@ -3891,6 +3940,7 @@
         "mcp_auto_install": "Αυτόματη εγκατάσταση υπηρεσίας MCP (προβολή)",
         "memory": "Βασική υλοποίηση μόνιμης μνήμης με βάση τοπικό γράφημα γνώσης. Αυτό επιτρέπει στο μοντέλο να θυμάται πληροφορίες σχετικές με τον χρήστη ανάμεσα σε διαφορετικές συνομιλίες. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος MEMORY_FILE_PATH.",
         "no": "Χωρίς περιγραφή",
+        "nowledge_mem": "[to be translated]:Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",
         "sequentialthinking": "ένας εξυπηρετητής MCP που υλοποιείται, παρέχοντας εργαλεία για δυναμική και αναστοχαστική επίλυση προβλημάτων μέσω δομημένων διαδικασιών σκέψης"
       },

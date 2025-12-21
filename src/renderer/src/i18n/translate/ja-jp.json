@@ -31,27 +31,31 @@
       }
     },
     "gitBash": {
-      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "autoDetected": "自動検出されたGit Bashを使用中",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
-        "button": "[to be translated]:Clear custom path"
+        "button": "カスタムパスをクリア"
       },
-      "customPath": "[to be translated]:Using custom path: {{path}}",
+      "customPath": "カスタムパスを使用中: {{path}}",
       "error": {
         "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
         "recheck": "Git Bashのインストールを再確認してください",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Git Bashが必要です"
       },
       "found": {
-        "title": "[to be translated]:Git Bash configured"
+        "title": "Git Bashが設定されました"
       },
       "notFound": "Git Bash が見つかりません。先にインストールしてください。",
       "pick": {
-        "button": "[to be translated]:Select Git Bash Path",
-        "failed": "[to be translated]:Failed to set Git Bash path",
-        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
-        "title": "[to be translated]:Select Git Bash executable"
+        "button": "Git Bashパスを選択",
+        "failed": "Git Bashパスの設定に失敗しました",
+        "invalidPath": "選択されたファイルは有効なGit Bash実行ファイル（bash.exe）ではありません。",
+        "title": "Git Bash実行ファイルを選択"
       },
-      "success": "Git Bashが正常に検出されました！"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bashが正常に検出されました！",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
@@ -472,6 +476,7 @@
         "button": "インポート",
         "error": {
           "fetch_failed": "URLからのデータ取得に失敗しました",
+          "file_required": "まずファイルを選択してください",
           "invalid_format": "無効なアシスタント形式：必須フィールドが不足しています",
           "url_required": "URLを入力してください"
         },
@@ -489,8 +494,11 @@
           "button": "バッチ削除",
           "confirm": "選択した{{count}}件のアシスタントを削除してもよろしいですか？"
         },
+        "batch_export": {
+          "button": "エクスポート"
+        },
         "mode": {
-          "delete": "削除",
+          "manage": "管理",
           "sort": "並べ替え"
         },
         "title": "アシスタントを管理"
@@ -540,14 +548,23 @@
       "more": "アシスタント設定",
       "prompt": "プロンプト設定",
       "reasoning_effort": {
+        "auto": "自動",
+        "auto_description": "推論にかける労力を柔軟に調整する",
         "default": "デフォルト",
+        "default_description": "設定なしで、モデルの既定の動作に依存する。",
         "high": "最大限の思考",
+        "high_description": "高度な推論",
         "label": "思考連鎖の長さ",
         "low": "少しの思考",
+        "low_description": "低レベル推論",
         "medium": "普通の思考",
+        "medium_description": "中レベル推論",
         "minimal": "最小限の思考",
+        "minimal_description": "最小限の推論",
         "off": "オフ",
-        "xhigh": "[to be translated]:Extra High"
+        "off_description": "推論を無効にする",
+        "xhigh": "超高",
+        "xhigh_description": "超高度な推論"
       },
       "regular_phrases": {
         "add": "プロンプトを追加",
@@ -1027,6 +1044,29 @@
         "yuque": "語雀にエクスポート"
       },
       "list": "トピックリスト",
+      "manage": {
+        "clear_selection": "選択をクリア",
+        "delete": {
+          "confirm": {
+            "content": "{{count}}件の選択したトピックを削除してもよろしいですか？この操作は元に戻せません。",
+            "title": "トピックを削除"
+          },
+          "success": "{{count}}件のトピックを削除しました"
+        },
+        "deselect_all": "すべての選択を解除",
+        "error": {
+          "at_least_one": "少なくとも1つのトピックは保持されなければなりません"
+        },
+        "move": {
+          "button": "移動",
+          "placeholder": "対象を選択",
+          "success": "{{count}}件のトピックを移動しました"
+        },
+        "pinned": "ピン留めされたトピック",
+        "selected_count": "{{count}} 選択済み",
+        "title": "トピックを管理",
+        "unpinned": "ピン留めされていないトピック"
+      },
       "move_to": "移動先",
       "new": "新しいトピック",
       "pin": "トピックを固定",
@@ -1036,6 +1076,10 @@
         },
         "label": "トピック提示語",
         "tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供"
+      },
+      "search": {
+        "placeholder": "トピックを検索...",
+        "title": "検索"
       },
       "title": "トピック",
       "unpin": "固定解除"
@@ -1221,11 +1265,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "購読",
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
     "unknown": "Unknown",
     "unnamed": "無題",
+    "unsubscribe": "配信停止",
     "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
     "warning": "警告",
@@ -2152,6 +2198,7 @@
     "collapse": "閉じる",
     "content_placeholder": "メモの内容を入力してください...",
     "copyContent": "コンテンツをコピーします",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "削除",
     "delete_confirm": "この{{type}}を本当に削除しますか？",
     "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
@@ -2596,6 +2643,7 @@
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
     "longcat": "トトロ",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3884,6 +3932,7 @@
       "builtinServers": "組み込みサーバー",
       "builtinServersDescriptions": {
         "brave_search": "Brave検索APIを統合したMCPサーバーの実装で、ウェブ検索とローカル検索の両機能を提供します。BRAVE_API_KEY環境変数の設定が必要です",
+        "browser": "Chrome DevTools Protocolを介してheadless Electronウィンドウを制御します。ツール：URLを開く、単一行JSを実行、セッションをリセット。",
         "didi_mcp": "DiDi MCPサーバーは、地図検索、料金見積もり、注文管理、ドライバー追跡を含むライドシェアサービスを提供します。中国本土でのみ利用可能です。DIDI_API_KEY環境変数の設定が必要です",
         "dify_knowledge": "DifyのMCPサーバー実装は、Difyと対話するためのシンプルなAPIを提供します。Dify Keyの設定が必要です。",
         "fetch": "URLのウェブページコンテンツを取得するためのMCPサーバー",
@@ -3891,6 +3940,7 @@
         "mcp_auto_install": "MCPサービスの自動インストール（ベータ版）",
         "memory": "ローカルのナレッジグラフに基づく永続的なメモリの基本的な実装です。これにより、モデルは異なる会話間でユーザーの関連情報を記憶できるようになります。MEMORY_FILE_PATH 環境変数の設定が必要です。",
         "no": "説明なし",
+        "nowledge_mem": "Nowledge Mem アプリをローカルで実行する必要があります。AI チャット、ツール、ノート、エージェント、ファイルをコンピューター上のプライベートメモリに保存します。https://mem.nowledge.co/ からダウンロードしてください",
         "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",
         "sequentialthinking": "構造化された思考プロセスを通じて動的かつ反省的な問題解決を行うためのツールを提供するMCPサーバーの実装"
       },

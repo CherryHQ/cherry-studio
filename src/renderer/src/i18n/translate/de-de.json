@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Automatisch ermitteltes Git Bash wird verwendet",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "Benutzerdefinierten Pfad löschen"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
         "recheck": "Überprüfe die Git Bash-Installation erneut",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Git Bash erforderlich"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Die ausgewählte Datei ist keine gültige Git Bash ausführbare Datei (bash.exe).",
         "title": "Git Bash ausführbare Datei auswählen"
       },
-      "success": "Git Bash erfolgreich erkannt!"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bash erfolgreich erkannt!",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
@@ -472,6 +476,7 @@
         "button": "Importieren",
         "error": {
           "fetch_failed": "Daten von URL abrufen fehlgeschlagen",
+          "file_required": "Bitte wählen Sie zuerst eine Datei aus",
           "invalid_format": "Ungültiges Assistentenformat: Pflichtfelder fehlen",
           "url_required": "Bitte geben Sie eine URL ein"
         },
@@ -489,8 +494,11 @@
           "button": "Stapel löschen",
           "confirm": "Sind Sie sicher, dass Sie die ausgewählten {{count}} Assistenten löschen möchten?"
         },
+        "batch_export": {
+          "button": "Exportieren"
+        },
         "mode": {
-          "delete": "Löschen",
+          "manage": "Verwalten",
           "sort": "Sortieren"
         },
         "title": "Assistenten verwalten"
@@ -540,14 +548,23 @@
       "more": "Assistenteneinstellungen",
       "prompt": "Prompt-Einstellungen",
       "reasoning_effort": {
+        "auto": "Auto",
+        "auto_description": "Denkaufwand flexibel bestimmen",
         "default": "Standard",
+        "default_description": "Vom Standardverhalten des Modells abhängen, ohne Konfiguration.",
         "high": "Tiefes Nachdenken",
+        "high_description": "Ganzheitliches Denken",
         "label": "Gedankenkettenlänge",
         "low": "Spontan",
+        "low_description": "Geringfügige Argumentation",
         "medium": "Überlegt",
+        "medium_description": "Denken auf mittlerem Niveau",
         "minimal": "Minimal",
+        "minimal_description": "Minimales Denken",
         "off": "Aus",
-        "xhigh": "Extra hoch"
+        "off_description": "Denken deaktivieren",
+        "xhigh": "Extra hoch",
+        "xhigh_description": "Extra hohes Denkvermögen"
       },
       "regular_phrases": {
         "add": "Phrase hinzufügen",
@@ -1027,6 +1044,29 @@
         "yuque": "Nach Yuque exportieren"
       },
       "list": "Themenliste",
+      "manage": {
+        "clear_selection": "Auswahl aufheben",
+        "delete": {
+          "confirm": {
+            "content": "Sind Sie sicher, dass Sie {{count}} ausgewähltes Thema bzw. ausgewählte Themen löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+            "title": "Themen löschen"
+          },
+          "success": "{{count}} Thema/Themen gelöscht"
+        },
+        "deselect_all": "Alle abwählen",
+        "error": {
+          "at_least_one": "Mindestens ein Thema muss beibehalten werden"
+        },
+        "move": {
+          "button": "Bewegen",
+          "placeholder": "Ziel auswählen",
+          "success": "{{count}} Thema(s) verschoben"
+        },
+        "pinned": "Angepinnte Themen",
+        "selected_count": "{{count}} ausgewählt",
+        "title": "Themen verwalten",
+        "unpinned": "Losgelöste Themen"
+      },
       "move_to": "Verschieben nach",
       "new": "Neues Gespräch starten",
       "pin": "Thema anheften",
@@ -1036,6 +1076,10 @@
         },
         "label": "Themen-Prompt",
         "tips": "Themen-Prompt: Bietet zusätzliche ergänzende Prompts für das aktuelle Thema"
+      },
+      "search": {
+        "placeholder": "Themen durchsuchen...",
+        "title": "Suche"
       },
       "title": "Thema",
       "unpin": "Anheften aufheben"
@@ -1221,11 +1265,13 @@
       }
     },
     "stop": "Stoppen",
+    "subscribe": "Abonnieren",
     "success": "Erfolgreich",
     "swap": "Tauschen",
     "topics": "Themen",
     "unknown": "Unbekannt",
     "unnamed": "Unbenannt",
+    "unsubscribe": "Abmelden",
     "update_success": "Erfolgreich aktualisiert",
     "upload_files": "Dateien hochladen",
     "warning": "Warnung",
@@ -2152,6 +2198,7 @@
     "collapse": "Einklappen",
     "content_placeholder": "Bitte Notizinhalt eingeben...",
     "copyContent": "Inhalt kopieren",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "Löschen",
     "delete_confirm": "Möchten Sie diesen {{type}} wirklich löschen?",
     "delete_folder_confirm": "Möchten Sie Ordner \"{{name}}\" und alle seine Inhalte wirklich löschen?",
@@ -2596,6 +2643,7 @@
     "lanyun": "Lanyun Technologie",
     "lmstudio": "LM Studio",
     "longcat": "Meißner Riesenhamster",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3884,6 +3932,7 @@
       "builtinServers": "Integrierter Server",
       "builtinServersDescriptions": {
         "brave_search": "MCP-Server-Implementierung mit Brave-Search-API, die sowohl Web- als auch lokale Suchfunktionen bietet. BRAVE_API_KEY-Umgebungsvariable muss konfiguriert werden",
+        "browser": "Steuert ein headless Electron-Fenster über das Chrome DevTools Protocol. Tools: URL öffnen, einzeiligen JS ausführen, Sitzung zurücksetzen.",
         "didi_mcp": "An integrated Didi MCP server implementation that provides ride-hailing services including map search, price estimation, order management, and driver tracking. Only available in mainland China. Requires the DIDI_API_KEY environment variable to be configured.",
         "dify_knowledge": "MCP-Server-Implementierung von Dify, die einen einfachen API-Zugriff auf Dify bietet. Dify Key muss konfiguriert werden",
         "fetch": "MCP-Server zum Abrufen von Webseiteninhalten",
@@ -3891,6 +3940,7 @@
         "mcp_auto_install": "MCP-Service automatisch installieren (Beta-Version)",
         "memory": "MCP-Server mit persistenter Erinnerungsbasis auf lokalem Wissensgraphen, der Informationen über verschiedene Dialoge hinweg speichert. MEMORY_FILE_PATH-Umgebungsvariable muss konfiguriert werden",
         "no": "Keine Beschreibung",
+        "nowledge_mem": "Erfordert lokal laufende Nowledge Mem App. Speichert KI-Chats, Tools, Notizen, Agenten und Dateien in einem privaten Speicher auf Ihrem Computer. Download unter https://mem.nowledge.co/",
         "python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
         "sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht"
       },

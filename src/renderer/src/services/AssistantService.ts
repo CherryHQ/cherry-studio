@@ -7,6 +7,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
+import { getModelSupportedReasoningEffortOptions } from '@renderer/config/models'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
 import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
@@ -38,7 +39,8 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   enableTopP: false,
   // It would gracefully fallback to prompt if not supported by model.
   toolUseMode: 'function',
-  customParameters: []
+  customParameters: [],
+  reasoning_effort: 'default'
 } as const satisfies AssistantSettings
 
 export function getDefaultAssistant(): Assistant {
@@ -57,7 +59,8 @@ export function getDefaultAssistant(): Assistant {
 
 export async function getDefaultTranslateAssistant(
   targetLanguage: TranslateLanguage,
-  text: string
+  text: string,
+  _settings?: Partial<AssistantSettings>
 ): Promise<TranslateAssistant> {
   const model = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
@@ -72,9 +75,14 @@ export async function getDefaultTranslateAssistant(
     throw new Error('Unknown target language')
   }
 
+  const supportedOptions = getModelSupportedReasoningEffortOptions(model)
+  // disable reasoning if it could be disabled, otherwise no configuration
+  const reasoningEffort = supportedOptions?.includes('none') ? 'none' : 'default'
   const settings = {
-    temperature: 0.7
-  }
+    temperature: 0.7,
+    reasoning_effort: reasoningEffort,
+    ..._settings
+  } satisfies Partial<AssistantSettings>
 
   const getTranslateContent = async (
     model: Model,
@@ -184,7 +192,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     streamOutput: assistant?.settings?.streamOutput ?? true,
     toolUseMode: assistant?.settings?.toolUseMode ?? 'function',
     defaultModel: assistant?.defaultModel ?? undefined,
-    reasoning_effort: assistant?.settings?.reasoning_effort ?? undefined,
+    reasoning_effort: assistant?.settings?.reasoning_effort ?? 'default',
     customParameters: assistant?.settings?.customParameters ?? []
   }
 }
