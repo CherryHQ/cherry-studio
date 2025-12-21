@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Utilisation de Git Bash détecté automatiquement",
+      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
       "clear": {
         "button": "Effacer le chemin personnalisé"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Git Bash est requis pour exécuter des agents sur Windows. L'agent ne peut pas fonctionner sans. Veuillez installer Git pour Windows depuis",
         "recheck": "Revérifier l'installation de Git Bash",
+        "required": "[to be translated]:Git Bash path is required on Windows",
         "title": "Git Bash requis"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Le fichier sélectionné n'est pas un exécutable Git Bash valide (bash.exe).",
         "title": "Sélectionner l'exécutable Git Bash"
       },
-      "success": "Git Bash détecté avec succès !"
+      "placeholder": "[to be translated]:Select bash.exe path",
+      "success": "Git Bash détecté avec succès !",
+      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
@@ -472,6 +476,7 @@
         "button": "Importer",
         "error": {
           "fetch_failed": "Échec de la récupération des données depuis l'URL",
+          "file_required": "Veuillez d'abord sélectionner un fichier",
           "invalid_format": "Format d'assistant invalide : champs obligatoires manquants",
           "url_required": "Veuillez saisir une URL"
         },
@@ -489,8 +494,11 @@
           "button": "Suppression par lot",
           "confirm": "Êtes-vous sûr de vouloir supprimer les {{count}} assistants sélectionnés ?"
         },
+        "batch_export": {
+          "button": "Exporter"
+        },
         "mode": {
-          "delete": "Supprimer",
+          "manage": "Gérer",
           "sort": "Trier"
         },
         "title": "Gérer les assistants"
@@ -540,14 +548,23 @@
       "more": "Paramètres de l'assistant",
       "prompt": "Paramètres de l'invite",
       "reasoning_effort": {
+        "auto": "Auto",
+        "auto_description": "Déterminer de manière flexible l'effort de raisonnement",
         "default": "Par défaut",
+        "default_description": "Dépendre du comportement par défaut du modèle, sans aucune configuration.",
         "high": "Long",
+        "high_description": "Raisonnement de haut niveau",
         "label": "Longueur de la chaîne de raisonnement",
         "low": "Court",
+        "low_description": "Raisonnement de bas niveau",
         "medium": "Moyen",
+        "medium_description": "Raisonnement de niveau moyen",
         "minimal": "minimal",
+        "minimal_description": "Réflexion minimale",
         "off": "Off",
-        "xhigh": "[to be translated]:Extra High"
+        "off_description": "Désactiver le raisonnement",
+        "xhigh": "Très élevée",
+        "xhigh_description": "Raisonnement de très haut niveau"
       },
       "regular_phrases": {
         "add": "Добавить фразу",
@@ -1027,6 +1044,29 @@
         "yuque": "Exporter vers Yuque"
       },
       "list": "Liste des sujets",
+      "manage": {
+        "clear_selection": "Effacer la sélection",
+        "delete": {
+          "confirm": {
+            "content": "Êtes-vous sûr de vouloir supprimer {{count}} sujet(s) sélectionné(s) ? Cette action est irréversible.",
+            "title": "Supprimer des sujets"
+          },
+          "success": "Supprimé {{count}} sujet(s)"
+        },
+        "deselect_all": "Tout désélectionner",
+        "error": {
+          "at_least_one": "Au moins un sujet doit être conservé"
+        },
+        "move": {
+          "button": "Déplacer",
+          "placeholder": "Sélectionner la cible",
+          "success": "Déplacé {{count}} sujet(s)"
+        },
+        "pinned": "Sujets épinglés",
+        "selected_count": "{{count}} sélectionné",
+        "title": "Gérer les sujets",
+        "unpinned": "Sujets non épinglés"
+      },
       "move_to": "Déplacer vers",
       "new": "Commencer une nouvelle conversation",
       "pin": "Fixer le sujet",
@@ -1036,6 +1076,10 @@
         },
         "label": "Indicateurs de sujet",
         "tips": "Indicateurs de sujet : fournir des indications supplémentaires pour le sujet actuel"
+      },
+      "search": {
+        "placeholder": "Rechercher des sujets...",
+        "title": "Rechercher"
       },
       "title": "Sujet",
       "unpin": "Annuler le fixage"
@@ -1221,11 +1265,13 @@
       }
     },
     "stop": "Arrêter",
+    "subscribe": "S'abonner",
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
     "unknown": "Inconnu",
     "unnamed": "Sans nom",
+    "unsubscribe": "Se désabonner",
     "update_success": "Mise à jour réussie",
     "upload_files": "Uploader des fichiers",
     "warning": "Avertissement",
@@ -2152,6 +2198,7 @@
     "collapse": "réduire",
     "content_placeholder": "Veuillez saisir le contenu de la note...",
     "copyContent": "contenu copié",
+    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
     "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",
@@ -2596,6 +2643,7 @@
     "lanyun": "Technologie Lan Yun",
     "lmstudio": "Studio LM",
     "longcat": "Mon voisin Totoro",
+    "mimo": "[to be translated]:Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MoDa",
@@ -3884,6 +3932,7 @@
       "builtinServers": "Serveurs intégrés",
       "builtinServersDescriptions": {
         "brave_search": "Une implémentation de serveur MCP intégrant l'API de recherche Brave, offrant des fonctionnalités de recherche web et locale. Nécessite la configuration de la variable d'environnement BRAVE_API_KEY",
+        "browser": "Contrôle une fenêtre Electron headless via Chrome DevTools Protocol. Outils : ouvrir une URL, exécuter du JS en une ligne, réinitialiser la session.",
         "didi_mcp": "Serveur DiDi MCP fournissant des services de transport incluant la recherche de cartes, l'estimation des prix, la gestion des commandes et le suivi des conducteurs. Disponible uniquement en Chine continentale. Nécessite la configuration de la variable d'environnement DIDI_API_KEY",
         "dify_knowledge": "Implémentation du serveur MCP de Dify, fournissant une API simple pour interagir avec Dify. Nécessite la configuration de la clé Dify",
         "fetch": "serveur MCP utilisé pour récupérer le contenu des pages web URL",
@@ -3891,6 +3940,7 @@
         "mcp_auto_install": "Installation automatique du service MCP (version bêta)",
         "memory": "Implémentation de base de mémoire persistante basée sur un graphe de connaissances local. Cela permet au modèle de se souvenir des informations relatives à l'utilisateur entre différentes conversations. Nécessite la configuration de la variable d'environnement MEMORY_FILE_PATH.",
         "no": "sans description",
+        "nowledge_mem": "[to be translated]:Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
         "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
       },

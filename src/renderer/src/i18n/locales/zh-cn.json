@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "使用自动检测的 Git Bash",
+      "autoDiscoveredHint": "自动发现",
       "clear": {
         "button": "清除自定义路径"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
         "recheck": "重新检测 Git Bash 安装",
+        "required": "在 Windows 上需要配置 Git Bash 路径",
         "title": "需要 Git Bash"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "选择的文件不是有效的 Git Bash 可执行文件（bash.exe）。",
         "title": "选择 Git Bash 可执行文件"
       },
-      "success": "成功检测到 Git Bash！"
+      "placeholder": "选择 bash.exe 路径",
+      "success": "成功检测到 Git Bash！",
+      "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
@@ -472,6 +476,7 @@
         "button": "导入",
         "error": {
           "fetch_failed": "从 URL 获取数据失败",
+          "file_required": "请先选择文件",
           "invalid_format": "无效的助手格式：缺少必填字段",
           "url_required": "请输入 URL"
         },
@@ -486,11 +491,14 @@
       },
       "manage": {
         "batch_delete": {
-          "button": "批量删除",
+          "button": "删除",
           "confirm": "确定要删除选中的 {{count}} 个助手吗？"
         },
+        "batch_export": {
+          "button": "导出"
+        },
         "mode": {
-          "delete": "删除",
+          "manage": "管理",
           "sort": "排序"
         },
         "title": "管理助手"
@@ -540,14 +548,23 @@
       "more": "助手设置",
       "prompt": "提示词设置",
       "reasoning_effort": {
+        "auto": "自动",
+        "auto_description": "灵活决定推理力度",
         "default": "默认",
+        "default_description": "依赖模型默认行为，不作任何配置",
         "high": "沉思",
+        "high_description": "高强度推理",
         "label": "思维链长度",
         "low": "浮想",
+        "low_description": "低强度推理",
         "medium": "斟酌",
+        "medium_description": "中强度推理",
         "minimal": "微念",
+        "minimal_description": "最小程度的推理",
         "off": "关闭",
-        "xhigh": "穷究"
+        "off_description": "禁用推理",
+        "xhigh": "穷究",
+        "xhigh_description": "超高强度推理"
       },
       "regular_phrases": {
         "add": "添加短语",
@@ -1027,6 +1044,29 @@
         "yuque": "导出到语雀"
       },
       "list": "话题列表",
+      "manage": {
+        "clear_selection": "取消选择",
+        "delete": {
+          "confirm": {
+            "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
+            "title": "删除话题"
+          },
+          "success": "已删除 {{count}} 个话题"
+        },
+        "deselect_all": "取消全选",
+        "error": {
+          "at_least_one": "至少需要保留一个话题"
+        },
+        "move": {
+          "button": "移动",
+          "placeholder": "选择目标助手",
+          "success": "已移动 {{count}} 个话题"
+        },
+        "pinned": "已固定的话题",
+        "selected_count": "已选择 {{count}} 个",
+        "title": "管理话题",
+        "unpinned": "未固定的话题"
+      },
       "move_to": "移动到",
       "new": "开始新对话",
       "pin": "固定话题",
@@ -1036,6 +1076,10 @@
         },
         "label": "话题提示词",
         "tips": "话题提示词：针对当前话题提供额外的补充提示词"
+      },
+      "search": {
+        "placeholder": "搜索话题...",
+        "title": "搜索"
       },
       "title": "话题",
       "unpin": "取消固定"
@@ -1221,11 +1265,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "订阅",
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
     "unknown": "未知",
     "unnamed": "未命名",
+    "unsubscribe": "退订",
     "update_success": "更新成功",
     "upload_files": "上传文件",
     "warning": "警告",
@@ -1720,7 +1766,7 @@
       "import": {
         "error": "导入失败"
       },
-      "imported": "导入成功"
+      "imported": "成功导入 {{count}} 个助手"
     },
     "api": {
       "check": {
@@ -2152,6 +2198,7 @@
     "collapse": "收起",
     "content_placeholder": "请输入笔记内容...",
     "copyContent": "复制内容",
+    "crossPlatformRestoreWarning": "检测到从其他设备恢复配置，但笔记目录为空。请将笔记文件复制到: {{path}}",
     "delete": "删除",
     "delete_confirm": "确定要删除这个{{type}}吗？",
     "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
@@ -2596,6 +2643,7 @@
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
     "longcat": "龙猫",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -3884,6 +3932,7 @@
       "builtinServers": "内置服务器",
       "builtinServersDescriptions": {
         "brave_search": "一个集成了Brave 搜索 API 的 MCP 服务器实现，提供网页与本地搜索双重功能。需要配置 BRAVE_API_KEY 环境变量",
+        "browser": "通过 Chrome DevTools 协议控制隐藏的 Electron 窗口，支持打开 URL、执行单行 JS、重置会话",
         "didi_mcp": "一个集成了滴滴 MCP 服务器实现，提供网约车服务包括地图搜索、价格预估、订单管理和司机跟踪。仅支持中国大陆地区。需要配置 DIDI_API_KEY 环境变量",
         "dify_knowledge": "Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互。需要配置 Dify Key",
         "fetch": "用于获取 URL 网页内容的 MCP 服务器",
@@ -3891,6 +3940,7 @@
         "mcp_auto_install": "自动安装 MCP 服务（测试版）",
         "memory": "基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。",
         "no": "无描述",
+        "nowledge_mem": "需要本地运行 Nowledge Mem 应用。将 AI 对话、工具、笔记、智能体和文件保存在本地计算机的私有记忆中。请从 https://mem.nowledge.co/ 下载",
         "python": "在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包",
         "sequentialthinking": "一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具"
       },
