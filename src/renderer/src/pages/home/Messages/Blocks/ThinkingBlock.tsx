@@ -19,10 +19,17 @@ interface Props {
 const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const { t } = useTranslation()
-  const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
+  const { messageFont, fontSize, thoughtAutoCollapse, thoughtHideStreamingContent } = useSettings()
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
+  const hideStreamingThoughtContent = useMemo(
+    () => thoughtAutoCollapse && thoughtHideStreamingContent && isThinking,
+    [isThinking, thoughtAutoCollapse, thoughtHideStreamingContent]
+  )
+  const thinkingEffectContent = useMemo(() => {
+    return hideStreamingThoughtContent ? '' : block.content
+  }, [block.content, hideStreamingThoughtContent])
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -31,6 +38,12 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
       setActiveKey('thought')
     }
   }, [isThinking, thoughtAutoCollapse])
+
+  useEffect(() => {
+    if (hideStreamingThoughtContent) {
+      setActiveKey('')
+    }
+  }, [hideStreamingThoughtContent])
 
   const copyThought = useCallback(() => {
     if (block.content) {
@@ -55,7 +68,12 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
     <CollapseContainer
       activeKey={activeKey}
       size="small"
-      onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
+      onChange={() => {
+        if (hideStreamingThoughtContent) {
+          return
+        }
+        setActiveKey((key) => (key ? '' : 'thought'))
+      }}
       className="message-thought-container"
       ghost
       items={[
@@ -68,10 +86,10 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
               thinkingTimeText={
                 <ThinkingTimeSeconds blockThinkingTime={block.thinking_millsec} isThinking={isThinking} />
               }
-              content={block.content}
+              content={thinkingEffectContent}
             />
           ),
-          children: (
+          children: hideStreamingThoughtContent ? null : (
             //  FIXME: 临时兼容
             <ThinkingContent
               style={{

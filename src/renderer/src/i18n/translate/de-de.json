@@ -967,6 +967,10 @@
         "label": "Denkinhalt automatisch einklappen",
         "tip": "Denkinhalt wird nach Abschluss des Denkens automatisch eingeklappt"
       },
+      "thought_hide_streaming": {
+        "label": "Nur „Denkt…“ anzeigen",
+        "tip": "Denkinhalt während des Denkens ausblenden; kann nach Abschluss aufgeklappt werden"
+      },
       "top_p": {
         "label": "Top-P",
         "tip": "Standardwert ist 1. Je kleiner der Wert, desto monotoner und leichter verständlich ist der KI-generierte Inhalt; je größer der Wert, desto größer ist der Wortschatzbereich der KI-Antwort und desto vielfältiger"

@@ -967,6 +967,10 @@
         "label": "Plegado automático del contenido de pensamiento",
         "tip": "El contenido de pensamiento se pliega automáticamente después de finalizar el pensamiento"
       },
+      "thought_hide_streaming": {
+        "label": "Mostrar solo «Pensando…»",
+        "tip": "Oculta el contenido del pensamiento mientras se genera; puedes expandirlo al finalizar"
+      },
       "top_p": {
         "label": "Top-P",
         "tip": "Valor predeterminado es 1, cuanto menor sea el valor, el contenido generado por la IA será menos variado pero más fácil de entender; cuanto mayor sea el valor, el vocabulario y la variedad de la respuesta de la IA serán mayores"

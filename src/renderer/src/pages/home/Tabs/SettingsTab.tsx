@@ -43,7 +43,8 @@ import {
   setShowMessageOutline,
   setShowPrompt,
   setShowTranslateConfirm,
-  setThoughtAutoCollapse
+  setThoughtAutoCollapse,
+  setThoughtHideStreamingContent
 } from '@renderer/store/settings'
 import type { Assistant, CodeStyleVarious, MathEngine } from '@renderer/types'
 import { isGroqSystemProvider, ThemeMode } from '@renderer/types'
@@ -106,6 +107,7 @@ const SettingsTab: FC<Props> = (props) => {
     pasteLongTextThreshold,
     multiModelMessageStyle,
     thoughtAutoCollapse,
+    thoughtHideStreamingContent,
     messageNavigation,
     enableQuickPanelTriggers,
     showTranslateConfirm,
@@ -198,6 +200,19 @@ const SettingsTab: FC<Props> = (props) => {
               onChange={(checked) => dispatch(setThoughtAutoCollapse(checked))}
             />
           </SettingRow>
+          {thoughtAutoCollapse && (
+            <SubSettingRow>
+              <SettingRowTitleSmall>
+                {t('chat.settings.thought_hide_streaming.label')}
+                <HelpTooltip title={t('chat.settings.thought_hide_streaming.tip')} />
+              </SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={thoughtHideStreamingContent}
+                onChange={(checked) => dispatch(setThoughtHideStreamingContent(checked))}
+              />
+            </SubSettingRow>
+          )}
           <SettingDivider />
           {isTopicSettings && (
             <>
@@ -591,6 +606,11 @@ const Container = styled(Scrollbar)`
   padding-top: 2px;
   padding-bottom: 10px;
   margin-top: 3px;
+`
+
+const SubSettingRow = styled(SettingRow)`
+  padding-left: 16px;
+  margin-top: 8px;
 `
 
 const SettingRowTitleSmall = styled(SettingRowTitle)`

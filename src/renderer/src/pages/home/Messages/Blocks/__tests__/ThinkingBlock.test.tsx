@@ -1,6 +1,6 @@
 import type { ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThinkingBlock from '../ThinkingBlock'
@@ -124,7 +124,8 @@ describe('ThinkingBlock', () => {
     mockUseSettings.mockReturnValue({
       messageFont: 'sans-serif',
       fontSize: 14,
-      thoughtAutoCollapse: false
+      thoughtAutoCollapse: false,
+      thoughtHideStreamingContent: true
     })
 
     mockUseTranslation.mockReturnValue({
@@ -277,7 +278,8 @@ describe('ThinkingBlock', () => {
       mockUseSettings.mockReturnValue({
         messageFont: 'sans-serif',
         fontSize: 14,
-        thoughtAutoCollapse: false
+        thoughtAutoCollapse: false,
+        thoughtHideStreamingContent: true
       })
 
       const block = createThinkingBlock()
@@ -291,7 +293,8 @@ describe('ThinkingBlock', () => {
       mockUseSettings.mockReturnValue({
         messageFont: 'sans-serif',
         fontSize: 14,
-        thoughtAutoCollapse: true
+        thoughtAutoCollapse: true,
+        thoughtHideStreamingContent: true
       })
 
       renderThinkingBlock(block)
@@ -300,11 +303,65 @@ describe('ThinkingBlock', () => {
       expect(getThinkingContent()).not.toBeInTheDocument()
     })
 
+    it('should hide streamed thought preview when enabled', () => {
+      mockUseSettings.mockReturnValue({
+        messageFont: 'sans-serif',
+        fontSize: 14,
+        thoughtAutoCollapse: true,
+        thoughtHideStreamingContent: true
+      })
+
+      const streamingBlock = createThinkingBlock({
+        status: MessageBlockStatus.STREAMING,
+        content: 'Sensitive system prompt details'
+      })
+      renderThinkingBlock(streamingBlock)
+
+      expect(screen.getByTestId('mock-marquee-component')).toHaveAttribute('data-content', '')
+    })
+
+    it('should allow streaming thought preview when disabled', () => {
+      mockUseSettings.mockReturnValue({
+        messageFont: 'sans-serif',
+        fontSize: 14,
+        thoughtAutoCollapse: true,
+        thoughtHideStreamingContent: false
+      })
+
+      const streamingBlock = createThinkingBlock({
+        status: MessageBlockStatus.STREAMING,
+        content: 'Streaming thought preview'
+      })
+      renderThinkingBlock(streamingBlock)
+
+      expect(screen.getByTestId('mock-marquee-component')).toHaveAttribute('data-content', 'Streaming thought preview')
+    })
+
+    it('should prevent expanding while streaming when enabled', () => {
+      mockUseSettings.mockReturnValue({
+        messageFont: 'sans-serif',
+        fontSize: 14,
+        thoughtAutoCollapse: true,
+        thoughtHideStreamingContent: true
+      })
+
+      const streamingBlock = createThinkingBlock({
+        status: MessageBlockStatus.STREAMING,
+        content: 'Hidden while streaming'
+      })
+      renderThinkingBlock(streamingBlock)
+
+      expect(screen.getByTestId('collapse-container')).toHaveAttribute('data-active-key', '')
+      fireEvent.click(screen.getByTestId('collapse-header-thought'))
+      expect(screen.getByTestId('collapse-container')).toHaveAttribute('data-active-key', '')
+    })
+
     it('should auto-collapse when thinking completes if setting enabled', () => {
       mockUseSettings.mockReturnValue({
         messageFont: 'sans-serif',
         fontSize: 14,
-        thoughtAutoCollapse: true
+        thoughtAutoCollapse: true,
+        thoughtHideStreamingContent: true
       })
 
       const streamingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })

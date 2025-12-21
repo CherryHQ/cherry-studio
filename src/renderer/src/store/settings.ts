@@ -152,6 +152,11 @@ export interface SettingsState {
   showModelNameInMarkdown: boolean
   showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
+  /**
+   * When enabled (typically together with thoughtAutoCollapse), do not stream-render thought content.
+   * Only show the “Thinking…” status to avoid leaking prompts/config during generation.
+   */
+  thoughtHideStreamingContent: boolean
   notionExportReasoning: boolean
   excludeCitationsInExport: boolean
   standardizeCitationsInExport: boolean
@@ -338,6 +343,7 @@ export const initialState: SettingsState = {
   showModelNameInMarkdown: false,
   showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
+  thoughtHideStreamingContent: true,
   notionExportReasoning: false,
   excludeCitationsInExport: false,
   standardizeCitationsInExport: false,
@@ -718,6 +724,9 @@ const settingsSlice = createSlice({
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
+    setThoughtHideStreamingContent: (state, action: PayloadAction<boolean>) => {
+      state.thoughtHideStreamingContent = action.payload
+    },
     setNotionExportReasoning: (state, action: PayloadAction<boolean>) => {
       state.notionExportReasoning = action.payload
     },
@@ -954,6 +963,7 @@ export const {
   setForceDollarMathInMarkdown,
   setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
+  setThoughtHideStreamingContent,
   setNotionExportReasoning,
   setExcludeCitationsInExport,
   setStandardizeCitationsInExport,
