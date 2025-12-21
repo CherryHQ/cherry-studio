@@ -344,6 +344,10 @@
         "label": "API 密钥",
         "placeholder": "API 密钥将自动生成"
       },
+      "autoStart": {
+        "description": "当 Cherry Studio 启动时自动启动 API 服务器",
+        "label": "启动时自动启动"
+      },
       "port": {
         "description": "HTTP 服务器的 TCP 端口号 (1000-65535)",
         "helpText": "停止服务器以更改端口",

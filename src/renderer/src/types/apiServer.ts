@@ -1,5 +1,6 @@
 export type ApiServerConfig = {
   enabled: boolean
+  autoStart: boolean
   host: string
   port: number
   apiKey: string

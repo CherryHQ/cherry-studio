@@ -2,10 +2,10 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
-import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
+import { setApiServerApiKey, setApiServerAutoStart, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
-import { Alert, Button, Input, InputNumber, Tooltip, Typography } from 'antd'
+import { Alert, Button, Input, InputNumber, Switch, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -61,6 +61,10 @@ const ApiServerSettings: FC = () => {
     if (port >= 1000 && port <= 65535) {
       dispatch(setApiServerPort(port))
     }
+  }
+
+  const handleAutoStartChange = (checked: boolean) => {
+    dispatch(setApiServerAutoStart(checked))
   }
 
   const openApiDocs = () => {
@@ -150,6 +154,16 @@ const ApiServerSettings: FC = () => {
           </Tooltip>
         </ControlSection>
       </ServerControlPanel>
+
+      <ConfigurationField>
+        <ToggleRow>
+          <ToggleText>
+            <FieldLabel>{t('apiServer.fields.autoStart.label')}</FieldLabel>
+            <FieldDescription>{t('apiServer.fields.autoStart.description')}</FieldDescription>
+          </ToggleText>
+          <Switch checked={apiServerConfig.autoStart} onChange={handleAutoStartChange} />
+        </ToggleRow>
+      </ConfigurationField>
 
       {/* API Key Configuration */}
       <ConfigurationField>
@@ -338,6 +352,19 @@ const ConfigurationField = styled.div`
   background: var(--color-background);
   border-radius: 8px;
   border: 1px solid var(--color-border);
+`
+
+const ToggleRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`
+
+const ToggleText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 `
 
 const FieldLabel = styled.div`

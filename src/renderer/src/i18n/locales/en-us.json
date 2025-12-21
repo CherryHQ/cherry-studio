@@ -344,6 +344,10 @@
         "label": "API Key",
         "placeholder": "API key will be auto-generated"
       },
+      "autoStart": {
+        "description": "Automatically start the API Server when Cherry Studio launches",
+        "label": "Start on launch"
+      },
       "port": {
         "description": "TCP port number for the HTTP server (1000-65535)",
         "helpText": "Stop server to change port",
