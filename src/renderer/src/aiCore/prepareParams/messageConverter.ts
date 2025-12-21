@@ -257,21 +257,33 @@ async function convertMessageToAssistantModelMessage(
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
 
   // OpenAI Responses: replay encrypted reasoning content to preserve internal state across turns.
-  if (message.responsesReasoningItemId && message.responsesReasoningEncryptedContent) {
+  const responsesReasoningItemId = message.responsesReasoningItemId
+  const responsesReasoningEncryptedContent = message.responsesReasoningEncryptedContent
+  const hasResponsesEncryptedReasoning =
+    typeof responsesReasoningItemId === 'string' &&
+    responsesReasoningItemId.length > 0 &&
+    typeof responsesReasoningEncryptedContent === 'string' &&
+    responsesReasoningEncryptedContent.length > 0
+
+  if (hasResponsesEncryptedReasoning) {
     parts.push({
       type: 'reasoning',
       text: '',
       providerOptions: {
         openai: {
-          itemId: message.responsesReasoningItemId,
-          reasoningEncryptedContent: message.responsesReasoningEncryptedContent
+          itemId: responsesReasoningItemId,
+          reasoningEncryptedContent: responsesReasoningEncryptedContent
         }
       }
     })
   }
 
-  for (const thinkingBlock of thinkingBlocks) {
-    parts.push({ type: 'reasoning', text: thinkingBlock.content })
+  // Avoid multiple reasoning mechanisms in a single message:
+  // if we replay encrypted reasoning (Responses API), suppress thinking blocks to reduce provider incompatibilities.
+  if (!hasResponsesEncryptedReasoning) {
+    for (const thinkingBlock of thinkingBlocks) {
+      parts.push({ type: 'reasoning', text: thinkingBlock.content })
+    }
   }
 
   if (content) {

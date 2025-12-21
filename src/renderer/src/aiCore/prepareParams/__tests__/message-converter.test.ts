@@ -197,6 +197,34 @@ describe('messageConverter', () => {
       })
     })
 
+    it('suppresses thinking blocks when Responses API encrypted reasoning replay is present', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Done.'
+      message.responsesReasoningItemId = 'rs_123'
+      message.responsesReasoningEncryptedContent = 'enc_abc'
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'This should not be sent' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [
+          {
+            type: 'reasoning',
+            text: '',
+            providerOptions: {
+              openai: {
+                itemId: 'rs_123',
+                reasoningEncryptedContent: 'enc_abc'
+              }
+            }
+          },
+          { type: 'text', text: 'Done.' }
+        ]
+      })
+    })
+
     it('replays tool calls/results from tool blocks for assistant messages', async () => {
       const model = createModel()
       const message = createMessage('assistant')
