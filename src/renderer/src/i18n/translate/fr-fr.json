@@ -967,6 +967,10 @@
         "label": "Pliage automatique du contenu de la pensée",
         "tip": "Le contenu de la pensée se replie automatiquement après la fin de la pensée"
       },
+      "thought_hide_streaming": {
+        "label": "Afficher uniquement « En réflexion… »",
+        "tip": "Masque le contenu de la pensée pendant la génération ; vous pouvez le déplier à la fin"
+      },
       "top_p": {
         "label": "Top-P",
         "tip": "Valeur par défaut : 1. Plus la valeur est faible, plus le contenu généré par l'IA est monotone mais facile à comprendre ; plus la valeur est élevée, plus le vocabulaire et la diversité de la réponse de l'IA sont grands"

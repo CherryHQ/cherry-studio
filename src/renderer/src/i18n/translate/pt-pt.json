@@ -967,6 +967,10 @@
         "label": "Conteúdo de pensamento colapsado automaticamente",
         "tip": "O conteúdo de pensamento será colapsado automaticamente após a conclusão do pensamento"
       },
+      "thought_hide_streaming": {
+        "label": "Mostrar apenas «Pensando…»",
+        "tip": "Oculta o conteúdo de pensamento durante a geração; pode expandir no fim"
+      },
       "top_p": {
         "label": "Top-P",
         "tip": "Valor padrão é 1, quanto menor o valor, mais monótono será o conteúdo gerado pela IA, mas também mais fácil de entender; quanto maior o valor, maior será o vocabulário usado pela IA e mais diversificado será o conteúdo"
