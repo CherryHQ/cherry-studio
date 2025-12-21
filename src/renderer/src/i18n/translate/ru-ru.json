@@ -4601,6 +4601,24 @@
           "private_key_placeholder": "Введите приватный ключ Service Account",
           "title": "Конфигурация Service Account"
         }
+      },
+      "volcengine": {
+        "access_key_id": "Идентификатор ключа доступа",
+        "access_key_id_help": "Ваш идентификатор ключа доступа Volcengine",
+        "clear_credentials": "Очистить учетные данные",
+        "credentials_cleared": "Учетные данные очищены",
+        "credentials_required": "Пожалуйста, введите идентификатор ключа доступа и секретный ключ доступа",
+        "credentials_save_failed": "Не удалось сохранить учетные данные",
+        "credentials_saved": "Учетные данные сохранены",
+        "description": "Volcengine — это облачная платформа ByteDance, предоставляющая Doubao и другие сервисы крупных языковых моделей. Для аутентификации используйте Access Key, чтобы получить список моделей.",
+        "project_name": "Название проекта",
+        "project_name_help": "Имя проекта для фильтрации конечных точек, по умолчанию — «default»",
+        "region": "Регион",
+        "region_help": "Регион обслуживания, например, cn-beijing",
+        "save_credentials": "Сохранить учетные данные",
+        "secret_access_key": "Секретный ключ доступа",
+        "secret_access_key_help": "Ваш секретный ключ доступа Volcengine, пожалуйста, храните его в безопасности",
+        "title": "Конфигурация Volcengine"
       }
     },
     "proxy": {

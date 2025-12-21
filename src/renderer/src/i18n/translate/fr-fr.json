@@ -4601,6 +4601,24 @@
           "private_key_placeholder": "Veuillez saisir la clé privée du compte de service",
           "title": "Configuration du compte de service"
         }
+      },
+      "volcengine": {
+        "access_key_id": "ID de clé d’accès",
+        "access_key_id_help": "Votre ID de clé d'accès Volcengine",
+        "clear_credentials": "Effacer les identifiants",
+        "credentials_cleared": "Identifiants effacés",
+        "credentials_required": "Veuillez renseigner l'ID de clé d'accès et la clé d'accès secrète",
+        "credentials_save_failed": "Échec de l'enregistrement des identifiants",
+        "credentials_saved": "Identifiants enregistrés",
+        "description": "Volcengine est la plateforme de services cloud de ByteDance, fournissant des services de modèles de langage de grande taille tels que Doubao. Utilisez la clé d'accès pour l'authentification afin de récupérer la liste des modèles.",
+        "project_name": "Nom du projet",
+        "project_name_help": "Nom du projet pour le filtrage des points de terminaison, la valeur par défaut est 'default'",
+        "region": "Région",
+        "region_help": "Région de service, par ex. cn-beijing",
+        "save_credentials": "Enregistrer les identifiants",
+        "secret_access_key": "Clé d'accès secrète",
+        "secret_access_key_help": "Votre clé d'accès secrète Volcengine, veuillez la conserver en sécurité",
+        "title": "Configuration Volcengine"
       }
     },
     "proxy": {

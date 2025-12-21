@@ -242,6 +242,10 @@ vi.mock('@renderer/store/llm.ts', () => {
         secretAccessKey: '',
         apiKey: '',
         region: ''
+      },
+      volcengine: {
+        region: 'cn-beijing',
+        projectName: 'default'
       }
     }
   } satisfies LlmState

@@ -2961,6 +2961,9 @@ const migrateConfig = {
         }
       })
       state.llm.providers = moveProvider(state.llm.providers, SystemProviderIds.poe, 10)
+      if (!state.llm.settings.volcengine) {
+        state.llm.settings.volcengine = llmInitialState.settings.volcengine
+      }
       logger.info('migrate 183 success')
       return state
     } catch (error) {

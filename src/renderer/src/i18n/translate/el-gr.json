@@ -4601,6 +4601,24 @@
           "private_key_placeholder": "Παρακαλώ εισάγετε το ιδιωτικό κλειδί του λογαριασμού υπηρεσίας",
           "title": "Διαμόρφωση λογαριασμού υπηρεσίας"
         }
+      },
+      "volcengine": {
+        "access_key_id": "Αναγνωριστικό Κλειδιού Πρόσβασης",
+        "access_key_id_help": "Το Αναγνωριστικό Κλειδιού Πρόσβασης του Volcengine σας",
+        "clear_credentials": "Καθαρά Διαπιστευτήρια",
+        "credentials_cleared": "Τα διαπιστευτήρια διαγράφηκαν",
+        "credentials_required": "Παρακαλούμε συμπληρώστε το Access Key ID και το Secret Access Key",
+        "credentials_save_failed": "Αποτυχία αποθήκευσης διαπιστευτηρίων",
+        "credentials_saved": "Τα διαπιστευτήρια αποθηκεύτηκαν",
+        "description": "Η Volcengine είναι η πλατφόρμα υπηρεσιών cloud της ByteDance, παρέχοντας το Doubao και άλλες υπηρεσίες μεγάλων γλωσσικών μοντέλων. Χρησιμοποιήστε το Access Key για πιστοποίηση για να ανακτήσετε τη λίστα μοντέλων.",
+        "project_name": "Όνομα Έργου",
+        "project_name_help": "Όνομα έργου για φιλτράρισμα τελικού σημείου, προεπιλογή είναι 'default'",
+        "region": "Περιοχή",
+        "region_help": "Περιοχή υπηρεσίας, π.χ. cn-beijing",
+        "save_credentials": "Αποθήκευση Διαπιστευτηρίων",
+        "secret_access_key": "Μυστικό Κλειδί Πρόσβασης",
+        "secret_access_key_help": "Το μυστικό κλειδί πρόσβασής σας στο Volcengine, παρακαλώ διατηρήστε το ασφαλές",
+        "title": "Διαμόρφωση Volcengine"
       }
     },
     "proxy": {

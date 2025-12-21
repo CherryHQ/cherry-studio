@@ -4601,6 +4601,25 @@
           "private_key_placeholder": "Enter Service Account private key",
           "title": "Service Account Configuration"
         }
+      },
+      "volcengine": {
+        "access_key_id": "Access Key ID",
+        "access_key_id_help": "Your Volcengine Access Key ID",
+        "clear_credentials": "Clear Credentials",
+        "credentials_cleared": "Credentials cleared",
+        "credentials_required": "Please fill in Access Key ID and Secret Access Key",
+        "credentials_save_failed": "Failed to save credentials",
+        "credentials_saved": "Credentials saved",
+        "credentials_saved_notice": "Credentials have been securely saved. Clear credentials to update them.",
+        "description": "Volcengine is ByteDance's cloud service platform, providing Doubao and other large language model services. Please use IAM user's Access Key for authentication, do not use the root user credentials.",
+        "project_name": "Project Name",
+        "project_name_help": "Project name for endpoint filtering, default is 'default'",
+        "region": "Region",
+        "region_help": "Service region, e.g., cn-beijing",
+        "save_credentials": "Save Credentials",
+        "secret_access_key": "Secret Access Key",
+        "secret_access_key_help": "Your Volcengine Secret Access Key, please keep it secure",
+        "title": "Volcengine Configuration"
       }
     },
     "proxy": {
