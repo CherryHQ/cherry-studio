@@ -7,6 +7,7 @@ import type { CSSProperties } from 'react'
 export * from './file'
 export * from './note'
 
+import type { MinimalModel } from '@shared/provider/types'
 import * as z from 'zod'
 
 import type { StreamTextParams } from './aiCoreTypes'
@@ -274,7 +275,7 @@ export type ModelCapability = {
   isUserSelected?: boolean
 }
 
-export type Model = {
+export type Model = MinimalModel & {
   id: string
   provider: string
   name: string

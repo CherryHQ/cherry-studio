@@ -8,8 +8,10 @@
     "src/preload/**/*",
     "src/renderer/src/services/traceApi.ts",
     "src/renderer/src/types/*",
+    "packages/aiCore/src/**/*",
     "packages/mcp-trace/**/*",
     "packages/shared/**/*",
+    "packages/ai-sdk-provider/**/*"
   ],
   "compilerOptions": {
     "composite": true,
@@ -26,7 +28,12 @@
       "@types": ["./src/renderer/src/types/index.ts"],
       "@shared/*": ["./packages/shared/*"],
       "@mcp-trace/*": ["./packages/mcp-trace/*"],
-      "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"]
+      "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
+      "@cherrystudio/ai-core/provider": ["./packages/aiCore/src/core/providers/index.ts"],
+      "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in/index.ts"],
+      "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
+      "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
+      "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
