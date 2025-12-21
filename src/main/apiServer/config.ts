@@ -28,7 +28,6 @@ class ConfigManager {
       }
       this._config = {
         enabled: serverSettings?.enabled ?? false,
-        autoStart: serverSettings?.autoStart ?? true,
         port: serverSettings?.port ?? API_SERVER_DEFAULTS.PORT,
         host: serverSettings?.host ?? API_SERVER_DEFAULTS.HOST,
         apiKey: apiKey
@@ -38,7 +37,6 @@ class ConfigManager {
       logger.warn('Failed to load config from Redux, using defaults', { error })
       this._config = {
         enabled: false,
-        autoStart: true,
         port: API_SERVER_DEFAULTS.PORT,
         host: API_SERVER_DEFAULTS.HOST,
         apiKey: this.generateApiKey()

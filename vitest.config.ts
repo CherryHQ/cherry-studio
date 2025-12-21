@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+
 import { defineConfig } from 'vitest/config'
 
 import electronViteConfig from './electron.vite.config'

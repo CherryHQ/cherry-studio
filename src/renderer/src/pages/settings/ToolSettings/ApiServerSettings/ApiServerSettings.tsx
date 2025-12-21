@@ -2,12 +2,12 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
-import { setApiServerApiKey, setApiServerAutoStart, setApiServerPort } from '@renderer/store/settings'
+import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { Alert, Button, Input, InputNumber, Switch, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
-import type { FC } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -21,6 +21,8 @@ const ApiServerSettings: FC = () => {
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
+  const [autoStartOnLaunch, setAutoStartOnLaunch] = useState(true)
+  const [autoStartOnLaunchLoading, setAutoStartOnLaunchLoading] = useState(true)
 
   // API Server state with proper defaults
   const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
@@ -63,8 +65,37 @@ const ApiServerSettings: FC = () => {
     }
   }
 
-  const handleAutoStartChange = (checked: boolean) => {
-    dispatch(setApiServerAutoStart(checked))
+  useEffect(() => {
+    let active = true
+    setAutoStartOnLaunchLoading(true)
+    window.api.config
+      .get('apiServerAutoStart')
+      .then((value) => {
+        if (!active) return
+        setAutoStartOnLaunch(value !== false)
+      })
+      .catch((error) => {
+        window.toast.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
+        setAutoStartOnLaunch(true)
+      })
+      .finally(() => {
+        if (!active) return
+        setAutoStartOnLaunchLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [t])
+
+  const handleAutoStartChange = async (checked: boolean) => {
+    setAutoStartOnLaunch(checked)
+    try {
+      await window.api.config.set('apiServerAutoStart', checked)
+    } catch (error) {
+      setAutoStartOnLaunch(!checked)
+      window.toast.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
+    }
   }
 
   const openApiDocs = () => {
@@ -161,7 +192,7 @@ const ApiServerSettings: FC = () => {
             <FieldLabel>{t('apiServer.fields.autoStart.label')}</FieldLabel>
             <FieldDescription>{t('apiServer.fields.autoStart.description')}</FieldDescription>
           </ToggleText>
-          <Switch checked={apiServerConfig.autoStart} onChange={handleAutoStartChange} />
+          <Switch checked={autoStartOnLaunch} onChange={handleAutoStartChange} disabled={autoStartOnLaunchLoading} />
         </ToggleRow>
       </ConfigurationField>
 

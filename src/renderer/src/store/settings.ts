@@ -421,7 +421,6 @@ export const initialState: SettingsState = {
   // API Server
   apiServer: {
     enabled: false,
-    autoStart: true,
     host: API_SERVER_DEFAULTS.HOST,
     port: API_SERVER_DEFAULTS.PORT,
     apiKey: `cs-sk-${uuid()}`
@@ -856,12 +855,6 @@ const settingsSlice = createSlice({
         enabled: action.payload
       }
     },
-    setApiServerAutoStart: (state, action: PayloadAction<boolean>) => {
-      state.apiServer = {
-        ...state.apiServer,
-        autoStart: action.payload
-      }
-    },
     setApiServerPort: (state, action: PayloadAction<number>) => {
       state.apiServer = {
         ...state.apiServer,
@@ -1007,7 +1000,6 @@ export const {
   setShowMessageOutline,
   // API Server actions
   setApiServerEnabled,
-  setApiServerAutoStart,
   setApiServerPort,
   setApiServerApiKey
 } = settingsSlice.actions

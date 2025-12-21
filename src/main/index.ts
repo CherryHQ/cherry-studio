@@ -176,10 +176,11 @@ if (!app.requestSingleInstanceLock()) {
       // Start API server if enabled or if auto-start is enabled and agents exist
       try {
         const config = await apiServerService.getCurrentConfig()
+        const autoStartOnLaunch = configManager.get<boolean>('apiServerAutoStart', true)
         logger.info('API server config:', config)
 
         let agentTotal = 0
-        if (!config.enabled && config.autoStart) {
+        if (!config.enabled && autoStartOnLaunch) {
           try {
             const { total } = await agentService.listAgents({ limit: 1 })
             if (total > 0) {
@@ -191,7 +192,7 @@ if (!app.requestSingleInstanceLock()) {
           }
         }
 
-        if (shouldStartApiServerOnLaunch(config, agentTotal)) {
+        if (shouldStartApiServerOnLaunch(config.enabled, autoStartOnLaunch, agentTotal)) {
           await apiServerService.start()
         }
       } catch (error: any) {
