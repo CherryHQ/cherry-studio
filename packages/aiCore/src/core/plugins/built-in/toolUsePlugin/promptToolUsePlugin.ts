@@ -76,8 +76,7 @@ Here are the rules you should always follow to solve your task:
 
 # User Instructions
 {{ USER_SYSTEM_PROMPT }}
-
-Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.`
+`
 
 /**
  * 默认工具使用示例（提取自 Cherry Studio）

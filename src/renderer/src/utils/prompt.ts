@@ -52,12 +52,14 @@ Here are the rules you should always follow to solve your task:
 2. Call a tool only when needed: do not call the search agent if you do not need information, try to solve the task yourself.
 3. If no tool call is needed, just answer the question directly.
 4. Never re-do a tool call that you previously did with the exact same parameters.
-5. For tool use, MARK SURE use XML tag format as shown in the examples above. Do not use any other format.
+5. For tool use, MAKE SURE use XML tag format as shown in the examples above. Do not use any other format.
+
+## Response rules
+
+Respond in the language of the user's query, unless the user instructions specify additional requirements for the language to be used.
 
 # User Instructions
 {{ USER_SYSTEM_PROMPT }}
-Response in user query language.
-Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
 `
 
 export const THINK_TOOL_PROMPT = `{{ USER_SYSTEM_PROMPT }}`
