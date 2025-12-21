@@ -1,5 +1,6 @@
 import { GlobalOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { Divider as AntDivider } from 'antd'
@@ -8,7 +9,6 @@ import {
   Cloud,
   Command,
   FileCode,
-  Hammer,
   HardDrive,
   Info,
   MonitorCog,
@@ -88,7 +88,7 @@ const SettingsPage: FC = () => {
           <Divider />
           <MenuItemLink to="/settings/mcp">
             <MenuItem className={isRoute('/settings/mcp')}>
-              <Hammer size={18} />
+              <McpLogo width={18} height={18} />
               {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>

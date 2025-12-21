@@ -32,7 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Utilisation de Git Bash détecté automatiquement",
-      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
+      "autoDiscoveredHint": "Auto-découvert",
       "clear": {
         "button": "Effacer le chemin personnalisé"
       },
@@ -40,7 +40,7 @@
       "error": {
         "description": "Git Bash est requis pour exécuter des agents sur Windows. L'agent ne peut pas fonctionner sans. Veuillez installer Git pour Windows depuis",
         "recheck": "Revérifier l'installation de Git Bash",
-        "required": "[to be translated]:Git Bash path is required on Windows",
+        "required": "Le chemin Git Bash est requis sur Windows",
         "title": "Git Bash requis"
       },
       "found": {
@@ -53,9 +53,9 @@
         "invalidPath": "Le fichier sélectionné n'est pas un exécutable Git Bash valide (bash.exe).",
         "title": "Sélectionner l'exécutable Git Bash"
       },
-      "placeholder": "[to be translated]:Select bash.exe path",
+      "placeholder": "Sélectionner le chemin de bash.exe",
       "success": "Git Bash détecté avec succès !",
-      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "Git Bash est nécessaire pour exécuter des agents sur Windows. Installez-le depuis git-scm.com s'il n'est pas disponible."
     },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
@@ -2198,7 +2198,7 @@
     "collapse": "réduire",
     "content_placeholder": "Veuillez saisir le contenu de la note...",
     "copyContent": "contenu copié",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
+    "crossPlatformRestoreWarning": "Configuration multiplateforme restaurée, mais le répertoire des notes est vide. Veuillez copier vos fichiers de notes vers : {{path}}",
     "delete": "supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
     "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",
@@ -2643,7 +2643,7 @@
     "lanyun": "Technologie Lan Yun",
     "lmstudio": "Studio LM",
     "longcat": "Mon voisin Totoro",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MoDa",
@@ -3235,40 +3235,40 @@
           "connected": "Connecté",
           "connection_failed": "Échec de la connexion",
           "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",
-          "device_list_title": "[to be translated]:Local network devices",
-          "discovered_devices": "[to be translated]:Discovered devices",
+          "device_list_title": "Périphériques réseau locaux",
+          "discovered_devices": "Appareils découverts",
           "error": {
-            "file_too_large": "[to be translated]:File too large, maximum 500MB supported",
+            "file_too_large": "Fichier trop volumineux, taille maximale supportée : 500 Mo",
             "init_failed": "Échec de l'initialisation",
-            "invalid_file_type": "[to be translated]:Only ZIP files are supported",
+            "invalid_file_type": "Seuls les fichiers ZIP sont pris en charge",
             "no_file": "Aucun fichier sélectionné",
             "no_ip": "Impossible d'obtenir l'adresse IP",
-            "not_connected": "[to be translated]:Please complete handshake first",
+            "not_connected": "Veuillez d'abord terminer la poignée de main",
             "send_failed": "Échec de l'envoi du fichier"
           },
           "file_transfer": {
-            "cancelled": "[to be translated]:Transfer cancelled",
-            "failed": "[to be translated]:File transfer failed: {{message}}",
-            "progress": "[to be translated]:Sending... {{progress}}%",
-            "success": "[to be translated]:File sent successfully"
+            "cancelled": "Transfert annulé",
+            "failed": "Le transfert de fichier a échoué : {{message}}",
+            "progress": "Envoi en cours... {{progress}}%",
+            "success": "Fichier envoyé avec succès"
           },
           "handshake": {
-            "button": "[to be translated]:Handshake",
-            "failed": "[to be translated]:Handshake failed: {{message}}",
-            "in_progress": "[to be translated]:Handshaking...",
-            "success": "[to be translated]:Handshake completed with {{device}}",
-            "test_message_received": "[to be translated]:Received pong from {{device}}",
-            "test_message_sent": "[to be translated]:Sent hello world test payload"
+            "button": "Poignée de main",
+            "failed": "Échec de la poignée de main : {{message}}",
+            "in_progress": "Établissement de la connexion...",
+            "success": "Poignée de main terminée avec {{device}}",
+            "test_message_received": "Pong reçu de {{device}}",
+            "test_message_sent": "Envoyé la charge utile de test hello world"
           },
-          "idle_hint": "[to be translated]:Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
-          "ip_addresses": "[to be translated]:IP addresses",
-          "last_seen": "[to be translated]:Last seen at {{time}}",
-          "metadata": "[to be translated]:Metadata",
-          "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
-          "no_devices": "[to be translated]:No LAN peers found yet",
-          "scan_devices": "[to be translated]:Scan devices",
-          "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
-          "send_file": "[to be translated]:Send File",
+          "idle_hint": "Analyse en pause. Lancez l’analyse pour détecter les pairs Cherry Studio sur votre réseau local.",
+          "ip_addresses": "Adresses IP",
+          "last_seen": "Vu pour la dernière fois à {{time}}",
+          "metadata": "Métadonnées",
+          "no_connection_warning": "Veuillez ouvrir le transfert LAN sur l'application mobile Cherry Studio.",
+          "no_devices": "Aucun pair LAN trouvé pour l'instant",
+          "scan_devices": "Analyser les appareils",
+          "scanning_hint": "Analyse de votre réseau local à la recherche d’homologues Cherry Studio…",
+          "send_file": "Envoyer le fichier",
           "status": {
             "completed": "Transfert terminé",
             "connected": "Connecté",
@@ -3279,9 +3279,9 @@
             "preparing": "Préparation du transfert...",
             "sending": "Transfert {{progress}} %"
           },
-          "status_badge_idle": "[to be translated]:Idle",
-          "status_badge_scanning": "[to be translated]:Scanning",
-          "stop_scan": "[to be translated]:Stop scan",
+          "status_badge_idle": "Inactif",
+          "status_badge_scanning": "Numérisation",
+          "stop_scan": "Arrêter le scan",
           "title": "Transmission en réseau local",
           "transfer_progress": "Progression du transfert"
         },
@@ -3961,7 +3961,7 @@
         "mcp_auto_install": "Installation automatique du service MCP (version bêta)",
         "memory": "Implémentation de base de mémoire persistante basée sur un graphe de connaissances local. Cela permet au modèle de se souvenir des informations relatives à l'utilisateur entre différentes conversations. Nécessite la configuration de la variable d'environnement MEMORY_FILE_PATH.",
         "no": "sans description",
-        "nowledge_mem": "[to be translated]:Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
+        "nowledge_mem": "Nécessite l’application Nowledge Mem exécutée localement. Conserve les discussions IA, outils, notes, agents et fichiers dans une mémoire privée sur votre ordinateur. Téléchargez depuis https://mem.nowledge.co/",
         "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
         "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
       },
@@ -4122,7 +4122,7 @@
       "tagsPlaceholder": "Введите теги",
       "timeout": "Таймаут",
       "timeoutTooltip": "Таймаут запроса к серверу (в секундах), по умолчанию 60 секунд",
-      "title": "Paramètres MCP",
+      "title": "Serveurs MCP",
       "tools": {
         "autoApprove": {
           "label": "Approbation automatique",

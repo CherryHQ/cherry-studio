@@ -2643,7 +2643,7 @@
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
     "longcat": "龍貓",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "小米 MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -4122,7 +4122,7 @@
       "tagsPlaceholder": "輸入標籤",
       "timeout": "逾時",
       "timeoutTooltip": "對該伺服器請求的逾時時間（秒），預設為 60 秒",
-      "title": "MCP",
+      "title": "MCP 伺服器",
       "tools": {
         "autoApprove": {
           "label": "自動核准",

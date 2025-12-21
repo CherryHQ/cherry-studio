@@ -32,7 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Χρησιμοποιείται αυτόματα εντοπισμένο Git Bash",
-      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
+      "autoDiscoveredHint": "Αυτόματα ανακαλυφθέντα",
       "clear": {
         "button": "Διαγραφή προσαρμοσμένης διαδρομής"
       },
@@ -40,7 +40,7 @@
       "error": {
         "description": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Ο πράκτορας δεν μπορεί να λειτουργήσει χωρίς αυτό. Παρακαλούμε εγκαταστήστε το Git για Windows από",
         "recheck": "Επανέλεγχος Εγκατάστασης του Git Bash",
-        "required": "[to be translated]:Git Bash path is required on Windows",
+        "required": "Απαιτείται διαδρομή του Git Bash στα Windows",
         "title": "Απαιτείται Git Bash"
       },
       "found": {
@@ -53,9 +53,9 @@
         "invalidPath": "Το επιλεγμένο αρχείο δεν είναι έγκυρο εκτελέσιμο Git Bash (bash.exe).",
         "title": "Επιλογή εκτελέσιμου Git Bash"
       },
-      "placeholder": "[to be translated]:Select bash.exe path",
+      "placeholder": "Επιλέξτε τη διαδρομή του bash.exe",
       "success": "Το Git Bash εντοπίστηκε με επιτυχία!",
-      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Εγκαταστήστε το από το git-scm.com εάν δεν είναι διαθέσιμο."
     },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
@@ -2198,7 +2198,7 @@
     "collapse": "σύμπτυξη",
     "content_placeholder": "Παρακαλώ εισαγάγετε το περιεχόμενο των σημειώσεων...",
     "copyContent": "αντιγραφή περιεχομένου",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
+    "crossPlatformRestoreWarning": "Η διαμόρφωση πολλαπλών πλατφορμών έχει επαναφερθεί, αλλά ο κατάλογος σημειώσεων είναι κενός. Παρακαλώ αντιγράψτε τα αρχεία σημειώσεών σας στο: {{path}}",
     "delete": "διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτό το {{type}};",
     "delete_folder_confirm": "Θέλετε να διαγράψετε τον φάκελο «{{name}}» και όλο το περιεχόμενό του;",
@@ -2643,7 +2643,7 @@
     "lanyun": "Λανιούν Τεχνολογία",
     "lmstudio": "LM Studio",
     "longcat": "Τσίρο",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope Magpie",
@@ -3235,40 +3235,40 @@
           "connected": "Συνδεδεμένος",
           "connection_failed": "Η σύνδεση απέτυχε",
           "content": "Βεβαιωθείτε ότι ο υπολογιστής και το κινητό βρίσκονται στο ίδιο δίκτυο για να χρησιμοποιήσετε τη μεταφορά LAN. Ανοίξτε την εφαρμογή Cherry Studio και σαρώστε αυτόν τον κωδικό QR.",
-          "device_list_title": "[to be translated]:Local network devices",
-          "discovered_devices": "[to be translated]:Discovered devices",
+          "device_list_title": "Τοπικές συσκευές δικτύου",
+          "discovered_devices": "Ανακαλυφθείσες συσκευές",
           "error": {
-            "file_too_large": "[to be translated]:File too large, maximum 500MB supported",
+            "file_too_large": "Το αρχείο είναι πολύ μεγάλο, υποστηρίζεται μέγιστο μέγεθος 500 MB",
             "init_failed": "Η αρχικοποίηση απέτυχε",
-            "invalid_file_type": "[to be translated]:Only ZIP files are supported",
+            "invalid_file_type": "Μόνο αρχεία ZIP υποστηρίζονται",
             "no_file": "Κανένα αρχείο δεν επιλέχθηκε",
             "no_ip": "Αδυναμία λήψης διεύθυνσης IP",
-            "not_connected": "[to be translated]:Please complete handshake first",
+            "not_connected": "Παρακαλώ ολοκληρώστε πρώτα τη χειραψία",
             "send_failed": "Αποτυχία αποστολής αρχείου"
           },
           "file_transfer": {
-            "cancelled": "[to be translated]:Transfer cancelled",
-            "failed": "[to be translated]:File transfer failed: {{message}}",
-            "progress": "[to be translated]:Sending... {{progress}}%",
-            "success": "[to be translated]:File sent successfully"
+            "cancelled": "Η μεταφορά ακυρώθηκε",
+            "failed": "Η μεταφορά αρχείου απέτυχε: {{message}}",
+            "progress": "Αποστολή... {{progress}}%",
+            "success": "Το αρχείο εστάλη με επιτυχία"
           },
           "handshake": {
-            "button": "[to be translated]:Handshake",
-            "failed": "[to be translated]:Handshake failed: {{message}}",
-            "in_progress": "[to be translated]:Handshaking...",
-            "success": "[to be translated]:Handshake completed with {{device}}",
-            "test_message_received": "[to be translated]:Received pong from {{device}}",
-            "test_message_sent": "[to be translated]:Sent hello world test payload"
+            "button": "Χειραψία",
+            "failed": "Η χειραψία απέτυχε: {{message}}",
+            "in_progress": "Χειραψία...",
+            "success": "Η χειραψία ολοκληρώθηκε με τη συσκευή {{device}}",
+            "test_message_received": "Λήφθηκε pong από {{device}}",
+            "test_message_sent": "Στάλθηκε δοκιμαστικό φορτίο hello world"
           },
-          "idle_hint": "[to be translated]:Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
-          "ip_addresses": "[to be translated]:IP addresses",
-          "last_seen": "[to be translated]:Last seen at {{time}}",
-          "metadata": "[to be translated]:Metadata",
-          "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
-          "no_devices": "[to be translated]:No LAN peers found yet",
-          "scan_devices": "[to be translated]:Scan devices",
-          "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
-          "send_file": "[to be translated]:Send File",
+          "idle_hint": "Η σάρωση διακόπηκε. Ξεκινήστε τη σάρωση για να βρείτε ομότιμους του Cherry Studio στο τοπικό σας δίκτυο.",
+          "ip_addresses": "Διευθύνσεις IP",
+          "last_seen": "Τελευταία φορά εθεάθηκε στις {{time}}",
+          "metadata": "Μεταδεδομένα",
+          "no_connection_warning": "Παρακαλώ ανοίξτε τη μεταφορά LAN στο Cherry Studio mobile",
+          "no_devices": "Δεν βρέθηκαν ακόμα συσκευές LAN",
+          "scan_devices": "Σάρωση συσκευών",
+          "scanning_hint": "Σάρωση του τοπικού σας δικτύου για ομότιμους του Cherry Studio...",
+          "send_file": "Αποστολή Αρχείου",
           "status": {
             "completed": "Η μεταφορά ολοκληρώθηκε",
             "connected": "Συνδεδεμένος",
@@ -3279,9 +3279,9 @@
             "preparing": "Προετοιμασία μεταφοράς...",
             "sending": "Μεταφορά {{progress}}%"
           },
-          "status_badge_idle": "[to be translated]:Idle",
-          "status_badge_scanning": "[to be translated]:Scanning",
-          "stop_scan": "[to be translated]:Stop scan",
+          "status_badge_idle": "Αδρανής",
+          "status_badge_scanning": "Σάρωση",
+          "stop_scan": "Διακοπή σάρωσης",
           "title": "Μεταφορά τοπικού δικτύου",
           "transfer_progress": "Πρόοδος μεταφοράς"
         },
@@ -3961,7 +3961,7 @@
         "mcp_auto_install": "Αυτόματη εγκατάσταση υπηρεσίας MCP (προβολή)",
         "memory": "Βασική υλοποίηση μόνιμης μνήμης με βάση τοπικό γράφημα γνώσης. Αυτό επιτρέπει στο μοντέλο να θυμάται πληροφορίες σχετικές με τον χρήστη ανάμεσα σε διαφορετικές συνομιλίες. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος MEMORY_FILE_PATH.",
         "no": "Χωρίς περιγραφή",
-        "nowledge_mem": "[to be translated]:Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
+        "nowledge_mem": "Απαιτεί την εφαρμογή Nowledge Mem να εκτελείται τοπικά. Διατηρεί συνομιλίες με AI, εργαλεία, σημειώσεις, πράκτορες και αρχεία σε ιδιωτική μνήμη στον υπολογιστή σας. Κάντε λήψη από https://mem.nowledge.co/",
         "python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",
         "sequentialthinking": "ένας εξυπηρετητής MCP που υλοποιείται, παρέχοντας εργαλεία για δυναμική και αναστοχαστική επίλυση προβλημάτων μέσω δομημένων διαδικασιών σκέψης"
       },

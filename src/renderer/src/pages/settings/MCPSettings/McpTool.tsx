@@ -1,8 +1,9 @@
+import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { Hammer, Info, Zap } from 'lucide-react'
+import { Info, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface MCPToolsSectionProps {
@@ -136,7 +137,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     {
       title: (
         <Flex align="center" justify="center" gap={4}>
-          <Hammer size={14} color="orange" />
+          <McpLogo width={14} height={14} />
           <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
         </Flex>
       ),
