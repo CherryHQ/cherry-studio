@@ -3059,7 +3059,7 @@ const migrateConfig = {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.openrouter) {
-          provider.anthropicApiHost = ' https://openrouter.ai/api'
+          provider.anthropicApiHost = 'https://openrouter.ai/api'
         }
       })
       logger.info('migrate 188 success')
