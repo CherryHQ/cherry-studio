@@ -4135,6 +4135,35 @@
         },
         "availableTools": "Available Tools",
         "enable": "Enable Tool",
+        "execute": {
+          "button": "Execute",
+          "copied": "Copied to clipboard",
+          "copy": "Copy",
+          "copyFailed": "Failed to copy",
+          "error": {
+            "invalidJson": "Invalid JSON format: {{error}}",
+            "noToolOrServer": "Tool or server not found"
+          },
+          "execute": "Execute",
+          "label": "Execute",
+          "params": "Parameters (JSON)",
+          "paramsPlaceholder": "Enter JSON parameters...",
+          "result": {
+            "error": "Error Result",
+            "success": "Result",
+            "text": "Text"
+          },
+          "table": {
+            "name": "Name",
+            "value": "Value"
+          },
+          "title": "Execute Tool: {{name}}",
+          "tooltip": "Execute tool with custom parameters",
+          "view": {
+            "formatted": "Formatted",
+            "json": "JSON"
+          }
+        },
         "inputSchema": {
           "enum": {
             "allowedValues": "Allowed Values"
