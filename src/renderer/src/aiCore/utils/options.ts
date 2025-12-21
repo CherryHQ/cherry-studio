@@ -401,7 +401,7 @@ function buildOpenAIProviderOptions(
     ...providerOptions,
     serviceTier,
     textVerbosity,
-    store: true
+    store: false
   }
 
   return {
