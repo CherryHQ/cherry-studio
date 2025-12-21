@@ -14,6 +14,7 @@ export type InputBarToolType =
   | 'clear_topic'
   | 'toggle_expand'
   | 'new_context'
+  | 'screenshot'
   // Agent Session tools
   | 'create_session'
   | 'slash_commands'

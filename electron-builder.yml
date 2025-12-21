@@ -66,6 +66,7 @@ asarUnpack:
   - resources/**
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-libvips-*/**"
+  - "node_modules/node-screenshots-*/**"
 
 # copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
 extraResources:

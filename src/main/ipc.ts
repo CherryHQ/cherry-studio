@@ -61,6 +61,7 @@ import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
+import { screenshotService } from './services/ScreenshotService'
 import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
@@ -615,6 +616,39 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_GetPdfInfo, fileManager.pdfPageCount.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile.bind(fileManager))
+
+  // Screenshot
+  ipcMain.handle(IpcChannel.Screenshot_CheckPermission, async () => {
+    if (!isMac) {
+      return { status: 'granted' as const }
+    }
+
+    const status = systemPreferences.getMediaAccessStatus('screen')
+    return {
+      status: status === 'granted' ? ('granted' as const) : ('denied' as const)
+    }
+  })
+
+  // Screenshot
+  ipcMain.handle(IpcChannel.Screenshot_Capture, async (_event, fileName: string) => {
+    return await screenshotService.capture(fileName)
+  })
+
+  ipcMain.handle(IpcChannel.Screenshot_CaptureWithSelection, async (_event, fileName: string) => {
+    return await screenshotService.captureWithSelection(fileName)
+  })
+
+  ipcMain.handle(
+    IpcChannel.Screenshot_SelectionConfirm,
+    async (_event, selection: { x: number; y: number; width: number; height: number }) => {
+      screenshotService.confirmSelection(selection)
+    }
+  )
+
+  ipcMain.handle(IpcChannel.Screenshot_SelectionCancel, async () => {
+    screenshotService.cancelSelection()
+  })
+
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))

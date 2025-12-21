@@ -188,24 +188,20 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   }, [isGenerateImageSupported, isVisionSupported])
 
   const supportedExts = useMemo(() => {
-    if (canAddImageFile && canAddTextFile) {
-      return [...imageExts, ...documentExts, ...textExts]
-    }
-
-    if (canAddImageFile) {
-      return [...imageExts]
-    }
-
-    if (canAddTextFile) {
-      return [...documentExts, ...textExts]
-    }
-
-    return []
-  }, [canAddImageFile, canAddTextFile])
+    // Always allow images so screenshot files can be attached regardless of model caps
+    const image = imageExts
+    const text = canAddTextFile ? [...documentExts, ...textExts] : []
+    return [...image, ...text]
+  }, [canAddTextFile])
 
   useEffect(() => {
     setCouldAddImageFile(canAddImageFile)
   }, [canAddImageFile, setCouldAddImageFile])
+
+  // Ensure screenshot files (images) are allowed
+  useEffect(() => {
+    setCouldAddImageFile(true)
+  }, [setCouldAddImageFile])
 
   const onUnmount = useEffectEvent((id: string) => {
     CacheService.set(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
