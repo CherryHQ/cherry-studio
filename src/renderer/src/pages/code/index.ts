@@ -34,7 +34,9 @@ export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
   'minimax',
   'longcat',
   SystemProviderIds.qiniu,
-  SystemProviderIds.silicon
+  SystemProviderIds.silicon,
+  SystemProviderIds.mimo,
+  SystemProviderIds.openrouter
 ]
 export const CLAUDE_SUPPORTED_PROVIDERS = [
   'aihubmix',
