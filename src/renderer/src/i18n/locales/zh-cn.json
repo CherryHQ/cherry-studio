@@ -4122,7 +4122,7 @@
       "tagsPlaceholder": "输入标签",
       "timeout": "超时",
       "timeoutTooltip": "对该服务器请求的超时时间（秒），默认为 60 秒",
-      "title": "MCP",
+      "title": "MCP 服务器",
       "tools": {
         "autoApprove": {
           "label": "自动批准",

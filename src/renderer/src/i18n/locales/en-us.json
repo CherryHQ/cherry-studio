@@ -4122,7 +4122,7 @@
       "tagsPlaceholder": "Enter tags",
       "timeout": "Timeout",
       "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
-      "title": "MCP",
+      "title": "MCP Servers",
       "tools": {
         "autoApprove": {
           "label": "Auto Approve",

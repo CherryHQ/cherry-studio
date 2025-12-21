@@ -6,6 +6,7 @@ import MCPRouterProviderLogo from '@renderer/assets/images/providers/mcprouter.w
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
 import DividerWithText from '@renderer/components/DividerWithText'
+import { McpLogo } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -85,7 +86,7 @@ const MCPSettings: FC = () => {
             title={t('settings.mcp.servers', 'MCP Servers')}
             active={activeView === 'servers'}
             onClick={() => navigate('/settings/mcp/servers')}
-            icon={<FolderCog size={18} />}
+            icon={<McpLogo width={18} height={18} />}
             titleStyle={{ fontWeight: 500 }}
           />
           <DividerWithText text={t('settings.mcp.discover', 'Discover')} style={{ margin: '10px 0 8px 0' }} />

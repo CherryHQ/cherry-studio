@@ -32,7 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Automatisch ermitteltes Git Bash wird verwendet",
-      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
+      "autoDiscoveredHint": "Automatisch erkannt",
       "clear": {
         "button": "Benutzerdefinierten Pfad löschen"
       },
@@ -40,7 +40,7 @@
       "error": {
         "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
         "recheck": "Überprüfe die Git Bash-Installation erneut",
-        "required": "[to be translated]:Git Bash path is required on Windows",
+        "required": "Git Bash-Pfad ist unter Windows erforderlich",
         "title": "Git Bash erforderlich"
       },
       "found": {
@@ -53,9 +53,9 @@
         "invalidPath": "Die ausgewählte Datei ist keine gültige Git Bash ausführbare Datei (bash.exe).",
         "title": "Git Bash ausführbare Datei auswählen"
       },
-      "placeholder": "[to be translated]:Select bash.exe path",
+      "placeholder": "Wählen Sie den Pfad zu bash.exe",
       "success": "Git Bash erfolgreich erkannt!",
-      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installiere es von git-scm.com, falls es nicht verfügbar ist."
     },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
@@ -2198,7 +2198,7 @@
     "collapse": "Einklappen",
     "content_placeholder": "Bitte Notizinhalt eingeben...",
     "copyContent": "Inhalt kopieren",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
+    "crossPlatformRestoreWarning": "Plattformübergreifende Konfiguration wiederhergestellt, aber das Notizenverzeichnis ist leer. Bitte kopieren Sie Ihre Notizdateien nach: {{path}}",
     "delete": "Löschen",
     "delete_confirm": "Möchten Sie diesen {{type}} wirklich löschen?",
     "delete_folder_confirm": "Möchten Sie Ordner \"{{name}}\" und alle seine Inhalte wirklich löschen?",
@@ -2643,7 +2643,7 @@
     "lanyun": "Lanyun Technologie",
     "lmstudio": "LM Studio",
     "longcat": "Meißner Riesenhamster",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3235,40 +3235,40 @@
           "connected": "Verbunden",
           "connection_failed": "Verbindung fehlgeschlagen",
           "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
-          "device_list_title": "[to be translated]:Local network devices",
-          "discovered_devices": "[to be translated]:Discovered devices",
+          "device_list_title": "Lokale Netzwerkgeräte",
+          "discovered_devices": "Entdeckte Geräte",
           "error": {
-            "file_too_large": "[to be translated]:File too large, maximum 500MB supported",
+            "file_too_large": "Datei zu groß, maximal 500 MB unterstützt",
             "init_failed": "Initialisierung fehlgeschlagen",
-            "invalid_file_type": "[to be translated]:Only ZIP files are supported",
+            "invalid_file_type": "Nur ZIP-Dateien werden unterstützt",
             "no_file": "Keine Datei ausgewählt",
             "no_ip": "IP-Adresse kann nicht abgerufen werden",
-            "not_connected": "[to be translated]:Please complete handshake first",
+            "not_connected": "Bitte vervollständigen Sie zuerst das Handshake.",
             "send_failed": "Fehler beim Senden der Datei"
           },
           "file_transfer": {
-            "cancelled": "[to be translated]:Transfer cancelled",
-            "failed": "[to be translated]:File transfer failed: {{message}}",
-            "progress": "[to be translated]:Sending... {{progress}}%",
-            "success": "[to be translated]:File sent successfully"
+            "cancelled": "Überweisung storniert",
+            "failed": "Dateiübertragung fehlgeschlagen: {{message}}",
+            "progress": "Senden... {{progress}}%",
+            "success": "Datei erfolgreich gesendet"
           },
           "handshake": {
-            "button": "[to be translated]:Handshake",
-            "failed": "[to be translated]:Handshake failed: {{message}}",
-            "in_progress": "[to be translated]:Handshaking...",
-            "success": "[to be translated]:Handshake completed with {{device}}",
-            "test_message_received": "[to be translated]:Received pong from {{device}}",
-            "test_message_sent": "[to be translated]:Sent hello world test payload"
+            "button": "Handshake",
+            "failed": "Handshake fehlgeschlagen: {{message}}",
+            "in_progress": "Handshake läuft...",
+            "success": "Handshake mit {{device}} abgeschlossen",
+            "test_message_received": "Pong von {{device}} empfangen",
+            "test_message_sent": "Hallo-Welt-Test-Payload gesendet"
           },
-          "idle_hint": "[to be translated]:Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
-          "ip_addresses": "[to be translated]:IP addresses",
-          "last_seen": "[to be translated]:Last seen at {{time}}",
-          "metadata": "[to be translated]:Metadata",
-          "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
-          "no_devices": "[to be translated]:No LAN peers found yet",
-          "scan_devices": "[to be translated]:Scan devices",
-          "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
-          "send_file": "[to be translated]:Send File",
+          "idle_hint": "Scanvorgang pausiert. Starten Sie das Scannen, um Cherry-Studio-Peers in Ihrem LAN zu finden.",
+          "ip_addresses": "IP-Adressen",
+          "last_seen": "Zuletzt gesehen um {{time}}",
+          "metadata": "Metadaten",
+          "no_connection_warning": "Bitte öffne LAN-Transfer in der Cherry Studio Mobile-App.",
+          "no_devices": "Noch keine LAN-Peers gefunden",
+          "scan_devices": "Geräte scannen",
+          "scanning_hint": "Scanne dein lokales Netzwerk nach Cherry-Studio-Peers …",
+          "send_file": "Datei senden",
           "status": {
             "completed": "Übertragung abgeschlossen",
             "connected": "Verbunden",
@@ -3279,9 +3279,9 @@
             "preparing": "Übertragung wird vorbereitet...",
             "sending": "Übertrage {{progress}}%"
           },
-          "status_badge_idle": "[to be translated]:Idle",
-          "status_badge_scanning": "[to be translated]:Scanning",
-          "stop_scan": "[to be translated]:Stop scan",
+          "status_badge_idle": "Leerlauf",
+          "status_badge_scanning": "Scannen",
+          "stop_scan": "Scanvorgang stoppen",
           "title": "LAN-Übertragung",
           "transfer_progress": "Übertragungsfortschritt"
         },
@@ -4122,7 +4122,7 @@
       "tagsPlaceholder": "Tag eingeben",
       "timeout": "Timeout",
       "timeoutTooltip": "Timeout für Anfragen an den Server in Sekunden. Standardmäßig 60 Sekunden.",
-      "title": "MCP",
+      "title": "MCP-Server",
       "tools": {
         "autoApprove": {
           "label": "Automatische Genehmigung",

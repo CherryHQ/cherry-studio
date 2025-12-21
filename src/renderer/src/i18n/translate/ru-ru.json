@@ -32,7 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Используется автоматически обнаруженный Git Bash",
-      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
+      "autoDiscoveredHint": "Автоматически обнаруженный",
       "clear": {
         "button": "Очистить пользовательский путь"
       },
@@ -40,7 +40,7 @@
       "error": {
         "description": "Для запуска агентов в Windows требуется Git Bash. Без него агент не может работать. Пожалуйста, установите Git для Windows с",
         "recheck": "Повторная проверка установки Git Bash",
-        "required": "[to be translated]:Git Bash path is required on Windows",
+        "required": "Требуется путь к Git Bash в Windows",
         "title": "Требуется Git Bash"
       },
       "found": {
@@ -53,9 +53,9 @@
         "invalidPath": "Выбранный файл не является допустимым исполняемым файлом Git Bash (bash.exe).",
         "title": "Выберите исполняемый файл Git Bash"
       },
-      "placeholder": "[to be translated]:Select bash.exe path",
+      "placeholder": "Выберите путь к bash.exe",
       "success": "Git Bash успешно обнаружен!",
-      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "Для запуска агентов в Windows требуется Git Bash. Установите его с сайта git-scm.com, если он отсутствует."
     },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду"
@@ -2198,7 +2198,7 @@
     "collapse": "Свернуть",
     "content_placeholder": "Введите содержимое заметки...",
     "copyContent": "Копировать контент",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
+    "crossPlatformRestoreWarning": "Кроссплатформенная конфигурация восстановлена, но каталог заметок пуст. Пожалуйста, скопируйте файлы заметок в: {{path}}",
     "delete": "удалить",
     "delete_confirm": "Вы уверены, что хотите удалить этот объект {{type}}?",
     "delete_folder_confirm": "Вы уверены, что хотите удалить папку \"{{name}}\" со всем ее содержимым?",
@@ -2643,7 +2643,7 @@
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
     "longcat": "Тоторо",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3235,40 +3235,40 @@
           "connected": "Подключено",
           "connection_failed": "Соединение не удалось",
           "content": "Убедитесь, что компьютер и телефон подключены к одной сети, чтобы использовать локальную передачу. Откройте приложение Cherry Studio и отсканируйте этот QR-код.",
-          "device_list_title": "[to be translated]:Local network devices",
-          "discovered_devices": "[to be translated]:Discovered devices",
+          "device_list_title": "Устройства локальной сети",
+          "discovered_devices": "Обнаруженные устройства",
           "error": {
-            "file_too_large": "[to be translated]:File too large, maximum 500MB supported",
+            "file_too_large": "Файл слишком большой, поддерживается максимум 500 МБ.",
             "init_failed": "Инициализация не удалась",
-            "invalid_file_type": "[to be translated]:Only ZIP files are supported",
+            "invalid_file_type": "Поддерживаются только ZIP-файлы",
             "no_file": "Файл не выбран",
             "no_ip": "Не удалось получить IP-адрес",
-            "not_connected": "[to be translated]:Please complete handshake first",
+            "not_connected": "Пожалуйста, сначала завершите рукопожатие",
             "send_failed": "Не удалось отправить файл"
           },
           "file_transfer": {
-            "cancelled": "[to be translated]:Transfer cancelled",
-            "failed": "[to be translated]:File transfer failed: {{message}}",
-            "progress": "[to be translated]:Sending... {{progress}}%",
-            "success": "[to be translated]:File sent successfully"
+            "cancelled": "Перевод отменён",
+            "failed": "Передача файла не удалась: {{message}}",
+            "progress": "Отправка... {{progress}}%",
+            "success": "Файл успешно отправлен"
           },
           "handshake": {
-            "button": "[to be translated]:Handshake",
-            "failed": "[to be translated]:Handshake failed: {{message}}",
-            "in_progress": "[to be translated]:Handshaking...",
-            "success": "[to be translated]:Handshake completed with {{device}}",
-            "test_message_received": "[to be translated]:Received pong from {{device}}",
-            "test_message_sent": "[to be translated]:Sent hello world test payload"
+            "button": "Рукопожатие",
+            "failed": "Сбой рукопожатия: {{message}}",
+            "in_progress": "Рукопожатие...",
+            "success": "Рукопожатие завершено с {{device}}",
+            "test_message_received": "Получен понг от {{device}}",
+            "test_message_sent": "Отправлен тестовый полезный груз \"hello world\""
           },
-          "idle_hint": "[to be translated]:Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
-          "ip_addresses": "[to be translated]:IP addresses",
-          "last_seen": "[to be translated]:Last seen at {{time}}",
-          "metadata": "[to be translated]:Metadata",
-          "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
-          "no_devices": "[to be translated]:No LAN peers found yet",
-          "scan_devices": "[to be translated]:Scan devices",
-          "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
-          "send_file": "[to be translated]:Send File",
+          "idle_hint": "Сканирование приостановлено. Начните сканирование, чтобы найти пиры Cherry Studio в вашей локальной сети.",
+          "ip_addresses": "IP-адреса",
+          "last_seen": "В последний раз был(а) в сети в {{time}}",
+          "metadata": "Метаданные",
+          "no_connection_warning": "Пожалуйста, откройте LAN Transfer в мобильном приложении Cherry Studio",
+          "no_devices": "Пока не найдено участников локальной сети",
+          "scan_devices": "Сканировать устройства",
+          "scanning_hint": "Сканирование локальной сети на наличие узлов Cherry Studio...",
+          "send_file": "Отправить файл",
           "status": {
             "completed": "Перевод завершён",
             "connected": "Подключено",
@@ -3279,9 +3279,9 @@
             "preparing": "Подготовка передачи...",
             "sending": "Передача {{progress}}%"
           },
-          "status_badge_idle": "[to be translated]:Idle",
-          "status_badge_scanning": "[to be translated]:Scanning",
-          "stop_scan": "[to be translated]:Stop scan",
+          "status_badge_idle": "Бездействие",
+          "status_badge_scanning": "Сканирование",
+          "stop_scan": "Остановить сканирование",
           "title": "Передача по локальной сети",
           "transfer_progress": "Прогресс передачи"
         },
