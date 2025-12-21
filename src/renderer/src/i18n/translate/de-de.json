@@ -3232,24 +3232,43 @@
         },
         "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
         "lan": {
-          "auto_close_tip": "Automatisches Schließen in {{seconds}} Sekunden...",
-          "confirm_close_message": "Dateiübertragung läuft. Beim Schließen wird die Übertragung unterbrochen. Möchten Sie wirklich das Schließen erzwingen?",
-          "confirm_close_title": "Schließen bestätigen",
           "connected": "Verbunden",
           "connection_failed": "Verbindung fehlgeschlagen",
           "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
+          "device_list_title": "[to be translated]:Local network devices",
+          "discovered_devices": "[to be translated]:Discovered devices",
           "error": {
+            "file_too_large": "[to be translated]:File too large, maximum 500MB supported",
             "init_failed": "Initialisierung fehlgeschlagen",
+            "invalid_file_type": "[to be translated]:Only ZIP files are supported",
             "no_file": "Keine Datei ausgewählt",
             "no_ip": "IP-Adresse kann nicht abgerufen werden",
+            "not_connected": "[to be translated]:Please complete handshake first",
             "send_failed": "Fehler beim Senden der Datei"
           },
-          "force_close": "Erzwungenes Schließen",
-          "generating_qr": "QR-Code wird generiert...",
-          "noZipSelected": "Keine komprimierte Datei ausgewählt",
-          "scan_qr": "Bitte scannen Sie den QR-Code mit Ihrem Telefon.",
-          "selectZip": "Wählen Sie eine komprimierte Datei",
-          "sendZip": "Datenwiederherstellung beginnen",
+          "file_transfer": {
+            "cancelled": "[to be translated]:Transfer cancelled",
+            "failed": "[to be translated]:File transfer failed: {{message}}",
+            "progress": "[to be translated]:Sending... {{progress}}%",
+            "success": "[to be translated]:File sent successfully"
+          },
+          "handshake": {
+            "button": "[to be translated]:Handshake",
+            "failed": "[to be translated]:Handshake failed: {{message}}",
+            "in_progress": "[to be translated]:Handshaking...",
+            "success": "[to be translated]:Handshake completed with {{device}}",
+            "test_message_received": "[to be translated]:Received pong from {{device}}",
+            "test_message_sent": "[to be translated]:Sent hello world test payload"
+          },
+          "idle_hint": "[to be translated]:Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
+          "ip_addresses": "[to be translated]:IP addresses",
+          "last_seen": "[to be translated]:Last seen at {{time}}",
+          "metadata": "[to be translated]:Metadata",
+          "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
+          "no_devices": "[to be translated]:No LAN peers found yet",
+          "scan_devices": "[to be translated]:Scan devices",
+          "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
+          "send_file": "[to be translated]:Send File",
           "status": {
             "completed": "Übertragung abgeschlossen",
             "connected": "Verbunden",
@@ -3258,9 +3277,11 @@
             "error": "Verbindungsfehler",
             "initializing": "Verbindung wird initialisiert...",
             "preparing": "Übertragung wird vorbereitet...",
-            "sending": "Übertrage {{progress}}%",
-            "waiting_qr_scan": "Bitte QR-Code scannen, um zu verbinden"
+            "sending": "Übertrage {{progress}}%"
           },
+          "status_badge_idle": "[to be translated]:Idle",
+          "status_badge_scanning": "[to be translated]:Scanning",
+          "stop_scan": "[to be translated]:Stop scan",
           "title": "LAN-Übertragung",
           "transfer_progress": "Übertragungsfortschritt"
         },

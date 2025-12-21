@@ -767,6 +767,56 @@ class BackupManager {
     const s3Client = this.getS3Storage(s3Config)
     return await s3Client.checkConnection()
   }
+
+  /**
+   * Create a temporary backup for LAN transfer
+   * Creates a lightweight backup (skipBackupFile=true) in the temp directory
+   * Returns the path to the created ZIP file
+   */
+  async createLanTransferBackup(_: Electron.IpcMainInvokeEvent, data: string): Promise<string> {
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:T.Z]/g, '')
+      .slice(0, 12)
+    const fileName = `cherry-studio.${timestamp}.zip`
+    const tempPath = path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer')
+
+    // Ensure temp directory exists
+    await fs.ensureDir(tempPath)
+
+    // Create backup with skipBackupFile=true (no Data folder)
+    const backupedFilePath = await this.backup(_, fileName, data, tempPath, true)
+
+    logger.info(`[BackupManager] Created LAN transfer backup at: ${backupedFilePath}`)
+    return backupedFilePath
+  }
+
+  /**
+   * Delete a temporary backup file after LAN transfer completes
+   */
+  async deleteTempBackup(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> {
+    try {
+      // Security check: only allow deletion within temp directory
+      const tempBase = path.normalize(path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer'))
+      const resolvedPath = path.normalize(path.resolve(filePath))
+
+      // Use normalized paths with trailing separator to prevent prefix attacks (e.g., /temp-evil)
+      if (!resolvedPath.startsWith(tempBase + path.sep) && resolvedPath !== tempBase) {
+        logger.warn(`[BackupManager] Attempted to delete file outside temp directory: ${filePath}`)
+        return false
+      }
+
+      if (await fs.pathExists(resolvedPath)) {
+        await fs.remove(resolvedPath)
+        logger.info(`[BackupManager] Deleted temp backup: ${resolvedPath}`)
+        return true
+      }
+      return false
+    } catch (error) {
+      logger.error('[BackupManager] Failed to delete temp backup:', error as Error)
+      return false
+    }
+  }
 }
 
 export default BackupManager

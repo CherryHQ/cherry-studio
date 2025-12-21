@@ -19,8 +19,10 @@ import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
 import { configManager } from './services/ConfigManager'
-import { nodeTraceService } from './services/NodeTraceService'
+import { lanTransferClientService } from './services/lanTransfer'
 import mcpService from './services/MCPService'
+import { localTransferService } from './services/LocalTransferService'
+import { nodeTraceService } from './services/NodeTraceService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
@@ -156,6 +158,7 @@ if (!app.requestSingleInstanceLock()) {
     registerShortcuts(mainWindow)
 
     registerIpc(mainWindow, app)
+    localTransferService.startDiscovery({ resetList: true })
 
     replaceDevtoolsFont(mainWindow)
 
@@ -237,6 +240,9 @@ if (!app.requestSingleInstanceLock()) {
     if (selectionService) {
       selectionService.quit()
     }
+
+    lanTransferClientService.dispose()
+    localTransferService.dispose()
   })
 
   app.on('will-quit', async () => {

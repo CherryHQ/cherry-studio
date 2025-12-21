@@ -3232,24 +3232,43 @@
         },
         "content": "Εξαγωγή μέρους των δεδομένων, συμπεριλαμβανομένων των ιστορικών συνομιλιών και των ρυθμίσεων. Σημειώστε ότι η διαδικασία δημιουργίας αντιγράφων ασφαλείας ενδέχεται να διαρκέσει κάποιο χρονικό διάστημα, ευχαριστούμε για την υπομονή σας.",
         "lan": {
-          "auto_close_tip": "Αυτόματο κλείσιμο σε {{seconds}} δευτερόλεπτα...",
-          "confirm_close_message": "Η μεταφορά αρχείων είναι σε εξέλιξη. Το κλείσιμο θα διακόψει τη μεταφορά. Είστε σίγουροι ότι θέλετε να κλείσετε βίαια;",
-          "confirm_close_title": "Επιβεβαίωση Κλεισίματος",
           "connected": "Συνδεδεμένος",
           "connection_failed": "Η σύνδεση απέτυχε",
           "content": "Βεβαιωθείτε ότι ο υπολογιστής και το κινητό βρίσκονται στο ίδιο δίκτυο για να χρησιμοποιήσετε τη μεταφορά LAN. Ανοίξτε την εφαρμογή Cherry Studio και σαρώστε αυτόν τον κωδικό QR.",
+          "device_list_title": "[to be translated]:Local network devices",
+          "discovered_devices": "[to be translated]:Discovered devices",
           "error": {
+            "file_too_large": "[to be translated]:File too large, maximum 500MB supported",
             "init_failed": "Η αρχικοποίηση απέτυχε",
+            "invalid_file_type": "[to be translated]:Only ZIP files are supported",
             "no_file": "Κανένα αρχείο δεν επιλέχθηκε",
             "no_ip": "Αδυναμία λήψης διεύθυνσης IP",
+            "not_connected": "[to be translated]:Please complete handshake first",
             "send_failed": "Αποτυχία αποστολής αρχείου"
           },
-          "force_close": "Κλείσιμο με βία",
-          "generating_qr": "Δημιουργία κώδικα QR...",
-          "noZipSelected": "Δεν επιλέχθηκε συμπιεσμένο αρχείο",
-          "scan_qr": "Παρακαλώ σαρώστε τον κωδικό QR με το τηλέφωνό σας",
-          "selectZip": "Επιλέξτε συμπιεσμένο αρχείο",
-          "sendZip": "Έναρξη ανάκτησης δεδομένων",
+          "file_transfer": {
+            "cancelled": "[to be translated]:Transfer cancelled",
+            "failed": "[to be translated]:File transfer failed: {{message}}",
+            "progress": "[to be translated]:Sending... {{progress}}%",
+            "success": "[to be translated]:File sent successfully"
+          },
+          "handshake": {
+            "button": "[to be translated]:Handshake",
+            "failed": "[to be translated]:Handshake failed: {{message}}",
+            "in_progress": "[to be translated]:Handshaking...",
+            "success": "[to be translated]:Handshake completed with {{device}}",
+            "test_message_received": "[to be translated]:Received pong from {{device}}",
+            "test_message_sent": "[to be translated]:Sent hello world test payload"
+          },
+          "idle_hint": "[to be translated]:Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
+          "ip_addresses": "[to be translated]:IP addresses",
+          "last_seen": "[to be translated]:Last seen at {{time}}",
+          "metadata": "[to be translated]:Metadata",
+          "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
+          "no_devices": "[to be translated]:No LAN peers found yet",
+          "scan_devices": "[to be translated]:Scan devices",
+          "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
+          "send_file": "[to be translated]:Send File",
           "status": {
             "completed": "Η μεταφορά ολοκληρώθηκε",
             "connected": "Συνδεδεμένος",
@@ -3258,9 +3277,11 @@
             "error": "Σφάλμα σύνδεσης",
             "initializing": "Αρχικοποίηση σύνδεσης...",
             "preparing": "Προετοιμασία μεταφοράς...",
-            "sending": "Μεταφορά {{progress}}%",
-            "waiting_qr_scan": "Παρακαλώ σαρώστε τον κωδικό QR για σύνδεση"
+            "sending": "Μεταφορά {{progress}}%"
           },
+          "status_badge_idle": "[to be translated]:Idle",
+          "status_badge_scanning": "[to be translated]:Scanning",
+          "stop_scan": "[to be translated]:Stop scan",
           "title": "Μεταφορά τοπικού δικτύου",
           "transfer_progress": "Πρόοδος μεταφοράς"
         },

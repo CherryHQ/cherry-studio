@@ -3232,24 +3232,43 @@
         },
         "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
         "lan": {
-          "auto_close_tip": "{{seconds}}秒後に自動的に閉じます...",
-          "confirm_close_message": "ファイル転送が進行中です。閉じると転送が中断されます。強制終了してもよろしいですか？",
-          "confirm_close_title": "閉じることを確認",
           "connected": "接続済み",
           "connection_failed": "接続に失敗しました",
           "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",
+          "device_list_title": "[to be translated]:Local network devices",
+          "discovered_devices": "[to be translated]:Discovered devices",
           "error": {
+            "file_too_large": "[to be translated]:File too large, maximum 500MB supported",
             "init_failed": "初期化に失敗しました",
+            "invalid_file_type": "[to be translated]:Only ZIP files are supported",
             "no_file": "ファイルが選択されていません",
             "no_ip": "IPアドレスを取得できません",
+            "not_connected": "[to be translated]:Please complete handshake first",
             "send_failed": "ファイルの送信に失敗しました"
           },
-          "force_close": "強制終了",
-          "generating_qr": "QRコードを生成中...",
-          "noZipSelected": "圧縮ファイルが選択されていません",
-          "scan_qr": "携帯電話でQRコードをスキャンしてください",
-          "selectZip": "圧縮ファイルを選択",
-          "sendZip": "データの復元を開始します",
+          "file_transfer": {
+            "cancelled": "[to be translated]:Transfer cancelled",
+            "failed": "[to be translated]:File transfer failed: {{message}}",
+            "progress": "[to be translated]:Sending... {{progress}}%",
+            "success": "[to be translated]:File sent successfully"
+          },
+          "handshake": {
+            "button": "[to be translated]:Handshake",
+            "failed": "[to be translated]:Handshake failed: {{message}}",
+            "in_progress": "[to be translated]:Handshaking...",
+            "success": "[to be translated]:Handshake completed with {{device}}",
+            "test_message_received": "[to be translated]:Received pong from {{device}}",
+            "test_message_sent": "[to be translated]:Sent hello world test payload"
+          },
+          "idle_hint": "[to be translated]:Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
+          "ip_addresses": "[to be translated]:IP addresses",
+          "last_seen": "[to be translated]:Last seen at {{time}}",
+          "metadata": "[to be translated]:Metadata",
+          "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
+          "no_devices": "[to be translated]:No LAN peers found yet",
+          "scan_devices": "[to be translated]:Scan devices",
+          "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
+          "send_file": "[to be translated]:Send File",
           "status": {
             "completed": "転送完了",
             "connected": "接続済み",
@@ -3258,9 +3277,11 @@
             "error": "接続エラー",
             "initializing": "接続を初期化中...",
             "preparing": "転送準備中...",
-            "sending": "転送中 {{progress}}%",
-            "waiting_qr_scan": "QRコードをスキャンして接続してください"
+            "sending": "転送中 {{progress}}%"
           },
+          "status_badge_idle": "[to be translated]:Idle",
+          "status_badge_scanning": "[to be translated]:Scanning",
+          "stop_scan": "[to be translated]:Stop scan",
           "title": "LAN転送",
           "transfer_progress": "転送進行"
         },

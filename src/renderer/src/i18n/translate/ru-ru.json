@@ -3232,24 +3232,43 @@
         },
         "content": "Экспорт части данных, включая историю чатов и настройки. Обратите внимание, процесс резервного копирования может занять некоторое время, благодарим за ваше терпение.",
         "lan": {
-          "auto_close_tip": "Автоматическое закрытие через {{seconds}} секунд...",
-          "confirm_close_message": "Передача файла в процессе. Закрытие прервет передачу. Вы уверены, что хотите принудительно закрыть?",
-          "confirm_close_title": "Подтвердить закрытие",
           "connected": "Подключено",
           "connection_failed": "Соединение не удалось",
           "content": "Убедитесь, что компьютер и телефон подключены к одной сети, чтобы использовать локальную передачу. Откройте приложение Cherry Studio и отсканируйте этот QR-код.",
+          "device_list_title": "[to be translated]:Local network devices",
+          "discovered_devices": "[to be translated]:Discovered devices",
           "error": {
+            "file_too_large": "[to be translated]:File too large, maximum 500MB supported",
             "init_failed": "Инициализация не удалась",
+            "invalid_file_type": "[to be translated]:Only ZIP files are supported",
             "no_file": "Файл не выбран",
             "no_ip": "Не удалось получить IP-адрес",
+            "not_connected": "[to be translated]:Please complete handshake first",
             "send_failed": "Не удалось отправить файл"
           },
-          "force_close": "Принудительное закрытие",
-          "generating_qr": "Генерация QR-кода...",
-          "noZipSelected": "Архив не выбран",
-          "scan_qr": "Пожалуйста, отсканируйте QR-код с помощью вашего телефона",
-          "selectZip": "Выберите архив",
-          "sendZip": "Начать восстановление данных",
+          "file_transfer": {
+            "cancelled": "[to be translated]:Transfer cancelled",
+            "failed": "[to be translated]:File transfer failed: {{message}}",
+            "progress": "[to be translated]:Sending... {{progress}}%",
+            "success": "[to be translated]:File sent successfully"
+          },
+          "handshake": {
+            "button": "[to be translated]:Handshake",
+            "failed": "[to be translated]:Handshake failed: {{message}}",
+            "in_progress": "[to be translated]:Handshaking...",
+            "success": "[to be translated]:Handshake completed with {{device}}",
+            "test_message_received": "[to be translated]:Received pong from {{device}}",
+            "test_message_sent": "[to be translated]:Sent hello world test payload"
+          },
+          "idle_hint": "[to be translated]:Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
+          "ip_addresses": "[to be translated]:IP addresses",
+          "last_seen": "[to be translated]:Last seen at {{time}}",
+          "metadata": "[to be translated]:Metadata",
+          "no_connection_warning": "[to be translated]:Please open LAN Transfer on Cherry Studio mobile",
+          "no_devices": "[to be translated]:No LAN peers found yet",
+          "scan_devices": "[to be translated]:Scan devices",
+          "scanning_hint": "[to be translated]:Scanning your local network for Cherry Studio peers...",
+          "send_file": "[to be translated]:Send File",
           "status": {
             "completed": "Перевод завершён",
             "connected": "Подключено",
@@ -3258,9 +3277,11 @@
             "error": "Ошибка подключения",
             "initializing": "Инициализация соединения...",
             "preparing": "Подготовка передачи...",
-            "sending": "Передача {{progress}}%",
-            "waiting_qr_scan": "Пожалуйста, отсканируйте QR-код для подключения"
+            "sending": "Передача {{progress}}%"
           },
+          "status_badge_idle": "[to be translated]:Idle",
+          "status_badge_scanning": "[to be translated]:Scanning",
+          "stop_scan": "[to be translated]:Stop scan",
           "title": "Передача по локальной сети",
           "transfer_progress": "Прогресс передачи"
         },

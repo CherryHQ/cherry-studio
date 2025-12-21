@@ -3232,24 +3232,43 @@
         },
         "content": "匯出部分資料，包括聊天記錄與設定。請注意，備份過程可能需要一些時間，感謝耐心等候。",
         "lan": {
-          "auto_close_tip": "將於 {{seconds}} 秒後自動關閉...",
-          "confirm_close_message": "檔案傳輸正在進行中。關閉將會中斷傳輸。您確定要強制關閉嗎？",
-          "confirm_close_title": "確認關閉",
           "connected": "已連線",
           "connection_failed": "連線失敗",
-          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。請開啟 Cherry Studio App 掃描此 QR 碼。",
+          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。",
+          "device_list_title": "區域網路裝置",
+          "discovered_devices": "已發現的裝置",
           "error": {
+            "file_too_large": "檔案過大，僅支援最大 500MB",
             "init_failed": "初始化失敗",
+            "invalid_file_type": "僅支援 ZIP 檔案",
             "no_file": "未選擇檔案",
             "no_ip": "無法取得 IP 位址",
+            "not_connected": "請先完成握手",
             "send_failed": "無法傳送檔案"
           },
-          "force_close": "強制關閉",
-          "generating_qr": "正在產生 QR 碼...",
-          "noZipSelected": "未選取壓縮檔案",
-          "scan_qr": "請使用手機掃描 QR 碼",
-          "selectZip": "選擇壓縮檔案",
-          "sendZip": "開始還原資料",
+          "file_transfer": {
+            "cancelled": "傳輸已取消",
+            "failed": "檔案傳輸失敗：{{message}}",
+            "progress": "傳送中... {{progress}}%",
+            "success": "檔案傳送成功"
+          },
+          "handshake": {
+            "button": "握手",
+            "failed": "握手失敗：{{message}}",
+            "in_progress": "握手中...",
+            "success": "已與 {{device}} 完成握手",
+            "test_message_received": "收到來自 {{device}} 的 pong",
+            "test_message_sent": "已送出 hello world 測試封包"
+          },
+          "idle_hint": "掃描已暫停。開始掃描以尋找區域網路中的 Cherry Studio 裝置。",
+          "ip_addresses": "IP 位址",
+          "last_seen": "上次看到：{{time}}",
+          "metadata": "中繼資料",
+          "no_connection_warning": "請在 Cherry Studio 行動裝置開啟區域網路傳輸",
+          "no_devices": "尚未找到區域網路節點",
+          "scan_devices": "掃描裝置",
+          "scanning_hint": "正在掃描區域網路中的 Cherry Studio 裝置...",
+          "send_file": "傳送檔案",
           "status": {
             "completed": "傳輸完成",
             "connected": "已連線",
@@ -3258,9 +3277,11 @@
             "error": "連線錯誤",
             "initializing": "正在初始化連線...",
             "preparing": "正在準備傳輸...",
-            "sending": "傳輸中 {{progress}}%",
-            "waiting_qr_scan": "請掃描 QR 碼以連線"
+            "sending": "傳輸中 {{progress}}%"
           },
+          "status_badge_idle": "閒置",
+          "status_badge_scanning": "掃描中",
+          "stop_scan": "停止掃描",
           "title": "區域網路傳輸",
           "transfer_progress": "傳輸進度"
         },
