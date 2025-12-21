@@ -17,6 +17,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
+import { buildTokenUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
@@ -49,6 +50,7 @@ import { Check, CirclePause, FolderClock, Settings2, UploadIcon } from 'lucide-r
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
 import TranslateHistoryList from './TranslateHistory'
@@ -89,6 +91,8 @@ const TranslatePage: FC = () => {
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
   const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [searchParams] = useSearchParams()
+  const appliedHistoryIdRef = useRef<string | null>(null)
 
   // redux states
   const text = useAppSelector((state) => state.translate.translateInput)
@@ -171,11 +175,14 @@ const TranslatePage: FC = () => {
         }
 
         let translated: string
+        let usage
         const abortKey = uuid()
         dispatch(setTranslateAbortKey(abortKey))
 
         try {
-          translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
+          const result = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
+          translated = result.text
+          usage = result.usage
         } catch (e) {
           if (isAbortError(e)) {
             window.toast.info(t('translate.info.aborted'))
@@ -199,9 +206,30 @@ const TranslatePage: FC = () => {
         }
 
         try {
-          await saveTranslateHistory(text, translated, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
+          const historyId = await saveTranslateHistory(
+            text,
+            translated,
+            actualSourceLanguage.langCode,
+            actualTargetLanguage.langCode
+          )
+          const estimatedPromptTokens = usage?.prompt_tokens ?? estimateTextTokens(text + prompt)
+          const estimatedCompletionTokens = usage?.completion_tokens ?? estimateTextTokens(translated)
+          const usageEvent = buildTokenUsageEvent({
+            id: `translate:${historyId}`,
+            module: 'translate',
+            operation: 'completion',
+            occurredAt: Date.now(),
+            model: translateModel,
+            usage,
+            promptTokens: usage ? undefined : estimatedPromptTokens,
+            completionTokens: usage ? undefined : estimatedCompletionTokens,
+            usageSource: usage ? 'api' : 'estimate',
+            refType: 'translate_history',
+            refId: historyId
+          })
+          await saveUsageEvent(usageEvent)
         } catch (e) {
-          logger.error('Failed to save translate history', e as Error)
+          logger.error('Failed to save translate history or usage', e as Error)
           window.toast.error(t('translate.history.error.save') + ': ' + formatErrorMessage(e))
         }
       } catch (e) {
@@ -209,7 +237,18 @@ const TranslatePage: FC = () => {
         window.toast.error(t('translate.error.unknown') + ': ' + formatErrorMessage(e))
       }
     },
-    [autoCopy, copy, dispatch, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
+    [
+      autoCopy,
+      copy,
+      dispatch,
+      prompt,
+      setTimeoutTimer,
+      setTranslatedContent,
+      setTranslating,
+      t,
+      translateModel,
+      translating
+    ]
   )
 
   // 控制翻译按钮是否可用
@@ -347,6 +386,30 @@ const TranslatePage: FC = () => {
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
   }, [setTranslatedContent, text])
+
+  useEffect(() => {
+    const historyId = searchParams.get('historyId')
+    if (!historyId || appliedHistoryIdRef.current === historyId) {
+      return
+    }
+
+    appliedHistoryIdRef.current = historyId
+    runAsyncFunction(async () => {
+      const history = await db.translate_history.get(historyId)
+      if (!history) {
+        window.toast.warning(t('translate.history.error.not_found'))
+        return
+      }
+
+      const sourceLang = getLanguageByLangcode(history.sourceLanguage)
+      const targetLang = getLanguageByLangcode(history.targetLanguage)
+      setText(history.sourceText)
+      setTranslatedContent(history.targetText)
+      setSourceLanguage(sourceLang === UNKNOWN ? 'auto' : sourceLang)
+      setTargetLanguage(targetLang)
+      setHistoryDrawerVisible(true)
+    })
+  }, [getLanguageByLangcode, searchParams, setText, setTranslatedContent, t])
 
   // Render markdown content when result or enableMarkdown changes
   // 控制Markdown渲染

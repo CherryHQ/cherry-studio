@@ -1877,6 +1877,7 @@
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
       },
+      "sse_idle_timeout": "[to be translated]:SSE idle timeout after {{minutes}} minutes",
       "unknown": "未知のエラー",
       "yuque": {
         "export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
@@ -4579,6 +4580,24 @@
       "remove_invalid_keys": "無効なキーを削除",
       "search": "プロバイダーを検索...",
       "search_placeholder": "モデルIDまたは名前を検索",
+      "streaming": {
+        "description": "[to be translated]:Configure client-side limits for long-running streaming requests (e.g., OpenAI Responses SSE).",
+        "label": "[to be translated]:Streaming & Timeouts",
+        "max_tool_steps": {
+          "help": "[to be translated]:Maximum tool-calling steps for agent workflows. Increase this if your workflow requires more than 20 steps.",
+          "label": "[to be translated]:Max tool steps"
+        },
+        "request_timeout": {
+          "help": "[to be translated]:Abort the request after this time. Set to 0 to disable.",
+          "label": "[to be translated]:Request hard timeout (minutes)"
+        },
+        "reset": "[to be translated]:Reset to defaults",
+        "sse_idle_timeout": {
+          "help": "[to be translated]:Abort if no stream events are received for this time. Increase it for long silent reasoning/tool runs; set to 0 to disable.",
+          "label": "[to be translated]:SSE idle timeout (minutes)"
+        },
+        "title": "[to be translated]:Streaming & Timeouts"
+      },
       "title": "モデルプロバイダー",
       "vertex_ai": {
         "api_host_help": "Vertex AIのAPIアドレス。逆プロキシに適しています。",
@@ -4892,7 +4911,8 @@
     "paintings": "ペインティング",
     "settings": "設定",
     "store": "アシスタントライブラリ",
-    "translate": "翻訳"
+    "translate": "翻訳",
+    "usage": "[to be translated]:Usage"
   },
   "trace": {
     "backList": "リストに戻る",
@@ -4986,6 +5006,7 @@
       "empty": "翻訳履歴がありません",
       "error": {
         "delete": "削除に失敗しました",
+        "not_found": "[to be translated]:Translation history not found",
         "save": "保存翻訳履歴に失敗しました"
       },
       "search": {
@@ -5049,6 +5070,77 @@
     "noReleaseNotes": "暫無更新日誌",
     "saveDataError": "データの保存に失敗しました。もう一度お試しください。",
     "title": "更新"
+  },
+  "usage": {
+    "categories": {
+      "embedding": "[to be translated]:Embedding",
+      "image_generation": "[to be translated]:Image Generation",
+      "language": "[to be translated]:Language",
+      "multimodal": "[to be translated]:Multimodal",
+      "rerank": "[to be translated]:Rerank",
+      "web_search": "[to be translated]:Web Search"
+    },
+    "filters": {
+      "bucket": {
+        "day": "[to be translated]:Day",
+        "month": "[to be translated]:Month",
+        "week": "[to be translated]:Week"
+      },
+      "category": "[to be translated]:Category",
+      "model": "[to be translated]:Model",
+      "module": "[to be translated]:Module",
+      "provider": "[to be translated]:Provider",
+      "reset": "[to be translated]:Reset Filters"
+    },
+    "kpi": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "images": "[to be translated]:Images",
+      "tokens": "[to be translated]:Total Tokens"
+    },
+    "metrics": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "tokens": "[to be translated]:Tokens"
+    },
+    "modules": {
+      "agent": "[to be translated]:Agent",
+      "chat": "[to be translated]:Chat",
+      "knowledge": "[to be translated]:Knowledge Base",
+      "paintings": "[to be translated]:Paintings",
+      "translate": "[to be translated]:Translate",
+      "websearch": "[to be translated]:Web Search"
+    },
+    "open": {
+      "not_found": "[to be translated]:Target not found"
+    },
+    "operations": {
+      "completion": "[to be translated]:Completion",
+      "embedding": "[to be translated]:Embedding",
+      "generate_image": "[to be translated]:Image Generation",
+      "ingest": "[to be translated]:Ingest",
+      "other": "[to be translated]:Other",
+      "rerank": "[to be translated]:Rerank",
+      "search": "[to be translated]:Search"
+    },
+    "table": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "events": "[to be translated]:Events",
+      "images": "[to be translated]:Images",
+      "model": "[to be translated]:Model",
+      "models": "[to be translated]:By Model",
+      "module": "[to be translated]:Module",
+      "modules": "[to be translated]:By Module",
+      "open": "[to be translated]:Open",
+      "operation": "[to be translated]:Operation",
+      "provider": "[to be translated]:Provider",
+      "recent": "[to be translated]:Recent Usage",
+      "time": "[to be translated]:Time",
+      "tokens": "[to be translated]:Tokens"
+    },
+    "title": "[to be translated]:Usage",
+    "unknown": "[to be translated]:Unknown"
   },
   "warning": {
     "missing_provider": "サプライヤーが存在しないため、デフォルトのサプライヤー {{provider}} にロールバックされました。これにより問題が発生する可能性があります。"

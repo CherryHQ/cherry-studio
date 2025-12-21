@@ -265,6 +265,49 @@ export type ModelPricing = {
   currencySymbol?: string
 }
 
+export type UsageModule = 'chat' | 'agent' | 'translate' | 'knowledge' | 'websearch' | 'paintings'
+
+export type UsageOperation = 'completion' | 'embedding' | 'search' | 'rerank' | 'ingest' | 'generate_image' | 'other'
+
+export type UsageCategory = 'language' | 'multimodal' | 'image_generation' | 'embedding' | 'rerank' | 'web_search'
+
+export type UsageSource = 'api' | 'estimate' | 'none'
+
+export type UsageRefType = 'message' | 'translate_history' | 'knowledge_base_item' | 'painting' | 'none'
+
+export type UsagePricingSnapshot = ModelPricing & {
+  unit?: 'per_million_tokens' | 'per_image' | 'per_images'
+}
+
+export type UsageEvent = {
+  id: string
+  module: UsageModule
+  operation: UsageOperation
+  occurredAt: number
+  providerId?: string
+  modelId?: string
+  modelName?: string
+  category?: UsageCategory
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+  usageSource?: UsageSource
+  costProvider?: number
+  costPricing?: number
+  currencyProvider?: string
+  currencyPricing?: string
+  pricingSnapshot?: UsagePricingSnapshot
+  imageCount?: number
+  documentCount?: number
+  topicId?: string
+  messageId?: string
+  refType?: UsageRefType
+  refId?: string
+  baseId?: string
+  itemId?: string
+  paintingId?: string
+}
+
 export type ModelCapability = {
   type: ModelType
   /**
@@ -589,6 +632,8 @@ export type SidebarIcon =
   | 'files'
   | 'code_tools'
   | 'notes'
+  | 'usage'
+  | 'usage'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]

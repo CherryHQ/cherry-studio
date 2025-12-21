@@ -107,7 +107,7 @@ const PopupContainer: React.FC<Props> = ({
     }
 
     try {
-      const translatedText = await translateText(textValue, getLanguageByLangcode(targetLanguage))
+      const { text: translatedText } = await translateText(textValue, getLanguageByLangcode(targetLanguage))
       if (isMounted.current) {
         setTextValue(translatedText)
       }

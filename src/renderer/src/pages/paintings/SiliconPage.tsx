@@ -21,6 +21,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
+import { buildImageUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata, Painting } from '@renderer/types'
@@ -237,6 +238,20 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         await FileManager.addFiles(validFiles)
 
         updatePaintingState({ files: validFiles, urls })
+        const usageEvent = buildImageUsageEvent({
+          id: `painting:${uuid()}`,
+          occurredAt: Date.now(),
+          module: 'paintings',
+          providerId: provider.id,
+          modelId: painting.model,
+          modelName: model?.name || painting.model,
+          prompt,
+          imageCount: urls.length || validFiles.length || painting.numImages || 1,
+          refType: 'painting',
+          refId: painting.id,
+          paintingId: painting.id
+        })
+        await saveUsageEvent(usageEvent)
       }
     } catch (error: unknown) {
       if (error instanceof Error && error.name !== 'AbortError') {
@@ -305,7 +320,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const { text: translatedText } = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
       logger.error('Translation failed:', error as Error)

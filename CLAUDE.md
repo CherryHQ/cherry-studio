@@ -60,3 +60,74 @@ const logger = loggerService.withContext("moduleName");
 // Renderer: loggerService.initWindowSource('windowName') first
 logger.info("message", CONTEXT);
 ```
+
+## Usage Panel Development Notes
+
+### Naming and Routing
+
+- Feature name: "Usage"
+- Route: `/usage`
+- Sidebar icon key: `usage`
+- i18n label keys: `usage.title`, `usage.panel`, `usage.filters`, `usage.metrics`
+- Chinese label: use codepoints U+7528 U+91CF in zh-cn translations
+
+### Scope
+
+- Include Chat, Agent, Translate, Knowledge (ingest/search/rerank), WebSearch RAG, and Paintings.
+- Display dual cost columns in all summaries: provider cost and pricing cost.
+
+### UsageEvent Data Model
+
+- Core fields: `id`, `module`, `operation`, `occurredAt`, `providerId`, `modelId`, `modelName`, `category`.
+- Usage fields: `promptTokens`, `completionTokens`, `totalTokens`, `usageSource`.
+- Cost fields: `costProvider`, `costPricing`, `currencyProvider`, `currencyPricing`.
+- References: `topicId`, `messageId`, `refType`, `refId`, plus optional `baseId`, `itemId`, `paintingId`.
+- Pricing snapshot: store input/output price and currency at event time for stable history.
+- Idempotency: deterministic IDs per module (e.g., `msg:${messageId}`, `translate:${historyId}`).
+- Indexes: `occurredAt`, `module`, `category`, `providerId`, `modelId`, `topicId`.
+
+### Ingestion Map
+
+- Chat/Agent: `src/renderer/src/services/messageStreaming/callbacks/baseCallbacks.ts` on `onComplete`.
+- Translate: `src/renderer/src/services/TranslateService.ts` listen for `ChunkType.BLOCK_COMPLETE`.
+- Knowledge search/rerank: `src/renderer/src/services/KnowledgeService.ts`.
+- Knowledge ingest: `src/renderer/src/queue/KnowledgeQueue.ts`.
+- WebSearch RAG: `src/renderer/src/services/WebSearchService.ts` (track embedding/rerank activity).
+- Paintings: provider pages under `src/renderer/src/pages/paintings/*` after successful generation.
+
+### Cost Logic
+
+- Provider cost: `usage.cost` when present (e.g., OpenRouter).
+- Pricing cost: compute from model pricing snapshot; for images use per-image cost rules.
+- Aggregate by currency; do not mix currencies in a single total.
+
+### Analytics and Bucketing
+
+- Query by `occurredAt` between user-selected range.
+- Bucket by day/week/month/custom using `dayjs`.
+- Category mapping: `language`, `multimodal`, `image_generation`, `embedding`, `rerank`, `web_search`.
+
+### UI and Design Language
+
+- Use existing antd + styled-components patterns and CSS variables.
+- Avoid new fonts or heavy charting dependencies; prefer light SVG charts or existing components.
+- Layout: filters row, KPI cards, trend charts, detail table with drill-down.
+
+### Navigation Links (Cross-Module)
+
+- Chat/Agent: locate message via `EventEmitter` using `topicId` and `messageId`.
+- Translate: link to `/translate` with `historyId` for selection.
+- Knowledge: link to `/knowledge` with `baseId` and `itemId`.
+- Paintings: link to `/paintings/<provider>` with `paintingId`.
+
+### Migration and Backfill
+
+- Add `usage_events` Dexie table and version bump.
+- Backfill Chat/Agent events from existing `topics.messages` where usage exists.
+- Keep backfill incremental to avoid blocking UI.
+
+### Testing
+
+- Unit tests for aggregation and cost computation.
+- Update or add tests for ingestion sources as needed.
+- Run `yarn lint`, `yarn test`, and `yarn format` before completion.

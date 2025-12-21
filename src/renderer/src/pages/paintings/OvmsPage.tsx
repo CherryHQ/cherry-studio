@@ -13,6 +13,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
+import { buildImageUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata, OvmsPainting } from '@renderer/types'
@@ -210,6 +211,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
 
       const data = await response.json()
       logger.info('OVMS API response:', data)
+      let usageLogged = false
 
       // Handle base64 encoded images
       if (data.data && data.data.length > 0) {
@@ -223,6 +225,23 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           )
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          if (!usageLogged) {
+            const usageEvent = buildImageUsageEvent({
+              id: `painting:${uuid()}`,
+              occurredAt: Date.now(),
+              module: 'paintings',
+              providerId: ovmsProvider.id,
+              modelId: painting.model,
+              modelName: painting.model,
+              prompt: painting.prompt,
+              imageCount: base64s.length || validFiles.length || 1,
+              refType: 'painting',
+              refId: painting.id,
+              paintingId: painting.id
+            })
+            await saveUsageEvent(usageEvent)
+            usageLogged = true
+          }
         }
 
         // Handle URL-based images if available
@@ -232,6 +251,23 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           const validFiles = await downloadImages(urls)
           await FileManager.addFiles(validFiles)
           updatePaintingState({ files: validFiles, urls })
+          if (!usageLogged) {
+            const usageEvent = buildImageUsageEvent({
+              id: `painting:${uuid()}`,
+              occurredAt: Date.now(),
+              module: 'paintings',
+              providerId: ovmsProvider.id,
+              modelId: painting.model,
+              modelName: painting.model,
+              prompt: painting.prompt,
+              imageCount: urls.length || validFiles.length || 1,
+              refType: 'painting',
+              refId: painting.id,
+              paintingId: painting.id
+            })
+            await saveUsageEvent(usageEvent)
+            usageLogged = true
+          }
         }
       }
     } catch (error: unknown) {
@@ -300,7 +336,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const { text: translatedText } = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
       logger.error('Translation failed:', error as Error)

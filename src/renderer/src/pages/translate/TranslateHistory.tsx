@@ -81,9 +81,9 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   )
 
   const handleDelete = useCallback(
-    (id: string) => {
+    async (id: string) => {
       try {
-        deleteHistory(id)
+        await deleteHistory(id)
       } catch (e) {
         window.toast.error(t('translate.history.error.delete'))
       }

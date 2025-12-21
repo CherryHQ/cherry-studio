@@ -3,6 +3,8 @@ import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
+import { estimateTextTokens } from '@renderer/services/TokenService'
+import { buildTokenUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import store from '@renderer/store'
 import { setWebSearchStatus } from '@renderer/store/runtime'
 import type { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
@@ -318,7 +320,11 @@ class WebSearchService {
 
       // 2. 顺序添加所有搜索结果到知识库
       // FIXME: 目前的知识库 add 不支持并发
+      let totalTokens = 0
       for (const result of rawResults) {
+        if (result.content) {
+          totalTokens += estimateTextTokens(result.content)
+        }
         const item: KnowledgeItem & { sourceUrl?: string } = {
           id: uuid(),
           type: 'note',
@@ -333,6 +339,21 @@ class WebSearchService {
           base: getKnowledgeBaseParams(searchBase),
           item
         })
+      }
+
+      if (rawResults.length > 0) {
+        const usageEvent = buildTokenUsageEvent({
+          id: `websearch-ingest:${uuid()}`,
+          module: 'websearch',
+          operation: 'ingest',
+          occurredAt: Date.now(),
+          model: searchBase.model,
+          promptTokens: totalTokens || undefined,
+          completionTokens: 0,
+          usageSource: totalTokens > 0 ? 'estimate' : 'none',
+          baseId: searchBase.id
+        })
+        await saveUsageEvent({ ...usageEvent, documentCount: rawResults.length })
       }
 
       // 3. 对知识库执行多问题搜索获取压缩结果

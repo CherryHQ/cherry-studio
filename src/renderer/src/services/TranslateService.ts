@@ -7,7 +7,8 @@ import type {
   ReasoningEffortOption,
   TranslateHistory,
   TranslateLanguage,
-  TranslateLanguageCode
+  TranslateLanguageCode,
+  Usage
 } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
@@ -32,7 +33,7 @@ type TranslateOptions = {
  * @param targetLanguage - 目标语言
  * @param onResponse - 流式输出的回调函数，用于实时获取翻译结果
  * @param abortKey - 用于控制 abort 的键
- * @returns 返回翻译后的文本
+ * @returns 返回翻译后的文本以及可用的 usage 数据
  * @throws {Error} 翻译中止或失败时抛出异常
  */
 export const translateText = async (
@@ -41,8 +42,9 @@ export const translateText = async (
   onResponse?: (text: string, isComplete: boolean) => void,
   abortKey?: string,
   options?: TranslateOptions
-) => {
+): Promise<{ text: string; usage?: Usage }> => {
   let abortError
+  let finalUsage: Usage | undefined
   const assistantSettings: Partial<AssistantSettings> | undefined = options
     ? { reasoning_effort: options?.reasoningEffort }
     : undefined
@@ -57,6 +59,10 @@ export const translateText = async (
       translatedText = chunk.text
     } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
       completed = true
+    } else if (chunk.type === ChunkType.BLOCK_COMPLETE) {
+      if (chunk.response?.usage) {
+        finalUsage = chunk.response.usage as Usage
+      }
     } else if (chunk.type === ChunkType.ERROR) {
       if (isAbortError(chunk.error)) {
         abortError = chunk.error
@@ -94,7 +100,7 @@ export const translateText = async (
     return Promise.reject(new Error(t('translate.error.empty')))
   }
 
-  return trimmedText
+  return { text: trimmedText, usage: finalUsage }
 }
 
 /**
@@ -200,7 +206,7 @@ export const saveTranslateHistory = async (
   targetText: string,
   sourceLanguage: TranslateLanguageCode,
   targetLanguage: TranslateLanguageCode
-) => {
+): Promise<string> => {
   const history: TranslateHistory = {
     id: uuid(),
     sourceText,
@@ -210,6 +216,7 @@ export const saveTranslateHistory = async (
     createdAt: new Date().toISOString()
   }
   await db.translate_history.add(history)
+  return history.id
 }
 
 /**
@@ -238,7 +245,12 @@ export const updateTranslateHistory = async (id: string, update: Omit<Partial<Tr
  */
 export const deleteHistory = async (id: string) => {
   try {
-    db.translate_history.delete(id)
+    await db.translate_history.delete(id)
+    await db.usage_events
+      .where('refId')
+      .equals(id)
+      .and((event) => event.refType === 'translate_history')
+      .delete()
   } catch (e) {
     logger.error('Failed to delete translate history', e as Error)
     throw e
@@ -250,5 +262,11 @@ export const deleteHistory = async (id: string) => {
  * @returns Promise<void>
  */
 export const clearHistory = async () => {
-  db.translate_history.clear()
+  try {
+    await db.translate_history.clear()
+    await db.usage_events.filter((event) => event.refType === 'translate_history').delete()
+  } catch (e) {
+    logger.error('Failed to clear translate history', e as Error)
+    throw e
+  }
 }

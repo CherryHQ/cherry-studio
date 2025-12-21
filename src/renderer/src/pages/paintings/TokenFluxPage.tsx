@@ -12,6 +12,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
+import { buildImageUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { TokenFluxPainting } from '@renderer/types'
@@ -179,6 +180,28 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         const validFiles = await tokenFluxService.downloadImages(urls)
         await FileManager.addFiles(validFiles)
         updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
+        const pricing = selectedModel?.pricing
+          ? {
+              price: selectedModel.pricing.price,
+              currency: selectedModel.pricing.currency,
+              unit: selectedModel.pricing.unit
+            }
+          : undefined
+        const usageEvent = buildImageUsageEvent({
+          id: `painting:${uuid()}`,
+          occurredAt: Date.now(),
+          module: 'paintings',
+          providerId: tokenfluxProvider.id,
+          modelId: selectedModel?.id,
+          modelName: selectedModel?.name,
+          prompt,
+          imageCount: result.images.length,
+          pricing,
+          refType: 'painting',
+          refId: painting.id,
+          paintingId: painting.id
+        })
+        await saveUsageEvent(usageEvent)
       }
 
       setIsLoading(false)
@@ -239,7 +262,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const { text: translatedText } = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
       logger.error('Translation failed:', error as Error)

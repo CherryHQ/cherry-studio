@@ -7,6 +7,7 @@ import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import store from '@renderer/store'
 import type { Assistant } from '@renderer/types'
 import {
@@ -21,6 +22,7 @@ import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { routeToEndpoint } from '@renderer/utils'
+import { uuid } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
@@ -30,6 +32,7 @@ import { isEmpty } from 'lodash'
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 import type { BlockManager } from './messageStreaming'
+import { buildTokenUsageEvent, saveUsageEvent } from './usage/UsageEventService'
 
 const logger = loggerService.withContext('RendererKnowledgeService')
 
@@ -147,6 +150,8 @@ export const searchKnowledgeBase = async (
   modelName?: string
 ): Promise<Array<KnowledgeSearchResult & { file: FileMetadata | null }>> => {
   let currentSpan: Span | undefined = undefined
+  const module = base.id.startsWith('websearch-compression-') ? 'websearch' : 'knowledge'
+  const searchText = (rewrite || query || '').trim()
   try {
     const baseParams = getKnowledgeBaseParams(base)
     const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
@@ -177,10 +182,46 @@ export const searchKnowledgeBase = async (
 
     // 过滤阈值不达标的结果
     const filteredResults = searchResults.filter((item) => item.score >= threshold)
+    if (searchText) {
+      const searchTokens = estimateTextTokens(searchText)
+      const usageEvent = buildTokenUsageEvent({
+        id: `knowledge-search:${uuid()}`,
+        module,
+        operation: 'search',
+        occurredAt: Date.now(),
+        model: base.model,
+        promptTokens: searchTokens,
+        completionTokens: 0,
+        usageSource: 'estimate',
+        baseId: base.id,
+        topicId
+      })
+      await saveUsageEvent({ ...usageEvent, documentCount: filteredResults.length })
+    }
 
     // 如果有rerank模型，执行重排
     let rerankResults = filteredResults
     if (base.rerankModel && filteredResults.length > 0) {
+      const rerankText = [searchText, ...filteredResults.slice(0, documentCount).map((item) => item.pageContent)]
+        .filter(Boolean)
+        .join('\n')
+      if (rerankText) {
+        const rerankTokens = estimateTextTokens(rerankText)
+        const usageEvent = buildTokenUsageEvent({
+          id: `knowledge-rerank:${uuid()}`,
+          module,
+          operation: 'rerank',
+          occurredAt: Date.now(),
+          model: base.rerankModel,
+          promptTokens: rerankTokens,
+          completionTokens: 0,
+          usageSource: 'estimate',
+          baseId: base.id,
+          topicId
+        })
+        await saveUsageEvent({ ...usageEvent, documentCount: filteredResults.length })
+      }
+
       rerankResults = await window.api.knowledgeBase.rerank(
         {
           search: rewrite || query,

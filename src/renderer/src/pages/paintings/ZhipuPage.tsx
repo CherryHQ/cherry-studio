@@ -9,6 +9,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import FileManager from '@renderer/services/FileManager'
+import { buildImageUsageEvent, saveUsageEvent } from '@renderer/services/usage/UsageEventService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { getErrorMessage, uuid } from '@renderer/utils'
@@ -201,6 +202,20 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         }
 
         updatePaintingState(newPainting)
+        const usageEvent = buildImageUsageEvent({
+          id: `painting:${uuid()}`,
+          occurredAt: Date.now(),
+          module: 'paintings',
+          providerId: zhipuProvider.id,
+          modelId: painting.model,
+          modelName: painting.model,
+          prompt: painting.prompt,
+          imageCount: imageUrls.length || validFiles.length || painting.numImages || 1,
+          refType: 'painting',
+          refId: painting.id,
+          paintingId: painting.id
+        })
+        await saveUsageEvent(usageEvent)
       }
     } catch (error) {
       if (error instanceof Error && error.name !== 'AbortError') {

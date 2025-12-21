@@ -1877,6 +1877,7 @@
         "export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
       },
+      "sse_idle_timeout": "[to be translated]:SSE idle timeout after {{minutes}} minutes",
       "unknown": "Unbekannter Fehler",
       "yuque": {
         "export": "Export nach Yuque fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
@@ -4579,6 +4580,24 @@
       "remove_invalid_keys": "Ungültige Schlüssel löschen",
       "search": "Modellplattform suchen...",
       "search_placeholder": "Modell-ID oder Name suchen",
+      "streaming": {
+        "description": "[to be translated]:Configure client-side limits for long-running streaming requests (e.g., OpenAI Responses SSE).",
+        "label": "[to be translated]:Streaming & Timeouts",
+        "max_tool_steps": {
+          "help": "[to be translated]:Maximum tool-calling steps for agent workflows. Increase this if your workflow requires more than 20 steps.",
+          "label": "[to be translated]:Max tool steps"
+        },
+        "request_timeout": {
+          "help": "[to be translated]:Abort the request after this time. Set to 0 to disable.",
+          "label": "[to be translated]:Request hard timeout (minutes)"
+        },
+        "reset": "[to be translated]:Reset to defaults",
+        "sse_idle_timeout": {
+          "help": "[to be translated]:Abort if no stream events are received for this time. Increase it for long silent reasoning/tool runs; set to 0 to disable.",
+          "label": "[to be translated]:SSE idle timeout (minutes)"
+        },
+        "title": "[to be translated]:Streaming & Timeouts"
+      },
       "title": "Modelldienst",
       "vertex_ai": {
         "api_host_help": "Vertex AI-API-Adresse, nicht empfohlen, normalerweise für Reverse-Proxy geeignet",
@@ -4892,7 +4911,8 @@
     "paintings": "Zeichnen",
     "settings": "Einstellungen",
     "store": "Assistenten-Bibliothek",
-    "translate": "Übersetzen"
+    "translate": "Übersetzen",
+    "usage": "[to be translated]:Usage"
   },
   "trace": {
     "backList": "Rückgängig-Liste",
@@ -4986,6 +5006,7 @@
       "empty": "Keine Übersetzungshistorie",
       "error": {
         "delete": "Löschen fehlgeschlagen",
+        "not_found": "[to be translated]:Translation history not found",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
       },
       "search": {
@@ -5049,6 +5070,77 @@
     "noReleaseNotes": "Kein Changelog verfügbar",
     "saveDataError": "Speichern fehlgeschlagen, bitte erneut versuchen",
     "title": "Update-Hinweis"
+  },
+  "usage": {
+    "categories": {
+      "embedding": "[to be translated]:Embedding",
+      "image_generation": "[to be translated]:Image Generation",
+      "language": "[to be translated]:Language",
+      "multimodal": "[to be translated]:Multimodal",
+      "rerank": "[to be translated]:Rerank",
+      "web_search": "[to be translated]:Web Search"
+    },
+    "filters": {
+      "bucket": {
+        "day": "[to be translated]:Day",
+        "month": "[to be translated]:Month",
+        "week": "[to be translated]:Week"
+      },
+      "category": "[to be translated]:Category",
+      "model": "[to be translated]:Model",
+      "module": "[to be translated]:Module",
+      "provider": "[to be translated]:Provider",
+      "reset": "[to be translated]:Reset Filters"
+    },
+    "kpi": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "images": "[to be translated]:Images",
+      "tokens": "[to be translated]:Total Tokens"
+    },
+    "metrics": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "tokens": "[to be translated]:Tokens"
+    },
+    "modules": {
+      "agent": "[to be translated]:Agent",
+      "chat": "[to be translated]:Chat",
+      "knowledge": "[to be translated]:Knowledge Base",
+      "paintings": "[to be translated]:Paintings",
+      "translate": "[to be translated]:Translate",
+      "websearch": "[to be translated]:Web Search"
+    },
+    "open": {
+      "not_found": "[to be translated]:Target not found"
+    },
+    "operations": {
+      "completion": "[to be translated]:Completion",
+      "embedding": "[to be translated]:Embedding",
+      "generate_image": "[to be translated]:Image Generation",
+      "ingest": "[to be translated]:Ingest",
+      "other": "[to be translated]:Other",
+      "rerank": "[to be translated]:Rerank",
+      "search": "[to be translated]:Search"
+    },
+    "table": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "events": "[to be translated]:Events",
+      "images": "[to be translated]:Images",
+      "model": "[to be translated]:Model",
+      "models": "[to be translated]:By Model",
+      "module": "[to be translated]:Module",
+      "modules": "[to be translated]:By Module",
+      "open": "[to be translated]:Open",
+      "operation": "[to be translated]:Operation",
+      "provider": "[to be translated]:Provider",
+      "recent": "[to be translated]:Recent Usage",
+      "time": "[to be translated]:Time",
+      "tokens": "[to be translated]:Tokens"
+    },
+    "title": "[to be translated]:Usage",
+    "unknown": "[to be translated]:Unknown"
   },
   "warning": {
     "missing_provider": "Anbieter nicht gefunden, Standardanbieter {{provider}} verwendet. Dies kann zu Problemen führen."

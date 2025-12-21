@@ -1877,6 +1877,7 @@
         "export": "Η έκθεση σημειώσεων Siyuan απέτυχε, ελέγξτε την κατάσταση σύνδεσης και τις ρυθμίσεις σύμφωνα με τα έγγραφα",
         "no_config": "Δεν έχει ρυθμιστεί η διεύθυνση API ή το Token του Siyuan Notes"
       },
+      "sse_idle_timeout": "[to be translated]:SSE idle timeout after {{minutes}} minutes",
       "unknown": "Άγνωστο σφάλμα",
       "yuque": {
         "export": "Σφάλμα στην εξαγωγή της Yuque, παρακαλείστε να ελέγξετε τη σύνδεση και τη διαμόρφωση κατά τη διατύπωση του χειρισμού",
@@ -4579,6 +4580,24 @@
       "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
       "search": "Αναζήτηση πλατφόρμας μονάδων...",
       "search_placeholder": "Αναζήτηση ID ή ονόματος μονάδας",
+      "streaming": {
+        "description": "[to be translated]:Configure client-side limits for long-running streaming requests (e.g., OpenAI Responses SSE).",
+        "label": "[to be translated]:Streaming & Timeouts",
+        "max_tool_steps": {
+          "help": "[to be translated]:Maximum tool-calling steps for agent workflows. Increase this if your workflow requires more than 20 steps.",
+          "label": "[to be translated]:Max tool steps"
+        },
+        "request_timeout": {
+          "help": "[to be translated]:Abort the request after this time. Set to 0 to disable.",
+          "label": "[to be translated]:Request hard timeout (minutes)"
+        },
+        "reset": "[to be translated]:Reset to defaults",
+        "sse_idle_timeout": {
+          "help": "[to be translated]:Abort if no stream events are received for this time. Increase it for long silent reasoning/tool runs; set to 0 to disable.",
+          "label": "[to be translated]:SSE idle timeout (minutes)"
+        },
+        "title": "[to be translated]:Streaming & Timeouts"
+      },
       "title": "Υπηρεσία μονάδων",
       "vertex_ai": {
         "api_host_help": "Η διεύθυνση API του Vertex AI, δεν συνιστάται να συμπληρωθεί, συνήθως κατάλληλη για αντίστροφη διαμεσολάβηση",
@@ -4892,7 +4911,8 @@
     "paintings": "Ζωγραφική",
     "settings": "Ρυθμίσεις",
     "store": "Βιβλιοθήκη βοηθών",
-    "translate": "Μετάφραση"
+    "translate": "Μετάφραση",
+    "usage": "[to be translated]:Usage"
   },
   "trace": {
     "backList": "Επιστροφή στη λίστα",
@@ -4986,6 +5006,7 @@
       "empty": "δεν υπάρχουν απομνημονεύματα μετάφρασης",
       "error": {
         "delete": "Αποτυχία διαγραφής",
+        "not_found": "[to be translated]:Translation history not found",
         "save": "Αποτυχία αποθήκευσης του ιστορικού μεταφράσεων"
       },
       "search": {
@@ -5049,6 +5070,77 @@
     "noReleaseNotes": "Χωρίς σημειώσεις",
     "saveDataError": "Η αποθήκευση των δεδομένων απέτυχε, δοκιμάστε ξανά",
     "title": "Ενημέρωση"
+  },
+  "usage": {
+    "categories": {
+      "embedding": "[to be translated]:Embedding",
+      "image_generation": "[to be translated]:Image Generation",
+      "language": "[to be translated]:Language",
+      "multimodal": "[to be translated]:Multimodal",
+      "rerank": "[to be translated]:Rerank",
+      "web_search": "[to be translated]:Web Search"
+    },
+    "filters": {
+      "bucket": {
+        "day": "[to be translated]:Day",
+        "month": "[to be translated]:Month",
+        "week": "[to be translated]:Week"
+      },
+      "category": "[to be translated]:Category",
+      "model": "[to be translated]:Model",
+      "module": "[to be translated]:Module",
+      "provider": "[to be translated]:Provider",
+      "reset": "[to be translated]:Reset Filters"
+    },
+    "kpi": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "images": "[to be translated]:Images",
+      "tokens": "[to be translated]:Total Tokens"
+    },
+    "metrics": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "tokens": "[to be translated]:Tokens"
+    },
+    "modules": {
+      "agent": "[to be translated]:Agent",
+      "chat": "[to be translated]:Chat",
+      "knowledge": "[to be translated]:Knowledge Base",
+      "paintings": "[to be translated]:Paintings",
+      "translate": "[to be translated]:Translate",
+      "websearch": "[to be translated]:Web Search"
+    },
+    "open": {
+      "not_found": "[to be translated]:Target not found"
+    },
+    "operations": {
+      "completion": "[to be translated]:Completion",
+      "embedding": "[to be translated]:Embedding",
+      "generate_image": "[to be translated]:Image Generation",
+      "ingest": "[to be translated]:Ingest",
+      "other": "[to be translated]:Other",
+      "rerank": "[to be translated]:Rerank",
+      "search": "[to be translated]:Search"
+    },
+    "table": {
+      "cost_api": "[to be translated]:API Cost",
+      "cost_pricing": "[to be translated]:Pricing Cost",
+      "events": "[to be translated]:Events",
+      "images": "[to be translated]:Images",
+      "model": "[to be translated]:Model",
+      "models": "[to be translated]:By Model",
+      "module": "[to be translated]:Module",
+      "modules": "[to be translated]:By Module",
+      "open": "[to be translated]:Open",
+      "operation": "[to be translated]:Operation",
+      "provider": "[to be translated]:Provider",
+      "recent": "[to be translated]:Recent Usage",
+      "time": "[to be translated]:Time",
+      "tokens": "[to be translated]:Tokens"
+    },
+    "title": "[to be translated]:Usage",
+    "unknown": "[to be translated]:Unknown"
   },
   "warning": {
     "missing_provider": "Ο προμηθευτής δεν υπάρχει, έγινε επαναφορά στον προεπιλεγμένο προμηθευτή {{provider}}. Αυτό μπορεί να προκαλέσει προβλήματα."

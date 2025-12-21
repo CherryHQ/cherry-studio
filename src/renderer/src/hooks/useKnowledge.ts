@@ -128,6 +128,12 @@ export const useKnowledge = (baseId: string) => {
 
     await window.api.knowledgeBase.remove(removalParams)
 
+    await db.usage_events
+      .where('refId')
+      .equals(item.id)
+      .and((event) => event.refType === 'knowledge_base_item')
+      .delete()
+
     if (isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)) {
       const file = item.content
       // name: eg. text.pdf
