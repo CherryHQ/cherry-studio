@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type { Assistant } from '@renderer/types'
 
 import type { BlockManager } from '../BlockManager'
@@ -10,6 +11,8 @@ import { createTextCallbacks } from './textCallbacks'
 import { createThinkingCallbacks } from './thinkingCallbacks'
 import { createToolCallbacks } from './toolCallbacks'
 import { createVideoCallbacks } from './videoCallbacks'
+
+const logger = loggerService.withContext('messageStreamingCallbacks')
 
 interface CallbacksDependencies {
   blockManager: BlockManager
@@ -83,8 +86,24 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
 
   // Combine raw handlers (multiple modules need to observe RAW chunks)
   const onRawData = ((content: unknown, metadata?: Record<string, any>) => {
-    responsesReasoningCallbacks.onRawData?.(content, metadata)
-    compactOnRawData?.(content, metadata)
+    if (responsesReasoningCallbacks.onRawData) {
+      try {
+        responsesReasoningCallbacks.onRawData(content, metadata)
+      } catch (error) {
+        logger.error('[onRawData] responsesReasoningCallbacks.onRawData failed.', error as Error, {
+          assistantMsgId,
+          topicId
+        })
+      }
+    }
+
+    if (compactOnRawData) {
+      try {
+        compactOnRawData(content, metadata)
+      } catch (error) {
+        logger.error('[onRawData] compactCallbacks.onRawData failed.', error as Error, { assistantMsgId, topicId })
+      }
+    }
   }) as typeof compactOnRawData
 
   // 创建textCallbacks时传入citationCallbacks的getCitationBlockId方法和compactCallbacks的handleTextComplete方法

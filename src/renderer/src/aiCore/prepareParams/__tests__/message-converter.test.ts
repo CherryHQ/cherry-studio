@@ -228,6 +228,78 @@ describe('messageConverter', () => {
       ])
     })
 
+    it('replays encrypted reasoning content alongside tool history when both are present', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Final answer'
+      message.__mockToolBlocks = [createToolBlock(message.id)]
+      message.responsesReasoningItemId = 'rs_123'
+      message.responsesReasoningEncryptedContent = 'enc_abc'
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual([
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'test-tool', input: { a: 1 } }]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'test-tool',
+              output: { type: 'text', value: '{"ok":true}' }
+            }
+          ]
+        },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'reasoning',
+              text: '',
+              providerOptions: {
+                openai: {
+                  itemId: 'rs_123',
+                  reasoningEncryptedContent: 'enc_abc'
+                }
+              }
+            },
+            { type: 'text', text: 'Final answer' }
+          ]
+        }
+      ])
+    })
+
+    it('returns only tool history when assistant message has tool blocks but no content', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = ''
+      message.__mockToolBlocks = [createToolBlock(message.id)]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual([
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'test-tool', input: { a: 1 } }]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'test-tool',
+              output: { type: 'text', value: '{"ok":true}' }
+            }
+          ]
+        }
+      ])
+    })
+
     it('includes text and image parts for user messages on vision models', async () => {
       const model = createModel()
       const message = createMessage('user')

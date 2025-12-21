@@ -111,8 +111,11 @@ function buildToolHistoryMessages(toolBlocks: any[]): ModelMessage[] {
       toolCallId: tr.toolCallId ?? tr.id,
       toolName: tr.tool?.name ?? tr.toolName,
       output: {
-        type: tr.status === 'error' ? ('error-text' as const) : ('text' as const),
-        value: stringifyToolOutput(tr.response)
+        type: tr.status === 'error' || tr.status === 'cancelled' ? ('error-text' as const) : ('text' as const),
+        value:
+          tr.status === 'cancelled' && (tr.response === undefined || tr.response === null)
+            ? 'cancelled'
+            : stringifyToolOutput(tr.response)
       }
     }))
 

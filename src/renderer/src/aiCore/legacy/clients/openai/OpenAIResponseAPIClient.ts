@@ -214,6 +214,9 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         // Add function_call_output if tool has completed
         if (tr.status === 'done' || tr.status === 'error' || tr.status === 'cancelled') {
           const output = (() => {
+            if (tr.status === 'cancelled' && (tr.response === undefined || tr.response === null)) {
+              return JSON.stringify({ status: 'cancelled' })
+            }
             if (typeof tr.response === 'string') return tr.response
             try {
               return JSON.stringify(tr.response)
