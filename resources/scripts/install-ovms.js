@@ -6,8 +6,8 @@ const { downloadWithPowerShell } = require('./download')
 
 // Base URL for downloading OVMS binaries
 const OVMS_RELEASE_BASE_URL =
-  'https://storage.openvinotoolkit.org/repositories/openvino_model_server/packages/2025.3.0/ovms_windows_python_on.zip'
-const OVMS_EX_URL = 'https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/ovms_25.3_ex.zip'
+  'https://storage.openvinotoolkit.org/repositories/openvino_model_server/packages/2025.4.1/ovms_windows_python_on.zip'
+const OVMS_EX_URL = 'https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/ovms_25.4_ex.zip'
 
 /**
  * error code:

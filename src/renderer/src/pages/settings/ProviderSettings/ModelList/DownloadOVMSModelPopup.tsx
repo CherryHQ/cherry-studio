@@ -36,6 +36,13 @@ interface PresetModel {
 
 const PRESET_MODELS: PresetModel[] = [
   {
+    modelId: 'OpenVINO/Qwen3-4B-int4-ov',
+    modelName: 'Qwen3-4B-int4-ov',
+    modelSource: 'https://www.modelscope.cn/models',
+    task: 'text_generation',
+    label: 'Qwen3-4B-int4-ov (Text Generation)'
+  },
+  {
     modelId: 'OpenVINO/Qwen3-8B-int4-ov',
     modelName: 'Qwen3-8B-int4-ov',
     modelSource: 'https://www.modelscope.cn/models',
