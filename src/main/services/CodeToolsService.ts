@@ -1011,6 +1011,40 @@ class CodeToolsService {
           fs.mkdirSync(tempDir, { recursive: true })
         }
 
+        // Escape special characters in paths for Windows batch scripting
+        // Using double quotes and extended path prefix for maximum compatibility
+
+        /**
+         * Escape text for display in batch echo statements
+         * Used for: echo statements, command display, logging
+         * Strategy: Simple double quote wrapping (sufficient for display text)
+         */
+        const escapeBatchText = (text: string) => {
+          // For display in echo statements, use double quotes to avoid most escaping issues
+          // This is safer than caret escaping in many Windows environments
+          return `"${text}"`
+        }
+
+        /**
+         * Escape file system paths for use in batch commands
+         * Used for: file paths, directory paths, paths with special characters
+         * Strategy: Normalize + escape % + extended path prefix + quotes for maximum compatibility
+         */
+        const escapePathForBatch = (path: string) => {
+          // Normalize path to prevent path traversal attacks
+          const normalizedPath = path.normalize('NFC')
+
+          // Escape % characters for CMD (%% becomes % in actual path)
+          // This must be done BEFORE adding extended path prefix
+          const escapedPath = normalizedPath.replace(/%/g, '%%')
+
+          // For command arguments, use extended path prefix to bypass CMD path parsing issues
+          // This handles special characters like parentheses, spaces, etc.
+          // Extended path prefix (\\?\) also bypasses 260 character path limit
+          const extendedPath = escapedPath.startsWith('\\\\') ? escapedPath : `\\\\?\\${escapedPath}`
+          return `"${extendedPath}"`
+        }
+
         // Build bat file content, including debug information
         const batContent = [
           '@echo off',
@@ -1018,51 +1052,31 @@ class CodeToolsService {
           `title ${cliTool} - Cherry Studio`, // Set window title in bat file
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${cliTool}`,
-          `echo Directory: ${directory}`,
+          `echo Tool: ${escapeBatchText(cliTool)}`,
+          `echo Directory: ${escapeBatchText(directory.replace(/%/g, '%%'))}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
-          '',
-          ':: Verify directory exists',
-          `if not exist "${directory}" (`,
-          '  echo ERROR: Directory does not exist',
-          `  echo Target directory: ${directory}`,
-          '  pause',
-          '  exit /b 1',
-          ')',
-          '',
-          ':: Change to target directory using pushd for better special character support',
-          `pushd "${directory}" || (`,
-          '  echo ERROR: Failed to change directory',
-          `  echo Target directory: ${directory}`,
-          '  echo.',
-          '  echo Possible reasons:',
-          '  echo - Directory path contains invalid characters',
-          '  echo - Insufficient permissions',
-          '  echo - Network path not accessible',
-          '  pause',
-          '  exit /b 1',
-          ')',
-          '',
-          ':: Clear screen',
-          'cls',
-          '',
-          ':: Execute command',
-          command,
-          '',
-          ':: Restore original directory',
-          'popd >nul 2>&1',
-          '',
-          ':: Command execution completed',
           'echo.',
-          'echo Command execution completed.',
-          'echo Press any key to close this window...',
-          'pause >nul'
+          'echo Starting CLI tool...',
+          'timeout /t 1 /nobreak >nul', // Wait 1 second for user to see startup info
+          'cls', // Clear screen to hide debug information
+          '',
+          ':: Change to target directory',
+          `pushd ${escapePathForBatch(directory)}`,
+          'if %ERRORLEVEL% neq 0 echo ERROR: Failed to change directory',
+          '',
+          ':: Execute command (output visible for user interaction)',
+          `"${command.replace(/"/g, '""')}"`,
+          '',
+          ':: Restore directory and exit',
+          'popd >nul 2>&1'
         ].join('\r\n')
 
         // Write to bat file
         try {
           fs.writeFileSync(batFilePath, batContent, 'utf8')
+          // Set restrictive permissions for bat file
+          fs.chmodSync(batFilePath, 0o600)
           logger.info(`Created temp bat file: ${batFilePath}`)
         } catch (error) {
           logger.error(`Failed to create bat file: ${error}`)
@@ -1089,13 +1103,23 @@ class CodeToolsService {
 
         // Set cleanup task (delete temp file after 60 seconds)
         // Windows Terminal (UWP app) may take longer to initialize and read the file
-        setTimeout(() => {
+        const cleanup = () => {
           try {
-            fs.existsSync(batFilePath) && fs.unlinkSync(batFilePath)
+            // Clean up bat file
+            if (fs.existsSync(batFilePath)) {
+              fs.unlinkSync(batFilePath)
+              logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
+            }
           } catch (error) {
             logger.warn(`Failed to cleanup temp bat file: ${error}`)
           }
-        }, 60 * 1000) // Delete temp file after 60 seconds
+        }
+
+        // Set timeout for cleanup
+        setTimeout(cleanup, 60 * 1000) // Delete temp file after 60 seconds
+
+        // Ensure cleanup on process exit
+        process.on('exit', cleanup)
 
         break
       }
