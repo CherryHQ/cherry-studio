@@ -27,7 +27,7 @@ import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('AssistantService')
 
-export const DEFAULT_ASSISTANT_SETTINGS: Assistant['settings'] = {
+export const DEFAULT_ASSISTANT_SETTINGS: NonNullable<Assistant['settings']> = {
   temperature: DEFAULT_TEMPERATURE,
   enableTemperature: false,
   contextCount: DEFAULT_CONTEXTCOUNT,
