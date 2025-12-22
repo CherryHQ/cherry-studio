@@ -9,11 +9,10 @@ import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import type { LanguageModelV2 } from '@ai-sdk/provider'
+import type { ProviderV3 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
 import { type CherryInProviderSettings, createCherryIn } from '@cherrystudio/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import type { Provider } from 'ai'
 import { customProvider } from 'ai'
 import * as z from 'zod'
 
@@ -52,7 +51,7 @@ export const isBaseProvider = (id: ProviderId): id is BaseProviderId => {
 type BaseProvider = {
   id: BaseProviderId
   name: string
-  creator: (options: any) => Provider | LanguageModelV2
+  creator: (options: any) => ProviderV3
   supportsImageGeneration: boolean
 }
 

@@ -5,7 +5,7 @@
  * 例如: aihubmix:anthropic:claude-3.5-sonnet
  */
 
-import type { ProviderV2 } from '@ai-sdk/provider'
+import type { ProviderV3 } from '@ai-sdk/provider'
 import { customProvider } from 'ai'
 
 import { globalRegistryManagement } from './RegistryManagement'
@@ -47,10 +47,10 @@ function parseHubModelId(modelId: string): { provider: string; actualModelId: st
 /**
  * 创建Hub Provider
  */
-export function createHubProvider(config: HubProviderConfig): ProviderV2 {
+export function createHubProvider(config: HubProviderConfig): ProviderV3 {
   const { hubId } = config
 
-  function getTargetProvider(providerId: string): ProviderV2 {
+  function getTargetProvider(providerId: string): ProviderV3 {
     // 从全局注册表获取provider实例
     try {
       const provider = globalRegistryManagement.getProvider(providerId)

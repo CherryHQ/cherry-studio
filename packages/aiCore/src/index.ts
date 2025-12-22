@@ -10,7 +10,6 @@ export {
   createExecutor,
   createOpenAICompatibleExecutor,
   generateImage,
-  generateObject,
   generateText,
   streamText
 } from './core/runtime'
@@ -26,7 +25,7 @@ export { PluginEngine } from './core/runtime/pluginEngine'
 
 // ==================== AI SDK 常用类型导出 ====================
 // 直接导出 AI SDK 的常用类型，方便使用
-export type { LanguageModelV2Middleware, LanguageModelV2StreamPart } from '@ai-sdk/provider'
+export type { LanguageModelV3Middleware, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 export type { ToolCall } from '@ai-sdk/provider-utils'
 export type { ReasoningPart } from '@ai-sdk/provider-utils'
 

@@ -39,13 +39,13 @@
     "ai": "^5.0.26"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.49",
-    "@ai-sdk/azure": "^2.0.87",
-    "@ai-sdk/deepseek": "^1.0.31",
-    "@ai-sdk/openai-compatible": "patch:@ai-sdk/openai-compatible@npm%3A1.0.27#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.27-06f74278cf.patch",
-    "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/provider-utils": "^3.0.17",
-    "@ai-sdk/xai": "^2.0.36",
+    "@ai-sdk/anthropic": "^3.0.0-beta.96",
+    "@ai-sdk/azure": "^3.0.0-beta.113",
+    "@ai-sdk/deepseek": "^2.0.0-beta.61",
+    "@ai-sdk/openai-compatible": "^2.0.0-beta.59",
+    "@ai-sdk/provider": "^3.0.0-beta.31",
+    "@ai-sdk/provider-utils": "^4.0.0-beta.58",
+    "@ai-sdk/xai": "^3.0.0-beta.68",
     "zod": "^4.1.5"
   },
   "devDependencies": {

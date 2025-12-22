@@ -1,4 +1,4 @@
-import type { ImageModelV2 } from '@ai-sdk/provider'
+import type { ImageModelV3 } from '@ai-sdk/provider'
 import type { LanguageModel, TextStreamPart, ToolSet } from 'ai'
 
 import { type ProviderId } from '../providers/types'
@@ -14,7 +14,7 @@ export type RecursiveCallFn = (newParams: any) => Promise<any>
  */
 export interface AiRequestContext {
   providerId: ProviderId
-  model: LanguageModel | ImageModelV2
+  model: LanguageModel | ImageModelV3
   originalParams: any
   metadata: Record<string, any>
   startTime: number
@@ -36,7 +36,7 @@ export interface AiPlugin {
   resolveModel?: (
     modelId: string,
     context: AiRequestContext
-  ) => Promise<LanguageModel | ImageModelV2 | null> | LanguageModel | ImageModelV2 | null
+  ) => Promise<LanguageModel | ImageModelV3 | null> | LanguageModel | ImageModelV3 | null
   loadTemplate?: (templateName: string, context: AiRequestContext) => any | null | Promise<any | null>
 
   // 【Sequential】串行钩子 - 链式执行，支持数据转换

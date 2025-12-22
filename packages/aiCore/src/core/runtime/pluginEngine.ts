@@ -1,13 +1,6 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
-import type { ImageModelV2 } from '@ai-sdk/provider'
-import type {
-  experimental_generateImage,
-  generateObject,
-  generateText,
-  LanguageModel,
-  streamObject,
-  streamText
-} from 'ai'
+import type { ImageModelV3 } from '@ai-sdk/provider'
+import type { generateImage, generateText, LanguageModel, streamText } from 'ai'
 
 import { type AiPlugin, createContext, PluginManager } from '../plugins'
 import { type ProviderId } from '../providers/types'
@@ -70,8 +63,8 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
    * 提供给AiExecutor使用
    */
   async executeWithPlugins<
-    TParams extends Parameters<typeof generateText | typeof generateObject>[0],
-    TResult extends ReturnType<typeof generateText | typeof generateObject>
+    TParams extends Parameters<typeof generateText>[0],
+    TResult extends ReturnType<typeof generateText>
   >(
     methodName: string,
     params: TParams,
@@ -148,16 +141,16 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
    * 提供给AiExecutor使用
    */
   async executeImageWithPlugins<
-    TParams extends Omit<Parameters<typeof experimental_generateImage>[0], 'model'> & { model: string | ImageModelV2 },
-    TResult extends ReturnType<typeof experimental_generateImage>
+    TParams extends Omit<Parameters<typeof generateImage>[0], 'model'> & { model: string | ImageModelV3 },
+    TResult extends ReturnType<typeof generateImage>
   >(
     methodName: string,
     params: TParams,
-    executor: (model: ImageModelV2, transformedParams: TParams) => TResult,
+    executor: (model: ImageModelV3, transformedParams: TParams) => TResult,
     _context?: ReturnType<typeof createContext>
   ): Promise<TResult> {
     // 统一处理模型解析
-    let resolvedModel: ImageModelV2 | undefined
+    let resolvedModel: ImageModelV3 | undefined
     let modelId: string
     const { model } = params
     if (typeof model === 'string') {
@@ -190,7 +183,7 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
 
       // 2. 解析模型（如果是字符串）
       if (typeof model === 'string') {
-        const resolved = await this.pluginManager.executeFirst<ImageModelV2>('resolveModel', modelId, context)
+        const resolved = await this.pluginManager.executeFirst<ImageModelV3>('resolveModel', modelId, context)
         if (!resolved) {
           throw new Error(`Failed to resolve image model: ${modelId}`)
         }
@@ -226,8 +219,8 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
    * 提供给AiExecutor使用
    */
   async executeStreamWithPlugins<
-    TParams extends Parameters<typeof streamText | typeof streamObject>[0],
-    TResult extends ReturnType<typeof streamText | typeof streamObject>
+    TParams extends Parameters<typeof streamText>[0],
+    TResult extends ReturnType<typeof streamText>
   >(
     methodName: string,
     params: TParams,

@@ -5,12 +5,12 @@ import { type GoogleGenerativeAIProviderSettings } from '@ai-sdk/google'
 import { type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { type OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import type {
-  EmbeddingModelV2 as EmbeddingModel,
-  ImageModelV2 as ImageModel,
-  LanguageModelV2 as LanguageModel,
-  ProviderV2,
-  SpeechModelV2 as SpeechModel,
-  TranscriptionModelV2 as TranscriptionModel
+  EmbeddingModelV3 as EmbeddingModel,
+  ImageModelV3 as ImageModel,
+  LanguageModelV3 as LanguageModel,
+  ProviderV3,
+  SpeechModelV3 as SpeechModel,
+  TranscriptionModelV3 as TranscriptionModel
 } from '@ai-sdk/provider'
 import { type XaiProviderSettings } from '@ai-sdk/xai'
 
@@ -69,24 +69,24 @@ export type {
   XaiProviderSettings
 }
 
-export type AiSdkModel = LanguageModel | ImageModel | EmbeddingModel<string> | TranscriptionModel | SpeechModel
+export type AiSdkModel = LanguageModel | ImageModel | EmbeddingModel | TranscriptionModel | SpeechModel
 
 export type AiSdkModelType = 'text' | 'image' | 'embedding' | 'transcription' | 'speech'
 
 export const METHOD_MAP = {
   text: 'languageModel',
   image: 'imageModel',
-  embedding: 'textEmbeddingModel',
+  embedding: 'embeddingModel',
   transcription: 'transcriptionModel',
   speech: 'speechModel'
-} as const satisfies Record<AiSdkModelType, keyof ProviderV2>
+} as const satisfies Record<AiSdkModelType, keyof ProviderV3>
 
-export type AiSdkModelMethodMap = Record<AiSdkModelType, keyof ProviderV2>
+export type AiSdkModelMethodMap = Record<AiSdkModelType, keyof ProviderV3>
 
 export type AiSdkModelReturnMap = {
   text: LanguageModel
   image: ImageModel
-  embedding: EmbeddingModel<string>
+  embedding: EmbeddingModel
   transcription: TranscriptionModel
   speech: SpeechModel
 }
