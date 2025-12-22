@@ -27,6 +27,19 @@ import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('AssistantService')
 
+/**
+ * Default assistant settings configuration template.
+ *
+ * **Important**: This defines the DEFAULT VALUES for assistant settings, NOT the current settings
+ * of the default assistant. To get the actual settings of the default assistant, use `getDefaultAssistantSettings()`.
+ *
+ * Provides sensible defaults for all assistant settings with a focus on minimal parameter usage:
+ * - **Temperature disabled**: Use provider defaults by default
+ * - **MaxTokens disabled**: Use provider defaults by default
+ * - **TopP disabled**: Use provider defaults by default
+ * - **Streaming enabled**: Provides real-time response for better UX
+ * - **Standard context count**: Balanced memory usage and conversation length
+ */
 export const DEFAULT_ASSISTANT_SETTINGS = {
   maxTokens: DEFAULT_MAX_TOKENS,
   enableMaxTokens: false,
@@ -59,6 +72,17 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
+/**
+ * Creates a default translate assistant.
+ *
+ * **Important**: Uses the CURRENT SETTINGS of the default assistant (not DEFAULT_ASSISTANT_SETTINGS template)
+ * to inherit user preferences, then applies translation-specific overrides.
+ *
+ * @param targetLanguage - Target language for translation
+ * @param text - Text to be translated
+ * @param _settings - Optional settings to override default assistant settings
+ * @returns Configured translate assistant
+ */
 export function getDefaultTranslateAssistant(
   targetLanguage: TranslateLanguage,
   text: string,
