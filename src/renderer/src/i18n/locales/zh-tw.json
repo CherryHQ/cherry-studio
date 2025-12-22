@@ -4662,11 +4662,12 @@
         },
         "image_provider": "OCR 服務供應商",
         "paddleocr": {
-          "aistudio_access_token": "星河社群存取權杖",
+          "aistudio_access_token": "星河社區訪問令牌",
           "aistudio_url_label": "星河社群",
           "api_url": "API 網址",
+          "api_url_label": "取得訪問令牌及 API 網址",
           "serving_doc_url_label": "PaddleOCR 服務化部署文件",
-          "tip": "請您前往 PaddleOCR 官網（https://aistudio.baidu.com/paddleocr/task）的 API 調用示例中，取得星河社群存取權杖及 API_URL。"
+          "tip": "點擊下方「取得訪問令牌及 API URL」進入，然後點選左上角的「API」，選擇「文字辨識（PP-OCRv5）」，並複製 `API_URL` 及 `TOKEN`。"
         },
         "system": {
           "win": {
@@ -4680,10 +4681,11 @@
       },
       "preprocess": {
         "paddleocr": {
-          "aistudio_access_token": "星河社群存取權杖",
-          "aistudio_url_label": "星河社群",
-          "api_doc_url_label": "PaddleOCR API文件",
-          "api_url": "API 網址"
+          "aistudio_access_token": "星河社區訪問令牌",
+          "api_url": "API 網址",
+          "api_url_label": "取得訪問令牌及 API 網址",
+          "paddleocr_url_label": "PaddleOCR 官方網站",
+          "tip": "點擊下方「取得訪問令牌及 API URL」進入，然後點選左上角的「API」，選擇「文件解析（PP-StructureV3）」或「大型模型文件解析（PaddleOCR-VL）」，並複製 `API_URL` 及 `TOKEN`。"
         },
         "provider": "文件處理供應商",
         "provider_placeholder": "選擇一個文件處理供應商",

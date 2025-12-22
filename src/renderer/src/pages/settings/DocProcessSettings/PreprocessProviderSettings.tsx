@@ -125,6 +125,9 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
                 {t('settings.provider.get_api_key')}
               </SettingHelpLink>
               <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+              <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                {t('settings.provider.get_api_key')}
+              </SettingHelpLink>
             </SettingHelpTextRow>
           )}
         </>
@@ -151,13 +154,15 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
           </Flex>
           {preprocessProvider.id === 'paddleocr' && (
             <SettingHelpTextRow style={{ display: 'flex', flexDirection: 'column' }}>
-              <SettingHelpText style={{ marginBottom: 5 }}>{t('settings.tool.ocr.paddleocr.tip')}</SettingHelpText>
+              <SettingHelpText style={{ marginBottom: 5 }}>
+                {t('settings.tool.preprocess.paddleocr.tip')}
+              </SettingHelpText>
               <div style={{ display: 'flex', gap: 12 }}>
-                <SettingHelpLink target="_blank" href="https://ai.baidu.com/ai-doc/AISTUDIO/Kmfl2ycs0">
-                  {t('settings.tool.preprocess.paddleocr.api_doc_url_label')}
+                <SettingHelpLink target="_blank" href="https://aistudio.baidu.com/paddleocr">
+                  {t('settings.tool.preprocess.paddleocr.paddleocr_url_label')}
                 </SettingHelpLink>
-                <SettingHelpLink target="_blank" href="https://aistudio.baidu.com/aistudio/personalcenter/ak">
-                  {t('settings.tool.ocr.paddleocr.aistudio_url_label')}
+                <SettingHelpLink target="_blank" href="https://aistudio.baidu.com/paddleocr/task">
+                  {t('settings.tool.preprocess.paddleocr.api_url_label')}
                 </SettingHelpLink>
               </div>
             </SettingHelpTextRow>

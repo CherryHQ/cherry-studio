@@ -4664,9 +4664,10 @@
         "paddleocr": {
           "aistudio_access_token": "Access token of AI Studio Community",
           "aistudio_url_label": "AI Studio Community",
-          "api_doc_url_label": "PaddleOCR API Documentation",
           "api_url": "API URL",
-          "tip": "Please visit the PaddleOCR official website (https://aistudio.baidu.com/paddleocr/task) and obtain the Access token of AI Studio Community and API_URL from the API call examples section."
+          "api_url_label": "Obtain Access Token and API URL",
+          "serving_doc_url_label": "PaddleOCR Service Deployment Documentation",
+          "tip": "Click “Get Access Token and API URL” below to proceed, then click “API” in the upper-left corner, select “Optical Character Recognition (PP-OCRv5),” and copy the `API_URL` and `TOKEN`."
         },
         "system": {
           "win": {
@@ -4681,9 +4682,10 @@
       "preprocess": {
         "paddleocr": {
           "aistudio_access_token": "Access token of AI Studio Community",
-          "aistudio_url_label": "AI Studio Community",
           "api_url": "API URL",
-          "serving_doc_url_label": "PaddleOCR Serving Documentation"
+          "api_url_label": "Obtain Access Token and API URL",
+          "paddleocr_url_label": "PaddleOCR Official Website",
+          "tip": "Click “Get Access Token and API URL” below to proceed, then click “API” in the upper-left corner, select either “Document Parsing (PP-StructureV3)” or “Large-Model Document Parsing (PaddleOCR-VL),” and copy the `API_URL` and `TOKEN`."
         },
         "provider": "Document Processing Provider",
         "provider_placeholder": "Choose a document processing provider",

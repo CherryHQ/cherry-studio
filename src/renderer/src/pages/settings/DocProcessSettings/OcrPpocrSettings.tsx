@@ -11,7 +11,7 @@ export const OcrPpocrSettings = () => {
   // Hack: Hard-coded for now
   const SERVING_DOC_URL = 'https://www.paddleocr.ai/latest/version3.x/deployment/serving.html'
   const AISTUDIO_URL = 'https://aistudio.baidu.com/pipeline/mine'
-
+  const API_URL = 'https://aistudio.baidu.com/paddleocr/task'
   const { t } = useTranslation()
   const { provider, updateConfig } = useOcrProvider(BuiltinOcrProviderIds.paddleocr)
 
@@ -75,6 +75,9 @@ export const OcrPpocrSettings = () => {
           </SettingHelpLink>
           <SettingHelpLink target="_blank" href={AISTUDIO_URL}>
             {t('settings.tool.ocr.paddleocr.aistudio_url_label')}
+          </SettingHelpLink>
+          <SettingHelpLink target="_blank" href={API_URL}>
+            {t('settings.tool.ocr.paddleocr.api_url_label')}
           </SettingHelpLink>
         </div>
       </SettingHelpTextRow>
