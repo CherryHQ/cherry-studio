@@ -193,16 +193,16 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   return {
     contextCount: contextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : contextCount,
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
-    enableTemperature: assistant?.settings?.enableTemperature ?? false,
-    topP: assistant?.settings?.topP ?? 1,
-    enableTopP: assistant?.settings?.enableTopP ?? false,
-    enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
+    enableTemperature: assistant?.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature,
+    topP: assistant?.settings?.topP ?? DEFAULT_ASSISTANT_SETTINGS.topP,
+    enableTopP: assistant?.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP,
+    enableMaxTokens: assistant?.settings?.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens,
     maxTokens: getAssistantMaxTokens(),
-    streamOutput: assistant?.settings?.streamOutput ?? true,
-    toolUseMode: assistant?.settings?.toolUseMode ?? 'function',
-    defaultModel: assistant?.defaultModel ?? undefined,
-    reasoning_effort: assistant?.settings?.reasoning_effort ?? 'default',
-    customParameters: assistant?.settings?.customParameters ?? []
+    streamOutput: assistant?.settings?.streamOutput ?? DEFAULT_ASSISTANT_SETTINGS.streamOutput,
+    toolUseMode: assistant?.settings?.toolUseMode ?? DEFAULT_ASSISTANT_SETTINGS.toolUseMode,
+    defaultModel: assistant?.defaultModel ?? DEFAULT_ASSISTANT_SETTINGS.defaultModel,
+    reasoning_effort: assistant?.settings?.reasoning_effort ?? DEFAULT_ASSISTANT_SETTINGS.reasoning_effort,
+    customParameters: assistant?.settings?.customParameters ?? DEFAULT_ASSISTANT_SETTINGS.customParameters
   }
 }
 
