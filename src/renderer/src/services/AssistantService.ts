@@ -58,6 +58,20 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   toolUseMode: 'function'
 } as const satisfies AssistantSettings
 
+/**
+ * Creates a temporary default assistant instance.
+ *
+ * **Important**: This creates a NEW temporary assistant instance with DEFAULT_ASSISTANT_SETTINGS,
+ * NOT the actual default assistant from Redux store. This is used as a template for creating
+ * new assistants or as a fallback when no assistant is specified.
+ *
+ * To get the actual default assistant from Redux store (with current user settings), use:
+ * ```typescript
+ * const defaultAssistant = store.getState().assistants.defaultAssistant
+ * ```
+ *
+ * @returns New temporary assistant instance with default settings
+ */
 export function getDefaultAssistant(): Assistant {
   return {
     id: 'default',
