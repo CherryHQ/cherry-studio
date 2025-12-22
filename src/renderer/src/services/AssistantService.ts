@@ -28,19 +28,21 @@ import { uuid } from '@renderer/utils'
 const logger = loggerService.withContext('AssistantService')
 
 export const DEFAULT_ASSISTANT_SETTINGS = {
+  maxTokens: DEFAULT_MAX_TOKENS,
+  enableMaxTokens: false,
   temperature: DEFAULT_TEMPERATURE,
   enableTemperature: false,
-  contextCount: DEFAULT_CONTEXTCOUNT,
-  enableMaxTokens: false,
-  maxTokens: DEFAULT_MAX_TOKENS,
-  streamOutput: true,
   topP: 1,
   enableTopP: false,
+  contextCount: DEFAULT_CONTEXTCOUNT,
+  streamOutput: true,
   defaultModel: undefined,
-  // It would gracefully fallback to prompt if not supported by model.
-  toolUseMode: 'function',
   customParameters: [],
-  reasoning_effort: 'default'
+  reasoning_effort: 'default',
+  reasoning_effort_cache: undefined,
+  qwenThinkMode: undefined,
+  // It would gracefully fallback to prompt if not supported by model.
+  toolUseMode: 'function'
 } as const satisfies AssistantSettings
 
 export function getDefaultAssistant(): Assistant {
