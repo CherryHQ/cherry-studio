@@ -4,9 +4,10 @@ import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { TopView } from '@renderer/components/TopView'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Flex, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
@@ -81,18 +82,7 @@ const AssistantSettings: FC = () => {
     setToolUseMode('function')
     updateDefaultAssistant({
       ...defaultAssistant,
-      settings: {
-        ...defaultAssistant.settings,
-        temperature: DEFAULT_TEMPERATURE,
-        enableTemperature: false,
-        contextCount: DEFAULT_CONTEXTCOUNT,
-        enableMaxTokens: false,
-        maxTokens: DEFAULT_MAX_TOKENS,
-        streamOutput: true,
-        topP: 1,
-        enableTopP: false,
-        toolUseMode: 'function'
-      }
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS }
     })
   }
 
