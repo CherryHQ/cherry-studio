@@ -4756,6 +4756,12 @@
       },
       "title": "其他设置",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} 需要 API 密钥才能使用。是否现在去配置？",
+          "ok": "去配置",
+          "title": "需要 API 密钥"
+        },
+        "api_providers": "API 服务商",
         "apikey": "API 密钥",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
@@ -4797,7 +4803,15 @@
         },
         "content_limit": "内容长度限制",
         "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
+        "default_provider": "默认搜索引擎",
         "free": "免费",
+        "is_default": "默认搜索",
+        "local_provider": {
+          "hint": "登录网站可以获得更好的搜索结果，也可以对搜索进行个性化设置。",
+          "open_settings": "打开 {{provider}} 设置",
+          "settings": "本地搜索设置"
+        },
+        "local_providers": "本地搜索",
         "no_provider_selected": "请选择搜索服务商后再检测",
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
@@ -4808,6 +4822,7 @@
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
         "search_with_time": "搜索包含日期",
+        "set_as_default": "设为默认",
         "subscribe": "黑名单订阅",
         "subscribe_add": "添加订阅",
         "subscribe_add_failed": "订阅源添加失败",

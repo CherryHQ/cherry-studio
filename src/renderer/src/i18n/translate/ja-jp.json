@@ -4756,6 +4756,12 @@
       },
       "title": "その他の設定",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}}はAPIキーが必要です。今すぐ設定しますか？",
+          "ok": "設定",
+          "title": "APIキーが必要"
+        },
+        "api_providers": "APIプロバイダー",
         "apikey": "APIキー",
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
@@ -4797,7 +4803,15 @@
         },
         "content_limit": "コンテンツ制限",
         "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
+        "default_provider": "デフォルトプロバイダー",
         "free": "無料",
+        "is_default": "[to be translated]:Default",
+        "local_provider": {
+          "hint": "ウェブサイトにログインして、より良い検索結果を得て、検索設定をパーソナライズしてください。",
+          "open_settings": "{{provider}}設定を開く",
+          "settings": "ローカル検索設定"
+        },
+        "local_providers": "地元のプロバイダー",
         "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
         "overwrite": "検索サービスを上書き",
         "overwrite_tooltip": "LLMの代わりに検索サービスを強制的に使用する",
@@ -4808,6 +4822,7 @@
         "search_provider": "検索サービスプロバイダー",
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
         "search_with_time": "日付を含む検索",
+        "set_as_default": "[to be translated]:Set as Default",
         "subscribe": "ブラックリスト購読",
         "subscribe_add": "購読を追加",
         "subscribe_add_failed": "購読ソースの追加に失敗しました",

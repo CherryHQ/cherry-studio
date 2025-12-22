@@ -4756,6 +4756,12 @@
       },
       "title": "Other Settings",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} requires an API key to work. Would you like to configure it now?",
+          "ok": "Configure",
+          "title": "API Key Required"
+        },
+        "api_providers": "API Providers",
         "apikey": "API key",
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
@@ -4797,7 +4803,15 @@
         },
         "content_limit": "Content length limit",
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
+        "default_provider": "Default Provider",
         "free": "Free",
+        "is_default": "Default",
+        "local_provider": {
+          "hint": "Log in to the website to get better search results and personalize your search settings.",
+          "open_settings": "Open {{provider}} Settings",
+          "settings": "Local Search Settings"
+        },
+        "local_providers": "Local Providers",
         "no_provider_selected": "Please select a search service provider before checking.",
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",
@@ -4808,6 +4822,7 @@
         "search_provider": "Search service provider",
         "search_provider_placeholder": "Choose a search service provider.",
         "search_with_time": "Search with dates included",
+        "set_as_default": "Set as Default",
         "subscribe": "Blacklist Subscription",
         "subscribe_add": "Add Subscription",
         "subscribe_add_failed": "Failed to add feed source",
