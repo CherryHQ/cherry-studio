@@ -91,16 +91,24 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
-            {t('settings.provider.api_key.label')}
-            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-              <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
-            </Tooltip>
+            {preprocessProvider.id === 'paddleocr'
+              ? t('settings.tool.preprocess.paddleocr.aistudio_access_token')
+              : t('settings.provider.api_key.label')}
+            {preprocessProvider.id !== 'paddleocr' && (
+              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+                <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+              </Tooltip>
+            )}
           </SettingSubtitle>
           <Flex gap={8}>
             <Input.Password
               value={apiKey}
               placeholder={
-                preprocessProvider.id === 'mineru' ? t('settings.mineru.api_key') : t('settings.provider.api_key.label')
+                preprocessProvider.id === 'mineru'
+                  ? t('settings.mineru.api_key')
+                  : preprocessProvider.id === 'paddleocr'
+                    ? t('settings.tool.preprocess.paddleocr.aistudio_access_token')
+                    : t('settings.provider.api_key.label')
               }
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
@@ -109,28 +117,51 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               autoFocus={apiKey === ''}
             />
           </Flex>
-          <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.provider.get_api_key')}
-            </SettingHelpLink>
-            <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
-          </SettingHelpTextRow>
+          {preprocessProvider.id === 'paddleocr' ? (
+            <SettingHelpTextRow style={{ marginTop: 5, gap: 8 }}></SettingHelpTextRow>
+          ) : (
+            <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
+              <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                {t('settings.provider.get_api_key')}
+              </SettingHelpLink>
+              <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+            </SettingHelpTextRow>
+          )}
         </>
       )}
 
       {hasObjectKey(preprocessProvider, 'apiHost') && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
-            {t('settings.provider.api_host')}
+            {preprocessProvider.id === 'paddleocr'
+              ? t('settings.tool.preprocess.paddleocr.api_url')
+              : t('settings.provider.api_host')}
           </SettingSubtitle>
           <Flex>
             <Input
               value={apiHost}
-              placeholder={t('settings.provider.api_host')}
+              placeholder={
+                preprocessProvider.id === 'paddleocr'
+                  ? t('settings.tool.preprocess.paddleocr.api_url')
+                  : t('settings.provider.api_host')
+              }
               onChange={(e) => setApiHost(e.target.value)}
               onBlur={onUpdateApiHost}
             />
           </Flex>
+          {preprocessProvider.id === 'paddleocr' && (
+            <SettingHelpTextRow style={{ display: 'flex', flexDirection: 'column' }}>
+              <SettingHelpText style={{ marginBottom: 5 }}>{t('settings.tool.ocr.paddleocr.tip')}</SettingHelpText>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <SettingHelpLink target="_blank" href="https://ai.baidu.com/ai-doc/AISTUDIO/Kmfl2ycs0">
+                  {t('settings.tool.preprocess.paddleocr.api_doc_url_label')}
+                </SettingHelpLink>
+                <SettingHelpLink target="_blank" href="https://aistudio.baidu.com/aistudio/personalcenter/ak">
+                  {t('settings.tool.ocr.paddleocr.aistudio_url_label')}
+                </SettingHelpLink>
+              </div>
+            </SettingHelpTextRow>
+          )}
         </>
       )}
 

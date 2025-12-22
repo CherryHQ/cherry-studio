@@ -4664,9 +4664,9 @@
         "paddleocr": {
           "aistudio_access_token": "Access token of AI Studio Community",
           "aistudio_url_label": "AI Studio Community",
+          "api_doc_url_label": "PaddleOCR API Documentation",
           "api_url": "API URL",
-          "serving_doc_url_label": "PaddleOCR Serving Documentation",
-          "tip": "You can refer to the official PaddleOCR documentation to deploy a local service, or deploy a cloud service on the PaddlePaddle AI Studio Community. For the latter case, please provide the access token of the AI Studio Community."
+          "tip": "Please visit the PaddleOCR official website (https://aistudio.baidu.com/paddleocr/task) and obtain the Access token of AI Studio Community and API_URL from the API call examples section."
         },
         "system": {
           "win": {
@@ -4679,6 +4679,12 @@
         "title": "OCR service"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "Access token of AI Studio Community",
+          "aistudio_url_label": "AI Studio Community",
+          "api_url": "API URL",
+          "serving_doc_url_label": "PaddleOCR Serving Documentation"
+        },
         "provider": "Document Processing Provider",
         "provider_placeholder": "Choose a document processing provider",
         "title": "Document Processing",

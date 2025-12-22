@@ -3017,7 +3017,16 @@ const migrateConfig = {
       logger.error('migrate 184 error', error as Error)
       return state
     }
-  }
+  },
+  '185': (state: RootState) => {
+    try {
+      addPreprocessProviders(state, 'paddleocr')
+      return state
+    } catch (error) {
+      logger.error('migrate 185 error', error as Error)
+      return state
+    }
+  },
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer
