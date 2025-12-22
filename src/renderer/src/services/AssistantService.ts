@@ -75,9 +75,6 @@ export function getDefaultAssistant(): Assistant {
 /**
  * Creates a default translate assistant.
  *
- * **Important**: Uses the CURRENT SETTINGS of the default assistant (not DEFAULT_ASSISTANT_SETTINGS template)
- * to inherit user preferences, then applies translation-specific overrides.
- *
  * @param targetLanguage - Target language for translation
  * @param text - Text to be translated
  * @param _settings - Optional settings to override default assistant settings
@@ -133,6 +130,17 @@ export function getDefaultTranslateAssistant(
   return translateAssistant
 }
 
+/**
+ * Gets the CURRENT SETTINGS of the default assistant.
+ *
+ * **Important**: This returns the actual current settings of the default assistant (user-configured),
+ * NOT the DEFAULT_ASSISTANT_SETTINGS template. The settings may have been modified by the user
+ * from their initial default values.
+ *
+ * To get the template of default values, use DEFAULT_ASSISTANT_SETTINGS directly.
+ *
+ * @returns Current settings of the default assistant from store state
+ */
 export function getDefaultAssistantSettings() {
   return store.getState().assistants.defaultAssistant.settings
 }
