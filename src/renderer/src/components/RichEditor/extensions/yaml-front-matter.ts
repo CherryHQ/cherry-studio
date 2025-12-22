@@ -1,4 +1,4 @@
-import { mergeAttributes, Node } from '@tiptap/core'
+import { type MarkdownToken,mergeAttributes, Node } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 
 import YamlFrontMatterNodeView from '../components/YamlFrontMatterNodeView'
@@ -27,7 +27,12 @@ export const YamlFrontMatter = Node.create({
       return result
     },
     // Parse YAML front matter
-    tokenize(src: string) {
+    tokenize(src: string, tokens: MarkdownToken[] = []) {
+      const hasExistingContent = tokens.some((token) => token.type && token.type !== 'space')
+      if (hasExistingContent) {
+        return undefined
+      }
+
       // Match: ---\n...yaml content...\n---
       const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(src)
 
