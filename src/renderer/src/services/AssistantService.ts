@@ -165,6 +165,18 @@ export function getProviderByModelId(modelId?: string) {
   return providers.find((p) => p.models.find((m) => m.id === _modelId)) as Provider
 }
 
+/**
+ * Retrieves and normalizes assistant settings with special transformation handling.
+ *
+ * **Special Transformations:**
+ * 1. **Context Count**: Converts `MAX_CONTEXT_COUNT` to `UNLIMITED_CONTEXT_COUNT` for internal processing
+ * 2. **Max Tokens**: Only returns a value when `enableMaxTokens` is true, otherwise returns `undefined`
+ * 3. **Max Tokens Validation**: Ensures maxTokens > 0, falls back to `DEFAULT_MAX_TOKENS` if invalid
+ * 4. **Fallback Defaults**: Applies system defaults for all undefined/missing settings
+ *
+ * @param assistant - The assistant instance to extract settings from
+ * @returns Normalized assistant settings with all transformations applied
+ */
 export const getAssistantSettings = (assistant: Assistant): AssistantSettings => {
   const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
   const getAssistantMaxTokens = () => {
