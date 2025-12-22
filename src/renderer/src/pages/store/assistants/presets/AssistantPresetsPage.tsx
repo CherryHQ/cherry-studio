@@ -1,7 +1,6 @@
 import { Button, ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ListItem from '@renderer/components/ListItem'
-import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
@@ -11,7 +10,7 @@ import type { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Empty, Input } from 'antd'
 import { omit } from 'lodash'
-import { Import, Plus, Rss, Search, Settings2 } from 'lucide-react'
+import { Import, Plus, Search, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,7 +22,6 @@ import { groupTranslations } from './assistantPresetGroupTranslations'
 import AddAssistantPresetPopup from './components/AddAssistantPresetPopup'
 import AssistantPresetCard from './components/AssistantPresetCard'
 import { AssistantPresetGroupIcon } from './components/AssistantPresetGroupIcon'
-import AssistantsSubscribeUrlSettings from './components/AssistantsSubscribeUrlSettings'
 import ImportAssistantPresetPopup from './components/ImportAssistantPresetPopup'
 import ManageAssistantPresetsPopup from './components/ManageAssistantPresetsPopup'
 
@@ -177,15 +175,6 @@ const AssistantPresetsPage: FC = () => {
     }
   }
 
-  const handleSubscribeSettings = () => {
-    GeneralPopup.show({
-      title: t('assistants.presets.settings.title'),
-      content: <AssistantsSubscribeUrlSettings />,
-      footer: null,
-      width: 600
-    })
-  }
-
   const handleManageAgents = () => {
     ManageAssistantPresetsPopup.show()
   }
@@ -290,10 +279,6 @@ const AssistantPresetsPage: FC = () => {
               <Button variant="ghost" onClick={handleImportAgent}>
                 <Import size={18} color="var(--color-icon)" />
                 {t('assistants.presets.import.title')}
-              </Button>
-              <Button variant="ghost" onClick={handleSubscribeSettings}>
-                <Rss size={18} color="var(--color-icon)" />
-                {t('assistants.presets.settings.title')}
               </Button>
               <Button variant="ghost" onClick={handleManageAgents}>
                 <Settings2 size={18} color="var(--color-icon)" />
