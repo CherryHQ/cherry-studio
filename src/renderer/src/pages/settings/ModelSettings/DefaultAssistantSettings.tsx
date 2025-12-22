@@ -84,7 +84,7 @@ const AssistantSettings: FC = () => {
       settings: {
         ...defaultAssistant.settings,
         temperature: DEFAULT_TEMPERATURE,
-        enableTemperature: true,
+        enableTemperature: false,
         contextCount: DEFAULT_CONTEXTCOUNT,
         enableMaxTokens: false,
         maxTokens: DEFAULT_MAX_TOKENS,

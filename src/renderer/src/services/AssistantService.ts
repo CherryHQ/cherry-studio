@@ -27,9 +27,9 @@ import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('AssistantService')
 
-export const DEFAULT_ASSISTANT_SETTINGS = {
+export const DEFAULT_ASSISTANT_SETTINGS: Assistant['settings'] = {
   temperature: DEFAULT_TEMPERATURE,
-  enableTemperature: true,
+  enableTemperature: false,
   contextCount: DEFAULT_CONTEXTCOUNT,
   enableMaxTokens: false,
   maxTokens: 0,
@@ -181,7 +181,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   return {
     contextCount: contextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : contextCount,
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
-    enableTemperature: assistant?.settings?.enableTemperature ?? true,
+    enableTemperature: assistant?.settings?.enableTemperature ?? false,
     topP: assistant?.settings?.topP ?? 1,
     enableTopP: assistant?.settings?.enableTopP ?? false,
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
