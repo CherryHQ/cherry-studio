@@ -396,10 +396,12 @@ function buildOpenAIProviderOptions(
     }
   }
 
+  // TODO: 支持配置是否在服务端持久化
   providerOptions = {
     ...providerOptions,
     serviceTier,
-    textVerbosity
+    textVerbosity,
+    store: false
   }
 
   return {
