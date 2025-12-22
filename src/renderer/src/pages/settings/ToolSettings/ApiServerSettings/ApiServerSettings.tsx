@@ -123,10 +123,6 @@ const ApiServerSettings: FC = () => {
         )}
       </HeaderSection>
 
-      {!apiServerRunning && (
-        <Alert type="warning" message={t('agent.warning.enable_server')} style={{ marginBottom: 10 }} showIcon />
-      )}
-
       {/* Server Control Panel with integrated configuration */}
       <ServerControlPanel $status={apiServerRunning}>
         <StatusSection>
@@ -194,6 +190,7 @@ const ApiServerSettings: FC = () => {
           </ToggleText>
           <Switch checked={autoStartOnLaunch} onChange={handleAutoStartChange} disabled={autoStartOnLaunchLoading} />
         </ToggleRow>
+        {!apiServerRunning && <Alert type="warning" message={t('agent.warning.enable_server')} showIcon />}
       </ConfigurationField>
 
       {/* API Key Configuration */}

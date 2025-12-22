@@ -314,7 +314,7 @@
       }
     },
     "warning": {
-      "enable_server": "请启用 API 服务器以使用智能体功能"
+      "enable_server": "API 服务器停止时，Agent 功能将不可用"
     }
   },
   "apiServer": {

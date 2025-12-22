@@ -314,7 +314,7 @@
       }
     },
     "warning": {
-      "enable_server": "啟用 API 伺服器以使用 Agent。"
+      "enable_server": "API 伺服器停止時，Agent 功能將不可用"
     }
   },
   "apiServer": {
