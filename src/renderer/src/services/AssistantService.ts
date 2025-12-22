@@ -32,7 +32,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableTemperature: false,
   contextCount: DEFAULT_CONTEXTCOUNT,
   enableMaxTokens: false,
-  maxTokens: 0,
+  maxTokens: DEFAULT_MAX_TOKENS,
   streamOutput: true,
   topP: 1,
   enableTopP: false,
