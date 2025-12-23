@@ -114,12 +114,6 @@ const SettingsPage: FC = () => {
               {t('settings.tool.preprocess.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/notes">
-            <MenuItem className={isRoute('/settings/notes')}>
-              <NotebookPen size={18} />
-              {t('notes.settings.title')}
-            </MenuItem>
-          </MenuItemLink>
           <MenuItemLink to="/settings/quickphrase">
             <MenuItem className={isRoute('/settings/quickphrase')}>
               <Zap size={18} />
