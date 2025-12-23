@@ -2,7 +2,7 @@ import type { LanguageModelV2Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 export * from './file'
 export * from './note'
@@ -499,13 +499,21 @@ export type AppInfo = {
   installPath: string
 }
 
+export interface SelectorOption<V = string> {
+  label: string | ReactNode
+  value: V
+  type?: 'group'
+  options?: SelectorOption<V>[]
+  disabled?: boolean
+}
+
 export interface Shortcut {
   key: string
   shortcut: string[]
   editable: boolean
   enabled: boolean
   system: boolean
-  isSelector?: boolean
+  options?: SelectorOption[]
 }
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'

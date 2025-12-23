@@ -11,6 +11,7 @@ import { useAppDispatch } from '@renderer/store'
 import type { SendMessageShortcut } from '@renderer/store/settings'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import type { Shortcut } from '@renderer/types'
+import { formatShortcut } from '@renderer/utils/input'
 import type { InputRef } from 'antd'
 import { Button, Input, Switch, Table as AntTable, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -94,77 +95,6 @@ const ShortcutSettings: FC = () => {
     return shortcuts.some(
       (s) => s.key !== currentKey && s.shortcut.length > 0 && s.shortcut.join('+') === newShortcut.join('+')
     )
-  }
-
-  // how the shortcut is displayed in the UI
-  const formatShortcut = (shortcut: string[]): string => {
-    return shortcut
-      .map((key) => {
-        switch (key) {
-          // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
-          // case 'Control':
-          //   return isMac ? '⌃' : 'Ctrl'
-          // case 'Ctrl':
-          //   return isMac ? '⌃' : 'Ctrl'
-          // case 'Command':
-          //   return isMac ? '⌘' : isWin ? 'Win' : 'Super'
-          // case 'Alt':
-          //   return isMac ? '⌥' : 'Alt'
-          // case 'Shift':
-          //   return isMac ? '⇧' : 'Shift'
-          // case 'CommandOrControl':
-          //   return isMac ? '⌘' : 'Ctrl'
-
-          // new way for modifier keys
-          case 'CommandOrControl':
-            return isMac ? '⌘' : 'Ctrl'
-          case 'Ctrl':
-            return isMac ? '⌃' : 'Ctrl'
-          case 'Alt':
-            return isMac ? '⌥' : 'Alt'
-          case 'Meta':
-            return isMac ? '⌘' : isWin ? 'Win' : 'Super'
-          case 'Shift':
-            return isMac ? '⇧' : 'Shift'
-
-          // for backward compatibility with old data
-          case 'Command':
-          case 'Cmd':
-            return isMac ? '⌘' : 'Ctrl'
-          case 'Control':
-            return isMac ? '⌃' : 'Ctrl'
-
-          case 'ArrowUp':
-            return '↑'
-          case 'ArrowDown':
-            return '↓'
-          case 'ArrowLeft':
-            return '←'
-          case 'ArrowRight':
-            return '→'
-          case 'Slash':
-            return '/'
-          case 'Semicolon':
-            return ';'
-          case 'BracketLeft':
-            return '['
-          case 'BracketRight':
-            return ']'
-          case 'Backslash':
-            return '\\'
-          case 'Quote':
-            return "'"
-          case 'Comma':
-            return ','
-          case 'Minus':
-            return '-'
-          case 'Equal':
-            return '='
-          default:
-            return key.charAt(0).toUpperCase() + key.slice(1)
-        }
-      })
-      .join(' + ')
   }
 
   const usableEndKeys = (event: React.KeyboardEvent): string | null => {
@@ -373,7 +303,8 @@ const ShortcutSettings: FC = () => {
         const isEditing = editingKey === record.key
         const shortcutConfig = shortcuts.find((s) => s.key === record.key)
         const isEditable = shortcutConfig?.editable !== false
-        const isSelector = !!shortcutConfig?.isSelector
+        const isSelector = !!shortcutConfig?.options?.length
+        const options = shortcutConfig?.options || []
 
         return (
           <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -383,13 +314,7 @@ const ShortcutSettings: FC = () => {
                   <Selector
                     value={shortcut.join('+')}
                     onChange={(value) => handleKeyChange(value, record)}
-                    options={[
-                      { value: 'Enter', label: formatShortcut(['Enter']) },
-                      { value: 'Ctrl+Enter', label: formatShortcut(['Ctrl', 'Enter']) },
-                      { value: 'Alt+Enter', label: formatShortcut(['Alt', 'Enter']) },
-                      { value: 'Command+Enter', label: formatShortcut(['Command', 'Enter']) },
-                      { value: 'Shift+Enter', label: formatShortcut(['Shift', 'Enter']) }
-                    ]}
+                    options={options}
                   />
                 ) : (
                   <ShortcutInput

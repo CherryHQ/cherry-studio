@@ -110,3 +110,74 @@ export const isSendMessageKeyPressed = (
   }
   return isSendMessageKeyPressed
 }
+
+// how the shortcut is displayed in the UI
+export const formatShortcut = (shortcut: string[]): string => {
+  return shortcut
+    .map((key) => {
+      switch (key) {
+        // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
+        // case 'Control':
+        //   return isMac ? '⌃' : 'Ctrl'
+        // case 'Ctrl':
+        //   return isMac ? '⌃' : 'Ctrl'
+        // case 'Command':
+        //   return isMac ? '⌘' : isWin ? 'Win' : 'Super'
+        // case 'Alt':
+        //   return isMac ? '⌥' : 'Alt'
+        // case 'Shift':
+        //   return isMac ? '⇧' : 'Shift'
+        // case 'CommandOrControl':
+        //   return isMac ? '⌘' : 'Ctrl'
+
+        // new way for modifier keys
+        case 'CommandOrControl':
+          return isMac ? '⌘' : 'Ctrl'
+        case 'Ctrl':
+          return isMac ? '⌃' : 'Ctrl'
+        case 'Alt':
+          return isMac ? '⌥' : 'Alt'
+        case 'Meta':
+          return isMac ? '⌘' : isWin ? 'Win' : 'Super'
+        case 'Shift':
+          return isMac ? '⇧' : 'Shift'
+
+        // for backward compatibility with old data
+        case 'Command':
+        case 'Cmd':
+          return isMac ? '⌘' : 'Ctrl'
+        case 'Control':
+          return isMac ? '⌃' : 'Ctrl'
+
+        case 'ArrowUp':
+          return '↑'
+        case 'ArrowDown':
+          return '↓'
+        case 'ArrowLeft':
+          return '←'
+        case 'ArrowRight':
+          return '→'
+        case 'Slash':
+          return '/'
+        case 'Semicolon':
+          return ';'
+        case 'BracketLeft':
+          return '['
+        case 'BracketRight':
+          return ']'
+        case 'Backslash':
+          return '\\'
+        case 'Quote':
+          return "'"
+        case 'Comma':
+          return ','
+        case 'Minus':
+          return '-'
+        case 'Equal':
+          return '='
+        default:
+          return key.charAt(0).toUpperCase() + key.slice(1)
+      }
+    })
+    .join(' + ')
+}
