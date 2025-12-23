@@ -1,8 +1,9 @@
-import { z } from 'zod'
+import * as z from 'zod'
+
 import type { CdpBrowserController } from '../controller'
 
 export const SwitchTabSchema = z.object({
-  sessionId: z.string().default('default').describe('Session identifier'),
+  privateMode: z.boolean().default(false).describe('If true, switch tab in private browsing session (default: false)'),
   tabId: z.string().describe('Tab identifier to switch to')
 })
 
@@ -12,10 +13,10 @@ export const switchTabToolDefinition = {
   inputSchema: {
     type: 'object',
     properties: {
-      sessionId: {
-        type: 'string',
-        description: 'Session identifier',
-        default: 'default'
+      privateMode: {
+        type: 'boolean',
+        description: 'If true, switch tab in private browsing session (default: false)',
+        default: false
       },
       tabId: {
         type: 'string',
@@ -27,10 +28,10 @@ export const switchTabToolDefinition = {
 }
 
 export async function handleSwitchTab(controller: CdpBrowserController, args: unknown) {
-  const { sessionId, tabId } = SwitchTabSchema.parse(args)
-  await controller.switchTab(sessionId, tabId)
+  const { privateMode, tabId } = SwitchTabSchema.parse(args)
+  await controller.switchTab(privateMode, tabId)
   return {
-    content: [{ type: 'text', text: JSON.stringify({ status: 'switched', tabId, sessionId }, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify({ status: 'switched', tabId, privateMode }, null, 2) }],
     isError: false
   }
 }

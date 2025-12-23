@@ -7,7 +7,10 @@ export const FetchSchema = z.object({
   url: z.url().describe('URL to fetch'),
   format: z.enum(['html', 'txt', 'markdown', 'json']).default('markdown').describe('Output format (default: markdown)'),
   timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)'),
-  sessionId: z.string().optional().describe('Session identifier (default: default)'),
+  privateMode: z
+    .boolean()
+    .optional()
+    .describe('If true, use private browsing mode where data is not persisted (default: false)'),
   tabId: z.string().optional().describe('Tab identifier; if not provided, uses active tab')
 })
 
@@ -30,9 +33,9 @@ export const fetchToolDefinition = {
         type: 'number',
         description: 'Navigation timeout in milliseconds (default: 10000)'
       },
-      sessionId: {
-        type: 'string',
-        description: 'Session identifier (default: default)'
+      privateMode: {
+        type: 'boolean',
+        description: 'If true, use private browsing mode where data is not persisted (default: false)'
       },
       tabId: {
         type: 'string',
@@ -44,9 +47,9 @@ export const fetchToolDefinition = {
 }
 
 export async function handleFetch(controller: CdpBrowserController, args: unknown) {
-  const { url, format, timeout, sessionId, tabId } = FetchSchema.parse(args)
+  const { url, format, timeout, privateMode, tabId } = FetchSchema.parse(args)
   try {
-    const content = await controller.fetch(url, format, timeout ?? 10000, sessionId ?? 'default', tabId)
+    const content = await controller.fetch(url, format, timeout ?? 10000, privateMode ?? false, tabId)
     return successResponse(typeof content === 'string' ? content : JSON.stringify(content))
   } catch (error) {
     return errorResponse(error as Error)

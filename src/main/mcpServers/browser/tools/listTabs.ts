@@ -1,8 +1,9 @@
-import { z } from 'zod'
+import * as z from 'zod'
+
 import type { CdpBrowserController } from '../controller'
 
 export const ListTabsSchema = z.object({
-  sessionId: z.string().default('default').describe('Session identifier')
+  privateMode: z.boolean().default(false).describe('If true, list tabs from private browsing session (default: false)')
 })
 
 export const listTabsToolDefinition = {
@@ -11,20 +12,20 @@ export const listTabsToolDefinition = {
   inputSchema: {
     type: 'object',
     properties: {
-      sessionId: {
-        type: 'string',
-        description: 'Session identifier',
-        default: 'default'
+      privateMode: {
+        type: 'boolean',
+        description: 'If true, list tabs from private browsing session (default: false)',
+        default: false
       }
     }
   }
 }
 
 export async function handleListTabs(controller: CdpBrowserController, args: unknown) {
-  const { sessionId } = ListTabsSchema.parse(args)
-  const tabs = await controller.listTabs(sessionId)
+  const { privateMode } = ListTabsSchema.parse(args)
+  const tabs = await controller.listTabs(privateMode)
   return {
-    content: [{ type: 'text', text: JSON.stringify({ sessionId, tabs }, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify({ privateMode, tabs }, null, 2) }],
     isError: false
   }
 }

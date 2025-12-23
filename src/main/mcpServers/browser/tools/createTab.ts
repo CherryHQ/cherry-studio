@@ -1,20 +1,24 @@
-import { z } from 'zod'
+import * as z from 'zod'
+
 import type { CdpBrowserController } from '../controller'
 
 export const CreateTabSchema = z.object({
-  sessionId: z.string().default('default').describe('Session identifier')
+  privateMode: z
+    .boolean()
+    .default(false)
+    .describe('If true, create tab in private browsing mode where data is not persisted (default: false)')
 })
 
 export const createTabToolDefinition = {
   name: 'create_tab',
-  description: 'Create a new browser tab in the specified session',
+  description: 'Create a new browser tab',
   inputSchema: {
     type: 'object',
     properties: {
-      sessionId: {
-        type: 'string',
-        description: 'Session identifier',
-        default: 'default'
+      privateMode: {
+        type: 'boolean',
+        description: 'If true, create tab in private browsing mode where data is not persisted (default: false)',
+        default: false
       }
     }
   }
@@ -22,10 +26,10 @@ export const createTabToolDefinition = {
 
 export async function handleCreateTab(controller: CdpBrowserController, args: unknown) {
   const parsed = CreateTabSchema.parse(args)
-  const sessionId = parsed.sessionId ?? 'default'
-  const { tabId } = await controller.createTab(sessionId)
+  const privateMode = parsed.privateMode ?? false
+  const { tabId } = await controller.createTab(privateMode)
   return {
-    content: [{ type: 'text', text: JSON.stringify({ tabId, sessionId }, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify({ tabId, privateMode }, null, 2) }],
     isError: false
   }
 }

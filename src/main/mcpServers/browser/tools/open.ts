@@ -6,14 +6,11 @@ import { successResponse } from './utils'
 export const OpenSchema = z.object({
   url: z.url().describe('URL to open in the controlled Electron window'),
   timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)'),
-  sessionId: z
-    .string()
+  privateMode: z
+    .boolean()
     .optional()
-    .describe('Session identifier; separate sessions keep separate pages (default: default)'),
-  tabId: z
-    .string()
-    .optional()
-    .describe('Tab identifier; if not provided, uses active tab or creates new one')
+    .describe('If true, use private browsing mode where data is not persisted (default: false)'),
+  tabId: z.string().optional().describe('Tab identifier; if not provided, uses active tab or creates new one')
 })
 
 export const openToolDefinition = {
@@ -30,9 +27,9 @@ export const openToolDefinition = {
         type: 'number',
         description: 'Navigation timeout in milliseconds (default 10000)'
       },
-      sessionId: {
-        type: 'string',
-        description: 'Session identifier; separate sessions keep separate pages (default: default)'
+      privateMode: {
+        type: 'boolean',
+        description: 'If true, use private browsing mode where data is not persisted (default: false)'
       },
       tabId: {
         type: 'string',
@@ -44,7 +41,7 @@ export const openToolDefinition = {
 }
 
 export async function handleOpen(controller: CdpBrowserController, args: unknown) {
-  const { url, timeout, sessionId, tabId } = OpenSchema.parse(args)
-  const res = await controller.open(url, timeout ?? 10000, sessionId ?? 'default', tabId)
+  const { url, timeout, privateMode, tabId } = OpenSchema.parse(args)
+  const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, tabId)
   return successResponse(JSON.stringify(res))
 }

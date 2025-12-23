@@ -10,7 +10,10 @@ export const ExecuteSchema = z.object({
       'JavaScript evaluated via Chrome DevTools Runtime.evaluate. Keep it short; prefer one-line with semicolons for multiple statements.'
     ),
   timeout: z.number().default(5000).describe('Timeout in milliseconds for code execution (default: 5000ms)'),
-  sessionId: z.string().optional().describe('Session identifier to target a specific page (default: default)'),
+  privateMode: z
+    .boolean()
+    .optional()
+    .describe('If true, use private browsing mode where data is not persisted (default: false)'),
   tabId: z.string().optional().describe('Tab identifier; if not provided, uses active tab')
 })
 
@@ -29,9 +32,9 @@ export const executeToolDefinition = {
         type: 'number',
         description: 'Timeout in milliseconds (default 5000)'
       },
-      sessionId: {
-        type: 'string',
-        description: 'Session identifier; targets a specific page (default: default)'
+      privateMode: {
+        type: 'boolean',
+        description: 'If true, use private browsing mode where data is not persisted (default: false)'
       },
       tabId: {
         type: 'string',
@@ -43,9 +46,9 @@ export const executeToolDefinition = {
 }
 
 export async function handleExecute(controller: CdpBrowserController, args: unknown) {
-  const { code, timeout, sessionId, tabId } = ExecuteSchema.parse(args)
+  const { code, timeout, privateMode, tabId } = ExecuteSchema.parse(args)
   try {
-    const value = await controller.execute(code, timeout, sessionId ?? 'default', tabId)
+    const value = await controller.execute(code, timeout, privateMode ?? false, tabId)
     return successResponse(typeof value === 'string' ? value : JSON.stringify(value))
   } catch (error) {
     return errorResponse(error as Error)

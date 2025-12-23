@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { BrowserWindow, BrowserView } from 'electron'
+import type { BrowserView, BrowserWindow } from 'electron'
 
 export const logger = loggerService.withContext('MCPBrowserCDP')
 export const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0) Gecko/20100101 Firefox/145.0'
@@ -13,7 +13,8 @@ export interface TabInfo {
 }
 
 export interface SessionInfo {
-  sessionId: string
+  sessionKey: string
+  privateMode: boolean
   window: BrowserWindow
   tabs: Map<string, TabInfo>
   activeTabId: string | null
