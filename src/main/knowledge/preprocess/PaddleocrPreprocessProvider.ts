@@ -45,7 +45,6 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       // 1. Read file and encode to base64
       const fileBuffer = await fs.promises.readFile(filePath)
       const fileData = fileBuffer.toString('base64')
-      console.log(fileData)
       await this.sendPreprocessProgress(sourceId, 50)
 
       // 2. Call PaddleOCR API
