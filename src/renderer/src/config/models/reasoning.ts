@@ -741,6 +741,7 @@ export const isFixedReasoningModel = (model: Model) =>
 
 // https://platform.minimaxi.com/docs/guides/text-m2-function-call#openai-sdk
 // https://docs.z.ai/guides/capabilities/thinking-mode
+// https://platform.moonshot.cn/docs/guide/use-kimi-k2-thinking-model#%E5%A4%9A%E6%AD%A5%E5%B7%A5%E5%85%B7%E8%B0%83%E7%94%A8
 const INTERVAL_THINKING_MODEL_REGEX =
   /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?$/i
 
