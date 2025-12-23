@@ -2,14 +2,6 @@ import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import type { EditorView } from '@renderer/types'
-import { Button, Input, message, Slider, Switch } from 'antd'
-import { FolderOpen } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
-
 import {
   SettingContainer,
   SettingDivider,
@@ -18,7 +10,14 @@ import {
   SettingRow,
   SettingRowTitle,
   SettingTitle
-} from '.'
+} from '@renderer/pages/settings'
+import type { EditorView } from '@renderer/types'
+import { Button, Input, message, Slider, Switch } from 'antd'
+import { FolderOpen } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 const logger = loggerService.withContext('NotesSettings')
 
@@ -92,7 +91,7 @@ const NotesSettings: FC = () => {
   const isPathChanged = tempPath !== notesPath
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingContainer theme={theme} style={{ background: 'transparent' }}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('notes.settings.data.title')}</SettingTitle>
         <SettingDivider />

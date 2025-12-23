@@ -3232,24 +3232,43 @@
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
         "lan": {
-          "auto_close_tip": "{{seconds}} 秒后自动关闭...",
-          "confirm_close_message": "文件正在传输中，关闭将中断传输。确定要强制关闭吗？",
-          "confirm_close_title": "确认关闭",
           "connected": "连接成功",
           "connection_failed": "连接失败",
-          "content": "请确保电脑和手机处于同一网络以使用局域网传输。请打开 Cherry Studio App 扫描此二维码。",
+          "content": "请确保电脑和手机处于同一网络以使用局域网传输。",
+          "device_list_title": "局域网设备列表",
+          "discovered_devices": "已发现的设备",
           "error": {
+            "file_too_large": "文件过大，最大支持 500MB",
             "init_failed": "初始化失败",
+            "invalid_file_type": "仅支持 ZIP 文件",
             "no_file": "未选择文件",
             "no_ip": "无法获取 IP 地址",
+            "not_connected": "请先完成握手连接",
             "send_failed": "发送文件失败"
           },
-          "force_close": "强制关闭",
-          "generating_qr": "正在生成二维码...",
-          "noZipSelected": "未选择压缩文件",
-          "scan_qr": "请使用手机扫码连接",
-          "selectZip": "选择压缩文件",
-          "sendZip": "开始恢复数据",
+          "file_transfer": {
+            "cancelled": "传输已取消",
+            "failed": "文件发送失败: {{message}}",
+            "progress": "发送中... {{progress}}%",
+            "success": "文件发送成功"
+          },
+          "handshake": {
+            "button": "握手测试",
+            "failed": "握手失败：{{message}}",
+            "in_progress": "正在握手...",
+            "success": "已与 {{device}} 建立握手",
+            "test_message_received": "已收到 {{device}} 的 pong 响应",
+            "test_message_sent": "已发送 hello world 测试数据"
+          },
+          "idle_hint": "扫描已暂停。开始扫描以发现局域网中的 Cherry Studio 设备。",
+          "ip_addresses": "IP 地址",
+          "last_seen": "最后活动：{{time}}",
+          "metadata": "元数据",
+          "no_connection_warning": "请在 Cherry Studio 移动端打开局域网传输",
+          "no_devices": "尚未发现局域网设备",
+          "scan_devices": "扫描设备",
+          "scanning_hint": "正在扫描局域网中的 Cherry Studio 设备...",
+          "send_file": "发送文件",
           "status": {
             "completed": "传输完成",
             "connected": "连接成功",
@@ -3258,9 +3277,11 @@
             "error": "连接出错",
             "initializing": "正在初始化连接...",
             "preparing": "准备传输中...",
-            "sending": "传输中 {{progress}}%",
-            "waiting_qr_scan": "请扫描二维码连接"
+            "sending": "传输中 {{progress}}%"
           },
+          "status_badge_idle": "空闲",
+          "status_badge_scanning": "扫描中",
+          "stop_scan": "停止扫描",
           "title": "局域网传输",
           "transfer_progress": "传输进度"
         },
@@ -4101,7 +4122,7 @@
       "tagsPlaceholder": "输入标签",
       "timeout": "超时",
       "timeoutTooltip": "对该服务器请求的超时时间（秒），默认为 60 秒",
-      "title": "MCP",
+      "title": "MCP 服务器",
       "tools": {
         "autoApprove": {
           "label": "自动批准",
@@ -4735,6 +4756,12 @@
       },
       "title": "其他设置",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} 需要 API 密钥才能使用。是否现在去配置？",
+          "ok": "去配置",
+          "title": "需要 API 密钥"
+        },
+        "api_providers": "API 服务商",
         "apikey": "API 密钥",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
@@ -4776,7 +4803,15 @@
         },
         "content_limit": "内容长度限制",
         "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
+        "default_provider": "默认搜索引擎",
         "free": "免费",
+        "is_default": "默认搜索",
+        "local_provider": {
+          "hint": "登录网站可以获得更好的搜索结果，也可以对搜索进行个性化设置。",
+          "open_settings": "打开 {{provider}} 设置",
+          "settings": "本地搜索设置"
+        },
+        "local_providers": "本地搜索",
         "no_provider_selected": "请选择搜索服务商后再检测",
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
@@ -4787,6 +4822,7 @@
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
         "search_with_time": "搜索包含日期",
+        "set_as_default": "设为默认",
         "subscribe": "黑名单订阅",
         "subscribe_add": "添加订阅",
         "subscribe_add_failed": "订阅源添加失败",
