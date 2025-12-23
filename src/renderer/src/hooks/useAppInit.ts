@@ -268,9 +268,7 @@ export function useAppInit() {
   // Update memory service configuration when it changes
   useEffect(() => {
     const memoryService = MemoryService.getInstance()
-    memoryService.updateConfig().catch((error) => {
-      logger.error('Failed to update memory config:', error)
-    })
+    memoryService.updateConfig().catch((error) => logger.error('Failed to update memory config:', error))
   }, [memoryConfig])
 
   useEffect(() => {

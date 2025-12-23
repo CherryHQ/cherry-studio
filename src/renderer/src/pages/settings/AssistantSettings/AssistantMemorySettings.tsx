@@ -1,7 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Box } from '@renderer/components/Layout'
-import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
+import MemoriesSettingsModal from '@renderer/pages/settings/MemorySettings/MemorySettingsModal'
 import MemoryService from '@renderer/services/MemoryService'
 import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant, AssistantSettings } from '@renderer/types'
@@ -68,7 +68,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
     window.location.hash = '#/settings/memory'
   }
 
-  const isMemoryConfigured = memoryConfig.embedderApiClient && memoryConfig.llmApiClient
+  const isMemoryConfigured = memoryConfig.embeddingModel && memoryConfig.llmModel
   const isMemoryEnabled = globalMemoryEnabled && isMemoryConfigured
 
   return (
@@ -130,16 +130,16 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
             <Text strong>{t('memory.stored_memories')}: </Text>
             <Text>{memoryStats.loading ? t('common.loading') : memoryStats.count}</Text>
           </div>
-          {memoryConfig.embedderApiClient && (
+          {memoryConfig.embeddingModel && (
             <div>
               <Text strong>{t('memory.embedding_model')}: </Text>
-              <Text code>{memoryConfig.embedderApiClient.model}</Text>
+              <Text code>{memoryConfig.embeddingModel.id}</Text>
             </div>
           )}
-          {memoryConfig.llmApiClient && (
+          {memoryConfig.llmModel && (
             <div>
               <Text strong>{t('memory.llm_model')}: </Text>
-              <Text code>{memoryConfig.llmApiClient.model}</Text>
+              <Text code>{memoryConfig.llmModel.id}</Text>
             </div>
           )}
         </Space>

@@ -18,6 +18,7 @@ import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
+import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
@@ -3066,6 +3067,35 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 188 error', error as Error)
+      return state
+    }
+  },
+  // 1.7.7
+  '189': (state: RootState) => {
+    try {
+      window.api.memory.migrateMemoryDb()
+      // @ts-ignore
+      const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
+      // @ts-ignore
+      const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
+
+      if (memoryLlmApiClient) {
+        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        // @ts-ignore
+        delete state.memory.memoryConfig.llmApiClient
+      }
+
+      if (memoryEmbeddingApiClient) {
+        state.memory.memoryConfig.embeddingModel = getModel(
+          memoryEmbeddingApiClient.model,
+          memoryEmbeddingApiClient.provider
+        )
+        // @ts-ignore
+        delete state.memory.memoryConfig.embedderApiClient
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 189 error', error as Error)
       return state
     }
   }

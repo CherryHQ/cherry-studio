@@ -1,10 +1,9 @@
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { useModel } from '@renderer/hooks/useModel'
+import { getModel, useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { selectMemoryConfig, updateMemoryConfig } from '@renderer/store/memory'
@@ -12,12 +11,12 @@ import type { Model } from '@renderer/types'
 import { Flex, Form, Modal } from 'antd'
 import { t } from 'i18next'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
-const logger = loggerService.withContext('MemoriesSettingsModal')
+const logger = loggerService.withContext('MemorySettingsModal')
 
-interface MemoriesSettingsModalProps {
+interface MemorySettingsModalProps {
   visible: boolean
   onSubmit: (values: any) => void
   onCancel: () => void
@@ -26,78 +25,57 @@ interface MemoriesSettingsModalProps {
 
 type formValue = {
   llmModel: string
-  embedderModel: string
-  embedderDimensions: number
+  embeddingModel: string
+  embeddingDimensions: number
 }
 
-const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubmit, onCancel, form }) => {
+const MemorySettingsModal: FC<MemorySettingsModalProps> = ({ visible, onSubmit, onCancel, form }) => {
   const { providers } = useProviders()
   const dispatch = useDispatch()
   const memoryConfig = useSelector(selectMemoryConfig)
   const [loading, setLoading] = useState(false)
 
   // Get all models for lookup
-  const allModels = useMemo(() => providers.flatMap((p) => p.models), [providers])
-  const llmModel = useModel(memoryConfig.llmApiClient?.model, memoryConfig.llmApiClient?.provider)
-  const embedderModel = useModel(memoryConfig.embedderApiClient?.model, memoryConfig.embedderApiClient?.provider)
-
-  const findModelById = useCallback(
-    (id: string | undefined) => (id ? allModels.find((m) => getModelUniqId(m) === id) : undefined),
-    [allModels]
-  )
+  const llmModel = useModel(memoryConfig.llmModel?.id, memoryConfig.llmModel?.provider)
+  const embeddingModel = useModel(memoryConfig.embeddingModel?.id, memoryConfig.embeddingModel?.provider)
 
   // Initialize form with current memory config when modal opens
   useEffect(() => {
     if (visible && memoryConfig) {
       form.setFieldsValue({
         llmModel: getModelUniqId(llmModel),
-        embedderModel: getModelUniqId(embedderModel),
-        embedderDimensions: memoryConfig.embedderDimensions
+        embeddingModel: getModelUniqId(embeddingModel),
+        embeddingDimensions: memoryConfig.embeddingDimensions
         // customFactExtractionPrompt: memoryConfig.customFactExtractionPrompt,
         // customUpdateMemoryPrompt: memoryConfig.customUpdateMemoryPrompt
       })
     }
-  }, [visible, memoryConfig, form, llmModel, embedderModel])
+  }, [embeddingModel, form, llmModel, memoryConfig, visible])
 
   const handleFormSubmit = async (values: formValue) => {
     try {
       // Convert model IDs back to Model objects
-      const llmModel = findModelById(values.llmModel)
-      const llmProvider = providers.find((p) => p.id === llmModel?.provider)
-      const aiLlmProvider = new AiProvider(llmProvider!)
-      const embedderModel = findModelById(values.embedderModel)
-      const embedderProvider = providers.find((p) => p.id === embedderModel?.provider)
-      const aiEmbedderProvider = new AiProvider(embedderProvider!)
-      if (embedderModel) {
+      const llmModel = getModel(values.llmModel)
+      const embeddingModel = getModel(values.embeddingModel)
+
+      if (embeddingModel) {
         setLoading(true)
-        const provider = providers.find((p) => p.id === embedderModel.provider)
+        const provider = providers.find((p) => p.id === embeddingModel.provider)
 
         if (!provider) {
           return
         }
 
         const finalDimensions =
-          typeof values.embedderDimensions === 'string'
-            ? parseInt(values.embedderDimensions)
-            : values.embedderDimensions
+          typeof values.embeddingDimensions === 'string'
+            ? parseInt(values.embeddingDimensions)
+            : values.embeddingDimensions
 
         const updatedConfig = {
           ...memoryConfig,
-          llmApiClient: {
-            model: llmModel?.id ?? '',
-            provider: llmProvider?.id ?? '',
-            apiKey: aiLlmProvider.getApiKey(),
-            baseURL: aiLlmProvider.getBaseURL(),
-            apiVersion: llmProvider?.apiVersion
-          },
-          embedderApiClient: {
-            model: embedderModel?.id ?? '',
-            provider: embedderProvider?.id ?? '',
-            apiKey: aiEmbedderProvider.getApiKey(),
-            baseURL: aiEmbedderProvider.getBaseURL(),
-            apiVersion: embedderProvider?.apiVersion
-          },
-          embedderDimensions: finalDimensions
+          llmModel,
+          embeddingModel,
+          embeddingDimensions: finalDimensions
           // customFactExtractionPrompt: values.customFactExtractionPrompt,
           // customUpdateMemoryPrompt: values.customUpdateMemoryPrompt
         }
@@ -150,7 +128,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
         </Form.Item>
         <Form.Item
           label={t('memory.embedding_model')}
-          name="embedderModel"
+          name="embeddingModel"
           rules={[{ required: true, message: t('memory.please_select_embedding_model') }]}>
           <ModelSelector
             providers={providers}
@@ -160,10 +138,10 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
         </Form.Item>
         <Form.Item
           noStyle
-          shouldUpdate={(prevValues, currentValues) => prevValues.embedderModel !== currentValues.embedderModel}>
+          shouldUpdate={(prevValues, currentValues) => prevValues.embeddingModel !== currentValues.embeddingModel}>
           {({ getFieldValue }) => {
-            const embedderModelId = getFieldValue('embedderModel')
-            const embedderModel = findModelById(embedderModelId)
+            const embeddingModelId = getFieldValue('embeddingModel')
+            const embeddingModel = getModel(embeddingModelId)
             return (
               <Form.Item
                 label={
@@ -172,7 +150,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
                     <InfoTooltip title={t('knowledge.dimensions_size_tooltip')} />
                   </Flex>
                 }
-                name="embedderDimensions"
+                name="embeddingDimensions"
                 rules={[
                   {
                     validator(_, value) {
@@ -183,7 +161,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
                     }
                   }
                 ]}>
-                <InputEmbeddingDimension model={embedderModel} disabled={!embedderModel} />
+                <InputEmbeddingDimension model={embeddingModel} disabled={!embeddingModel} />
               </Form.Item>
             )
           }}
@@ -199,4 +177,4 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
   )
 }
 
-export default MemoriesSettingsModal
+export default MemorySettingsModal
