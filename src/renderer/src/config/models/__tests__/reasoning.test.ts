@@ -17,6 +17,7 @@ import {
   isGeminiReasoningModel,
   isGrok4FastReasoningModel,
   isHunyuanReasoningModel,
+  isInterleavedThinkingModel,
   isLingReasoningModel,
   isMiniMaxReasoningModel,
   isPerplexityReasoningModel,
@@ -2154,6 +2155,108 @@ describe('getModelSupportedReasoningEffortOptions', () => {
       const geminiModel = createModel({ id: 'gemini-2.5-flash-latest' })
       const geminiResult = getModelSupportedReasoningEffortOptions(geminiModel)
       expect(geminiResult).toEqual(MODEL_SUPPORTED_OPTIONS.gemini2_flash)
+    })
+  })
+})
+
+describe('isInterleavedThinkingModel', () => {
+  describe('MiniMax models', () => {
+    it('should return true for minimax-m2', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2' }))).toBe(true)
+    })
+
+    it('should return true for minimax-m2.1', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.1' }))).toBe(true)
+    })
+
+    it('should return true for minimax-m2 with suffixes', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2-pro' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2-preview' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2-lite' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2-ultra-lite' }))).toBe(true)
+    })
+
+    it('should return true for minimax-m2.x with suffixes', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.1-pro' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.2-preview' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.5-lite' }))).toBe(true)
+    })
+
+    it('should return false for non-m2 minimax models', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m1' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m3' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-pro' }))).toBe(false)
+    })
+
+    it('should handle case insensitivity', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'MiniMax-M2' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'MINIMAX-M2.1' }))).toBe(true)
+    })
+  })
+
+  describe('MiMo models', () => {
+    it('should return true for mimo-v2-flash', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'mimo-v2-flash' }))).toBe(true)
+    })
+
+    it('should return false for other mimo models', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'mimo-v1-flash' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'mimo-v2' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'mimo-v2-pro' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'mimo-flash' }))).toBe(false)
+    })
+
+    it('should handle case insensitivity', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'MiMo-V2-Flash' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'MIMO-V2-FLASH' }))).toBe(true)
+    })
+  })
+
+  describe('Zhipu GLM models', () => {
+    it('should return true for glm-4.5', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4.5' }))).toBe(true)
+    })
+
+    it('should return true for glm-4.6', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4.6' }))).toBe(true)
+    })
+
+    it('should return true for glm-4.7 and higher versions', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4.7' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4.8' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4.9' }))).toBe(true)
+    })
+
+    it('should return true for glm-4.x with suffixes', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4.5-pro' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4.6-preview' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4.7-lite' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4.8-ultra' }))).toBe(true)
+    })
+
+    it('should return false for glm-4 without decimal version', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-4-pro' }))).toBe(false)
+    })
+
+    it('should return false for other glm models', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-3.5' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5.0' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-zero-preview' }))).toBe(false)
+    })
+
+    it('should handle case insensitivity', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'GLM-4.5' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'Glm-4.6-Pro' }))).toBe(true)
+    })
+  })
+
+  describe('Non-matching models', () => {
+    it('should return false for unrelated models', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'gpt-4' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'gemini-pro' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'deepseek-v3' }))).toBe(false)
     })
   })
 })
