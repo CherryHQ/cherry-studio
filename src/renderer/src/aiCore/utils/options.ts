@@ -11,7 +11,6 @@ import {
   isGeminiModel,
   isGrokModel,
   isIntervalThinkingModel,
-  isMiniMaxReasoningModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isQwenMTModel,
@@ -618,12 +617,6 @@ function buildGenericProviderOptions(
       providerOptions = {
         ...providerOptions,
         sendReasoning: true
-      }
-    }
-    if (isMiniMaxReasoningModel(model)) {
-      providerOptions = {
-        ...providerOptions,
-        reasoning_split: true
       }
     }
   }

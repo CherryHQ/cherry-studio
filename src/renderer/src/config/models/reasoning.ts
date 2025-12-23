@@ -741,7 +741,8 @@ export const isFixedReasoningModel = (model: Model) =>
 
 // https://platform.minimaxi.com/docs/guides/text-m2-function-call#openai-sdk
 // https://docs.z.ai/guides/capabilities/thinking-mode
-const INTERVAL_THINKING_MODEL_REGEX = /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-4.(\d+)(?:-[\w-]+)?$/i
+const INTERVAL_THINKING_MODEL_REGEX =
+  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?$/i
 
 /**
  * Determines whether the given model supports interval thinking.
