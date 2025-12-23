@@ -86,7 +86,7 @@ const MCPSettings: FC = () => {
             title={t('settings.mcp.servers', 'MCP Servers')}
             active={activeView === 'servers'}
             onClick={() => navigate('/settings/mcp/servers')}
-            icon={<McpLogo width={18} height={18} />}
+            icon={<McpLogo width={18} height={18} style={{ opacity: 0.8 }} />}
             titleStyle={{ fontWeight: 500 }}
           />
           <DividerWithText text={t('settings.mcp.discover', 'Discover')} style={{ margin: '10px 0 8px 0' }} />
