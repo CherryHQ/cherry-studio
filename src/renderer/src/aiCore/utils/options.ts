@@ -10,6 +10,8 @@ import {
   isAnthropicModel,
   isGeminiModel,
   isGrokModel,
+  isIntervalThinkingModel,
+  isMiniMaxReasoningModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isQwenMTModel,
@@ -601,13 +603,27 @@ function buildGenericProviderOptions(
     enableGenerateImage: boolean
   }
 ): Record<string, any> {
-  const { enableWebSearch } = capabilities
+  const { enableWebSearch, enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
 
   const reasoningParams = getReasoningEffort(assistant, model)
   providerOptions = {
     ...providerOptions,
     ...reasoningParams
+  }
+  if (enableReasoning) {
+    if (isIntervalThinkingModel(model)) {
+      providerOptions = {
+        ...providerOptions,
+        sendReasoning: true
+      }
+    }
+    if (isMiniMaxReasoningModel(model)) {
+      providerOptions = {
+        ...providerOptions,
+        reasoning_split: true
+      }
+    }
   }
 
   if (enableWebSearch) {

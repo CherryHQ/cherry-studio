@@ -738,3 +738,18 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
  */
 export const isFixedReasoningModel = (model: Model) =>
   isReasoningModel(model) && !isSupportedThinkingTokenModel(model) && !isSupportedReasoningEffortModel(model)
+
+// https://platform.minimaxi.com/docs/guides/text-m2-function-call#openai-sdk
+// https://docs.z.ai/guides/capabilities/thinking-mode
+const INTERVAL_THINKING_MODEL_REGEX = /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-4.(\d+)(?:-[\w-]+)?$/i
+
+/**
+ * Determines whether the given model supports interval thinking.
+ *
+ * @param model - The model object to check.
+ * @returns `true` if the model's ID matches the interval thinking model pattern; otherwise, `false`.
+ */
+export const isIntervalThinkingModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return INTERVAL_THINKING_MODEL_REGEX.test(modelId)
+}
