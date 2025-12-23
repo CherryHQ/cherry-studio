@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
+import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
@@ -12,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { menuItems } from './MenuConfig'
+import NotesSettings from './NotesSettings'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
@@ -50,6 +52,16 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       window.toast.error(t('common.copy_failed'))
     }
   }, [getCurrentNoteContent])
+
+  const handleShowSettings = useCallback(() => {
+    GeneralPopup.show({
+      title: t('notes.settings.title'),
+      content: <NotesSettings />,
+      footer: null,
+      width: 600,
+      styles: { body: { padding: 0 } }
+    })
+  }, [])
 
   const handleBreadcrumbClick = useCallback(
     (item: { treePath: string; isFolder: boolean }) => {
@@ -130,6 +142,8 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       onClick: () => {
         if (item.copyAction) {
           handleCopyContent()
+        } else if (item.showSettingsPopup) {
+          handleShowSettings()
         } else if (item.action) {
           item.action(settings, updateSettings)
         }
@@ -308,7 +322,7 @@ export const StarButton = styled.div`
   transition: all 0.2s ease-in-out;
   cursor: pointer;
   svg {
-    color: inherit;
+    color: var(--color-icon);
   }
 
   &:hover {

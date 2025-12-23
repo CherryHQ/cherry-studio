@@ -11,7 +11,6 @@ import {
   HardDrive,
   Info,
   MonitorCog,
-  NotebookPen,
   Package,
   PictureInPicture2,
   Search,
@@ -32,7 +31,6 @@ import DocProcessSettings from './DocProcessSettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import MemorySettings from './MemorySettings'
-import NotesSettings from './NotesSettings'
 import { ProviderList } from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
@@ -171,7 +169,6 @@ const SettingsPage: FC = () => {
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
             <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
             <Route path="data" element={<DataSettings />} />
-            <Route path="notes" element={<NotesSettings />} />
             <Route path="about" element={<AboutSettings />} />
           </Routes>
         </SettingContent>
