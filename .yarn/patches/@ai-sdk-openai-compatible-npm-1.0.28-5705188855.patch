@@ -11,7 +11,7 @@ index 48e2f6263c6ee4c75d7e5c28733e64f6ebe92200..00d0729c4a3cbf9a48e8e1e962c7e2b2
  type OpenAICompatibleProviderOptions = z.infer<typeof openaiCompatibleProviderOptions>;
  
 diff --git a/dist/index.js b/dist/index.js
-index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..a1db1e089c000212a0c060363f998878994aa34b 100644
+index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..b3060fbaf010e30b64df55302807828e5bfe0f9a 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -41,7 +41,7 @@ function getOpenAIMetadata(message) {
@@ -52,7 +52,17 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..a1db1e089c000212a0c060363f998878
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -378,7 +386,7 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -200,7 +208,8 @@ var openaiCompatibleProviderOptions = import_v4.z.object({
+   /**
+    * Controls the verbosity of the generated text. Defaults to `medium`.
+    */
+-  textVerbosity: import_v4.z.string().optional()
++  textVerbosity: import_v4.z.string().optional(),
++  sendReasoning: import_v4.z.boolean().optional()
+ });
+ 
+ // src/openai-compatible-error.ts
+@@ -378,7 +387,7 @@ var OpenAICompatibleChatLanguageModel = class {
          reasoning_effort: compatibleOptions.reasoningEffort,
          verbosity: compatibleOptions.textVerbosity,
          // messages:
@@ -61,7 +71,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..a1db1e089c000212a0c060363f998878
          // tools:
          tools: openaiTools,
          tool_choice: openaiToolChoice
-@@ -421,6 +429,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -421,6 +430,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -79,7 +89,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..a1db1e089c000212a0c060363f998878
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          content.push({
-@@ -598,6 +617,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -598,6 +618,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -97,7 +107,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..a1db1e089c000212a0c060363f998878
              if (delta.tool_calls != null) {
                for (const toolCallDelta of delta.tool_calls) {
                  const index = toolCallDelta.index;
-@@ -765,6 +795,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.object({
+@@ -765,6 +796,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.object({
                arguments: import_v43.z.string()
              })
            })
@@ -112,7 +122,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..a1db1e089c000212a0c060363f998878
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -795,6 +833,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => import_v43.z.union(
+@@ -795,6 +834,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => import_v43.z.union(
                  arguments: import_v43.z.string().nullish()
                })
              })
@@ -128,7 +138,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..a1db1e089c000212a0c060363f998878
          }).nullish(),
          finish_reason: import_v43.z.string().nullish()
 diff --git a/dist/index.mjs b/dist/index.mjs
-index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..e811e682016b1bb249e6678f5cb0d97dac93c83f 100644
+index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..565b605eeacd9830b2b0e817e58ad0c5700264de 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -23,7 +23,7 @@ function getOpenAIMetadata(message) {
@@ -169,7 +179,17 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..e811e682016b1bb249e6678f5cb0d97d
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -362,7 +370,7 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -182,7 +190,8 @@ var openaiCompatibleProviderOptions = z.object({
+   /**
+    * Controls the verbosity of the generated text. Defaults to `medium`.
+    */
+-  textVerbosity: z.string().optional()
++  textVerbosity: z.string().optional(),
++  sendReasoning: z.boolean().optional()
+ });
+ 
+ // src/openai-compatible-error.ts
+@@ -362,7 +371,7 @@ var OpenAICompatibleChatLanguageModel = class {
          reasoning_effort: compatibleOptions.reasoningEffort,
          verbosity: compatibleOptions.textVerbosity,
          // messages:
@@ -178,7 +198,7 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..e811e682016b1bb249e6678f5cb0d97d
          // tools:
          tools: openaiTools,
          tool_choice: openaiToolChoice
-@@ -405,6 +413,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -405,6 +414,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -196,7 +216,7 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..e811e682016b1bb249e6678f5cb0d97d
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          content.push({
-@@ -582,6 +601,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -582,6 +602,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -214,7 +234,7 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..e811e682016b1bb249e6678f5cb0d97d
              if (delta.tool_calls != null) {
                for (const toolCallDelta of delta.tool_calls) {
                  const index = toolCallDelta.index;
-@@ -749,6 +779,14 @@ var OpenAICompatibleChatResponseSchema = z3.object({
+@@ -749,6 +780,14 @@ var OpenAICompatibleChatResponseSchema = z3.object({
                arguments: z3.string()
              })
            })
@@ -229,7 +249,7 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..e811e682016b1bb249e6678f5cb0d97d
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -779,6 +817,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => z3.union([
+@@ -779,6 +818,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => z3.union([
                  arguments: z3.string().nullish()
                })
              })

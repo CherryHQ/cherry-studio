@@ -256,13 +256,13 @@ __metadata:
 
 "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.28#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch":
   version: 1.0.28
-  resolution: "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.28#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch::version=1.0.28&hash=8a8450"
+  resolution: "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.28#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch::version=1.0.28&hash=f2cb20"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
     "@ai-sdk/provider-utils": "npm:3.0.18"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/7bac95fc73e3bcdb4f0f1284e4b4e5dcb25bc69c4b70295efbcf44f53e4ce9b9c5872c05819c76e5b4ada9f262ce85f58ea02492d37e71fb519a7e03c9b9a824
+  checksum: 10c0/0b1d99fe8ce506e5c0a3703ae0511ac2017781584074d41faa2df82923c64eb1229ffe9f036de150d0248923613c761a463fe89d5923493983e0463a1101e792
   languageName: node
   linkType: hard
 
