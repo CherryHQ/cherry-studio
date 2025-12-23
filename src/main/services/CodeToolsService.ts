@@ -1017,17 +1017,19 @@ class CodeToolsService {
         /**
          * Escape text for display in batch echo statements
          * Used for: echo statements, command display, logging
+         * Note: Don't wrap in quotes - echo will display them literally
          */
         const escapeBatchText = (text: string) => {
-          // Escape % for CMD and wrap in quotes
-          return `"${text.replace(/%/g, '%%')}"`
+          // Just escape % characters, no quotes needed for display
+          return text.replace(/%/g, '%%')
         }
 
         // Build bat file content, including debug information
+        // Note: Avoid parentheses in if/for statements to handle paths with ()
         const batContent = [
           '@echo off',
           'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
-          `title ${cliTool} - Cherry Studio`, // Set window title in bat file
+          `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
           `echo Tool: ${escapeBatchText(cliTool)}`,
@@ -1035,13 +1037,8 @@ class CodeToolsService {
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
-          ':: Verify directory exists',
-          `if not exist "${directory}" (`,
-          '  echo ERROR: Directory does not exist',
-          `  echo Target directory: ${directory}`,
-          '  pause',
-          '  exit /b 1',
-          ')',
+          ':: Verify directory exists (using single-line format to avoid () parsing issues)',
+          `if not exist "${directory.replace(/%/g, '%%')}" echo ERROR: Directory does not exist & echo Target: ${escapeBatchText(directory)} & pause & exit /b 1`,
           '',
           ':: Change to target directory',
           `pushd "${directory.replace(/%/g, '%%')}"`,
@@ -1050,7 +1047,6 @@ class CodeToolsService {
           ':: Execute command',
           command,
           '',
-          ':: Keep window open to view output',
           'pause'
         ].join('\r\n')
 
