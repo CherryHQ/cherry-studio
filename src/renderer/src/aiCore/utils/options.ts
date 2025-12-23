@@ -580,8 +580,14 @@ function buildOllamaProviderOptions(
   const reasoningEffort = assistant.settings?.reasoning_effort
   if (enableReasoning) {
     if (isOpenAIOpenWeightModel(model)) {
-      // @ts-ignore upstream type error
-      providerOptions.think = reasoningEffort as any
+      // For gpt-oss models, Ollama accepts: boolean | 'low' | 'medium' | 'high'
+      if (reasoningEffort === 'low' || reasoningEffort === 'medium' || reasoningEffort === 'high') {
+        providerOptions.think = reasoningEffort
+      } else if (reasoningEffort === 'none' || reasoningEffort === undefined) {
+        providerOptions.think = false
+      } else {
+        providerOptions.think = 'medium'
+      }
     } else {
       providerOptions.think = !['none', undefined].includes(reasoningEffort)
     }
