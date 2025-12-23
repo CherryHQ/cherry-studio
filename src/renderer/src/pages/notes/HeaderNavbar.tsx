@@ -59,11 +59,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       content: <NotesSettings />,
       footer: null,
       width: 600,
-      styles: {
-        body: {
-          padding: 0
-        }
-      }
+      styles: { body: { padding: 0 } }
     })
   }, [])
 
