@@ -1,6 +1,6 @@
 // 核心类型和接口
 export type { AiPlugin, AiRequestContext, HookResult, PluginManagerConfig } from './types'
-import type { ImageModelV2 } from '@ai-sdk/provider'
+import type { ImageModelV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 
 import type { ProviderId } from '../providers'
@@ -12,7 +12,7 @@ export { PluginManager } from './manager'
 // 工具函数
 export function createContext<T extends ProviderId>(
   providerId: T,
-  model: LanguageModel | ImageModelV2,
+  model: LanguageModel | ImageModelV3,
   originalParams: any
 ): AiRequestContext {
   return {
