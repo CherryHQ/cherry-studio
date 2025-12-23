@@ -4663,10 +4663,8 @@
         "image_provider": "OCR 服務供應商",
         "paddleocr": {
           "aistudio_access_token": "星河社區訪問令牌",
-          "aistudio_url_label": "星河社群",
           "api_url": "API 網址",
           "api_url_label": "取得訪問令牌及 API 網址",
-          "serving_doc_url_label": "PaddleOCR 服務化部署文件",
           "tip": "點擊下方「取得訪問令牌及 API URL」進入，然後點選左上角的「API」，選擇「文字辨識（PP-OCRv5）」，並複製 `API_URL` 及 `TOKEN`。"
         },
         "system": {

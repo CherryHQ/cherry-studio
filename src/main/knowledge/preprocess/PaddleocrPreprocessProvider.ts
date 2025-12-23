@@ -93,9 +93,9 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     try {
       const doc = await this.readPdf(pdfBuffer)
 
-      // Ensure page count is no more than 40 pages
-      if (doc.numPages > 40) {
-        throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 40 pages`)
+      // Ensure page count is no more than 100 pages
+      if (doc.numPages > 100) {
+        throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 100 pages`)
       }
 
       logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / (1024 * 1024))}MB`)

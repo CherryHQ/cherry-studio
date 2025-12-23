@@ -4663,10 +4663,8 @@
         "image_provider": "OCR-Anbieter",
         "paddleocr": {
           "aistudio_access_token": "StarRiver Community Access Token",
-          "aistudio_url_label": "StarRiver Community",
           "api_url": "API-URL",
           "api_url_label": "Zugriffstoken und API-URL abrufen",
-          "serving_doc_url_label": "PaddleOCR-Dokumentation für die Bereitstellung",
           "tip": "Sie können die offizielle PaddleOCR-Dokumentation als Referenz für die lokale Bereitstellung verwenden oder in der StarRiver-Community Cloud-Dienste bereitstellen. Für letztere Option geben Sie bitte den StarRiver-Community-Zugriffstoken ein."
         },
         "system": {
