@@ -27,21 +27,51 @@ import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('AssistantService')
 
+/**
+ * Default assistant settings configuration template.
+ *
+ * **Important**: This defines the DEFAULT VALUES for assistant settings, NOT the current settings
+ * of the default assistant. To get the actual settings of the default assistant, use `getDefaultAssistantSettings()`.
+ *
+ * Provides sensible defaults for all assistant settings with a focus on minimal parameter usage:
+ * - **Temperature disabled**: Use provider defaults by default
+ * - **MaxTokens disabled**: Use provider defaults by default
+ * - **TopP disabled**: Use provider defaults by default
+ * - **Streaming enabled**: Provides real-time response for better UX
+ * - **Standard context count**: Balanced memory usage and conversation length
+ */
 export const DEFAULT_ASSISTANT_SETTINGS = {
-  temperature: DEFAULT_TEMPERATURE,
-  enableTemperature: true,
-  contextCount: DEFAULT_CONTEXTCOUNT,
+  maxTokens: DEFAULT_MAX_TOKENS,
   enableMaxTokens: false,
-  maxTokens: 0,
-  streamOutput: true,
+  temperature: DEFAULT_TEMPERATURE,
+  enableTemperature: false,
   topP: 1,
   enableTopP: false,
-  // It would gracefully fallback to prompt if not supported by model.
-  toolUseMode: 'function',
+  contextCount: DEFAULT_CONTEXTCOUNT,
+  streamOutput: true,
+  defaultModel: undefined,
   customParameters: [],
-  reasoning_effort: 'default'
+  reasoning_effort: 'default',
+  reasoning_effort_cache: undefined,
+  qwenThinkMode: undefined,
+  // It would gracefully fallback to prompt if not supported by model.
+  toolUseMode: 'function'
 } as const satisfies AssistantSettings
 
+/**
+ * Creates a temporary default assistant instance.
+ *
+ * **Important**: This creates a NEW temporary assistant instance with DEFAULT_ASSISTANT_SETTINGS,
+ * NOT the actual default assistant from Redux store. This is used as a template for creating
+ * new assistants or as a fallback when no assistant is specified.
+ *
+ * To get the actual default assistant from Redux store (with current user settings), use:
+ * ```typescript
+ * const defaultAssistant = store.getState().assistants.defaultAssistant
+ * ```
+ *
+ * @returns New temporary assistant instance with default settings
+ */
 export function getDefaultAssistant(): Assistant {
   return {
     id: 'default',
@@ -56,6 +86,14 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
+/**
+ * Creates a default translate assistant.
+ *
+ * @param targetLanguage - Target language for translation
+ * @param text - Text to be translated
+ * @param _settings - Optional settings to override default assistant settings
+ * @returns Configured translate assistant
+ */
 export function getDefaultTranslateAssistant(
   targetLanguage: TranslateLanguage,
   text: string,
@@ -106,6 +144,17 @@ export function getDefaultTranslateAssistant(
   return translateAssistant
 }
 
+/**
+ * Gets the CURRENT SETTINGS of the default assistant.
+ *
+ * **Important**: This returns the actual current settings of the default assistant (user-configured),
+ * NOT the DEFAULT_ASSISTANT_SETTINGS template. The settings may have been modified by the user
+ * from their initial default values.
+ *
+ * To get the template of default values, use DEFAULT_ASSISTANT_SETTINGS directly.
+ *
+ * @returns Current settings of the default assistant from store state
+ */
 export function getDefaultAssistantSettings() {
   return store.getState().assistants.defaultAssistant.settings
 }
@@ -165,6 +214,18 @@ export function getProviderByModelId(modelId?: string) {
   return providers.find((p) => p.models.find((m) => m.id === _modelId)) as Provider
 }
 
+/**
+ * Retrieves and normalizes assistant settings with special transformation handling.
+ *
+ * **Special Transformations:**
+ * 1. **Context Count**: Converts `MAX_CONTEXT_COUNT` to `UNLIMITED_CONTEXT_COUNT` for internal processing
+ * 2. **Max Tokens**: Only returns a value when `enableMaxTokens` is true, otherwise returns `undefined`
+ * 3. **Max Tokens Validation**: Ensures maxTokens > 0, falls back to `DEFAULT_MAX_TOKENS` if invalid
+ * 4. **Fallback Defaults**: Applies system defaults for all undefined/missing settings
+ *
+ * @param assistant - The assistant instance to extract settings from
+ * @returns Normalized assistant settings with all transformations applied
+ */
 export const getAssistantSettings = (assistant: Assistant): AssistantSettings => {
   const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
   const getAssistantMaxTokens = () => {
@@ -181,16 +242,16 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   return {
     contextCount: contextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : contextCount,
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
-    enableTemperature: assistant?.settings?.enableTemperature ?? true,
-    topP: assistant?.settings?.topP ?? 1,
-    enableTopP: assistant?.settings?.enableTopP ?? false,
-    enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
+    enableTemperature: assistant?.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature,
+    topP: assistant?.settings?.topP ?? DEFAULT_ASSISTANT_SETTINGS.topP,
+    enableTopP: assistant?.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP,
+    enableMaxTokens: assistant?.settings?.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens,
     maxTokens: getAssistantMaxTokens(),
-    streamOutput: assistant?.settings?.streamOutput ?? true,
-    toolUseMode: assistant?.settings?.toolUseMode ?? 'function',
-    defaultModel: assistant?.defaultModel ?? undefined,
-    reasoning_effort: assistant?.settings?.reasoning_effort ?? 'default',
-    customParameters: assistant?.settings?.customParameters ?? []
+    streamOutput: assistant?.settings?.streamOutput ?? DEFAULT_ASSISTANT_SETTINGS.streamOutput,
+    toolUseMode: assistant?.settings?.toolUseMode ?? DEFAULT_ASSISTANT_SETTINGS.toolUseMode,
+    defaultModel: assistant?.defaultModel ?? DEFAULT_ASSISTANT_SETTINGS.defaultModel,
+    reasoning_effort: assistant?.settings?.reasoning_effort ?? DEFAULT_ASSISTANT_SETTINGS.reasoning_effort,
+    customParameters: assistant?.settings?.customParameters ?? DEFAULT_ASSISTANT_SETTINGS.customParameters
   }
 }
 
