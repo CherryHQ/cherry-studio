@@ -10,7 +10,12 @@ export const OpenSchema = z.object({
     .boolean()
     .optional()
     .describe('If true, use private browsing mode where data is not persisted (default: false)'),
-  tabId: z.string().optional().describe('Tab identifier; if not provided, uses active tab or creates new one')
+  newTab: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true, create a new tab for this request. Use this when opening multiple URLs in parallel (default: false)'
+    )
 })
 
 export const openToolDefinition = {
@@ -31,9 +36,10 @@ export const openToolDefinition = {
         type: 'boolean',
         description: 'If true, use private browsing mode where data is not persisted (default: false)'
       },
-      tabId: {
-        type: 'string',
-        description: 'Tab identifier; if not provided, uses active tab or creates new one'
+      newTab: {
+        type: 'boolean',
+        description:
+          'If true, create a new tab for this request. Use this when opening multiple URLs in parallel (default: false)'
       }
     },
     required: ['url']
@@ -41,7 +47,7 @@ export const openToolDefinition = {
 }
 
 export async function handleOpen(controller: CdpBrowserController, args: unknown) {
-  const { url, timeout, privateMode, tabId } = OpenSchema.parse(args)
-  const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, tabId)
+  const { url, timeout, privateMode, newTab } = OpenSchema.parse(args)
+  const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, newTab ?? false)
   return successResponse(JSON.stringify(res))
 }

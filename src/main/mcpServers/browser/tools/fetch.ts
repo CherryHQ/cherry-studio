@@ -11,7 +11,12 @@ export const FetchSchema = z.object({
     .boolean()
     .optional()
     .describe('If true, use private browsing mode where data is not persisted (default: false)'),
-  tabId: z.string().optional().describe('Tab identifier; if not provided, uses active tab')
+  newTab: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true, create a new tab for this request. Use this when fetching multiple URLs in parallel (default: false)'
+    )
 })
 
 export const fetchToolDefinition = {
@@ -38,9 +43,10 @@ export const fetchToolDefinition = {
         type: 'boolean',
         description: 'If true, use private browsing mode where data is not persisted (default: false)'
       },
-      tabId: {
-        type: 'string',
-        description: 'Tab identifier; if not provided, uses active tab'
+      newTab: {
+        type: 'boolean',
+        description:
+          'If true, create a new tab for this request. Use this when fetching multiple URLs in parallel (default: false)'
       }
     },
     required: ['url']
@@ -48,9 +54,9 @@ export const fetchToolDefinition = {
 }
 
 export async function handleFetch(controller: CdpBrowserController, args: unknown) {
-  const { url, format, timeout, privateMode, tabId } = FetchSchema.parse(args)
+  const { url, format, timeout, privateMode, newTab } = FetchSchema.parse(args)
   try {
-    const content = await controller.fetch(url, format, timeout ?? 10000, privateMode ?? false, tabId)
+    const content = await controller.fetch(url, format, timeout ?? 10000, privateMode ?? false, newTab ?? false)
     return successResponse(typeof content === 'string' ? content : JSON.stringify(content))
   } catch (error) {
     return errorResponse(error as Error)

@@ -280,9 +280,23 @@ export class CdpBrowserController {
 
   /**
    * Gets an existing tab or creates a new one
+   * @param privateMode - Whether to use private browsing mode
+   * @param tabId - Optional specific tab ID to use
+   * @param newTab - If true, always create a new tab (useful for parallel requests)
    */
-  private async getTab(privateMode: boolean, tabId?: string): Promise<{ tabId: string; tab: TabInfo }> {
+  private async getTab(
+    privateMode: boolean,
+    tabId?: string,
+    newTab?: boolean
+  ): Promise<{ tabId: string; tab: TabInfo }> {
     const session = await this.getOrCreateSession(privateMode)
+
+    // If newTab is requested, create a fresh tab
+    if (newTab) {
+      const { tabId: freshTabId } = await this.createTab(privateMode)
+      const tab = session.tabs.get(freshTabId)!
+      return { tabId: freshTabId, tab }
+    }
 
     if (tabId) {
       const tab = session.tabs.get(tabId)
@@ -312,11 +326,11 @@ export class CdpBrowserController {
    * @param url - The URL to navigate to
    * @param timeout - Navigation timeout in milliseconds (default: 10000)
    * @param privateMode - If true, uses private browsing mode (default: false)
-   * @param tabId - Optional tab ID. If not provided, uses active tab or creates new one
+   * @param newTab - If true, always creates a new tab (useful for parallel requests)
    * @returns Object containing the current URL, page title, and tab ID after navigation
    */
-  public async open(url: string, timeout = 10000, privateMode = false, tabId?: string) {
-    const { tabId: actualTabId, tab } = await this.getTab(privateMode, tabId)
+  public async open(url: string, timeout = 10000, privateMode = false, newTab = false) {
+    const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab)
     const view = tab.view
     const sessionKey = this.getSessionKey(privateMode)
 
@@ -459,7 +473,7 @@ export class CdpBrowserController {
    * @param format - Output format: 'html', 'txt', 'markdown', or 'json' (default: 'markdown')
    * @param timeout - Navigation timeout in milliseconds (default: 10000)
    * @param privateMode - If true, uses private browsing mode (default: false)
-   * @param tabId - Optional tab ID
+   * @param newTab - If true, always creates a new tab (useful for parallel requests)
    * @returns Content in the requested format. For 'json', returns parsed object or { data: rawContent } if parsing fails
    */
   public async fetch(
@@ -467,9 +481,9 @@ export class CdpBrowserController {
     format: 'html' | 'txt' | 'markdown' | 'json' = 'markdown',
     timeout = 10000,
     privateMode = false,
-    tabId?: string
+    newTab = false
   ) {
-    await this.open(url, timeout, privateMode, tabId)
+    const { tabId } = await this.open(url, timeout, privateMode, newTab)
 
     const { tab } = await this.getTab(privateMode, tabId)
     const dbg = tab.view.webContents.debugger
