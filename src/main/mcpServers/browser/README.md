@@ -8,13 +8,6 @@ A Model Context Protocol (MCP) server for controlling browser windows via Chrome
 - **Normal mode (default)**: Cookies, localStorage, and sessionStorage persist across browser restarts
 - **Private mode**: Ephemeral browsing - no data persists (like incognito mode)
 
-### 📑 True Multi-Tab Support
-- Multiple BrowserView tabs within a single window per mode
-- Visual tab switching - only one tab visible at a time
-- Tab management: create, close, switch, and list tabs
-- Automatic active tab tracking
-- All windows visible by default (1200x800)
-
 ### 🔄 Session Management
 - Two browsing modes: normal (persistent) and private (ephemeral)
 - Configurable idle timeout cleanup
@@ -26,107 +19,57 @@ A Model Context Protocol (MCP) server for controlling browser windows via Chrome
 ```
 Normal Mode (BrowserWindow)
 ├─ Persistent Storage (partition: persist:default)
-├─ Tab 1 (BrowserView) ← active, visible
-├─ Tab 2 (BrowserView) ← hidden
-└─ Tab 3 (BrowserView) ← hidden
+└─ Tab (BrowserView) ← auto-created
 
 Private Mode (BrowserWindow)
 ├─ Ephemeral Storage (partition: private) ← No disk persistence
-├─ Tab 1 (BrowserView) ← active, visible
-└─ Tab 2 (BrowserView) ← hidden
+└─ Tab (BrowserView) ← auto-created
 ```
 
 - **One Window Per Mode**: Normal and private modes each have their own window
-- **Tabs as BrowserViews**: Each tab is a BrowserView attached to the mode's window
-- **Visual Switching**: `switchTab()` changes which view is displayed
+- **Automatic Tab Management**: Tabs are created automatically when needed
 - **Storage Isolation**: Normal and private modes have completely separate storage
 
 ## Available Tools
 
-### Core Navigation & Interaction
-
-#### `open`
-Open a URL in a browser tab.
+### `open`
+Open a URL in a browser window.
 ```json
 {
   "url": "https://example.com",
   "timeout": 10000,
-  "privateMode": false,
-  "tabId": "optional-tab-id"
+  "privateMode": false
 }
 ```
 Returns: `{ currentUrl, title, tabId }`
 
-#### `execute`
+### `execute`
 Execute JavaScript code in the page context.
 ```json
 {
   "code": "document.title",
   "timeout": 5000,
-  "privateMode": false,
-  "tabId": "optional-tab-id"
+  "privateMode": false
 }
 ```
 
-#### `fetch`
+### `fetch`
 Fetch a URL and return content in specified format.
 ```json
 {
   "url": "https://example.com",
   "format": "markdown",
   "timeout": 10000,
-  "privateMode": false,
-  "tabId": "optional-tab-id"
+  "privateMode": false
 }
 ```
 Formats: `html`, `txt`, `markdown`, `json`
 
-### Tab Management
-
-#### `create_tab`
-Create a new tab.
-```json
-{
-  "privateMode": false
-}
-```
-Returns: `{ tabId, privateMode }`
-
-#### `list_tabs`
-List all tabs in a session.
-```json
-{
-  "privateMode": false
-}
-```
-Returns: `{ privateMode, tabs: [{ tabId, url, title }] }`
-
-#### `close_tab`
-Close a specific tab.
-```json
-{
-  "privateMode": false,
-  "tabId": "tab-uuid"
-}
-```
-
-#### `switch_tab`
-Switch the active (visible) tab.
-```json
-{
-  "privateMode": false,
-  "tabId": "tab-uuid"
-}
-```
-
-### Session Management
-
-#### `reset`
+### `reset`
 Reset browser sessions.
 ```json
 {
-  "privateMode": false,  // Omit to reset all sessions
-  "tabId": "optional"    // Reset specific tab only
+  "privateMode": false  // Omit to reset all sessions
 }
 ```
 
@@ -136,8 +79,6 @@ Reset browser sessions.
 ```typescript
 // Open a URL in normal mode (data persists)
 await controller.open('https://example.com')
-
-// Window is now visible at 1200x800
 ```
 
 ### Private Browsing
@@ -148,37 +89,16 @@ await controller.open('https://example.com', 10000, true)
 // Cookies and localStorage won't persist after reset
 ```
 
-### Multi-Tab Workflow
-```typescript
-// Create multiple tabs in normal mode
-const tab1 = await controller.createTab(false)  // First tab, window opens
-const tab2 = await controller.createTab(false)  // Second tab in same window
-
-// Navigate tabs independently (but only active tab is visible)
-await controller.open('https://docs.example.com', 10000, false, tab1.tabId)
-await controller.open('https://api.example.com', 10000, false, tab2.tabId)
-
-// List all tabs
-const tabs = await controller.listTabs(false)
-// Returns: [{ tabId, url, title }, ...]
-
-// Switch to make tab2 visible
-await controller.switchTab(false, tab2.tabId)
-
-// Execute in currently visible tab
-await controller.execute('document.title', 5000, false)
-```
-
 ### Data Persistence (Normal Mode)
 ```typescript
-// First session - set data
+// Set data
 await controller.open('https://example.com', 10000, false)
 await controller.execute('localStorage.setItem("key", "value")', 5000, false)
 
-// Close session (window closes)
+// Close session
 await controller.reset(false)
 
-// New session - data persists!
+// Reopen - data persists!
 await controller.open('https://example.com', 10000, false)
 const value = await controller.execute('localStorage.getItem("key")', 5000, false)
 // Returns: "value"
@@ -193,48 +113,11 @@ await controller.execute('localStorage.setItem("key", "value")', 5000, true)
 // Close private session
 await controller.reset(true)
 
-// New private session - data is gone!
+// Reopen - data is gone!
 await controller.open('https://example.com', 10000, true)
 const value = await controller.execute('localStorage.getItem("key")', 5000, true)
 // Returns: null
 ```
-
-## Technical Implementation
-
-### Controller (`CdpBrowserController`)
-- Manages two sessions: normal (persistent) and private (ephemeral)
-- Handles LRU eviction and idle timeout
-- Coordinates CDP debugger attachment
-- Updates view bounds on window resize
-
-### Session Structure
-```typescript
-{
-  sessionKey: string          // 'default' or 'private'
-  privateMode: boolean        // Whether this is a private session
-  window: BrowserWindow       // The visible window
-  tabs: Map<tabId, TabInfo>   // All BrowserViews
-  activeTabId: string | null  // Which tab is currently displayed
-  lastActive: number
-}
-```
-
-### Tab Structure
-```typescript
-{
-  id: string
-  view: BrowserView           // The tab content
-  url: string
-  title: string
-  lastActive: number
-}
-```
-
-### View Management
-- Active tab's BrowserView is attached to window via `setBrowserView()`
-- Bounds calculated as: `{ x: 0, y: TAB_BAR_HEIGHT, width, height - TAB_BAR_HEIGHT }`
-- Non-active tabs remain in memory but not displayed
-- Switching tabs = detach old view, attach new view
 
 ## Configuration
 
@@ -249,11 +132,9 @@ const controller = new CdpBrowserController({
 
 1. **Use Normal Mode for Authentication**: When you need to stay logged in across sessions
 2. **Use Private Mode for Sensitive Operations**: When you don't want data to persist
-3. **Tab Management**: Create tabs explicitly for parallel operations
-4. **Resource Cleanup**: Call `reset()` when done with sessions
-5. **Error Handling**: Wrap CDP operations in try-catch blocks
-6. **Timeout Configuration**: Adjust timeouts based on page complexity
-7. **Visual Feedback**: Remember only the active tab is visible - use `switchTab()` to change view
+3. **Resource Cleanup**: Call `reset()` when done with sessions
+4. **Error Handling**: Wrap CDP operations in try-catch blocks
+5. **Timeout Configuration**: Adjust timeouts based on page complexity
 
 ## Technical Details
 
@@ -262,7 +143,5 @@ const controller = new CdpBrowserController({
 - **Storage**: 
   - Normal mode: `persist:default` (disk-persisted)
   - Private mode: `private` (memory only)
-- **Tab IDs**: UUID v4
 - **Window Size**: 1200x800 (default)
-- **Tab Bar Height**: 40px reserved
 - **Visibility**: All windows shown by default
