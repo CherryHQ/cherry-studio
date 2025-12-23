@@ -18,7 +18,6 @@ import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
-import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
@@ -3096,6 +3095,22 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 189 error', error as Error)
+      return state
+    }
+  },
+  '190': (state: RootState) => {
+    try {
+      // 为现有用户添加新的快捷键
+      if (state.shortcuts) {
+        const sendShortcut = state.shortcuts.shortcuts.find(s => s.key === 'send_shortcuts')
+        if (!sendShortcut) {
+          addShortcuts(state, ['send_shortcuts'], 'last')
+        }
+      }
+      logger.info('migrate 185 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 185 error', error as Error)
       return state
     }
   }
