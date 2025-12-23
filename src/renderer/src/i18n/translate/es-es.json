@@ -4756,6 +4756,12 @@
       },
       "title": "Configuración de Herramientas",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} requiere una clave de API para funcionar. ¿Te gustaría configurarla ahora?",
+          "ok": "Configurar",
+          "title": "Se requiere clave de API"
+        },
+        "api_providers": "Proveedores de API",
         "apikey": "Clave API",
         "blacklist": "Lista negra",
         "blacklist_description": "Los resultados de los siguientes sitios web no aparecerán en los resultados de búsqueda",
@@ -4797,7 +4803,15 @@
         },
         "content_limit": "Límite de longitud del contenido",
         "content_limit_tooltip": "Limita la longitud del contenido en los resultados de búsqueda; el contenido que exceda el límite será truncado",
+        "default_provider": "Proveedor Predeterminado",
         "free": "Gratis",
+        "is_default": "[to be translated]:Default",
+        "local_provider": {
+          "hint": "Inicia sesión en el sitio web para obtener mejores resultados de búsqueda y personalizar tu configuración de búsqueda.",
+          "open_settings": "Abrir configuración de {{provider}}",
+          "settings": "Configuración de búsqueda local"
+        },
+        "local_providers": "Proveedores locales",
         "no_provider_selected": "Seleccione un proveedor de búsqueda antes de comprobar",
         "overwrite": "Sobrescribir búsqueda del proveedor",
         "overwrite_tooltip": "Forzar el uso del proveedor de búsqueda en lugar del modelo de lenguaje grande",
@@ -4808,6 +4822,7 @@
         "search_provider": "Proveedor de búsqueda",
         "search_provider_placeholder": "Seleccione un proveedor de búsqueda",
         "search_with_time": "Buscar con fecha",
+        "set_as_default": "[to be translated]:Set as Default",
         "subscribe": "Suscripción a lista negra",
         "subscribe_add": "Añadir suscripción",
         "subscribe_add_failed": "Error al agregar la fuente de suscripción",

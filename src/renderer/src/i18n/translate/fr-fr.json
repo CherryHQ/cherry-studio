@@ -4756,6 +4756,12 @@
       },
       "title": "Paramètres des outils",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} nécessite une clé API pour fonctionner. Souhaitez-vous la configurer maintenant ?",
+          "ok": "Configurer",
+          "title": "Clé API requise"
+        },
+        "api_providers": "Fournisseurs d'API",
         "apikey": "Clé API",
         "blacklist": "Liste noire",
         "blacklist_description": "Les résultats provenant des sites suivants n'apparaîtront pas dans les résultats de recherche",
@@ -4797,7 +4803,15 @@
         },
         "content_limit": "Limite de longueur du contenu",
         "content_limit_tooltip": "Limiter la longueur du contenu des résultats de recherche ; le contenu dépassant cette limite sera tronqué",
+        "default_provider": "Fournisseur par défaut",
         "free": "Gratuit",
+        "is_default": "[to be translated]:Default",
+        "local_provider": {
+          "hint": "Connectez-vous au site Web pour obtenir de meilleurs résultats de recherche et personnaliser vos paramètres de recherche.",
+          "open_settings": "Ouvrir les paramètres de {{provider}}",
+          "settings": "Paramètres de recherche locale"
+        },
+        "local_providers": "Fournisseurs locaux",
         "no_provider_selected": "Veuillez sélectionner un fournisseur de recherche avant de vérifier",
         "overwrite": "Remplacer la recherche du fournisseur",
         "overwrite_tooltip": "Forcer l'utilisation du fournisseur de recherche au lieu du grand modèle linguistique",
@@ -4808,6 +4822,7 @@
         "search_provider": "Fournisseur de recherche",
         "search_provider_placeholder": "Sélectionnez un fournisseur de recherche",
         "search_with_time": "Rechercher avec date",
+        "set_as_default": "[to be translated]:Set as Default",
         "subscribe": "Abonnement à la liste noire",
         "subscribe_add": "Ajouter un abonnement",
         "subscribe_add_failed": "Échec de l'ajout de la source d'abonnement",

@@ -858,8 +858,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   )
 
   // search window
-  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string) => {
-    await searchService.openSearchWindow(uid)
+  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string, show?: boolean) => {
+    await searchService.openSearchWindow(uid, show)
   })
   ipcMain.handle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
     await searchService.closeSearchWindow(uid)

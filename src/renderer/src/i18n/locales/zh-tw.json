@@ -4756,6 +4756,12 @@
       },
       "title": "其他設定",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} 需要 API 金鑰才能運作。您現在要設定嗎？",
+          "ok": "設定",
+          "title": "需要 API 金鑰"
+        },
+        "api_providers": "API 服務商",
         "apikey": "API 金鑰",
         "blacklist": "黑名單",
         "blacklist_description": "以下網站不會出現在搜尋結果中",
@@ -4797,7 +4803,15 @@
         },
         "content_limit": "內容長度限制",
         "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
+        "default_provider": "預設搜尋引擎",
         "free": "免費",
+        "is_default": "[to be translated]:Default",
+        "local_provider": {
+          "hint": "登入網站以獲得更佳搜尋結果並個人化您的搜尋設定。",
+          "open_settings": "開啟 {{provider}} 設定",
+          "settings": "本地搜尋設定"
+        },
+        "local_providers": "本地搜尋",
         "no_provider_selected": "請選擇搜尋供應商後再檢查",
         "overwrite": "覆蓋搜尋服務",
         "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
@@ -4808,6 +4822,7 @@
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
         "search_with_time": "搜尋包含日期",
+        "set_as_default": "[to be translated]:Set as Default",
         "subscribe": "黑名單訂閱",
         "subscribe_add": "新增訂閱",
         "subscribe_add_failed": "訂閱來源新增失敗",

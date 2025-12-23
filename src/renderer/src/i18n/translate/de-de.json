@@ -4756,6 +4756,12 @@
       },
       "title": "Weitere Einstellungen",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} erfordert einen API-Schlüssel, um zu funktionieren. Möchten Sie ihn jetzt konfigurieren?",
+          "ok": "Konfigurieren",
+          "title": "API-Schlüssel erforderlich"
+        },
+        "api_providers": "API-Anbieter",
         "apikey": "API-Schlüssel",
         "blacklist": "Schwarze Liste",
         "blacklist_description": "Folgende Websites werden nicht in Suchergebnissen angezeigt",
@@ -4797,7 +4803,15 @@
         },
         "content_limit": "Inhaltslängenbegrenzung",
         "content_limit_tooltip": "Begrenzen Sie die Länge der Suchergebnisse, überschreitende Inhalte werden abgeschnitten",
+        "default_provider": "Standardanbieter",
         "free": "Kostenlos",
+        "is_default": "[to be translated]:Default",
+        "local_provider": {
+          "hint": "Melden Sie sich auf der Website an, um bessere Suchergebnisse zu erhalten und Ihre Sucheinstellungen zu personalisieren.",
+          "open_settings": "{{provider}}-Einstellungen öffnen",
+          "settings": "Lokale Sucheinstellungen"
+        },
+        "local_providers": "Lokale Anbieter",
         "no_provider_selected": "Wählen Sie einen Suchanbieter aus, bevor Sie suchen",
         "overwrite": "Suchanbieter statt LLM für Suche erzwingen",
         "overwrite_tooltip": "Suchanbieter statt LLM für Suche erzwingen",
@@ -4808,6 +4822,7 @@
         "search_provider": "Suchanbieter",
         "search_provider_placeholder": "Einen Suchanbieter auswählen",
         "search_with_time": "Suche mit Datum",
+        "set_as_default": "[to be translated]:Set as Default",
         "subscribe": "Schwarze Liste-Abonnement",
         "subscribe_add": "Abonnement hinzufügen",
         "subscribe_add_failed": "Abonnement-Quelle hinzufügen fehlgeschlagen",
