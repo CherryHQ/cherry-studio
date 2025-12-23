@@ -310,7 +310,8 @@ const api = {
     deleteUser: (userId: string) => ipcRenderer.invoke(IpcChannel.Memory_DeleteUser, userId),
     deleteAllMemoriesForUser: (userId: string) =>
       ipcRenderer.invoke(IpcChannel.Memory_DeleteAllMemoriesForUser, userId),
-    getUsersList: () => ipcRenderer.invoke(IpcChannel.Memory_GetUsersList)
+    getUsersList: () => ipcRenderer.invoke(IpcChannel.Memory_GetUsersList),
+    migrateMemoryDb: () => ipcRenderer.invoke(IpcChannel.Memory_MigrateMemoryDb)
   },
   window: {
     setMinimumSize: (width: number, height: number) =>
