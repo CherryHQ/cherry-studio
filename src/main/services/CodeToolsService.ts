@@ -1012,37 +1012,15 @@ class CodeToolsService {
         }
 
         // Escape special characters in paths for Windows batch scripting
-        // Using double quotes and extended path prefix for maximum compatibility
+        // Using double quotes for compatibility with CMD
 
         /**
          * Escape text for display in batch echo statements
          * Used for: echo statements, command display, logging
-         * Strategy: Simple double quote wrapping (sufficient for display text)
          */
         const escapeBatchText = (text: string) => {
-          // For display in echo statements, use double quotes to avoid most escaping issues
-          // This is safer than caret escaping in many Windows environments
-          return `"${text}"`
-        }
-
-        /**
-         * Escape file system paths for use in batch commands
-         * Used for: file paths, directory paths, paths with special characters
-         * Strategy: Normalize + escape % + extended path prefix + quotes for maximum compatibility
-         */
-        const escapePathForBatch = (path: string) => {
-          // Normalize path to prevent path traversal attacks
-          const normalizedPath = path.normalize('NFC')
-
-          // Escape % characters for CMD (%% becomes % in actual path)
-          // This must be done BEFORE adding extended path prefix
-          const escapedPath = normalizedPath.replace(/%/g, '%%')
-
-          // For command arguments, use extended path prefix to bypass CMD path parsing issues
-          // This handles special characters like parentheses, spaces, etc.
-          // Extended path prefix (\\?\) also bypasses 260 character path limit
-          const extendedPath = escapedPath.startsWith('\\\\') ? escapedPath : `\\\\?\\${escapedPath}`
-          return `"${extendedPath}"`
+          // Escape % for CMD and wrap in quotes
+          return `"${text.replace(/%/g, '%%')}"`
         }
 
         // Build bat file content, including debug information
@@ -1053,23 +1031,27 @@ class CodeToolsService {
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
           `echo Tool: ${escapeBatchText(cliTool)}`,
-          `echo Directory: ${escapeBatchText(directory.replace(/%/g, '%%'))}`,
+          `echo Directory: ${escapeBatchText(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
-          'echo.',
-          'echo Starting CLI tool...',
-          'timeout /t 1 /nobreak >nul', // Wait 1 second for user to see startup info
-          'cls', // Clear screen to hide debug information
+          '',
+          ':: Verify directory exists',
+          `if not exist "${directory}" (`,
+          '  echo ERROR: Directory does not exist',
+          `  echo Target directory: ${directory}`,
+          '  pause',
+          '  exit /b 1',
+          ')',
           '',
           ':: Change to target directory',
-          `pushd ${escapePathForBatch(directory)}`,
-          'if %ERRORLEVEL% neq 0 echo ERROR: Failed to change directory',
+          `pushd "${directory.replace(/%/g, '%%')}"`,
+          'if %ERRORLEVEL% neq 0 echo ERROR: Failed to change directory & pause & exit /b 1',
           '',
-          ':: Execute command (output visible for user interaction)',
-          `"${command.replace(/"/g, '""')}"`,
+          ':: Execute command',
+          command,
           '',
-          ':: Restore directory and exit',
-          'popd >nul 2>&1'
+          ':: Keep window open to view output',
+          'pause'
         ].join('\r\n')
 
         // Write to bat file

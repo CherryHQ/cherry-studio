@@ -344,57 +344,49 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Command Prompt',
     command: (_: string, fullCommand: string) => ({
       command: 'cmd',
-      args: ['/c', 'start', 'cmd', '/k', fullCommand]
+      args: ['/c', fullCommand]
     })
   },
   {
     id: terminalApps.powershell,
     name: 'PowerShell',
-    command: (_: string, fullCommand: string) => {
-      // Escape double quotes in the path
-      const escapedPath = escapeDoubleQuotes(fullCommand)
-      return {
-        command: 'cmd',
-        args: ['/c', 'start', 'powershell', '-Command', `& "${escapedPath}"`]
-      }
-    }
+    command: (_: string, fullCommand: string) => ({
+      command: 'powershell',
+      args: ['-NoExit', '-Command', `& "${fullCommand}"`]
+    })
   },
   {
     id: terminalApps.windowsTerminal,
     name: 'Windows Terminal',
     command: (_: string, fullCommand: string) => ({
       command: 'wt',
-      args: ['cmd', '/c', `"${fullCommand.replace(/%/g, '%%')}"`]
+      args: ['new', '-p', 'Command Prompt', '-c', fullCommand]
     })
   },
   {
     id: terminalApps.wsl,
     name: 'WSL (Ubuntu/Debian)',
-    command: (_: string, fullCommand: string) => {
-      // Start WSL in a new window and execute the batch file from within WSL using cmd.exe
-      // The batch file will run in Windows context but output will be in WSL terminal
-      return {
-        command: 'cmd',
-        args: ['/c', 'start', 'wsl', '-e', 'bash', '-c', `cmd.exe /c '${fullCommand}' ; exec bash`]
-      }
-    }
+    command: (_: string, fullCommand: string) => ({
+      command: 'wsl',
+      args: ['bash', '-c', `cmd.exe /c '${fullCommand}' ; read -p 'Press Enter to exit'`]
+    })
   },
   {
     id: terminalApps.alacritty,
     name: 'Alacritty',
-    customPath: '', // Will be set by user in settings
+    customPath: '',
     command: (_: string, fullCommand: string) => ({
-      command: 'alacritty', // Will be replaced with customPath if set
-      args: ['-e', 'cmd', '/c', `"${fullCommand.replace(/%/g, '%%')}"`]
+      command: 'alacritty',
+      args: ['-e', 'cmd', '/c', fullCommand]
     })
   },
   {
     id: terminalApps.wezterm,
     name: 'WezTerm',
-    customPath: '', // Will be set by user in settings
+    customPath: '',
     command: (_: string, fullCommand: string) => ({
-      command: 'wezterm', // Will be replaced with customPath if set
-      args: ['start', 'cmd', '/c', `"${fullCommand.replace(/%/g, '%%')}"`]
+      command: 'wezterm',
+      args: ['start', '--', 'cmd', '/c', fullCommand]
     })
   }
 ]
