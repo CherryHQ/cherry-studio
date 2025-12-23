@@ -1,7 +1,28 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 48e2f6263c6ee4c75d7e5c28733e64f6ebe92200..00d0729c4a3cbf9a48e8e1e962c7e2b256b75eba 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -7,6 +7,7 @@ declare const openaiCompatibleProviderOptions: z.ZodObject<{
+     user: z.ZodOptional<z.ZodString>;
+     reasoningEffort: z.ZodOptional<z.ZodString>;
+     textVerbosity: z.ZodOptional<z.ZodString>;
++    sendReasoning: z.ZodOptional<z.ZodBoolean>;
+ }, z.core.$strip>;
+ type OpenAICompatibleProviderOptions = z.infer<typeof openaiCompatibleProviderOptions>;
+ 
 diff --git a/dist/index.js b/dist/index.js
-index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..4fcf9dfc809e787e5138c18d0d95197550228673 100644
+index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..a1db1e089c000212a0c060363f998878994aa34b 100644
 --- a/dist/index.js
 +++ b/dist/index.js
+@@ -41,7 +41,7 @@ function getOpenAIMetadata(message) {
+   var _a, _b;
+   return (_b = (_a = message == null ? void 0 : message.providerOptions) == null ? void 0 : _a.openaiCompatible) != null ? _b : {};
+ }
+-function convertToOpenAICompatibleChatMessages(prompt) {
++function convertToOpenAICompatibleChatMessages({prompt, options}) {
+   const messages = [];
+   for (const { role, content, ...message } of prompt) {
+     const metadata = getOpenAIMetadata({ ...message });
 @@ -91,6 +91,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
        }
        case "assistant": {
@@ -10,26 +31,37 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..4fcf9dfc809e787e5138c18d0d951975
          const toolCalls = [];
          for (const part of content) {
            const partMetadata = getOpenAIMetadata(part);
-@@ -99,6 +100,10 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+@@ -99,6 +100,12 @@ function convertToOpenAICompatibleChatMessages(prompt) {
                text += part.text;
                break;
              }
 +            case "reasoning": {
-+              reasoning_text = part.text;
++              if (options.sendReasoning) {
++                reasoning_text += part.text;
++              }
 +              break;
 +            }
              case "tool-call": {
                toolCalls.push({
                  id: part.toolCallId,
-@@ -116,6 +121,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+@@ -116,6 +123,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
          messages.push({
            role: "assistant",
            content: text,
-+          reasoning_content: reasoning_text,
++          reasoning_content: reasoning_text ?? undefined,
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -421,6 +427,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -378,7 +386,7 @@ var OpenAICompatibleChatLanguageModel = class {
+         reasoning_effort: compatibleOptions.reasoningEffort,
+         verbosity: compatibleOptions.textVerbosity,
+         // messages:
+-        messages: convertToOpenAICompatibleChatMessages(prompt),
++        messages: convertToOpenAICompatibleChatMessages({prompt, options: compatibleOptions}),
+         // tools:
+         tools: openaiTools,
+         tool_choice: openaiToolChoice
+@@ -421,6 +429,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -47,7 +79,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..4fcf9dfc809e787e5138c18d0d951975
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          content.push({
-@@ -598,6 +615,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -598,6 +617,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -65,7 +97,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..4fcf9dfc809e787e5138c18d0d951975
              if (delta.tool_calls != null) {
                for (const toolCallDelta of delta.tool_calls) {
                  const index = toolCallDelta.index;
-@@ -765,6 +793,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.object({
+@@ -765,6 +795,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.object({
                arguments: import_v43.z.string()
              })
            })
@@ -80,7 +112,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..4fcf9dfc809e787e5138c18d0d951975
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -795,6 +831,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => import_v43.z.union(
+@@ -795,6 +833,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => import_v43.z.union(
                  arguments: import_v43.z.string().nullish()
                })
              })
@@ -96,9 +128,18 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..4fcf9dfc809e787e5138c18d0d951975
          }).nullish(),
          finish_reason: import_v43.z.string().nullish()
 diff --git a/dist/index.mjs b/dist/index.mjs
-index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..b97c8ee06897e9195ae810b9b2f39be087198ba0 100644
+index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..e811e682016b1bb249e6678f5cb0d97dac93c83f 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
+@@ -23,7 +23,7 @@ function getOpenAIMetadata(message) {
+   var _a, _b;
+   return (_b = (_a = message == null ? void 0 : message.providerOptions) == null ? void 0 : _a.openaiCompatible) != null ? _b : {};
+ }
+-function convertToOpenAICompatibleChatMessages(prompt) {
++function convertToOpenAICompatibleChatMessages({prompt, options}) {
+   const messages = [];
+   for (const { role, content, ...message } of prompt) {
+     const metadata = getOpenAIMetadata({ ...message });
 @@ -73,6 +73,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
        }
        case "assistant": {
@@ -107,26 +148,37 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..b97c8ee06897e9195ae810b9b2f39be0
          const toolCalls = [];
          for (const part of content) {
            const partMetadata = getOpenAIMetadata(part);
-@@ -81,6 +82,10 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+@@ -81,6 +82,12 @@ function convertToOpenAICompatibleChatMessages(prompt) {
                text += part.text;
                break;
              }
 +            case "reasoning": {
-+              reasoning_text = part.text;
++              if (options.sendReasoning) {
++                reasoning_text += part.text;
++              }
 +              break;
 +            }
              case "tool-call": {
                toolCalls.push({
                  id: part.toolCallId,
-@@ -98,6 +103,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+@@ -98,6 +105,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
          messages.push({
            role: "assistant",
            content: text,
-+          reasoning_content: reasoning_text,
++          reasoning_content: reasoning_text ?? undefined,
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -405,6 +411,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -362,7 +370,7 @@ var OpenAICompatibleChatLanguageModel = class {
+         reasoning_effort: compatibleOptions.reasoningEffort,
+         verbosity: compatibleOptions.textVerbosity,
+         // messages:
+-        messages: convertToOpenAICompatibleChatMessages(prompt),
++        messages: convertToOpenAICompatibleChatMessages({prompt, options: compatibleOptions}),
+         // tools:
+         tools: openaiTools,
+         tool_choice: openaiToolChoice
+@@ -405,6 +413,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -144,7 +196,7 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..b97c8ee06897e9195ae810b9b2f39be0
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          content.push({
-@@ -582,6 +599,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -582,6 +601,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -162,7 +214,7 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..b97c8ee06897e9195ae810b9b2f39be0
              if (delta.tool_calls != null) {
                for (const toolCallDelta of delta.tool_calls) {
                  const index = toolCallDelta.index;
-@@ -749,6 +777,14 @@ var OpenAICompatibleChatResponseSchema = z3.object({
+@@ -749,6 +779,14 @@ var OpenAICompatibleChatResponseSchema = z3.object({
                arguments: z3.string()
              })
            })
@@ -177,7 +229,7 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..b97c8ee06897e9195ae810b9b2f39be0
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -779,6 +815,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => z3.union([
+@@ -779,6 +817,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => z3.union([
                  arguments: z3.string().nullish()
                })
              })
