@@ -1,6 +1,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import type { Shortcut } from '@renderer/types'
+import { formatShortcut } from '@renderer/utils/input'
 import { ZOOM_SHORTCUTS } from '@shared/config/constant'
 
 export interface ShortcutsState {
@@ -131,7 +132,13 @@ const initialState: ShortcutsState = {
       editable: true,
       enabled: true,
       system: true,
-      isSelector: true
+      options: [
+        { value: 'Enter', label: formatShortcut(['Enter']) },
+        { value: 'Ctrl+Enter', label: formatShortcut(['Ctrl', 'Enter']) },
+        { value: 'Alt+Enter', label: formatShortcut(['Alt', 'Enter']) },
+        { value: 'Command+Enter', label: formatShortcut(['Command', 'Enter']) },
+        { value: 'Shift+Enter', label: formatShortcut(['Shift', 'Enter']) }
+      ]
     }
   ]
 }
@@ -142,7 +149,8 @@ const getSerializableShortcuts = (shortcuts: Shortcut[]) => {
     shortcut: [...shortcut.shortcut],
     enabled: shortcut.enabled,
     system: shortcut.system,
-    editable: shortcut.editable
+    editable: shortcut.editable,
+    options: shortcut.options
   }))
 }
 
