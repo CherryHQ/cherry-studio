@@ -12,7 +12,9 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "import:aihubmix": "tsx scripts/import-aihubmix.ts"
+    "import:aihubmix": "tsx scripts/import-aihubmix.ts",
+    "import:openrouter": "tsx scripts/import-openrouter.ts",
+    "sync:all": "tsx scripts/sync-all-providers.ts"
   },
   "author": "Cherry Studio",
   "license": "MIT",
@@ -38,6 +40,8 @@
   },
   "devDependencies": {
     "@types/json-schema": "^7.0.15",
+    "@types/node": "^24.10.2",
+    "dotenv": "^17.2.3",
     "tsdown": "^0.16.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.13",

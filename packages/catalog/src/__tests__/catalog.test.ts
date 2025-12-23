@@ -74,25 +74,13 @@ describe('Config & Schema', () => {
         name: 'Test Provider',
         description: 'A test provider for unit testing',
         authentication: 'API_KEY',
-        pricing_model: 'PER_MODEL',
-        model_routing: 'DIRECT',
-        behaviors: {
-          supports_custom_models: false,
-          provides_model_mapping: false,
-          supports_model_versioning: false,
-          provides_fallback_routing: false,
-          has_auto_retry: false,
-          supports_health_check: false,
-          has_real_time_metrics: false,
-          provides_usage_analytics: false,
-          supports_webhook_events: false,
-          requires_api_key_validation: true,
-          supports_rate_limiting: false,
-          provides_usage_limits: false,
-          supports_streaming: true,
-          supports_batch_processing: false,
-          supports_model_fine_tuning: false
-        },
+        formats: [
+          {
+            format: 'OPENAI',
+            base_url: 'https://api.test.com/v1',
+            default: true
+          }
+        ],
         supported_endpoints: ['CHAT_COMPLETIONS'],
         api_compatibility: {
           supports_array_content: true,
@@ -100,22 +88,13 @@ describe('Config & Schema', () => {
           supports_developer_role: false,
           supports_thinking_control: false,
           supports_api_version: false,
-          supports_parallel_tools: false,
-          supports_multimodal: false,
           supports_service_tier: false
         },
-        special_config: {},
         documentation: 'https://docs.test.com',
         website: 'https://test.com',
         deprecated: false,
-        maintenance_mode: false,
-        config_version: '1.0.0',
         metadata: {
-          tags: ['test'],
-          category: 'ai-provider',
-          source: 'test',
-          reliability: 'high',
-          supportedLanguages: ['en']
+          tags: ['test']
         }
       })
     })

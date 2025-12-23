@@ -8,14 +8,26 @@ import type { AiHubMixModel } from './types'
 
 export class AiHubMixTransformer {
   /**
+   * Normalize model ID by extracting the model name from provider/model format and converting to lowercase
+   * @param modelId - Original model ID (e.g., "openai/GPT-4" or "Claude-3-Opus")
+   * @returns Normalized lowercase model ID (e.g., "gpt-4" or "claude-3-opus")
+   */
+  private normalizeModelId(modelId: string): string {
+    // Split by '/' and take the last part, then convert to lowercase
+    const parts = modelId.split('/')
+    return parts[parts.length - 1].toLowerCase()
+  }
+
+  /**
    * Transform AIHubMix model to internal ModelConfig
    * @param apiModel - Model data from AIHubMix API
    * @returns Internal model configuration
    */
   transform(apiModel: AiHubMixModel): ModelConfig {
     return {
-      id: apiModel.model_id,
+      id: this.normalizeModelId(apiModel.model_id),
       description: apiModel.desc || undefined,
+      owned_by: this.extractProvider(apiModel.model_id) || 'aihubmix',
 
       capabilities: this.mapCapabilities(apiModel.types, apiModel.features),
       input_modalities: this.mapModalities(apiModel.input_modalities),
@@ -55,6 +67,19 @@ export class AiHubMixTransformer {
         original_features: apiModel.features
       }
     }
+  }
+
+  /**
+   * Extract provider name from model_id
+   * @param modelId - Model ID (e.g., "openai/gpt-4" or "anthropic/claude-3")
+   * @returns Provider name (e.g., "openai" or "anthropic"), or undefined if not in format
+   */
+  private extractProvider(modelId: string): string | undefined {
+    const parts = modelId.split('/')
+    if (parts.length >= 2) {
+      return parts[0].toLowerCase()
+    }
+    return undefined
   }
 
   /**

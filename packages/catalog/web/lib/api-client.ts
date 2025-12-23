@@ -115,6 +115,13 @@ export class ApiClient {
       body: data
     }),
 
+    // Sync provider models
+    sync: (id: string, apiKey?: string) => ({
+      url: `${API_BASE}/providers/${id}/sync`,
+      method: 'POST',
+      body: { apiKey }
+    }),
+
     // Delete a provider (if implemented)
     delete: (id: string) => ({
       url: `${API_BASE}/providers/${id}`,
@@ -225,6 +232,32 @@ export function useUpdateProvider() {
 
       const data = await response.json()
       return ProviderUpdateResponseSchema.parse(data)
+    }
+  )
+}
+
+// Mutation for syncing provider models
+export function useSyncProvider() {
+  return useSWRMutation(
+    '/api/catalog/providers',
+    async (url: string, { arg }: { arg: { id: string; apiKey?: string } }) => {
+      const response = await fetch(`${url}/${arg.id}/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: arg.apiKey })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        const error: ExtendedApiError = {
+          error: errorData.error || 'Failed to sync provider models',
+          status: response.status,
+          info: errorData
+        }
+        throw error
+      }
+
+      return await response.json()
     }
   )
 }

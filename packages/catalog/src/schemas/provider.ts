@@ -1,28 +1,6 @@
-/**
- * Provider configuration schema definitions
- * Defines the structure for AI service provider metadata and capabilities
- */
-
 import * as z from 'zod'
 
 import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
-
-// Endpoint types supported by providers
-export const EndpointTypeSchema = z.enum([
-  'CHAT_COMPLETIONS', // /chat/completions
-  'COMPLETIONS', // /completions
-  'EMBEDDINGS', // /embeddings
-  'IMAGE_GENERATION', // /images/generations
-  'IMAGE_EDIT', // /images/edits
-  'AUDIO_SPEECH', // /audio/speech (TTS)
-  'AUDIO_TRANSCRIPTIONS', // /audio/transcriptions (STT)
-  'MESSAGES', // /messages
-  'RESPONSES', // /responses
-  'GENERATE_CONTENT', // :generateContent
-  'STREAM_GENERATE_CONTENT', // :streamGenerateContent
-  'RERANK', // /rerank
-  'MODERATIONS' // /moderations
-])
 
 // Authentication methods
 export const AuthenticationSchema = z.enum([
@@ -31,76 +9,84 @@ export const AuthenticationSchema = z.enum([
   'CLOUD_CREDENTIALS' // Cloud service credentials (AWS, GCP, Azure)
 ])
 
-// Pricing models that affect UI and behavior
-export const PricingModelSchema = z.enum([
-  'UNIFIED', // Unified pricing (like OpenRouter)
-  'PER_MODEL', // Per-model independent pricing (like OpenAI official)
-  'TRANSPARENT', // Transparent pricing (like New-API)
-  'USAGE_BASED', // Dynamic usage-based pricing
-  'SUBSCRIPTION' // Subscription-based pricing
+// Endpoint types - represents the API functionality
+export const EndpointTypeSchema = z.enum([
+  // LLM endpoints
+  'CHAT_COMPLETIONS', // OpenAI chat completions
+  'TEXT_COMPLETIONS', // OpenAI text completions
+  'MESSAGES', // Anthropic messages API
+  'RESPONSES', // OpenAI responses API (new format with reasoning)
+  'GENERATE_CONTENT', // Gemini generateContent API
+
+  // Embedding endpoints
+  'EMBEDDINGS',
+  'RERANK',
+
+  // Image endpoints
+  'IMAGE_GENERATION',
+  'IMAGE_EDIT',
+  'IMAGE_VARIATION',
+
+  // Audio endpoints
+  'AUDIO_TRANSCRIPTION',
+  'AUDIO_TRANSLATION',
+  'TEXT_TO_SPEECH',
+
+  // Video endpoints
+  'VIDEO_GENERATION'
 ])
 
-// Model routing strategies affecting performance and reliability
-export const ModelRoutingSchema = z.enum([
-  'INTELLIGENT', // Intelligent routing, auto-select optimal instance
-  'DIRECT', // Direct routing to specified model
-  'LOAD_BALANCED', // Load balanced across multiple instances
-  'GEO_ROUTED', // Geographic location routing
-  'COST_OPTIMIZED' // Cost-optimized routing
+// API format types - represents the protocol/format of the API
+export const ApiFormatSchema = z.enum([
+  'OPENAI', // OpenAI standard format (covers chat, embeddings, images, etc.)
+  'ANTHROPIC', // Anthropic format
+  'GEMINI', // Google Gemini API format
+  'CUSTOM' // Custom/proprietary format
 ])
 
-// Server-side MCP support configuration
-export const McpSupportSchema = z.object({
-  supported: z.boolean().default(false),
-  configuration: z
-    .object({
-      supports_url_pass_through: z.boolean().default(false),
-      supported_servers: z.array(z.string()).optional(),
-      max_concurrent_servers: z.number().optional()
-    })
-    .optional()
+// Format configuration - maps API format to base URL
+export const FormatConfigSchema = z.object({
+  format: ApiFormatSchema,
+  base_url: z.string().url(),
+  default: z.boolean().default(false)
 })
 
-// API compatibility configuration
 export const ApiCompatibilitySchema = z.object({
   supports_array_content: z.boolean().default(true),
   supports_stream_options: z.boolean().default(true),
-  supports_developer_role: z.boolean().default(false),
+  supports_developer_role: z.boolean().default(true),
   supports_service_tier: z.boolean().default(false),
-  supports_thinking_control: z.boolean().default(false),
-  supports_api_version: z.boolean().default(false),
-  supports_parallel_tools: z.boolean().default(false),
-  supports_multimodal: z.boolean().default(false),
-  max_file_upload_size: z.number().optional(), // bytes
-  supported_file_types: z.array(z.string()).optional()
+  supports_thinking_control: z.boolean().default(true),
+  supports_api_version: z.boolean().default(true)
 })
 
-// Behavior characteristics configuration - replaces categorization, describes actual behavior
-export const ProviderBehaviorsSchema = z.object({
-  // Model management
-  supports_custom_models: z.boolean().default(false), // Supports user custom models
-  provides_model_mapping: z.boolean().default(false), // Provides model name mapping
-  supports_model_versioning: z.boolean().default(false), // Supports model version control
+// Models API endpoint configuration
+export const ModelsApiEndpointSchema = z.object({
+  // API endpoint URL
+  url: z.string().url(),
+  // Endpoint type (CHAT_COMPLETIONS, EMBEDDINGS, etc.)
+  endpoint_type: EndpointTypeSchema,
+  // API format for this endpoint
+  format: ApiFormatSchema,
+  // Optional authentication override (if different from provider default)
+  auth: z
+    .object({
+      header_name: z.string().optional(), // e.g., "Authorization", "X-API-Key"
+      prefix: z.string().optional() // e.g., "Bearer ", "sk-"
+    })
+    .optional(),
+  // Optional custom transformer name if not OpenAI-compatible
+  transformer: z.string().optional() // e.g., "openrouter", "aihubmix", "custom"
+})
 
-  // Reliability and fault tolerance
-  provides_fallback_routing: z.boolean().default(false), // Provides fallback routing
-  has_auto_retry: z.boolean().default(false), // Has automatic retry mechanism
-  supports_health_check: z.boolean().default(false), // Supports health checks
-
-  // Monitoring and metrics
-  has_real_time_metrics: z.boolean().default(false), // Has real-time metrics
-  provides_usage_analytics: z.boolean().default(false), // Provides usage analytics
-  supports_webhook_events: z.boolean().default(false), // Supports webhook events
-
-  // Configuration and management
-  requires_api_key_validation: z.boolean().default(true), // Requires API key validation
-  supports_rate_limiting: z.boolean().default(false), // Supports rate limiting
-  provides_usage_limits: z.boolean().default(false), // Provides usage limit configuration
-
-  // Advanced features
-  supports_streaming: z.boolean().default(true), // Supports streaming responses
-  supports_batch_processing: z.boolean().default(false), // Supports batch processing
-  supports_model_fine_tuning: z.boolean().default(false) // Provides model fine-tuning
+// Models API configuration
+export const ModelsApiConfigSchema = z.object({
+  // List of endpoints (most providers have one, some have multiple)
+  endpoints: z.array(ModelsApiEndpointSchema).min(1),
+  // Enable/disable auto-sync for this provider
+  enabled: z.boolean().default(true),
+  // Last successful sync timestamp
+  last_synced: z.string().optional()
 })
 
 // Provider configuration schema
@@ -110,51 +96,35 @@ export const ProviderConfigSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
 
-  // Behavior-related configuration
-  authentication: AuthenticationSchema,
-  pricing_model: PricingModelSchema,
-  model_routing: ModelRoutingSchema,
-  behaviors: ProviderBehaviorsSchema,
+  // Authentication
+  authentication: AuthenticationSchema.default('API_KEY'),
 
-  // Feature support
-  supported_endpoints: z
-    .array(EndpointTypeSchema)
-    .min(1, 'At least one endpoint must be supported')
-    .refine((arr) => new Set(arr).size === arr.length, {
-      message: 'Supported endpoints must be unique'
+  // API format configurations
+  // Each provider can support multiple API formats (e.g., OpenAI + Anthropic)
+  formats: z
+    .array(FormatConfigSchema)
+    .min(1)
+    .refine((formats) => formats.filter((f) => f.default).length <= 1, {
+      message: 'Only one format can be marked as default'
     }),
-  mcp_support: McpSupportSchema.optional(),
+
+  // Supported endpoint types (optional, for documentation)
+  supported_endpoints: z.array(EndpointTypeSchema).optional(),
+
+  // API compatibility - 保留以支持在线更新
   api_compatibility: ApiCompatibilitySchema.optional(),
 
-  // Default configuration
-  default_api_host: z.string().optional(),
-  default_rate_limit: z.number().optional(), // requests per minute
-
-  // Model matching assistance
-  model_id_patterns: z.array(z.string()).optional(),
-  alias_model_ids: z.record(z.string(), z.string()).optional(), // Model alias mapping
-
-  // Special configuration
-  special_config: MetadataSchema,
-
-  // Metadata and links
+  // Documentation links
   documentation: z.string().url().optional(),
-  status_page: z.string().url().optional(),
-  pricing_page: z.string().url().optional(),
-  support_email: z.string().email().optional(),
   website: z.string().url().optional(),
 
   // Status management
   deprecated: z.boolean().default(false),
-  deprecation_date: z.iso.datetime().optional(),
-  maintenance_mode: z.boolean().default(false),
 
-  // Version and compatibility
-  min_app_version: VersionSchema.optional(), // Minimum supported app version
-  max_app_version: VersionSchema.optional(), // Maximum supported app version
-  config_version: VersionSchema.default('1.0.0'), // Configuration file version
+  // Models API configuration (optional)
+  models_api: ModelsApiConfigSchema.optional(),
 
-  // Additional metadata
+  // Additional metadata (tags, etc.)
   metadata: MetadataSchema
 })
 
@@ -165,12 +135,12 @@ export const ProviderListSchema = z.object({
 })
 
 // Type exports
-export type EndpointType = z.infer<typeof EndpointTypeSchema>
 export type Authentication = z.infer<typeof AuthenticationSchema>
-export type PricingModel = z.infer<typeof PricingModelSchema>
-export type ModelRouting = z.infer<typeof ModelRoutingSchema>
-export type McpSupport = z.infer<typeof McpSupportSchema>
+export type EndpointType = z.infer<typeof EndpointTypeSchema>
+export type ApiFormat = z.infer<typeof ApiFormatSchema>
+export type FormatConfig = z.infer<typeof FormatConfigSchema>
 export type ApiCompatibility = z.infer<typeof ApiCompatibilitySchema>
-export type ProviderBehaviors = z.infer<typeof ProviderBehaviorsSchema>
+export type ModelsApiEndpoint = z.infer<typeof ModelsApiEndpointSchema>
+export type ModelsApiConfig = z.infer<typeof ModelsApiConfigSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 export type ProviderList = z.infer<typeof ProviderListSchema>

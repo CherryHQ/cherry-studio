@@ -9,9 +9,9 @@ import { createErrorResponse, safeParseWithValidation, ValidationError } from '@
 
 const DATA_DIR = path.join(process.cwd(), '../data')
 
-export async function GET(request: NextRequest, { params }: { params: { modelId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ modelId: string }> }) {
   try {
-    const { modelId } = params
+    const { modelId } = await params
 
     // Read and validate models data using Zod
     const modelsDataPath = path.join(DATA_DIR, 'models.json')
@@ -43,24 +43,12 @@ export async function GET(request: NextRequest, { params }: { params: { modelId:
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { modelId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ modelId: string }> }) {
   try {
-    const { modelId } = params
+    const { modelId } = await params
 
     // Read and validate request body using Zod
     const requestBody = await request.json()
-    const updatedModel = await safeParseWithValidation(
-      JSON.stringify(requestBody),
-      ModelSchema,
-      'Invalid model data in request body'
-    )
-
-    // Validate that the model ID matches
-    if (updatedModel.id !== modelId) {
-      return NextResponse.json(createErrorResponse('Model ID in request body must match URL parameter', 400), {
-        status: 400
-      })
-    }
 
     // Read current models data using Zod
     const modelsDataPath = path.join(DATA_DIR, 'models.json')
@@ -71,11 +59,27 @@ export async function PUT(request: NextRequest, { params }: { params: { modelId:
       'Invalid models data format in file'
     )
 
-    // Find and update the model
+    // Find the model
     const modelIndex = modelsData.models.findIndex((m) => m.id === modelId)
     if (modelIndex === -1) {
       return NextResponse.json(createErrorResponse('Model not found', 404), { status: 404 })
     }
+
+    const existingModel = modelsData.models[modelIndex]
+
+    // Merge existing model with updates (partial update support)
+    const mergedModel = {
+      ...existingModel,
+      ...requestBody,
+      id: modelId // Ensure ID cannot be changed
+    }
+
+    // Validate the merged model
+    const updatedModel = await safeParseWithValidation(
+      JSON.stringify(mergedModel),
+      ModelSchema,
+      'Invalid model data after merge'
+    )
 
     // Create updated models array (immutability)
     const updatedModels = [
@@ -110,4 +114,9 @@ export async function PUT(request: NextRequest, { params }: { params: { modelId:
       { status: 500 }
     )
   }
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ modelId: string }> }) {
+  // PATCH is just an alias for PUT in this case, both support partial updates
+  return PUT(request, { params })
 }

@@ -99,16 +99,29 @@ export class SchemaValidator {
       }
 
       if (includeWarnings) {
-        if (!config.behaviors.requiresApiKeyValidation) {
-          warnings.push('Provider does not require API key validation - ensure this is intentional')
+        // Check formats configuration
+        if (!config.formats || config.formats.length === 0) {
+          warnings.push('No API formats defined for provider')
         }
 
-        if (config.endpoints.length === 0) {
-          warnings.push('No endpoints defined for provider')
+        // Check if there's a default format
+        if (config.formats && !config.formats.some((f: any) => f.default)) {
+          warnings.push('No default format specified - first format will be used as default')
         }
 
-        if (config.pricingModel === 'UNIFIED' && !config.behaviors.providesModelMapping) {
-          warnings.push('Unified pricing model without model mapping may cause confusion')
+        // Check for multiple default formats
+        if (config.formats && config.formats.filter((f: any) => f.default).length > 1) {
+          warnings.push('Multiple default formats specified - only one should be marked as default')
+        }
+
+        // Check if documentation is provided
+        if (!config.documentation) {
+          warnings.push('No documentation URL provided')
+        }
+
+        // Check supported_endpoints
+        if (!config.supported_endpoints || config.supported_endpoints.length === 0) {
+          warnings.push('No supported endpoints specified')
         }
       }
 

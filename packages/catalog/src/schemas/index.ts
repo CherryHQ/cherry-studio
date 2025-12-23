@@ -28,11 +28,10 @@ export type {
   ProviderModelOverride
 } from './override'
 export type {
+  ApiFormat,
   Authentication,
   EndpointType,
-  McpSupport,
-  PricingModel,
-  ProviderBehaviors,
+  FormatConfig,
   ProviderConfig
 } from './provider'
 

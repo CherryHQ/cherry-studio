@@ -1,0 +1,25 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Node modules
+node_modules/
+
+# Test coverage
+coverage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

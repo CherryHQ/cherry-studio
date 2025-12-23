@@ -12,6 +12,7 @@ import {
   OverridesDataFileSchema
 } from '@/lib/catalog-types'
 import { safeParseWithValidation, validateString, ValidationError, createErrorResponse } from '@/lib/validation'
+import { applyOverrides, OverrideApplicationError } from '../../../../src/utils/override-utils'
 
 const DATA_DIR = path.join(process.cwd(), '../data')
 
@@ -63,9 +64,9 @@ function detectModifications(
   return modifications.pricing || modifications.limits ? modifications : null
 }
 
-export async function GET(request: NextRequest, { params }: { params: { modelId: string; providerId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ modelId: string; providerId: string }> }) {
   try {
-    const { modelId, providerId } = params
+    const { modelId, providerId } = await params
 
     // Validate parameters
     const validModelId = validateString(modelId, 'modelId')
@@ -140,9 +141,9 @@ const ProviderModelUpdateResponseSchema = z.object({
   model: ModelSchema
 })
 
-export async function PUT(request: NextRequest, { params }: { params: { modelId: string; providerId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ modelId: string; providerId: string }> }) {
   try {
-    const { modelId, providerId } = params
+    const { modelId, providerId } = await params
 
     // Validate parameters
     const validModelId = validateString(modelId, 'modelId')

@@ -7,8 +7,7 @@ import { cn } from '@/lib/utils'
 
 const navigation = [
   { name: 'Models', href: '/' },
-  { name: 'Providers', href: '/providers' },
-  { name: 'Overrides', href: '/overrides' }
+  { name: 'Providers', href: '/providers' }
 ]
 
 export function Navigation() {

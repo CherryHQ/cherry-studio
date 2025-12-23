@@ -19,9 +19,11 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { ModelEditForm } from '@/components/model-edit-form'
 // Import SWR hooks and utilities
-import { getErrorMessage, useDebounce, useModels, useUpdateModel } from '@/lib/api-client'
+import { getErrorMessage, useDebounce, useModels, useProviders, useUpdateModel } from '@/lib/api-client'
 import type { CapabilityType, Model } from '@/lib/catalog-types'
+import { toast } from 'sonner'
 
 // Type-safe capabilities list
 const CAPABILITIES: readonly CapabilityType[] = [
@@ -94,6 +96,7 @@ export default function CatalogReview() {
   const [currentPage, setCurrentPage] = useState(1)
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [jsonContent, setJsonContent] = useState('')
+  const [editMode, setEditMode] = useState<'form' | 'json'>('form')
 
   // Debounce search to avoid excessive API calls
   const debouncedSearch = useDebounce(search, 300)
@@ -109,6 +112,11 @@ export default function CatalogReview() {
     search: debouncedSearch,
     capabilities: selectedCapabilities.length > 0 ? selectedCapabilities : undefined,
     providers: selectedProviders.length > 0 ? selectedProviders : undefined
+  })
+
+  // SWR hook for fetching all providers
+  const { data: providersData } = useProviders({
+    limit: 100 // Maximum allowed limit
   })
 
   // SWR mutation for updating models
@@ -130,22 +138,33 @@ export default function CatalogReview() {
     setJsonContent(JSON.stringify(model, null, 2))
   }
 
-  const handleSave = async () => {
+  const handleSave = async (data?: Partial<Model>) => {
     if (!editingModel) return
 
     try {
-      // Validate JSON before sending
-      const updatedModel = JSON.parse(jsonContent) as unknown
+      let updatedModel: Partial<Model>
 
-      // Basic validation - the API will do thorough validation
-      if (!updatedModel || typeof updatedModel !== 'object') {
-        throw new Error('Invalid JSON format')
+      if (data) {
+        // Form submission
+        updatedModel = data
+      } else {
+        // JSON submission
+        const parsed = JSON.parse(jsonContent) as unknown
+        if (!parsed || typeof parsed !== 'object') {
+          throw new Error('Invalid JSON format')
+        }
+        updatedModel = parsed as Partial<Model>
       }
 
       // Use SWR mutation for optimistic update
       await updateModel({
         id: editingModel.id,
-        data: updatedModel as Partial<Model>
+        data: updatedModel
+      })
+
+      // Show success toast
+      toast.success('Model updated successfully', {
+        description: `${editingModel.id} has been updated`
       })
 
       // Close dialog and reset form
@@ -153,16 +172,15 @@ export default function CatalogReview() {
       setJsonContent('')
     } catch (error) {
       console.error('Error saving model:', error)
-      // Error will be handled by SWR and displayed in UI
+      // Show error toast
+      toast.error('Failed to update model', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred'
+      })
     }
   }
 
-  // Type-safe function to extract unique providers
-  const getUniqueProviders = (): string[] => {
-    return [
-      ...new Set(models.map((model) => model.owned_by).filter((provider): provider is string => Boolean(provider)))
-    ]
-  }
+  // Get all unique providers from providers.json
+  const allProviders = providersData?.data?.map((p) => p.id) || []
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -211,7 +229,7 @@ export default function CatalogReview() {
           <div>
             <label className="text-sm font-medium mb-2 block">Providers</label>
             <div className="flex flex-wrap gap-2">
-              {getUniqueProviders().map((provider) => (
+              {allProviders.map((provider) => (
                 <Badge
                   key={provider}
                   variant={selectedProviders.includes(provider) ? 'default' : 'outline'}
@@ -296,27 +314,62 @@ export default function CatalogReview() {
                               Edit
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                             <DialogHeader>
-                              <DialogTitle>Edit Model Configuration</DialogTitle>
-                              <DialogDescription>
-                                Modify the JSON configuration for {model.name || model.id}
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <Textarea
-                                value={jsonContent}
-                                onChange={(e) => setJsonContent(e.target.value)}
-                                className="min-h-[400px] font-mono text-sm"
-                              />
-                              <div className="flex gap-2 justify-end">
-                                <Button variant="outline" onClick={() => setEditingModel(null)}>
-                                  Cancel
-                                </Button>
-                                <Button onClick={handleSave} disabled={isUpdating}>
-                                  {isUpdating ? 'Saving...' : 'Save Changes'}
-                                </Button>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <DialogTitle>Edit Model Configuration</DialogTitle>
+                                  <DialogDescription>
+                                    {editMode === 'form' ? 'Use the form below' : 'Edit JSON'} to modify {model.name || model.id}
+                                  </DialogDescription>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant={editMode === 'form' ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setEditMode('form')}>
+                                    Form
+                                  </Button>
+                                  <Button
+                                    variant={editMode === 'json' ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setEditMode('json')}>
+                                    JSON
+                                  </Button>
+                                </div>
                               </div>
+                            </DialogHeader>
+                            <div className="flex-1 overflow-auto">
+                              {editMode === 'form' ? (
+                                <ModelEditForm
+                                  model={model}
+                                  onSave={handleSave}
+                                  onCancel={() => setEditingModel(null)}
+                                  isSaving={isUpdating}
+                                />
+                              ) : (
+                                <div className="space-y-4">
+                                  <Textarea
+                                    value={jsonContent}
+                                    onChange={(e) => setJsonContent(e.target.value)}
+                                    className="min-h-[500px] font-mono text-sm"
+                                  />
+                                  <div className="flex gap-3 justify-end">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => setEditingModel(null)}
+                                      className="min-w-[100px]">
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      onClick={() => handleSave()}
+                                      disabled={isUpdating}
+                                      className="min-w-[140px] bg-primary hover:bg-primary/90">
+                                      {isUpdating ? 'Saving...' : 'Save Changes'}
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </DialogContent>
                         </Dialog>

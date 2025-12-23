@@ -34,8 +34,9 @@ export const StringRangeSchema = z.object({
 })
 
 // Price per token schema (snake_case)
+// Allow null for per_million_tokens to handle incomplete pricing data from APIs
 export const PricePerTokenSchema = z.object({
-  per_million_tokens: z.number().nonnegative(),
+  per_million_tokens: z.number().nonnegative().nullable(),
   currency: CurrencySchema.default('USD')
 })
 

@@ -9,9 +9,9 @@ import { createErrorResponse, safeParseWithValidation, ValidationError } from '@
 
 const DATA_DIR = path.join(process.cwd(), '../data')
 
-export async function GET(request: NextRequest, { params }: { params: { providerId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ providerId: string }> }) {
   try {
-    const { providerId } = params
+    const { providerId } = await params
 
     // Read and validate providers data using Zod
     const providersDataPath = path.join(DATA_DIR, 'providers.json')
@@ -43,24 +43,12 @@ export async function GET(request: NextRequest, { params }: { params: { provider
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { providerId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ providerId: string }> }) {
   try {
-    const { providerId } = params
+    const { providerId } = await params
 
     // Read and validate request body using Zod
     const requestBody = await request.json()
-    const updatedProvider = await safeParseWithValidation(
-      JSON.stringify(requestBody),
-      ProviderSchema,
-      'Invalid provider data in request body'
-    )
-
-    // Validate that the provider ID matches
-    if (updatedProvider.id !== providerId) {
-      return NextResponse.json(createErrorResponse('Provider ID in request body must match URL parameter', 400), {
-        status: 400
-      })
-    }
 
     // Read current providers data using Zod
     const providersDataPath = path.join(DATA_DIR, 'providers.json')
@@ -71,11 +59,27 @@ export async function PUT(request: NextRequest, { params }: { params: { provider
       'Invalid providers data format in file'
     )
 
-    // Find and update the provider
+    // Find the provider
     const providerIndex = providersData.providers.findIndex((p) => p.id === providerId)
     if (providerIndex === -1) {
       return NextResponse.json(createErrorResponse('Provider not found', 404), { status: 404 })
     }
+
+    const existingProvider = providersData.providers[providerIndex]
+
+    // Merge existing provider with updates (partial update support)
+    const mergedProvider = {
+      ...existingProvider,
+      ...requestBody,
+      id: providerId // Ensure ID cannot be changed
+    }
+
+    // Validate the merged provider
+    const updatedProvider = await safeParseWithValidation(
+      JSON.stringify(mergedProvider),
+      ProviderSchema,
+      'Invalid provider data after merge'
+    )
 
     // Create updated providers array (immutability)
     const updatedProviders = [
@@ -110,4 +114,9 @@ export async function PUT(request: NextRequest, { params }: { params: { provider
       { status: 500 }
     )
   }
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ providerId: string }> }) {
+  // PATCH is just an alias for PUT in this case, both support partial updates
+  return PUT(request, { params })
 }

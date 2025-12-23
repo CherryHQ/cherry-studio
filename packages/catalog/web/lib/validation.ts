@@ -7,145 +7,27 @@ import * as z from 'zod'
 // Import schemas from catalog package
 import {
   ModelConfigSchema,
-  ModelListSchema
+  ModelListSchema,
+  OverrideListSchema,
+  ProviderConfigSchema,
+  ProviderListSchema,
+  ProviderModelOverrideSchema as CatalogProviderModelOverrideSchema
 } from '../../src/schemas'
-
-// Base parameter schemas
-const ParameterRangeSchema = z.object({
-  supported: z.literal(true),
-  min: z.number().positive(),
-  max: z.number().positive(),
-  default: z.number().positive()
-})
-
-const ParameterBooleanSchema = z.object({
-  supported: z.boolean()
-})
-
-const ParameterUnsupportedSchema = z.object({
-  supported: z.literal(false)
-})
-
-const ParameterValueSchema = z.union([ParameterRangeSchema, ParameterBooleanSchema, ParameterUnsupportedSchema])
-
-
-// Pricing schema
-const PricingInfoSchema = z.object({
-  input: z.object({
-    per_million_tokens: z.number().nonnegative(),
-    currency: z.string().length(3) // ISO 4217 currency codes
-  }),
-  output: z.object({
-    per_million_tokens: z.number().nonnegative(),
-    currency: z.string().length(3)
-  })
-})
 
 
 // Complete Model schema - use from catalog package
 export const ModelSchema = ModelConfigSchema
 
-// Provider behaviors schema
-const ProviderBehaviorsSchema = z
-  .object({
-    supports_custom_models: z.boolean(),
-    provides_model_mapping: z.boolean(),
-    supports_model_versioning: z.boolean(),
-    provides_fallback_routing: z.boolean(),
-    has_auto_retry: z.boolean(),
-    supports_health_check: z.boolean(),
-    has_real_time_metrics: z.boolean(),
-    provides_usage_analytics: z.boolean(),
-    supports_webhook_events: z.boolean(),
-    requires_api_key_validation: z.boolean(),
-    supports_rate_limiting: z.boolean(),
-    provides_usage_limits: z.boolean(),
-    supports_streaming: z.boolean(),
-    supports_batch_processing: z.boolean(),
-    supports_model_fine_tuning: z.boolean()
-  })
-  .loose() // Allow extensions
-
-// API compatibility schema
-const ApiCompatibilitySchema = z
-  .object({
-    supports_array_content: z.boolean().optional(),
-    supports_stream_options: z.boolean().optional(),
-    supports_developer_role: z.boolean().optional(),
-    supports_service_tier: z.boolean().optional(),
-    supports_thinking_control: z.boolean().optional(),
-    supports_api_version: z.boolean().optional(),
-    supports_parallel_tools: z.boolean().optional(),
-    supports_multimodal: z.boolean().optional()
-  })
-  .loose()
-
-// Special configuration schema (flexible)
-const SpecialConfigSchema = z.record(z.string(), z.unknown())
-
-// Provider metadata schema
-const ProviderMetadataSchema = z
-  .object({
-    source: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    reliability: z.enum(['low', 'medium', 'high']).optional()
-  })
-  .loose()
-
-// Complete Provider schema
-export const ProviderSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  description: z.string().optional(),
-  authentication: z.string().min(1),
-  pricing_model: z.string().min(1),
-  model_routing: z.string().min(1),
-  behaviors: ProviderBehaviorsSchema,
-  supported_endpoints: z.array(z.string()),
-  api_compatibility: ApiCompatibilitySchema.optional(),
-  default_api_host: z.url().optional(),
-  default_rate_limit: z.number().positive().optional(),
-  model_id_patterns: z.array(z.string()).optional(),
-  alias_model_ids: z.record(z.string(), z.string()).optional(),
-  documentation: z.string().url().optional(),
-  website: z.string().url().optional(),
-  deprecated: z.boolean(),
-  maintenance_mode: z.boolean(),
-  config_version: z.string().min(1),
-  special_config: SpecialConfigSchema.optional(),
-  metadata: ProviderMetadataSchema.optional()
-})
+// Complete Provider schema - use from catalog package
+export const ProviderSchema = ProviderConfigSchema
 
 // Data file schemas - use from catalog package
 export const ModelsDataFileSchema = ModelListSchema
+export const ProvidersDataFileSchema = ProviderListSchema
 
-export const ProvidersDataFileSchema = z.object({
-  version: z.string().min(1),
-  providers: z.array(ProviderSchema)
-})
-
-// Override schemas
-const OverrideLimitsSchema = z.object({
-  context_window: z.number().positive().optional(),
-  max_output_tokens: z.number().positive().optional()
-})
-
-export const ProviderModelOverrideSchema = z.object({
-  provider_id: z.string().min(1),
-  model_id: z.string().min(1),
-  disabled: z.boolean().default(false),
-  reason: z.string().optional(),
-  last_updated: z.string().optional(),
-  updated_by: z.string().optional(),
-  priority: z.number().default(100),
-  limits: OverrideLimitsSchema.optional(),
-  pricing: PricingInfoSchema.optional()
-})
-
-export const OverridesDataFileSchema = z.object({
-  version: z.string().min(1),
-  overrides: z.array(ProviderModelOverrideSchema)
-})
+// Override schemas - use from catalog package
+export const ProviderModelOverrideSchema = CatalogProviderModelOverrideSchema
+export const OverridesDataFileSchema = OverrideListSchema
 
 // Pagination schemas
 export const PaginationInfoSchema = z.object({
@@ -226,7 +108,27 @@ export const ModalityTypeSchema = z.enum(['TEXT', 'VISION', 'AUDIO', 'VIDEO'])
 
 export const AuthenticationTypeSchema = z.enum(['API_KEY', 'OAUTH', 'NONE', 'CUSTOM'])
 
-export const EndpointTypeSchema = z.enum(['CHAT_COMPLETIONS', 'MESSAGES', 'RESPONSES', 'EMBEDDINGS', 'RERANK'])
+export const EndpointTypeSchema = z.enum([
+  // LLM endpoints
+  'CHAT_COMPLETIONS',
+  'TEXT_COMPLETIONS',
+  'MESSAGES',
+  'RESPONSES',
+  'GENERATE_CONTENT',
+  // Embedding endpoints
+  'EMBEDDINGS',
+  'RERANK',
+  // Image endpoints
+  'IMAGE_GENERATION',
+  'IMAGE_EDIT',
+  'IMAGE_VARIATION',
+  // Audio endpoints
+  'AUDIO_TRANSCRIPTION',
+  'AUDIO_TRANSLATION',
+  'TEXT_TO_SPEECH',
+  // Video endpoints
+  'VIDEO_GENERATION'
+])
 
 // Validation utilities using Zod
 
@@ -321,12 +223,12 @@ export function validateQueryParams(params: URLSearchParams): z.infer<typeof Que
 // Type-safe error response creation
 export function createErrorResponse(
   message: string,
-  status: number = 500,
   details?: unknown
 ): z.infer<typeof ApiErrorSchema> {
   const error: z.infer<typeof ApiErrorSchema> = { error: message }
   if (details !== undefined) {
-    ;(error as any).details = details
+    // Type assertion needed because ApiErrorSchema allows optional details field
+    Object.assign(error, { details })
   }
   return error
 }
