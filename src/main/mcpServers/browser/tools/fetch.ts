@@ -16,7 +16,8 @@ export const FetchSchema = z.object({
 
 export const fetchToolDefinition = {
   name: 'fetch',
-  description: 'Fetch a URL using the browser and return content in specified format (html, txt, markdown, json)',
+  description:
+    'Navigate to a NEW URL and return page content. Use this only when you need to load a different page. If the page is already open, use execute with document.body.innerText or document.documentElement.outerHTML instead.',
   inputSchema: {
     type: 'object',
     properties: {
