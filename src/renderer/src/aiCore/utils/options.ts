@@ -583,10 +583,6 @@ function buildOllamaProviderOptions(
       // For gpt-oss models, Ollama accepts: boolean | 'low' | 'medium' | 'high'
       if (reasoningEffort === 'low' || reasoningEffort === 'medium' || reasoningEffort === 'high') {
         providerOptions.think = reasoningEffort
-      } else if (reasoningEffort === 'none' || reasoningEffort === undefined) {
-        providerOptions.think = false
-      } else {
-        providerOptions.think = 'medium'
       }
     } else {
       providerOptions.think = !['none', undefined].includes(reasoningEffort)
