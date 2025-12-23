@@ -10,7 +10,7 @@ import {
   isAnthropicModel,
   isGeminiModel,
   isGrokModel,
-  isIntervalThinkingModel,
+  isInterleavedThinkingModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isQwenMTModel,
@@ -613,7 +613,7 @@ function buildGenericProviderOptions(
     ...reasoningParams
   }
   if (enableReasoning) {
-    if (isIntervalThinkingModel(model)) {
+    if (isInterleavedThinkingModel(model)) {
       providerOptions = {
         ...providerOptions,
         sendReasoning: true
