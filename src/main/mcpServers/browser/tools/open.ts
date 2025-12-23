@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
-import { successResponse } from './utils'
+import { errorResponse, successResponse } from './utils'
 
 export const OpenSchema = z.object({
   url: z.url().describe('URL to navigate to'),
@@ -39,7 +39,11 @@ export const openToolDefinition = {
 }
 
 export async function handleOpen(controller: CdpBrowserController, args: unknown) {
-  const { url, timeout, privateMode, newTab } = OpenSchema.parse(args)
-  const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, newTab ?? false)
-  return successResponse(JSON.stringify(res))
+  try {
+    const { url, timeout, privateMode, newTab } = OpenSchema.parse(args)
+    const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, newTab ?? false)
+    return successResponse(JSON.stringify(res))
+  } catch (error) {
+    return errorResponse(error instanceof Error ? error : String(error))
+  }
 }

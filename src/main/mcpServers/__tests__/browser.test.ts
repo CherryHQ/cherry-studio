@@ -147,4 +147,158 @@ describe('CdpBrowserController', () => {
     const result = await controller.fetch('https://example.com/', 'html', 10000, true)
     expect(result).toBe('<html><body><h1>Test</h1><p>Content</p></body></html>')
   })
+
+  describe('Multi-tab support', () => {
+    it('creates new tab with newTab parameter', async () => {
+      const controller = new CdpBrowserController()
+      const result1 = await controller.open('https://site1.com/', 5000, false, true)
+      const result2 = await controller.open('https://site2.com/', 5000, false, true)
+
+      expect(result1.tabId).toBeDefined()
+      expect(result2.tabId).toBeDefined()
+      expect(result1.tabId).not.toBe(result2.tabId)
+    })
+
+    it('reuses same tab without newTab parameter', async () => {
+      const controller = new CdpBrowserController()
+      const result1 = await controller.open('https://site1.com/', 5000, false)
+      const result2 = await controller.open('https://site2.com/', 5000, false)
+
+      expect(result1.tabId).toBe(result2.tabId)
+    })
+
+    it('fetches in new tab with newTab parameter', async () => {
+      const controller = new CdpBrowserController()
+      await controller.open('https://example.com/', 5000, false)
+      const tabs = await controller.listTabs(false)
+      const initialTabCount = tabs.length
+
+      await controller.fetch('https://other.com/', 'html', 10000, false, true)
+      const tabsAfter = await controller.listTabs(false)
+
+      expect(tabsAfter.length).toBe(initialTabCount + 1)
+    })
+  })
+
+  describe('Tab management', () => {
+    it('lists tabs in a window', async () => {
+      const controller = new CdpBrowserController()
+      await controller.open('https://example.com/', 5000, false)
+
+      const tabs = await controller.listTabs(false)
+      expect(tabs.length).toBeGreaterThan(0)
+      expect(tabs[0].tabId).toBeDefined()
+    })
+
+    it('lists tabs separately for normal and private modes', async () => {
+      const controller = new CdpBrowserController()
+      await controller.open('https://example.com/', 5000, false)
+      await controller.open('https://example.com/', 5000, true)
+
+      const normalTabs = await controller.listTabs(false)
+      const privateTabs = await controller.listTabs(true)
+
+      expect(normalTabs.length).toBe(1)
+      expect(privateTabs.length).toBe(1)
+      expect(normalTabs[0].tabId).not.toBe(privateTabs[0].tabId)
+    })
+
+    it('closes specific tab', async () => {
+      const controller = new CdpBrowserController()
+      const result1 = await controller.open('https://site1.com/', 5000, false, true)
+      await controller.open('https://site2.com/', 5000, false, true)
+
+      const tabsBefore = await controller.listTabs(false)
+      expect(tabsBefore.length).toBe(2)
+
+      await controller.closeTab(false, result1.tabId)
+
+      const tabsAfter = await controller.listTabs(false)
+      expect(tabsAfter.length).toBe(1)
+      expect(tabsAfter.find((t) => t.tabId === result1.tabId)).toBeUndefined()
+    })
+
+    it('switches active tab', async () => {
+      const controller = new CdpBrowserController()
+      const result1 = await controller.open('https://site1.com/', 5000, false, true)
+      const result2 = await controller.open('https://site2.com/', 5000, false, true)
+
+      await controller.switchTab(false, result1.tabId)
+      await controller.switchTab(false, result2.tabId)
+    })
+
+    it('throws error when switching to non-existent tab', async () => {
+      const controller = new CdpBrowserController()
+      await controller.open('https://example.com/', 5000, false)
+
+      await expect(controller.switchTab(false, 'non-existent-tab')).rejects.toThrow('Tab non-existent-tab not found')
+    })
+  })
+
+  describe('Reset behavior', () => {
+    it('resets specific tab only', async () => {
+      const controller = new CdpBrowserController()
+      const result1 = await controller.open('https://site1.com/', 5000, false, true)
+      await controller.open('https://site2.com/', 5000, false, true)
+
+      await controller.reset(false, result1.tabId)
+
+      const tabs = await controller.listTabs(false)
+      expect(tabs.length).toBe(1)
+    })
+
+    it('resets specific window only', async () => {
+      const controller = new CdpBrowserController()
+      await controller.open('https://example.com/', 5000, false)
+      await controller.open('https://example.com/', 5000, true)
+
+      await controller.reset(false)
+
+      const normalTabs = await controller.listTabs(false)
+      const privateTabs = await controller.listTabs(true)
+
+      expect(normalTabs.length).toBe(0)
+      expect(privateTabs.length).toBe(1)
+    })
+
+    it('resets all windows', async () => {
+      const controller = new CdpBrowserController()
+      await controller.open('https://example.com/', 5000, false)
+      await controller.open('https://example.com/', 5000, true)
+
+      await controller.reset()
+
+      const normalTabs = await controller.listTabs(false)
+      const privateTabs = await controller.listTabs(true)
+
+      expect(normalTabs.length).toBe(0)
+      expect(privateTabs.length).toBe(0)
+    })
+  })
+
+  describe('Window limits and eviction', () => {
+    it('respects maxWindows limit', async () => {
+      const controller = new CdpBrowserController({ maxWindows: 1 })
+      await controller.open('https://example.com/', 5000, false)
+      await controller.open('https://example.com/', 5000, true)
+
+      const normalTabs = await controller.listTabs(false)
+      const privateTabs = await controller.listTabs(true)
+
+      expect(privateTabs.length).toBe(1)
+      expect(normalTabs.length).toBe(0)
+    })
+
+    it('cleans up idle windows on next access', async () => {
+      const controller = new CdpBrowserController({ idleTimeoutMs: 1 })
+      await controller.open('https://example.com/', 5000, false)
+
+      await new Promise((r) => setTimeout(r, 10))
+
+      await controller.open('https://example.com/', 5000, true)
+
+      const normalTabs = await controller.listTabs(false)
+      expect(normalTabs.length).toBe(0)
+    })
+  })
 })

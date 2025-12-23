@@ -12,8 +12,8 @@ export interface TabInfo {
   lastActive: number
 }
 
-export interface SessionInfo {
-  sessionKey: string
+export interface WindowInfo {
+  windowKey: string
   privateMode: boolean
   window: BrowserWindow
   tabs: Map<string, TabInfo>
