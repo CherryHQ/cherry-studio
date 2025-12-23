@@ -521,7 +521,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const handleFocus = useCallback(() => {
     setInputFocus(true)
     setSearching(false)
-    if (quickPanel.isVisible && quickPanel.triggerInfo?.type !== 'input') {
+    // Don't close panel in multiple selection mode, or if triggered by input
+    if (quickPanel.isVisible && quickPanel.triggerInfo?.type !== 'input' && !quickPanel.multiple) {
       quickPanel.close()
     }
     PasteService.setLastFocusedComponent('inputbar')

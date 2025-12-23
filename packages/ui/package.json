@@ -16,7 +16,8 @@
     "type-check": "tsc --noEmit -p tsconfig.json --composite false",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "icons:generate": "tsx scripts/generate-icons.ts"
+    "icons:generate": "tsx scripts/generate-icons.ts --type=icons",
+    "logos:generate": "tsx scripts/generate-icons.ts --type=logos"
   },
   "keywords": [
     "ui",

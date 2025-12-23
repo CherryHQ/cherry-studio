@@ -1,14 +1,17 @@
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import type { AgentEntity, AgentSessionEntity, ApiModel, Assistant } from '@renderer/types'
+import { getLeadingEmoji } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { t } from 'i18next'
 import { ChevronRight, Folder } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { twMerge } from 'tailwind-merge'
 
 import { AgentSettingsPopup, SessionSettingsPopup } from '../../settings/AgentSettings'
@@ -28,6 +31,8 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
   const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
 
+  const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name])
+
   const handleUpdateModel = useCallback(
     async (model: ApiModel) => {
       if (!activeAgent || !activeSession) return
@@ -38,7 +43,25 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
 
   return (
     <>
-      {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
+      {activeTopicOrSession === 'topic' && (
+        <HorizontalScrollContainer className="ml-2 flex-initial">
+          <div className="flex flex-nowrap items-center gap-2">
+            {/* Assistant Label */}
+            <div
+              className="flex h-full cursor-pointer items-center gap-1.5"
+              onClick={() => AssistantSettingsPopup.show({ assistant })}>
+              <EmojiIcon emoji={assistant.emoji || getLeadingEmoji(assistantName)} size={24} />
+              <span className="max-w-40 truncate text-xs">{assistantName}</span>
+            </div>
+
+            {/* Separator */}
+            <ChevronRight className="h-4 w-4 text-gray-400" />
+
+            {/* Model Button */}
+            <SelectModelButton assistant={assistant} />
+          </div>
+        </HorizontalScrollContainer>
+      )}
       {activeTopicOrSession === 'session' && activeAgent && (
         <HorizontalScrollContainer className="ml-2 flex-initial">
           <div className="flex flex-nowrap items-center gap-2">

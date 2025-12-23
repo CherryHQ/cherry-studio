@@ -26,7 +26,9 @@ export enum ConfigKeys {
   DisableHardwareAcceleration = 'disableHardwareAcceleration',
   Proxy = 'proxy',
   EnableDeveloperMode = 'enableDeveloperMode',
-  ClientId = 'clientId'
+  ClientId = 'clientId',
+  GitBashPath = 'gitBashPath',
+  GitBashPathSource = 'gitBashPathSource' // 'manual' | 'auto' | null
 }
 
 export class ConfigManager {

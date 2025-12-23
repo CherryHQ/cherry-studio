@@ -23,7 +23,7 @@ import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
-import { cloneDeep, isEmpty, takeRight } from 'lodash'
+import { isEmpty, takeRight } from 'lodash'
 
 import type { ModernAiProviderConfig } from '../aiCore/index_new'
 import AiProviderNew from '../aiCore/index_new'
@@ -35,6 +35,10 @@ import {
   getProviderByModel,
   getQuickModel
 } from './AssistantService'
+import { ConversationService } from './ConversationService'
+import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
+import type { BlockManager } from './messageStreaming'
+import type { StreamProcessorCallbacks } from './StreamProcessingService'
 // import { processKnowledgeSearch } from './KnowledgeService'
 // import {
 //   filterContextMessages,
@@ -80,6 +84,59 @@ export async function fetchMcpTools(assistant: Assistant) {
   return mcpTools
 }
 
+/**
+ * 将用户消息转换为LLM可以理解的格式并发送请求
+ * @param request - 包含消息内容和助手信息的请求对象
+ * @param onChunkReceived - 接收流式响应数据的回调函数
+ */
+// 目前先按照函数来写,后续如果有需要到class的地方就改回来
+export async function transformMessagesAndFetch(
+  request: {
+    messages: Message[]
+    assistant: Assistant
+    blockManager: BlockManager
+    assistantMsgId: string
+    callbacks: StreamProcessorCallbacks
+    topicId?: string // 添加 topicId 用于 trace
+    options: {
+      signal?: AbortSignal
+      timeout?: number
+      headers?: Record<string, string>
+    }
+  },
+  onChunkReceived: (chunk: Chunk) => void
+) {
+  const { messages, assistant } = request
+
+  try {
+    const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(messages, assistant)
+
+    // replace prompt variables
+    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
+
+    // inject knowledge search prompt into model messages
+    await injectUserMessageWithKnowledgeSearchPrompt({
+      modelMessages,
+      assistant,
+      assistantMsgId: request.assistantMsgId,
+      topicId: request.topicId,
+      blockManager: request.blockManager,
+      setCitationBlockId: request.callbacks.setCitationBlockId!
+    })
+
+    await fetchChatCompletion({
+      messages: modelMessages,
+      assistant: assistant,
+      topicId: request.topicId,
+      requestOptions: request.options,
+      uiMessages,
+      onChunkReceived
+    })
+  } catch (error: any) {
+    onChunkReceived({ type: ChunkType.ERROR, error })
+  }
+}
+
 export async function fetchChatCompletion({
   messages,
   prompt,
@@ -100,9 +157,11 @@ export async function fetchChatCompletion({
   })
 
   // Get base provider and apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
   const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
   const providerWithRotatedKey = {
-    ...cloneDeep(baseProvider),
+    ...baseProvider,
     apiKey: getRotatedApiKey(baseProvider)
   }
 
@@ -184,8 +243,10 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   }
 
   // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
   const providerWithRotatedKey = {
-    ...cloneDeep(provider),
+    ...provider,
     apiKey: getRotatedApiKey(provider)
   }
 
@@ -289,8 +350,10 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
   }
 
   // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
   const providerWithRotatedKey = {
-    ...cloneDeep(provider),
+    ...provider,
     apiKey: getRotatedApiKey(provider)
   }
 
@@ -383,8 +446,10 @@ export async function fetchGenerate({
   }
 
   // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
   const providerWithRotatedKey = {
-    ...cloneDeep(provider),
+    ...provider,
     apiKey: getRotatedApiKey(provider)
   }
 
@@ -493,8 +558,10 @@ function getRotatedApiKey(provider: Provider): string {
 
 export async function fetchModels(provider: Provider): Promise<Model[]> {
   // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
   const providerWithRotatedKey = {
-    ...cloneDeep(provider),
+    ...provider,
     apiKey: getRotatedApiKey(provider)
   }
 

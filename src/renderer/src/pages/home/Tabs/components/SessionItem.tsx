@@ -233,12 +233,11 @@ const SessionListItem = styled.div`
   }
 
   &.singlealone {
-    border-radius: 0 !important;
     &:hover {
       background-color: var(--color-background-soft);
     }
     &.active {
-      border-left: 2px solid var(--color-primary);
+      background-color: var(--color-background-mute);
       box-shadow: none;
     }
   }

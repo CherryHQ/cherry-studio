@@ -173,13 +173,15 @@ export class GeminiAPIClient extends BaseApiClient<
       return this.sdkInstance
     }
 
+    const apiVersion = this.getApiVersion()
+
     this.sdkInstance = new GoogleGenAI({
       vertexai: false,
       apiKey: this.apiKey,
-      apiVersion: this.getApiVersion(),
+      apiVersion,
       httpOptions: {
         baseUrl: this.getBaseURL(),
-        apiVersion: this.getApiVersion(),
+        apiVersion,
         headers: {
           ...this.provider.extra_headers
         }
@@ -200,7 +202,7 @@ export class GeminiAPIClient extends BaseApiClient<
       return trailingVersion
     }
 
-    return 'v1beta'
+    return ''
   }
 
   /**

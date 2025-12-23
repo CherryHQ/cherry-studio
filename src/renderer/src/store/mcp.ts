@@ -174,6 +174,25 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     provider: 'CherryAI',
     installSource: 'builtin',
     isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: BuiltinMCPServerNames.browser,
+    type: 'inMemory',
+    isActive: false,
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: BuiltinMCPServerNames.nowledgeMem,
+    reference: 'https://mem.nowledge.co/',
+    type: 'inMemory',
+    isActive: false,
+    provider: 'Nowledge',
+    installSource: 'builtin',
+    isTrusted: true
   }
 ] as const
 

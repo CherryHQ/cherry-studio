@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
-import { getBinaryName, getBinaryPath } from '@main/utils/process'
+import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -34,6 +34,7 @@ import {
 import { nanoid } from '@reduxjs/toolkit'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { MCPProgressEvent } from '@shared/config/types'
+import type { MCPServerLogEntry } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
 import {
@@ -56,6 +57,7 @@ import * as z from 'zod'
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
+import { ServerLogBuffer } from './mcp/ServerLogBuffer'
 import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
@@ -142,6 +144,7 @@ class McpService {
   private pendingClients: Map<string, Promise<Client>> = new Map()
   private dxtService = new DxtService()
   private activeToolCalls: Map<string, AbortController> = new Map()
+  private serverLogs = new ServerLogBuffer(200)
 
   constructor() {
     this.initClient = this.initClient.bind(this)
@@ -159,6 +162,7 @@ class McpService {
     this.cleanup = this.cleanup.bind(this)
     this.checkMcpConnectivity = this.checkMcpConnectivity.bind(this)
     this.getServerVersion = this.getServerVersion.bind(this)
+    this.getServerLogs = this.getServerLogs.bind(this)
   }
 
   private getServerKey(server: MCPServer): string {
@@ -170,6 +174,19 @@ class McpService {
       env: server.env,
       id: server.id
     })
+  }
+
+  private emitServerLog(server: MCPServer, entry: MCPServerLogEntry) {
+    const serverKey = this.getServerKey(server)
+    this.serverLogs.append(serverKey, entry)
+    const mainWindow = windowService.getMainWindow()
+    if (mainWindow) {
+      mainWindow.webContents.send(IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
+    }
+  }
+
+  public getServerLogs(_: Electron.IpcMainInvokeEvent, server: MCPServer): MCPServerLogEntry[] {
+    return this.serverLogs.get(this.getServerKey(server))
   }
 
   async initClient(server: MCPServer): Promise<Client> {
@@ -232,6 +249,26 @@ class McpService {
           StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         > => {
           // Create appropriate transport based on configuration
+
+          // Special case for nowledgeMem - uses HTTP transport instead of in-memory
+          if (isBuiltinMCPServer(server) && server.name === BuiltinMCPServerNames.nowledgeMem) {
+            const nowledgeMemUrl = 'http://127.0.0.1:14242/mcp'
+            const options: StreamableHTTPClientTransportOptions = {
+              fetch: async (url, init) => {
+                return net.fetch(typeof url === 'string' ? url : url.toString(), init)
+              },
+              requestInit: {
+                headers: {
+                  ...defaultAppHeaders(),
+                  APP: 'Cherry Studio'
+                }
+              },
+              authProvider
+            }
+            getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
+            return new StreamableHTTPClientTransport(new URL(nowledgeMemUrl), options)
+          }
+
           if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
             getServerLogger(server).debug(`Using in-memory transport`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -281,6 +318,10 @@ class McpService {
           } else if (server.command) {
             let cmd = server.command
 
+            // Get login shell environment first - needed for command detection and server execution
+            // Note: getLoginShellEnvironment() is memoized, so subsequent calls are fast
+            const loginShellEnv = await getLoginShellEnvironment()
+
             // For DXT servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {
               const resolvedConfig = this.dxtService.getResolvedMcpConfig(server.dxtPath)
@@ -302,18 +343,45 @@ class McpService {
             }
 
             if (server.command === 'npx') {
-              cmd = await getBinaryPath('bun')
-              getServerLogger(server).debug(`Using command`, { command: cmd })
+              // First, check if npx is available in user's shell environment
+              const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
 
-              // add -x to args if args exist
-              if (args && args.length > 0) {
-                if (!args.includes('-y')) {
-                  args.unshift('-y')
-                }
-                if (!args.includes('x')) {
-                  args.unshift('x')
+              if (npxPath) {
+                // Use system npx
+                cmd = npxPath
+                getServerLogger(server).debug(`Using system npx`, { command: cmd })
+              } else {
+                // System npx not found, try bundled bun as fallback
+                getServerLogger(server).debug(`System npx not found, checking for bundled bun`)
+
+                if (await isBinaryExists('bun')) {
+                  // Fall back to bundled bun
+                  cmd = await getBinaryPath('bun')
+                  getServerLogger(server).info(`Using bundled bun as fallback (npx not found in PATH)`, {
+                    command: cmd
+                  })
+
+                  // Transform args for bun x format
+                  if (args && args.length > 0) {
+                    if (!args.includes('-y')) {
+                      args.unshift('-y')
+                    }
+                    if (!args.includes('x')) {
+                      args.unshift('x')
+                    }
+                  }
+                } else {
+                  // Neither npx nor bun available
+                  throw new Error(
+                    'npx not found in PATH and bundled bun is not available. This may indicate an installation issue.\n' +
+                      'Please either:\n' +
+                      '1. Install Node.js (which includes npx) from https://nodejs.org\n' +
+                      '2. Run the MCP dependencies installer from Settings\n' +
+                      '3. Restart the application if you recently installed Node.js'
+                  )
                 }
               }
+
               if (server.registryUrl) {
                 server.env = {
                   ...server.env,
@@ -328,7 +396,35 @@ class McpService {
                 }
               }
             } else if (server.command === 'uvx' || server.command === 'uv') {
-              cmd = await getBinaryPath(server.command)
+              // First, check if uvx/uv is available in user's shell environment
+              const uvPath = await findCommandInShellEnv(server.command, loginShellEnv)
+
+              if (uvPath) {
+                // Use system uvx/uv
+                cmd = uvPath
+                getServerLogger(server).debug(`Using system ${server.command}`, { command: cmd })
+              } else {
+                // System command not found, try bundled version as fallback
+                getServerLogger(server).debug(`System ${server.command} not found, checking for bundled version`)
+
+                if (await isBinaryExists(server.command)) {
+                  // Fall back to bundled version
+                  cmd = await getBinaryPath(server.command)
+                  getServerLogger(server).info(`Using bundled ${server.command} as fallback (not found in PATH)`, {
+                    command: cmd
+                  })
+                } else {
+                  // Neither system nor bundled available
+                  throw new Error(
+                    `${server.command} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
+                      'Please either:\n' +
+                      '1. Install uv from https://github.com/astral-sh/uv\n' +
+                      '2. Run the MCP dependencies installer from Settings\n' +
+                      `3. Restart the application if you recently installed ${server.command}`
+                  )
+                }
+              }
+
               if (server.registryUrl) {
                 server.env = {
                   ...server.env,
@@ -339,8 +435,6 @@ class McpService {
             }
 
             getServerLogger(server).debug(`Starting server`, { command: cmd, args })
-            // Logger.info(`[MCP] Environment variables for server:`, server.env)
-            const loginShellEnv = await getLoginShellEnvironment()
 
             // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
             if (cmd.includes('bun')) {
@@ -366,9 +460,18 @@ class McpService {
             }
 
             const stdioTransport = new StdioClientTransport(transportOptions)
-            stdioTransport.stderr?.on('data', (data) =>
-              getServerLogger(server).debug(`Stdio stderr`, { data: data.toString() })
-            )
+            stdioTransport.stderr?.on('data', (data) => {
+              const msg = data.toString()
+              getServerLogger(server).debug(`Stdio stderr`, { data: msg })
+              this.emitServerLog(server, {
+                timestamp: Date.now(),
+                level: 'stderr',
+                message: msg.trim(),
+                source: 'stdio'
+              })
+            })
+            // StdioClientTransport does not expose stdout as a readable stream for raw logging
+            // (stdout is reserved for JSON-RPC). Avoid attaching a listener that would never fire.
             return stdioTransport
           } else {
             throw new Error('Either baseUrl or command must be provided')
@@ -436,6 +539,13 @@ class McpService {
             }
           }
 
+          this.emitServerLog(server, {
+            timestamp: Date.now(),
+            level: 'info',
+            message: 'Server connected',
+            source: 'client'
+          })
+
           // Store the new client in the cache
           this.clients.set(serverKey, client)
 
@@ -446,9 +556,22 @@ class McpService {
           this.clearServerCache(serverKey)
 
           logger.debug(`Activated server: ${server.name}`)
+          this.emitServerLog(server, {
+            timestamp: Date.now(),
+            level: 'info',
+            message: 'Server activated',
+            source: 'client'
+          })
           return client
         } catch (error) {
           getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
+          this.emitServerLog(server, {
+            timestamp: Date.now(),
+            level: 'error',
+            message: `Error activating server: ${(error as Error)?.message}`,
+            data: redactSensitive(error),
+            source: 'client'
+          })
           throw error
         }
       } finally {
@@ -506,6 +629,16 @@ class McpService {
       // Set up logging message notification handler
       client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
         logger.debug(`Message from server ${server.name}:`, notification.params)
+        const msg = notification.params?.message
+        if (msg) {
+          this.emitServerLog(server, {
+            timestamp: Date.now(),
+            level: (notification.params?.level as MCPServerLogEntry['level']) || 'info',
+            message: typeof msg === 'string' ? msg : JSON.stringify(msg),
+            data: redactSensitive(notification.params?.data),
+            source: notification.params?.logger || 'server'
+          })
+        }
       })
 
       getServerLogger(server).debug(`Set up notification handlers`)
@@ -540,6 +673,7 @@ class McpService {
       this.clients.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
+      this.serverLogs.remove(serverKey)
     } else {
       logger.warn(`No client found for server`, { serverKey })
     }
@@ -548,6 +682,12 @@ class McpService {
   async stopServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     const serverKey = this.getServerKey(server)
     getServerLogger(server).debug(`Stopping server`)
+    this.emitServerLog(server, {
+      timestamp: Date.now(),
+      level: 'info',
+      message: 'Stopping server',
+      source: 'client'
+    })
     await this.closeClient(serverKey)
   }
 
@@ -574,6 +714,12 @@ class McpService {
   async restartServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     getServerLogger(server).debug(`Restarting server`)
     const serverKey = this.getServerKey(server)
+    this.emitServerLog(server, {
+      timestamp: Date.now(),
+      level: 'info',
+      message: 'Restarting server',
+      source: 'client'
+    })
     await this.closeClient(serverKey)
     // Clear cache before restarting to ensure fresh data
     this.clearServerCache(serverKey)
@@ -606,9 +752,22 @@ class McpService {
       // Attempt to list tools as a way to check connectivity
       await client.listTools()
       getServerLogger(server).debug(`Connectivity check successful`)
+      this.emitServerLog(server, {
+        timestamp: Date.now(),
+        level: 'info',
+        message: 'Connectivity check successful',
+        source: 'connectivity'
+      })
       return true
     } catch (error) {
       getServerLogger(server).error(`Connectivity check failed`, error as Error)
+      this.emitServerLog(server, {
+        timestamp: Date.now(),
+        level: 'error',
+        message: `Connectivity check failed: ${(error as Error).message}`,
+        data: redactSensitive(error),
+        source: 'connectivity'
+      })
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
       const serverKey = this.getServerKey(server)
       await this.closeClient(serverKey)

@@ -8,7 +8,14 @@ import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
-import { findGitBash, getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import {
+  autoDiscoverGitBash,
+  getBinaryPath,
+  getGitBashPathInfo,
+  isBinaryExists,
+  runInstallScript,
+  validateGitBashPath
+} from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -36,7 +43,7 @@ import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { codeToolsService } from './services/CodeToolsService'
-import { configManager } from './services/ConfigManager'
+import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
@@ -500,8 +507,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
 
     try {
-      const bashPath = findGitBash()
-
+      // Use autoDiscoverGitBash to handle auto-discovery and persistence
+      const bashPath = autoDiscoverGitBash()
       if (bashPath) {
         logger.info('Git Bash is available', { path: bashPath })
         return true
@@ -514,6 +521,46 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return false
     }
   })
+
+  ipcMain.handle(IpcChannel.System_GetGitBashPath, () => {
+    if (!isWin) {
+      return null
+    }
+
+    const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
+    return customPath ?? null
+  })
+
+  // Returns { path, source } where source is 'manual' | 'auto' | null
+  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
+    return getGitBashPathInfo()
+  })
+
+  ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
+    if (!isWin) {
+      return false
+    }
+
+    if (!newPath) {
+      // Clear manual setting and re-run auto-discovery
+      configManager.set(ConfigKeys.GitBashPath, null)
+      configManager.set(ConfigKeys.GitBashPathSource, null)
+      // Re-run auto-discovery to restore auto-discovered path if available
+      autoDiscoverGitBash()
+      return true
+    }
+
+    const validated = validateGitBashPath(newPath)
+    if (!validated) {
+      return false
+    }
+
+    // Set path with 'manual' source
+    configManager.set(ConfigKeys.GitBashPath, validated)
+    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
+    return true
+  })
+
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     win && win.webContents.toggleDevTools()
@@ -766,6 +813,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
   ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
+  ipcMain.handle(IpcChannel.Mcp_GetServerLogs, mcpService.getServerLogs)
 
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
@@ -842,6 +890,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     const webview = webContents.fromId(webviewId)
     if (!webview) return
     webview.session.setSpellCheckerEnabled(isEnable)
+  })
+
+  // Webview print and save handlers
+  ipcMain.handle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
+    const { printWebviewToPDF } = await import('./services/WebviewService')
+    return await printWebviewToPDF(webviewId)
+  })
+
+  ipcMain.handle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
+    const { saveWebviewAsHTML } = await import('./services/WebviewService')
+    return await saveWebviewAsHTML(webviewId)
   })
 
   // store sync
