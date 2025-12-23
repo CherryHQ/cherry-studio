@@ -8,7 +8,8 @@ export const FetchSchema = z.object({
   format: z.enum(['html', 'txt', 'markdown', 'json']).default('markdown').describe('Output format (default: markdown)'),
   timeout: z.number().optional().describe('Navigation timeout in ms (default: 10000)'),
   privateMode: z.boolean().optional().describe('Use incognito mode, no data persisted (default: false)'),
-  newTab: z.boolean().optional().describe('Fetch in new tab, required for parallel requests (default: false)')
+  newTab: z.boolean().optional().describe('Fetch in new tab, required for parallel requests (default: false)'),
+  showWindow: z.boolean().optional().describe('Show browser window (default: false)')
 })
 
 export const fetchToolDefinition = {
@@ -38,6 +39,10 @@ export const fetchToolDefinition = {
       newTab: {
         type: 'boolean',
         description: 'Fetch in new tab, required for parallel requests (default: false)'
+      },
+      showWindow: {
+        type: 'boolean',
+        description: 'Show browser window (default: false)'
       }
     },
     required: ['url']
@@ -45,9 +50,16 @@ export const fetchToolDefinition = {
 }
 
 export async function handleFetch(controller: CdpBrowserController, args: unknown) {
-  const { url, format, timeout, privateMode, newTab } = FetchSchema.parse(args)
+  const { url, format, timeout, privateMode, newTab, showWindow } = FetchSchema.parse(args)
   try {
-    const content = await controller.fetch(url, format, timeout ?? 10000, privateMode ?? false, newTab ?? false)
+    const content = await controller.fetch(
+      url,
+      format,
+      timeout ?? 10000,
+      privateMode ?? false,
+      newTab ?? false,
+      showWindow ?? false
+    )
     return successResponse(typeof content === 'string' ? content : JSON.stringify(content))
   } catch (error) {
     return errorResponse(error as Error)

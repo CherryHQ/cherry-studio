@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { app, BrowserView, BrowserWindow } from 'electron'
 import TurndownService from 'turndown'
 
-import { logger, type TabInfo, userAgent,type WindowInfo } from './types'
+import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
 
 const TAB_BAR_HEIGHT = 40 // Height for tab bar UI
 const SESSION_KEY_DEFAULT = 'default'
@@ -136,13 +136,17 @@ export class CdpBrowserController {
     }
   }
 
-  private async createBrowserWindow(windowKey: string, privateMode: boolean): Promise<BrowserWindow> {
+  private async createBrowserWindow(
+    windowKey: string,
+    privateMode: boolean,
+    showWindow = false
+  ): Promise<BrowserWindow> {
     await this.ensureAppReady()
 
     const partition = this.getPartition(privateMode)
 
     const win = new BrowserWindow({
-      show: true, // Always show windows
+      show: showWindow,
       width: 1200,
       height: 800,
       webPreferences: {
@@ -167,7 +171,7 @@ export class CdpBrowserController {
     return win
   }
 
-  private async getOrCreateWindow(privateMode: boolean): Promise<WindowInfo> {
+  private async getOrCreateWindow(privateMode: boolean, showWindow = false): Promise<WindowInfo> {
     await this.ensureAppReady()
     this.sweepIdle()
 
@@ -176,7 +180,7 @@ export class CdpBrowserController {
     let windowInfo = this.windows.get(windowKey)
     if (!windowInfo) {
       this.evictIfNeeded(windowKey)
-      const window = await this.createBrowserWindow(windowKey, privateMode)
+      const window = await this.createBrowserWindow(windowKey, privateMode, showWindow)
       windowInfo = {
         windowKey,
         privateMode,
@@ -187,6 +191,8 @@ export class CdpBrowserController {
       }
       this.windows.set(windowKey, windowInfo)
       logger.info('Created new window', { windowKey, privateMode })
+    } else if (showWindow && !windowInfo.window.isDestroyed()) {
+      windowInfo.window.show()
     }
 
     this.touchWindow(windowKey)
@@ -216,10 +222,11 @@ export class CdpBrowserController {
   /**
    * Creates a new tab in the window
    * @param privateMode - If true, uses private browsing mode (default: false)
+   * @param showWindow - If true, shows the browser window (default: false)
    * @returns Tab ID and view
    */
-  public async createTab(privateMode = false): Promise<{ tabId: string; view: BrowserView }> {
-    const windowInfo = await this.getOrCreateWindow(privateMode)
+  public async createTab(privateMode = false, showWindow = false): Promise<{ tabId: string; view: BrowserView }> {
+    const windowInfo = await this.getOrCreateWindow(privateMode, showWindow)
     const tabId = randomUUID()
     const partition = this.getPartition(privateMode)
 
@@ -284,17 +291,19 @@ export class CdpBrowserController {
    * @param privateMode - Whether to use private browsing mode
    * @param tabId - Optional specific tab ID to use
    * @param newTab - If true, always create a new tab (useful for parallel requests)
+   * @param showWindow - If true, shows the browser window (default: false)
    */
   private async getTab(
     privateMode: boolean,
     tabId?: string,
-    newTab?: boolean
+    newTab?: boolean,
+    showWindow = false
   ): Promise<{ tabId: string; tab: TabInfo }> {
-    const windowInfo = await this.getOrCreateWindow(privateMode)
+    const windowInfo = await this.getOrCreateWindow(privateMode, showWindow)
 
     // If newTab is requested, create a fresh tab
     if (newTab) {
-      const { tabId: freshTabId } = await this.createTab(privateMode)
+      const { tabId: freshTabId } = await this.createTab(privateMode, showWindow)
       const tab = windowInfo.tabs.get(freshTabId)!
       return { tabId: freshTabId, tab }
     }
@@ -317,7 +326,7 @@ export class CdpBrowserController {
     }
 
     // Create new tab
-    const { tabId: newTabId } = await this.createTab(privateMode)
+    const { tabId: newTabId } = await this.createTab(privateMode, showWindow)
     const tab = windowInfo.tabs.get(newTabId)!
     return { tabId: newTabId, tab }
   }
@@ -328,10 +337,11 @@ export class CdpBrowserController {
    * @param timeout - Navigation timeout in milliseconds (default: 10000)
    * @param privateMode - If true, uses private browsing mode (default: false)
    * @param newTab - If true, always creates a new tab (useful for parallel requests)
+   * @param showWindow - If true, shows the browser window (default: false)
    * @returns Object containing the current URL, page title, and tab ID after navigation
    */
-  public async open(url: string, timeout = 10000, privateMode = false, newTab = false) {
-    const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab)
+  public async open(url: string, timeout = 10000, privateMode = false, newTab = false, showWindow = false) {
+    const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
     const view = tab.view
     const windowKey = this.getSessionKey(privateMode)
 
@@ -484,6 +494,7 @@ export class CdpBrowserController {
    * @param timeout - Navigation timeout in milliseconds (default: 10000)
    * @param privateMode - If true, uses private browsing mode (default: false)
    * @param newTab - If true, always creates a new tab (useful for parallel requests)
+   * @param showWindow - If true, shows the browser window (default: false)
    * @returns Content in the requested format. For 'json', returns parsed object or { data: rawContent } if parsing fails
    */
   public async fetch(
@@ -491,11 +502,12 @@ export class CdpBrowserController {
     format: 'html' | 'txt' | 'markdown' | 'json' = 'markdown',
     timeout = 10000,
     privateMode = false,
-    newTab = false
+    newTab = false,
+    showWindow = false
   ) {
-    const { tabId } = await this.open(url, timeout, privateMode, newTab)
+    const { tabId } = await this.open(url, timeout, privateMode, newTab, showWindow)
 
-    const { tab } = await this.getTab(privateMode, tabId)
+    const { tab } = await this.getTab(privateMode, tabId, false, showWindow)
     const dbg = tab.view.webContents.debugger
     const windowKey = this.getSessionKey(privateMode)
 

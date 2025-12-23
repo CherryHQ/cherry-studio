@@ -7,7 +7,8 @@ export const OpenSchema = z.object({
   url: z.url().describe('URL to navigate to'),
   timeout: z.number().optional().describe('Navigation timeout in ms (default: 10000)'),
   privateMode: z.boolean().optional().describe('Use incognito mode, no data persisted (default: false)'),
-  newTab: z.boolean().optional().describe('Open in new tab, required for parallel requests (default: false)')
+  newTab: z.boolean().optional().describe('Open in new tab, required for parallel requests (default: false)'),
+  showWindow: z.boolean().optional().describe('Show browser window (default: false)')
 })
 
 export const openToolDefinition = {
@@ -32,6 +33,10 @@ export const openToolDefinition = {
       newTab: {
         type: 'boolean',
         description: 'Open in new tab, required for parallel requests (default: false)'
+      },
+      showWindow: {
+        type: 'boolean',
+        description: 'Show browser window (default: false)'
       }
     },
     required: ['url']
@@ -40,8 +45,8 @@ export const openToolDefinition = {
 
 export async function handleOpen(controller: CdpBrowserController, args: unknown) {
   try {
-    const { url, timeout, privateMode, newTab } = OpenSchema.parse(args)
-    const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, newTab ?? false)
+    const { url, timeout, privateMode, newTab, showWindow } = OpenSchema.parse(args)
+    const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, newTab ?? false, showWindow ?? false)
     return successResponse(JSON.stringify(res))
   } catch (error) {
     return errorResponse(error instanceof Error ? error : String(error))
