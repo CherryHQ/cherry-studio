@@ -1,14 +1,14 @@
 import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import Selector from "@renderer/components/Selector";
+import Selector from '@renderer/components/Selector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useSettings} from "@renderer/hooks/useSettings";
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getShortcutLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
-import type {SendMessageShortcut} from "@renderer/store/settings";
+import type { SendMessageShortcut } from '@renderer/store/settings'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import type { Shortcut } from '@renderer/types'
 import type { InputRef } from 'antd'
@@ -19,15 +19,13 @@ import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import {SettingContainer, SettingDivider, SettingGroup, SettingTitle} from '.'
+import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
 
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const {
-    setSendMessageShortcut,
-  } = useSettings()
+  const { setSendMessageShortcut } = useSettings()
   const { shortcuts: originalShortcuts } = useShortcuts()
   const inputRefs = useRef<Record<string, InputRef>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
@@ -310,12 +308,12 @@ const ShortcutSettings: FC = () => {
       return
     }
 
-    dispatch(updateShortcut({...record, shortcut: keys}))
+    dispatch(updateShortcut({ ...record, shortcut: keys }))
     setEditingKey(null)
   }
 
   const handleKeyChange = (value: string, record: Shortcut) => {
-    const parts = value.split('+').map(part => part.trim())
+    const parts = value.split('+').map((part) => part.trim())
     const keys: string[] = []
     // Convert the string parts to the internal key format
     for (const part of parts) {
@@ -380,35 +378,37 @@ const ShortcutSettings: FC = () => {
         return (
           <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
             <HStack alignItems="center" style={{ position: 'relative' }}>
-              {isEditing ? isSelector ? (
-                <Selector
-                  value={shortcut.join('+')}
-                  onChange={(value) => handleKeyChange(value, record)}
-                  options={[
-                    {value: 'Enter', label: formatShortcut(['Enter'])},
-                    {value: 'Ctrl+Enter', label: formatShortcut(['Ctrl','Enter'])},
-                    {value: 'Alt+Enter', label: formatShortcut(['Alt','Enter'])},
-                    {value: 'Command+Enter', label: formatShortcut(['Command','Enter'])},
-                    {value: 'Shift+Enter', label: formatShortcut(['Shift','Enter'])}
-                  ]}
-                />
-              ) : (
-                <ShortcutInput
-                  ref={(el) => {
-                    if (el) {
-                      inputRefs.current[record.key] = el
-                    }
-                  }}
-                  value={formatShortcut(shortcut)}
-                  placeholder={t('settings.shortcuts.press_shortcut')}
-                  onKeyDown={(e) => handleKeyDown(e, record)}
-                  onBlur={(e) => {
-                    const isUndoClick = e.relatedTarget?.closest('.shortcut-undo-icon')
-                    if (!isUndoClick) {
-                      setEditingKey(null)
-                    }
-                  }}
-                />
+              {isEditing ? (
+                isSelector ? (
+                  <Selector
+                    value={shortcut.join('+')}
+                    onChange={(value) => handleKeyChange(value, record)}
+                    options={[
+                      { value: 'Enter', label: formatShortcut(['Enter']) },
+                      { value: 'Ctrl+Enter', label: formatShortcut(['Ctrl', 'Enter']) },
+                      { value: 'Alt+Enter', label: formatShortcut(['Alt', 'Enter']) },
+                      { value: 'Command+Enter', label: formatShortcut(['Command', 'Enter']) },
+                      { value: 'Shift+Enter', label: formatShortcut(['Shift', 'Enter']) }
+                    ]}
+                  />
+                ) : (
+                  <ShortcutInput
+                    ref={(el) => {
+                      if (el) {
+                        inputRefs.current[record.key] = el
+                      }
+                    }}
+                    value={formatShortcut(shortcut)}
+                    placeholder={t('settings.shortcuts.press_shortcut')}
+                    onKeyDown={(e) => handleKeyDown(e, record)}
+                    onBlur={(e) => {
+                      const isUndoClick = e.relatedTarget?.closest('.shortcut-undo-icon')
+                      if (!isUndoClick) {
+                        setEditingKey(null)
+                      }
+                    }}
+                  />
+                )
               ) : (
                 <ShortcutText isEditable={isEditable} onClick={() => isEditable && handleAddShortcut(record)}>
                   {shortcut.length > 0 ? formatShortcut(shortcut) : t('settings.shortcuts.press_shortcut')}
