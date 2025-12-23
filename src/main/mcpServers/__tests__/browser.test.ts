@@ -50,6 +50,7 @@ vi.mock('electron', () => {
     public setBrowserView = vi.fn()
     public removeBrowserView = vi.fn()
     public getContentSize = vi.fn(() => [1200, 800])
+    public show = vi.fn()
 
     constructor() {
       windows.push(this)
@@ -273,6 +274,37 @@ describe('CdpBrowserController', () => {
 
       expect(normalTabs.length).toBe(0)
       expect(privateTabs.length).toBe(0)
+    })
+  })
+
+  describe('showWindow parameter', () => {
+    it('passes showWindow parameter through open', async () => {
+      const controller = new CdpBrowserController()
+      const result = await controller.open('https://example.com/', 5000, false, false, true)
+      expect(result.currentUrl).toBe('https://example.com/')
+      expect(result.tabId).toBeDefined()
+    })
+
+    it('passes showWindow parameter through fetch', async () => {
+      const controller = new CdpBrowserController()
+      const result = await controller.fetch('https://example.com/', 'html', 10000, false, false, true)
+      expect(result).toBe('<html><body><h1>Test</h1><p>Content</p></body></html>')
+    })
+
+    it('passes showWindow parameter through createTab', async () => {
+      const controller = new CdpBrowserController()
+      const { tabId, view } = await controller.createTab(false, true)
+      expect(tabId).toBeDefined()
+      expect(view).toBeDefined()
+    })
+
+    it('shows existing window when showWindow=true on subsequent calls', async () => {
+      const controller = new CdpBrowserController()
+      // First call creates window
+      await controller.open('https://example.com/', 5000, false, false, false)
+      // Second call with showWindow=true should show existing window
+      const result = await controller.open('https://example.com/', 5000, false, false, true)
+      expect(result.currentUrl).toBe('https://example.com/')
     })
   })
 

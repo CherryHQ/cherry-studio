@@ -41,10 +41,12 @@ Open a URL in a browser window.
   "url": "https://example.com",
   "timeout": 10000,
   "privateMode": false,
-  "newTab": false
+  "newTab": false,
+  "showWindow": false
 }
 ```
 - `newTab`: Set to `true` to open in a new tab (required for parallel requests)
+- `showWindow`: Set to `true` to display the browser window (useful for debugging)
 - Returns: `{ currentUrl, title, tabId }`
 
 ### `execute`
@@ -67,10 +69,12 @@ Fetch a URL and return content in specified format.
   "format": "markdown",
   "timeout": 10000,
   "privateMode": false,
-  "newTab": false
+  "newTab": false,
+  "showWindow": false
 }
 ```
 - `newTab`: Set to `true` to fetch in a new tab (required for parallel requests)
+- `showWindow`: Set to `true` to display the browser window (useful for debugging)
 - Formats: `html`, `txt`, `markdown`, `json`
 
 ### `reset`
@@ -174,4 +178,4 @@ const controller = new CdpBrowserController({
   - Normal mode: `persist:default` (disk-persisted, global)
   - Private mode: `private` (memory only)
 - **Window Size**: 1200x800 (default)
-- **Visibility**: All windows shown by default
+- **Visibility**: Windows hidden by default (use `showWindow: true` to display)
