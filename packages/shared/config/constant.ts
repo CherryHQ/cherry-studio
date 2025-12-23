@@ -329,15 +329,6 @@ export const WINDOWS_TERMINALS: TerminalConfig[] = [
   }
 ]
 
-/**
- * Helper function to escape double quotes in Windows command strings
- * Used to safely embed commands within quoted strings in Windows terminals
- */
-const escapeDoubleQuotes = (str: string): string => {
-  const DOUBLE_QUOTE_ESCAPE = /"/g
-  return str.replace(DOUBLE_QUOTE_ESCAPE, '\\"')
-}
-
 export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: terminalApps.cmd,
