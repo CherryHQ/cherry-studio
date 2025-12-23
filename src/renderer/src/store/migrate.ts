@@ -3017,6 +3017,23 @@ const migrateConfig = {
       logger.error('migrate 184 error', error as Error)
       return state
     }
+  },
+  '185': (state: RootState) => {
+    try {
+      // 为现有用户添加新的快捷键
+      if (state.shortcuts) {
+        const sendShortcut = state.shortcuts.shortcuts.find(s => s.key === 'send_shortcuts')
+        if (!sendShortcut) {
+          addShortcuts(state, ['send_shortcuts'], 'last')
+          return state
+        }
+      }
+      logger.info('migrate 185 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 185 error', error as Error)
+      return state
+    }
   }
 }
 
