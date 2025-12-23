@@ -4,42 +4,34 @@ import type { CdpBrowserController } from '../controller'
 import { successResponse } from './utils'
 
 export const OpenSchema = z.object({
-  url: z.url().describe('URL to open in the controlled Electron window'),
-  timeout: z.number().optional().describe('Timeout in milliseconds for navigation (default: 10000)'),
-  privateMode: z
-    .boolean()
-    .optional()
-    .describe('If true, use private browsing mode where data is not persisted (default: false)'),
-  newTab: z
-    .boolean()
-    .optional()
-    .describe(
-      'If true, create a new tab for this request. Use this when opening multiple URLs in parallel (default: false)'
-    )
+  url: z.url().describe('URL to navigate to'),
+  timeout: z.number().optional().describe('Navigation timeout in ms (default: 10000)'),
+  privateMode: z.boolean().optional().describe('Use incognito mode, no data persisted (default: false)'),
+  newTab: z.boolean().optional().describe('Open in new tab, required for parallel requests (default: false)')
 })
 
 export const openToolDefinition = {
   name: 'open',
-  description: 'Open a URL in a browser window controlled via Chrome DevTools Protocol',
+  description:
+    'Navigate to a URL in a browser window. Use this to load a page for interaction. After opening, use execute to interact with the page or extract content. Returns tabId for subsequent operations.',
   inputSchema: {
     type: 'object',
     properties: {
       url: {
         type: 'string',
-        description: 'URL to load'
+        description: 'URL to navigate to'
       },
       timeout: {
         type: 'number',
-        description: 'Navigation timeout in milliseconds (default 10000)'
+        description: 'Navigation timeout in ms (default: 10000)'
       },
       privateMode: {
         type: 'boolean',
-        description: 'If true, use private browsing mode where data is not persisted (default: false)'
+        description: 'Use incognito mode, no data persisted (default: false)'
       },
       newTab: {
         type: 'boolean',
-        description:
-          'If true, create a new tab for this request. Use this when opening multiple URLs in parallel (default: false)'
+        description: 'Open in new tab, required for parallel requests (default: false)'
       }
     },
     required: ['url']

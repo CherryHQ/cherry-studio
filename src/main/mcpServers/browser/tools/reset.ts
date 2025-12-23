@@ -4,26 +4,24 @@ import type { CdpBrowserController } from '../controller'
 import { successResponse } from './utils'
 
 export const ResetSchema = z.object({
-  privateMode: z
-    .boolean()
-    .optional()
-    .describe('If true, reset private session; if false, reset normal session; omit to reset all sessions'),
-  tabId: z.string().optional().describe('Tab identifier to reset; requires privateMode to be specified')
+  privateMode: z.boolean().optional().describe('true=private session, false=normal session, omit=all sessions'),
+  tabId: z.string().optional().describe('Close specific tab only (requires privateMode)')
 })
 
 export const resetToolDefinition = {
   name: 'reset',
-  description: 'Reset the controlled window and detach debugger',
+  description:
+    'Close browser windows and clear session state. Call when done browsing to free resources. Omit all parameters to close everything.',
   inputSchema: {
     type: 'object',
     properties: {
       privateMode: {
         type: 'boolean',
-        description: 'If true, reset private session; if false, reset normal session; omit to reset all sessions'
+        description: 'true=reset private session only, false=reset normal session only, omit=reset all'
       },
       tabId: {
         type: 'string',
-        description: 'Tab identifier to reset; requires privateMode to be specified'
+        description: 'Close specific tab only (requires privateMode to be set)'
       }
     }
   }
