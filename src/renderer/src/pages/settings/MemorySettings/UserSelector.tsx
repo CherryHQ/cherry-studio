@@ -37,18 +37,15 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
   const options = useMemo(() => {
     const defaultOption = {
       value: DEFAULT_USER_ID,
-      label: renderLabel(DEFAULT_USER_ID, t('memory.default_user'))
+      label: t('memory.default_user')
     }
 
     const userOptions = uniqueUsers
       .filter((user) => user !== DEFAULT_USER_ID)
-      .map((user) => ({
-        value: user,
-        label: renderLabel(user, user)
-      }))
+      .map((user) => ({ value: user, label: user }))
 
     return [defaultOption, ...userOptions]
-  }, [renderLabel, t, uniqueUsers])
+  }, [t, uniqueUsers])
 
   return (
     <Space.Compact>
