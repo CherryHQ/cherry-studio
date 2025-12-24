@@ -52,7 +52,7 @@ export async function convertFileBlockToTextPart(fileBlock: FileMessageBlock): P
   const file = fileBlock.file
 
   // 处理文本文件
-  if (file.type === FileTypes.TEXT) {
+  if (file.type === FileTypes.TEXT || file.type === FileTypes.OTHER) {
     try {
       const fileContent = await window.api.file.read(file.id + file.ext)
       return {
