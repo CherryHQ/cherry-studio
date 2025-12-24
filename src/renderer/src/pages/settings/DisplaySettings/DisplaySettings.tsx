@@ -199,16 +199,13 @@ const DisplaySettings: FC = () => {
   const renderFontOption = useCallback(
     (font: string) => (
       <Tooltip title={font} placement="left" mouseEnterDelay={0.5}>
-        <span
+        <div
+          className="truncate"
           style={{
-            fontFamily: font,
-            display: 'block',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
+            fontFamily: font
           }}>
           {font}
-        </span>
+        </div>
       </Tooltip>
     ),
     []
