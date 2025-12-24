@@ -7,6 +7,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
+import { applyUserCustomCss } from '@renderer/utils/customCss'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
@@ -187,19 +188,9 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   useEffect(() => {
     if (demo) return
 
-    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
-    if (customCssElement) {
-      customCssElement.remove()
-    }
-
-    if (customCss) {
-      const newCustomCss = customCss.replace(/(^|\s)background(-image|-color)?\s*:[^;]+;/gi, '')
-
-      customCssElement = document.createElement('style')
-      customCssElement.id = 'user-defined-custom-css'
-      customCssElement.textContent = newCustomCss
-      document.head.appendChild(customCssElement)
-    }
+    applyUserCustomCss(customCss, {
+      sanitizeCss: (css) => css.replace(/(^|\s)background(-image|-color)?\s*:[^;]+;/gi, '')
+    })
   }, [customCss, demo])
 
   /**
