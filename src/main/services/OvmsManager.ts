@@ -103,7 +103,7 @@ class OvmsManager {
   public async stopOvms(): Promise<{ success: boolean; message?: string }> {
     try {
       // close the OVMS process
-      execAsync(
+      await execAsync(
         `powershell -Command "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like 'ovms.exe*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"`
       )
 
