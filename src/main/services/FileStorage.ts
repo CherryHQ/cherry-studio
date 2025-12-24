@@ -185,7 +185,7 @@ class FileStorage {
     })
   }
 
-  findDuplicateFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<FileMetadata | null> => {
+  private findDuplicateFile = async (filePath: string): Promise<FileMetadata | null> => {
     const stats = fs.statSync(filePath)
     logger.debug(`stats: ${stats}, filePath: ${filePath}`)
     const fileSize = stats.size
@@ -204,7 +204,7 @@ class FileStorage {
         if (originalHash === storedHash) {
           const ext = path.extname(file)
           const id = path.basename(file, ext)
-          const type = await this.getFileType(_, filePath)
+          const type = await this.getFileType(filePath)
 
           return {
             id,
@@ -224,11 +224,11 @@ class FileStorage {
     return null
   }
 
-  public getFileType = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<FileTypes> => {
+  public getFileType = async (filePath: string): Promise<FileTypes> => {
     const ext = path.extname(filePath)
     const fileType = getFileTypeByExt(ext)
 
-    return fileType === FileTypes.OTHER && (await this.isTextFile(_, filePath)) ? FileTypes.TEXT : fileType
+    return fileType === FileTypes.OTHER && (await this._isTextFile(filePath)) ? FileTypes.TEXT : fileType
   }
 
   public selectFile = async (
@@ -250,7 +250,7 @@ class FileStorage {
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
       const ext = path.extname(filePath)
-      const fileType = await this.getFileType(_, filePath)
+      const fileType = await this.getFileType(filePath)
 
       return {
         id: uuidv4(),
@@ -295,7 +295,7 @@ class FileStorage {
 
   public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
     const filePath = file.path
-    const duplicateFile = await this.findDuplicateFile(_, filePath)
+    const duplicateFile = await this.findDuplicateFile(filePath)
 
     if (duplicateFile) {
       return duplicateFile
@@ -316,7 +316,7 @@ class FileStorage {
     }
 
     const stats = await fs.promises.stat(destPath)
-    const fileType = await this.getFileType(_, destPath)
+    const fileType = await this.getFileType(destPath)
 
     const fileMetadata: FileMetadata = {
       id: uuid,
@@ -341,7 +341,7 @@ class FileStorage {
     }
 
     const stats = fs.statSync(filePath)
-    const fileType = await this.getFileType(_, filePath)
+    const fileType = await this.getFileType(filePath)
 
     return {
       id: uuidv4(),
@@ -1325,7 +1325,7 @@ class FileStorage {
       await fs.promises.writeFile(destPath, buffer)
 
       const stats = await fs.promises.stat(destPath)
-      const fileType = await this.getFileType(_, destPath)
+      const fileType = await this.getFileType(destPath)
 
       return {
         id: uuid,
@@ -1612,6 +1612,10 @@ class FileStorage {
   }
 
   public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+    return this._isTextFile(filePath)
+  }
+
+  private _isTextFile = async (filePath: string): Promise<boolean> => {
     try {
       const isBinary = await isBinaryFile(filePath)
       if (isBinary) {
