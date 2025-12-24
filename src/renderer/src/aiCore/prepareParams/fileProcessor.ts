@@ -50,10 +50,9 @@ export async function extractFileContent(message: Message): Promise<string> {
  */
 export async function convertFileBlockToTextPart(fileBlock: FileMessageBlock): Promise<TextPart | null> {
   const file = fileBlock.file
-  const isOtherTextFile = file.type === FileTypes.OTHER && (await window.api.file.isTextFile(file.path))
 
   // 处理文本文件
-  if (file.type === FileTypes.TEXT || isOtherTextFile) {
+  if (file.type === FileTypes.TEXT) {
     try {
       const fileContent = await window.api.file.read(file.id + file.ext)
       return {
