@@ -15,7 +15,14 @@ import { menuItems } from './MenuConfig'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
-const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpandPath, onRenameNode }) => {
+const HeaderNavbar = ({
+  notesTree,
+  getCurrentNoteContent,
+  onToggleStar,
+  onExpandPath,
+  onRenameNode,
+  onClearActiveFile
+}) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
   const { activeNode } = useActiveNode(notesTree)
   const [breadcrumbItems, setBreadcrumbItems] = useState<
@@ -53,11 +60,14 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
 
   const handleBreadcrumbClick = useCallback(
     (item: { treePath: string; isFolder: boolean }) => {
-      if (item.isFolder && onExpandPath) {
+      if (item.treePath === '/' && onClearActiveFile) {
+        // Clicking root clears the active file and returns to tree view
+        onClearActiveFile()
+      } else if (item.isFolder && onExpandPath) {
         onExpandPath(item.treePath)
       }
     },
-    [onExpandPath]
+    [onExpandPath, onClearActiveFile]
   )
 
   const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

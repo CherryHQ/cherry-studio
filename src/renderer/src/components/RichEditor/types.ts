@@ -93,8 +93,6 @@ export interface RichEditorRef {
   getMarkdown: () => string
   /** Set editor content (plain text) */
   setContent: (content: string) => void
-  /** Set editor HTML content */
-  setHtml: (html: string) => void
   /** Set editor Markdown content */
   setMarkdown: (markdown: string) => void
   /** Focus the editor */
@@ -197,6 +195,8 @@ export interface FormattingState {
   canMath: boolean
   /** Whether taskList is active */
   isTaskList: boolean
+  /** Whether highlight is active */
+  isHighlight: boolean
 }
 
 export type FormattingCommand =
@@ -225,6 +225,7 @@ export type FormattingCommand =
   | 'table'
   | 'taskList'
   | 'image'
+  | 'highlight'
 
 export interface ToolbarProps {
   /** Editor instance ref */

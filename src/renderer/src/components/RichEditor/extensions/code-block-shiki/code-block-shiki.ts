@@ -13,6 +13,8 @@ export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
   addOptions() {
     return {
       ...this.parent?.(),
+      tabSize: 4,
+      enableTabIndentation: true,
       languageClassPrefix: 'language-',
       exitOnTripleEnter: true,
       exitOnArrowDown: true,
@@ -58,12 +60,6 @@ export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
 
   addKeyboardShortcuts() {
     return {
-      Tab: () => {
-        if (this.editor.isActive(this.name)) {
-          return this.editor.commands.insertContent('  ')
-        }
-        return false
-      },
       'Shift-Tab': () => {
         if (this.editor.isActive(this.name)) {
           const { selection } = this.editor.state

@@ -105,12 +105,7 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
                   const $pos = view.state.doc.resolve(pos)
 
                   // Find the link mark at this position
-                  const linkMark = $pos
-                    .marks()
-                    .find(
-                      (mark) =>
-                        (mark.type.name === 'enhancedLink' || mark.type.name === 'link') && mark.attrs.href === href
-                    )
+                  const linkMark = $pos.marks().find((mark) => mark.type.name === 'link' && mark.attrs.href === href)
 
                   if (linkMark) {
                     // Use ProseMirror's mark range finding
@@ -153,12 +148,7 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
                   const startPos = view.posAtDOM(linkElement, 0)
                   if (startPos >= 0) {
                     const $pos = view.state.doc.resolve(startPos)
-                    const linkMark = $pos
-                      .marks()
-                      .find(
-                        (mark) =>
-                          (mark.type.name === 'enhancedLink' || mark.type.name === 'link') && mark.attrs.href === href
-                      )
+                    const linkMark = $pos.marks().find((mark) => mark.type.name === 'link' && mark.attrs.href === href)
 
                     if (linkMark) {
                       const range = getMarkRange($pos, linkMark.type, linkMark.attrs)
@@ -235,7 +225,7 @@ const createLinkAutoUpdatePlugin = () => {
       newState.doc.descendants((node, pos) => {
         if (node.isText && node.marks) {
           node.marks.forEach((mark) => {
-            if (mark.type.name === 'enhancedLink') {
+            if (mark.type.name === 'link') {
               const text = node.text || ''
               const currentHref = mark.attrs.href || ''
 
@@ -280,16 +270,7 @@ const createLinkAutoUpdatePlugin = () => {
   })
 }
 
-declare module '@tiptap/core' {
-  interface Commands<ReturnType> {
-    enhancedLink: {
-      setEnhancedLink: (attributes: { href: string; title?: string }) => ReturnType
-      toggleEnhancedLink: (attributes: { href: string; title?: string }) => ReturnType
-      unsetEnhancedLink: () => ReturnType
-      updateLinkText: (text: string) => ReturnType
-    }
-  }
-}
+// Commands are inherited from the parent Link extension, no need to redeclare
 
 export interface EnhancedLinkOptions {
   onLinkHover?: (
@@ -304,7 +285,7 @@ export interface EnhancedLinkOptions {
 }
 
 export const EnhancedLink = Link.extend<EnhancedLinkOptions>({
-  name: 'enhancedLink',
+  name: 'link', // Use 'link' instead of 'enhancedLink' to be compatible with Markdown extension
 
   addOptions() {
     return {

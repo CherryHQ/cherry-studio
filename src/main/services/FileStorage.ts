@@ -397,13 +397,12 @@ class FileStorage {
         throw new Error(`Source file does not exist: ${filePath}`)
       }
 
-      // 确保目标目录存在
+      // Ensure the destination directory exists
       const destDir = path.dirname(newPath)
       if (!fs.existsSync(destDir)) {
         await fs.promises.mkdir(destDir, { recursive: true })
       }
 
-      // 移动文件
       await fs.promises.rename(filePath, newPath)
       logger.debug(`File moved successfully: ${filePath} to ${newPath}`)
     } catch (error) {
@@ -418,13 +417,12 @@ class FileStorage {
         throw new Error(`Source directory does not exist: ${dirPath}`)
       }
 
-      // 确保目标父目录存在
+      // Ensure the parent directory of the destination exists
       const parentDir = path.dirname(newDirPath)
       if (!fs.existsSync(parentDir)) {
         await fs.promises.mkdir(parentDir, { recursive: true })
       }
 
-      // 移动目录
       await fs.promises.rename(dirPath, newDirPath)
       logger.debug(`Directory moved successfully: ${dirPath} to ${newDirPath}`)
     } catch (error) {

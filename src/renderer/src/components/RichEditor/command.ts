@@ -14,6 +14,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Highlighter,
   Image,
   Italic,
   Link,
@@ -194,6 +195,20 @@ const DEFAULT_COMMANDS: Command[] = [
     formattingCommand: 'strike'
   },
   {
+    id: 'highlight',
+    title: 'Highlight',
+    description: 'Highlight text',
+    category: CommandCategory.TEXT,
+    icon: Highlighter,
+    keywords: ['highlight', 'marker', 'background'],
+    handler: (editor: Editor) => {
+      editor.chain().focus().toggleHighlight().run()
+    },
+    showInToolbar: true,
+    toolbarGroup: 'formatting',
+    formattingCommand: 'highlight'
+  },
+  {
     id: 'inlineCode',
     title: 'Inline Code',
     description: 'Add inline code',
@@ -348,11 +363,11 @@ const DEFAULT_COMMANDS: Command[] = [
     id: 'link',
     title: 'Link',
     description: 'Add a link',
-    category: CommandCategory.SPECIAL,
+    category: CommandCategory.TEXT,
     icon: Link,
     keywords: ['link', 'url', 'href'],
     handler: (editor: Editor) => {
-      editor.chain().focus().setEnhancedLink({ href: '' }).run()
+      editor.chain().focus().setLink({ href: '' }).run()
     },
     showInToolbar: true,
     toolbarGroup: 'media',

@@ -1,4 +1,4 @@
-import { mergeAttributes, Node } from '@tiptap/core'
+import { type MarkdownToken,mergeAttributes, Node } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 
 import YamlFrontMatterNodeView from '../components/YamlFrontMatterNodeView'
@@ -16,6 +16,68 @@ export const YamlFrontMatter = Node.create({
   group: 'block',
   atom: true,
   draggable: false,
+
+  // Custom tokenizer for YAML front matter
+  markdownTokenizer: {
+    name: 'yamlFrontMatter',
+    level: 'block',
+
+    start(src: string) {
+      const result = src.match(/^---\n/) ? 0 : -1
+      return result
+    },
+    // Parse YAML front matter
+    tokenize(src: string, tokens: MarkdownToken[] = []) {
+      const hasExistingContent = tokens.some((token) => token.type && token.type !== 'space')
+      if (hasExistingContent) {
+        return undefined
+      }
+
+      // Match: ---\n...yaml content...\n---
+      const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(src)
+
+      if (!match) {
+        return undefined
+      }
+
+      const token = {
+        type: 'yamlFrontMatter',
+        raw: match[0],
+        text: match[1] // YAML content without delimiters
+      }
+      return token
+    }
+  },
+
+  // Parse markdown token to Tiptap JSON
+  parseMarkdown(token, helpers) {
+    const attrs = {
+      content: token.text || ''
+    }
+
+    return helpers.createNode('yamlFrontMatter', attrs)
+  },
+
+  // Serialize Tiptap node to markdown
+  renderMarkdown(node) {
+    const content = node.attrs?.content || ''
+    if (!content.trim()) {
+      return ''
+    }
+
+    let result = ''
+
+    // Ensure proper format with opening and closing ---
+    // The content is stored without the --- delimiters, so we need to add them back
+    if (content.endsWith('---')) {
+      // Content already has closing ---, just add opening
+      result = '---\n' + content + '\n\n'
+    } else {
+      // Add both opening and closing ---
+      result = '---\n' + content + '\n---\n\n'
+    }
+    return result
+  },
 
   addOptions() {
     return {
