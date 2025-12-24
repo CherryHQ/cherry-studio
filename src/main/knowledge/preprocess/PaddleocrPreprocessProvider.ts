@@ -229,7 +229,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     // Save markdown text
     const mdFileName = `${file.id}.md`
     const mdFilePath = path.join(outputDir, mdFileName)
-    let markdownText = layoutResult.markdown.text
+    const markdownText = layoutResult.markdown.text
 
     // Download and save images from markdown.images
     if (layoutResult.markdown.images && Object.keys(layoutResult.markdown.images).length > 0) {
