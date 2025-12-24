@@ -37,6 +37,7 @@ import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
+import { ovmsManager } from './services/OvmsManager'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -248,11 +249,18 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', async () => {
     // 简单的资源清理，不阻塞退出流程
     try {
+      await ovmsManager.stopOvms()
+    } catch (error) {
+      logger.warn('Error stopping OVMS service:', error as Error)
+    }
+
+    try {
       await mcpService.cleanup()
       await apiServerService.stop()
     } catch (error) {
       logger.warn('Error cleaning up MCP service:', error as Error)
     }
+
     // finish the logger
     logger.finish()
   })
