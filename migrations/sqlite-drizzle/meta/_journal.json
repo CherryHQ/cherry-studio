@@ -1,13 +1,13 @@
 {
+  "version": "7",
   "dialect": "sqlite",
   "entries": [
     {
-      "breakpoints": true,
       "idx": 0,
-      "tag": "0000_solid_lord_hawal",
       "version": "6",
-      "when": 1754745234572
+      "when": 1766588456958,
+      "tag": "0000_init",
+      "breakpoints": true
     }
-  ],
-  "version": "7"
+  ]
 }
