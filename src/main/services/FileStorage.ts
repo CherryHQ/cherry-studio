@@ -184,7 +184,7 @@ class FileStorage {
     })
   }
 
-  findDuplicateFile = async (filePath: string): Promise<FileMetadata | null> => {
+  findDuplicateFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<FileMetadata | null> => {
     const stats = fs.statSync(filePath)
     logger.debug(`stats: ${stats}, filePath: ${filePath}`)
     const fileSize = stats.size
@@ -203,6 +203,8 @@ class FileStorage {
         if (originalHash === storedHash) {
           const ext = path.extname(file)
           const id = path.basename(file, ext)
+          const type = await this.getFileType(_, filePath)
+
           return {
             id,
             origin_name: file,
@@ -211,7 +213,7 @@ class FileStorage {
             created_at: storedStats.birthtime.toISOString(),
             size: storedStats.size,
             ext,
-            type: getFileTypeByExt(ext),
+            type,
             count: 2
           }
         }
@@ -292,7 +294,7 @@ class FileStorage {
 
   public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
     const filePath = file.path
-    const duplicateFile = await this.findDuplicateFile(filePath)
+    const duplicateFile = await this.findDuplicateFile(_, filePath)
 
     if (duplicateFile) {
       return duplicateFile
