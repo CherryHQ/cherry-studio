@@ -5,6 +5,10 @@ import { errorResponse, successResponse } from './utils'
 
 export const OpenSchema = z.object({
   url: z.url().describe('URL to navigate to'),
+  format: z
+    .enum(['html', 'txt', 'markdown', 'json'])
+    .optional()
+    .describe('If set, return page content in this format. If not set, just open the page and return tabId.'),
   timeout: z.number().optional().describe('Navigation timeout in ms (default: 10000)'),
   privateMode: z.boolean().optional().describe('Use incognito mode, no data persisted (default: false)'),
   newTab: z.boolean().optional().describe('Open in new tab, required for parallel requests (default: false)'),
@@ -14,13 +18,18 @@ export const OpenSchema = z.object({
 export const openToolDefinition = {
   name: 'open',
   description:
-    'Navigate to a URL in a browser window. Use this to load a page for interaction. After opening, use execute to interact with the page or extract content. Returns tabId for subsequent operations.',
+    'Navigate to a URL in a browser window. If format is specified, returns page content in that format. Otherwise, returns tabId for subsequent operations with execute tool. Set newTab=true when opening multiple URLs in parallel.',
   inputSchema: {
     type: 'object',
     properties: {
       url: {
         type: 'string',
         description: 'URL to navigate to'
+      },
+      format: {
+        type: 'string',
+        enum: ['html', 'txt', 'markdown', 'json'],
+        description: 'If set, return page content in this format. If not set, just open the page and return tabId.'
       },
       timeout: {
         type: 'number',
@@ -45,9 +54,28 @@ export const openToolDefinition = {
 
 export async function handleOpen(controller: CdpBrowserController, args: unknown) {
   try {
-    const { url, timeout, privateMode, newTab, showWindow } = OpenSchema.parse(args)
-    const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, newTab ?? false, showWindow ?? false)
-    return successResponse(JSON.stringify(res))
+    const { url, format, timeout, privateMode, newTab, showWindow } = OpenSchema.parse(args)
+
+    if (format) {
+      const content = await controller.fetch(
+        url,
+        format,
+        timeout ?? 10000,
+        privateMode ?? false,
+        newTab ?? false,
+        showWindow ?? false
+      )
+      return successResponse(typeof content === 'string' ? content : JSON.stringify(content))
+    } else {
+      const res = await controller.open(
+        url,
+        timeout ?? 10000,
+        privateMode ?? false,
+        newTab ?? false,
+        showWindow ?? false
+      )
+      return successResponse(JSON.stringify(res))
+    }
   } catch (error) {
     return errorResponse(error instanceof Error ? error : String(error))
   }

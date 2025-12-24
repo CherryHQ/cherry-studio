@@ -35,19 +35,22 @@ Private Mode (BrowserWindow)
 ## Available Tools
 
 ### `open`
-Open a URL in a browser window.
+Open a URL in a browser window. Optionally return page content.
 ```json
 {
   "url": "https://example.com",
+  "format": "markdown",
   "timeout": 10000,
   "privateMode": false,
   "newTab": false,
   "showWindow": false
 }
 ```
+- `format`: If set (`html`, `txt`, `markdown`, `json`), returns page content in that format. If not set, just opens the page and returns navigation info.
 - `newTab`: Set to `true` to open in a new tab (required for parallel requests)
 - `showWindow`: Set to `true` to display the browser window (useful for debugging)
-- Returns: `{ currentUrl, title, tabId }`
+- Returns (without format): `{ currentUrl, title, tabId }`
+- Returns (with format): Page content in the specified format
 
 ### `execute`
 Execute JavaScript code in the page context.
@@ -60,22 +63,6 @@ Execute JavaScript code in the page context.
 }
 ```
 - `tabId`: Target a specific tab (from `open` response)
-
-### `fetch`
-Fetch a URL and return content in specified format.
-```json
-{
-  "url": "https://example.com",
-  "format": "markdown",
-  "timeout": 10000,
-  "privateMode": false,
-  "newTab": false,
-  "showWindow": false
-}
-```
-- `newTab`: Set to `true` to fetch in a new tab (required for parallel requests)
-- `showWindow`: Set to `true` to display the browser window (useful for debugging)
-- Formats: `html`, `txt`, `markdown`, `json`
 
 ### `reset`
 Reset browser windows and tabs.
@@ -95,6 +82,15 @@ Reset browser windows and tabs.
 ```typescript
 // Open a URL in normal mode (data persists)
 await controller.open('https://example.com')
+```
+
+### Fetch Page Content
+```typescript
+// Open URL and get content as markdown
+await open({ url: 'https://example.com', format: 'markdown' })
+
+// Open URL and get raw HTML
+await open({ url: 'https://example.com', format: 'html' })
 ```
 
 ### Multi-Tab / Parallel Requests
