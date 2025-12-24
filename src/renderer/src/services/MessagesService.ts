@@ -23,9 +23,9 @@ import {
 } from '@renderer/utils/messageUtils/create'
 import { filterContextMessages } from '@renderer/utils/messageUtils/filters'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import type { UseNavigateResult } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
-import type { NavigateFunction } from 'react-router'
 
 import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
@@ -68,14 +68,14 @@ export function deleteMessageFiles(message: Message) {
   })
 }
 
-export async function locateToMessage(navigate: NavigateFunction, message: Message) {
+export async function locateToMessage(navigate: UseNavigateResult<string>, message: Message) {
   await modelGenerating()
 
   SearchPopup.hide()
   const assistant = getAssistantById(message.assistantId)
   const topic = await getTopicById(message.topicId)
 
-  navigate('/', { state: { assistant, topic } })
+  navigate({ to: '/chat', search: { assistantId: assistant?.id, topicId: topic?.id } })
 
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)

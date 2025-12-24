@@ -12,12 +12,12 @@ import { EventEmitter } from '@renderer/services/EventService'
 import type { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
+import { useNavigate } from '@tanstack/react-router'
 import { Form, Input } from 'antd'
 import { CircleX, Hammer, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 
 interface Props {
   assistantId: string
@@ -205,7 +205,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     newList.push({
       label: t('settings.mcp.addServer.label') + '...',
       icon: <Plus />,
-      action: () => navigate('/settings/mcp')
+      action: () => navigate({ to: '/settings/mcp' })
     })
 
     newList.unshift({

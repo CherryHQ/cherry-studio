@@ -4879,6 +4879,9 @@
       "title": "Page Zoom"
     }
   },
+  "tab": {
+    "new": "New Tab"
+  },
   "title": {
     "apps": "Apps",
     "code": "Code",

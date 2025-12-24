@@ -6,10 +6,10 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import TabsService from '@renderer/services/TabsService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { useNavigate, useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
@@ -20,7 +20,7 @@ import WebviewSearch from './components/WebviewSearch'
 const logger = loggerService.withContext('MinAppPage')
 
 const MinAppPage: FC = () => {
-  const { appId } = useParams<{ appId: string }>()
+  const { appId } = useParams({ strict: false }) as { appId: string }
   const { isTopNavbar } = useNavbarPosition()
   const { openMinappKeepAlive, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
@@ -64,7 +64,7 @@ const MinAppPage: FC = () => {
   useEffect(() => {
     // If app not found, redirect to apps list
     if (!app) {
-      navigate('/apps')
+      navigate({ to: '/apps' })
       return
     }
 
@@ -72,7 +72,7 @@ const MinAppPage: FC = () => {
     // Only check once and only if we haven't already redirected
     if (!initialIsTopNavbar.current && !hasRedirected.current) {
       hasRedirected.current = true
-      navigate('/apps')
+      navigate({ to: '/apps' })
       // Open popup after navigation
       setTimeout(() => {
         openMinappKeepAlive(app)

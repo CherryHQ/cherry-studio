@@ -3,11 +3,11 @@ import { Center, ColFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
+import { useNavigate } from '@tanstack/react-router'
 import { Alert } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingDescription, SettingRow, SettingSubtitle } from '..'
@@ -87,7 +87,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       <Button
         className="nodrag rounded-full"
         variant={installed ? 'default' : 'destructive'}
-        onClick={() => navigate('/settings/mcp/mcp-install')}
+        onClick={() => navigate({ to: '/settings/mcp/mcp-install' })}
         size="icon">
         {installed ? <CheckCircleOutlined /> : <WarningOutlined />}
       </Button>

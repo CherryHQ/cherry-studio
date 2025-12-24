@@ -5,11 +5,11 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { useAppSelector } from '@renderer/store'
 import type { KnowledgeBase } from '@renderer/types'
+import { useNavigate } from '@tanstack/react-router'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -54,7 +54,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
     items.push({
       label: t('knowledge.add.title') + '...',
       icon: <Plus />,
-      action: () => navigate('/knowledge'),
+      action: () => navigate({ to: '/knowledge' }),
       isSelected: false
     })
 

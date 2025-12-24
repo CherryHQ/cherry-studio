@@ -193,7 +193,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
                 e.stopPropagation()
                 setOpen(false)
                 resolve(undefined)
-                window.navigate(`/settings/provider?id=${p.id}`)
+                window.navigate({ to: '/settings/provider', search: { id: p.id } })
               }}
             />
           </Tooltip>

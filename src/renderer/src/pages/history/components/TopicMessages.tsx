@@ -11,9 +11,9 @@ import { getTopicById } from '@renderer/hooks/useTopic'
 import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { locateToMessage } from '@renderer/services/MessagesService'
-import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import { classNames, runAsyncFunction } from '@renderer/utils'
+import { useNavigate } from '@tanstack/react-router'
 import { Divider, Empty } from 'antd'
 import { t } from 'i18next'
 import { Forward } from 'lucide-react'
@@ -27,7 +27,8 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
-  const navigate = NavigationService.navigate!
+  const navigate = useNavigate()
+
   const { handleScroll, containerRef } = useScrollPosition('TopicMessages')
   const [messageStyle] = usePreference('chat.message.style')
   const { setTimeoutTimer } = useTimer()
@@ -53,7 +54,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
     await modelGenerating()
     SearchPopup.hide()
     const assistant = getAssistantById(topic.assistantId)
-    navigate('/', { state: { assistant, topic } })
+    navigate({ to: '/chat', search: { assistantId: assistant?.id, topicId: topic.id } })
     setTimeoutTimer('onContinueChat', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
   }
 

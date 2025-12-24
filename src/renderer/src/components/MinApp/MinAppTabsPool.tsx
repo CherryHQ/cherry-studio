@@ -3,9 +3,9 @@ import WebviewContainer from '@renderer/components/MinApp/WebviewContainer'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { useLocation } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import React, { useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 /**
