@@ -29,6 +29,7 @@ import { withoutTrailingSlash } from '@renderer/utils/api'
 import { isOllamaProvider } from '@renderer/utils/provider'
 
 import { BaseApiClient } from '../BaseApiClient'
+import { normalizeAzureOpenAIEndpoint } from './azureOpenAIEndpoint'
 
 const logger = loggerService.withContext('OpenAIBaseClient')
 
@@ -69,7 +70,7 @@ export abstract class OpenAIBaseClient<
     const sdk = await this.getSdkInstance()
     const response = (await sdk.request({
       method: 'post',
-      path: '/images/generations',
+      path: '/v1/images/generations',
       signal,
       body: {
         model,
@@ -213,7 +214,7 @@ export abstract class OpenAIBaseClient<
         dangerouslyAllowBrowser: true,
         apiKey: apiKeyForSdkInstance,
         apiVersion: this.provider.apiVersion,
-        endpoint: this.provider.apiHost
+        endpoint: normalizeAzureOpenAIEndpoint(this.provider.apiHost)
       }) as TSdkInstance
     } else {
       this.sdkInstance = new OpenAI({

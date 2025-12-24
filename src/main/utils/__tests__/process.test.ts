@@ -1,9 +1,28 @@
-import { execFileSync } from 'child_process'
+import { configManager } from '@main/services/ConfigManager'
+import { execFileSync, spawn } from 'child_process'
+import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { findExecutable, findGitBash, validateGitBashPath } from '../process'
+import {
+  autoDiscoverGitBash,
+  findCommandInShellEnv,
+  findExecutable,
+  findGitBash,
+  validateGitBashPath
+} from '../process'
+
+// Mock configManager
+vi.mock('@main/services/ConfigManager', () => ({
+  ConfigKeys: {
+    GitBashPath: 'gitBashPath'
+  },
+  configManager: {
+    get: vi.fn(),
+    set: vi.fn()
+  }
+}))
 
 // Mock dependencies
 vi.mock('child_process')
@@ -693,6 +712,527 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         expect(result).toBe(bashPath)
       })
+    })
+  })
+
+  describe('autoDiscoverGitBash', () => {
+    const originalEnvVar = process.env.CLAUDE_CODE_GIT_BASH_PATH
+
+    beforeEach(() => {
+      vi.mocked(configManager.get).mockReset()
+      vi.mocked(configManager.set).mockReset()
+      delete process.env.CLAUDE_CODE_GIT_BASH_PATH
+    })
+
+    afterEach(() => {
+      // Restore original environment variable
+      if (originalEnvVar !== undefined) {
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = originalEnvVar
+      } else {
+        delete process.env.CLAUDE_CODE_GIT_BASH_PATH
+      }
+    })
+
+    /**
+     * Helper to mock fs.existsSync with a set of valid paths
+     */
+    const mockExistingPaths = (...validPaths: string[]) => {
+      vi.mocked(fs.existsSync).mockImplementation((p) => validPaths.includes(p as string))
+    }
+
+    describe('with no existing config path', () => {
+      it('should discover and persist Git Bash path when not configured', () => {
+        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(undefined)
+        process.env.ProgramFiles = 'C:\\Program Files'
+        mockExistingPaths(gitPath, bashPath)
+
+        const result = autoDiscoverGitBash()
+
+        expect(result).toBe(bashPath)
+        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', bashPath)
+      })
+
+      it('should return null and not persist when Git Bash is not found', () => {
+        vi.mocked(configManager.get).mockReturnValue(undefined)
+        vi.mocked(fs.existsSync).mockReturnValue(false)
+        vi.mocked(execFileSync).mockImplementation(() => {
+          throw new Error('Not found')
+        })
+
+        const result = autoDiscoverGitBash()
+
+        expect(result).toBeNull()
+        expect(configManager.set).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('environment variable precedence', () => {
+      it('should use env var over valid config path', () => {
+        const envPath = 'C:\\EnvGit\\bin\\bash.exe'
+        const configPath = 'C:\\ConfigGit\\bin\\bash.exe'
+
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+        vi.mocked(configManager.get).mockReturnValue(configPath)
+        mockExistingPaths(envPath, configPath)
+
+        const result = autoDiscoverGitBash()
+
+        // Env var should take precedence
+        expect(result).toBe(envPath)
+        // Should not persist env var path (it's a runtime override)
+        expect(configManager.set).not.toHaveBeenCalled()
+      })
+
+      it('should fall back to config path when env var is invalid', () => {
+        const envPath = 'C:\\Invalid\\bash.exe'
+        const configPath = 'C:\\ConfigGit\\bin\\bash.exe'
+
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+        vi.mocked(configManager.get).mockReturnValue(configPath)
+        // Env path is invalid (doesn't exist), only config path exists
+        mockExistingPaths(configPath)
+
+        const result = autoDiscoverGitBash()
+
+        // Should fall back to config path
+        expect(result).toBe(configPath)
+        expect(configManager.set).not.toHaveBeenCalled()
+      })
+
+      it('should fall back to auto-discovery when both env var and config are invalid', () => {
+        const envPath = 'C:\\InvalidEnv\\bash.exe'
+        const configPath = 'C:\\InvalidConfig\\bash.exe'
+        const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+
+        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+        process.env.ProgramFiles = 'C:\\Program Files'
+        vi.mocked(configManager.get).mockReturnValue(configPath)
+        // Both env and config paths are invalid, only standard Git exists
+        mockExistingPaths(gitPath, discoveredPath)
+
+        const result = autoDiscoverGitBash()
+
+        expect(result).toBe(discoveredPath)
+        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', discoveredPath)
+      })
+    })
+
+    describe('with valid existing config path', () => {
+      it('should validate and return existing path without re-discovering', () => {
+        const existingPath = 'C:\\CustomGit\\bin\\bash.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(existingPath)
+        mockExistingPaths(existingPath)
+
+        const result = autoDiscoverGitBash()
+
+        expect(result).toBe(existingPath)
+        // Should not call findGitBash or persist again
+        expect(configManager.set).not.toHaveBeenCalled()
+        // Should not call execFileSync (which findGitBash would use for discovery)
+        expect(execFileSync).not.toHaveBeenCalled()
+      })
+
+      it('should not override existing valid config with auto-discovery', () => {
+        const existingPath = 'C:\\CustomGit\\bin\\bash.exe'
+        const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(existingPath)
+        mockExistingPaths(existingPath, discoveredPath)
+
+        const result = autoDiscoverGitBash()
+
+        expect(result).toBe(existingPath)
+        expect(configManager.set).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('with invalid existing config path', () => {
+      it('should attempt auto-discovery when existing path does not exist', () => {
+        const existingPath = 'C:\\NonExistent\\bin\\bash.exe'
+        const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(existingPath)
+        process.env.ProgramFiles = 'C:\\Program Files'
+        // Invalid path doesn't exist, but Git is installed at standard location
+        mockExistingPaths(gitPath, discoveredPath)
+
+        const result = autoDiscoverGitBash()
+
+        // Should discover and return the new path
+        expect(result).toBe(discoveredPath)
+        // Should persist the discovered path (overwrites invalid)
+        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', discoveredPath)
+      })
+
+      it('should attempt auto-discovery when existing path is not bash.exe', () => {
+        const existingPath = 'C:\\CustomGit\\bin\\git.exe'
+        const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(existingPath)
+        process.env.ProgramFiles = 'C:\\Program Files'
+        // Invalid path exists but is not bash.exe (validation will fail)
+        // Git is installed at standard location
+        mockExistingPaths(existingPath, gitPath, discoveredPath)
+
+        const result = autoDiscoverGitBash()
+
+        // Should discover and return the new path
+        expect(result).toBe(discoveredPath)
+        // Should persist the discovered path (overwrites invalid)
+        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', discoveredPath)
+      })
+
+      it('should return null when existing path is invalid and discovery fails', () => {
+        const existingPath = 'C:\\NonExistent\\bin\\bash.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(existingPath)
+        vi.mocked(fs.existsSync).mockReturnValue(false)
+        vi.mocked(execFileSync).mockImplementation(() => {
+          throw new Error('Not found')
+        })
+
+        const result = autoDiscoverGitBash()
+
+        // Both validation and discovery failed
+        expect(result).toBeNull()
+        // Should not persist when discovery fails
+        expect(configManager.set).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('config persistence verification', () => {
+      it('should persist discovered path with correct config key', () => {
+        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(undefined)
+        process.env.ProgramFiles = 'C:\\Program Files'
+        mockExistingPaths(gitPath, bashPath)
+
+        autoDiscoverGitBash()
+
+        // Verify the exact call to configManager.set
+        expect(configManager.set).toHaveBeenCalledTimes(1)
+        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', bashPath)
+      })
+
+      it('should persist on each discovery when config remains undefined', () => {
+        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(undefined)
+        process.env.ProgramFiles = 'C:\\Program Files'
+        mockExistingPaths(gitPath, bashPath)
+
+        autoDiscoverGitBash()
+        autoDiscoverGitBash()
+
+        // Each call discovers and persists since config remains undefined (mocked)
+        expect(configManager.set).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    describe('real-world scenarios', () => {
+      it('should discover and persist standard Git for Windows installation', () => {
+        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(undefined)
+        process.env.ProgramFiles = 'C:\\Program Files'
+        mockExistingPaths(gitPath, bashPath)
+
+        const result = autoDiscoverGitBash()
+
+        expect(result).toBe(bashPath)
+        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', bashPath)
+      })
+
+      it('should discover portable Git via where.exe and persist', () => {
+        const gitPath = 'D:\\PortableApps\\Git\\bin\\git.exe'
+        const bashPath = 'D:\\PortableApps\\Git\\bin\\bash.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(undefined)
+
+        vi.mocked(fs.existsSync).mockImplementation((p) => {
+          const pathStr = p?.toString() || ''
+          // Common git paths don't exist
+          if (pathStr.includes('Program Files\\Git\\cmd\\git.exe')) return false
+          if (pathStr.includes('Program Files (x86)\\Git\\cmd\\git.exe')) return false
+          // Portable bash path exists
+          if (pathStr === bashPath) return true
+          return false
+        })
+
+        vi.mocked(execFileSync).mockReturnValue(gitPath)
+
+        const result = autoDiscoverGitBash()
+
+        expect(result).toBe(bashPath)
+        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', bashPath)
+      })
+
+      it('should respect user-configured path over auto-discovery', () => {
+        const userConfiguredPath = 'D:\\MyGit\\bin\\bash.exe'
+        const systemPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+
+        vi.mocked(configManager.get).mockReturnValue(userConfiguredPath)
+        mockExistingPaths(userConfiguredPath, systemPath)
+
+        const result = autoDiscoverGitBash()
+
+        expect(result).toBe(userConfiguredPath)
+        expect(configManager.set).not.toHaveBeenCalled()
+        // Verify findGitBash was not called for discovery
+        expect(execFileSync).not.toHaveBeenCalled()
+      })
+    })
+  })
+})
+
+/**
+ * Helper to create a mock child process for spawn
+ */
+function createMockChildProcess() {
+  const mockChild = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter
+    stderr: EventEmitter
+    kill: ReturnType<typeof vi.fn>
+  }
+  mockChild.stdout = new EventEmitter()
+  mockChild.stderr = new EventEmitter()
+  mockChild.kill = vi.fn()
+  return mockChild
+}
+
+describe('findCommandInShellEnv', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Reset path.isAbsolute to real implementation for these tests
+    vi.mocked(path.isAbsolute).mockImplementation((p) => p.startsWith('/') || /^[A-Z]:/i.test(p))
+  })
+
+  describe('command name validation', () => {
+    it('should reject empty command name', async () => {
+      const result = await findCommandInShellEnv('', {})
+      expect(result).toBeNull()
+      expect(spawn).not.toHaveBeenCalled()
+    })
+
+    it('should reject command names with shell metacharacters', async () => {
+      const maliciousCommands = [
+        'npx; rm -rf /',
+        'npx && malicious',
+        'npx | cat /etc/passwd',
+        'npx`whoami`',
+        '$(whoami)',
+        'npx\nmalicious'
+      ]
+
+      for (const cmd of maliciousCommands) {
+        const result = await findCommandInShellEnv(cmd, {})
+        expect(result).toBeNull()
+        expect(spawn).not.toHaveBeenCalled()
+      }
+    })
+
+    it('should reject command names starting with hyphen', async () => {
+      const result = await findCommandInShellEnv('-npx', {})
+      expect(result).toBeNull()
+      expect(spawn).not.toHaveBeenCalled()
+    })
+
+    it('should reject path traversal attempts', async () => {
+      const pathTraversalCommands = ['../npx', '../../malicious', 'foo/bar', 'foo\\bar']
+
+      for (const cmd of pathTraversalCommands) {
+        const result = await findCommandInShellEnv(cmd, {})
+        expect(result).toBeNull()
+        expect(spawn).not.toHaveBeenCalled()
+      }
+    })
+
+    it('should reject command names exceeding max length', async () => {
+      const longCommand = 'a'.repeat(129)
+      const result = await findCommandInShellEnv(longCommand, {})
+      expect(result).toBeNull()
+      expect(spawn).not.toHaveBeenCalled()
+    })
+
+    it('should accept valid command names', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      // Don't await - just start the call
+      const resultPromise = findCommandInShellEnv('npx', { PATH: '/usr/bin' })
+
+      // Simulate command not found
+      mockChild.emit('close', 1)
+
+      const result = await resultPromise
+      expect(result).toBeNull()
+      expect(spawn).toHaveBeenCalled()
+    })
+
+    it('should accept command names with underscores and hyphens', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('my_command-name', { PATH: '/usr/bin' })
+      mockChild.emit('close', 1)
+
+      await resultPromise
+      expect(spawn).toHaveBeenCalled()
+    })
+
+    it('should accept command names at max length (128 chars)', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const maxLengthCommand = 'a'.repeat(128)
+      const resultPromise = findCommandInShellEnv(maxLengthCommand, { PATH: '/usr/bin' })
+      mockChild.emit('close', 1)
+
+      await resultPromise
+      expect(spawn).toHaveBeenCalled()
+    })
+  })
+
+  describe.skipIf(process.platform === 'win32')('Unix/macOS behavior', () => {
+    it('should find command and return absolute path', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('npx', { PATH: '/usr/bin' })
+
+      // Simulate successful command -v output
+      mockChild.stdout.emit('data', '/usr/local/bin/npx\n')
+      mockChild.emit('close', 0)
+
+      const result = await resultPromise
+      expect(result).toBe('/usr/local/bin/npx')
+      expect(spawn).toHaveBeenCalledWith('/bin/sh', ['-c', 'command -v "$1"', '--', 'npx'], expect.any(Object))
+    })
+
+    it('should return null for non-absolute paths (aliases/builtins)', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('cd', { PATH: '/usr/bin' })
+
+      // Simulate builtin output (just command name)
+      mockChild.stdout.emit('data', 'cd\n')
+      mockChild.emit('close', 0)
+
+      const result = await resultPromise
+      expect(result).toBeNull()
+    })
+
+    it('should return null when command not found', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('nonexistent', { PATH: '/usr/bin' })
+
+      // Simulate command not found (exit code 1)
+      mockChild.emit('close', 1)
+
+      const result = await resultPromise
+      expect(result).toBeNull()
+    })
+
+    it('should handle spawn errors gracefully', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('npx', { PATH: '/usr/bin' })
+
+      // Simulate spawn error
+      mockChild.emit('error', new Error('spawn failed'))
+
+      const result = await resultPromise
+      expect(result).toBeNull()
+    })
+
+    it('should handle timeout gracefully', async () => {
+      vi.useFakeTimers()
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('npx', { PATH: '/usr/bin' })
+
+      // Fast-forward past timeout (5000ms)
+      vi.advanceTimersByTime(6000)
+
+      const result = await resultPromise
+      expect(result).toBeNull()
+      expect(mockChild.kill).toHaveBeenCalledWith('SIGKILL')
+
+      vi.useRealTimers()
+    })
+  })
+
+  describe.skipIf(process.platform !== 'win32')('Windows behavior', () => {
+    it('should find .exe files via where command', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
+
+      // Simulate where output
+      mockChild.stdout.emit('data', 'C:\\Program Files\\nodejs\\npx.exe\r\n')
+      mockChild.emit('close', 0)
+
+      const result = await resultPromise
+      expect(result).toBe('C:\\Program Files\\nodejs\\npx.exe')
+      expect(spawn).toHaveBeenCalledWith('where', ['npx'], expect.any(Object))
+    })
+
+    it('should reject .cmd files on Windows', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
+
+      // Simulate where output with only .cmd file
+      mockChild.stdout.emit('data', 'C:\\Program Files\\nodejs\\npx.cmd\r\n')
+      mockChild.emit('close', 0)
+
+      const result = await resultPromise
+      expect(result).toBeNull()
+    })
+
+    it('should prefer .exe over .cmd when both exist', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
+
+      // Simulate where output with both .cmd and .exe
+      mockChild.stdout.emit('data', 'C:\\Program Files\\nodejs\\npx.cmd\r\nC:\\Program Files\\nodejs\\npx.exe\r\n')
+      mockChild.emit('close', 0)
+
+      const result = await resultPromise
+      expect(result).toBe('C:\\Program Files\\nodejs\\npx.exe')
+    })
+
+    it('should handle spawn errors gracefully', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
+
+      // Simulate spawn error
+      mockChild.emit('error', new Error('spawn failed'))
+
+      const result = await resultPromise
+      expect(result).toBeNull()
     })
   })
 })

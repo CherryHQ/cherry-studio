@@ -18,6 +18,7 @@ import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
+import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
@@ -2913,31 +2914,6 @@ const migrateConfig = {
       return state
     }
   },
-  '180': (state: RootState) => {
-    try {
-      if (state.settings.apiServer) {
-        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
-      }
-      // @ts-expect-error
-      if (state.settings.openAI.summaryText === 'undefined') {
-        state.settings.openAI.summaryText = undefined
-      }
-      // @ts-expect-error
-      if (state.settings.openAI.verbosity === 'undefined') {
-        state.settings.openAI.verbosity = undefined
-      }
-      state.llm.providers.forEach((provider) => {
-        if (provider.id === SystemProviderIds.ollama) {
-          provider.type = 'ollama'
-        }
-      })
-      logger.info('migrate 180 success')
-      return state
-    } catch (error) {
-      logger.error('migrate 180 error', error as Error)
-      return state
-    }
-  },
   '181': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
@@ -3020,13 +2996,109 @@ const migrateConfig = {
   },
   '185': (state: RootState) => {
     try {
-      addPreprocessProviders(state, 'paddleocr')
+      // Reset toolUseMode to function for default assistant
+      if (state.assistants.defaultAssistant.settings?.toolUseMode) {
+        state.assistants.defaultAssistant.settings.toolUseMode = 'function'
+      }
+      // Reset toolUseMode to function for assistants
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings?.toolUseMode === 'prompt') {
+          if (assistant.model && isFunctionCallingModel(assistant.model)) {
+            assistant.settings.toolUseMode = 'function'
+          }
+        }
+      })
+      logger.info('migrate 185 success')
       return state
     } catch (error) {
       logger.error('migrate 185 error', error as Error)
       return state
     }
   },
+  '186': (state: RootState) => {
+    try {
+      if (state.settings.apiServer) {
+        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.summaryText === 'undefined') {
+        state.settings.openAI.summaryText = undefined
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.verbosity === 'undefined') {
+        state.settings.openAI.verbosity = undefined
+      }
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
+      logger.info('migrate 186 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 186 error', error as Error)
+      return state
+    }
+  },
+  '187': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && assistant.settings.reasoning_effort === undefined) {
+          assistant.settings.reasoning_effort = 'default'
+        }
+      })
+      addProvider(state, 'mimo')
+      logger.info('migrate 187 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 187 error', error as Error)
+      return state
+    }
+  },
+  // 1.7.7
+  '188': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.openrouter) {
+          provider.anthropicApiHost = 'https://openrouter.ai/api'
+        }
+      })
+      logger.info('migrate 188 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 188 error', error as Error)
+      return state
+    }
+  },
+  // 1.7.7
+  '189': (state: RootState) => {
+    try {
+      window.api.memory.migrateMemoryDb()
+      // @ts-ignore
+      const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
+      // @ts-ignore
+      const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
+
+      if (memoryLlmApiClient) {
+        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        // @ts-ignore
+        delete state.memory.memoryConfig.llmApiClient
+      }
+
+      if (memoryEmbeddingApiClient) {
+        state.memory.memoryConfig.embeddingModel = getModel(
+          memoryEmbeddingApiClient.model,
+          memoryEmbeddingApiClient.provider
+        )
+        // @ts-ignore
+        delete state.memory.memoryConfig.embedderApiClient
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 189 error', error as Error)
+      return state
+    }
+  }
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer

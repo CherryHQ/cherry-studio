@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "使用自动检测的 Git Bash",
+      "autoDiscoveredHint": "自动发现",
       "clear": {
         "button": "清除自定义路径"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
         "recheck": "重新检测 Git Bash 安装",
+        "required": "在 Windows 上需要配置 Git Bash 路径",
         "title": "需要 Git Bash"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "选择的文件不是有效的 Git Bash 可执行文件（bash.exe）。",
         "title": "选择 Git Bash 可执行文件"
       },
-      "success": "成功检测到 Git Bash！"
+      "placeholder": "选择 bash.exe 路径",
+      "success": "成功检测到 Git Bash！",
+      "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
@@ -472,6 +476,7 @@
         "button": "导入",
         "error": {
           "fetch_failed": "从 URL 获取数据失败",
+          "file_required": "请先选择文件",
           "invalid_format": "无效的助手格式：缺少必填字段",
           "url_required": "请输入 URL"
         },
@@ -486,11 +491,14 @@
       },
       "manage": {
         "batch_delete": {
-          "button": "批量删除",
+          "button": "删除",
           "confirm": "确定要删除选中的 {{count}} 个助手吗？"
         },
+        "batch_export": {
+          "button": "导出"
+        },
         "mode": {
-          "delete": "删除",
+          "manage": "管理",
           "sort": "排序"
         },
         "title": "管理助手"
@@ -540,14 +548,23 @@
       "more": "助手设置",
       "prompt": "提示词设置",
       "reasoning_effort": {
+        "auto": "自动",
+        "auto_description": "灵活决定推理力度",
         "default": "默认",
+        "default_description": "依赖模型默认行为，不作任何配置",
         "high": "沉思",
+        "high_description": "高强度推理",
         "label": "思维链长度",
         "low": "浮想",
+        "low_description": "低强度推理",
         "medium": "斟酌",
+        "medium_description": "中强度推理",
         "minimal": "微念",
+        "minimal_description": "最小程度的推理",
         "off": "关闭",
-        "xhigh": "穷究"
+        "off_description": "禁用推理",
+        "xhigh": "穷究",
+        "xhigh_description": "超高强度推理"
       },
       "regular_phrases": {
         "add": "添加短语",
@@ -1027,6 +1044,29 @@
         "yuque": "导出到语雀"
       },
       "list": "话题列表",
+      "manage": {
+        "clear_selection": "取消选择",
+        "delete": {
+          "confirm": {
+            "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
+            "title": "删除话题"
+          },
+          "success": "已删除 {{count}} 个话题"
+        },
+        "deselect_all": "取消全选",
+        "error": {
+          "at_least_one": "至少需要保留一个话题"
+        },
+        "move": {
+          "button": "移动",
+          "placeholder": "选择目标助手",
+          "success": "已移动 {{count}} 个话题"
+        },
+        "pinned": "已固定的话题",
+        "selected_count": "已选择 {{count}} 个",
+        "title": "管理话题",
+        "unpinned": "未固定的话题"
+      },
       "move_to": "移动到",
       "new": "开始新对话",
       "pin": "固定话题",
@@ -1036,6 +1076,10 @@
         },
         "label": "话题提示词",
         "tips": "话题提示词：针对当前话题提供额外的补充提示词"
+      },
+      "search": {
+        "placeholder": "搜索话题...",
+        "title": "搜索"
       },
       "title": "话题",
       "unpin": "取消固定"
@@ -1221,11 +1265,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "订阅",
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
     "unknown": "未知",
     "unnamed": "未命名",
+    "unsubscribe": "退订",
     "update_success": "更新成功",
     "upload_files": "上传文件",
     "warning": "警告",
@@ -1720,7 +1766,7 @@
       "import": {
         "error": "导入失败"
       },
-      "imported": "导入成功"
+      "imported": "成功导入 {{count}} 个助手"
     },
     "api": {
       "check": {
@@ -2152,6 +2198,7 @@
     "collapse": "收起",
     "content_placeholder": "请输入笔记内容...",
     "copyContent": "复制内容",
+    "crossPlatformRestoreWarning": "检测到从其他设备恢复配置，但笔记目录为空。请将笔记文件复制到: {{path}}",
     "delete": "删除",
     "delete_confirm": "确定要删除这个{{type}}吗？",
     "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
@@ -2596,6 +2643,7 @@
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
     "longcat": "龙猫",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -3184,24 +3232,43 @@
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
         "lan": {
-          "auto_close_tip": "{{seconds}} 秒后自动关闭...",
-          "confirm_close_message": "文件正在传输中，关闭将中断传输。确定要强制关闭吗？",
-          "confirm_close_title": "确认关闭",
           "connected": "连接成功",
           "connection_failed": "连接失败",
-          "content": "请确保电脑和手机处于同一网络以使用局域网传输。请打开 Cherry Studio App 扫描此二维码。",
+          "content": "请确保电脑和手机处于同一网络以使用局域网传输。",
+          "device_list_title": "局域网设备列表",
+          "discovered_devices": "已发现的设备",
           "error": {
+            "file_too_large": "文件过大，最大支持 500MB",
             "init_failed": "初始化失败",
+            "invalid_file_type": "仅支持 ZIP 文件",
             "no_file": "未选择文件",
             "no_ip": "无法获取 IP 地址",
+            "not_connected": "请先完成握手连接",
             "send_failed": "发送文件失败"
           },
-          "force_close": "强制关闭",
-          "generating_qr": "正在生成二维码...",
-          "noZipSelected": "未选择压缩文件",
-          "scan_qr": "请使用手机扫码连接",
-          "selectZip": "选择压缩文件",
-          "sendZip": "开始恢复数据",
+          "file_transfer": {
+            "cancelled": "传输已取消",
+            "failed": "文件发送失败: {{message}}",
+            "progress": "发送中... {{progress}}%",
+            "success": "文件发送成功"
+          },
+          "handshake": {
+            "button": "握手测试",
+            "failed": "握手失败：{{message}}",
+            "in_progress": "正在握手...",
+            "success": "已与 {{device}} 建立握手",
+            "test_message_received": "已收到 {{device}} 的 pong 响应",
+            "test_message_sent": "已发送 hello world 测试数据"
+          },
+          "idle_hint": "扫描已暂停。开始扫描以发现局域网中的 Cherry Studio 设备。",
+          "ip_addresses": "IP 地址",
+          "last_seen": "最后活动：{{time}}",
+          "metadata": "元数据",
+          "no_connection_warning": "请在 Cherry Studio 移动端打开局域网传输",
+          "no_devices": "尚未发现局域网设备",
+          "scan_devices": "扫描设备",
+          "scanning_hint": "正在扫描局域网中的 Cherry Studio 设备...",
+          "send_file": "发送文件",
           "status": {
             "completed": "传输完成",
             "connected": "连接成功",
@@ -3210,9 +3277,11 @@
             "error": "连接出错",
             "initializing": "正在初始化连接...",
             "preparing": "准备传输中...",
-            "sending": "传输中 {{progress}}%",
-            "waiting_qr_scan": "请扫描二维码连接"
+            "sending": "传输中 {{progress}}%"
           },
+          "status_badge_idle": "空闲",
+          "status_badge_scanning": "扫描中",
+          "stop_scan": "停止扫描",
           "title": "局域网传输",
           "transfer_progress": "传输进度"
         },
@@ -3892,6 +3961,7 @@
         "mcp_auto_install": "自动安装 MCP 服务（测试版）",
         "memory": "基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。",
         "no": "无描述",
+        "nowledge_mem": "需要本地运行 Nowledge Mem 应用。将 AI 对话、工具、笔记、智能体和文件保存在本地计算机的私有记忆中。请从 https://mem.nowledge.co/ 下载",
         "python": "在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包",
         "sequentialthinking": "一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具"
       },
@@ -4052,7 +4122,7 @@
       "tagsPlaceholder": "输入标签",
       "timeout": "超时",
       "timeoutTooltip": "对该服务器请求的超时时间（秒），默认为 60 秒",
-      "title": "MCP",
+      "title": "MCP 服务器",
       "tools": {
         "autoApprove": {
           "label": "自动批准",
@@ -4692,6 +4762,12 @@
       },
       "title": "其他设置",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} 需要 API 密钥才能使用。是否现在去配置？",
+          "ok": "去配置",
+          "title": "需要 API 密钥"
+        },
+        "api_providers": "API 服务商",
         "apikey": "API 密钥",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
@@ -4733,7 +4809,15 @@
         },
         "content_limit": "内容长度限制",
         "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
+        "default_provider": "默认搜索引擎",
         "free": "免费",
+        "is_default": "默认搜索",
+        "local_provider": {
+          "hint": "登录网站可以获得更好的搜索结果，也可以对搜索进行个性化设置。",
+          "open_settings": "打开 {{provider}} 设置",
+          "settings": "本地搜索设置"
+        },
+        "local_providers": "本地搜索",
         "no_provider_selected": "请选择搜索服务商后再检测",
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
@@ -4744,6 +4828,7 @@
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
         "search_with_time": "搜索包含日期",
+        "set_as_default": "设为默认",
         "subscribe": "黑名单订阅",
         "subscribe_add": "添加订阅",
         "subscribe_add_failed": "订阅源添加失败",

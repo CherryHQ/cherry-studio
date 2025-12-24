@@ -134,60 +134,38 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.3 - Feature & Stability Update
+    Cherry Studio 1.7.6 - New Models & MCP Enhancements
 
-    This release brings new features, UI improvements, and important bug fixes.
+    This release adds support for new AI models and includes a new MCP server for memory management.
 
     ✨ New Features
-    - Add MCP server log viewer for better debugging
-    - Support custom Git Bash path configuration
-    - Add print to PDF and save as HTML for mini program webviews
-    - Add CherryIN API host selection settings
-    - Enhance assistant presets with sort and batch delete modes
-    - Open URL directly for SelectionAssistant search action
-    - Enhance web search tool switching with provider-specific context
-
-    🔧 Improvements
-    - Remove Intel Ultra limit for OVMS
-    - Improve settings tab and assistant item UI
+    - [Models] Add support for Xiaomi MiMo model
+    - [Models] Add support for Gemini 3 Flash and Pro model detection
+    - [Models] Add support for Volcengine Doubao-Seed-1.8 model
+    - [MCP] Add Nowledge Mem builtin MCP server for memory management
+    - [Settings] Add default reasoning effort option to resolve confusion between undefined and none
 
     🐛 Bug Fixes
-    - Fix stack overflow with base64 images
-    - Fix infinite loop in knowledge queue processing
-    - Fix quick panel closing in multiple selection mode
-    - Fix thinking timer not stopping when reply is aborted
-    - Fix ThinkingButton icon display for fixed reasoning mode
-    - Fix knowledge query prioritization and intent prompt
-    - Fix OpenRouter embeddings support
-    - Fix SelectionAction window resize on Windows
-    - Add gpustack provider support for qwen3 thinking mode
+    - [Azure] Restore deployment-based URLs for non-v1 apiVersion
+    - [Translation] Disable reasoning mode for translation to improve efficiency
+    - [Image] Update API path for image generation requests in OpenAIBaseClient
+    - [Windows] Auto-discover and persist Git Bash path on Windows for scoop users
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.3 - 功能与稳定性更新
+    Cherry Studio 1.7.6 - 新模型与 MCP 增强
 
-    本次更新带来新功能、界面改进和重要的问题修复。
+    本次更新添加了多个新 AI 模型支持，并新增记忆管理 MCP 服务器。
 
     ✨ 新功能
-    - 新增 MCP 服务器日志查看器，便于调试
-    - 支持自定义 Git Bash 路径配置
-    - 小程序 webview 支持打印 PDF 和保存为 HTML
-    - 新增 CherryIN API 主机选择设置
-    - 助手预设增强：支持排序和批量删除模式
-    - 划词助手搜索操作直接打开 URL
-    - 增强网页搜索工具切换逻辑，支持服务商特定上下文
-
-    🔧 功能改进
-    - 移除 OVMS 的 Intel Ultra 限制
-    - 优化设置标签页和助手项目 UI
+    - [模型] 添加小米 MiMo 模型支持
+    - [模型] 添加 Gemini 3 Flash 和 Pro 模型检测支持
+    - [模型] 添加火山引擎 Doubao-Seed-1.8 模型支持
+    - [MCP] 新增 Nowledge Mem 内置 MCP 服务器，用于记忆管理
+    - [设置] 添加默认推理强度选项，解决 undefined 和 none 之间的混淆
 
     🐛 问题修复
-    - 修复 base64 图片导致的栈溢出问题
-    - 修复知识库队列处理的无限循环问题
-    - 修复多选模式下快捷面板意外关闭的问题
-    - 修复回复中止时思考计时器未停止的问题
-    - 修复固定推理模式下思考按钮图标显示问题
-    - 修复知识库查询优先级和意图提示
-    - 修复 OpenRouter 嵌入模型支持
-    - 修复 Windows 上划词助手窗口大小调整问题
-    - 为 gpustack 服务商添加 qwen3 思考模式支持
+    - [Azure] 修复非 v1 apiVersion 的部署 URL 问题
+    - [翻译] 禁用翻译时的推理模式以提高效率
+    - [图像] 更新 OpenAIBaseClient 中图像生成请求的 API 路径
+    - [Windows] 自动发现并保存 Windows scoop 用户的 Git Bash 路径
     <!--LANG:END-->

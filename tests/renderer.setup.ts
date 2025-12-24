@@ -1,7 +1,14 @@
 import '@testing-library/jest-dom/vitest'
 
+import { createRequire } from 'node:module'
 import { styleSheetSerializer } from 'jest-styled-components/serializer'
 import { expect, vi } from 'vitest'
+
+const require = createRequire(import.meta.url)
+const bufferModule = require('buffer')
+if (!bufferModule.SlowBuffer) {
+  bufferModule.SlowBuffer = bufferModule.Buffer
+}
 
 expect.addSnapshotSerializer(styleSheetSerializer)
 
@@ -48,3 +55,29 @@ vi.stubGlobal('api', {
     writeWithId: vi.fn().mockResolvedValue(undefined)
   }
 })
+
+if (typeof globalThis.localStorage === 'undefined' || typeof (globalThis.localStorage as any).getItem !== 'function') {
+  let store = new Map<string, string>()
+
+  const localStorageMock = {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value))
+    },
+    removeItem: (key: string) => {
+      store.delete(key)
+    },
+    clear: () => {
+      store.clear()
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size
+    }
+  }
+
+  vi.stubGlobal('localStorage', localStorageMock)
+  if (typeof window !== 'undefined') {
+    Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+  }
+}

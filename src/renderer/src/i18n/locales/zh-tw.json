@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "使用自動偵測的 Git Bash",
+      "autoDiscoveredHint": "自動發現",
       "clear": {
         "button": "清除自訂路徑"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "在 Windows 上執行 Agent 需要 Git Bash。沒有它 Agent 無法運作。請從以下網址安裝 Git for Windows",
         "recheck": "重新偵測 Git Bash 安裝",
+        "required": "在 Windows 上需要設定 Git Bash 路徑",
         "title": "需要 Git Bash"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "選擇的檔案不是有效的 Git Bash 可執行檔（bash.exe）。",
         "title": "選擇 Git Bash 可執行檔"
       },
-      "success": "成功偵測到 Git Bash！"
+      "placeholder": "選擇 bash.exe 路徑",
+      "success": "成功偵測到 Git Bash！",
+      "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
     },
     "input": {
       "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令"
@@ -472,6 +476,7 @@
         "button": "匯入",
         "error": {
           "fetch_failed": "從 URL 取得資料失敗",
+          "file_required": "請先選擇一個檔案",
           "invalid_format": "無效的助手格式：缺少必填欄位",
           "url_required": "請輸入 URL"
         },
@@ -489,8 +494,11 @@
           "button": "批次刪除",
           "confirm": "確定要刪除所選的 {{count}} 個助手嗎？"
         },
+        "batch_export": {
+          "button": "匯出"
+        },
         "mode": {
-          "delete": "刪除",
+          "manage": "管理",
           "sort": "排序"
         },
         "title": "管理助手"
@@ -540,14 +548,23 @@
       "more": "助手設定",
       "prompt": "提示詞設定",
       "reasoning_effort": {
+        "auto": "自動",
+        "auto_description": "彈性決定推理投入的心力",
         "default": "預設",
+        "default_description": "依賴模型的預設行為，無需任何配置。",
         "high": "盡力思考",
+        "high_description": "高級推理",
         "label": "思維鏈長度",
         "low": "稍微思考",
+        "low_description": "低階推理",
         "medium": "正常思考",
+        "medium_description": "中等程度推理",
         "minimal": "最少思考",
+        "minimal_description": "最少推理",
         "off": "關閉",
-        "xhigh": "極力思考"
+        "off_description": "禁用推理",
+        "xhigh": "極力思考",
+        "xhigh_description": "超高階推理"
       },
       "regular_phrases": {
         "add": "新增短語",
@@ -1027,6 +1044,29 @@
         "yuque": "匯出到語雀"
       },
       "list": "話題列表",
+      "manage": {
+        "clear_selection": "取消選擇",
+        "delete": {
+          "confirm": {
+            "content": "確定要刪除選中的 {{count}} 個話題嗎？此操作不可撤銷。",
+            "title": "刪除話題"
+          },
+          "success": "已刪除 {{count}} 個話題"
+        },
+        "deselect_all": "取消全選",
+        "error": {
+          "at_least_one": "至少需要保留一個話題"
+        },
+        "move": {
+          "button": "移動",
+          "placeholder": "選擇目標助手",
+          "success": "已移動 {{count}} 個話題"
+        },
+        "pinned": "已固定的話題",
+        "selected_count": "已選擇 {{count}} 個",
+        "title": "管理話題",
+        "unpinned": "未固定的話題"
+      },
       "move_to": "移動到",
       "new": "開始新對話",
       "pin": "固定話題",
@@ -1036,6 +1076,10 @@
         },
         "label": "話題提示詞",
         "tips": "話題提示詞：針對目前話題提供額外的補充提示詞"
+      },
+      "search": {
+        "placeholder": "搜尋話題...",
+        "title": "搜尋"
       },
       "title": "話題",
       "unpin": "取消固定"
@@ -1221,11 +1265,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "訂閱",
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
     "unknown": "未知",
     "unnamed": "未命名",
+    "unsubscribe": "取消訂閱",
     "update_success": "更新成功",
     "upload_files": "上傳檔案",
     "warning": "警告",
@@ -2152,6 +2198,7 @@
     "collapse": "收合",
     "content_placeholder": "請輸入筆記內容...",
     "copyContent": "複製內容",
+    "crossPlatformRestoreWarning": "偵測到從其他裝置恢復設定，但筆記目錄為空。請將筆記檔案複製到：{{path}}",
     "delete": "刪除",
     "delete_confirm": "確定要刪除此 {{type}} 嗎？",
     "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",
@@ -2596,6 +2643,7 @@
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
     "longcat": "龍貓",
+    "mimo": "小米 MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -3184,24 +3232,43 @@
         },
         "content": "匯出部分資料，包括聊天記錄與設定。請注意，備份過程可能需要一些時間，感謝耐心等候。",
         "lan": {
-          "auto_close_tip": "將於 {{seconds}} 秒後自動關閉...",
-          "confirm_close_message": "檔案傳輸正在進行中。關閉將會中斷傳輸。您確定要強制關閉嗎？",
-          "confirm_close_title": "確認關閉",
           "connected": "已連線",
           "connection_failed": "連線失敗",
-          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。請開啟 Cherry Studio App 掃描此 QR 碼。",
+          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。",
+          "device_list_title": "區域網路裝置",
+          "discovered_devices": "已發現的裝置",
           "error": {
+            "file_too_large": "檔案過大，僅支援最大 500MB",
             "init_failed": "初始化失敗",
+            "invalid_file_type": "僅支援 ZIP 檔案",
             "no_file": "未選擇檔案",
             "no_ip": "無法取得 IP 位址",
+            "not_connected": "請先完成握手",
             "send_failed": "無法傳送檔案"
           },
-          "force_close": "強制關閉",
-          "generating_qr": "正在產生 QR 碼...",
-          "noZipSelected": "未選取壓縮檔案",
-          "scan_qr": "請使用手機掃描 QR 碼",
-          "selectZip": "選擇壓縮檔案",
-          "sendZip": "開始還原資料",
+          "file_transfer": {
+            "cancelled": "傳輸已取消",
+            "failed": "檔案傳輸失敗：{{message}}",
+            "progress": "傳送中... {{progress}}%",
+            "success": "檔案傳送成功"
+          },
+          "handshake": {
+            "button": "握手",
+            "failed": "握手失敗：{{message}}",
+            "in_progress": "握手中...",
+            "success": "已與 {{device}} 完成握手",
+            "test_message_received": "收到來自 {{device}} 的 pong",
+            "test_message_sent": "已送出 hello world 測試封包"
+          },
+          "idle_hint": "掃描已暫停。開始掃描以尋找區域網路中的 Cherry Studio 裝置。",
+          "ip_addresses": "IP 位址",
+          "last_seen": "上次看到：{{time}}",
+          "metadata": "中繼資料",
+          "no_connection_warning": "請在 Cherry Studio 行動裝置開啟區域網路傳輸",
+          "no_devices": "尚未找到區域網路節點",
+          "scan_devices": "掃描裝置",
+          "scanning_hint": "正在掃描區域網路中的 Cherry Studio 裝置...",
+          "send_file": "傳送檔案",
           "status": {
             "completed": "傳輸完成",
             "connected": "已連線",
@@ -3210,9 +3277,11 @@
             "error": "連線錯誤",
             "initializing": "正在初始化連線...",
             "preparing": "正在準備傳輸...",
-            "sending": "傳輸中 {{progress}}%",
-            "waiting_qr_scan": "請掃描 QR 碼以連線"
+            "sending": "傳輸中 {{progress}}%"
           },
+          "status_badge_idle": "閒置",
+          "status_badge_scanning": "掃描中",
+          "stop_scan": "停止掃描",
           "title": "區域網路傳輸",
           "transfer_progress": "傳輸進度"
         },
@@ -3892,6 +3961,7 @@
         "mcp_auto_install": "自動安裝 MCP 服務（測試版）",
         "memory": "基於本機知識圖譜的持久性記憶基礎實做。這使得模型能夠在不同對話間記住使用者的相關資訊。需要設定 MEMORY_FILE_PATH 環境變數。",
         "no": "無描述",
+        "nowledge_mem": "需要本機執行 Nowledge Mem 應用程式。將 AI 對話、工具、筆記、代理和檔案保存在電腦上的私人記憶體中。請從 https://mem.nowledge.co/ 下載",
         "python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
         "sequentialthinking": "一個 MCP 伺服器實做，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
       },
@@ -4052,7 +4122,7 @@
       "tagsPlaceholder": "輸入標籤",
       "timeout": "逾時",
       "timeoutTooltip": "對該伺服器請求的逾時時間（秒），預設為 60 秒",
-      "title": "MCP",
+      "title": "MCP 伺服器",
       "tools": {
         "autoApprove": {
           "label": "自動核准",
@@ -4692,6 +4762,12 @@
       },
       "title": "其他設定",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} 需要 API 金鑰才能運作。您現在要設定嗎？",
+          "ok": "設定",
+          "title": "需要 API 金鑰"
+        },
+        "api_providers": "API 服務商",
         "apikey": "API 金鑰",
         "blacklist": "黑名單",
         "blacklist_description": "以下網站不會出現在搜尋結果中",
@@ -4733,7 +4809,15 @@
         },
         "content_limit": "內容長度限制",
         "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
+        "default_provider": "預設搜尋引擎",
         "free": "免費",
+        "is_default": "[to be translated]:Default",
+        "local_provider": {
+          "hint": "登入網站以獲得更佳搜尋結果並個人化您的搜尋設定。",
+          "open_settings": "開啟 {{provider}} 設定",
+          "settings": "本地搜尋設定"
+        },
+        "local_providers": "本地搜尋",
         "no_provider_selected": "請選擇搜尋供應商後再檢查",
         "overwrite": "覆蓋搜尋服務",
         "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
@@ -4744,6 +4828,7 @@
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
         "search_with_time": "搜尋包含日期",
+        "set_as_default": "[to be translated]:Set as Default",
         "subscribe": "黑名單訂閱",
         "subscribe_add": "新增訂閱",
         "subscribe_add_failed": "訂閱來源新增失敗",

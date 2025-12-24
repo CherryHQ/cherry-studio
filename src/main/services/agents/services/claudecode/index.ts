@@ -15,8 +15,8 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
-import { ConfigKeys, configManager } from '@main/services/ConfigManager'
-import { validateGitBashPath } from '@main/utils/process'
+import { isWin } from '@main/constant'
+import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { app } from 'electron'
 
@@ -109,7 +109,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
     ) as Record<string, string>
 
-    const customGitBashPath = validateGitBashPath(configManager.get(ConfigKeys.GitBashPath) as string | undefined)
+    // Auto-discover Git Bash path on Windows (already logs internally)
+    const customGitBashPath = isWin ? autoDiscoverGitBash() : null
 
     const env = {
       ...loginShellEnvWithoutProxies,

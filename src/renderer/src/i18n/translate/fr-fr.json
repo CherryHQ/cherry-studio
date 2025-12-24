@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Utilisation de Git Bash détecté automatiquement",
+      "autoDiscoveredHint": "Auto-découvert",
       "clear": {
         "button": "Effacer le chemin personnalisé"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Git Bash est requis pour exécuter des agents sur Windows. L'agent ne peut pas fonctionner sans. Veuillez installer Git pour Windows depuis",
         "recheck": "Revérifier l'installation de Git Bash",
+        "required": "Le chemin Git Bash est requis sur Windows",
         "title": "Git Bash requis"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Le fichier sélectionné n'est pas un exécutable Git Bash valide (bash.exe).",
         "title": "Sélectionner l'exécutable Git Bash"
       },
-      "success": "Git Bash détecté avec succès !"
+      "placeholder": "Sélectionner le chemin de bash.exe",
+      "success": "Git Bash détecté avec succès !",
+      "tooltip": "Git Bash est nécessaire pour exécuter des agents sur Windows. Installez-le depuis git-scm.com s'il n'est pas disponible."
     },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
@@ -472,6 +476,7 @@
         "button": "Importer",
         "error": {
           "fetch_failed": "Échec de la récupération des données depuis l'URL",
+          "file_required": "Veuillez d'abord sélectionner un fichier",
           "invalid_format": "Format d'assistant invalide : champs obligatoires manquants",
           "url_required": "Veuillez saisir une URL"
         },
@@ -489,8 +494,11 @@
           "button": "Suppression par lot",
           "confirm": "Êtes-vous sûr de vouloir supprimer les {{count}} assistants sélectionnés ?"
         },
+        "batch_export": {
+          "button": "Exporter"
+        },
         "mode": {
-          "delete": "Supprimer",
+          "manage": "Gérer",
           "sort": "Trier"
         },
         "title": "Gérer les assistants"
@@ -540,14 +548,23 @@
       "more": "Paramètres de l'assistant",
       "prompt": "Paramètres de l'invite",
       "reasoning_effort": {
+        "auto": "Auto",
+        "auto_description": "Déterminer de manière flexible l'effort de raisonnement",
         "default": "Par défaut",
+        "default_description": "Dépendre du comportement par défaut du modèle, sans aucune configuration.",
         "high": "Long",
+        "high_description": "Raisonnement de haut niveau",
         "label": "Longueur de la chaîne de raisonnement",
         "low": "Court",
+        "low_description": "Raisonnement de bas niveau",
         "medium": "Moyen",
+        "medium_description": "Raisonnement de niveau moyen",
         "minimal": "minimal",
+        "minimal_description": "Réflexion minimale",
         "off": "Off",
-        "xhigh": "Très élevée"
+        "off_description": "Désactiver le raisonnement",
+        "xhigh": "Très élevée",
+        "xhigh_description": "Raisonnement de très haut niveau"
       },
       "regular_phrases": {
         "add": "Добавить фразу",
@@ -1027,6 +1044,29 @@
         "yuque": "Exporter vers Yuque"
       },
       "list": "Liste des sujets",
+      "manage": {
+        "clear_selection": "Effacer la sélection",
+        "delete": {
+          "confirm": {
+            "content": "Êtes-vous sûr de vouloir supprimer {{count}} sujet(s) sélectionné(s) ? Cette action est irréversible.",
+            "title": "Supprimer des sujets"
+          },
+          "success": "Supprimé {{count}} sujet(s)"
+        },
+        "deselect_all": "Tout désélectionner",
+        "error": {
+          "at_least_one": "Au moins un sujet doit être conservé"
+        },
+        "move": {
+          "button": "Déplacer",
+          "placeholder": "Sélectionner la cible",
+          "success": "Déplacé {{count}} sujet(s)"
+        },
+        "pinned": "Sujets épinglés",
+        "selected_count": "{{count}} sélectionné",
+        "title": "Gérer les sujets",
+        "unpinned": "Sujets non épinglés"
+      },
       "move_to": "Déplacer vers",
       "new": "Commencer une nouvelle conversation",
       "pin": "Fixer le sujet",
@@ -1036,6 +1076,10 @@
         },
         "label": "Indicateurs de sujet",
         "tips": "Indicateurs de sujet : fournir des indications supplémentaires pour le sujet actuel"
+      },
+      "search": {
+        "placeholder": "Rechercher des sujets...",
+        "title": "Rechercher"
       },
       "title": "Sujet",
       "unpin": "Annuler le fixage"
@@ -1221,11 +1265,13 @@
       }
     },
     "stop": "Arrêter",
+    "subscribe": "S'abonner",
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
     "unknown": "Inconnu",
     "unnamed": "Sans nom",
+    "unsubscribe": "Se désabonner",
     "update_success": "Mise à jour réussie",
     "upload_files": "Uploader des fichiers",
     "warning": "Avertissement",
@@ -2152,6 +2198,7 @@
     "collapse": "réduire",
     "content_placeholder": "Veuillez saisir le contenu de la note...",
     "copyContent": "contenu copié",
+    "crossPlatformRestoreWarning": "Configuration multiplateforme restaurée, mais le répertoire des notes est vide. Veuillez copier vos fichiers de notes vers : {{path}}",
     "delete": "supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
     "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",
@@ -2596,6 +2643,7 @@
     "lanyun": "Technologie Lan Yun",
     "lmstudio": "Studio LM",
     "longcat": "Mon voisin Totoro",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MoDa",
@@ -3184,24 +3232,43 @@
         },
         "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
         "lan": {
-          "auto_close_tip": "Fermeture automatique dans {{seconds}} secondes...",
-          "confirm_close_message": "Le transfert de fichier est en cours. Fermer interrompra le transfert. Êtes-vous sûr de vouloir forcer la fermeture ?",
-          "confirm_close_title": "Confirmer la fermeture",
           "connected": "Connecté",
           "connection_failed": "Échec de la connexion",
           "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",
+          "device_list_title": "Périphériques réseau locaux",
+          "discovered_devices": "Appareils découverts",
           "error": {
+            "file_too_large": "Fichier trop volumineux, taille maximale supportée : 500 Mo",
             "init_failed": "Échec de l'initialisation",
+            "invalid_file_type": "Seuls les fichiers ZIP sont pris en charge",
             "no_file": "Aucun fichier sélectionné",
             "no_ip": "Impossible d'obtenir l'adresse IP",
+            "not_connected": "Veuillez d'abord terminer la poignée de main",
             "send_failed": "Échec de l'envoi du fichier"
           },
-          "force_close": "Fermer de force",
-          "generating_qr": "Génération du code QR...",
-          "noZipSelected": "Aucun fichier compressé sélectionné",
-          "scan_qr": "Veuillez scanner le code QR avec votre téléphone",
-          "selectZip": "Sélectionner le fichier compressé",
-          "sendZip": "Commencer la restauration des données",
+          "file_transfer": {
+            "cancelled": "Transfert annulé",
+            "failed": "Le transfert de fichier a échoué : {{message}}",
+            "progress": "Envoi en cours... {{progress}}%",
+            "success": "Fichier envoyé avec succès"
+          },
+          "handshake": {
+            "button": "Poignée de main",
+            "failed": "Échec de la poignée de main : {{message}}",
+            "in_progress": "Établissement de la connexion...",
+            "success": "Poignée de main terminée avec {{device}}",
+            "test_message_received": "Pong reçu de {{device}}",
+            "test_message_sent": "Envoyé la charge utile de test hello world"
+          },
+          "idle_hint": "Analyse en pause. Lancez l’analyse pour détecter les pairs Cherry Studio sur votre réseau local.",
+          "ip_addresses": "Adresses IP",
+          "last_seen": "Vu pour la dernière fois à {{time}}",
+          "metadata": "Métadonnées",
+          "no_connection_warning": "Veuillez ouvrir le transfert LAN sur l'application mobile Cherry Studio.",
+          "no_devices": "Aucun pair LAN trouvé pour l'instant",
+          "scan_devices": "Analyser les appareils",
+          "scanning_hint": "Analyse de votre réseau local à la recherche d’homologues Cherry Studio…",
+          "send_file": "Envoyer le fichier",
           "status": {
             "completed": "Transfert terminé",
             "connected": "Connecté",
@@ -3210,9 +3277,11 @@
             "error": "Erreur de connexion",
             "initializing": "Initialisation de la connexion...",
             "preparing": "Préparation du transfert...",
-            "sending": "Transfert {{progress}} %",
-            "waiting_qr_scan": "Veuillez scanner le code QR pour vous connecter"
+            "sending": "Transfert {{progress}} %"
           },
+          "status_badge_idle": "Inactif",
+          "status_badge_scanning": "Numérisation",
+          "stop_scan": "Arrêter le scan",
           "title": "Transmission en réseau local",
           "transfer_progress": "Progression du transfert"
         },
@@ -3892,6 +3961,7 @@
         "mcp_auto_install": "Installation automatique du service MCP (version bêta)",
         "memory": "Implémentation de base de mémoire persistante basée sur un graphe de connaissances local. Cela permet au modèle de se souvenir des informations relatives à l'utilisateur entre différentes conversations. Nécessite la configuration de la variable d'environnement MEMORY_FILE_PATH.",
         "no": "sans description",
+        "nowledge_mem": "Nécessite l’application Nowledge Mem exécutée localement. Conserve les discussions IA, outils, notes, agents et fichiers dans une mémoire privée sur votre ordinateur. Téléchargez depuis https://mem.nowledge.co/",
         "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
         "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
       },
@@ -4052,7 +4122,7 @@
       "tagsPlaceholder": "Введите теги",
       "timeout": "Таймаут",
       "timeoutTooltip": "Таймаут запроса к серверу (в секундах), по умолчанию 60 секунд",
-      "title": "Paramètres MCP",
+      "title": "Serveurs MCP",
       "tools": {
         "autoApprove": {
           "label": "Approbation automatique",
@@ -4692,6 +4762,12 @@
       },
       "title": "Paramètres des outils",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} nécessite une clé API pour fonctionner. Souhaitez-vous la configurer maintenant ?",
+          "ok": "Configurer",
+          "title": "Clé API requise"
+        },
+        "api_providers": "Fournisseurs d'API",
         "apikey": "Clé API",
         "blacklist": "Liste noire",
         "blacklist_description": "Les résultats provenant des sites suivants n'apparaîtront pas dans les résultats de recherche",
@@ -4733,7 +4809,15 @@
         },
         "content_limit": "Limite de longueur du contenu",
         "content_limit_tooltip": "Limiter la longueur du contenu des résultats de recherche ; le contenu dépassant cette limite sera tronqué",
+        "default_provider": "Fournisseur par défaut",
         "free": "Gratuit",
+        "is_default": "[to be translated]:Default",
+        "local_provider": {
+          "hint": "Connectez-vous au site Web pour obtenir de meilleurs résultats de recherche et personnaliser vos paramètres de recherche.",
+          "open_settings": "Ouvrir les paramètres de {{provider}}",
+          "settings": "Paramètres de recherche locale"
+        },
+        "local_providers": "Fournisseurs locaux",
         "no_provider_selected": "Veuillez sélectionner un fournisseur de recherche avant de vérifier",
         "overwrite": "Remplacer la recherche du fournisseur",
         "overwrite_tooltip": "Forcer l'utilisation du fournisseur de recherche au lieu du grand modèle linguistique",
@@ -4744,6 +4828,7 @@
         "search_provider": "Fournisseur de recherche",
         "search_provider_placeholder": "Sélectionnez un fournisseur de recherche",
         "search_with_time": "Rechercher avec date",
+        "set_as_default": "[to be translated]:Set as Default",
         "subscribe": "Abonnement à la liste noire",
         "subscribe_add": "Ajouter un abonnement",
         "subscribe_add_failed": "Échec de l'ajout de la source d'abonnement",
