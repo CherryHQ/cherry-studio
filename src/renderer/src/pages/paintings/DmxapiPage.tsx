@@ -195,7 +195,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectModel = (modelId: string) => {
     const model = allModels.find((m) => m.id === modelId)
     if (model) {
-      updatePaintingState({ model: modelId, priceModel: model.price, image_size: model.image_sizes[0].value, extend_params: model.extend_params })
+      updatePaintingState({
+        model: modelId,
+        priceModel: model.price,
+        image_size: model.image_sizes[0].value,
+        extend_params: model.extend_params
+      })
     }
   }
 
