@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { createInMemoryMCPServer } from '@main/mcpServers/factory'
+import { createInMemoryMCPServer, setHubServerDependencies } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
@@ -58,6 +58,7 @@ import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
 import { ServerLogBuffer } from './mcp/ServerLogBuffer'
+import { reduxService } from './ReduxService'
 import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
@@ -163,6 +164,27 @@ class McpService {
     this.checkMcpConnectivity = this.checkMcpConnectivity.bind(this)
     this.getServerVersion = this.getServerVersion.bind(this)
     this.getServerLogs = this.getServerLogs.bind(this)
+
+    this.initializeHubDependencies()
+  }
+
+  private initializeHubDependencies(): void {
+    setHubServerDependencies({
+      mcpService: {
+        listTools: (_: null, server: MCPServer) => this.listToolsImpl(server),
+        callTool: async (_: null, args: { server: MCPServer; name: string; args: unknown; callId?: string }) => {
+          return this.callTool(null as unknown as Electron.IpcMainInvokeEvent, args)
+        }
+      },
+      mcpServersGetter: () => {
+        try {
+          const servers = reduxService.selectSync<MCPServer[]>('state.mcp.servers')
+          return servers || []
+        } catch {
+          return []
+        }
+      }
+    })
   }
 
   private getServerKey(server: MCPServer): string {
