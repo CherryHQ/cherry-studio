@@ -42,7 +42,7 @@ export const translateText = async (
   abortKey?: string,
   options?: TranslateOptions
 ) => {
-  let abortError
+  let error
   const assistantSettings: Partial<AssistantSettings> | undefined = options
     ? { reasoning_effort: options?.reasoningEffort }
     : undefined
@@ -58,8 +58,8 @@ export const translateText = async (
     } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
       completed = true
     } else if (chunk.type === ChunkType.ERROR) {
+      error = chunk.error
       if (isAbortError(chunk.error)) {
-        abortError = chunk.error
         completed = true
       }
     }
@@ -84,8 +84,8 @@ export const translateText = async (
     }
   }
 
-  if (abortError) {
-    throw abortError
+  if (error !== undefined && !isAbortError(error)) {
+    throw error
   }
 
   const trimmedText = translatedText.trim()
