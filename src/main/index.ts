@@ -248,11 +248,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('will-quit', async () => {
     // 简单的资源清理，不阻塞退出流程
-    try {
-      await ovmsManager.stopOvms()
-    } catch (error) {
-      logger.warn('Error stopping OVMS service:', error as Error)
-    }
+    await ovmsManager.stopOvms()
 
     try {
       await mcpService.cleanup()
