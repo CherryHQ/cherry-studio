@@ -2,152 +2,9 @@ import { randomUUID } from 'crypto'
 import { app, BrowserView, BrowserWindow } from 'electron'
 import TurndownService from 'turndown'
 
+import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
+import { TAB_BAR_HTML } from './tabbar-html'
 import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
-
-const TAB_BAR_HTML = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body {
-      height: 100%;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 12px;
-      user-select: none;
-    }
-    body {
-      background: #202124;
-      display: flex;
-      align-items: flex-end;
-      padding: 0 8px;
-    }
-    #tabs-container {
-      display: flex;
-      align-items: flex-end;
-      height: 34px;
-      flex: 1;
-      overflow-x: auto;
-      overflow-y: hidden;
-    }
-    #tabs-container::-webkit-scrollbar { display: none; }
-    .tab {
-      display: flex;
-      align-items: center;
-      height: 28px;
-      min-width: 60px;
-      max-width: 200px;
-      padding: 0 8px 0 12px;
-      margin-right: 1px;
-      background: #35363a;
-      border-radius: 8px 8px 0 0;
-      cursor: pointer;
-      transition: background 0.1s;
-      flex-shrink: 0;
-    }
-    .tab:hover { background: #3c3d41; }
-    .tab.active { background: #4a4b4f; height: 32px; }
-    .tab-title {
-      flex: 1;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: #9aa0a6;
-      font-size: 12px;
-    }
-    .tab.active .tab-title { color: #e8eaed; }
-    .tab-close {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-left: 4px;
-      opacity: 0;
-      transition: opacity 0.1s, background 0.1s;
-    }
-    .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
-    .tab-close:hover { background: rgba(255,255,255,0.1); }
-    .tab-close svg { width: 10px; height: 10px; fill: #9aa0a6; }
-    .tab-close:hover svg { fill: #e8eaed; }
-    #new-tab-btn {
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      cursor: pointer;
-      margin-left: 4px;
-    }
-    #new-tab-btn:hover { background: rgba(255,255,255,0.1); }
-    #new-tab-btn svg { width: 14px; height: 14px; fill: #9aa0a6; }
-    .empty-state { color: #9aa0a6; padding: 8px 12px; }
-  </style>
-</head>
-<body>
-  <div id="tabs-container"><div class="empty-state">No tabs open</div></div>
-  <div id="new-tab-btn" title="New tab">
-    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-  </div>
-  <script>
-    const tabsContainer = document.getElementById('tabs-container');
-    const newTabBtn = document.getElementById('new-tab-btn');
-    
-    window.updateTabs = function(tabs) {
-      if (!tabs || tabs.length === 0) {
-        tabsContainer.innerHTML = '<div class="empty-state">No tabs open</div>';
-        return;
-      }
-      tabsContainer.innerHTML = tabs.map(function(tab) {
-        var cls = 'tab' + (tab.isActive ? ' active' : '');
-        var title = (tab.title || 'New Tab').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        var url = (tab.url || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        return '<div class="' + cls + '" data-id="' + tab.id + '" title="' + url + '">' +
-          '<span class="tab-title">' + title + '</span>' +
-          '<div class="tab-close" data-id="' + tab.id + '">' +
-            '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>' +
-          '</div>' +
-        '</div>';
-      }).join('');
-    };
-    
-    window.tabBarAction = null;
-    
-    tabsContainer.addEventListener('click', function(e) {
-      var closeBtn = e.target.closest('.tab-close');
-      if (closeBtn) { 
-        e.stopPropagation(); 
-        window.tabBarAction = { type: 'close', tabId: closeBtn.dataset.id };
-        return; 
-      }
-      var tab = e.target.closest('.tab');
-      if (tab) { 
-        window.tabBarAction = { type: 'switch', tabId: tab.dataset.id };
-      }
-    });
-    
-    tabsContainer.addEventListener('auxclick', function(e) {
-      if (e.button === 1) {
-        var tab = e.target.closest('.tab');
-        if (tab) { 
-          window.tabBarAction = { type: 'close', tabId: tab.dataset.id };
-        }
-      }
-    });
-    
-    newTabBtn.addEventListener('click', function() { 
-      window.tabBarAction = { type: 'new' };
-    });
-  </script>
-</body>
-</html>`
-
-const TAB_BAR_HEIGHT = 40 // Height for tab bar UI
-const SESSION_KEY_DEFAULT = 'default'
-const SESSION_KEY_PRIVATE = 'private'
 
 /**
  * Controller for managing browser windows via Chrome DevTools Protocol (CDP).
@@ -288,7 +145,20 @@ export class CdpBrowserController {
       isActive: tab.id === windowInfo.activeTabId
     }))
 
-    const script = `window.updateTabs(${JSON.stringify(tabs)})`
+    let activeUrl = ''
+    let canGoBack = false
+    let canGoForward = false
+
+    if (windowInfo.activeTabId) {
+      const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
+      if (activeTab && !activeTab.view.webContents.isDestroyed()) {
+        activeUrl = activeTab.view.webContents.getURL()
+        canGoBack = activeTab.view.webContents.canGoBack()
+        canGoForward = activeTab.view.webContents.canGoForward()
+      }
+    }
+
+    const script = `window.updateTabs(${JSON.stringify(tabs)}, ${JSON.stringify(activeUrl)}, ${canGoBack}, ${canGoForward})`
     windowInfo.tabBarView.webContents.executeJavaScript(script).catch(() => {})
   }
 
@@ -311,6 +181,14 @@ export class CdpBrowserController {
             this.createTab(windowInfo.privateMode, true)
               .then(({ tabId }) => this.switchTab(windowInfo.privateMode, tabId))
               .catch(() => {})
+          } else if (action.type === 'navigate' && action.url) {
+            this.handleNavigateAction(windowInfo, action.url)
+          } else if (action.type === 'back') {
+            this.handleBackAction(windowInfo)
+          } else if (action.type === 'forward') {
+            this.handleForwardAction(windowInfo)
+          } else if (action.type === 'refresh') {
+            this.handleRefreshAction(windowInfo)
           }
         }
       } catch {
@@ -323,6 +201,51 @@ export class CdpBrowserController {
     }
 
     setTimeout(poll, 500)
+  }
+
+  private handleNavigateAction(windowInfo: WindowInfo, url: string) {
+    if (!windowInfo.activeTabId) return
+    const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
+    if (!activeTab || activeTab.view.webContents.isDestroyed()) return
+
+    let finalUrl = url.trim()
+    if (!/^https?:\/\//i.test(finalUrl)) {
+      if (/^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}/.test(finalUrl) || finalUrl.includes('.')) {
+        finalUrl = 'https://' + finalUrl
+      } else {
+        finalUrl = 'https://www.google.com/search?q=' + encodeURIComponent(finalUrl)
+      }
+    }
+
+    activeTab.view.webContents.loadURL(finalUrl).catch(() => {})
+  }
+
+  private handleBackAction(windowInfo: WindowInfo) {
+    if (!windowInfo.activeTabId) return
+    const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
+    if (!activeTab || activeTab.view.webContents.isDestroyed()) return
+
+    if (activeTab.view.webContents.canGoBack()) {
+      activeTab.view.webContents.goBack()
+    }
+  }
+
+  private handleForwardAction(windowInfo: WindowInfo) {
+    if (!windowInfo.activeTabId) return
+    const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
+    if (!activeTab || activeTab.view.webContents.isDestroyed()) return
+
+    if (activeTab.view.webContents.canGoForward()) {
+      activeTab.view.webContents.goForward()
+    }
+  }
+
+  private handleRefreshAction(windowInfo: WindowInfo) {
+    if (!windowInfo.activeTabId) return
+    const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
+    if (!activeTab || activeTab.view.webContents.isDestroyed()) return
+
+    activeTab.view.webContents.reload()
   }
 
   private createTabBarView(windowInfo: WindowInfo): BrowserView {
@@ -484,6 +407,16 @@ export class CdpBrowserController {
 
     view.webContents.on('page-title-updated', (_event, title) => {
       tabInfo.title = title
+      this.sendTabBarUpdate(windowInfo)
+    })
+
+    view.webContents.on('did-navigate', (_event, url) => {
+      tabInfo.url = url
+      this.sendTabBarUpdate(windowInfo)
+    })
+
+    view.webContents.on('did-navigate-in-page', (_event, url) => {
+      tabInfo.url = url
       this.sendTabBarUpdate(windowInfo)
     })
 

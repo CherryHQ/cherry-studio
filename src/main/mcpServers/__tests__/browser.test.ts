@@ -30,7 +30,13 @@ vi.mock('electron', () => {
     once: vi.fn(),
     removeListener: vi.fn(),
     on: vi.fn(),
-    isDestroyed: vi.fn(() => false)
+    isDestroyed: vi.fn(() => false),
+    canGoBack: vi.fn(() => false),
+    canGoForward: vi.fn(() => false),
+    goBack: vi.fn(),
+    goForward: vi.fn(),
+    reload: vi.fn(),
+    executeJavaScript: vi.fn(async () => null)
   })
 
   const windows: any[] = []
@@ -48,6 +54,7 @@ vi.mock('electron', () => {
     })
     public on = vi.fn()
     public setBrowserView = vi.fn()
+    public addBrowserView = vi.fn()
     public removeBrowserView = vi.fn()
     public getContentSize = vi.fn(() => [1200, 800])
     public show = vi.fn()
@@ -60,6 +67,7 @@ vi.mock('electron', () => {
   class MockBrowserView {
     public webContents = createWebContents()
     public setBounds = vi.fn()
+    public setAutoResize = vi.fn()
     public destroy = vi.fn()
 
     constructor() {
