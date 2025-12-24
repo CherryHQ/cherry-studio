@@ -50,6 +50,7 @@ import MinAppIcon from '../Icons/MinAppIcon'
 import { OpenClawIcon } from '../Icons/SVGIcon'
 import MinAppTabsPool from '../MinApp/MinAppTabsPool'
 import WindowControls from '../WindowControls'
+import { ensureHomeTab, getStartupRedirectPath } from './tabRestore'
 
 interface TabsContainerProps {
   children: React.ReactNode
@@ -148,6 +149,33 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const tabBarRef = useRef<HTMLDivElement | null>(null)
   const dragRafRef = useRef<number | null>(null)
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
+  const startupRestoredRef = useRef(false)
+  const startupRedirectPathRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (startupRestoredRef.current) return
+    startupRestoredRef.current = true
+
+    const nextTabs = ensureHomeTab(tabs)
+    if (nextTabs !== tabs) {
+      dispatch(setTabs(nextTabs))
+    }
+
+    if (!nextTabs.some((tab) => tab.id === activeTabId)) {
+      dispatch(setActiveTab('home'))
+      return
+    }
+
+    const redirectPath = getStartupRedirectPath({
+      currentPath: location.pathname,
+      tabs: nextTabs,
+      activeTabId
+    })
+    if (redirectPath) {
+      startupRedirectPathRef.current = redirectPath
+      navigate(redirectPath, { replace: true })
+    }
+  }, [activeTabId, dispatch, location.pathname, navigate, tabs])
 
   useEffect(() => {
     if (!candidate) {
@@ -317,6 +345,14 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   }, [activeTabId, dispatch])
 
   useEffect(() => {
+    // 启动恢复阶段：如果我们刚发起从 `/` 到上次激活标签的跳转，则避免本 effect 把 activeTab 误设为 home。
+    if (startupRedirectPathRef.current) {
+      if (location.pathname === '/') {
+        return
+      }
+      startupRedirectPathRef.current = null
+    }
+
     const tabId = getTabId(location.pathname)
     const currentTab = tabs.find((tab) => tab.id === tabId)
 
