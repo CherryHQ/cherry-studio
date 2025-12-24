@@ -10,7 +10,6 @@ import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/compon
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
-import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
@@ -33,6 +32,7 @@ import {
   SettingTitle
 } from '../index'
 import { DEFAULT_USER_ID } from './constants'
+import MemorySettingsModal from './MemorySettingsModal'
 import UserSelector from './UserSelector'
 
 const logger = loggerService.withContext('MemorySettings')
@@ -153,23 +153,17 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
       open={visible}
       onCancel={onCancel}
       width={600}
+      centered
+      transitionName="animation-move-down"
+      okButtonProps={{ loading: loading, title: t('common.save'), onClick: () => form.submit() }}
       styles={{
         header: {
           borderBottom: '0.5px solid var(--color-border)',
-          paddingBottom: 16
-        },
-        body: {
-          paddingTop: 24
+          paddingBottom: 16,
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0
         }
-      }}
-      footer={[
-        <Button key="cancel" size="lg" onClick={onCancel}>
-          {t('common.cancel')}
-        </Button>,
-        <Button key="submit" variant="default" size="lg" disabled={loading} onClick={() => form.submit()}>
-          {t('common.save')}
-        </Button>
-      ]}>
+      }}>
       <Form form={form} layout="vertical" onFinish={handleSubmit}>
         <Form.Item
           label={t('memory.memory_content')}
@@ -546,10 +540,10 @@ const MemorySettings = () => {
   }
 
   const memoryConfig = useSelector(selectMemoryConfig)
-  const embedderModel = useModel(memoryConfig.embedderApiClient?.model, memoryConfig.embedderApiClient?.provider)
+  const embeddingModel = useModel(memoryConfig.embeddingModel?.id, memoryConfig.embeddingModel?.provider)
 
   const handleGlobalMemoryToggle = async (enabled: boolean) => {
-    if (enabled && !embedderModel) {
+    if (enabled && !embeddingModel) {
       cacheService.setCasual('memory.wait.settings', true)
       return setSettingsModalVisible(true)
     }
@@ -796,7 +790,7 @@ const MemorySettings = () => {
         existingUsers={[...uniqueUsers, DEFAULT_USER_ID]}
       />
 
-      <MemoriesSettingsModal
+      <MemorySettingsModal
         visible={settingsModalVisible}
         onSubmit={async () => await handleSettingsSubmit()}
         onCancel={handleSettingsCancel}

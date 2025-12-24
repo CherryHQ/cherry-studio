@@ -41,7 +41,7 @@ export class MemoryProcessor {
     try {
       const { memoryConfig } = config
 
-      if (!memoryConfig.llmApiClient) {
+      if (!memoryConfig.llmModel) {
         throw new Error('No LLM model configured for memory processing')
       }
 
@@ -54,8 +54,9 @@ export class MemoryProcessor {
       const responseContent = await fetchGenerate({
         prompt: systemPrompt,
         content: userPrompt,
-        model: getModel(memoryConfig.llmApiClient.model, memoryConfig.llmApiClient.provider)
+        model: getModel(memoryConfig.llmModel.id, memoryConfig.llmModel.provider)
       })
+
       if (!responseContent || responseContent.trim() === '') {
         return []
       }
@@ -101,9 +102,10 @@ export class MemoryProcessor {
 
     const { memoryConfig, assistantId, userId, lastMessageId } = config
 
-    if (!memoryConfig.llmApiClient) {
+    if (!memoryConfig.llmModel) {
       throw new Error('No LLM model configured for memory processing')
     }
+
     const existingMemoriesResult = cacheService.getCasual<MemoryItem[]>(`memory-search-${lastMessageId}`) || []
 
     const existingMemories = existingMemoriesResult.map((memory) => ({
@@ -124,7 +126,7 @@ export class MemoryProcessor {
       const responseContent = await fetchGenerate({
         prompt: MEMORY_UPDATE_SYSTEM_PROMPT,
         content: updateMemoryUserPrompt,
-        model: getModel(memoryConfig.llmApiClient.model, memoryConfig.llmApiClient.provider)
+        model: getModel(memoryConfig.llmModel.id, memoryConfig.llmModel.provider)
       })
       if (!responseContent || responseContent.trim() === '') {
         return []

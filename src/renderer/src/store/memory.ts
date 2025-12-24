@@ -17,7 +17,7 @@ export interface MemoryState {
 
 // Default memory configuration to avoid undefined errors
 const defaultMemoryConfig: MemoryConfig = {
-  embedderDimensions: 1536,
+  embeddingDimensions: undefined,
   isAutoDimensions: true,
   customFactExtractionPrompt: MEMORY_FACT_EXTRACTION_PROMPT,
   customUpdateMemoryPrompt: MEMORY_UPDATE_SYSTEM_PROMPT

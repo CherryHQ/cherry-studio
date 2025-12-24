@@ -20,8 +20,10 @@ import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
-import { nodeTraceService } from './services/NodeTraceService'
+import { lanTransferClientService } from './services/lanTransfer'
 import mcpService from './services/MCPService'
+import { localTransferService } from './services/LocalTransferService'
+import { nodeTraceService } from './services/NodeTraceService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
@@ -45,6 +47,7 @@ import { dataApiService } from '@data/DataApiService'
 import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
+import { ovmsManager } from './services/OvmsManager'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -242,6 +245,7 @@ if (!app.requestSingleInstanceLock()) {
 
     registerShortcuts(mainWindow)
     registerIpc(mainWindow, app)
+    localTransferService.startDiscovery({ resetList: true })
 
     replaceDevtoolsFont(mainWindow)
 
@@ -323,16 +327,22 @@ if (!app.requestSingleInstanceLock()) {
     if (selectionService) {
       selectionService.quit()
     }
+
+    lanTransferClientService.dispose()
+    localTransferService.dispose()
   })
 
   app.on('will-quit', async () => {
     // 简单的资源清理，不阻塞退出流程
+    await ovmsManager.stopOvms()
+
     try {
       await mcpService.cleanup()
       await apiServerService.stop()
     } catch (error) {
       logger.warn('Error cleaning up MCP service:', error as Error)
     }
+
     // finish the logger
     logger.finish()
   })

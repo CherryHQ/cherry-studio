@@ -22,10 +22,10 @@ const TOOL_USE_TAG_CONFIG: TagConfig = {
 }
 
 /**
- * 默认系统提示符模板（提取自 Cherry Studio）
+ * 默认系统提示符模板
  */
-const DEFAULT_SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \\
-You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
+export const DEFAULT_SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \
+You can use one or more tools per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
 ## Tool Use Formatting
 
@@ -74,10 +74,13 @@ Here are the rules you should always follow to solve your task:
 4. Never re-do a tool call that you previously did with the exact same parameters.
 5. For tool use, MAKE SURE use XML tag format as shown in the examples above. Do not use any other format.
 
+## Response rules
+
+Respond in the language of the user's query, unless the user instructions specify additional requirements for the language to be used.
+
 # User Instructions
 {{ USER_SYSTEM_PROMPT }}
-
-Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.`
+`
 
 /**
  * 默认工具使用示例（提取自 Cherry Studio）

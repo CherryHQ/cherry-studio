@@ -12,7 +12,7 @@ import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
-import ExportToPhoneLanPopup from '@renderer/components/Popups/ExportToPhoneLanPopup'
+import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
@@ -625,12 +625,13 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.export_to_phone.title')}</SettingRowTitle>
                 <RowFlex className="justify-between gap-[5px]">
-                  <Button variant="ghost" size="sm" onClick={ExportToPhoneLanPopup.show}>
+                  <Button variant="ghost" size="sm" onClick={LanTransferPopup.show}>
                     <WifiOutlined />
                     {t('settings.data.export_to_phone.lan.title')}
                   </Button>
                 </RowFlex>
               </SettingRow>
+              <SettingDivider />
             </SettingGroup>
             <SettingGroup theme={theme}>
               <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
