@@ -278,7 +278,8 @@ export class CdpBrowserController {
   }
 
   private sendTabBarUpdate(windowInfo: WindowInfo) {
-    if (!windowInfo.tabBarView || windowInfo.tabBarView.webContents.isDestroyed()) return
+    if (!windowInfo.tabBarView || !windowInfo.tabBarView.webContents || windowInfo.tabBarView.webContents.isDestroyed())
+      return
 
     const tabs = Array.from(windowInfo.tabs.values()).map((tab) => ({
       id: tab.id,

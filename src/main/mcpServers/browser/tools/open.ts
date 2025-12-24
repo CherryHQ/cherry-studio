@@ -45,7 +45,7 @@ export const openToolDefinition = {
       },
       showWindow: {
         type: 'boolean',
-        description: 'Show browser window (default: false)'
+        description: 'Show browser window (default: true)'
       }
     },
     required: ['url']
