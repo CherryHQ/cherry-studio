@@ -10,7 +10,8 @@ import {
   scanDir
 } from '@main/utils/file'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
-import { FileMetadata, FileTypes, NotesTreeNode } from '@types'
+import type { FileMetadata, NotesTreeNode } from '@types'
+import { FileTypes } from '@types'
 import chardet from 'chardet'
 import type { FSWatcher } from 'chokidar'
 import chokidar from 'chokidar'
