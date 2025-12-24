@@ -102,32 +102,10 @@ class OvmsManager {
    */
   public async stopOvms(): Promise<{ success: boolean; message?: string }> {
     try {
-      // Check if OVMS process is running
-      const psCommand = `Get-Process -Name "ovms" -ErrorAction SilentlyContinue | Select-Object Id, Path | ConvertTo-Json`
-      const { stdout } = await execAsync(`powershell -Command "${psCommand}"`)
-
-      if (!stdout.trim()) {
-        logger.info('OVMS process is not running')
-        return { success: true, message: 'OVMS process is not running' }
-      }
-
-      const processes = JSON.parse(stdout)
-      const processList = Array.isArray(processes) ? processes : [processes]
-
-      if (processList.length === 0) {
-        logger.info('OVMS process is not running')
-        return { success: true, message: 'OVMS process is not running' }
-      }
-
-      // Terminate all OVMS processes using terminalProcess
-      for (const process of processList) {
-        const result = await this.terminalProcess(process.Id)
-        if (!result.success) {
-          logger.error(`Failed to terminate OVMS process with PID: ${process.Id}, ${result.message}`)
-          return { success: false, message: `Failed to terminate OVMS process: ${result.message}` }
-        }
-        logger.info(`Terminated OVMS process with PID: ${process.Id}`)
-      }
+      // close the OVMS process
+      await execAsync(
+        `powershell -Command "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like 'ovms.exe*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"`
+      )
 
       // Reset the ovms instance
       this.ovms = null
@@ -584,4 +562,5 @@ class OvmsManager {
   }
 }
 
-export default OvmsManager
+// Export singleton instance
+export const ovmsManager = new OvmsManager()
