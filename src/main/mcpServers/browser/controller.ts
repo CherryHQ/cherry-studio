@@ -4,6 +4,147 @@ import TurndownService from 'turndown'
 
 import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
 
+const TAB_BAR_HTML = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      user-select: none;
+    }
+    body {
+      background: #202124;
+      display: flex;
+      align-items: flex-end;
+      padding: 0 8px;
+    }
+    #tabs-container {
+      display: flex;
+      align-items: flex-end;
+      height: 34px;
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    #tabs-container::-webkit-scrollbar { display: none; }
+    .tab {
+      display: flex;
+      align-items: center;
+      height: 28px;
+      min-width: 60px;
+      max-width: 200px;
+      padding: 0 8px 0 12px;
+      margin-right: 1px;
+      background: #35363a;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      transition: background 0.1s;
+      flex-shrink: 0;
+    }
+    .tab:hover { background: #3c3d41; }
+    .tab.active { background: #4a4b4f; height: 32px; }
+    .tab-title {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #9aa0a6;
+      font-size: 12px;
+    }
+    .tab.active .tab-title { color: #e8eaed; }
+    .tab-close {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 4px;
+      opacity: 0;
+      transition: opacity 0.1s, background 0.1s;
+    }
+    .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
+    .tab-close:hover { background: rgba(255,255,255,0.1); }
+    .tab-close svg { width: 10px; height: 10px; fill: #9aa0a6; }
+    .tab-close:hover svg { fill: #e8eaed; }
+    #new-tab-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      cursor: pointer;
+      margin-left: 4px;
+    }
+    #new-tab-btn:hover { background: rgba(255,255,255,0.1); }
+    #new-tab-btn svg { width: 14px; height: 14px; fill: #9aa0a6; }
+    .empty-state { color: #9aa0a6; padding: 8px 12px; }
+  </style>
+</head>
+<body>
+  <div id="tabs-container"><div class="empty-state">No tabs open</div></div>
+  <div id="new-tab-btn" title="New tab">
+    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+  </div>
+  <script>
+    const tabsContainer = document.getElementById('tabs-container');
+    const newTabBtn = document.getElementById('new-tab-btn');
+    
+    window.updateTabs = function(tabs) {
+      if (!tabs || tabs.length === 0) {
+        tabsContainer.innerHTML = '<div class="empty-state">No tabs open</div>';
+        return;
+      }
+      tabsContainer.innerHTML = tabs.map(function(tab) {
+        var cls = 'tab' + (tab.isActive ? ' active' : '');
+        var title = (tab.title || 'New Tab').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        var url = (tab.url || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        return '<div class="' + cls + '" data-id="' + tab.id + '" title="' + url + '">' +
+          '<span class="tab-title">' + title + '</span>' +
+          '<div class="tab-close" data-id="' + tab.id + '">' +
+            '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    };
+    
+    window.tabBarAction = null;
+    
+    tabsContainer.addEventListener('click', function(e) {
+      var closeBtn = e.target.closest('.tab-close');
+      if (closeBtn) { 
+        e.stopPropagation(); 
+        window.tabBarAction = { type: 'close', tabId: closeBtn.dataset.id };
+        return; 
+      }
+      var tab = e.target.closest('.tab');
+      if (tab) { 
+        window.tabBarAction = { type: 'switch', tabId: tab.dataset.id };
+      }
+    });
+    
+    tabsContainer.addEventListener('auxclick', function(e) {
+      if (e.button === 1) {
+        var tab = e.target.closest('.tab');
+        if (tab) { 
+          window.tabBarAction = { type: 'close', tabId: tab.dataset.id };
+        }
+      }
+    });
+    
+    newTabBtn.addEventListener('click', function() { 
+      window.tabBarAction = { type: 'new' };
+    });
+  </script>
+</body>
+</html>`
+
 const TAB_BAR_HEIGHT = 40 // Height for tab bar UI
 const SESSION_KEY_DEFAULT = 'default'
 const SESSION_KEY_PRIVATE = 'private'
@@ -136,6 +277,76 @@ export class CdpBrowserController {
     }
   }
 
+  private sendTabBarUpdate(windowInfo: WindowInfo) {
+    if (!windowInfo.tabBarView || windowInfo.tabBarView.webContents.isDestroyed()) return
+
+    const tabs = Array.from(windowInfo.tabs.values()).map((tab) => ({
+      id: tab.id,
+      title: tab.title || 'New Tab',
+      url: tab.url,
+      isActive: tab.id === windowInfo.activeTabId
+    }))
+
+    const script = `window.updateTabs(${JSON.stringify(tabs)})`
+    windowInfo.tabBarView.webContents.executeJavaScript(script).catch(() => {})
+  }
+
+  private pollTabBarActions(windowInfo: WindowInfo) {
+    if (windowInfo.window.isDestroyed() || !windowInfo.tabBarView) return
+
+    const poll = async () => {
+      if (windowInfo.window.isDestroyed() || !windowInfo.tabBarView?.webContents) return
+
+      try {
+        const action = await windowInfo.tabBarView.webContents.executeJavaScript(
+          '(function() { var a = window.tabBarAction; window.tabBarAction = null; return a; })()'
+        )
+        if (action) {
+          if (action.type === 'switch' && action.tabId) {
+            this.switchTab(windowInfo.privateMode, action.tabId).catch(() => {})
+          } else if (action.type === 'close' && action.tabId) {
+            this.closeTab(windowInfo.privateMode, action.tabId).catch(() => {})
+          } else if (action.type === 'new') {
+            this.createTab(windowInfo.privateMode, true)
+              .then(({ tabId }) => this.switchTab(windowInfo.privateMode, tabId))
+              .catch(() => {})
+          }
+        }
+      } catch {
+        return
+      }
+
+      if (!windowInfo.window.isDestroyed()) {
+        setTimeout(poll, 100)
+      }
+    }
+
+    setTimeout(poll, 500)
+  }
+
+  private createTabBarView(windowInfo: WindowInfo): BrowserView {
+    const tabBarView = new BrowserView({
+      webPreferences: {
+        contextIsolation: false,
+        sandbox: false,
+        nodeIntegration: false
+      }
+    })
+
+    windowInfo.window.addBrowserView(tabBarView)
+    const [width] = windowInfo.window.getContentSize()
+    tabBarView.setBounds({ x: 0, y: 0, width, height: TAB_BAR_HEIGHT })
+    tabBarView.setAutoResize({ width: true, height: false })
+    tabBarView.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(TAB_BAR_HTML)}`)
+
+    tabBarView.webContents.on('did-finish-load', () => {
+      this.pollTabBarActions(windowInfo)
+      this.sendTabBarUpdate(windowInfo)
+    })
+
+    return tabBarView
+  }
+
   private async createBrowserWindow(
     windowKey: string,
     privateMode: boolean,
@@ -187,9 +398,12 @@ export class CdpBrowserController {
         window,
         tabs: new Map(),
         activeTabId: null,
-        lastActive: Date.now()
+        lastActive: Date.now(),
+        tabBarView: undefined
       }
       this.windows.set(windowKey, windowInfo)
+      const tabBarView = this.createTabBarView(windowInfo)
+      windowInfo.tabBarView = tabBarView
       logger.info('Created new window', { windowKey, privateMode })
     } else if (showWindow && !windowInfo.window.isDestroyed()) {
       windowInfo.window.show()
@@ -203,18 +417,22 @@ export class CdpBrowserController {
     if (windowInfo.window.isDestroyed()) return
 
     const [width, height] = windowInfo.window.getContentSize()
-    const bounds = {
-      x: 0,
-      y: TAB_BAR_HEIGHT,
-      width,
-      height: height - TAB_BAR_HEIGHT
+
+    // Update tab bar bounds
+    if (windowInfo.tabBarView && !windowInfo.tabBarView.webContents.isDestroyed()) {
+      windowInfo.tabBarView.setBounds({ x: 0, y: 0, width, height: TAB_BAR_HEIGHT })
     }
 
-    // Update active view bounds
+    // Update active tab view bounds
     if (windowInfo.activeTabId) {
       const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
       if (activeTab && !activeTab.view.webContents.isDestroyed()) {
-        activeTab.view.setBounds(bounds)
+        activeTab.view.setBounds({
+          x: 0,
+          y: TAB_BAR_HEIGHT,
+          width,
+          height: Math.max(0, height - TAB_BAR_HEIGHT)
+        })
       }
     }
   }
@@ -255,11 +473,17 @@ export class CdpBrowserController {
         if (windowInfo.activeTabId) {
           const newActiveTab = windowInfo.tabs.get(windowInfo.activeTabId)
           if (newActiveTab && !windowInfo.window.isDestroyed()) {
-            windowInfo.window.setBrowserView(newActiveTab.view)
+            windowInfo.window.addBrowserView(newActiveTab.view)
             this.updateViewBounds(windowInfo)
           }
         }
       }
+      this.sendTabBarUpdate(windowInfo)
+    })
+
+    view.webContents.on('page-title-updated', (_event, title) => {
+      tabInfo.title = title
+      this.sendTabBarUpdate(windowInfo)
     })
 
     const tabInfo: TabInfo = {
@@ -275,13 +499,14 @@ export class CdpBrowserController {
     // Set as active tab and add to window
     if (!windowInfo.activeTabId || windowInfo.tabs.size === 1) {
       windowInfo.activeTabId = tabId
-      windowInfo.window.setBrowserView(view)
+      windowInfo.window.addBrowserView(view)
       this.updateViewBounds(windowInfo)
 
       // Listen for window resize
       windowInfo.window.on('resize', () => this.updateViewBounds(windowInfo))
     }
 
+    this.sendTabBarUpdate(windowInfo)
     logger.info('Created new tab', { windowKey, tabId, privateMode })
     return { tabId, view }
   }
@@ -453,7 +678,15 @@ export class CdpBrowserController {
         windowInfo.tabs.delete(tabId)
         if (windowInfo.activeTabId === tabId) {
           windowInfo.activeTabId = windowInfo.tabs.keys().next().value ?? null
+          if (windowInfo.activeTabId) {
+            const newActiveTab = windowInfo.tabs.get(windowInfo.activeTabId)
+            if (newActiveTab && !windowInfo.window.isDestroyed()) {
+              windowInfo.window.addBrowserView(newActiveTab.view)
+              this.updateViewBounds(windowInfo)
+            }
+          }
         }
+        this.sendTabBarUpdate(windowInfo)
       }
       logger.info('Browser CDP tab reset', { windowKey, tabId })
       return
@@ -588,15 +821,24 @@ export class CdpBrowserController {
     const tab = windowInfo.tabs.get(tabId)
     if (!tab) throw new Error(`Tab ${tabId} not found`)
 
+    // Remove previous active tab view (but NOT the tabBarView)
+    if (windowInfo.activeTabId && windowInfo.activeTabId !== tabId) {
+      const prevTab = windowInfo.tabs.get(windowInfo.activeTabId)
+      if (prevTab && !windowInfo.window.isDestroyed()) {
+        windowInfo.window.removeBrowserView(prevTab.view)
+      }
+    }
+
     windowInfo.activeTabId = tabId
 
-    // Update the displayed view
+    // Add the new active tab view
     if (!windowInfo.window.isDestroyed()) {
-      windowInfo.window.setBrowserView(tab.view)
+      windowInfo.window.addBrowserView(tab.view)
       this.updateViewBounds(windowInfo)
     }
 
     this.touchTab(windowKey, tabId)
+    this.sendTabBarUpdate(windowInfo)
     logger.info('Switched active tab', { windowKey, tabId, privateMode })
   }
 }

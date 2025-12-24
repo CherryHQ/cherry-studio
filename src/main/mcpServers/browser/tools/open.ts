@@ -8,7 +8,7 @@ export const OpenSchema = z.object({
   timeout: z.number().optional().describe('Navigation timeout in ms (default: 10000)'),
   privateMode: z.boolean().optional().describe('Use incognito mode, no data persisted (default: false)'),
   newTab: z.boolean().optional().describe('Open in new tab, required for parallel requests (default: false)'),
-  showWindow: z.boolean().optional().describe('Show browser window (default: false)')
+  showWindow: z.boolean().optional().default(true).describe('Show browser window (default: true)')
 })
 
 export const openToolDefinition = {

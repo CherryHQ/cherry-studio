@@ -19,4 +19,5 @@ export interface WindowInfo {
   tabs: Map<string, TabInfo>
   activeTabId: string | null
   lastActive: number
+  tabBarView?: BrowserView
 }
