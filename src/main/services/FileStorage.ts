@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import {
   checkName,
   getFilesDir,
-  getFileType,
+  getFileType as getFileTypeByExt,
   getName,
   getNotesDir,
   getTempDir,
@@ -10,14 +10,13 @@ import {
   scanDir
 } from '@main/utils/file'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
-import type { FileMetadata, NotesTreeNode } from '@types'
+import { FileMetadata, FileTypes, NotesTreeNode } from '@types'
 import chardet from 'chardet'
 import type { FSWatcher } from 'chokidar'
 import chokidar from 'chokidar'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { app } from 'electron'
-import { dialog, net, shell } from 'electron'
+import { app, dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
@@ -212,7 +211,7 @@ class FileStorage {
             created_at: storedStats.birthtime.toISOString(),
             size: storedStats.size,
             ext,
-            type: getFileType(ext),
+            type: getFileTypeByExt(ext),
             count: 2
           }
         }
@@ -220,6 +219,13 @@ class FileStorage {
     }
 
     return null
+  }
+
+  public getFileType = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<FileTypes> => {
+    const ext = path.extname(filePath)
+    const fileType = getFileTypeByExt(ext)
+
+    return fileType === FileTypes.OTHER && (await this.isTextFile(_, filePath)) ? FileTypes.TEXT : fileType
   }
 
   public selectFile = async (
@@ -241,7 +247,7 @@ class FileStorage {
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
       const ext = path.extname(filePath)
-      const fileType = getFileType(ext)
+      const fileType = await this.getFileType(_, filePath)
 
       return {
         id: uuidv4(),
@@ -307,7 +313,7 @@ class FileStorage {
     }
 
     const stats = await fs.promises.stat(destPath)
-    const fileType = getFileType(ext)
+    const fileType = await this.getFileType(_, destPath)
 
     const fileMetadata: FileMetadata = {
       id: uuid,
@@ -332,8 +338,7 @@ class FileStorage {
     }
 
     const stats = fs.statSync(filePath)
-    const ext = path.extname(filePath)
-    const fileType = getFileType(ext)
+    const fileType = await this.getFileType(_, filePath)
 
     return {
       id: uuidv4(),
@@ -342,7 +347,7 @@ class FileStorage {
       path: filePath,
       created_at: stats.birthtime.toISOString(),
       size: stats.size,
-      ext: ext,
+      ext: path.extname(filePath),
       type: fileType,
       count: 1
     }
@@ -690,7 +695,7 @@ class FileStorage {
         created_at: new Date().toISOString(),
         size: buffer.length,
         ext: ext.slice(1),
-        type: getFileType(ext),
+        type: getFileTypeByExt(ext),
         count: 1
       }
     } catch (error) {
@@ -740,7 +745,7 @@ class FileStorage {
         created_at: new Date().toISOString(),
         size: stats.size,
         ext: ext.slice(1),
-        type: getFileType(ext),
+        type: getFileTypeByExt(ext),
         count: 1
       }
     } catch (error) {
@@ -1317,7 +1322,7 @@ class FileStorage {
       await fs.promises.writeFile(destPath, buffer)
 
       const stats = await fs.promises.stat(destPath)
-      const fileType = getFileType(ext)
+      const fileType = await this.getFileType(_, destPath)
 
       return {
         id: uuid,
