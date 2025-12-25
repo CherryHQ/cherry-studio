@@ -9,9 +9,7 @@ import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingRow, Setti
 
 export const OcrPpocrSettings = () => {
   // Hack: Hard-coded for now
-  const SERVING_DOC_URL = 'https://www.paddleocr.ai/latest/version3.x/deployment/serving.html'
-  const AISTUDIO_URL = 'https://aistudio.baidu.com/pipeline/mine'
-
+  const API_URL = 'https://aistudio.baidu.com/paddleocr/task'
   const { t } = useTranslation()
   const { provider, updateConfig } = useOcrProvider(BuiltinOcrProviderIds.paddleocr)
 
@@ -70,11 +68,8 @@ export const OcrPpocrSettings = () => {
       <SettingHelpTextRow style={{ display: 'flex', flexDirection: 'column' }}>
         <SettingHelpText style={{ marginBottom: 5 }}>{t('settings.tool.ocr.paddleocr.tip')}</SettingHelpText>
         <div style={{ display: 'flex', gap: 12 }}>
-          <SettingHelpLink target="_blank" href={SERVING_DOC_URL}>
-            {t('settings.tool.ocr.paddleocr.serving_doc_url_label')}
-          </SettingHelpLink>
-          <SettingHelpLink target="_blank" href={AISTUDIO_URL}>
-            {t('settings.tool.ocr.paddleocr.aistudio_url_label')}
+          <SettingHelpLink target="_blank" href={API_URL}>
+            {t('settings.tool.ocr.paddleocr.api_url_label')}
           </SettingHelpLink>
         </div>
       </SettingHelpTextRow>
