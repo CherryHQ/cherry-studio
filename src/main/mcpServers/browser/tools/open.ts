@@ -18,7 +18,7 @@ export const OpenSchema = z.object({
 export const openToolDefinition = {
   name: 'open',
   description:
-    'Navigate to a URL in a browser window. If format is specified, returns page content in that format. Otherwise, returns tabId for subsequent operations with execute tool. Set newTab=true when opening multiple URLs in parallel.',
+    'Navigate to a URL in a browser window. If format is specified, returns { tabId, content } with page content in that format. Otherwise, returns { currentUrl, title, tabId } for subsequent operations with execute tool. Set newTab=true when opening multiple URLs in parallel.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -57,7 +57,7 @@ export async function handleOpen(controller: CdpBrowserController, args: unknown
     const { url, format, timeout, privateMode, newTab, showWindow } = OpenSchema.parse(args)
 
     if (format) {
-      const content = await controller.fetch(
+      const { tabId, content } = await controller.fetch(
         url,
         format,
         timeout ?? 10000,
@@ -65,7 +65,7 @@ export async function handleOpen(controller: CdpBrowserController, args: unknown
         newTab ?? false,
         showWindow ?? false
       )
-      return successResponse(typeof content === 'string' ? content : JSON.stringify(content))
+      return successResponse(JSON.stringify({ tabId, content }))
     } else {
       const res = await controller.open(
         url,

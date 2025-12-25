@@ -46,11 +46,11 @@ Open a URL in a browser window. Optionally return page content.
   "showWindow": false
 }
 ```
-- `format`: If set (`html`, `txt`, `markdown`, `json`), returns page content in that format. If not set, just opens the page and returns navigation info.
+- `format`: If set (`html`, `txt`, `markdown`, `json`), returns page content in that format along with tabId. If not set, just opens the page and returns navigation info.
 - `newTab`: Set to `true` to open in a new tab (required for parallel requests)
 - `showWindow`: Set to `true` to display the browser window (useful for debugging)
 - Returns (without format): `{ currentUrl, title, tabId }`
-- Returns (with format): Page content in the specified format
+- Returns (with format): `{ tabId, content }` where content is in the specified format
 
 ### `execute`
 Execute JavaScript code in the page context.

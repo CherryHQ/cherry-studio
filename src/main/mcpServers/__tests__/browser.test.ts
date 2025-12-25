@@ -132,29 +132,33 @@ describe('CdpBrowserController', () => {
     expect(privateResult).toBe('ok')
   })
 
-  it('fetches URL and returns html format', async () => {
+  it('fetches URL and returns html format with tabId', async () => {
     const controller = new CdpBrowserController()
     const result = await controller.fetch('https://example.com/', 'html')
-    expect(result).toBe('<html><body><h1>Test</h1><p>Content</p></body></html>')
+    expect(result.tabId).toBeDefined()
+    expect(result.content).toBe('<html><body><h1>Test</h1><p>Content</p></body></html>')
   })
 
-  it('fetches URL and returns txt format', async () => {
+  it('fetches URL and returns txt format with tabId', async () => {
     const controller = new CdpBrowserController()
     const result = await controller.fetch('https://example.com/', 'txt')
-    expect(result).toBe('Test\nContent')
+    expect(result.tabId).toBeDefined()
+    expect(result.content).toBe('Test\nContent')
   })
 
-  it('fetches URL and returns markdown format (default)', async () => {
+  it('fetches URL and returns markdown format (default) with tabId', async () => {
     const controller = new CdpBrowserController()
     const result = await controller.fetch('https://example.com/')
-    expect(typeof result).toBe('string')
-    expect(result).toContain('Test')
+    expect(result.tabId).toBeDefined()
+    expect(typeof result.content).toBe('string')
+    expect(result.content).toContain('Test')
   })
 
-  it('fetches URL in private mode', async () => {
+  it('fetches URL in private mode with tabId', async () => {
     const controller = new CdpBrowserController()
     const result = await controller.fetch('https://example.com/', 'html', 10000, true)
-    expect(result).toBe('<html><body><h1>Test</h1><p>Content</p></body></html>')
+    expect(result.tabId).toBeDefined()
+    expect(result.content).toBe('<html><body><h1>Test</h1><p>Content</p></body></html>')
   })
 
   describe('Multi-tab support', () => {
@@ -296,7 +300,8 @@ describe('CdpBrowserController', () => {
     it('passes showWindow parameter through fetch', async () => {
       const controller = new CdpBrowserController()
       const result = await controller.fetch('https://example.com/', 'html', 10000, false, false, true)
-      expect(result).toBe('<html><body><h1>Test</h1><p>Content</p></body></html>')
+      expect(result.tabId).toBeDefined()
+      expect(result.content).toBe('<html><body><h1>Test</h1><p>Content</p></body></html>')
     })
 
     it('passes showWindow parameter through createTab', async () => {

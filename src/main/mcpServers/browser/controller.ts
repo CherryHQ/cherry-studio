@@ -328,6 +328,14 @@ export class CdpBrowserController {
       this.windows.set(windowKey, windowInfo)
       const tabBarView = this.createTabBarView(windowInfo)
       windowInfo.tabBarView = tabBarView
+
+      // Register resize listener once per window (not per tab)
+      // Capture windowKey to look up fresh windowInfo on each resize
+      windowInfo.window.on('resize', () => {
+        const info = this.windows.get(windowKey)
+        if (info) this.updateViewBounds(info)
+      })
+
       logger.info('Created new window', { windowKey, privateMode })
     } else if (showWindow && !windowInfo.window.isDestroyed()) {
       windowInfo.window.show()
@@ -435,9 +443,6 @@ export class CdpBrowserController {
       windowInfo.activeTabId = tabId
       windowInfo.window.addBrowserView(view)
       this.updateViewBounds(windowInfo)
-
-      // Listen for window resize
-      windowInfo.window.on('resize', () => this.updateViewBounds(windowInfo))
     }
 
     this.sendTabBarUpdate(windowInfo)
@@ -463,7 +468,10 @@ export class CdpBrowserController {
     // If newTab is requested, create a fresh tab
     if (newTab) {
       const { tabId: freshTabId } = await this.createTab(privateMode, showWindow)
-      const tab = windowInfo.tabs.get(freshTabId)!
+      const tab = windowInfo.tabs.get(freshTabId)
+      if (!tab) {
+        throw new Error(`Tab ${freshTabId} was created but not found - it may have been closed`)
+      }
       return { tabId: freshTabId, tab }
     }
 
@@ -486,7 +494,10 @@ export class CdpBrowserController {
 
     // Create new tab
     const { tabId: newTabId } = await this.createTab(privateMode, showWindow)
-    const tab = windowInfo.tabs.get(newTabId)!
+    const tab = windowInfo.tabs.get(newTabId)
+    if (!tab) {
+      throw new Error(`Tab ${newTabId} was created but not found - it may have been closed`)
+    }
     return { tabId: newTabId, tab }
   }
 
@@ -662,7 +673,7 @@ export class CdpBrowserController {
    * @param privateMode - If true, uses private browsing mode (default: false)
    * @param newTab - If true, always creates a new tab (useful for parallel requests)
    * @param showWindow - If true, shows the browser window (default: false)
-   * @returns Content in the requested format. For 'json', returns parsed object or { data: rawContent } if parsing fails
+   * @returns Object with tabId and content in the requested format. For 'json', content is parsed object or { data: rawContent } if parsing fails
    */
   public async fetch(
     url: string,
@@ -671,7 +682,7 @@ export class CdpBrowserController {
     privateMode = false,
     newTab = false,
     showWindow = false
-  ) {
+  ): Promise<{ tabId: string; content: string | object }> {
     const { tabId } = await this.open(url, timeout, privateMode, newTab, showWindow)
 
     const { tab } = await this.getTab(privateMode, tabId, false, showWindow)
@@ -699,19 +710,22 @@ export class CdpBrowserController {
         })
       ])) as { result?: { value?: string } }
 
-      const content = result?.result?.value ?? ''
+      const rawContent = result?.result?.value ?? ''
 
+      let content: string | object
       if (format === 'markdown') {
-        return this.turndownService.turndown(content)
-      }
-      if (format === 'json') {
+        content = this.turndownService.turndown(rawContent)
+      } else if (format === 'json') {
         try {
-          return JSON.parse(content)
+          content = JSON.parse(rawContent)
         } catch {
-          return { data: content }
+          content = { data: rawContent }
         }
+      } else {
+        content = rawContent
       }
-      return content
+
+      return { tabId, content }
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle)
     }
