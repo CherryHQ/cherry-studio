@@ -253,7 +253,7 @@ if (!app.requestSingleInstanceLock()) {
       if (ovmsManager) {
         await ovmsManager.stopOvms()
       } else {
-        logger.warn('Unexpected behavior: undefined ovmsManager on Windows')
+        logger.warn('Unexpected behavior: undefined ovmsManager, but OVMS should be supported.')
       }
     }
 
