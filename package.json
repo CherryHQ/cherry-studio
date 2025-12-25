@@ -273,7 +273,7 @@
     "electron-reload": "^2.0.0-alpha.1",
     "electron-store": "^8.2.0",
     "electron-updater": "patch:electron-updater@npm%3A6.7.0#~/.yarn/patches/electron-updater-npm-6.7.0-47b11bb0d4.patch",
-    "electron-vite": "4.0.1",
+    "electron-vite": "5.0.0",
     "electron-window-state": "^5.0.3",
     "emittery": "^1.0.3",
     "emoji-picker-element": "^1.22.1",
