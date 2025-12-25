@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
+import { isWin } from '@main/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import * as fs from 'fs-extra'
 import * as path from 'path'
@@ -28,6 +29,12 @@ interface OvmsConfig {
 
 class OvmsManager {
   private ovms: OvmsProcess | null = null
+
+  constructor() {
+    if (!isWin) {
+      throw new Error('OVMS Manager is only supported on Windows platforms')
+    }
+  }
 
   /**
    * Recursively terminate a process and all its child processes
@@ -563,4 +570,4 @@ class OvmsManager {
 }
 
 // Export singleton instance
-export const ovmsManager = new OvmsManager()
+export const ovmsManager = isWin ? new OvmsManager() : undefined
