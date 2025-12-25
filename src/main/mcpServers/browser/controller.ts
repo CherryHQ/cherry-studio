@@ -24,7 +24,7 @@ export class CdpBrowserController {
     this.turndownService = new TurndownService()
   }
 
-  private getSessionKey(privateMode: boolean): string {
+  private getWindowKey(privateMode: boolean): string {
     return privateMode ? SESSION_KEY_PRIVATE : SESSION_KEY_DEFAULT
   }
 
@@ -95,9 +95,13 @@ export class CdpBrowserController {
 
   private sweepIdle() {
     const now = Date.now()
-    for (const [windowKey, windowInfo] of this.windows.entries()) {
+    const windowKeys = Array.from(this.windows.keys())
+    for (const windowKey of windowKeys) {
+      const windowInfo = this.windows.get(windowKey)
+      if (!windowInfo) continue
       if (now - windowInfo.lastActive > this.idleTimeoutMs) {
-        for (const [tabId] of windowInfo.tabs.entries()) {
+        const tabIds = Array.from(windowInfo.tabs.keys())
+        for (const tabId of tabIds) {
           this.closeTabInternal(windowInfo, tabId)
         }
         if (!windowInfo.window.isDestroyed()) {
@@ -302,7 +306,8 @@ export class CdpBrowserController {
     win.on('closed', () => {
       const windowInfo = this.windows.get(windowKey)
       if (windowInfo) {
-        for (const [tabId] of windowInfo.tabs.entries()) {
+        const tabIds = Array.from(windowInfo.tabs.keys())
+        for (const tabId of tabIds) {
           this.closeTabInternal(windowInfo, tabId)
         }
         this.windows.delete(windowKey)
@@ -316,7 +321,7 @@ export class CdpBrowserController {
     await this.ensureAppReady()
     this.sweepIdle()
 
-    const windowKey = this.getSessionKey(privateMode)
+    const windowKey = this.getWindowKey(privateMode)
 
     let windowInfo = this.windows.get(windowKey)
     if (!windowInfo) {
@@ -519,7 +524,7 @@ export class CdpBrowserController {
   public async open(url: string, timeout = 10000, privateMode = false, newTab = false, showWindow = false) {
     const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
     const view = tab.view
-    const windowKey = this.getSessionKey(privateMode)
+    const windowKey = this.getWindowKey(privateMode)
 
     logger.info('Loading URL', { url, windowKey, tabId: actualTabId, privateMode })
     const { webContents } = view
@@ -582,9 +587,17 @@ export class CdpBrowserController {
     return { currentUrl, title, tabId: actualTabId }
   }
 
+  /**
+   * Executes JavaScript code in the page context using Chrome DevTools Protocol.
+   * @param code - JavaScript code to evaluate in the page
+   * @param timeout - Execution timeout in milliseconds (default: 5000)
+   * @param privateMode - If true, targets the private browsing window (default: false)
+   * @param tabId - Optional specific tab ID to target; if omitted, uses the active tab
+   * @returns The result value from the evaluated code, or null if no value returned
+   */
   public async execute(code: string, timeout = 5000, privateMode = false, tabId?: string) {
     const { tabId: actualTabId, tab } = await this.getTab(privateMode, tabId)
-    const windowKey = this.getSessionKey(privateMode)
+    const windowKey = this.getWindowKey(privateMode)
     this.touchTab(windowKey, actualTabId)
     const dbg = tab.view.webContents.debugger
 
@@ -622,7 +635,7 @@ export class CdpBrowserController {
 
   public async reset(privateMode?: boolean, tabId?: string) {
     if (privateMode !== undefined && tabId) {
-      const windowKey = this.getSessionKey(privateMode)
+      const windowKey = this.getWindowKey(privateMode)
       const windowInfo = this.windows.get(windowKey)
       if (windowInfo) {
         this.closeTabInternal(windowInfo, tabId)
@@ -644,10 +657,11 @@ export class CdpBrowserController {
     }
 
     if (privateMode !== undefined) {
-      const windowKey = this.getSessionKey(privateMode)
+      const windowKey = this.getWindowKey(privateMode)
       const windowInfo = this.windows.get(windowKey)
       if (windowInfo) {
-        for (const [tid] of windowInfo.tabs.entries()) {
+        const tabIds = Array.from(windowInfo.tabs.keys())
+        for (const tid of tabIds) {
           this.closeTabInternal(windowInfo, tid)
         }
         if (!windowInfo.window.isDestroyed()) {
@@ -659,8 +673,10 @@ export class CdpBrowserController {
       return
     }
 
-    for (const [, windowInfo] of this.windows.entries()) {
-      for (const [tid] of windowInfo.tabs.entries()) {
+    const allWindowInfos = Array.from(this.windows.values())
+    for (const windowInfo of allWindowInfos) {
+      const tabIds = Array.from(windowInfo.tabs.keys())
+      for (const tid of tabIds) {
         this.closeTabInternal(windowInfo, tid)
       }
       if (!windowInfo.window.isDestroyed()) {
@@ -693,7 +709,7 @@ export class CdpBrowserController {
 
     const { tab } = await this.getTab(privateMode, tabId, false, showWindow)
     const dbg = tab.view.webContents.debugger
-    const windowKey = this.getSessionKey(privateMode)
+    const windowKey = this.getWindowKey(privateMode)
 
     await this.ensureDebuggerAttached(dbg, windowKey)
 
@@ -724,7 +740,12 @@ export class CdpBrowserController {
       } else if (format === 'json') {
         try {
           content = JSON.parse(rawContent)
-        } catch {
+        } catch (parseError) {
+          logger.warn('JSON parse failed, returning raw content', {
+            url,
+            contentLength: rawContent.length,
+            error: parseError
+          })
           content = { data: rawContent }
         }
       } else {
@@ -742,7 +763,7 @@ export class CdpBrowserController {
    * @param privateMode - If true, lists tabs from private window (default: false)
    */
   public async listTabs(privateMode = false): Promise<Array<{ tabId: string; url: string; title: string }>> {
-    const windowKey = this.getSessionKey(privateMode)
+    const windowKey = this.getWindowKey(privateMode)
     const windowInfo = this.windows.get(windowKey)
     if (!windowInfo) return []
 
@@ -768,7 +789,7 @@ export class CdpBrowserController {
    * @param tabId - Tab identifier to switch to
    */
   public async switchTab(privateMode: boolean, tabId: string) {
-    const windowKey = this.getSessionKey(privateMode)
+    const windowKey = this.getWindowKey(privateMode)
     const windowInfo = this.windows.get(windowKey)
     if (!windowInfo) throw new Error(`Window not found for ${privateMode ? 'private' : 'normal'} mode`)
 

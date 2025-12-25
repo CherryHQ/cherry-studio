@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
+import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
 export const ExecuteSchema = z.object({
@@ -45,6 +46,7 @@ export async function handleExecute(controller: CdpBrowserController, args: unkn
     const value = await controller.execute(code, timeout, privateMode ?? false, tabId)
     return successResponse(typeof value === 'string' ? value : JSON.stringify(value))
   } catch (error) {
+    logger.error('Execute failed', { error, code: code.slice(0, 100), privateMode, tabId })
     return errorResponse(error as Error)
   }
 }

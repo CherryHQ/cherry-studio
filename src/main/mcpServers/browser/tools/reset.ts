@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
+import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
 export const ResetSchema = z.object({
@@ -33,6 +34,10 @@ export async function handleReset(controller: CdpBrowserController, args: unknow
     await controller.reset(privateMode, tabId)
     return successResponse('reset')
   } catch (error) {
+    logger.error('Reset failed', {
+      error,
+      privateMode: args && typeof args === 'object' && 'privateMode' in args ? args.privateMode : undefined
+    })
     return errorResponse(error instanceof Error ? error : String(error))
   }
 }

@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
+import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
 export const OpenSchema = z.object({
@@ -77,6 +78,10 @@ export async function handleOpen(controller: CdpBrowserController, args: unknown
       return successResponse(JSON.stringify(res))
     }
   } catch (error) {
+    logger.error('Open failed', {
+      error,
+      url: args && typeof args === 'object' && 'url' in args ? args.url : undefined
+    })
     return errorResponse(error instanceof Error ? error : String(error))
   }
 }
