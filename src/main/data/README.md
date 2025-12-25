@@ -239,7 +239,7 @@ import { dataApiService } from '@/data/DataApiService'
 
 ### Adding Database Tables
 1. Create schema in `db/schemas/{tableName}.ts`
-2. Generate migration: `yarn run migrations:generate`
+2. Generate migration: `yarn run db:migrations:generate`
 3. Add seeding data in `db/seeding/` if needed
 4. Decide: Repository pattern or direct Drizzle?
    - Complex domain → Create repository in `repositories/`

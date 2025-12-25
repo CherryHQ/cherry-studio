@@ -1,3 +1,4 @@
+import type { MessageData, MessageStats } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
@@ -37,11 +38,9 @@ export const messageTable = sqliteTable(
     // Preserved model info (provider, name)
     modelMeta: text({ mode: 'json' }),
     // Main content - contains blocks[], mentions, etc.
-    data: text({ mode: 'json' }).notNull(),
-    // Token usage statistics
-    usage: text({ mode: 'json' }),
-    // Performance metrics
-    metrics: text({ mode: 'json' }),
+    data: text({ mode: 'json' }).$type<MessageData>().notNull(),
+    // Statistics: token usage, performance metrics, etc.
+    stats: text({ mode: 'json' }).$type<MessageStats>(),
     // Trace ID for tracking
     traceId: text(),
     // Searchable text extracted from data.blocks (populated by trigger, used for FTS5)

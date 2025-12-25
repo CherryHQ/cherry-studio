@@ -120,7 +120,7 @@ UI Library: `@packages/ui`
 - **JSON Fields**: For JSON support, add `{ mode: 'json' }`, refer to `preference.ts` table definition
 - **JSON Serialization**: For JSON fields, no need to manually serialize/deserialize when reading/writing to database, Drizzle handles this automatically
 - **Timestamps**: Use existing `crudTimestamps` utility
-- **Migrations**: Generate via `yarn run migrations:generate`
+- **Migrations**: Generate via `yarn run db:migrations:generate`
 
 ## Data Access Patterns
 

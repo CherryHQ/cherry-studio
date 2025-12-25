@@ -7,25 +7,31 @@ This directory contains shared type definitions and schemas for the Cherry Studi
 ```
 packages/shared/data/
 ├── api/                     # Data API type system
-│   ├── index.ts            # Barrel exports for clean imports
-│   ├── apiSchemas.ts       # API endpoint definitions and mappings
-│   ├── apiTypes.ts         # Core request/response infrastructure types
-│   ├── apiModels.ts        # Business entity types and DTOs
-│   ├── apiPaths.ts         # API path definitions and utilities
-│   └── errorCodes.ts       # Standardized error handling
+│   ├── index.ts             # Barrel exports for clean imports
+│   ├── apiSchemas.ts        # API endpoint definitions and mappings
+│   ├── apiTypes.ts          # Core request/response infrastructure types
+│   ├── apiModels.ts         # Business entity types and DTOs
+│   ├── apiPaths.ts          # API path definitions and utilities
+│   └── errorCodes.ts        # Standardized error handling
 ├── cache/                   # Cache system type definitions
-│   ├── cacheTypes.ts       # Core cache infrastructure types
-│   ├── cacheSchemas.ts     # Cache key schemas and type mappings
-│   └── cacheValueTypes.ts  # Cache value type definitions
+│   ├── cacheTypes.ts        # Core cache infrastructure types
+│   ├── cacheSchemas.ts      # Cache key schemas and type mappings
+│   └── cacheValueTypes.ts   # Cache value type definitions
 ├── preference/              # Preference system type definitions
-│   ├── preferenceTypes.ts  # Core preference system types
+│   ├── preferenceTypes.ts   # Core preference system types
 │   └── preferenceSchemas.ts # Preference schemas and default values
-└── README.md               # This file
+├── types/                   # Shared data types for Main/Renderer
+└── README.md                # This file
 ```
 
 ## 🏗️ System Overview
 
-This directory provides type definitions for three main data management systems:
+This directory provides type definitions for four main data management systems:
+
+### Types System (`types/`)
+- **Purpose**: Shared data types for cross-process (Main/Renderer) communication and database schemas
+- **Features**: Database table field types, business entity definitions
+- **Usage**: Used in Drizzle ORM schemas via `.$type<T>()` and runtime type checking
 
 ### API System (`api/`)
 - **Purpose**: Type-safe IPC communication between Main and Renderer processes
@@ -71,6 +77,11 @@ import type { PreferenceKeyType, PreferenceDefaultScopeType } from '@shared/data
 ```
 
 ## 🔧 Development Guidelines
+
+### Adding Shared Types
+1. Create or update type file in `types/` directory
+2. Use camelCase for field names
+3. Reference types in Drizzle schemas using `.$type<T>()`
 
 ### Adding Cache Types
 1. Add cache key to `cache/cacheSchemas.ts`
