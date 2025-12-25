@@ -13,6 +13,8 @@ const logger = loggerService.withContext('OvmsManager')
 
 const execAsync = promisify(exec)
 
+export const isOvmsSupported = isWin && getCpuName().toLowerCase().includes('intel')
+
 interface OvmsProcess {
   pid: number
   path: string
@@ -32,8 +34,8 @@ class OvmsManager {
   private ovms: OvmsProcess | null = null
 
   constructor() {
-    if (!isWin) {
-      throw new Error('OVMS Manager is only supported on Windows platforms')
+    if (!isOvmsSupported) {
+      throw new Error('OVMS Manager is only supported on Windows platform with Intel CPU.')
     }
   }
 
@@ -569,8 +571,6 @@ class OvmsManager {
     }
   }
 }
-
-export const isOvmsSupported = isWin && getCpuName().toLowerCase().includes('intel')
 
 // Export singleton instance
 export const ovmsManager = isOvmsSupported ? new OvmsManager() : undefined
