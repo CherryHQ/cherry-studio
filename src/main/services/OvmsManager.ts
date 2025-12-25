@@ -4,6 +4,7 @@ import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
+import { getCpuName } from '@main/utils/system'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import * as fs from 'fs-extra'
 import * as path from 'path'
@@ -569,5 +570,7 @@ class OvmsManager {
   }
 }
 
+export const isOvmsSupported = isWin && getCpuName().toLowerCase().includes('intel')
+
 // Export singleton instance
-export const ovmsManager = isWin ? new OvmsManager() : undefined
+export const ovmsManager = isOvmsSupported ? new OvmsManager() : undefined
