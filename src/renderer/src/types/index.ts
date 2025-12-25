@@ -395,6 +395,7 @@ export interface DmxapiPainting extends PaintingParams {
   autoCreate?: boolean
   generationMode?: generationModeType
   priceModel?: string
+  extend_params?: Record<string, unknown>
 }
 
 export interface TokenFluxPainting extends PaintingParams {
