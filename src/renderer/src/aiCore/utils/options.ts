@@ -10,6 +10,7 @@ import {
   isAnthropicModel,
   isGeminiModel,
   isGrokModel,
+  isInterleavedThinkingModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isQwenMTModel,
@@ -603,13 +604,21 @@ function buildGenericProviderOptions(
     enableGenerateImage: boolean
   }
 ): Record<string, any> {
-  const { enableWebSearch } = capabilities
+  const { enableWebSearch, enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
 
   const reasoningParams = getReasoningEffort(assistant, model)
   providerOptions = {
     ...providerOptions,
     ...reasoningParams
+  }
+  if (enableReasoning) {
+    if (isInterleavedThinkingModel(model)) {
+      providerOptions = {
+        ...providerOptions,
+        sendReasoning: true
+      }
+    }
   }
 
   if (enableWebSearch) {
