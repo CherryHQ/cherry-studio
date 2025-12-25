@@ -975,6 +975,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
 
   // OVMS
+  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isOvmsSupported)
   if (isOvmsSupported) {
     const { ovmsManager } = await import('./services/OvmsManager')
     if (ovmsManager) {
