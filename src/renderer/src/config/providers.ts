@@ -107,7 +107,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://aihubmix.com',
-    anthropicApiHost: 'https://aihubmix.com/anthropic',
+    anthropicApiHost: 'https://aihubmix.com',
     models: SYSTEM_MODELS.aihubmix,
     isSystem: true,
     enabled: false
