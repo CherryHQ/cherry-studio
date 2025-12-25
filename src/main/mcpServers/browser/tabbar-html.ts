@@ -198,18 +198,20 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       }
     };
     
-    window.tabBarAction = null;
+    function sendAction(action) {
+      window.postMessage({ channel: 'tabbar-action', payload: action }, '*');
+    }
     
     tabsContainer.addEventListener('click', function(e) {
       var closeBtn = e.target.closest('.tab-close');
       if (closeBtn) { 
         e.stopPropagation(); 
-        window.tabBarAction = { type: 'close', tabId: closeBtn.dataset.id };
+        sendAction({ type: 'close', tabId: closeBtn.dataset.id });
         return; 
       }
       var tab = e.target.closest('.tab');
       if (tab) { 
-        window.tabBarAction = { type: 'switch', tabId: tab.dataset.id };
+        sendAction({ type: 'switch', tabId: tab.dataset.id });
       }
     });
     
@@ -217,20 +219,20 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       if (e.button === 1) {
         var tab = e.target.closest('.tab');
         if (tab) { 
-          window.tabBarAction = { type: 'close', tabId: tab.dataset.id };
+          sendAction({ type: 'close', tabId: tab.dataset.id });
         }
       }
     });
     
     newTabBtn.addEventListener('click', function() { 
-      window.tabBarAction = { type: 'new' };
+      sendAction({ type: 'new' });
     });
     
     urlInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         var url = urlInput.value.trim();
         if (url) {
-          window.tabBarAction = { type: 'navigate', url: url };
+          sendAction({ type: 'navigate', url: url });
         }
       }
     });
@@ -241,18 +243,18 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     
     backBtn.addEventListener('click', function() {
       if (window.canGoBack) {
-        window.tabBarAction = { type: 'back' };
+        sendAction({ type: 'back' });
       }
     });
     
     forwardBtn.addEventListener('click', function() {
       if (window.canGoForward) {
-        window.tabBarAction = { type: 'forward' };
+        sendAction({ type: 'forward' });
       }
     });
     
     refreshBtn.addEventListener('click', function() {
-      window.tabBarAction = { type: 'refresh' };
+      sendAction({ type: 'refresh' });
     });
   </script>
 </body>

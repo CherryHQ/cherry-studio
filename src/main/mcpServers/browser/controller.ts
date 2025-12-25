@@ -162,47 +162,6 @@ export class CdpBrowserController {
     windowInfo.tabBarView.webContents.executeJavaScript(script).catch(() => {})
   }
 
-  private pollTabBarActions(windowInfo: WindowInfo) {
-    if (windowInfo.window.isDestroyed() || !windowInfo.tabBarView) return
-
-    const poll = async () => {
-      if (windowInfo.window.isDestroyed() || !windowInfo.tabBarView?.webContents) return
-
-      try {
-        const action = await windowInfo.tabBarView.webContents.executeJavaScript(
-          '(function() { var a = window.tabBarAction; window.tabBarAction = null; return a; })()'
-        )
-        if (action) {
-          if (action.type === 'switch' && action.tabId) {
-            this.switchTab(windowInfo.privateMode, action.tabId).catch(() => {})
-          } else if (action.type === 'close' && action.tabId) {
-            this.closeTab(windowInfo.privateMode, action.tabId).catch(() => {})
-          } else if (action.type === 'new') {
-            this.createTab(windowInfo.privateMode, true)
-              .then(({ tabId }) => this.switchTab(windowInfo.privateMode, tabId))
-              .catch(() => {})
-          } else if (action.type === 'navigate' && action.url) {
-            this.handleNavigateAction(windowInfo, action.url)
-          } else if (action.type === 'back') {
-            this.handleBackAction(windowInfo)
-          } else if (action.type === 'forward') {
-            this.handleForwardAction(windowInfo)
-          } else if (action.type === 'refresh') {
-            this.handleRefreshAction(windowInfo)
-          }
-        }
-      } catch {
-        return
-      }
-
-      if (!windowInfo.window.isDestroyed()) {
-        setTimeout(poll, 100)
-      }
-    }
-
-    setTimeout(poll, 500)
-  }
-
   private handleNavigateAction(windowInfo: WindowInfo, url: string) {
     if (!windowInfo.activeTabId) return
     const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
@@ -248,6 +207,53 @@ export class CdpBrowserController {
     activeTab.view.webContents.reload()
   }
 
+  private setupTabBarMessageHandler(windowInfo: WindowInfo) {
+    if (!windowInfo.tabBarView) return
+
+    windowInfo.tabBarView.webContents.on('console-message', (_event, _level, message) => {
+      try {
+        const parsed = JSON.parse(message)
+        if (parsed?.channel === 'tabbar-action' && parsed?.payload) {
+          this.handleTabBarAction(windowInfo, parsed.payload)
+        }
+      } catch {
+        // Not a JSON message, ignore
+      }
+    })
+
+    windowInfo.tabBarView.webContents
+      .executeJavaScript(`
+      (function() {
+        window.addEventListener('message', function(e) {
+          if (e.data && e.data.channel === 'tabbar-action') {
+            console.log(JSON.stringify(e.data));
+          }
+        });
+      })();
+    `)
+      .catch(() => {})
+  }
+
+  private handleTabBarAction(windowInfo: WindowInfo, action: { type: string; tabId?: string; url?: string }) {
+    if (action.type === 'switch' && action.tabId) {
+      this.switchTab(windowInfo.privateMode, action.tabId).catch(() => {})
+    } else if (action.type === 'close' && action.tabId) {
+      this.closeTab(windowInfo.privateMode, action.tabId).catch(() => {})
+    } else if (action.type === 'new') {
+      this.createTab(windowInfo.privateMode, true)
+        .then(({ tabId }) => this.switchTab(windowInfo.privateMode, tabId))
+        .catch(() => {})
+    } else if (action.type === 'navigate' && action.url) {
+      this.handleNavigateAction(windowInfo, action.url)
+    } else if (action.type === 'back') {
+      this.handleBackAction(windowInfo)
+    } else if (action.type === 'forward') {
+      this.handleForwardAction(windowInfo)
+    } else if (action.type === 'refresh') {
+      this.handleRefreshAction(windowInfo)
+    }
+  }
+
   private createTabBarView(windowInfo: WindowInfo): BrowserView {
     const tabBarView = new BrowserView({
       webPreferences: {
@@ -264,7 +270,7 @@ export class CdpBrowserController {
     tabBarView.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(TAB_BAR_HTML)}`)
 
     tabBarView.webContents.on('did-finish-load', () => {
-      this.pollTabBarActions(windowInfo)
+      this.setupTabBarMessageHandler(windowInfo)
       this.sendTabBarUpdate(windowInfo)
     })
 
