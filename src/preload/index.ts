@@ -75,22 +75,8 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
   return ipcRenderer.invoke(channel, ...args)
 }
 
-const windowsOnlyApi = {
-  ovms: {
-    addModel: (modelName: string, modelId: string, modelSource: string, task: string) =>
-      ipcRenderer.invoke(IpcChannel.Ovms_AddModel, modelName, modelId, modelSource, task),
-    stopAddModel: () => ipcRenderer.invoke(IpcChannel.Ovms_StopAddModel),
-    getModels: () => ipcRenderer.invoke(IpcChannel.Ovms_GetModels),
-    isRunning: () => ipcRenderer.invoke(IpcChannel.Ovms_IsRunning),
-    getStatus: () => ipcRenderer.invoke(IpcChannel.Ovms_GetStatus),
-    runOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_RunOVMS),
-    stopOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_StopOVMS)
-  }
-} as const
-
 // Custom APIs for renderer
 const api = {
-  ...windowsOnlyApi,
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
   getDiskInfo: (directoryPath: string): Promise<{ free: number; size: number } | null> =>
     ipcRenderer.invoke(IpcChannel.App_GetDiskInfo, directoryPath),
@@ -143,7 +129,7 @@ const api = {
     send: (notification: Notification) => ipcRenderer.invoke(IpcChannel.Notification_Send, notification)
   },
   system: {
-    getDeviceType: (): Promise<'mac' | 'windows' | 'linux'> => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
+    getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),
     getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName),
     checkGitBash: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.System_CheckGitBash),
@@ -344,6 +330,7 @@ const api = {
   selectionMenu: {
     action: (action: string) => ipcRenderer.invoke('selection-menu:action', action)
   },
+
   vertexAI: {
     getAuthHeaders: (params: { projectId: string; serviceAccount?: { privateKey: string; clientEmail: string } }) =>
       ipcRenderer.invoke(IpcChannel.VertexAI_GetAuthHeaders, params),
@@ -351,6 +338,16 @@ const api = {
       ipcRenderer.invoke(IpcChannel.VertexAI_GetAccessToken, params),
     clearAuthCache: (projectId: string, clientEmail?: string) =>
       ipcRenderer.invoke(IpcChannel.VertexAI_ClearAuthCache, projectId, clientEmail)
+  },
+  ovms: {
+    addModel: (modelName: string, modelId: string, modelSource: string, task: string) =>
+      ipcRenderer.invoke(IpcChannel.Ovms_AddModel, modelName, modelId, modelSource, task),
+    stopAddModel: () => ipcRenderer.invoke(IpcChannel.Ovms_StopAddModel),
+    getModels: () => ipcRenderer.invoke(IpcChannel.Ovms_GetModels),
+    isRunning: () => ipcRenderer.invoke(IpcChannel.Ovms_IsRunning),
+    getStatus: () => ipcRenderer.invoke(IpcChannel.Ovms_GetStatus),
+    runOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_RunOVMS),
+    stopOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_StopOVMS)
   },
   config: {
     set: (key: string, value: any, isNotify: boolean = false) =>
