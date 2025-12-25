@@ -157,6 +157,7 @@ export class SessionService extends BaseService {
 
     const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
     session.tools = await this.listMcpTools(session.agent_type, session.mcps)
+    session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools)
 
     // If slash_commands is not in database yet (e.g., first invoke before init message),
     // fall back to builtin + local commands. Otherwise, use the merged commands from database.
