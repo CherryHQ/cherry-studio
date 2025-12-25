@@ -135,10 +135,25 @@ if (!app.requestSingleInstanceLock()) {
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
   app.whenReady().then(async () => {
+
+    //TODO v2 Data Refactor: App Lifecycle Management
+    // This is the temporary solution for the data migration v2.
+    // We will refactor the app lifecycle management after the data migration v2 is stable.
+
     // First of all, init & migrate the database
-    await dbService.init()
-    await dbService.migrateDb()
-    await dbService.migrateSeed('preference')
+    try {
+      
+      await dbService.init()
+      await dbService.migrateDb()
+      await dbService.migrateSeed('preference')
+
+    } catch (error) {
+      logger.error('Failed to initialize database', error as Error)
+      //TODO for v2 testing only:
+      await dialog.showErrorBox('Database Initialization Failed', 'Before the official release of the alpha version, the database structure may change at any time. To maintain simplicity, the database migration files will be periodically reinitialized, which may cause the application to fail. If this occurs, please delete the cherrystudio.sqlite file located in the user data directory.')
+      app.quit()
+      return
+    }
 
     // Data Migration v2
     // Check if data migration is needed BEFORE creating any windows
