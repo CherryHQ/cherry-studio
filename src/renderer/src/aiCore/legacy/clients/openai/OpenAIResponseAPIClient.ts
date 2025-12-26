@@ -1,3 +1,4 @@
+import type { JSONValue } from '@ai-sdk/provider'
 import OpenAI, { AzureOpenAI } from '@cherrystudio/openai'
 import type { ResponseInput } from '@cherrystudio/openai/resources/responses/responses'
 import { loggerService } from '@logger'
@@ -169,6 +170,19 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     } as OpenAI.Responses.ResponseInputFile
   }
 
+  private getOpenAIResponsesReasoningReplay(message: Message) {
+    const openaiProviderMetadata = message.providerMetadata?.openai
+    if (!openaiProviderMetadata || typeof openaiProviderMetadata !== 'object') return undefined
+
+    const itemId = (openaiProviderMetadata as Record<string, JSONValue>).itemId
+    const reasoningEncryptedContent = (openaiProviderMetadata as Record<string, JSONValue>).reasoningEncryptedContent
+
+    if (typeof itemId !== 'string' || itemId.length === 0) return undefined
+    if (typeof reasoningEncryptedContent !== 'string' || reasoningEncryptedContent.length === 0) return undefined
+
+    return { itemId, encryptedContent: reasoningEncryptedContent } as const
+  }
+
   public async convertMessageToSdkParam(
     message: Message,
     model: Model
@@ -183,11 +197,12 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       const result: OpenAIResponseSdkMessageParam[] = []
 
       // Add encrypted reasoning content for Responses API history replay
-      if (message.responsesReasoningItemId && message.responsesReasoningEncryptedContent) {
+      const responsesReasoningReplay = this.getOpenAIResponsesReasoningReplay(message)
+      if (responsesReasoningReplay) {
         result.push({
           type: 'reasoning',
-          id: message.responsesReasoningItemId,
-          encrypted_content: message.responsesReasoningEncryptedContent
+          id: responsesReasoningReplay.itemId,
+          encrypted_content: responsesReasoningReplay.encryptedContent
         } as OpenAIResponseSdkMessageParam)
       }
 

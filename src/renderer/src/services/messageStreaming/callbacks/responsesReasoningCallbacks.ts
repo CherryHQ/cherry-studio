@@ -2,6 +2,8 @@ import { loggerService } from '@logger'
 import type { AppDispatch, RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Message } from '@renderer/types'
+import type { ProviderMetadata } from 'ai'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('ResponsesReasoningCallbacks')
 
@@ -24,13 +26,16 @@ type ResponsesReasoningRawPayload = {
   encryptedContent: string
 }
 
-function isResponsesReasoningRawPayload(value: unknown): value is ResponsesReasoningRawPayload {
-  if (typeof value !== 'object' || value === null) return false
-  const payload = value as Partial<ResponsesReasoningRawPayload>
-  if (payload.type !== 'responses_reasoning') return false
-  if (typeof payload.itemId !== 'string' || payload.itemId.length === 0) return false
-  if (typeof payload.encryptedContent !== 'string' || payload.encryptedContent.length === 0) return false
-  return true
+const ResponsesReasoningRawPayloadSchema = z.object({
+  type: z.literal('responses_reasoning'),
+  itemId: z.string().min(1),
+  encryptedContent: z.string().min(1)
+})
+
+function parseResponsesReasoningRawPayload(value: unknown): ResponsesReasoningRawPayload | undefined {
+  const parsed = ResponsesReasoningRawPayloadSchema.safeParse(value)
+  if (!parsed.success) return undefined
+  return parsed.data
 }
 
 export const createResponsesReasoningCallbacks = (deps: ResponsesReasoningCallbacksDependencies) => {
@@ -44,9 +49,20 @@ export const createResponsesReasoningCallbacks = (deps: ResponsesReasoningCallba
       return
     }
 
+    const previousProviderMetadata = assistantMessage.providerMetadata ?? {}
+    const previousOpenaiProviderMetadata = previousProviderMetadata.openai ?? {}
+
+    const nextProviderMetadata: ProviderMetadata = {
+      ...previousProviderMetadata,
+      openai: {
+        ...previousOpenaiProviderMetadata,
+        itemId: payload.itemId,
+        reasoningEncryptedContent: payload.encryptedContent
+      }
+    }
+
     const updates: Partial<Message> = {
-      responsesReasoningItemId: payload.itemId,
-      responsesReasoningEncryptedContent: payload.encryptedContent
+      providerMetadata: nextProviderMetadata
     }
 
     dispatch(
@@ -68,16 +84,17 @@ export const createResponsesReasoningCallbacks = (deps: ResponsesReasoningCallba
   }
 
   const onRawData = (content: unknown, metadata?: Record<string, any>) => {
-    if (!isResponsesReasoningRawPayload(content)) return
+    const payload = parseResponsesReasoningRawPayload(content)
+    if (!payload) return
 
     logger.debug('[onRawData] Persisting responses reasoning encrypted content.', {
       assistantMsgId,
       topicId,
-      itemId: content.itemId,
+      itemId: payload.itemId,
       metadata
     })
 
-    void persistResponsesReasoning(content)
+    void persistResponsesReasoning(payload)
   }
 
   return {

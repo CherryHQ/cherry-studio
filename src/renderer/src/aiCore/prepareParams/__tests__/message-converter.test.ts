@@ -174,8 +174,7 @@ describe('messageConverter', () => {
       const model = createModel()
       const message = createMessage('assistant')
       message.__mockContent = 'Done.'
-      message.responsesReasoningItemId = 'rs_123'
-      message.responsesReasoningEncryptedContent = 'enc_abc'
+      message.providerMetadata = { openai: { itemId: 'rs_123', reasoningEncryptedContent: 'enc_abc' } }
 
       const result = await convertMessageToSdkParam(message, false, model)
 
@@ -201,8 +200,7 @@ describe('messageConverter', () => {
       const model = createModel()
       const message = createMessage('assistant')
       message.__mockContent = 'Done.'
-      message.responsesReasoningItemId = 'rs_123'
-      message.responsesReasoningEncryptedContent = 'enc_abc'
+      message.providerMetadata = { openai: { itemId: 'rs_123', reasoningEncryptedContent: 'enc_abc' } }
       message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'This should not be sent' })]
 
       const result = await convertMessageToSdkParam(message, false, model)
@@ -261,8 +259,7 @@ describe('messageConverter', () => {
       const message = createMessage('assistant')
       message.__mockContent = 'Final answer'
       message.__mockToolBlocks = [createToolBlock(message.id)]
-      message.responsesReasoningItemId = 'rs_123'
-      message.responsesReasoningEncryptedContent = 'enc_abc'
+      message.providerMetadata = { openai: { itemId: 'rs_123', reasoningEncryptedContent: 'enc_abc' } }
 
       const result = await convertMessageToSdkParam(message, false, model)
 

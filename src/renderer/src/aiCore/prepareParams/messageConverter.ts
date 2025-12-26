@@ -3,6 +3,7 @@
  * 将 Cherry Studio 消息格式转换为 AI SDK 消息格式
  */
 
+import type { JSONValue } from '@ai-sdk/provider'
 import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
@@ -256,26 +257,10 @@ async function convertMessageToAssistantModelMessage(
 ): Promise<AssistantModelMessage> {
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
 
-  // OpenAI Responses: replay encrypted reasoning content to preserve internal state across turns.
-  const responsesReasoningItemId = message.responsesReasoningItemId
-  const responsesReasoningEncryptedContent = message.responsesReasoningEncryptedContent
-  const hasResponsesEncryptedReasoning =
-    typeof responsesReasoningItemId === 'string' &&
-    responsesReasoningItemId.length > 0 &&
-    typeof responsesReasoningEncryptedContent === 'string' &&
-    responsesReasoningEncryptedContent.length > 0
-
-  if (hasResponsesEncryptedReasoning) {
-    parts.push({
-      type: 'reasoning',
-      text: '',
-      providerOptions: {
-        openai: {
-          itemId: responsesReasoningItemId,
-          reasoningEncryptedContent: responsesReasoningEncryptedContent
-        }
-      }
-    })
+  const replayEncryptedReasoningPart = buildOpenAIResponsesReasoningReplayPart(message)
+  const hasResponsesEncryptedReasoning = replayEncryptedReasoningPart != null
+  if (replayEncryptedReasoningPart) {
+    parts.push(replayEncryptedReasoningPart)
   }
 
   // Avoid multiple reasoning mechanisms in a single message:
@@ -310,6 +295,31 @@ async function convertMessageToAssistantModelMessage(
   return {
     role: 'assistant',
     content: parts
+  }
+}
+
+function buildOpenAIResponsesReasoningReplayPart(message: Message): ReasoningPart | undefined {
+  // OpenAI Responses: replay encrypted reasoning content to preserve internal state across turns.
+  // This data arrives via AI SDK providerMetadata as:
+  // providerMetadata.openai.{ itemId, reasoningEncryptedContent }
+  const openaiProviderMetadata = message.providerMetadata?.openai
+  if (!openaiProviderMetadata || typeof openaiProviderMetadata !== 'object') return undefined
+
+  const itemId = (openaiProviderMetadata as Record<string, JSONValue>).itemId
+  const reasoningEncryptedContent = (openaiProviderMetadata as Record<string, JSONValue>).reasoningEncryptedContent
+
+  if (typeof itemId !== 'string' || itemId.length === 0) return undefined
+  if (typeof reasoningEncryptedContent !== 'string' || reasoningEncryptedContent.length === 0) return undefined
+
+  return {
+    type: 'reasoning',
+    text: '',
+    providerOptions: {
+      openai: {
+        itemId,
+        reasoningEncryptedContent
+      }
+    }
   }
 }
 

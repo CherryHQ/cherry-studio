@@ -526,8 +526,8 @@ describe('streamCallback Integration Tests', () => {
     const state = getState()
     const message = state.messages.entities[mockAssistantMsgId]
     expect(message).toBeDefined()
-    expect((message as any)?.responsesReasoningItemId).toBe('rs_123')
-    expect((message as any)?.responsesReasoningEncryptedContent).toBe('enc_abc')
+    expect((message as any)?.providerMetadata?.openai?.itemId).toBe('rs_123')
+    expect((message as any)?.providerMetadata?.openai?.reasoningEncryptedContent).toBe('enc_abc')
   })
 
   it('should handle image generation flow', async () => {
