@@ -1,5 +1,5 @@
 import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths } from '@shared/data/api/apiSchemas'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { PaginatedResponse } from '@shared/data/api/apiTypes'
 import { useState } from 'react'
 import type { KeyedMutator } from 'swr'

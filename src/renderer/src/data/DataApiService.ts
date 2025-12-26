@@ -31,7 +31,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/apiSchemas'
+import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type {
   BatchRequest,
   BatchResponse,

@@ -1,70 +1,71 @@
 /**
  * Cherry Studio Data API - Barrel Exports
  *
- * This file provides a centralized entry point for all data API types,
- * schemas, and utilities. Import everything you need from this single location.
+ * Exports common infrastructure types for the Data API system.
+ * Domain-specific DTOs should be imported directly from their schema files.
  *
  * @example
  * ```typescript
- * import { Topic, CreateTopicDto, ApiSchemas, DataRequest, ErrorCode } from '@/shared/data'
+ * // Infrastructure types from barrel export
+ * import { DataRequest, DataResponse, ErrorCode, ApiClient } from '@shared/data/api'
+ *
+ * // Domain DTOs from schema files directly
+ * import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topic'
  * ```
  */
 
-// Core data API types and infrastructure
+// ============================================================================
+// Core Request/Response Types
+// ============================================================================
+
 export type {
   BatchRequest,
   BatchResponse,
-  CacheOptions,
   DataApiError,
   DataRequest,
   DataResponse,
   HttpMethod,
-  Middleware,
   PaginatedResponse,
   PaginationParams,
-  RequestContext,
-  ServiceOptions,
-  ServiceResult,
-  SubscriptionCallback,
-  SubscriptionOptions,
   TransactionRequest
 } from './apiTypes'
-export { ErrorCode, SubscriptionEvent } from './apiTypes'
 
-// Domain models and DTOs
-export type {
-  BulkOperationRequest,
-  BulkOperationResponse,
-  CreateTestItemDto,
-  TestItem,
-  UpdateTestItemDto
-} from './apiModels'
+// ============================================================================
+// API Schema Type Utilities
+// ============================================================================
 
-// API schema definitions and type helpers
 export type {
   ApiBody,
   ApiClient,
+  ApiHandler,
+  ApiImplementation,
   ApiMethods,
   ApiParams,
   ApiPaths,
   ApiQuery,
   ApiResponse,
-  ApiSchemas
-} from './apiSchemas'
+  ApiSchemas,
+  ConcreteApiPaths
+} from './apiTypes'
 
-// Path type utilities for template literal types
+// ============================================================================
+// Path Resolution Utilities
+// ============================================================================
+
 export type {
   BodyForPath,
-  ConcreteApiPaths,
   MatchApiPath,
   QueryParamsForPath,
   ResolvedPath,
   ResponseForPath
 } from './apiPaths'
 
-// Error handling utilities
+// ============================================================================
+// Error Handling
+// ============================================================================
+
+export { ErrorCode, SubscriptionEvent } from './apiTypes'
 export {
-  ErrorCode as DataApiErrorCode,
   DataApiErrorFactory,
   ERROR_MESSAGES,
   ERROR_STATUS_MAP,
@@ -72,50 +73,14 @@ export {
   toDataApiError
 } from './errorCodes'
 
-/**
- * Re-export commonly used type combinations for convenience
- */
+// ============================================================================
+// Subscription & Middleware (for advanced usage)
+// ============================================================================
 
-// Import types for re-export convenience types
-import type { CreateTestItemDto, TestItem, UpdateTestItemDto } from './apiModels'
-import type {
-  BatchRequest,
-  BatchResponse,
-  DataApiError,
-  DataRequest,
-  DataResponse,
-  ErrorCode,
-  PaginatedResponse,
-  PaginationParams,
-  TransactionRequest
+export type {
+  Middleware,
+  RequestContext,
+  ServiceOptions,
+  SubscriptionCallback,
+  SubscriptionOptions
 } from './apiTypes'
-import type { DataApiErrorFactory } from './errorCodes'
-
-/** All test item-related types */
-export type TestItemTypes = {
-  TestItem: TestItem
-  CreateTestItemDto: CreateTestItemDto
-  UpdateTestItemDto: UpdateTestItemDto
-}
-
-/** All error-related types and utilities */
-export type ErrorTypes = {
-  DataApiError: DataApiError
-  ErrorCode: ErrorCode
-  ErrorFactory: typeof DataApiErrorFactory
-}
-
-/** All request/response types */
-export type RequestTypes = {
-  DataRequest: DataRequest
-  DataResponse: DataResponse
-  BatchRequest: BatchRequest
-  BatchResponse: BatchResponse
-  TransactionRequest: TransactionRequest
-}
-
-/** All pagination-related types */
-export type PaginationTypes = {
-  PaginationParams: PaginationParams
-  PaginatedResponse: PaginatedResponse<any>
-}

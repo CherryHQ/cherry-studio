@@ -8,6 +8,75 @@
  */
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
+// ============================================================================
+// Schema Constraint Types
+// ============================================================================
+
+/**
+ * Constraint for a single endpoint method definition.
+ * Requires `response` field, allows optional `params`, `query`, and `body`.
+ */
+export type EndpointMethodConstraint = {
+  params?: Record<string, any>
+  query?: Record<string, any>
+  body?: any
+  response: any // response is required
+}
+
+/**
+ * Constraint for a single API path - only allows valid HTTP methods.
+ */
+export type EndpointConstraint = {
+  [Method in HttpMethod]?: EndpointMethodConstraint
+}
+
+/**
+ * Validates that a schema only contains valid HTTP methods.
+ * Used in AssertValidSchemas for compile-time validation.
+ */
+type ValidateMethods<T> = {
+  [Path in keyof T]: {
+    [Method in keyof T[Path]]: Method extends HttpMethod ? T[Path][Method] : never
+  }
+}
+
+/**
+ * Validates that all endpoints have a `response` field.
+ * Returns the original type if valid, or `never` if any endpoint lacks response.
+ */
+type ValidateResponses<T> = {
+  [Path in keyof T]: {
+    [Method in keyof T[Path]]: T[Path][Method] extends { response: any }
+      ? T[Path][Method]
+      : { error: `Endpoint ${Path & string}.${Method & string} is missing 'response' field` }
+  }
+}
+
+/**
+ * Validates that a schema conforms to expected structure:
+ * 1. All methods must be valid HTTP methods (GET, POST, PUT, DELETE, PATCH)
+ * 2. All endpoints must have a `response` field
+ *
+ * This is applied at the composition level (schemas/index.ts) to catch
+ * invalid schemas even if individual schema files don't use validation.
+ *
+ * @example
+ * ```typescript
+ * // In schemas/index.ts
+ * export type ApiSchemas = AssertValidSchemas<TestSchemas & BatchSchemas>
+ *
+ * // Invalid method will cause error:
+ * // Type 'never' is not assignable to type...
+ * ```
+ */
+export type AssertValidSchemas<T> = ValidateMethods<T> & ValidateResponses<T> extends infer R
+  ? { [K in keyof R]: R[K] }
+  : never
+
+// ============================================================================
+// Core Request/Response Types
+// ============================================================================
+
 /**
  * Request object structure for Data API calls
  */
@@ -30,8 +99,6 @@ export interface DataRequest<T = any> {
     timestamp: number
     /** OpenTelemetry span context for tracing */
     spanContext?: any
-    /** Cache options for this specific request */
-    cache?: CacheOptions
   }
 }
 
@@ -99,22 +166,6 @@ export enum ErrorCode {
   PERMISSION_DENIED = 'PERMISSION_DENIED',
   RESOURCE_LOCKED = 'RESOURCE_LOCKED',
   CONCURRENT_MODIFICATION = 'CONCURRENT_MODIFICATION'
-}
-
-/**
- * Cache configuration options
- */
-export interface CacheOptions {
-  /** Cache TTL in seconds */
-  ttl?: number
-  /** Return stale data while revalidating in background */
-  staleWhileRevalidate?: boolean
-  /** Custom cache key override */
-  cacheKey?: string
-  /** Operations that should invalidate this cache entry */
-  invalidateOn?: string[]
-  /** Whether to bypass cache entirely */
-  noCache?: boolean
 }
 
 /**
@@ -274,16 +325,169 @@ export interface ServiceOptions {
   metadata?: Record<string, any>
 }
 
+// ============================================================================
+// API Schema Type Utilities
+// ============================================================================
+
+import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath } from './apiPaths'
+import type { ApiSchemas } from './schemas'
+
+// Re-export for external use
+export type { ConcreteApiPaths } from './apiPaths'
+export type { ApiSchemas } from './schemas'
+
 /**
- * Standard service response wrapper
+ * All available API paths
  */
-export interface ServiceResult<T = any> {
-  /** Whether operation was successful */
-  success: boolean
-  /** Result data if successful */
-  data?: T
-  /** Error information if failed */
-  error?: DataApiError
-  /** Additional metadata */
-  metadata?: Record<string, any>
+export type ApiPaths = keyof ApiSchemas
+
+/**
+ * Available HTTP methods for a specific path
+ */
+export type ApiMethods<TPath extends ApiPaths> = keyof ApiSchemas[TPath] & HttpMethod
+
+/**
+ * Response type for a specific path and method
+ */
+export type ApiResponse<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
+  ? TMethod extends keyof ApiSchemas[TPath]
+    ? ApiSchemas[TPath][TMethod] extends { response: infer R }
+      ? R
+      : never
+    : never
+  : never
+
+/**
+ * URL params type for a specific path and method
+ */
+export type ApiParams<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
+  ? TMethod extends keyof ApiSchemas[TPath]
+    ? ApiSchemas[TPath][TMethod] extends { params: infer P }
+      ? P
+      : never
+    : never
+  : never
+
+/**
+ * Query params type for a specific path and method
+ */
+export type ApiQuery<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
+  ? TMethod extends keyof ApiSchemas[TPath]
+    ? ApiSchemas[TPath][TMethod] extends { query: infer Q }
+      ? Q
+      : never
+    : never
+  : never
+
+/**
+ * Request body type for a specific path and method
+ */
+export type ApiBody<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
+  ? TMethod extends keyof ApiSchemas[TPath]
+    ? ApiSchemas[TPath][TMethod] extends { body: infer B }
+      ? B
+      : never
+    : never
+  : never
+
+/**
+ * Type-safe API client interface using concrete paths
+ * Accepts actual paths like '/test/items/123' instead of '/test/items/:id'
+ * Automatically infers query, body, and response types from ApiSchemas
+ */
+export interface ApiClient {
+  get<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options?: {
+      query?: QueryParamsForPath<TPath>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'GET'>>
+
+  post<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options: {
+      body?: BodyForPath<TPath, 'POST'>
+      query?: Record<string, any>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'POST'>>
+
+  put<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options: {
+      body: BodyForPath<TPath, 'PUT'>
+      query?: Record<string, any>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'PUT'>>
+
+  delete<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options?: {
+      query?: Record<string, any>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'DELETE'>>
+
+  patch<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options: {
+      body?: BodyForPath<TPath, 'PATCH'>
+      query?: Record<string, any>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'PATCH'>>
+}
+
+/**
+ * Helper types to determine if parameters are required based on schema
+ */
+type HasRequiredQuery<Path extends ApiPaths, Method extends ApiMethods<Path>> = Path extends keyof ApiSchemas
+  ? Method extends keyof ApiSchemas[Path]
+    ? ApiSchemas[Path][Method] extends { query: any }
+      ? true
+      : false
+    : false
+  : false
+
+type HasRequiredBody<Path extends ApiPaths, Method extends ApiMethods<Path>> = Path extends keyof ApiSchemas
+  ? Method extends keyof ApiSchemas[Path]
+    ? ApiSchemas[Path][Method] extends { body: any }
+      ? true
+      : false
+    : false
+  : false
+
+type HasRequiredParams<Path extends ApiPaths, Method extends ApiMethods<Path>> = Path extends keyof ApiSchemas
+  ? Method extends keyof ApiSchemas[Path]
+    ? ApiSchemas[Path][Method] extends { params: any }
+      ? true
+      : false
+    : false
+  : false
+
+/**
+ * Handler function for a specific API endpoint
+ * Provides type-safe parameter extraction based on ApiSchemas
+ * Parameters are required or optional based on the schema definition
+ */
+export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>> = (
+  params: (HasRequiredParams<Path, Method> extends true
+    ? { params: ApiParams<Path, Method> }
+    : { params?: ApiParams<Path, Method> }) &
+    (HasRequiredQuery<Path, Method> extends true
+      ? { query: ApiQuery<Path, Method> }
+      : { query?: ApiQuery<Path, Method> }) &
+    (HasRequiredBody<Path, Method> extends true ? { body: ApiBody<Path, Method> } : { body?: ApiBody<Path, Method> })
+) => Promise<ApiResponse<Path, Method>>
+
+/**
+ * Complete API implementation that must match ApiSchemas structure
+ * TypeScript will error if any endpoint is missing - this ensures exhaustive coverage
+ */
+export type ApiImplementation = {
+  [Path in ApiPaths]: {
+    [Method in ApiMethods<Path>]: ApiHandler<Path, Method>
+  }
 }

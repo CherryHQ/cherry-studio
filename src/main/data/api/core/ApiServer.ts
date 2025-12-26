@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { ApiImplementation } from '@shared/data/api/apiSchemas'
+import type { ApiImplementation } from '@shared/data/api/apiTypes'
 import type { DataRequest, DataResponse, HttpMethod, RequestContext } from '@shared/data/api/apiTypes'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errorCodes'
 

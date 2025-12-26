@@ -1,4 +1,4 @@
-import type { ConcreteApiPaths } from '@shared/data/api/apiSchemas'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { PaginatedResponse } from '@shared/data/api/apiTypes'
 import { vi } from 'vitest'
 

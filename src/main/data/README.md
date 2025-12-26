@@ -12,8 +12,10 @@ src/main/data/
 │   │   ├── MiddlewareEngine.ts # Request/response middleware
 │   │   └── adapters/          # Communication adapters (IPC)
 │   ├── handlers/              # API endpoint implementations
-│   │   └── index.ts          # Thin handlers: param extraction, DTO conversion
-│   └── index.ts              # API framework exports
+│   │   ├── index.ts           # Handler aggregation and exports
+│   │   ├── test.ts            # Test endpoint handlers
+│   │   └── batch.ts           # Batch/transaction handlers
+│   └── index.ts               # API framework exports
 │
 ├── services/                  # Business logic layer
 │   ├── base/                 # Service base classes and interfaces
@@ -34,6 +36,12 @@ src/main/data/
 │   ├── schemas/              # Drizzle table definitions
 │   │   ├── preference.ts     # Preference configuration table
 │   │   ├── appState.ts       # Application state table
+│   │   ├── topic.ts          # Topic/conversation table
+│   │   ├── message.ts        # Message table
+│   │   ├── group.ts          # Group table
+│   │   ├── tag.ts            # Tag table
+│   │   ├── entityTag.ts      # Entity-tag relationship table
+│   │   ├── messageFts.ts     # Message full-text search table
 │   │   └── columnHelpers.ts  # Reusable column definitions
 │   ├── seeding/              # Database initialization
 │   └── DbService.ts          # Database connection and management
@@ -94,8 +102,8 @@ The API framework provides the interface layer for data access:
   - Delegating to business services
   - Transforming responses for IPC
 - **Anti-pattern**: Do NOT put business logic in handlers
-- **Currently**: Contains test handlers (production handlers pending)
-- **Type Safety**: Must implement all endpoints defined in `@shared/data/api`
+- **Currently**: Contains test and batch handlers (business handlers pending)
+- **Type Safety**: Must implement all endpoints defined in `@shared/data/api/schemas/`
 
 ### Business Logic Layer (`services/`)
 
@@ -217,6 +225,12 @@ export class SimpleService extends BaseService {
 ### Current Tables
 - `preference`: User configuration storage
 - `appState`: Application state persistence
+- `topic`: Conversation/topic storage
+- `message`: Message storage with full-text search
+- `group`: Group organization
+- `tag`: Tag definitions
+- `entityTag`: Entity-tag relationships
+- `messageFts`: Message full-text search index
 
 ## Usage Examples
 
@@ -231,11 +245,12 @@ import { dataApiService } from '@/data/DataApiService'
 ```
 
 ### Adding New API Endpoints
-1. Define endpoint in `@shared/data/api/apiSchemas.ts`
-2. Implement handler in `api/handlers/index.ts` (thin layer, delegate to service)
-3. Create business service in `services/` for domain logic
-4. Create repository in `repositories/` if domain is complex (optional)
-5. Add database schema in `db/schemas/` if required
+1. Create or update schema in `@shared/data/api/schemas/` (see `@shared/data/api/README.md`)
+2. Register schema in `@shared/data/api/schemas/index.ts`
+3. Implement handler in `api/handlers/` (thin layer, delegate to service)
+4. Create business service in `services/` for domain logic
+5. Create repository in `repositories/` if domain is complex (optional)
+6. Add database schema in `db/schemas/` if required
 
 ### Adding Database Tables
 1. Create schema in `db/schemas/{tableName}.ts`
@@ -271,11 +286,13 @@ export class ExampleService {
 }
 
 // 3. Create handler: api/handlers/example.ts
-import { ExampleService } from '../../services/ExampleService'
+import { ExampleService } from '@data/services/ExampleService'
 
-export const exampleHandlers = {
-  'POST /examples': async ({ body }) => {
-    return await ExampleService.getInstance().createExample(body)
+export const exampleHandlers: Partial<ApiImplementation> = {
+  '/examples': {
+    POST: async ({ body }) => {
+      return await ExampleService.getInstance().createExample(body)
+    }
   }
 }
 ```
@@ -294,9 +311,11 @@ export class SimpleService extends BaseService {
 }
 
 // 2. Create handler: api/handlers/simple.ts
-export const simpleHandlers = {
-  'GET /items/:id': async ({ params }) => {
-    return await SimpleService.getInstance().getItem(params.id)
+export const simpleHandlers: Partial<ApiImplementation> = {
+  '/items/:id': {
+    GET: async ({ params }) => {
+      return await SimpleService.getInstance().getItem(params.id)
+    }
   }
 }
 ```

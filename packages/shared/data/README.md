@@ -2,17 +2,20 @@
 
 This directory contains shared type definitions and schemas for the Cherry Studio data management systems. These files provide type safety and consistency across the entire application.
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
 packages/shared/data/
-├── api/                     # Data API type system
-│   ├── index.ts             # Barrel exports for clean imports
-│   ├── apiSchemas.ts        # API endpoint definitions and mappings
-│   ├── apiTypes.ts          # Core request/response infrastructure types
-│   ├── apiModels.ts         # Business entity types and DTOs
-│   ├── apiPaths.ts          # API path definitions and utilities
-│   └── errorCodes.ts        # Standardized error handling
+├── api/                     # Data API type system (see api/README.md)
+│   ├── index.ts             # Barrel exports for infrastructure types
+│   ├── apiTypes.ts          # Core request/response types and utilities
+│   ├── apiPaths.ts          # Path template literal type utilities
+│   ├── errorCodes.ts        # Error handling utilities
+│   ├── schemas/             # Domain-specific API schemas
+│   │   ├── index.ts         # Schema composition
+│   │   ├── test.ts          # Test API schema and DTOs
+│   │   └── batch.ts         # Batch/transaction operations
+│   └── README.md            # Detailed API documentation
 ├── cache/                   # Cache system type definitions
 │   ├── cacheTypes.ts        # Core cache infrastructure types
 │   ├── cacheSchemas.ts      # Cache key schemas and type mappings
@@ -24,7 +27,7 @@ packages/shared/data/
 └── README.md                # This file
 ```
 
-## 🏗️ System Overview
+## System Overview
 
 This directory provides type definitions for four main data management systems:
 
@@ -35,8 +38,8 @@ This directory provides type definitions for four main data management systems:
 
 ### API System (`api/`)
 - **Purpose**: Type-safe IPC communication between Main and Renderer processes
-- **Features**: RESTful patterns, error handling, business entity definitions
-- **Usage**: Ensures type safety for all data API operations
+- **Features**: RESTful patterns, modular schema design, error handling
+- **Documentation**: See [`api/README.md`](./api/README.md) for detailed usage
 
 ### Cache System (`cache/`)
 - **Purpose**: Type definitions for three-layer caching architecture
@@ -48,7 +51,7 @@ This directory provides type definitions for four main data management systems:
 - **Features**: 158 configuration items, default values, nested key support
 - **Usage**: Type-safe preference access and synchronization
 
-## 📋 File Categories
+## File Categories
 
 **Framework Infrastructure** - These are TypeScript type definitions that:
 - ✅ Exist only at compile time
@@ -56,12 +59,16 @@ This directory provides type definitions for four main data management systems:
 - ✅ Define contracts between application layers
 - ✅ Enable static analysis and error detection
 
-## 📖 Usage Examples
+## Usage Examples
 
 ### API Types
 ```typescript
-// Import API types
-import type { DataRequest, DataResponse, ApiSchemas } from '@shared/data/api'
+// Infrastructure types from barrel export
+import type { DataRequest, DataResponse, ApiClient } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
+
+// Domain DTOs directly from schema files
+import type { TestItem, CreateTestItemDto } from '@shared/data/api/schemas/test'
 ```
 
 ### Cache Types
@@ -76,7 +83,7 @@ import type { UseCacheKey, UseSharedCacheKey } from '@shared/data/cache'
 import type { PreferenceKeyType, PreferenceDefaultScopeType } from '@shared/data/preference'
 ```
 
-## 🔧 Development Guidelines
+## Development Guidelines
 
 ### Adding Shared Types
 1. Create or update type file in `types/` directory
@@ -94,24 +101,25 @@ import type { PreferenceKeyType, PreferenceDefaultScopeType } from '@shared/data
 3. Preference system automatically picks up new keys
 
 ### Adding API Types
-1. Define business entities in `api/apiModels.ts`
-2. Add endpoint definitions to `api/apiSchemas.ts`
-3. Export types from `api/index.ts`
+1. Create schema file in `api/schemas/` (e.g., `topic.ts`)
+2. Define domain models, DTOs, and API schema in the file
+3. Register schema in `api/schemas/index.ts` using intersection type
+4. See [`api/README.md`](./api/README.md) for detailed guide
 
 ### Best Practices
 - Use `import type` for type-only imports
+- Infrastructure types from barrel, domain DTOs from schema files
 - Follow existing naming conventions
 - Document complex types with JSDoc
-- Maintain type safety across all imports
 
-## 🔗 Related Implementation
+## Related Implementation
 
-### Main Process Services
-- `src/main/data/CacheService.ts` - Main process cache management
-- `src/main/data/PreferenceService.ts` - Preference management service
-- `src/main/data/DataApiService.ts` - Data API coordination service
+### Main Process
+- `src/main/data/api/` - API server, handlers, and IPC adapter
+- `src/main/data/cache/` - Cache service implementation
+- `src/main/data/preference/` - Preference service implementation
 
-### Renderer Process Services
-- `src/renderer/src/data/CacheService.ts` - Renderer cache service
-- `src/renderer/src/data/PreferenceService.ts` - Renderer preference service
-- `src/renderer/src/data/DataApiService.ts` - Renderer API client
+### Renderer Process
+- `src/renderer/src/services/DataApiService.ts` - API client
+- `src/renderer/src/services/CacheService.ts` - Cache service
+- `src/renderer/src/services/PreferenceService.ts` - Preference service

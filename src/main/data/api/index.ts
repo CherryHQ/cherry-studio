@@ -20,7 +20,6 @@ export { apiHandlers } from './handlers'
 export { TestService } from '@data/services/TestService'
 
 // Re-export types for convenience
-export type { CreateTestItemDto, TestItem, UpdateTestItemDto } from '@shared/data/api'
 export type {
   DataRequest,
   DataResponse,
@@ -30,3 +29,4 @@ export type {
   RequestContext,
   ServiceOptions
 } from '@shared/data/api/apiTypes'
+export type { CreateTestItemDto, TestItem, UpdateTestItemDto } from '@shared/data/api/schemas/test'
