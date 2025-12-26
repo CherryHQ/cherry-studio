@@ -1200,6 +1200,70 @@ class FileStorage {
   }
 
   /**
+   * Calculate greedy substring match score (higher is better)
+   * Rewards: fewer match fragments, shorter match span, matches in filename
+   */
+  private getGreedyMatchScore(filePath: string, query: string): number {
+    const textLower = filePath.toLowerCase()
+    const queryLower = query.toLowerCase()
+    const fileName = filePath.split('/').pop() || ''
+    const fileNameLower = fileName.toLowerCase()
+
+    let queryIndex = 0
+    let searchStart = 0
+    let fragmentCount = 0
+    let firstMatchPos = -1
+    let lastMatchEnd = 0
+
+    while (queryIndex < queryLower.length) {
+      let bestMatchLen = 0
+      let bestMatchPos = -1
+
+      for (let len = queryLower.length - queryIndex; len >= 1; len--) {
+        const substr = queryLower.slice(queryIndex, queryIndex + len)
+        const foundAt = textLower.indexOf(substr, searchStart)
+        if (foundAt !== -1) {
+          bestMatchLen = len
+          bestMatchPos = foundAt
+          break
+        }
+      }
+
+      if (bestMatchLen === 0) {
+        return -Infinity // No match
+      }
+
+      fragmentCount++
+      if (firstMatchPos === -1) firstMatchPos = bestMatchPos
+      lastMatchEnd = bestMatchPos + bestMatchLen
+      queryIndex += bestMatchLen
+      searchStart = lastMatchEnd
+    }
+
+    const matchSpan = lastMatchEnd - firstMatchPos
+    let score = 0
+
+    // Fewer fragments = better (single continuous match is best)
+    // Max bonus when fragmentCount=1, decreases as fragments increase
+    score += Math.max(0, 100 - (fragmentCount - 1) * 30)
+
+    // Shorter span relative to query length = better (tighter match)
+    // Perfect match: span equals query length
+    const spanRatio = queryLower.length / matchSpan
+    score += spanRatio * 50
+
+    // Bonus for match in filename
+    if (this.isGreedySubstringMatch(fileNameLower, queryLower)) {
+      score += 80
+    }
+
+    // Penalty for longer paths
+    score -= Math.log(filePath.length + 1) * 4
+
+    return score
+  }
+
+  /**
    * Build common ripgrep arguments for file listing
    */
   private buildRipgrepBaseArgs(options: Required<DirectoryListOptions>, resolvedPath: string): string[] {
@@ -1258,9 +1322,10 @@ class FileStorage {
         .filter((line) => line.trim())
         .map((line) => line.replace(/\\/g, '/'))
 
-      // If fuzzy glob found results, sort and return
+      // If fuzzy glob found results, validate fuzzy match, sort and return
       if (filteredFiles.length > 0) {
         return filteredFiles
+          .filter((file) => this.isFuzzyMatch(file, options.searchPattern))
           .map((file) => ({ file, score: this.getFuzzyMatchScore(file, options.searchPattern) }))
           .sort((a, b) => b.score - a.score)
           .slice(0, options.maxEntries)
@@ -1285,7 +1350,7 @@ class FileStorage {
       const greedyMatched = allFiles.filter((file) => this.isGreedySubstringMatch(file, options.searchPattern))
 
       return greedyMatched
-        .map((file) => ({ file, score: this.getFuzzyMatchScore(file, options.searchPattern) }))
+        .map((file) => ({ file, score: this.getGreedyMatchScore(file, options.searchPattern) }))
         .sort((a, b) => b.score - a.score)
         .slice(0, options.maxEntries)
         .map((item) => item.file)
