@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useActivityDirectoryPanel')
 const MAX_FILE_RESULTS = 500
+const MAX_ENTRIES_PER_SEARCH = 20
 const areFileListsEqual = (prev: string[], next: string[]) => {
   if (prev === next) return true
   if (prev.length !== next.length) return false
@@ -197,7 +198,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
               includeHidden: false,
               includeFiles: true,
               includeDirectories: true,
-              maxEntries: 20,
+              maxEntries: MAX_ENTRIES_PER_SEARCH,
               searchPattern: searchPattern || '.'
             })
 
