@@ -1156,37 +1156,34 @@ class FileStorage {
     const textLower = text.toLowerCase()
     const queryLower = query.toLowerCase()
 
-    let textIndex = 0
     let queryIndex = 0
+    let searchStart = 0
 
-    while (queryIndex < queryLower.length && textIndex < textLower.length) {
+    while (queryIndex < queryLower.length) {
       // Try to find the longest matching substring starting at queryIndex
-      let matchLen = 0
-      for (let len = 1; len <= queryLower.length - queryIndex; len++) {
+      let bestMatchLen = 0
+      let bestMatchPos = -1
+
+      for (let len = queryLower.length - queryIndex; len >= 1; len--) {
         const substr = queryLower.slice(queryIndex, queryIndex + len)
-        const foundAt = textLower.indexOf(substr, textIndex)
+        const foundAt = textLower.indexOf(substr, searchStart)
         if (foundAt !== -1) {
-          matchLen = len
-          textIndex = foundAt + len
-        } else {
-          break
+          bestMatchLen = len
+          bestMatchPos = foundAt
+          break // Found longest possible match
         }
       }
 
-      if (matchLen === 0) {
-        // No match found for current character, try single char match
-        const charIndex = textLower.indexOf(queryLower[queryIndex], textIndex)
-        if (charIndex === -1) {
-          return false
-        }
-        textIndex = charIndex + 1
-        queryIndex++
-      } else {
-        queryIndex += matchLen
+      if (bestMatchLen === 0) {
+        // No substring match found, query cannot be matched
+        return false
       }
+
+      queryIndex += bestMatchLen
+      searchStart = bestMatchPos + bestMatchLen
     }
 
-    return queryIndex === queryLower.length
+    return true
   }
 
   private async listDirectoryWithRipgrep(
