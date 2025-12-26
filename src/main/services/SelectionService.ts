@@ -1435,6 +1435,12 @@ export class SelectionService {
     }
 
     actionWindow.setBounds({ x, y, width, height })
+
+    // [Windows only] Update remembered window size for custom resize
+    // setBounds() may not trigger the 'resized' event, so we need to update manually
+    if (this.isRemeberWinSize) {
+      this.lastActionWindowSize = { width, height }
+    }
   }
 
   /**
