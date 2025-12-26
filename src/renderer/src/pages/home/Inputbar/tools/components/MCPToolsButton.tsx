@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -11,7 +12,7 @@ import { EventEmitter } from '@renderer/services/EventService'
 import type { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
-import { Form, Input, Tooltip } from 'antd'
+import { Form, Input } from 'antd'
 import { CircleX, Hammer, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -515,13 +516,13 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   }, [openPromptList, openQuickPanel, openResourcesList, quickPanel, t])
 
   return (
-    <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
+    <Tooltip content={t('settings.mcp.title')} closeDelay={0}>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={assistant.mcpServers && assistant.mcpServers.length > 0}
-        aria-label={t('settings.mcp.title')}>
-        <Hammer size={18} />
-      </ActionIconButton>
+        aria-label={t('settings.mcp.title')}
+        icon={<Hammer size={18} />}
+      />
     </Tooltip>
   )
 }

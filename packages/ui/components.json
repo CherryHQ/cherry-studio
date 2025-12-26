@@ -1,0 +1,21 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "aliases": {
+    "components": "@cherrystudio/ui/components",
+    "hooks": "@cherrystudio/ui/hooks",
+    "lib": "@cherrystudio/ui/lib",
+    "ui": "@cherrystudio/ui/components/primitives",
+    "utils": "@cherrystudio/ui/utils"
+  },
+  "iconLibrary": "lucide",
+  "rsc": false,
+  "style": "new-york",
+  "tailwind": {
+    "baseColor": "zinc",
+    "config": "",
+    "css": "src/styles/theme.css",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "tsx": true
+}

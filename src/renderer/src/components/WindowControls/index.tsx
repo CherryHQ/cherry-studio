@@ -1,5 +1,5 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { isLinux, isWin } from '@renderer/config/constant'
-import { Tooltip } from 'antd'
 import { Minus, Square, X } from 'lucide-react'
 import type { SVGProps } from 'react'
 import { useEffect, useState } from 'react'
@@ -10,6 +10,8 @@ import { ControlButton, WindowControlsContainer } from './WindowControls.styled'
 interface WindowRestoreIconProps extends SVGProps<SVGSVGElement> {
   size?: string | number
 }
+
+const DEFAULT_DELAY = 1000
 
 export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIconProps) => (
   <svg
@@ -43,8 +45,6 @@ export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIco
     />
   </svg>
 )
-
-const DEFAULT_DELAY = 1
 
 const WindowControls: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false)
@@ -85,22 +85,22 @@ const WindowControls: React.FC = () => {
 
   return (
     <WindowControlsContainer>
-      <Tooltip title={t('navbar.window.minimize')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
+      <Tooltip placement="bottom" content={t('navbar.window.minimize')} delay={DEFAULT_DELAY}>
         <ControlButton onClick={handleMinimize} aria-label={t('navbar.window.minimize')}>
           <Minus size={14} />
         </ControlButton>
       </Tooltip>
       <Tooltip
-        title={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}
         placement="bottom"
-        mouseEnterDelay={DEFAULT_DELAY}>
+        content={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}
+        delay={DEFAULT_DELAY}>
         <ControlButton
           onClick={handleMaximize}
           aria-label={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}>
           {isMaximized ? <WindowRestoreIcon size={14} /> : <Square size={14} />}
         </ControlButton>
       </Tooltip>
-      <Tooltip title={t('navbar.window.close')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
+      <Tooltip placement="bottom" content={t('navbar.window.close')} delay={DEFAULT_DELAY}>
         <ControlButton $isClose onClick={handleClose} aria-label={t('navbar.window.close')}>
           <X size={17} />
         </ControlButton>

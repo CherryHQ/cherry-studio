@@ -1,23 +1,21 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata, OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Input, InputNumber, Select, Slider, Switch, Tooltip } from 'antd'
+import { Avatar, Input, InputNumber, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -69,8 +67,8 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
   })
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
+  const [generating, setGenerating] = useCache('chat.generating')
+
   const navigate = useNavigate()
   const location = useLocation()
   const { autoTranslateWithSpace } = useSettings()
@@ -179,7 +177,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
 
     try {
       // Prepare request body for OVMS
@@ -238,7 +236,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       handleError(error)
     } finally {
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -425,12 +423,12 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'switch':
         return (
-          <HStack>
+          <RowFlex>
             <Switch
               checked={(painting[item.key!] || item.initialValue) as boolean}
               onChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
-          </HStack>
+          </RowFlex>
         )
       default:
         return null
@@ -483,7 +481,8 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+            <Button size="sm" className="nodrag" onClick={handleAddPainting}>
+              <PlusOutlined />
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>

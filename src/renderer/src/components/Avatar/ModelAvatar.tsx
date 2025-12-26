@@ -1,7 +1,7 @@
+import type { AvatarProps } from '@cherrystudio/ui'
+import { Avatar, cn } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
-import type { AvatarProps } from 'antd'
-import { Avatar } from 'antd'
 import { first } from 'lodash'
 import type { FC } from 'react'
 
@@ -12,21 +12,14 @@ interface Props {
   className?: string
 }
 
-const ModelAvatar: FC<Props> = ({ model, size, props, className }) => {
+const ModelAvatar: FC<Props> = ({ model, size, className, ...props }) => {
   return (
     <Avatar
       src={getModelLogo(model)}
-      style={{
-        width: size,
-        height: size,
-        minWidth: size,
-        minHeight: size,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
-      {...props}
-      className={className}>
+      radius="lg"
+      className={cn('flex items-center justify-center', `${className || ''}`)}
+      style={{ width: size, height: size }}
+      {...props}>
       {first(model?.name)}
     </Avatar>
   )

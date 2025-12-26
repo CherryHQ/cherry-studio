@@ -12,8 +12,8 @@ import type {
   SDKMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import { autoDiscoverGitBash } from '@main/utils/process'
@@ -103,7 +103,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
 
-    const apiConfig = await apiConfigService.get()
+    const apiConfig = preferenceService.getMultiple({
+      host: 'feature.csaas.host',
+      port: 'feature.csaas.port',
+      apiKey: 'feature.csaas.api_key'
+    })
     const loginShellEnv = await getLoginShellEnvironment()
     const loginShellEnvWithoutProxies = Object.fromEntries(
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
@@ -115,9 +119,9 @@ class ClaudeCodeService implements AgentServiceInterface {
     const env = {
       ...loginShellEnvWithoutProxies,
       // TODO: fix the proxy api server
-      // ANTHROPIC_API_KEY: apiConfig.apiKey,
-      // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
-      // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
+      // ANTHROPIC_API_KEY: apiConfig['feature.csaas.api_key'],
+      // ANTHROPIC_AUTH_TOKEN: apiConfig['feature.csaas.api_key'],
+      // ANTHROPIC_BASE_URL: `http://${apiConfig['feature.csaas.host']}:${apiConfig['feature.csaas.port']}/${modelInfo.provider.id}`,
       ANTHROPIC_API_KEY: modelInfo.provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
       ANTHROPIC_BASE_URL: modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost,
