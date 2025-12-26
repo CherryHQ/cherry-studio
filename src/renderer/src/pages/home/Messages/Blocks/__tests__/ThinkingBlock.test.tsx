@@ -132,6 +132,9 @@ describe('ThinkingBlock', () => {
         if (key === 'chat.thinking' && params?.seconds) {
           return `Thinking... ${params.seconds}s`
         }
+        if (key === 'chat.thinking_with_effort' && params?.seconds && params?.effort) {
+          return `Thinking... (${params.effort}) ${params.seconds}s`
+        }
         if (key === 'chat.deeply_thought' && params?.seconds) {
           return `Thought for ${params.seconds}s`
         }
@@ -251,6 +254,19 @@ describe('ThinkingBlock', () => {
 
       const { unmount } = renderThinkingBlock(completedBlock)
       expect(getThinkingTimeText()).toHaveTextContent('Thought (Low) for 3.5s')
+      unmount()
+    })
+
+    it('should display reasoning effort label during thinking when available', () => {
+      const thinkingBlock = createThinkingBlock({
+        thinking_millsec: 1000,
+        status: MessageBlockStatus.STREAMING,
+        metadata: { reasoning_effort: 'low' } as any
+      })
+
+      const { unmount } = renderThinkingBlock(thinkingBlock)
+      expect(getThinkingTimeText()).toHaveTextContent('Thinking...')
+      expect(getThinkingTimeText()).toHaveTextContent('Low')
       unmount()
     })
 
