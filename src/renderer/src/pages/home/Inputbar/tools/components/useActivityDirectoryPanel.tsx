@@ -193,11 +193,11 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
           try {
             const files = await window.api.file.listDirectory(dirPath, {
               recursive: true,
-              maxDepth: 4,
+              maxDepth: 10,
               includeHidden: false,
               includeFiles: true,
               includeDirectories: true,
-              maxEntries: MAX_FILE_RESULTS,
+              maxEntries: 20,
               searchPattern: searchPattern || '.'
             })
 

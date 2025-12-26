@@ -130,16 +130,18 @@ interface DirectoryListOptions {
   includeDirectories?: boolean
   maxEntries?: number
   searchPattern?: string
+  fuzzy?: boolean
 }
 
 const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
   recursive: true,
-  maxDepth: 3,
+  maxDepth: 10,
   includeHidden: false,
   includeFiles: true,
   includeDirectories: true,
-  maxEntries: 10,
-  searchPattern: '.'
+  maxEntries: 20,
+  searchPattern: '.',
+  fuzzy: true
 }
 
 class FileStorage {
@@ -1046,112 +1048,155 @@ class FileStorage {
   }
 
   /**
-   * Search files by content pattern
+   * Fuzzy match: checks if all characters in query appear in text in order (case-insensitive)
+   * Example: "updater" matches "packages/update/src/node/updateController.ts"
    */
-  private async searchByContent(resolvedPath: string, options: Required<DirectoryListOptions>): Promise<string[]> {
-    const args: string[] = ['-l']
+  private isFuzzyMatch(text: string, query: string): boolean {
+    let i = 0 // text index
+    let j = 0 // query index
+    const textLower = text.toLowerCase()
+    const queryLower = query.toLowerCase()
 
-    // Handle hidden files
-    if (!options.includeHidden) {
-      args.push('--glob', '!.*')
+    while (i < textLower.length && j < queryLower.length) {
+      if (textLower[i] === queryLower[j]) {
+        j++
+      }
+      i++
+    }
+    return j === queryLower.length
+  }
+
+  /**
+   * Calculate fuzzy match score (higher is better)
+   * Scoring factors:
+   * - Consecutive character matches (bonus)
+   * - Match at word boundaries (bonus)
+   * - Shorter path length (bonus)
+   * - Match in filename vs directory (bonus)
+   */
+  private getFuzzyMatchScore(filePath: string, query: string): number {
+    const pathLower = filePath.toLowerCase()
+    const queryLower = query.toLowerCase()
+    const fileName = filePath.split('/').pop() || ''
+    const fileNameLower = fileName.toLowerCase()
+
+    let score = 0
+
+    // Count how many times query-related words appear in path segments
+    const pathSegments = pathLower.split(/[/\\]/)
+    let segmentMatchCount = 0
+    for (const segment of pathSegments) {
+      if (this.isFuzzyMatch(segment, queryLower)) {
+        segmentMatchCount++
+      }
+    }
+    // Higher weight for multiple segment matches
+    score += segmentMatchCount * 60
+
+    // Bonus for exact substring match in filename (e.g., "updater" in "RCUpdater.js")
+    if (fileNameLower.includes(queryLower)) {
+      score += 80
     }
 
-    // Exclude common hidden directories and large directories
-    args.push('-g', '!**/node_modules/**')
-    args.push('-g', '!**/.git/**')
-    args.push('-g', '!**/.idea/**')
-    args.push('-g', '!**/.vscode/**')
-    args.push('-g', '!**/.DS_Store')
-    args.push('-g', '!**/dist/**')
-    args.push('-g', '!**/build/**')
-    args.push('-g', '!**/.next/**')
-    args.push('-g', '!**/.nuxt/**')
-    args.push('-g', '!**/coverage/**')
-    args.push('-g', '!**/.cache/**')
-
-    // Handle max depth
-    if (!options.recursive) {
-      args.push('--max-depth', '1')
-    } else if (options.maxDepth > 0) {
-      args.push('--max-depth', options.maxDepth.toString())
+    // Bonus for filename starting with query
+    if (fileNameLower.startsWith(queryLower)) {
+      score += 100
     }
 
-    // Handle max count
-    if (options.maxEntries > 0) {
-      args.push('--max-count', options.maxEntries.toString())
+    // Calculate consecutive match bonus
+    let i = 0
+    let j = 0
+    let consecutiveCount = 0
+    let maxConsecutive = 0
+
+    while (i < pathLower.length && j < queryLower.length) {
+      if (pathLower[i] === queryLower[j]) {
+        consecutiveCount++
+        maxConsecutive = Math.max(maxConsecutive, consecutiveCount)
+        j++
+      } else {
+        consecutiveCount = 0
+      }
+      i++
+    }
+    score += maxConsecutive * 15
+
+    // Bonus for word boundary matches (e.g., "upd" matches start of "update")
+    const words = pathLower.split(/[/\\._-]/)
+    for (const word of words) {
+      if (word.startsWith(queryLower.slice(0, Math.min(3, queryLower.length)))) {
+        score += 20
+      }
     }
 
-    // Add search pattern (search in content)
-    args.push(options.searchPattern)
+    // Penalty for longer paths (prefer shorter, more specific matches)
+    score -= filePath.length * 0.8
 
-    // Add the directory path
-    args.push(resolvedPath)
-
-    const { exitCode, output } = await executeRipgrep(args)
-
-    // Exit code 0 means files found, 1 means no files found (still success), 2+ means error
-    if (exitCode >= 2) {
-      throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
-    }
-
-    // Parse ripgrep output (already sorted by relevance)
-    const results = output
-      .split('\n')
-      .filter((line) => line.trim())
-      .map((line) => line.replace(/\\/g, '/'))
-      .slice(0, options.maxEntries)
-
-    return results
+    return score
   }
 
   private async listDirectoryWithRipgrep(
     resolvedPath: string,
     options: Required<DirectoryListOptions>
   ): Promise<string[]> {
-    const maxEntries = options.maxEntries
+    // Fuzzy search mode: get all files and filter in JS
+    if (options.fuzzy && options.searchPattern && options.searchPattern !== '.') {
+      const args: string[] = ['--files']
 
-    // Step 1: Search by filename first
+      // Handle hidden files
+      if (!options.includeHidden) {
+        args.push('--glob', '!.*')
+      }
+
+      // Exclude common hidden directories and large directories
+      args.push('-g', '!**/node_modules/**')
+      args.push('-g', '!**/.git/**')
+      args.push('-g', '!**/.idea/**')
+      args.push('-g', '!**/.vscode/**')
+      args.push('-g', '!**/.DS_Store')
+      args.push('-g', '!**/dist/**')
+      args.push('-g', '!**/build/**')
+      args.push('-g', '!**/.next/**')
+      args.push('-g', '!**/.nuxt/**')
+      args.push('-g', '!**/coverage/**')
+      args.push('-g', '!**/.cache/**')
+
+      // Handle max depth
+      if (!options.recursive) {
+        args.push('--max-depth', '1')
+      } else if (options.maxDepth > 0) {
+        args.push('--max-depth', options.maxDepth.toString())
+      }
+
+      args.push(resolvedPath)
+
+      const { exitCode, output } = await executeRipgrep(args)
+
+      if (exitCode >= 2) {
+        throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
+      }
+
+      const allFiles = output
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((line) => line.replace(/\\/g, '/'))
+
+      const matchedFiles = allFiles.filter((file) => this.isFuzzyMatch(file, options.searchPattern))
+
+      // Sort by relevance score (higher score first)
+      return matchedFiles
+        .map((file) => ({ file, score: this.getFuzzyMatchScore(file, options.searchPattern) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, options.maxEntries)
+        .map((item) => item.file)
+    }
+
+    // Fallback: search by filename only (non-fuzzy mode)
     logger.debug('Searching by filename pattern', { pattern: options.searchPattern, path: resolvedPath })
     const filenameResults = await this.searchByFilename(resolvedPath, options)
 
     logger.debug('Found matches by filename', { count: filenameResults.length })
-
-    // If we have enough filename matches, return them
-    if (filenameResults.length >= maxEntries) {
-      return filenameResults.slice(0, maxEntries)
-    }
-
-    // Step 2: If filename matches are less than maxEntries, search by content to fill up
-    logger.debug('Filename matches insufficient, searching by content to fill up', {
-      filenameCount: filenameResults.length,
-      needed: maxEntries - filenameResults.length
-    })
-
-    // Adjust maxEntries for content search to get enough results
-    const contentOptions = {
-      ...options,
-      maxEntries: maxEntries - filenameResults.length + 20 // Request extra to account for duplicates
-    }
-
-    const contentResults = await this.searchByContent(resolvedPath, contentOptions)
-
-    logger.debug('Found matches by content', { count: contentResults.length })
-
-    // Combine results: filename matches first, then content matches (deduplicated)
-    const combined = [...filenameResults]
-    const filenameSet = new Set(filenameResults)
-
-    for (const filePath of contentResults) {
-      if (!filenameSet.has(filePath)) {
-        combined.push(filePath)
-        if (combined.length >= maxEntries) {
-          break
-        }
-      }
-    }
-
-    logger.debug('Combined results', { total: combined.length, filenameCount: filenameResults.length })
-    return combined.slice(0, maxEntries)
+    return filenameResults.slice(0, options.maxEntries)
   }
 
   public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {
