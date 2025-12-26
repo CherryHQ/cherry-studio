@@ -1135,11 +1135,22 @@ class FileStorage {
     return score
   }
 
+  /**
+   * Convert query to glob pattern for ripgrep pre-filtering
+   * e.g., "updater" -> "*u*p*d*a*t*e*r*"
+   */
+  private queryToGlobPattern(query: string): string {
+    // Escape special glob characters
+    const escaped = query.replace(/[[\]{}()*+?.,\\^$|#]/g, '\\$&')
+    // Convert to fuzzy glob: each char separated by *
+    return '*' + escaped.split('').join('*') + '*'
+  }
+
   private async listDirectoryWithRipgrep(
     resolvedPath: string,
     options: Required<DirectoryListOptions>
   ): Promise<string[]> {
-    // Fuzzy search mode: get all files and filter in JS
+    // Fuzzy search mode: use ripgrep glob for pre-filtering, then score in JS
     if (options.fuzzy && options.searchPattern && options.searchPattern !== '.') {
       const args: string[] = ['--files']
 
@@ -1161,6 +1172,10 @@ class FileStorage {
       args.push('-g', '!**/coverage/**')
       args.push('-g', '!**/.cache/**')
 
+      // Use glob pattern for pre-filtering (let ripgrep do initial fuzzy match)
+      const globPattern = this.queryToGlobPattern(options.searchPattern)
+      args.push('--iglob', globPattern)
+
       // Handle max depth
       if (!options.recursive) {
         args.push('--max-depth', '1')
@@ -1176,15 +1191,13 @@ class FileStorage {
         throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
       }
 
-      const allFiles = output
+      const filteredFiles = output
         .split('\n')
         .filter((line) => line.trim())
         .map((line) => line.replace(/\\/g, '/'))
 
-      const matchedFiles = allFiles.filter((file) => this.isFuzzyMatch(file, options.searchPattern))
-
       // Sort by relevance score (higher score first)
-      return matchedFiles
+      return filteredFiles
         .map((file) => ({ file, score: this.getFuzzyMatchScore(file, options.searchPattern) }))
         .sort((a, b) => b.score - a.score)
         .slice(0, options.maxEntries)
