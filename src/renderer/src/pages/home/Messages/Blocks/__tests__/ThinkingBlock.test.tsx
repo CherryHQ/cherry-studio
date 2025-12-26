@@ -135,6 +135,10 @@ describe('ThinkingBlock', () => {
         if (key === 'chat.deeply_thought' && params?.seconds) {
           return `Thought for ${params.seconds}s`
         }
+        if (key === 'chat.thought_done' && params?.seconds && params?.effort) {
+          return `Thought (${params.effort}) for ${params.seconds}s`
+        }
+        if (key === 'assistants.settings.reasoning_effort.low') return 'Low'
         if (key === 'message.copied') return 'Copied!'
         if (key === 'message.copy.failed') return 'Copy failed'
         if (key === 'common.copy') return 'Copy'
@@ -236,6 +240,18 @@ describe('ThinkingBlock', () => {
 
       const activeTimeText = getThinkingTimeText()
       expect(activeTimeText).toHaveTextContent('Thinking...')
+    })
+
+    it('should display reasoning effort label when available', () => {
+      const completedBlock = createThinkingBlock({
+        thinking_millsec: 3500,
+        status: MessageBlockStatus.SUCCESS,
+        metadata: { reasoning_effort: 'low' } as any
+      })
+
+      const { unmount } = renderThinkingBlock(completedBlock)
+      expect(getThinkingTimeText()).toHaveTextContent('Thought (Low) for 3.5s')
+      unmount()
     })
 
     it('should handle extreme thinking times correctly', () => {

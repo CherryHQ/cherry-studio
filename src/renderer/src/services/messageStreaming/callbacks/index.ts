@@ -1,4 +1,5 @@
 import type { Assistant } from '@renderer/types'
+import { normalizeDisplayableReasoningEffort } from '@renderer/utils/reasoningEffort'
 
 import type { BlockManager } from '../BlockManager'
 import { createBaseCallbacks } from './baseCallbacks'
@@ -23,10 +24,16 @@ interface CallbacksDependencies {
 export const createCallbacks = (deps: CallbacksDependencies) => {
   const { blockManager, dispatch, getState, topicId, assistantMsgId, saveUpdatesToDB, assistant } = deps
 
-  // 首先创建 thinkingCallbacks ，以便传递 getCurrentThinkingInfo 给 baseCallbacks
+  // 先计算思考块需要展示/记录的思考程度（用于确保回放一致）
+  const reasoningEffortForThinkingBlock =
+    normalizeDisplayableReasoningEffort(assistant?.settings?.reasoning_effort_cache) ??
+    normalizeDisplayableReasoningEffort(assistant?.settings?.reasoning_effort)
+
+  // 首先创建 thinkingCallbacks，以便传递 getCurrentThinkingInfo 给 baseCallbacks
   const thinkingCallbacks = createThinkingCallbacks({
     blockManager,
-    assistantMsgId
+    assistantMsgId,
+    reasoningEffort: reasoningEffortForThinkingBlock
   })
 
   // 创建基础回调

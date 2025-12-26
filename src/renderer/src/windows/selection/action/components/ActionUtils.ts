@@ -13,6 +13,10 @@ import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@r
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { formatErrorMessage, isAbortError, isTimeoutError } from '@renderer/utils/error'
 import { createErrorBlock, createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
+import {
+  normalizeDisplayableReasoningEffort,
+  THINKING_BLOCK_REASONING_EFFORT_KEY
+} from '@renderer/utils/reasoningEffort'
 import { cloneDeep } from 'lodash'
 
 const logger = loggerService.withContext('ActionUtils')
@@ -97,8 +101,15 @@ export const processMessages = async (
                   updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
                 )
               } else {
+                const reasoningEffortForThinkingBlock =
+                  normalizeDisplayableReasoningEffort(newAssistant?.settings?.reasoning_effort_cache) ??
+                  normalizeDisplayableReasoningEffort(newAssistant?.settings?.reasoning_effort)
+                const thinkingBlockMetadata = reasoningEffortForThinkingBlock
+                  ? { [THINKING_BLOCK_REASONING_EFFORT_KEY]: reasoningEffortForThinkingBlock }
+                  : undefined
                 const block = createThinkingBlock(assistantMessage.id, '', {
-                  status: MessageBlockStatus.STREAMING
+                  status: MessageBlockStatus.STREAMING,
+                  ...(thinkingBlockMetadata ? { metadata: thinkingBlockMetadata } : {})
                 })
                 thinkingBlockId = block.id
                 store.dispatch(
