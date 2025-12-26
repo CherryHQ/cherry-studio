@@ -15,6 +15,13 @@
       "when": 1766670360754,
       "tag": "0001_faulty_ogun",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1766748070409,
+      "tag": "0002_noisy_zzzax",
+      "breakpoints": true
     }
   ]
 }

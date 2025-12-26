@@ -1,7 +1,9 @@
+import type { AssistantMeta } from '@shared/data/types/meta'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps } from './columnHelpers'
 import { groupTable } from './group'
+import { messageTable } from './message'
 
 /**
  * Topic table - stores conversation topics/threads
@@ -14,21 +16,27 @@ export const topicTable = sqliteTable(
   {
     id: text().primaryKey(),
     name: text(),
+    // Whether the name was manually edited by user
+    isNameManuallyEdited: integer({ mode: 'boolean' }).default(false),
+    // FK to assistant table
     assistantId: text(),
     // Preserved assistant info for display when assistant is deleted
-    assistantMeta: text({ mode: 'json' }),
+    assistantMeta: text({ mode: 'json' }).$type<AssistantMeta>(),
     // Topic-specific prompt override
     prompt: text(),
+    // Active node ID in the message tree
+    // SET NULL: reset to null when the referenced message is deleted
+    activeNodeId: text().references(() => messageTable.id, { onDelete: 'set null' }),
+
     // FK to group table for organization
     // SET NULL: preserve topic when group is deleted
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
+    // Sort order within group
+    sortOrder: integer().default(0),
     // Pinning state and order
     isPinned: integer({ mode: 'boolean' }).default(false),
     pinnedOrder: integer().default(0),
-    // Sort order within group
-    sortOrder: integer().default(0),
-    // Whether the name was manually edited by user
-    isNameManuallyEdited: integer({ mode: 'boolean' }).default(false),
+
     ...createUpdateDeleteTimestamps
   },
   (t) => [

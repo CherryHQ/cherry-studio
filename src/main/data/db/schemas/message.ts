@@ -1,4 +1,5 @@
 import type { MessageData, MessageStats } from '@shared/data/types/message'
+import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
@@ -16,35 +17,39 @@ export const messageTable = sqliteTable(
   'message',
   {
     id: text().primaryKey(),
+    // Adjacency list parent reference for tree structure
+    // SET NULL: preserve child messages when parent is deleted
+    parentId: text().references(() => messageTable.id, { onDelete: 'set null' }),
     // FK to topic - CASCADE: delete messages when topic is deleted
     topicId: text()
       .notNull()
       .references(() => topicTable.id, { onDelete: 'cascade' }),
-    // Adjacency list parent reference for tree structure
-    // SET NULL: preserve child messages when parent is deleted
-    parentId: text().references(() => messageTable.id, { onDelete: 'set null' }),
-    // Group ID for multi-model responses (0 = normal branch)
-    responseGroupId: integer().default(0),
     // Message role: user, assistant, system
     role: text().notNull(),
+    // Main content - contains blocks[], mentions, etc.
+    data: text({ mode: 'json' }).$type<MessageData>().notNull(),
+    // Searchable text extracted from data.blocks (populated by trigger, used for FTS5)
+    searchableText: text(),
+
     // Final status: SUCCESS, ERROR, PAUSED
     status: text().notNull(),
+
+    // Group ID for siblings (0 = normal branch)
+    siblingsGroupId: integer().default(0),
     // FK to assistant
     assistantId: text(),
     // Preserved assistant info for display
-    assistantMeta: text({ mode: 'json' }),
+    assistantMeta: text({ mode: 'json' }).$type<AssistantMeta>(),
     // Model identifier
     modelId: text(),
     // Preserved model info (provider, name)
-    modelMeta: text({ mode: 'json' }),
-    // Main content - contains blocks[], mentions, etc.
-    data: text({ mode: 'json' }).$type<MessageData>().notNull(),
+    modelMeta: text({ mode: 'json' }).$type<ModelMeta>(),
+    // Trace ID for tracking
+
+    traceId: text(),
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),
-    // Trace ID for tracking
-    traceId: text(),
-    // Searchable text extracted from data.blocks (populated by trigger, used for FTS5)
-    searchableText: text(),
+
     ...createUpdateDeleteTimestamps
   },
   (t) => [
