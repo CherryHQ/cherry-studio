@@ -1130,10 +1130,13 @@ class FileStorage {
     score += maxConsecutive * FileStorage.SCORE_CONSECUTIVE_CHAR
 
     // Bonus for word boundary matches (e.g., "upd" matches start of "update")
+    // Only count once to avoid inflating scores for paths with repeated patterns
+    const boundaryPrefix = queryLower.slice(0, Math.min(3, queryLower.length))
     const words = pathLower.split(/[/\\._-]/)
     for (const word of words) {
-      if (word.startsWith(queryLower.slice(0, Math.min(3, queryLower.length)))) {
+      if (word.startsWith(boundaryPrefix)) {
         score += FileStorage.SCORE_WORD_BOUNDARY
+        break
       }
     }
 
