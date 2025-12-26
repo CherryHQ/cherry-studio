@@ -163,9 +163,11 @@ const ThinkingTimeSeconds = memo(
     }, [reasoningEffort, t])
 
     return isThinking
-      ? t('chat.thinking', {
-          seconds: thinkingTimeSeconds
-        })
+      ? reasoningEffortLabel
+        ? t('chat.thinking_with_effort', { seconds: thinkingTimeSeconds, effort: reasoningEffortLabel })
+        : t('chat.thinking', {
+            seconds: thinkingTimeSeconds
+          })
       : reasoningEffortLabel
         ? t('chat.thought_done', { seconds: thinkingTimeSeconds, effort: reasoningEffortLabel })
         : t('chat.deeply_thought', {

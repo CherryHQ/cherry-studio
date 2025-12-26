@@ -976,6 +976,7 @@
       "title": "提案された質問"
     },
     "thinking": "思考中（用時 {{seconds}} 秒）",
+    "thinking_with_effort": "思考中（{{effort}}）（用時 {{seconds}} 秒）",
     "thought_done": "思考済み（{{effort}}）（用時 {{seconds}} 秒）",
     "topics": {
       "auto_rename": "自動リネーム",

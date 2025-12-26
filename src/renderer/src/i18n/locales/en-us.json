@@ -976,6 +976,7 @@
       "title": "Suggested Questions"
     },
     "thinking": "Thinking ({{seconds}} seconds)",
+    "thinking_with_effort": "Thinking ({{effort}}) ({{seconds}} seconds)",
     "thought_done": "Thought ({{effort}}) ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "Auto Rename",
