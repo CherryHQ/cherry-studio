@@ -141,6 +141,18 @@ class ClaudeCodeService implements AgentServiceInterface {
     const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
     const normalizeToolName = (name: string) => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
 
+    // Check if a tool is allowed (handles both builtin tools and MCP tools)
+    // MCP tools in allowed_tools use format: 'mcp_{serverId}_{toolName}'
+    const isToolAllowed = (toolName: string): boolean => {
+      const name = normalizeToolName(toolName)
+      // Direct match for builtin tools (e.g., 'Read', 'Glob', 'Grep')
+      if (autoAllowTools.has(name)) {
+        return true
+      }
+      // MCP tools: check if 'mcp_{mcpId}_{toolName}' exists in allowed_tools
+      return (session.mcps ?? []).some((mcpId) => autoAllowTools.has(`mcp_${mcpId}_${name}`))
+    }
+
     const canUseTool: CanUseTool = async (toolName, input, options) => {
       logger.info('Handling tool permission check', {
         toolName,
@@ -160,11 +172,11 @@ class ClaudeCodeService implements AgentServiceInterface {
         }
       }
 
-      const normalizedToolName = normalizeToolName(toolName)
-      if (autoAllowTools.has(toolName) || autoAllowTools.has(normalizedToolName)) {
+      if (isToolAllowed(toolName)) {
         logger.debug('Auto-allowing tool from allowed list', {
           toolName,
-          normalizedToolName
+          normalizedToolName: normalizeToolName(toolName),
+          mcpIds: session.mcps
         })
         return { behavior: 'allow', updatedInput: input }
       }
@@ -202,18 +214,17 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
 
       // handle auto approved tools since it never triggers canUseTool
-      const normalizedToolName = normalizeToolName(toolName)
       if (toolUseID) {
         const bypassAll = input.permission_mode === 'bypassPermissions'
-        const autoAllowed = autoAllowTools.has(toolName) || autoAllowTools.has(normalizedToolName)
+        const autoAllowed = isToolAllowed(toolName)
         if (bypassAll || autoAllowed) {
           const namespacedToolCallId = buildNamespacedToolCallId(session.id, toolUseID)
           logger.debug('handling auto approved tools', {
             toolName,
-            normalizedToolName,
+            normalizedToolName: normalizeToolName(toolName),
             namespacedToolCallId,
             permission_mode: input.permission_mode,
-            autoAllowTools
+            mcpIds: session.mcps
           })
           const isRecord = (v: unknown): v is Record<string, unknown> => {
             return !!v && typeof v === 'object' && !Array.isArray(v)
