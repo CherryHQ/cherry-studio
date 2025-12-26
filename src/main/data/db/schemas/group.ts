@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey } from './columnHelpers'
 
 /**
  * Group table - general-purpose grouping for entities
@@ -11,7 +11,7 @@ import { createUpdateTimestamps } from './columnHelpers'
 export const groupTable = sqliteTable(
   'group',
   {
-    id: text().primaryKey(),
+    id: uuidPrimaryKey(),
     // Entity type this group belongs to: topic, session, assistant
     entityType: text().notNull(),
     // Display name of the group

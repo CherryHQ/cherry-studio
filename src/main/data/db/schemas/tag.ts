@@ -1,6 +1,6 @@
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey } from './columnHelpers'
 
 /**
  * Tag table - general-purpose tags for entities
@@ -9,7 +9,7 @@ import { createUpdateTimestamps } from './columnHelpers'
  * via the entity_tag join table.
  */
 export const tagTable = sqliteTable('tag', {
-  id: text().primaryKey(),
+  id: uuidPrimaryKey(),
   // Unique tag name
   name: text().notNull().unique(),
   // Display color (hex code)

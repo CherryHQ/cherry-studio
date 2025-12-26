@@ -3,7 +3,7 @@ import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateDeleteTimestamps } from './columnHelpers'
+import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './columnHelpers'
 import { topicTable } from './topic'
 
 /**
@@ -16,7 +16,7 @@ import { topicTable } from './topic'
 export const messageTable = sqliteTable(
   'message',
   {
-    id: text().primaryKey(),
+    id: uuidPrimaryKeyOrdered(),
     // Adjacency list parent reference for tree structure
     // SET NULL: preserve child messages when parent is deleted
     parentId: text().references(() => messageTable.id, { onDelete: 'set null' }),

@@ -1,7 +1,7 @@
 import type { AssistantMeta } from '@shared/data/types/meta'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateDeleteTimestamps } from './columnHelpers'
+import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './columnHelpers'
 import { groupTable } from './group'
 import { messageTable } from './message'
 
@@ -14,7 +14,7 @@ import { messageTable } from './message'
 export const topicTable = sqliteTable(
   'topic',
   {
-    id: text().primaryKey(),
+    id: uuidPrimaryKey(),
     name: text(),
     // Whether the name was manually edited by user
     isNameManuallyEdited: integer({ mode: 'boolean' }).default(false),
