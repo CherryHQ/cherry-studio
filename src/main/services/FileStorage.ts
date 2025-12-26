@@ -1146,6 +1146,49 @@ class FileStorage {
     return '*' + escaped.split('').join('*') + '*'
   }
 
+  /**
+   * Greedy substring match: check if all characters in query can be matched
+   * by finding consecutive substrings in text (not necessarily single chars)
+   * e.g., "updatercontroller" matches "updateController" by:
+   *   "update" + "r" (from Controller) + "controller"
+   */
+  private isGreedySubstringMatch(text: string, query: string): boolean {
+    const textLower = text.toLowerCase()
+    const queryLower = query.toLowerCase()
+
+    let textIndex = 0
+    let queryIndex = 0
+
+    while (queryIndex < queryLower.length && textIndex < textLower.length) {
+      // Try to find the longest matching substring starting at queryIndex
+      let matchLen = 0
+      for (let len = 1; len <= queryLower.length - queryIndex; len++) {
+        const substr = queryLower.slice(queryIndex, queryIndex + len)
+        const foundAt = textLower.indexOf(substr, textIndex)
+        if (foundAt !== -1) {
+          matchLen = len
+          textIndex = foundAt + len
+        } else {
+          break
+        }
+      }
+
+      if (matchLen === 0) {
+        // No match found for current character, try single char match
+        const charIndex = textLower.indexOf(queryLower[queryIndex], textIndex)
+        if (charIndex === -1) {
+          return false
+        }
+        textIndex = charIndex + 1
+        queryIndex++
+      } else {
+        queryIndex += matchLen
+      }
+    }
+
+    return queryIndex === queryLower.length
+  }
+
   private async listDirectoryWithRipgrep(
     resolvedPath: string,
     options: Required<DirectoryListOptions>
@@ -1196,8 +1239,57 @@ class FileStorage {
         .filter((line) => line.trim())
         .map((line) => line.replace(/\\/g, '/'))
 
-      // Sort by relevance score (higher score first)
-      return filteredFiles
+      // If fuzzy glob found results, sort and return
+      if (filteredFiles.length > 0) {
+        return filteredFiles
+          .map((file) => ({ file, score: this.getFuzzyMatchScore(file, options.searchPattern) }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, options.maxEntries)
+          .map((item) => item.file)
+      }
+
+      // Fallback: if no results, try greedy substring match on all files
+      logger.debug('Fuzzy glob returned no results, falling back to greedy substring match')
+      const fallbackArgs: string[] = ['--files']
+
+      if (!options.includeHidden) {
+        fallbackArgs.push('--glob', '!.*')
+      }
+
+      fallbackArgs.push('-g', '!**/node_modules/**')
+      fallbackArgs.push('-g', '!**/.git/**')
+      fallbackArgs.push('-g', '!**/.idea/**')
+      fallbackArgs.push('-g', '!**/.vscode/**')
+      fallbackArgs.push('-g', '!**/.DS_Store')
+      fallbackArgs.push('-g', '!**/dist/**')
+      fallbackArgs.push('-g', '!**/build/**')
+      fallbackArgs.push('-g', '!**/.next/**')
+      fallbackArgs.push('-g', '!**/.nuxt/**')
+      fallbackArgs.push('-g', '!**/coverage/**')
+      fallbackArgs.push('-g', '!**/.cache/**')
+
+      if (!options.recursive) {
+        fallbackArgs.push('--max-depth', '1')
+      } else if (options.maxDepth > 0) {
+        fallbackArgs.push('--max-depth', options.maxDepth.toString())
+      }
+
+      fallbackArgs.push(resolvedPath)
+
+      const fallbackResult = await executeRipgrep(fallbackArgs)
+
+      if (fallbackResult.exitCode >= 2) {
+        return []
+      }
+
+      const allFiles = fallbackResult.output
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((line) => line.replace(/\\/g, '/'))
+
+      const greedyMatched = allFiles.filter((file) => this.isGreedySubstringMatch(file, options.searchPattern))
+
+      return greedyMatched
         .map((file) => ({ file, score: this.getFuzzyMatchScore(file, options.searchPattern) }))
         .sort((a, b) => b.score - a.score)
         .slice(0, options.maxEntries)
