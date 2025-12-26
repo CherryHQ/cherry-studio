@@ -36,7 +36,7 @@ yarn install
 ### ENV
 
 ```bash
-copy .env.example .env
+cp .env.example .env
 ```
 
 ### Start
