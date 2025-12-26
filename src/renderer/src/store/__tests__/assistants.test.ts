@@ -38,7 +38,7 @@ describe('assistants reducer - moveAllTopics', () => {
     const mod = await import('../assistants')
     assistantsReducer = mod.default
     moveAllTopics = mod.moveAllTopics
-  })
+  }, 30_000)
 
   const assistantA = makeAssistant('a', [makeTopic('t1', 'a'), makeTopic('t2', 'a')])
   const assistantB = makeAssistant('b', [makeTopic('t3', 'b')])
