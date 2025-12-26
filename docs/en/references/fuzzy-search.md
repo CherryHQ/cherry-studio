@@ -4,14 +4,14 @@ This document describes the fuzzy search implementation for file listing in Cher
 
 ## Overview
 
-The fuzzy search feature allows users to find files by typing partial or approximate file names/paths. It uses a two-tier matching strategy for optimal performance and flexibility.
+The fuzzy search feature allows users to find files by typing partial or approximate file names/paths. It uses a two-tier file filtering strategy (ripgrep glob pre-filtering with greedy substring fallback) combined with subsequence-based scoring for optimal performance and flexibility.
 
 ## Features
 
-- **Subsequence Matching**: Characters in the query must appear in order in the file path, but not necessarily consecutively
-- **Greedy Substring Matching**: Fallback strategy when subsequence matching returns no results
-- **Relevance Scoring**: Results are sorted by relevance score
-- **Performance Optimized**: Uses ripgrep for pre-filtering before JavaScript processing
+- **Ripgrep Glob Pre-filtering**: Primary filtering using glob patterns for fast native-level filtering
+- **Greedy Substring Matching**: Fallback file filtering strategy when ripgrep glob pre-filtering returns no results
+- **Subsequence-based Segment Scoring**: During scoring, path segments gain additional weight when query characters appear in order
+- **Relevance Scoring**: Results are sorted by a relevance score derived from multiple factors
 
 ## Matching Strategies
 
