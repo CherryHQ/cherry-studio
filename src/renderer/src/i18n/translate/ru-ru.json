@@ -976,7 +976,7 @@
       "title": "Предложенные вопросы"
     },
     "thinking": "Мыслим ({{seconds}} секунд)",
-    "thinking_with_effort": "Мыслим ({{effort}}) ({{seconds}} секунд)",
+    "thinking_effort_in_progress": "Мыслим ({{effort}}) ({{seconds}} секунд)",
     "thought_done": "Обдумано ({{effort}}) ({{seconds}} секунд)",
     "topics": {
       "auto_rename": "Автопереименование",

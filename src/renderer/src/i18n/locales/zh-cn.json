@@ -976,7 +976,7 @@
       "title": "建议的问题"
     },
     "thinking": "思考中（用时 {{seconds}} 秒）",
-    "thinking_with_effort": "思考中（{{effort}}，用时 {{seconds}} 秒）",
+    "thinking_effort_in_progress": "{{effort}}中（用时 {{seconds}} 秒）",
     "thought_done": "已{{effort}}（用时 {{seconds}} 秒）",
     "topics": {
       "auto_rename": "生成话题名",

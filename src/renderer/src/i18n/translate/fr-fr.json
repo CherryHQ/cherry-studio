@@ -976,7 +976,7 @@
       "title": "Questions suggérées"
     },
     "thinking": "En réflexion",
-    "thinking_with_effort": "En réflexion ({{effort}}) ({{seconds}} secondes)",
+    "thinking_effort_in_progress": "En réflexion ({{effort}}) ({{seconds}} secondes)",
     "thought_done": "Réflexion ({{effort}}) ({{seconds}} secondes)",
     "topics": {
       "auto_rename": "Générer un nom de sujet",

@@ -976,7 +976,7 @@
       "title": "Perguntas sugeridas"
     },
     "thinking": "Pensando",
-    "thinking_with_effort": "Pensando ({{effort}}) ({{seconds}} segundos)",
+    "thinking_effort_in_progress": "Pensando ({{effort}}) ({{seconds}} segundos)",
     "thought_done": "Pensado ({{effort}}) ({{seconds}} segundos)",
     "topics": {
       "auto_rename": "Gerar nome de tópico",
