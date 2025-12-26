@@ -132,7 +132,7 @@ describe('ThinkingBlock', () => {
         if (key === 'chat.thinking' && params?.seconds) {
           return `Thinking... ${params.seconds}s`
         }
-        if (key === 'chat.thinking_with_effort' && params?.seconds && params?.effort) {
+        if (key === 'chat.thinking_effort_in_progress' && params?.seconds && params?.effort) {
           return `Thinking... (${params.effort}) ${params.seconds}s`
         }
         if (key === 'chat.deeply_thought' && params?.seconds) {
