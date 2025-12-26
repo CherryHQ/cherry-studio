@@ -976,6 +976,7 @@
       "title": "Vorgeschlagene Fragen"
     },
     "thinking": "Denkt ({{seconds}} Sekunden)",
+    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "Themenname generieren",
       "clear": {
@@ -4672,6 +4673,7 @@
       "actions": "Aktionen",
       "clear_shortcut": "Shortcut löschen",
       "clear_topic": "Nachricht leeren",
+      "close_tab": "[to be translated]:Close tab",
       "copy_last_message": "Letzte Nachricht kopieren",
       "edit_last_user_message": "Letzte Benutzernachricht bearbeiten",
       "enabled": "Aktivieren",

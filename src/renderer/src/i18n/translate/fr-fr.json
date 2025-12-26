@@ -976,6 +976,7 @@
       "title": "Questions suggérées"
     },
     "thinking": "En réflexion",
+    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "Générer un nom de sujet",
       "clear": {
@@ -4672,6 +4673,7 @@
       "actions": "操作",
       "clear_shortcut": "Effacer raccourci clavier",
       "clear_topic": "Vider les messages",
+      "close_tab": "[to be translated]:Close tab",
       "copy_last_message": "Copier le dernier message",
       "edit_last_user_message": "Éditer le dernier message utilisateur",
       "enabled": "activer",

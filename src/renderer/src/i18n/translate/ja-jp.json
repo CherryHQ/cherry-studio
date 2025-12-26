@@ -976,6 +976,7 @@
       "title": "提案された質問"
     },
     "thinking": "思考中（用時 {{seconds}} 秒）",
+    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "自動リネーム",
       "clear": {
@@ -4672,6 +4673,7 @@
       "actions": "操作",
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
+      "close_tab": "[to be translated]:Close tab",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
       "enabled": "有効化",

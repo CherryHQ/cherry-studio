@@ -976,6 +976,7 @@
       "title": "Perguntas sugeridas"
     },
     "thinking": "Pensando",
+    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "Gerar nome de tópico",
       "clear": {
@@ -4672,6 +4673,7 @@
       "actions": "operação",
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
+      "close_tab": "[to be translated]:Close tab",
       "copy_last_message": "Copiar a última mensagem",
       "edit_last_user_message": "Editar última mensagem do usuário",
       "enabled": "ativar",

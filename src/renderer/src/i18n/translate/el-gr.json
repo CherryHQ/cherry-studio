@@ -976,6 +976,7 @@
       "title": "Προτεινόμενες ερωτήσεις"
     },
     "thinking": "Σκέψη",
+    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "Δημιουργία θέματος",
       "clear": {
@@ -4672,6 +4673,7 @@
       "actions": "Λειτουργία",
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
+      "close_tab": "[to be translated]:Close tab",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
       "enabled": "ενεργοποίηση",

@@ -3,7 +3,9 @@ import { loggerService } from '@logger'
 import ThinkingEffect from '@renderer/components/ThinkingEffect'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import type { ThinkingOption } from '@renderer/types'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
+import { getReasoningEffortLabelI18nKey, THINKING_BLOCK_REASONING_EFFORT_KEY } from '@renderer/utils/reasoningEffort'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +25,9 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
+  const reasoningEffort = useMemo(() => {
+    return (block.metadata?.[THINKING_BLOCK_REASONING_EFFORT_KEY] as ThinkingOption | undefined) ?? undefined
+  }, [block.metadata])
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -66,7 +71,11 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
               expanded={activeKey === 'thought'}
               isThinking={isThinking}
               thinkingTimeText={
-                <ThinkingTimeSeconds blockThinkingTime={block.thinking_millsec} isThinking={isThinking} />
+                <ThinkingTimeSeconds
+                  blockThinkingTime={block.thinking_millsec}
+                  isThinking={isThinking}
+                  reasoningEffort={reasoningEffort}
+                />
               }
               content={block.content}
             />
@@ -105,7 +114,15 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
 const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
 
 const ThinkingTimeSeconds = memo(
-  ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
+  ({
+    blockThinkingTime,
+    isThinking,
+    reasoningEffort
+  }: {
+    blockThinkingTime: number
+    isThinking: boolean
+    reasoningEffort?: ThinkingOption
+  }) => {
     const { t } = useTranslation()
     const [displayTime, setDisplayTime] = useState(normalizeThinkingTime(blockThinkingTime))
 
@@ -139,13 +156,21 @@ const ThinkingTimeSeconds = memo(
       return ((safeTime < 1000 ? 100 : safeTime) / 1000).toFixed(1)
     }, [displayTime])
 
+    const reasoningEffortLabel = useMemo(() => {
+      const labelKey = getReasoningEffortLabelI18nKey(reasoningEffort)
+      if (!labelKey) return undefined
+      return t(labelKey)
+    }, [reasoningEffort, t])
+
     return isThinking
       ? t('chat.thinking', {
           seconds: thinkingTimeSeconds
         })
-      : t('chat.deeply_thought', {
-          seconds: thinkingTimeSeconds
-        })
+      : reasoningEffortLabel
+        ? t('chat.thought_done', { seconds: thinkingTimeSeconds, effort: reasoningEffortLabel })
+        : t('chat.deeply_thought', {
+            seconds: thinkingTimeSeconds
+          })
   }
 )
 

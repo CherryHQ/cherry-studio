@@ -1,4 +1,5 @@
 import type { Assistant } from '@renderer/types'
+import { normalizeDisplayableReasoningEffort } from '@renderer/utils/reasoningEffort'
 
 import type { BlockManager } from '../BlockManager'
 import { createBaseCallbacks } from './baseCallbacks'
@@ -35,9 +36,14 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
   })
 
   // 创建各类回调
+  const reasoningEffortForThinkingBlock =
+    normalizeDisplayableReasoningEffort(assistant?.settings?.reasoning_effort_cache) ??
+    normalizeDisplayableReasoningEffort(assistant?.settings?.reasoning_effort)
+
   const thinkingCallbacks = createThinkingCallbacks({
     blockManager,
-    assistantMsgId
+    assistantMsgId,
+    reasoningEffort: reasoningEffortForThinkingBlock
   })
 
   const toolCallbacks = createToolCallbacks({

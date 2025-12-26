@@ -22,6 +22,10 @@ import { isAbortError } from '@renderer/utils/error'
 import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { replacePromptVariables } from '@renderer/utils/prompt'
+import {
+  normalizeDisplayableReasoningEffort,
+  THINKING_BLOCK_REASONING_EFFORT_KEY
+} from '@renderer/utils/reasoningEffort'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
@@ -308,8 +312,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                       updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
                     )
                   } else {
+                    const reasoningEffortForThinkingBlock =
+                      normalizeDisplayableReasoningEffort(newAssistant?.settings?.reasoning_effort_cache) ??
+                      normalizeDisplayableReasoningEffort(newAssistant?.settings?.reasoning_effort)
+                    const thinkingBlockMetadata = reasoningEffortForThinkingBlock
+                      ? { [THINKING_BLOCK_REASONING_EFFORT_KEY]: reasoningEffortForThinkingBlock }
+                      : undefined
                     const block = createThinkingBlock(assistantMessage.id, '', {
-                      status: MessageBlockStatus.STREAMING
+                      status: MessageBlockStatus.STREAMING,
+                      ...(thinkingBlockMetadata ? { metadata: thinkingBlockMetadata } : {})
                     })
                     thinkingBlockId = block.id
                     store.dispatch(

@@ -976,6 +976,7 @@
       "title": "Предложенные вопросы"
     },
     "thinking": "Мыслим ({{seconds}} секунд)",
+    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "Автопереименование",
       "clear": {
@@ -4672,6 +4673,7 @@
       "actions": "操作",
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
+      "close_tab": "[to be translated]:Close tab",
       "copy_last_message": "Копировать последнее сообщение",
       "edit_last_user_message": "Редактировать последнее сообщение пользователя",
       "enabled": "Включить",

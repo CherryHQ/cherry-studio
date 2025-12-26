@@ -1,7 +1,12 @@
 import { loggerService } from '@logger'
+import type { ThinkingOption } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createThinkingBlock } from '@renderer/utils/messageUtils/create'
+import {
+  normalizeDisplayableReasoningEffort,
+  THINKING_BLOCK_REASONING_EFFORT_KEY
+} from '@renderer/utils/reasoningEffort'
 
 import type { BlockManager } from '../BlockManager'
 
@@ -9,10 +14,15 @@ const logger = loggerService.withContext('ThinkingCallbacks')
 interface ThinkingCallbacksDependencies {
   blockManager: BlockManager
   assistantMsgId: string
+  reasoningEffort?: ThinkingOption
 }
 
 export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => {
-  const { blockManager, assistantMsgId } = deps
+  const { blockManager, assistantMsgId, reasoningEffort } = deps
+  const displayableReasoningEffort = normalizeDisplayableReasoningEffort(reasoningEffort)
+  const thinkingBlockMetadata = displayableReasoningEffort
+    ? { [THINKING_BLOCK_REASONING_EFFORT_KEY]: displayableReasoningEffort }
+    : undefined
 
   // 内部维护的状态
   let thinkingBlockId: string | null = null
@@ -25,14 +35,16 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
           type: MessageBlockType.THINKING,
           content: '',
           status: MessageBlockStatus.STREAMING,
-          thinking_millsec: 0
+          thinking_millsec: 0,
+          ...(thinkingBlockMetadata ? { metadata: thinkingBlockMetadata } : {})
         }
         thinkingBlockId = blockManager.initialPlaceholderBlockId!
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
       } else if (!thinkingBlockId) {
         const newBlock = createThinkingBlock(assistantMsgId, '', {
           status: MessageBlockStatus.STREAMING,
-          thinking_millsec: 0
+          thinking_millsec: 0,
+          ...(thinkingBlockMetadata ? { metadata: thinkingBlockMetadata } : {})
         })
         thinkingBlockId = newBlock.id
         await blockManager.handleBlockTransition(newBlock, MessageBlockType.THINKING)
