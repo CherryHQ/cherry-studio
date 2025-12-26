@@ -1198,44 +1198,53 @@ class FileStorage {
     return true
   }
 
+  /**
+   * Build common ripgrep arguments for file listing
+   */
+  private buildRipgrepBaseArgs(options: Required<DirectoryListOptions>, resolvedPath: string): string[] {
+    const args: string[] = ['--files']
+
+    // Handle hidden files
+    if (!options.includeHidden) {
+      args.push('--glob', '!.*')
+    }
+
+    // Exclude common hidden directories and large directories
+    args.push('-g', '!**/node_modules/**')
+    args.push('-g', '!**/.git/**')
+    args.push('-g', '!**/.idea/**')
+    args.push('-g', '!**/.vscode/**')
+    args.push('-g', '!**/.DS_Store')
+    args.push('-g', '!**/dist/**')
+    args.push('-g', '!**/build/**')
+    args.push('-g', '!**/.next/**')
+    args.push('-g', '!**/.nuxt/**')
+    args.push('-g', '!**/coverage/**')
+    args.push('-g', '!**/.cache/**')
+
+    // Handle max depth
+    if (!options.recursive) {
+      args.push('--max-depth', '1')
+    } else if (options.maxDepth > 0) {
+      args.push('--max-depth', options.maxDepth.toString())
+    }
+
+    args.push(resolvedPath)
+
+    return args
+  }
+
   private async listDirectoryWithRipgrep(
     resolvedPath: string,
     options: Required<DirectoryListOptions>
   ): Promise<string[]> {
     // Fuzzy search mode: use ripgrep glob for pre-filtering, then score in JS
     if (options.fuzzy && options.searchPattern && options.searchPattern !== '.') {
-      const args: string[] = ['--files']
+      const args = this.buildRipgrepBaseArgs(options, resolvedPath)
 
-      // Handle hidden files
-      if (!options.includeHidden) {
-        args.push('--glob', '!.*')
-      }
-
-      // Exclude common hidden directories and large directories
-      args.push('-g', '!**/node_modules/**')
-      args.push('-g', '!**/.git/**')
-      args.push('-g', '!**/.idea/**')
-      args.push('-g', '!**/.vscode/**')
-      args.push('-g', '!**/.DS_Store')
-      args.push('-g', '!**/dist/**')
-      args.push('-g', '!**/build/**')
-      args.push('-g', '!**/.next/**')
-      args.push('-g', '!**/.nuxt/**')
-      args.push('-g', '!**/coverage/**')
-      args.push('-g', '!**/.cache/**')
-
-      // Use glob pattern for pre-filtering (let ripgrep do initial fuzzy match)
+      // Insert glob pattern before the path (last element)
       const globPattern = this.queryToGlobPattern(options.searchPattern)
-      args.push('--iglob', globPattern)
-
-      // Handle max depth
-      if (!options.recursive) {
-        args.push('--max-depth', '1')
-      } else if (options.maxDepth > 0) {
-        args.push('--max-depth', options.maxDepth.toString())
-      }
-
-      args.push(resolvedPath)
+      args.splice(args.length - 1, 0, '--iglob', globPattern)
 
       const { exitCode, output } = await executeRipgrep(args)
 
@@ -1259,31 +1268,7 @@ class FileStorage {
 
       // Fallback: if no results, try greedy substring match on all files
       logger.debug('Fuzzy glob returned no results, falling back to greedy substring match')
-      const fallbackArgs: string[] = ['--files']
-
-      if (!options.includeHidden) {
-        fallbackArgs.push('--glob', '!.*')
-      }
-
-      fallbackArgs.push('-g', '!**/node_modules/**')
-      fallbackArgs.push('-g', '!**/.git/**')
-      fallbackArgs.push('-g', '!**/.idea/**')
-      fallbackArgs.push('-g', '!**/.vscode/**')
-      fallbackArgs.push('-g', '!**/.DS_Store')
-      fallbackArgs.push('-g', '!**/dist/**')
-      fallbackArgs.push('-g', '!**/build/**')
-      fallbackArgs.push('-g', '!**/.next/**')
-      fallbackArgs.push('-g', '!**/.nuxt/**')
-      fallbackArgs.push('-g', '!**/coverage/**')
-      fallbackArgs.push('-g', '!**/.cache/**')
-
-      if (!options.recursive) {
-        fallbackArgs.push('--max-depth', '1')
-      } else if (options.maxDepth > 0) {
-        fallbackArgs.push('--max-depth', options.maxDepth.toString())
-      }
-
-      fallbackArgs.push(resolvedPath)
+      const fallbackArgs = this.buildRipgrepBaseArgs(options, resolvedPath)
 
       const fallbackResult = await executeRipgrep(fallbackArgs)
 
