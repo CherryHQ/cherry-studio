@@ -976,7 +976,7 @@
       "title": "Προτεινόμενες ερωτήσεις"
     },
     "thinking": "Σκέψη",
-    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
+    "thought_done": "Σκέψη ({{effort}}) ({{seconds}} δευτερόλεπτα)",
     "topics": {
       "auto_rename": "Δημιουργία θέματος",
       "clear": {

@@ -976,7 +976,7 @@
       "title": "Vorgeschlagene Fragen"
     },
     "thinking": "Denkt ({{seconds}} Sekunden)",
-    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
+    "thought_done": "Gedacht ({{effort}}) ({{seconds}} Sekunden)",
     "topics": {
       "auto_rename": "Themenname generieren",
       "clear": {

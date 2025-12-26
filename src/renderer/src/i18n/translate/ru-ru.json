@@ -976,7 +976,7 @@
       "title": "Предложенные вопросы"
     },
     "thinking": "Мыслим ({{seconds}} секунд)",
-    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
+    "thought_done": "Обдумано ({{effort}}) ({{seconds}} секунд)",
     "topics": {
       "auto_rename": "Автопереименование",
       "clear": {
