@@ -1067,6 +1067,16 @@ class FileStorage {
   }
 
   /**
+   * Scoring constants for fuzzy match relevance ranking
+   * Higher values = higher priority in search results
+   */
+  private static readonly SCORE_SEGMENT_MATCH = 60 // Per path segment that matches query
+  private static readonly SCORE_FILENAME_CONTAINS = 80 // Filename contains exact query substring
+  private static readonly SCORE_FILENAME_STARTS = 100 // Filename starts with query (highest priority)
+  private static readonly SCORE_CONSECUTIVE_CHAR = 15 // Per consecutive character match
+  private static readonly SCORE_WORD_BOUNDARY = 20 // Query matches start of a word
+
+  /**
    * Calculate fuzzy match score (higher is better)
    * Scoring factors:
    * - Consecutive character matches (bonus)
@@ -1090,17 +1100,16 @@ class FileStorage {
         segmentMatchCount++
       }
     }
-    // Higher weight for multiple segment matches
-    score += segmentMatchCount * 60
+    score += segmentMatchCount * FileStorage.SCORE_SEGMENT_MATCH
 
     // Bonus for exact substring match in filename (e.g., "updater" in "RCUpdater.js")
     if (fileNameLower.includes(queryLower)) {
-      score += 80
+      score += FileStorage.SCORE_FILENAME_CONTAINS
     }
 
     // Bonus for filename starting with query
     if (fileNameLower.startsWith(queryLower)) {
-      score += 100
+      score += FileStorage.SCORE_FILENAME_STARTS
     }
 
     // Calculate consecutive match bonus
@@ -1119,13 +1128,13 @@ class FileStorage {
       }
       i++
     }
-    score += maxConsecutive * 15
+    score += maxConsecutive * FileStorage.SCORE_CONSECUTIVE_CHAR
 
     // Bonus for word boundary matches (e.g., "upd" matches start of "update")
     const words = pathLower.split(/[/\\._-]/)
     for (const word of words) {
       if (word.startsWith(queryLower.slice(0, Math.min(3, queryLower.length)))) {
-        score += 20
+        score += FileStorage.SCORE_WORD_BOUNDARY
       }
     }
 

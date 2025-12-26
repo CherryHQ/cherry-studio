@@ -42,16 +42,25 @@ Matching process:
 
 ## Scoring Algorithm
 
-Results are ranked by a relevance score based on:
+Results are ranked by a relevance score based on named constants defined in `FileStorage.ts`:
 
-| Factor | Score |
-|--------|-------|
-| Path segment matches | +60 per segment |
-| Exact substring in filename | +80 |
-| Filename starts with query | +100 |
-| Consecutive character matches | +15 per char |
-| Word boundary matches | +20 per match |
-| Path length penalty | -0.8 per char |
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `SCORE_FILENAME_STARTS` | 100 | Filename starts with query (highest priority) |
+| `SCORE_FILENAME_CONTAINS` | 80 | Filename contains exact query substring |
+| `SCORE_SEGMENT_MATCH` | 60 | Per path segment that matches query |
+| `SCORE_WORD_BOUNDARY` | 20 | Query matches start of a word |
+| `SCORE_CONSECUTIVE_CHAR` | 15 | Per consecutive character match |
+| `PATH_LENGTH_PENALTY_FACTOR` | 4 | Logarithmic penalty for longer paths |
+
+### Scoring Strategy
+
+The scoring prioritizes:
+1. **Filename matches** (highest): Files where the query appears in the filename are most relevant
+2. **Path segment matches**: Multiple matching segments indicate stronger relevance
+3. **Word boundaries**: Matching at word starts (e.g., "upd" matching "update") is preferred
+4. **Consecutive matches**: Longer consecutive character sequences score higher
+5. **Path length**: Shorter paths are preferred (logarithmic penalty prevents long paths from dominating)
 
 ### Example Scoring
 
