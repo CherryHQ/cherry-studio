@@ -46,7 +46,6 @@ import type {
   GeminiSdkRawOutput,
   GeminiSdkToolCall
 } from '@renderer/types/sdk'
-import { getTrailingApiVersion, withoutTrailingApiVersion } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import {
   geminiFunctionCallToMcpTool,
@@ -56,6 +55,7 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout, MB } from '@shared/config/constant'
+import { getTrailingApiVersion, withoutTrailingApiVersion } from '@shared/utils'
 import { t } from 'i18next'
 
 import type { GenericChunk } from '../../middleware/schemas'
