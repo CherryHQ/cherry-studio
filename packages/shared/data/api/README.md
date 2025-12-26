@@ -102,6 +102,8 @@ export interface TopicSchemas {
 - Requires `response` field for each endpoint
 - Invalid schemas cause TypeScript errors at the composition point
 
+> **Design Guidelines**: Before creating new schemas, review the [API Design Guidelines](./api-design-guidelines.md) for path naming, HTTP methods, and error handling conventions.
+
 2. Register in `schemas/index.ts`:
 
 ```typescript
