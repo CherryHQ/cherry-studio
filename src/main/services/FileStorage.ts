@@ -1075,6 +1075,7 @@ class FileStorage {
   private static readonly SCORE_FILENAME_STARTS = 100 // Filename starts with query (highest priority)
   private static readonly SCORE_CONSECUTIVE_CHAR = 15 // Per consecutive character match
   private static readonly SCORE_WORD_BOUNDARY = 20 // Query matches start of a word
+  private static readonly PATH_LENGTH_PENALTY_FACTOR = 4 // Logarithmic penalty multiplier for longer paths
 
   /**
    * Calculate fuzzy match score (higher is better)
@@ -1141,8 +1142,7 @@ class FileStorage {
     // Penalty for longer paths (prefer shorter, more specific matches)
     // Use logarithmic scaling to prevent long paths from dominating the score
     // A 50-char path gets ~-16 penalty, 100-char gets ~-18, 200-char gets ~-21
-    const PATH_LENGTH_PENALTY_FACTOR = 4
-    score -= Math.log(filePath.length + 1) * PATH_LENGTH_PENALTY_FACTOR
+    score -= Math.log(filePath.length + 1) * FileStorage.PATH_LENGTH_PENALTY_FACTOR
 
     return score
   }
