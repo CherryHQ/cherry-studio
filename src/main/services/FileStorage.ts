@@ -1152,8 +1152,8 @@ class FileStorage {
    * e.g., "updater" -> "*u*p*d*a*t*e*r*"
    */
   private queryToGlobPattern(query: string): string {
-    // Escape special glob characters
-    const escaped = query.replace(/[[\]{}()*+?.,\\^$|#]/g, '\\$&')
+    // Escape special glob characters (including ! for negation)
+    const escaped = query.replace(/[[\]{}()*+?.,\\^$|#!]/g, '\\$&')
     // Convert to fuzzy glob: each char separated by *
     return '*' + escaped.split('').join('*') + '*'
   }
