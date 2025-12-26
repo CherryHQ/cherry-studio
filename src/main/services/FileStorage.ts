@@ -1103,14 +1103,12 @@ class FileStorage {
     }
     score += segmentMatchCount * FileStorage.SCORE_SEGMENT_MATCH
 
-    // Bonus for exact substring match in filename (e.g., "updater" in "RCUpdater.js")
-    if (fileNameLower.includes(queryLower)) {
-      score += FileStorage.SCORE_FILENAME_CONTAINS
-    }
-
-    // Bonus for filename starting with query
+    // Bonus for filename starting with query (stronger than generic "contains")
     if (fileNameLower.startsWith(queryLower)) {
       score += FileStorage.SCORE_FILENAME_STARTS
+    } else if (fileNameLower.includes(queryLower)) {
+      // Bonus for exact substring match in filename (e.g., "updater" in "RCUpdater.js")
+      score += FileStorage.SCORE_FILENAME_CONTAINS
     }
 
     // Calculate consecutive match bonus
