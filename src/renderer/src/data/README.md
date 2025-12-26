@@ -82,9 +82,8 @@ const [recentFiles, setRecentFiles] = usePersistCache('app.recent_files')
 **Key Features**:
 - Type-safe request/response handling
 - Automatic retry with exponential backoff
-- Batch operations and transactions
 - Real-time subscriptions
-- Request cancellation and timeout handling
+- Request timeout handling
 
 **Basic Usage**:
 ```typescript
@@ -97,12 +96,6 @@ const topics = await dataApiService.get('/topics')
 const newTopic = await dataApiService.post('/topics', {
   body: { title: 'Hello', content: 'World' }
 })
-
-// Batch operations
-const responses = await dataApiService.batch([
-  { method: 'GET', path: '/topics' },
-  { method: 'GET', path: '/messages' }
-])
 ```
 
 ### PreferenceService

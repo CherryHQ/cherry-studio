@@ -6,7 +6,6 @@
  *
  * Handler files are organized by domain:
  * - test.ts - Test API handlers
- * - batch.ts - Batch and transaction handlers
  *
  * @example Adding a new domain:
  * ```typescript
@@ -14,7 +13,6 @@
  *
  * export const apiHandlers: ApiImplementation = {
  *   ...testHandlers,
- *   ...batchHandlers,
  *   ...topicHandlers  // Add new domain handlers here
  * }
  * ```
@@ -22,7 +20,6 @@
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
-import { batchHandlers } from './batch'
 import { testHandlers } from './test'
 
 /**
@@ -33,6 +30,5 @@ import { testHandlers } from './test'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
-  ...testHandlers,
-  ...batchHandlers
+  ...testHandlers
 }

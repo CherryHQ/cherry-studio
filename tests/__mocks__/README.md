@@ -252,7 +252,6 @@ export const mockPreferenceDefaults: Record<string, any> = {
 ### 功能特性
 
 - **完整HTTP支持**: GET, POST, PUT, PATCH, DELETE
-- **批量操作**: batch() 和 transaction() 支持
 - **订阅系统**: subscribe/unsubscribe 模拟
 - **连接管理**: connect/disconnect/ping 方法
 - **智能模拟数据**: 基于路径自动生成合理的响应

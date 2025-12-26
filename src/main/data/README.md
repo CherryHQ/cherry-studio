@@ -13,8 +13,7 @@ src/main/data/
 │   │   └── adapters/          # Communication adapters (IPC)
 │   ├── handlers/              # API endpoint implementations
 │   │   ├── index.ts           # Handler aggregation and exports
-│   │   ├── test.ts            # Test endpoint handlers
-│   │   └── batch.ts           # Batch/transaction handlers
+│   │   └── test.ts            # Test endpoint handlers
 │   └── index.ts               # API framework exports
 │
 ├── services/                  # Business logic layer
@@ -102,7 +101,7 @@ The API framework provides the interface layer for data access:
   - Delegating to business services
   - Transforming responses for IPC
 - **Anti-pattern**: Do NOT put business logic in handlers
-- **Currently**: Contains test and batch handlers (business handlers pending)
+- **Currently**: Contains test handlers (business handlers pending)
 - **Type Safety**: Must implement all endpoints defined in `@shared/data/api/schemas/`
 
 ### Business Logic Layer (`services/`)

@@ -13,8 +13,7 @@ packages/shared/data/
 │   ├── errorCodes.ts        # Error handling utilities
 │   ├── schemas/             # Domain-specific API schemas
 │   │   ├── index.ts         # Schema composition
-│   │   ├── test.ts          # Test API schema and DTOs
-│   │   └── batch.ts         # Batch/transaction operations
+│   │   └── test.ts          # Test API schema and DTOs
 │   └── README.md            # Detailed API documentation
 ├── cache/                   # Cache system type definitions
 │   ├── cacheTypes.ts        # Core cache infrastructure types

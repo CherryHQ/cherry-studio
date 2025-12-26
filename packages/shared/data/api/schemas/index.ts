@@ -19,7 +19,6 @@
  */
 
 import type { AssertValidSchemas } from '../apiTypes'
-import type { BatchSchemas } from './batch'
 import type { TestSchemas } from './test'
 
 /**
@@ -37,7 +36,7 @@ import type { TestSchemas } from './test'
  * @example
  * ```typescript
  * import type { TopicSchemas } from './topic'
- * export type ApiSchemas = AssertValidSchemas<TestSchemas & BatchSchemas & TopicSchemas>
+ * export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas>
  * ```
  */
-export type ApiSchemas = AssertValidSchemas<TestSchemas & BatchSchemas>
+export type ApiSchemas = AssertValidSchemas<TestSchemas>

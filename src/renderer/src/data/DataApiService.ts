@@ -15,7 +15,6 @@
  * - Type-safe requests with full TypeScript inference
  * - Automatic retry with exponential backoff (network, timeout, 500/503 errors)
  * - Request timeout management (3s default)
- * - Batch request support for performance
  * - Subscription management (real-time updates)
  *
  * Architecture:
@@ -33,15 +32,11 @@
 import { loggerService } from '@logger'
 import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type {
-  BatchRequest,
-  BatchResponse,
   DataRequest,
-  DataResponse,
   HttpMethod,
   SubscriptionCallback,
   SubscriptionEvent,
-  SubscriptionOptions,
-  TransactionRequest
+  SubscriptionOptions
 } from '@shared/data/api/apiTypes'
 import { toDataApiError } from '@shared/data/api/errorCodes'
 
@@ -309,30 +304,6 @@ export class DataApiService implements ApiClient {
       body: options.body,
       headers: options.headers
     })
-  }
-
-  /**
-   * Execute multiple requests in batch
-   */
-  async batch(requests: DataRequest[], options: { parallel?: boolean } = {}): Promise<BatchResponse> {
-    const batchRequest: BatchRequest = {
-      requests,
-      parallel: options.parallel ?? true
-    }
-
-    return this.makeRequest<BatchResponse>('POST', '/batch', { body: batchRequest })
-  }
-
-  /**
-   * Execute requests in a transaction
-   */
-  async transaction(operations: DataRequest[], options?: TransactionRequest['options']): Promise<DataResponse[]> {
-    const transactionRequest: TransactionRequest = {
-      operations,
-      options
-    }
-
-    return this.makeRequest<DataResponse[]>('POST', '/transaction', { body: transactionRequest })
   }
 
   /**

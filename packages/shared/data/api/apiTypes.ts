@@ -169,52 +169,6 @@ export enum ErrorCode {
 }
 
 /**
- * Transaction request wrapper for atomic operations
- */
-export interface TransactionRequest {
-  /** List of operations to execute in transaction */
-  operations: DataRequest[]
-  /** Transaction options */
-  options?: {
-    /** Database isolation level */
-    isolation?: 'read-uncommitted' | 'read-committed' | 'repeatable-read' | 'serializable'
-    /** Whether to rollback entire transaction on any error */
-    rollbackOnError?: boolean
-    /** Transaction timeout in milliseconds */
-    timeout?: number
-  }
-}
-
-/**
- * Batch request for multiple operations
- */
-export interface BatchRequest {
-  /** List of requests to execute */
-  requests: DataRequest[]
-  /** Whether to execute requests in parallel */
-  parallel?: boolean
-  /** Stop on first error */
-  stopOnError?: boolean
-}
-
-/**
- * Batch response containing results for all requests
- */
-export interface BatchResponse {
-  /** Individual response for each request */
-  results: DataResponse[]
-  /** Overall batch execution metadata */
-  metadata: {
-    /** Total execution time */
-    duration: number
-    /** Number of successful operations */
-    successCount: number
-    /** Number of failed operations */
-    errorCount: number
-  }
-}
-
-/**
  * Pagination parameters for list operations
  */
 export interface PaginationParams {

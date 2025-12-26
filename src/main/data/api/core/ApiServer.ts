@@ -106,37 +106,6 @@ export class ApiServer {
   }
 
   /**
-   * Handle batch requests
-   */
-  async handleBatchRequest(batchRequest: DataRequest): Promise<DataResponse> {
-    const requests = batchRequest.body?.requests || []
-
-    if (!Array.isArray(requests)) {
-      throw DataApiErrorFactory.create(ErrorCode.VALIDATION_ERROR, 'Batch request body must contain requests array')
-    }
-
-    logger.debug(`Processing batch request with ${requests.length} requests`)
-
-    // Use the batch handler from our handlers
-    const batchHandler = this.handlers['/batch']?.POST
-    if (!batchHandler) {
-      throw DataApiErrorFactory.create(ErrorCode.NOT_FOUND, 'Batch handler not found')
-    }
-
-    const result = await batchHandler({ body: batchRequest.body })
-
-    return {
-      id: batchRequest.id,
-      status: 200,
-      data: result,
-      metadata: {
-        duration: 0,
-        timestamp: Date.now()
-      }
-    }
-  }
-
-  /**
    * Find handler for given path and method
    */
   private findHandler(

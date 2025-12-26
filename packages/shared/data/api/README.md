@@ -12,8 +12,7 @@ packages/shared/data/api/
 ├── errorCodes.ts      # Error handling utilities and factories
 └── schemas/
     ├── index.ts       # Schema composition (merges all domain schemas)
-    ├── test.ts        # Test API schema and DTOs
-    └── batch.ts       # Batch/transaction API schema
+    └── test.ts        # Test API schema and DTOs
 ```
 
 ## File Responsibilities
@@ -109,7 +108,7 @@ export interface TopicSchemas {
 import type { TopicSchemas } from './topic'
 
 // AssertValidSchemas provides fallback validation even if ValidateSchema is forgotten
-export type ApiSchemas = AssertValidSchemas<TestSchemas & BatchSchemas & TopicSchemas>
+export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas>
 ```
 
 3. Implement handlers in `src/main/data/api/handlers/`

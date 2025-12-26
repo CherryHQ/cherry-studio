@@ -605,8 +605,6 @@ const api = {
   // Data API related APIs
   dataApi: {
     request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
-    batch: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Batch, req),
-    transaction: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Transaction, req),
     subscribe: (path: string, callback: (data: any, event: string) => void) => {
       const channel = `${IpcChannel.DataApi_Stream}:${path}`
       const listener = (_: any, data: any, event: string) => callback(data, event)

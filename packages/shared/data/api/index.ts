@@ -19,15 +19,12 @@
 // ============================================================================
 
 export type {
-  BatchRequest,
-  BatchResponse,
   DataApiError,
   DataRequest,
   DataResponse,
   HttpMethod,
   PaginatedResponse,
-  PaginationParams,
-  TransactionRequest
+  PaginationParams
 } from './apiTypes'
 
 // ============================================================================

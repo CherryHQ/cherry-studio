@@ -346,8 +346,6 @@ export enum IpcChannel {
 
   // Data: API Channels
   DataApi_Request = 'data-api:request',
-  DataApi_Batch = 'data-api:batch',
-  DataApi_Transaction = 'data-api:transaction',
   DataApi_Subscribe = 'data-api:subscribe',
   DataApi_Unsubscribe = 'data-api:unsubscribe',
   DataApi_Stream = 'data-api:stream',
