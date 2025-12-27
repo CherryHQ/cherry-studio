@@ -7,6 +7,7 @@ import type { TraceModal } from '@renderer/trace/pages/TraceModel'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { CollapsedFieldProps } from 'react-json-view'
 import ReactJson from 'react-json-view'
 
 import { Box, Button, Text } from './Component'
@@ -25,6 +26,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
   const [isJson, setIsJson] = useState(false)
   const [usedTime, setUsedTime] = useState<string>('')
   const { t } = useTranslation()
+  const [collapsed, setCollapsed] = useState(false)
 
   const changeJsonData = useCallback(() => {
     let data: any = {}
@@ -52,6 +54,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       setIsJson(true)
       return
     }
+    setCollapsed(Array.isArray(data) && data.length > 50)
     setIsJson(false)
     setJsonData(data as unknown as object)
   }, [node.attributes, node.status, node.events, showInput])
@@ -82,6 +85,12 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
     const date = new Date(timestamp)
     const pad = (n: number) => n.toString().padStart(2, '0')
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds())}`
+  }
+
+  const shouldCollapse = (node: CollapsedFieldProps | null) => {
+    // const before = { ...beforeNode }
+    // setBeforeNode(node)
+    return Array.isArray(jsonData) && !!node && node.namespace.length === 3
   }
 
   return (
@@ -131,11 +140,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
         <Text style={{ fontWeight: 'bold' }}>{t('trace.spendTime')}: </Text>
         <Text>{usedTime}</Text>
       </Box>
-      {/* <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>{t('trace.parentId')}: </Text>
-        <Text>{node.parentId}</Text>
-      </Box> */}
-      <Box style={{ position: 'relative', margin: '15px 0 15px' }}>
+      <Box style={{ position: 'relative', margin: '15px 0px' }}>
         <Button className={`content-button ${showInput ? 'active' : ''}`} onClick={() => setShowInput(true)}>
           {t('trace.inputs')}
         </Button>
@@ -145,16 +150,23 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       </Box>
       <Box className="code-container">
         {isJson ? (
-          <ReactJson
-            src={jsonData || ''}
-            displayDataTypes={false}
-            displayObjectSize={false}
-            indentWidth={2}
-            collapseStringsAfterLength={100}
-            name={false}
-            theme={'colors'}
-            style={{ fontSize: '12px' }}
-          />
+          <>
+            <ReactJson
+              src={jsonData || {}}
+              displayDataTypes={false}
+              displayObjectSize={false}
+              indentWidth={2}
+              collapsed={collapsed}
+              collapseStringsAfterLength={100}
+              iconStyle={'triangle'}
+              name={false}
+              theme={'monokai'}
+              groupArraysAfterLength={20}
+              quotesOnKeys={false}
+              shouldCollapse={shouldCollapse}
+              style={{ fontSize: '12px', marginBottom: '30px' }}
+            />
+          </>
         ) : (
           <pre
             style={{

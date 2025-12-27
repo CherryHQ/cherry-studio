@@ -16,6 +16,10 @@
   }
 }
 
+header {
+  text-align: center;
+}
+
 .header {
   height: 40px;
   display: flex;
@@ -31,21 +35,15 @@
   z-index: 10;
 }
 
-.headerIcon {
-  display: flex;
-  align-items: center;
-  width: content;
-  height: content;
-  margin-left: 12px;
-}
-
 .headerTitle {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 400;
-  font-size: 16px;
+  font-size: 12px;
   color: var(--trace-text);
   pointer-events: none;
-  margin-left: 5px;
   -webkit-app-region: drag;
 }
 
@@ -154,7 +152,7 @@
 .scroll-container {
   overflow-y: auto;
   overflow-x: hidden;
-  height: calc(100vh - 40px);
+  height: calc(100vh - 76px);
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -168,6 +166,7 @@
   scrollbar-width: none;
   border-top: '1px solid #eee';
   width: '100%';
+  margin-bottom: '30px';
 }
 
 .code-container::-webkit-scrollbar {

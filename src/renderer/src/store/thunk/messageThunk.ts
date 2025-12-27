@@ -7,7 +7,7 @@ import { DbService } from '@renderer/services/db/DbService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
-import { endSpan } from '@renderer/services/SpanManagerService'
+import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
@@ -728,9 +728,48 @@ const dispatchMultiModelResponses = async (
 
   const queue = getTopicQueue(topicId)
   for (const task of tasksToQueue) {
+    const assistantConfig = {
+      ...task.assistantConfig,
+      traceContext: {
+        topicId,
+        modelName: task.messageStub.model?.name,
+        assistantMsgId: task.messageStub.id
+      }
+    }
     queue.add(async () => {
-      await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, task.assistantConfig, task.messageStub)
+      await fetchAndProcessAssistantResponseImplWithTrace(
+        dispatch,
+        getState,
+        topicId,
+        assistantConfig,
+        task.messageStub
+      )
     })
+  }
+}
+
+const fetchAndProcessAssistantResponseImplWithTrace = async (
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  assistant: Assistant,
+  assistantMessage: Message
+) => {
+  const params = {
+    name: `${assistant.model?.name || 'LLM'}.handleMessage`,
+    tag: 'LLM',
+    topicId,
+    modelName: assistant.model?.name,
+    modelRoot: true,
+    assistantMsgId: assistantMessage.id
+  }
+
+  addSpan(params)
+  try {
+    const result = await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
+    endSpan({ ...params, outputs: result })
+  } catch (error) {
+    endSpan({ ...params, error: error as Error })
   }
 }
 
@@ -812,7 +851,6 @@ const fetchAndProcessAssistantResponseImpl = async (
       {
         messages: messagesForContext,
         assistant,
-        topicId,
         blockManager,
         assistantMsgId,
         callbacks,
@@ -921,8 +959,20 @@ export const sendMessage =
           await saveMessageAndBlocksToDB(assistantMessage, [])
           dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
+          assistant.traceContext = {
+            topicId,
+            modelName: assistant.model?.name,
+            assistantMsgId: assistantMessage.id
+          }
+
           queue.add(async () => {
-            await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
+            await fetchAndProcessAssistantResponseImplWithTrace(
+              dispatch,
+              getState,
+              topicId,
+              assistant,
+              assistantMessage
+            )
           })
         }
       }
@@ -1174,10 +1224,21 @@ export const resendMessageThunk =
       for (const resetMsg of resetDataList) {
         const assistantConfigForThisRegen = {
           ...assistant,
-          ...(resetMsg.model ? { model: resetMsg.model } : {})
+          ...(resetMsg.model ? { model: resetMsg.model } : {}),
+          traceContext: {
+            topicId,
+            modelName: resetMsg.model?.name,
+            assistantMsgId: resetMsg.id
+          }
         }
         queue.add(async () => {
-          await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistantConfigForThisRegen, resetMsg)
+          await fetchAndProcessAssistantResponseImplWithTrace(
+            dispatch,
+            getState,
+            topicId,
+            assistantConfigForThisRegen,
+            resetMsg
+          )
         })
       }
     } catch (error) {
@@ -1296,10 +1357,15 @@ export const regenerateAssistantResponseThunk =
       const queue = getTopicQueue(topicId)
       const assistantConfigForRegen = {
         ...assistant,
-        ...(resetAssistantMsg.model ? { model: resetAssistantMsg.model } : {})
+        ...(resetAssistantMsg.model ? { model: resetAssistantMsg.model } : {}),
+        traceContext: {
+          topicId,
+          modelName: resetAssistantMsg.model?.name,
+          assistantMsgId: resetAssistantMsg.id
+        }
       }
       queue.add(async () => {
-        await fetchAndProcessAssistantResponseImpl(
+        await fetchAndProcessAssistantResponseImplWithTrace(
           dispatch,
           getState,
           topicId,
@@ -1475,11 +1541,16 @@ export const appendAssistantResponseThunk =
       // 5. Prepare and queue the processing task
       const assistantConfigForThisCall = {
         ...assistant,
-        model: newModel
+        model: newModel,
+        traceContext: {
+          topicId,
+          modelName: newModel.name,
+          assistantMsgId: newAssistantMessageStub.id
+        }
       }
       const queue = getTopicQueue(topicId)
       queue.add(async () => {
-        await fetchAndProcessAssistantResponseImpl(
+        await fetchAndProcessAssistantResponseImplWithTrace(
           dispatch,
           getState,
           topicId,

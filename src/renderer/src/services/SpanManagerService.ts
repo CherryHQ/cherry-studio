@@ -3,7 +3,7 @@ import { Stream } from '@cherrystudio/openai/streaming'
 import { loggerService } from '@logger'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
-import type { Context, Span } from '@opentelemetry/api'
+import type { Span } from '@opentelemetry/api'
 import { context, SpanStatusCode, trace } from '@opentelemetry/api'
 import { isAsyncIterable } from '@renderer/aiCore/legacy/middleware/utils'
 import { db } from '@renderer/databases'
@@ -25,16 +25,16 @@ const logger = loggerService.withContext('SpanManagerService')
 class SpanManagerService {
   private spanMap: Map<string, ModelSpanEntity[]> = new Map()
 
-  getModelSpanEntity(topicId: string, modelName?: string) {
+  getModelSpanEntity(topicId: string, modelName?: string, assistantMsgId?: string): ModelSpanEntity {
     const entities = this.spanMap.get(topicId)
     if (!entities) {
-      const entity = new ModelSpanEntity(modelName)
+      const entity = new ModelSpanEntity(modelName, assistantMsgId)
       this.spanMap.set(topicId, [entity])
       return entity
     }
-    let entity = entities.find((e) => e.getModelName() === modelName)
+    let entity = entities.find((e) => e.isCurrent(modelName, assistantMsgId))
     if (!entity) {
-      entity = new ModelSpanEntity(modelName)
+      entity = new ModelSpanEntity(modelName, assistantMsgId)
       entities.push(entity)
     }
     return entity
@@ -58,10 +58,6 @@ class SpanManagerService {
     const traceId = span.spanContext().traceId
     window.api.trace.bindTopic(params.topicId, traceId)
 
-    const ctx = this._updateContext(span, params.topicId)
-    models?.forEach((model) => {
-      this._addModelRootSpan({ ...params, name: `${model.name}.handleMessage`, modelName: model.name }, ctx)
-    })
     return span
   }
 
@@ -74,28 +70,25 @@ class SpanManagerService {
       return
     }
 
-    await window.api.trace.bindTopic(message.topicId, message.traceId)
-
     const input = await this._getContentFromMessage(message, text)
 
-    let _models
+    const span = webTracer.startSpan('resendMessage', {
+      ...input,
+      root: true
+    })
+
     if (message.role === 'user') {
       await window.api.trace.cleanHistory(message.topicId, message.traceId)
-
-      const topic = await db.topics.get(message.topicId)
-      _models = topic?.messages.filter((m) => m.role === 'assistant' && m.askId === message.id).map((m) => m.model)
     } else {
-      _models = [message.model]
       await window.api.trace.cleanHistory(message.topicId, message.traceId || '', message.model?.name)
     }
 
-    _models
-      ?.filter((m) => !!m)
-      .forEach((model) => {
-        this._addModelRootSpan({ ...input, modelName: model.name, name: `${model.name}.resendMessage` })
-      })
+    const entity = this.getModelSpanEntity(message.topicId)
+    entity.addSpan(span)
+    this._updateContext(span, message.topicId, message.traceId)
+    await window.api.trace.bindTopic(message.topicId, message.traceId)
 
-    const modelName = message.role !== 'user' ? _models[0]?.name : undefined
+    const modelName = message.role !== 'user' ? message.model?.name : undefined
     window.api.trace.openWindow(message.topicId, message.traceId, false, modelName)
   }
 
@@ -111,7 +104,15 @@ class SpanManagerService {
 
     const input = await this._getContentFromMessage(message)
     await window.api.trace.bindTopic(message.topicId, message.traceId)
-    this._addModelRootSpan({ ...input, name: `${model.name}.appendMessage`, modelName: model.name })
+
+    const span = webTracer.startSpan('appendMessage', {
+      ...input,
+      root: true
+    })
+    const entity = this.getModelSpanEntity(message.topicId)
+    entity.addSpan(span)
+    this._updateContext(span, message.topicId, message.traceId)
+
     window.api.trace.openWindow(message.topicId, message.traceId, false, model.name)
   }
 
@@ -175,24 +176,6 @@ class SpanManagerService {
     return ctx
   }
 
-  private _addModelRootSpan(params: StartSpanParams, ctx?: Context) {
-    const entity = this.getModelSpanEntity(params.topicId, params.modelName)
-    const rootSpan = webTracer.startSpan(
-      `${params.name}`,
-      {
-        attributes: {
-          inputs: JSON.stringify(params.inputs || {}),
-          modelName: params.modelName,
-          tags: 'ModelHandle'
-        }
-      },
-      ctx
-    )
-    entity.addSpan(rootSpan, true)
-    const traceId = params.inputs?.traceId || rootSpan.spanContext().traceId
-    return this._updateContext(rootSpan, params.topicId, traceId)
-  }
-
   endTrace(params: EndSpanParams) {
     const entity = this.getModelSpanEntity(params.topicId)
     let span = entity.getCurrentSpan()
@@ -219,10 +202,10 @@ class SpanManagerService {
     if (!getEnableDeveloperMode()) {
       return
     }
-    const entity = this.getModelSpanEntity(params.topicId, params.modelName)
+    const entity = this.getModelSpanEntity(params.topicId, params.modelName, params.assistantMsgId)
     let parentSpan = entity.getSpanById(params.parentSpanId)
     if (!parentSpan) {
-      parentSpan = this.getCurrentSpan(params.topicId, params.modelName)
+      parentSpan = this.getCurrentSpan(params.topicId, params.modelName, params.assistantMsgId)
     }
 
     const parentCtx = parentSpan ? trace.setSpan(context.active(), parentSpan) : getContext(params.topicId)
@@ -232,7 +215,8 @@ class SpanManagerService {
         attributes: {
           inputs: JSON.stringify(params.inputs || {}),
           tags: params.tag || '',
-          modelName: params.modelName
+          modelName: params.modelName,
+          assistantMsgId: params.assistantMsgId || ''
         }
       },
       parentCtx
@@ -244,8 +228,8 @@ class SpanManagerService {
   }
 
   endSpan(params: EndSpanParams) {
-    const entity = this.getModelSpanEntity(params.topicId, params.modelName)
-    const span = params.span || entity.getCurrentSpan(params.modelName)
+    const entity = this.getModelSpanEntity(params.topicId, params.modelName, params.assistantMsgId)
+    const span = params.span || entity.getCurrentSpan(params.modelName, params.assistantMsgId)
     if (params.modelEnded && params.modelName && params.outputs) {
       const rootEntity = this.getModelSpanEntity(params.topicId)
       const span = rootEntity?.getRootSpan()
@@ -261,7 +245,7 @@ class SpanManagerService {
     }
 
     // remove span
-    if (entity.removeSpan(span)) {
+    if (!entity.removeSpan(span) && params.modelName) {
       this.getModelSpanEntity(params.topicId).removeSpan(span)
     }
 
@@ -278,10 +262,10 @@ class SpanManagerService {
     endContext(params.topicId)
   }
 
-  getCurrentSpan(topicId: string, modelName?: string, isRoot = false): Span | undefined {
-    let entity = this.getModelSpanEntity(topicId, modelName)
-    let span = isRoot ? entity.getRoot() : entity.getCurrentSpan(modelName)
-    if (!span && modelName) {
+  getCurrentSpan(topicId: string, modelName?: string, assistantMsgId?: string): Span | undefined {
+    let entity = this.getModelSpanEntity(topicId, modelName, assistantMsgId)
+    let span = entity.getCurrentSpan(modelName, assistantMsgId)
+    if (!span && (modelName || assistantMsgId)) {
       entity = this.getModelSpanEntity(topicId)
       span = entity.getCurrentSpan()
     }
@@ -328,7 +312,8 @@ export function withSpanResult<F extends (...args: any) => any>(
     tag: params.tag,
     inputs: args,
     parentSpanId: params.parentSpanId,
-    modelName: params.modelName
+    modelName: params.modelName,
+    assistantMsgId: params.assistantMsgId
   })
   try {
     const result = fn(...args)
@@ -336,30 +321,30 @@ export function withSpanResult<F extends (...args: any) => any>(
       return result
         .then((data) => {
           if (!data || typeof data !== 'object') {
-            endSpan({ topicId: params.topicId, outputs: data, span, modelName: params.modelName })
+            endSpan({ ...params, outputs: data, span })
             return data
           }
 
           if (data instanceof Stream) {
-            return handleStream(data, span, params.topicId, params.modelName)
+            return handleStream(data, span, params)
           } else if (data instanceof MessageStream) {
-            return handleMessageStream(data, span, params.topicId, params.modelName)
+            return handleMessageStream(data, span, params)
           } else if (isAsyncIterable<SdkRawChunk>(data)) {
-            return handleAsyncIterable(data, span, params.topicId, params.modelName)
+            return handleAsyncIterable(data, span, params)
           } else {
-            return handleResult(data, span, params.topicId, params.modelName)
+            return handleResult(data, span, params)
           }
         })
         .catch((err) => {
-          endSpan({ topicId: params.topicId, error: err, span, modelName: params.modelName })
+          endSpan({ ...params, error: err as Error, span })
           throw err
         }) as ReturnType<F>
     } else {
-      endSpan({ topicId: params.topicId, outputs: result, span, modelName: params.modelName })
+      endSpan({ ...params, outputs: result, span })
       return result
     }
   } catch (err) {
-    endSpan({ topicId: params.topicId, error: err as Error, span, modelName: params.modelName })
+    endSpan({ ...params, error: err as Error, span })
     throw err
   }
 }

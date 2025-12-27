@@ -16,7 +16,6 @@ class SpanCacheService implements TraceCache {
   private topicMap: Map<string, string> = new Map<string, string>()
   private fileDir: string
   private cache: Map<string, SpanEntity> = new Map<string, SpanEntity>()
-  pri
 
   constructor() {
     this.fileDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'trace')
@@ -53,6 +52,7 @@ class SpanCacheService implements TraceCache {
 
   clear: () => void = () => {
     this.cache.clear()
+    this.topicMap.clear()
   }
 
   async cleanTopic(topicId: string, traceId?: string, modelName?: string) {
@@ -108,7 +108,7 @@ class SpanCacheService implements TraceCache {
     this._cleanCache(traceId)
   }
 
-  async getSpans(topicId: string, traceId: string, modelName?: string) {
+  async getSpans(topicId: string, traceId: string, modelName?: string, assistantMsgId?: string) {
     if (this.topicMap.has(traceId)) {
       const spans: SpanEntity[] = []
       this.cache
@@ -119,10 +119,13 @@ class SpanCacheService implements TraceCache {
         .filter((spanEntity) => {
           return !modelName || spanEntity.modelName === modelName
         })
+        .filter((span) => {
+          return !assistantMsgId || !span.referenceId || assistantMsgId === span.referenceId
+        })
         .forEach((sp) => spans.push(sp))
       return spans
     } else {
-      return this._getHisData(topicId, traceId, modelName)
+      return this._getHisData(topicId, traceId, modelName, assistantMsgId)
     }
   }
 
@@ -228,11 +231,18 @@ class SpanCacheService implements TraceCache {
 
   private _updateModelName(entity: SpanEntity) {
     let modelName = entity.modelName || entity.attributes?.modelName?.toString()
+    let referenceId = entity.referenceId || entity.attributes?.assistantMsgId?.toString()
     if (!modelName && entity.parentId) {
       modelName = this.cache.get(entity.parentId)?.modelName
     }
+    if (!referenceId && entity.parentId) {
+      referenceId = this.cache.get(entity.parentId)?.referenceId
+    }
+
     entity.modelName = modelName
+    entity.referenceId = referenceId
   }
+
   private _updateEntity(entity: SpanEntity): void {
     entity.topicId = this.topicMap.get(entity.traceId)
     const savedEntity = this.cache.get(entity.id)
@@ -336,7 +346,7 @@ class SpanCacheService implements TraceCache {
     await Promise.all(writeOperations)
   }
 
-  private async _getHisData(topicId: string, traceId: string, modelName?: string) {
+  private async _getHisData(topicId: string, traceId: string, modelName?: string, assistantMsgId?: string) {
     const filePath = path.join(this.fileDir, topicId, traceId)
 
     if (!(await this._existFile(filePath))) {
@@ -370,6 +380,7 @@ class SpanCacheService implements TraceCache {
       return Array.from(parseLines(chunks.join('')))
         .filter((span) => span.topicId === topicId && span.traceId === traceId && span.modelName)
         .filter((span) => !modelName || span.modelName === modelName)
+        .filter((span) => !assistantMsgId || !span.referenceId || span.referenceId === assistantMsgId)
     } catch (err) {
       logger.error('Error parsing JSON:', err as Error)
       throw err

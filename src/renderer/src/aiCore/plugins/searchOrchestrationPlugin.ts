@@ -79,7 +79,6 @@ async function analyzeSearchIntent(
     shouldMemorySearch?: boolean
     lastAnswer?: ModelMessage
     context: AiRequestContext
-    topicId: string
   }
 ): Promise<ExtractResults | undefined> {
   const { shouldWebSearch = false, shouldKnowledgeSearch = false, lastAnswer, context } = options
@@ -125,7 +124,7 @@ async function analyzeSearchIntent(
   try {
     logger.info('Starting intent analysis generateText call', {
       modelId: model.id,
-      topicId: options.topicId,
+      traceContext: assistant.traceContext,
       requestId: context.requestId,
       hasWebSearch: needWebExtract,
       hasKnowledgeSearch: needKnowledgeExtract
@@ -137,7 +136,7 @@ async function analyzeSearchIntent(
     }).finally(() => {
       logger.info('Intent analysis generateText call completed', {
         modelId: model.id,
-        topicId: options.topicId,
+        traceContext: assistant.traceContext,
         requestId: context.requestId
       })
     })
@@ -236,7 +235,7 @@ async function storeConversationMemory(
 /**
  * 🎯 搜索编排插件
  */
-export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string) => {
+export const searchOrchestrationPlugin = (assistant: Assistant) => {
   // 存储意图分析结果
   const intentAnalysisResults: { [requestId: string]: ExtractResults } = {}
   const userMessages: { [requestId: string]: ModelMessage } = {}
@@ -279,8 +278,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
             shouldKnowledgeSearch,
             shouldMemorySearch,
             lastAnswer: lastAssistantMessage,
-            context,
-            topicId
+            context
           })
 
           if (analysisResult) {
@@ -322,7 +320,8 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
             params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
               assistant.webSearchProviderId,
               analysisResult.websearch,
-              context.requestId
+              context.requestId,
+              assistant.traceContext
             )
           }
         }
@@ -346,8 +345,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
             params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
               assistant,
               analysisResult.knowledge,
-              getMessageContent(userMessage),
-              topicId
+              getMessageContent(userMessage)
             )
           }
         }

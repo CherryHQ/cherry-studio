@@ -504,8 +504,8 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   trace: {
     saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
-    getData: (topicId: string, traceId: string, modelName?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, modelName),
+    getData: (topicId: string, traceId: string, modelName?: string, assistantMsgId?: string) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, modelName, assistantMsgId),
     saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
     getEntity: (spanId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_ENTITY, spanId),
     bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),
@@ -514,8 +514,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_HISTORY, topicId, traceId, modelName),
     cleanTopic: (topicId: string, traceId?: string) =>
       ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_TOPIC, topicId, traceId),
-    openWindow: (topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_OPEN_WINDOW, topicId, traceId, autoOpen, modelName),
+    openWindow: (topicId: string, traceId: string, autoOpen?: boolean, modelName?: string, assistantMsgId?: string) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_OPEN_WINDOW, topicId, traceId, autoOpen, modelName, assistantMsgId),
     setTraceWindowTitle: (title: string) => ipcRenderer.invoke(IpcChannel.TRACE_SET_TITLE, title),
     addEndMessage: (spanId: string, modelName: string, context: string) =>
       ipcRenderer.invoke(IpcChannel.TRACE_ADD_END_MESSAGE, spanId, modelName, context),

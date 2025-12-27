@@ -20,6 +20,7 @@ import {
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { WebTraceContext } from '@renderer/types/trace'
 import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
@@ -142,19 +143,19 @@ export const searchKnowledgeBase = async (
   query: string,
   base: KnowledgeBase,
   rewrite?: string,
-  topicId?: string,
   parentSpanId?: string,
-  modelName?: string
+  traceContext?: WebTraceContext
 ): Promise<Array<KnowledgeSearchResult & { file: FileMetadata | null }>> => {
   let currentSpan: Span | undefined = undefined
+
   try {
     const baseParams = getKnowledgeBaseParams(base)
     const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
     const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
 
-    if (topicId) {
+    if (traceContext?.topicId) {
       currentSpan = addSpan({
-        topicId,
+        topicId: traceContext.topicId,
         name: `${base.name}-search`,
         inputs: {
           query,
@@ -163,7 +164,8 @@ export const searchKnowledgeBase = async (
         },
         tag: 'Knowledge',
         parentSpanId,
-        modelName
+        modelName: traceContext.modelName,
+        assistantMsgId: traceContext.assistantMsgId
       })
     }
 
@@ -202,23 +204,25 @@ export const searchKnowledgeBase = async (
         return { ...item, file }
       })
     )
-    if (topicId) {
+    if (traceContext?.topicId) {
       endSpan({
-        topicId,
+        topicId: traceContext.topicId,
         outputs: result,
         span: currentSpan,
-        modelName
+        modelName: traceContext.modelName,
+        assistantMsgId: traceContext.assistantMsgId
       })
     }
     return result
   } catch (error) {
     logger.error(`Error searching knowledge base ${base.name}:`, error as Error)
-    if (topicId) {
+    if (traceContext?.topicId) {
       endSpan({
-        topicId,
+        topicId: traceContext.topicId,
         error: error instanceof Error ? error : new Error(String(error)),
         span: currentSpan,
-        modelName
+        modelName: traceContext.modelName,
+        assistantMsgId: traceContext.assistantMsgId
       })
     }
     throw error
@@ -228,9 +232,7 @@ export const searchKnowledgeBase = async (
 export const processKnowledgeSearch = async (
   extractResults: ExtractResults,
   knowledgeBaseIds: string[] | undefined,
-  topicId: string,
-  parentSpanId?: string,
-  modelName?: string
+  traceContext?: WebTraceContext
 ): Promise<KnowledgeReference[]> => {
   if (
     !extractResults.knowledge?.question ||
@@ -251,7 +253,7 @@ export const processKnowledgeSearch = async (
   }
 
   const span = addSpan({
-    topicId,
+    topicId: traceContext?.topicId || '',
     name: 'knowledgeSearch',
     inputs: {
       questions,
@@ -259,8 +261,8 @@ export const processKnowledgeSearch = async (
       knowledgeBaseIds: knowledgeBaseIds
     },
     tag: 'Knowledge',
-    parentSpanId,
-    modelName
+    modelName: traceContext?.modelName,
+    assistantMsgId: traceContext?.assistantMsgId
   })
 
   // 为每个知识库执行多问题搜索
@@ -268,7 +270,7 @@ export const processKnowledgeSearch = async (
     // 为每个问题搜索并合并结果
     const allResults = await Promise.all(
       questions.map((question) =>
-        searchKnowledgeBase(question, base, rewrite, topicId, span?.spanContext().spanId, modelName)
+        searchKnowledgeBase(question, base, rewrite, span?.spanContext().spanId, traceContext)
       )
     )
 
@@ -298,10 +300,11 @@ export const processKnowledgeSearch = async (
   const resultsPerBase = await Promise.all(baseSearchPromises)
   const allReferencesRaw = resultsPerBase.flat().filter((ref): ref is KnowledgeReference => !!ref)
   endSpan({
-    topicId,
+    topicId: traceContext?.topicId || '',
     outputs: resultsPerBase,
     span,
-    modelName
+    modelName: traceContext?.modelName,
+    assistantMsgId: traceContext?.assistantMsgId
   })
 
   // 重新为引用分配ID
@@ -350,14 +353,12 @@ export const injectUserMessageWithKnowledgeSearchPrompt = async ({
   modelMessages,
   assistant,
   assistantMsgId,
-  topicId,
   blockManager,
   setCitationBlockId
 }: {
   modelMessages: ModelMessage[]
   assistant: Assistant
   assistantMsgId: string
-  topicId?: string
   blockManager: BlockManager
   setCitationBlockId: (blockId: string) => void
 }) => {
@@ -371,8 +372,7 @@ export const injectUserMessageWithKnowledgeSearchPrompt = async ({
 
     const knowledgeReferences = await getKnowledgeReferences({
       assistant,
-      lastUserMessage,
-      topicId: topicId
+      lastUserMessage
     })
 
     if (knowledgeReferences.length === 0) {
@@ -409,12 +409,10 @@ export const injectUserMessageWithKnowledgeSearchPrompt = async ({
 
 export const getKnowledgeReferences = async ({
   assistant,
-  lastUserMessage,
-  topicId
+  lastUserMessage
 }: {
   assistant: Assistant
   lastUserMessage: UserModelMessage
-  topicId?: string
 }) => {
   // 如果助手没有知识库，返回空字符串
   if (!assistant || isEmpty(assistant.knowledge_bases)) {
@@ -436,7 +434,7 @@ export const getKnowledgeReferences = async ({
       }
     },
     knowledgeBaseIds,
-    topicId!
+    assistant.traceContext
   )
 
   // 返回提示词
