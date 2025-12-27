@@ -1295,7 +1295,9 @@
     "availableProviders": "Διαθέσιμοι πάροχοι",
     "availableTools": "Διαθέσιμα εργαλεία",
     "backup": {
-      "file_format": "Λάθος μορφή αρχείου που επιστρέφεται"
+      "file_format": "Λάθος μορφή αρχείου που επιστρέφεται",
+      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
+      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
     },
     "boundary": {
       "default": {
