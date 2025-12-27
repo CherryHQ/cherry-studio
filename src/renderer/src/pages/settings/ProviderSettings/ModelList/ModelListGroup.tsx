@@ -15,7 +15,8 @@ const MAX_SCROLLER_HEIGHT = 390
 interface ModelListGroupProps {
   groupName: string
   models: Model[]
-  modelStatuses: ModelWithStatus[]
+  /** 使用 Map 实现 O(1) 查找，替代原来的数组线性搜索 */
+  modelStatusMap: Map<string, ModelWithStatus>
   defaultOpen: boolean
   disabled?: boolean
   onEditModel: (model: Model) => void
@@ -26,7 +27,7 @@ interface ModelListGroupProps {
 const ModelListGroup: React.FC<ModelListGroupProps> = ({
   groupName,
   models,
-  modelStatuses,
+  modelStatusMap,
   defaultOpen,
   disabled,
   onEditModel,
@@ -89,7 +90,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           {(model) => (
             <ModelListItem
               model={model}
-              modelStatus={modelStatuses.find((status) => status.model.id === model.id)}
+              modelStatus={modelStatusMap.get(model.id)}
               onEdit={onEditModel}
               onRemove={onRemoveModel}
               disabled={disabled}

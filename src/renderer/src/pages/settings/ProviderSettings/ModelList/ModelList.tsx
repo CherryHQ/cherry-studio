@@ -49,6 +49,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, models, removeModel } = useProvider(providerId)
 
+  // 稳定的编辑模型回调，避免内联函数导致子组件 memo 失效
+  const handleEditModel = useCallback((model: Model) => EditModelPopup.show({ provider, model }), [provider])
+
   const providerConfig = PROVIDER_URLS[provider.id]
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
@@ -62,6 +65,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   })
 
   const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
+
+  // 将 modelStatuses 数组转换为 Map，实现 O(1) 查找
+  const modelStatusMap = useMemo(() => {
+    return new Map(modelStatuses.map((status) => [status.model.id, status]))
+  }, [modelStatuses])
 
   const setSearchText = useCallback((text: string) => {
     startTransition(() => {
@@ -138,9 +146,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 key={group}
                 groupName={group}
                 models={displayedModelGroups[group]}
-                modelStatuses={modelStatuses}
+                modelStatusMap={modelStatusMap}
                 defaultOpen={i <= 5}
-                onEditModel={(model) => EditModelPopup.show({ provider, model })}
+                onEditModel={handleEditModel}
                 onRemoveModel={removeModel}
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
               />
