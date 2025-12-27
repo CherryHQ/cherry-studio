@@ -18,7 +18,11 @@ import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import store, { useAppDispatch } from '@renderer/store'
 import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { saveMessageAndBlocksToDB, updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import {
+  continueGenerationThunk,
+  saveMessageAndBlocksToDB,
+  updateMessageAndBlocksThunk
+} from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
@@ -232,6 +236,18 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
             )
             window.toast.error(t('code_block.edit.save.failed.label'))
           }
+        }
+      ),
+      EventEmitter.on(
+        EVENT_NAMES.CONTINUE_GENERATION,
+        async (data: { message: Message; assistant: Assistant; topic: Topic }) => {
+          const { message, assistant: msgAssistant, topic: msgTopic } = data
+          // Only handle if it's for the current topic
+          if (msgTopic.id !== topic.id) {
+            return
+          }
+          await dispatch(continueGenerationThunk(topic.id, message, msgAssistant))
+          scrollToBottom()
         }
       )
     ]
