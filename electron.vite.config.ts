@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
 
@@ -17,7 +17,7 @@ const isProd = process.env.NODE_ENV === 'production'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin(), ...visualizerPlugin('main')],
+    plugins: [...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -51,8 +51,7 @@ export default defineConfig({
     plugins: [
       react({
         tsDecorators: true
-      }),
-      externalizeDepsPlugin()
+      })
     ],
     resolve: {
       alias: {
