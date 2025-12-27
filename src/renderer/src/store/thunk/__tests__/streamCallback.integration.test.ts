@@ -10,6 +10,7 @@ import { WebSearchSource } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type * as errorUtils from '@renderer/utils/error'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RootState } from '../../index'
@@ -240,7 +241,7 @@ vi.mock('i18next', () => {
 })
 
 vi.mock('@renderer/utils/error', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/utils/error')>()
+  const actual = (await importOriginal()) as typeof errorUtils
   return {
     ...actual,
     formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
