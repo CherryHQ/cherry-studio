@@ -3,6 +3,7 @@
  * 将 Cherry Studio 消息格式转换为 AI SDK 消息格式
  */
 
+import type { JSONValue } from '@ai-sdk/provider'
 import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
@@ -13,6 +14,7 @@ import {
   findFileBlocks,
   findImageBlocks,
   findThinkingBlocks,
+  findToolBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
 import type {
@@ -45,8 +47,96 @@ export async function convertMessageToSdkParam(
   if (message.role === 'user' || message.role === 'system') {
     return convertMessageToUserModelMessage(content, fileBlocks, imageBlocks, isVisionModel, model)
   } else {
-    return convertMessageToAssistantModelMessage(content, fileBlocks, reasoningBlocks, model)
+    const toolBlocks = findToolBlocks(message)
+    const toolHistoryMessages = buildToolHistoryMessages(toolBlocks)
+
+    const assistantMessage = await convertMessageToAssistantModelMessage(
+      message,
+      content,
+      fileBlocks,
+      reasoningBlocks,
+      model
+    )
+
+    const hasAssistantContent =
+      typeof assistantMessage.content === 'string'
+        ? assistantMessage.content.trim().length > 0
+        : Array.isArray(assistantMessage.content) && assistantMessage.content.length > 0
+
+    if (toolHistoryMessages.length === 0) {
+      return assistantMessage
+    }
+
+    return hasAssistantContent ? [...toolHistoryMessages, assistantMessage] : toolHistoryMessages
   }
+}
+
+function safeParseJSON(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
+function stringifyToolOutput(value: unknown): string {
+  if (typeof value === 'string') return value
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function buildToolHistoryMessages(toolBlocks: any[]): ModelMessage[] {
+  const toolResponses = toolBlocks.map((block) => (block as any)?.metadata?.rawMcpToolResponse).filter(Boolean)
+
+  // Only replay client-side tools (function_call/function_call_output).
+  // Provider-executed tools (e.g. web_search) have special replay semantics and are handled by the provider.
+  const replayable = toolResponses.filter((tr: any) => tr?.tool?.type !== 'provider')
+
+  if (replayable.length === 0) return []
+
+  const toolCallParts = replayable.map((tr: any) => ({
+    type: 'tool-call' as const,
+    toolCallId: tr.toolCallId ?? tr.id,
+    toolName: tr.tool?.name ?? tr.toolName,
+    input: typeof tr.arguments === 'string' ? safeParseJSON(tr.arguments) : tr.arguments
+  }))
+
+  const toolResultParts = replayable
+    .filter((tr: any) => tr.status === 'done' || tr.status === 'error' || tr.status === 'cancelled')
+    .map((tr: any) => ({
+      type: 'tool-result' as const,
+      toolCallId: tr.toolCallId ?? tr.id,
+      toolName: tr.tool?.name ?? tr.toolName,
+      output: {
+        type: tr.status === 'error' || tr.status === 'cancelled' ? ('error-text' as const) : ('text' as const),
+        value:
+          tr.status === 'cancelled' && (tr.response === undefined || tr.response === null)
+            ? 'cancelled'
+            : stringifyToolOutput(tr.response)
+      }
+    }))
+
+  const messages: ModelMessage[] = []
+
+  if (toolCallParts.length > 0) {
+    messages.push({
+      role: 'assistant',
+      content: toolCallParts
+    })
+  }
+
+  if (toolResultParts.length > 0) {
+    messages.push({
+      role: 'tool',
+      content: toolResultParts
+    })
+  }
+
+  return messages
 }
 
 async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): Promise<Array<ImagePart>> {
@@ -159,18 +249,30 @@ async function convertMessageToUserModelMessage(
  * 转换为助手模型消息
  */
 async function convertMessageToAssistantModelMessage(
+  message: Message,
   content: string,
   fileBlocks: FileMessageBlock[],
   thinkingBlocks: ThinkingMessageBlock[],
   model?: Model
 ): Promise<AssistantModelMessage> {
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
-  if (content) {
-    parts.push({ type: 'text', text: content })
+
+  const replayEncryptedReasoningPart = buildOpenAIResponsesReasoningReplayPart(message)
+  const hasResponsesEncryptedReasoning = replayEncryptedReasoningPart != null
+  if (replayEncryptedReasoningPart) {
+    parts.push(replayEncryptedReasoningPart)
   }
 
-  for (const thinkingBlock of thinkingBlocks) {
-    parts.push({ type: 'reasoning', text: thinkingBlock.content })
+  // Avoid multiple reasoning mechanisms in a single message:
+  // if we replay encrypted reasoning (Responses API), suppress thinking blocks to reduce provider incompatibilities.
+  if (!hasResponsesEncryptedReasoning) {
+    for (const thinkingBlock of thinkingBlocks) {
+      parts.push({ type: 'reasoning', text: thinkingBlock.content })
+    }
+  }
+
+  if (content) {
+    parts.push({ type: 'text', text: content })
   }
 
   for (const fileBlock of fileBlocks) {
@@ -193,6 +295,31 @@ async function convertMessageToAssistantModelMessage(
   return {
     role: 'assistant',
     content: parts
+  }
+}
+
+function buildOpenAIResponsesReasoningReplayPart(message: Message): ReasoningPart | undefined {
+  // OpenAI Responses: replay encrypted reasoning content to preserve internal state across turns.
+  // This data arrives via AI SDK providerMetadata as:
+  // providerMetadata.openai.{ itemId, reasoningEncryptedContent }
+  const openaiProviderMetadata = message.providerMetadata?.openai
+  if (!openaiProviderMetadata || typeof openaiProviderMetadata !== 'object') return undefined
+
+  const itemId = (openaiProviderMetadata as Record<string, JSONValue>).itemId
+  const reasoningEncryptedContent = (openaiProviderMetadata as Record<string, JSONValue>).reasoningEncryptedContent
+
+  if (typeof itemId !== 'string' || itemId.length === 0) return undefined
+  if (typeof reasoningEncryptedContent !== 'string' || reasoningEncryptedContent.length === 0) return undefined
+
+  return {
+    type: 'reasoning',
+    text: '',
+    providerOptions: {
+      openai: {
+        itemId,
+        reasoningEncryptedContent
+      }
+    }
   }
 }
 
