@@ -19,7 +19,10 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import { reset } from '@renderer/services/BackupService'
 import store, { useAppDispatch } from '@renderer/store'
-import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
+import {
+  setIncludeChatHistoryInBackup as _setIncludeChatHistoryInBackup,
+  setSkipBackupFile as _setSkipBackupFile
+} from '@renderer/store/settings'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
@@ -62,6 +65,8 @@ const DataSettings: FC = () => {
 
   const _skipBackupFile = store.getState().settings.skipBackupFile
   const [skipBackupFile, setSkipBackupFile] = useState<boolean>(_skipBackupFile)
+  const _includeChatHistoryInBackup = store.getState().settings.includeChatHistoryInBackup
+  const [includeChatHistoryInBackup, setIncludeChatHistoryInBackup] = useState<boolean>(_includeChatHistoryInBackup)
 
   const dispatch = useAppDispatch()
 
@@ -581,6 +586,11 @@ const DataSettings: FC = () => {
     dispatch(_setSkipBackupFile(value))
   }
 
+  const onIncludeChatHistoryChange = (value: boolean) => {
+    setIncludeChatHistoryInBackup(value)
+    dispatch(_setIncludeChatHistoryInBackup(value))
+  }
+
   return (
     <Container>
       <MenuList>
@@ -617,6 +627,13 @@ const DataSettings: FC = () => {
                 </HStack>
               </SettingRow>
               <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.data.backup.include_chat_history_title')}</SettingRowTitle>
+                <Switch checked={includeChatHistoryInBackup} onChange={onIncludeChatHistoryChange} />
+              </SettingRow>
+              <SettingRow>
+                <SettingHelpText>{t('settings.data.backup.include_chat_history_help')}</SettingHelpText>
+              </SettingRow>
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
                 <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />

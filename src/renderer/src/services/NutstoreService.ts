@@ -143,7 +143,8 @@ export async function backupToNutstore({
 
   store.dispatch(setNutstoreSyncState({ syncing: true, lastSyncError: null }))
 
-  const backupData = await getBackupData()
+  const { includeChatHistoryInBackup } = store.getState().settings
+  const backupData = await getBackupData({ includeChatHistory: includeChatHistoryInBackup })
   const skipBackupFile = store.getState().nutstore.nutstoreSkipBackupFile
   const maxBackups = store.getState().nutstore.nutstoreMaxBackups
 
