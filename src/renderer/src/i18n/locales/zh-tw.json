@@ -1343,7 +1343,9 @@
     "availableProviders": "可用供應商",
     "availableTools": "可用工具",
     "backup": {
-      "file_format": "備份檔案格式錯誤"
+      "file_format": "備份檔案格式錯誤",
+      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
+      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
     },
     "base64DataTruncated": "Base64 圖片資料已截斷，大小",
     "boundary": {

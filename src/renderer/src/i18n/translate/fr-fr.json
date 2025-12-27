@@ -1343,7 +1343,9 @@
     "availableProviders": "Fournisseurs disponibles",
     "availableTools": "Outils disponibles",
     "backup": {
-      "file_format": "Le format du fichier de sauvegarde est incorrect"
+      "file_format": "Le format du fichier de sauvegarde est incorrect",
+      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
+      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
     },
     "base64DataTruncated": "Données d'image Base64 tronquées, taille",
     "boundary": {
