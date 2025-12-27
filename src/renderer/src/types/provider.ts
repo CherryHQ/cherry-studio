@@ -114,6 +114,14 @@ export type Provider = {
   serviceTier?: ServiceTier
   verbosity?: OpenAIVerbosity
 
+  /**
+   * Custom endpoint extracted from apiHost when using '#' suffix.
+   * For example, if apiHost is 'https://api.example.com/v1/chat/completions#',
+   * this field will be 'chat/completions' and apiHost will be 'https://api.example.com/v1'.
+   * @see routeToEndpoint in @renderer/utils/api.ts
+   */
+  customEndpoint?: string
+
   /** @deprecated */
   isNotSupportArrayContent?: boolean
   /** @deprecated */

@@ -66,13 +66,27 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
 /**
  * Format and normalize the API host URL for a provider.
  * Handles provider-specific URL formatting rules (e.g., appending version paths, Azure formatting).
+ * Also extracts custom endpoint from apiHost when using '#' suffix (e.g., 'https://api.example.com/v1/chat/completions#').
  *
  * @param provider - The provider whose API host is to be formatted.
- * @returns A new provider instance with the formatted API host.
+ * @returns A new provider instance with the formatted API host and optional customEndpoint.
  */
 export function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
-  const appendApiVersion = !isWithTrailingSharp(provider.apiHost)
+
+  // Extract endpoint before any formatting that might remove the '#' suffix
+  // This must happen BEFORE formatApiHost is called, as formatApiHost removes the '#'
+  const hasTrailingSharp = isWithTrailingSharp(provider.apiHost)
+  if (hasTrailingSharp) {
+    const { baseURL, endpoint } = routeToEndpoint(provider.apiHost)
+    if (endpoint) {
+      formatted.customEndpoint = endpoint
+      // Use the extracted baseURL as the new apiHost (without the endpoint suffix)
+      formatted.apiHost = baseURL
+    }
+  }
+
+  const appendApiVersion = !hasTrailingSharp
   if (formatted.anthropicApiHost) {
     formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost, appendApiVersion)
   }
@@ -147,7 +161,12 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   const aiSdkProviderId = getAiSdkProviderId(actualProvider)
 
   // 构建基础配置
-  const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
+  // Use customEndpoint if available (extracted during formatProviderApiHost),
+  // otherwise fall back to routeToEndpoint for backward compatibility
+  const endpoint = actualProvider.customEndpoint ?? routeToEndpoint(actualProvider.apiHost).endpoint
+  const baseURL = actualProvider.customEndpoint
+    ? actualProvider.apiHost
+    : routeToEndpoint(actualProvider.apiHost).baseURL
   const baseConfig = {
     baseURL: baseURL,
     apiKey: actualProvider.apiKey
