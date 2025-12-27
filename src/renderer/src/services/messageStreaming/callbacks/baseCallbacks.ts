@@ -11,12 +11,13 @@ import type { Assistant } from '@renderer/types'
 import type { PlaceholderMessageBlock, Response } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
-import { isAbortError, serializeError } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, isAbortError, serializeError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isFocused, isOnHomePage } from '@renderer/utils/window'
 import type { AISDKError } from 'ai'
 import { NoOutputGeneratedError } from 'ai'
+import { t } from 'i18next'
 
 import type { BlockManager } from '../BlockManager'
 
@@ -75,7 +76,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       const isErrorTypeAbort = isAbortError(error)
       const serializableError = serializeError(error)
       if (isErrorTypeAbort) {
-        serializableError.message = 'pause_placeholder'
+        serializableError.message = formatErrorMessageWithPrefix(error, t('error.pause_placeholder'))
       }
 
       const duration = Date.now() - startTime
