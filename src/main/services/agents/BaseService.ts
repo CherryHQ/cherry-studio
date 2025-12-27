@@ -14,6 +14,17 @@ import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('BaseService')
+const MCP_TOOL_ID_PREFIX = 'mcp__'
+const MCP_TOOL_LEGACY_PREFIX = 'mcp_'
+
+const buildMcpToolId = (serverId: string, toolName: string) => `${MCP_TOOL_ID_PREFIX}${serverId}__${toolName}`
+const toLegacyMcpToolId = (toolId: string) => {
+  if (!toolId.startsWith(MCP_TOOL_ID_PREFIX)) {
+    return null
+  }
+  const rawId = toolId.slice(MCP_TOOL_ID_PREFIX.length)
+  return `${MCP_TOOL_LEGACY_PREFIX}${rawId.replace(/__/g, '_')}`
+}
 
 /**
  * Base service class providing shared utilities for all agent-related services.
@@ -47,7 +58,7 @@ export abstract class BaseService {
           if (server) {
             server.tools.forEach((tool: MCPTool) => {
               tools.push({
-                id: `mcp_${id}_${tool.name}`,
+                id: buildMcpToolId(id, tool.name),
                 name: tool.name,
                 type: 'mcp',
                 description: tool.description || '',
@@ -65,6 +76,32 @@ export abstract class BaseService {
     }
 
     return tools
+  }
+
+  protected normalizeAllowedTools(allowedTools: string[] | undefined, tools: Tool[]): string[] | undefined {
+    if (!allowedTools || allowedTools.length === 0) {
+      return allowedTools
+    }
+
+    const legacyIdMap = new Map<string, string>()
+
+    for (const tool of tools) {
+      if (tool.type !== 'mcp') {
+        continue
+      }
+      const legacyId = toLegacyMcpToolId(tool.id)
+      if (!legacyId) {
+        continue
+      }
+      legacyIdMap.set(legacyId, tool.id)
+    }
+
+    if (legacyIdMap.size === 0) {
+      return allowedTools
+    }
+
+    const normalized = allowedTools.map((toolId) => legacyIdMap.get(toolId) ?? toolId)
+    return Array.from(new Set(normalized))
   }
 
   public async listSlashCommands(agentType: AgentType): Promise<SlashCommand[]> {
