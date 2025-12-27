@@ -7,7 +7,9 @@
         "invalid_agent": "Agent invalide"
       },
       "model": {
-        "tooltip": "Actuellement, seuls les modèles qui prennent en charge les points de terminaison Anthropic sont disponibles pour la fonctionnalité Agent."
+        "supported_providers": "Fournisseurs pris en charge",
+        "tooltip": "Actuellement, seuls les modèles qui prennent en charge les points de terminaison Anthropic sont disponibles pour la fonctionnalité Agent.",
+        "view_providers": "Afficher les fournisseurs pris en charge"
       },
       "title": "Ajouter un agent",
       "type": {
@@ -4578,6 +4580,11 @@
       },
       "docs_check": "Voir",
       "docs_more_details": "Obtenir plus de détails",
+      "filter": {
+        "agent": "Prise en charge par un agent",
+        "all": "Tous les fournisseurs"
+      },
+      "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",
       "misc": "autre",
       "no_models_for_check": "Aucun modèle détectable (par exemple, modèle de chat)",
