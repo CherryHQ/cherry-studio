@@ -1293,8 +1293,8 @@
     "availableTools": "Verfügbare Tools",
     "backup": {
       "file_format": "Backup-Dateiformat fehlerhaft",
-      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
-      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
+      "file_locked": "Kann nicht wiederhergestellt: Einige Dateien sind in Gebrauch. Bitte schließen Sie alle Wissensdatenbanken oder starten Sie die App neu und versuchen Sie es erneut.",
+      "file_not_found": "Sicherungsdatei nicht gefunden oder beschädigt"
     },
     "boundary": {
       "default": {
@@ -4807,7 +4807,7 @@
         "content_limit_tooltip": "Begrenzen Sie die Länge der Suchergebnisse, überschreitende Inhalte werden abgeschnitten",
         "default_provider": "Standardanbieter",
         "free": "Kostenlos",
-        "is_default": "[to be translated]:Default",
+        "is_default": "Standard",
         "local_provider": {
           "hint": "Melden Sie sich auf der Website an, um bessere Suchergebnisse zu erhalten und Ihre Sucheinstellungen zu personalisieren.",
           "open_settings": "{{provider}}-Einstellungen öffnen",
@@ -4824,7 +4824,7 @@
         "search_provider": "Suchanbieter",
         "search_provider_placeholder": "Einen Suchanbieter auswählen",
         "search_with_time": "Suche mit Datum",
-        "set_as_default": "[to be translated]:Set as Default",
+        "set_as_default": "Als Standard festlegen",
         "subscribe": "Schwarze Liste-Abonnement",
         "subscribe_add": "Abonnement hinzufügen",
         "subscribe_add_failed": "Abonnement-Quelle hinzufügen fehlgeschlagen",

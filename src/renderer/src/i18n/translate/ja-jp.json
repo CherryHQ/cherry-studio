@@ -1293,8 +1293,8 @@
     "availableTools": "利用可能なツール",
     "backup": {
       "file_format": "バックアップファイルの形式エラー",
-      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
-      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
+      "file_locked": "一部のファイルが使用中です。全ナレッジベースを閉じるか、アプリを再起動して再度お試しください。",
+      "file_not_found": "バックアップファイルが見つからないか、壊れています"
     },
     "boundary": {
       "default": {
@@ -4807,7 +4807,7 @@
         "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
         "default_provider": "デフォルトプロバイダー",
         "free": "無料",
-        "is_default": "[to be translated]:Default",
+        "is_default": "デフォルト",
         "local_provider": {
           "hint": "ウェブサイトにログインして、より良い検索結果を得て、検索設定をパーソナライズしてください。",
           "open_settings": "{{provider}}設定を開く",
@@ -4824,7 +4824,7 @@
         "search_provider": "検索サービスプロバイダー",
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
         "search_with_time": "日付を含む検索",
-        "set_as_default": "[to be translated]:Set as Default",
+        "set_as_default": "デフォルトに設定する",
         "subscribe": "ブラックリスト購読",
         "subscribe_add": "購読を追加",
         "subscribe_add_failed": "購読ソースの追加に失敗しました",

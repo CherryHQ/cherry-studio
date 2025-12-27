@@ -1293,8 +1293,8 @@
     "availableTools": "Herramientas disponibles",
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto",
-      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
-      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
+      "file_locked": "No se puede restaurar: Algunos archivos están en uso. Por favor cierre todas las bases de conocimiento o reinicie la aplicación e intente de nuevo.",
+      "file_not_found": "Archivo de respaldo no encontrado o está corrupto"
     },
     "boundary": {
       "default": {
@@ -4807,7 +4807,7 @@
         "content_limit_tooltip": "Limita la longitud del contenido en los resultados de búsqueda; el contenido que exceda el límite será truncado",
         "default_provider": "Proveedor Predeterminado",
         "free": "Gratis",
-        "is_default": "[to be translated]:Default",
+        "is_default": "Predeterminado",
         "local_provider": {
           "hint": "Inicia sesión en el sitio web para obtener mejores resultados de búsqueda y personalizar tu configuración de búsqueda.",
           "open_settings": "Abrir configuración de {{provider}}",
@@ -4824,7 +4824,7 @@
         "search_provider": "Proveedor de búsqueda",
         "search_provider_placeholder": "Seleccione un proveedor de búsqueda",
         "search_with_time": "Buscar con fecha",
-        "set_as_default": "[to be translated]:Set as Default",
+        "set_as_default": "Establecer como Predeterminado",
         "subscribe": "Suscripción a lista negra",
         "subscribe_add": "Añadir suscripción",
         "subscribe_add_failed": "Error al agregar la fuente de suscripción",
