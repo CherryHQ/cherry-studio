@@ -5,7 +5,7 @@
 
 import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
-import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
+import { isImageEnhancementModel, isReasoningModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
 import type { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { parseDataUrlMediaType } from '@renderer/utils/image'
@@ -157,6 +157,12 @@ async function convertMessageToUserModelMessage(
 
 /**
  * 转换为助手模型消息
+ *
+ * 注意：只有当目标模型支持思考功能（isReasoningModel）时，才会将 thinking blocks
+ * 转换为 reasoning parts。这是为了防止将 reasoning_content 字段发送给不支持该字段
+ * 的 API（如 Groq），从而避免请求失败。
+ *
+ * @see https://github.com/CherryHQ/cherry-studio/issues/12140
  */
 async function convertMessageToAssistantModelMessage(
   content: string,
@@ -169,8 +175,15 @@ async function convertMessageToAssistantModelMessage(
     parts.push({ type: 'text', text: content })
   }
 
-  for (const thinkingBlock of thinkingBlocks) {
-    parts.push({ type: 'reasoning', text: thinkingBlock.content })
+  // 只有当模型支持思考功能时才添加 reasoning parts
+  // 避免将 reasoning_content 发送给不支持该字段的 API（如 Groq）
+  if (model && isReasoningModel(model)) {
+    for (const thinkingBlock of thinkingBlocks) {
+      // 过滤掉空内容的 thinking blocks
+      if (thinkingBlock.content) {
+        parts.push({ type: 'reasoning', text: thinkingBlock.content })
+      }
+    }
   }
 
   for (const fileBlock of fileBlocks) {
