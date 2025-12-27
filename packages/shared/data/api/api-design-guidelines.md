@@ -45,6 +45,63 @@ Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
 }
 ```
 
+## PATCH vs Dedicated Endpoints
+
+### Decision Criteria
+
+Use this decision tree to determine the appropriate approach:
+
+```
+Operation characteristics:
+├── Simple field update with no side effects?
+│   └── Yes → Use PATCH
+├── High-frequency operation with clear business meaning?
+│   └── Yes → Use dedicated endpoint (noun-based sub-resource)
+├── Operation triggers complex side effects or validation?
+│   └── Yes → Use dedicated endpoint
+├── Operation creates new resources?
+│   └── Yes → Use POST to dedicated endpoint
+└── Default → Use PATCH
+```
+
+### Guidelines
+
+| Scenario | Approach | Example |
+|----------|----------|---------|
+| Simple field update | PATCH | `PATCH /messages/:id { data: {...} }` |
+| High-frequency + business meaning | Dedicated sub-resource | `PUT /topics/:id/active-node { nodeId }` |
+| Complex validation/side effects | Dedicated endpoint | `POST /messages/:id/move { newParentId }` |
+| Creates new resources | POST dedicated | `POST /messages/:id/duplicate` |
+
+### Naming for Dedicated Endpoints
+
+- **Prefer noun-based paths** over verb-based when possible
+- Treat the operation target as a sub-resource: `/topics/:id/active-node` not `/topics/:id/switch-branch`
+- Use POST for actions that create resources or have non-idempotent side effects
+- Use PUT for setting/replacing a sub-resource value
+
+### Examples
+
+```typescript
+// ✅ Good: Noun-based sub-resource for high-frequency operation
+PUT /topics/:id/active-node
+{ nodeId: string }
+
+// ✅ Good: Simple field update via PATCH
+PATCH /messages/:id
+{ data: MessageData }
+
+// ✅ Good: POST for resource creation
+POST /messages/:id/duplicate
+{ includeDescendants?: boolean }
+
+// ❌ Avoid: Verb in path when noun works
+POST /topics/:id/switch-branch  // Use PUT /topics/:id/active-node instead
+
+// ❌ Avoid: Dedicated endpoint for simple updates
+POST /messages/:id/update-content  // Use PATCH /messages/:id instead
+```
+
 ## Non-CRUD Operations
 
 Use verb-based paths for operations that don't fit CRUD semantics:
