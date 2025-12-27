@@ -14,6 +14,7 @@ interface InputBarProps {
   loading: boolean
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  handlePaste: (e: React.ClipboardEvent<HTMLInputElement>) => void
 }
 
 const InputBar = ({
@@ -23,7 +24,8 @@ const InputBar = ({
   placeholder,
   loading,
   handleKeyDown,
-  handleChange
+  handleChange,
+  handlePaste
 }: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const inputRef = useRef<InputRef>(null)
   const { setTimeoutTimer } = useTimer()
@@ -40,6 +42,7 @@ const InputBar = ({
         autoFocus
         onKeyDown={handleKeyDown}
         onChange={handleChange}
+        onPaste={handlePaste}
         ref={inputRef}
       />
     </InputWrapper>

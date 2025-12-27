@@ -36,7 +36,7 @@ const MessageAttachments: FC<Props> = ({ block }) => {
         fileList={[
           {
             uid: block.file.id,
-            url: 'file://' + FileManager.getSafePath(block.file),
+            url: 'file://' + FileManager.getFilePath(block.file),
             status: 'done' as const,
             name: FileManager.formatFileName(block.file),
             type: block.file.type,
