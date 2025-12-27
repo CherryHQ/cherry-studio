@@ -1292,7 +1292,9 @@
     "availableProviders": "Fournisseurs disponibles",
     "availableTools": "Outils disponibles",
     "backup": {
-      "file_format": "Le format du fichier de sauvegarde est incorrect"
+      "file_format": "Le format du fichier de sauvegarde est incorrect",
+      "file_locked": "Impossible de restaurer : certains fichiers sont utilisés. Veuillez fermer toutes les bases de connaissances ou redémarrer l'application et réessayer.",
+      "file_not_found": "Fichier de sauvegarde introuvable ou corrompu"
     },
     "boundary": {
       "default": {
@@ -4805,7 +4807,7 @@
         "content_limit_tooltip": "Limiter la longueur du contenu des résultats de recherche ; le contenu dépassant cette limite sera tronqué",
         "default_provider": "Fournisseur par défaut",
         "free": "Gratuit",
-        "is_default": "[to be translated]:Default",
+        "is_default": "Par défaut",
         "local_provider": {
           "hint": "Connectez-vous au site Web pour obtenir de meilleurs résultats de recherche et personnaliser vos paramètres de recherche.",
           "open_settings": "Ouvrir les paramètres de {{provider}}",
@@ -4822,7 +4824,7 @@
         "search_provider": "Fournisseur de recherche",
         "search_provider_placeholder": "Sélectionnez un fournisseur de recherche",
         "search_with_time": "Rechercher avec date",
-        "set_as_default": "[to be translated]:Set as Default",
+        "set_as_default": "Définir par défaut",
         "subscribe": "Abonnement à la liste noire",
         "subscribe_add": "Ajouter un abonnement",
         "subscribe_add_failed": "Échec de l'ajout de la source d'abonnement",

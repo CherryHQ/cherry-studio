@@ -1292,7 +1292,9 @@
     "availableProviders": "可用供應商",
     "availableTools": "可用工具",
     "backup": {
-      "file_format": "備份檔案格式錯誤"
+      "file_format": "備份檔案格式錯誤",
+      "file_locked": "無法還原：部分檔案正在使用中。請關閉所有知識庫或重新啟動應用程式後重試。",
+      "file_not_found": "備份檔案未找到或已損壞"
     },
     "boundary": {
       "default": {
@@ -4805,7 +4807,7 @@
         "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
         "default_provider": "預設搜尋引擎",
         "free": "免費",
-        "is_default": "[to be translated]:Default",
+        "is_default": "預設",
         "local_provider": {
           "hint": "登入網站以獲得更佳搜尋結果並個人化您的搜尋設定。",
           "open_settings": "開啟 {{provider}} 設定",
@@ -4822,7 +4824,7 @@
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
         "search_with_time": "搜尋包含日期",
-        "set_as_default": "[to be translated]:Set as Default",
+        "set_as_default": "設為預設",
         "subscribe": "黑名單訂閱",
         "subscribe_add": "新增訂閱",
         "subscribe_add_failed": "訂閱來源新增失敗",
