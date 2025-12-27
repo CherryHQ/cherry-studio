@@ -544,7 +544,6 @@ function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): Googl
     case 'default':
       return undefined
     case 'minimal':
-      return 'minimal'
     case 'low':
       return 'low'
     case 'medium':
