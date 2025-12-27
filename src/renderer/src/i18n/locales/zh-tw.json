@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "刪除助手會刪除所有該助手下的話題和檔案，確定要繼續嗎？",
+      "error": {
+        "remain_one": "不允許刪除最後一個助手"
+      },
       "title": "刪除助手"
     },
     "edit": {
@@ -4805,7 +4808,7 @@
         "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
         "default_provider": "預設搜尋引擎",
         "free": "免費",
-        "is_default": "[to be translated]:Default",
+        "is_default": "預設",
         "local_provider": {
           "hint": "登入網站以獲得更佳搜尋結果並個人化您的搜尋設定。",
           "open_settings": "開啟 {{provider}} 設定",
@@ -4822,7 +4825,7 @@
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
         "search_with_time": "搜尋包含日期",
-        "set_as_default": "[to be translated]:Set as Default",
+        "set_as_default": "設為預設",
         "subscribe": "黑名單訂閱",
         "subscribe_add": "新增訂閱",
         "subscribe_add_failed": "訂閱來源新增失敗",
