@@ -100,9 +100,23 @@ export async function restore() {
         source: 'backup',
         channel: 'system'
       })
-    } catch (error) {
+    } catch (error: any) {
       logger.error('restore: Error restoring backup file:', error as Error)
-      window.toast.error(i18n.t('error.backup.file_format'))
+
+      // Distinguish different error types for better user experience
+      const errorCode = error.code || ''
+      const errorMessage = error.message || ''
+
+      if (errorCode === 'EBUSY' || errorMessage.includes('EBUSY') || errorMessage.includes('locked')) {
+        window.toast.error(i18n.t('error.backup.file_locked'))
+      } else if (errorCode === 'ENOENT' || errorMessage.includes('no such file')) {
+        window.toast.error(i18n.t('error.backup.file_not_found'))
+      } else if (errorMessage.includes('JSON')) {
+        window.toast.error(i18n.t('error.backup.file_format'))
+      } else {
+        // Show detailed error message for debugging
+        window.toast.error(i18n.t('error.backup.file_format') + ': ' + errorMessage)
+      }
     }
   }
 }
@@ -314,9 +328,23 @@ export async function restoreFromWebdav(fileName?: string) {
 
   try {
     await handleData(JSON.parse(data))
-  } catch (error) {
+  } catch (error: any) {
     logger.error('[Backup] Error downloading file from WebDAV:', error as Error)
-    window.toast.error(i18n.t('error.backup.file_format'))
+
+    // Distinguish different error types for better user experience
+    const errorCode = error.code || ''
+    const errorMessage = error.message || ''
+
+    if (errorCode === 'EBUSY' || errorMessage.includes('EBUSY') || errorMessage.includes('locked')) {
+      window.toast.error(i18n.t('error.backup.file_locked'))
+    } else if (errorCode === 'ENOENT' || errorMessage.includes('no such file')) {
+      window.toast.error(i18n.t('error.backup.file_not_found'))
+    } else if (errorMessage.includes('JSON')) {
+      window.toast.error(i18n.t('error.backup.file_format'))
+    } else {
+      // Show detailed error message for debugging
+      window.toast.error(i18n.t('error.backup.file_format') + ': ' + errorMessage)
+    }
   }
 }
 
@@ -1071,9 +1099,24 @@ export async function restoreFromLocal(fileName: string) {
     await handleData(data)
 
     return true
-  } catch (error) {
+  } catch (error: any) {
     logger.error('[LocalBackup] Restore failed:', error as Error)
-    window.toast.error(i18n.t('error.backup.file_format'))
+
+    // Distinguish different error types for better user experience
+    const errorCode = error.code || ''
+    const errorMessage = error.message || ''
+
+    if (errorCode === 'EBUSY' || errorMessage.includes('EBUSY') || errorMessage.includes('locked')) {
+      window.toast.error(i18n.t('error.backup.file_locked'))
+    } else if (errorCode === 'ENOENT' || errorMessage.includes('no such file')) {
+      window.toast.error(i18n.t('error.backup.file_not_found'))
+    } else if (errorMessage.includes('JSON')) {
+      window.toast.error(i18n.t('error.backup.file_format'))
+    } else {
+      // Show detailed error message for debugging
+      window.toast.error(i18n.t('error.backup.file_format') + ': ' + errorMessage)
+    }
+
     throw error
   }
 }
