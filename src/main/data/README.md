@@ -220,6 +220,7 @@ export class SimpleService extends BaseService {
 - Table definitions using Drizzle ORM
 - Follow naming convention: `{entity}Table` exports
 - Use `crudTimestamps` helper for timestamp fields
+- See [db/README.md](./db/README.md#field-generation-rules) for detailed field generation rules and `.returning()` pattern
 
 ### Current Tables
 - `preference`: User configuration storage

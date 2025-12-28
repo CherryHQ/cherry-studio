@@ -22,8 +22,7 @@ import type {
   TreeNode,
   TreeResponse
 } from '@shared/data/types/message'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
-import { v7 as uuidv7 } from 'uuid'
+import { eq, inArray, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('MessageService')
 
@@ -126,10 +125,7 @@ export class MessageService {
     const activeNodeId = options.nodeId || topic.activeNodeId
 
     // Get all messages for this topic
-    const allMessages = await db
-      .select()
-      .from(messageTable)
-      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+    const allMessages = await db.select().from(messageTable).where(eq(messageTable.topicId, topicId))
 
     if (allMessages.length === 0) {
       return { nodes: [], siblingsGroups: [], activeNodeId: null }
@@ -249,10 +245,7 @@ export class MessageService {
     }
 
     // Get all messages for this topic
-    const allMessages = await db
-      .select()
-      .from(messageTable)
-      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+    const allMessages = await db.select().from(messageTable).where(eq(messageTable.topicId, topicId))
 
     if (allMessages.length === 0) {
       return { messages: [], activeNodeId: null }
@@ -335,11 +328,7 @@ export class MessageService {
   async getById(id: string): Promise<Message> {
     const db = dbService.getDb()
 
-    const [row] = await db
-      .select()
-      .from(messageTable)
-      .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
-      .limit(1)
+    const [row] = await db.select().from(messageTable).where(eq(messageTable.id, id)).limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Message', id)
@@ -363,41 +352,39 @@ export class MessageService {
 
     // Verify parent exists if specified
     if (dto.parentId) {
-      const [parent] = await db
-        .select()
-        .from(messageTable)
-        .where(and(eq(messageTable.id, dto.parentId), isNull(messageTable.deletedAt)))
-        .limit(1)
+      const [parent] = await db.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
 
       if (!parent) {
         throw DataApiErrorFactory.notFound('Message', dto.parentId)
       }
     }
 
-    const now = Date.now()
-    const id = uuidv7()
+    const [row] = await db
+      .insert(messageTable)
+      .values({
+        topicId,
+        parentId: dto.parentId,
+        role: dto.role,
+        data: dto.data,
+        status: dto.status ?? 'pending',
+        siblingsGroupId: dto.siblingsGroupId ?? 0,
+        assistantId: dto.assistantId,
+        assistantMeta: dto.assistantMeta,
+        modelId: dto.modelId,
+        modelMeta: dto.modelMeta,
+        traceId: dto.traceId,
+        stats: dto.stats
+      })
+      .returning()
 
-    await db.insert(messageTable).values({
-      id,
-      topicId,
-      parentId: dto.parentId,
-      role: dto.role,
-      data: dto.data,
-      status: dto.status ?? 'pending',
-      siblingsGroupId: dto.siblingsGroupId ?? 0,
-      assistantId: dto.assistantId,
-      assistantMeta: dto.assistantMeta,
-      modelId: dto.modelId,
-      modelMeta: dto.modelMeta,
-      traceId: dto.traceId,
-      stats: dto.stats,
-      createdAt: now,
-      updatedAt: now
-    })
+    // Update activeNodeId if setAsActive is not explicitly false
+    if (dto.setAsActive !== false) {
+      await db.update(topicTable).set({ activeNodeId: row.id }).where(eq(topicTable.id, topicId))
+    }
 
-    logger.info('Created message', { id, topicId, role: dto.role })
+    logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
 
-    return this.getById(id)
+    return rowToMessage(row)
   }
 
   /**
@@ -419,11 +406,7 @@ export class MessageService {
         }
 
         // Verify new parent exists
-        const [parent] = await db
-          .select()
-          .from(messageTable)
-          .where(and(eq(messageTable.id, dto.parentId), isNull(messageTable.deletedAt)))
-          .limit(1)
+        const [parent] = await db.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
 
         if (!parent) {
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
@@ -432,24 +415,22 @@ export class MessageService {
     }
 
     // Build update object
-    const updates: Partial<typeof messageTable.$inferInsert> = {
-      updatedAt: Date.now()
-    }
+    const updates: Partial<typeof messageTable.$inferInsert> = {}
 
     if (dto.data !== undefined) updates.data = dto.data
     if (dto.parentId !== undefined) updates.parentId = dto.parentId
     if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
     if (dto.status !== undefined) updates.status = dto.status
 
-    await db.update(messageTable).set(updates).where(eq(messageTable.id, id))
+    const [row] = await db.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning()
 
     logger.info('Updated message', { id, changes: Object.keys(dto) })
 
-    return this.getById(id)
+    return rowToMessage(row)
   }
 
   /**
-   * Delete a message
+   * Delete a message (hard delete)
    */
   async delete(id: string, cascade: boolean = false): Promise<{ deletedIds: string[]; reparentedIds?: string[] }> {
     const db = dbService.getDb()
@@ -464,37 +445,29 @@ export class MessageService {
       throw DataApiErrorFactory.invalidOperation('delete root message', 'cascade=true required')
     }
 
-    const now = Date.now()
-
     if (cascade) {
       // Get all descendants
       const descendantIds = await this.getDescendantIds(id)
       const allIds = [id, ...descendantIds]
 
-      // Soft delete all
-      await db.update(messageTable).set({ deletedAt: now }).where(inArray(messageTable.id, allIds))
+      // Hard delete all
+      await db.delete(messageTable).where(inArray(messageTable.id, allIds))
 
       logger.info('Cascade deleted messages', { rootId: id, count: allIds.length })
 
       return { deletedIds: allIds }
     } else {
       // Reparent children to this message's parent
-      const children = await db
-        .select({ id: messageTable.id })
-        .from(messageTable)
-        .where(and(eq(messageTable.parentId, id), isNull(messageTable.deletedAt)))
+      const children = await db.select({ id: messageTable.id }).from(messageTable).where(eq(messageTable.parentId, id))
 
       const childIds = children.map((c) => c.id)
 
       if (childIds.length > 0) {
-        await db
-          .update(messageTable)
-          .set({ parentId: message.parentId, updatedAt: now })
-          .where(inArray(messageTable.id, childIds))
+        await db.update(messageTable).set({ parentId: message.parentId }).where(inArray(messageTable.id, childIds))
       }
 
-      // Soft delete this message
-      await db.update(messageTable).set({ deletedAt: now }).where(eq(messageTable.id, id))
+      // Hard delete this message
+      await db.delete(messageTable).where(eq(messageTable.id, id))
 
       logger.info('Deleted message with reparenting', { id, reparentedCount: childIds.length })
 
@@ -511,11 +484,10 @@ export class MessageService {
     // Use recursive query to get all descendants
     const result = await db.all<{ id: string }>(sql`
       WITH RECURSIVE descendants AS (
-        SELECT id FROM message WHERE parent_id = ${id} AND deleted_at IS NULL
+        SELECT id FROM message WHERE parent_id = ${id}
         UNION ALL
         SELECT m.id FROM message m
         INNER JOIN descendants d ON m.parent_id = d.id
-        WHERE m.deleted_at IS NULL
       )
       SELECT id FROM descendants
     `)

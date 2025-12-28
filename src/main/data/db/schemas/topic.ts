@@ -3,7 +3,7 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './columnHelpers'
 import { groupTable } from './group'
-import { messageTable } from './message'
+// import { messageTable } from './message'
 
 /**
  * Topic table - stores conversation topics/threads
@@ -26,7 +26,8 @@ export const topicTable = sqliteTable(
     prompt: text(),
     // Active node ID in the message tree
     // SET NULL: reset to null when the referenced message is deleted
-    activeNodeId: text().references(() => messageTable.id, { onDelete: 'set null' }),
+    activeNodeId: text(),
+    // .references(() => messageTable.id, { onDelete: 'set null' }),
 
     // FK to group table for organization
     // SET NULL: preserve topic when group is deleted

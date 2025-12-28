@@ -1,7 +1,7 @@
 import type { MessageData, MessageStats } from '@shared/data/types/message'
 import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
 import { sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './columnHelpers'
 import { topicTable } from './topic'
@@ -18,8 +18,7 @@ export const messageTable = sqliteTable(
   {
     id: uuidPrimaryKeyOrdered(),
     // Adjacency list parent reference for tree structure
-    // SET NULL: preserve child messages when parent is deleted
-    parentId: text().references(() => messageTable.id, { onDelete: 'set null' }),
+    parentId: text(),
     // FK to topic - CASCADE: delete messages when topic is deleted
     topicId: text()
       .notNull()
@@ -53,6 +52,8 @@ export const messageTable = sqliteTable(
     ...createUpdateDeleteTimestamps
   },
   (t) => [
+    // Foreign keys
+    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('set null'),
     // Indexes
     index('message_parent_id_idx').on(t.parentId),
     index('message_topic_created_idx').on(t.topicId, t.createdAt),

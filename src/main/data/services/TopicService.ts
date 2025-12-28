@@ -14,8 +14,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
-import { and, eq, isNull } from 'drizzle-orm'
-import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
+import { eq } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
 
@@ -60,11 +59,7 @@ export class TopicService {
   async getById(id: string): Promise<Topic> {
     const db = dbService.getDb()
 
-    const [row] = await db
-      .select()
-      .from(topicTable)
-      .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
-      .limit(1)
+    const [row] = await db.select().from(topicTable).where(eq(topicTable.id, id)).limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Topic', id)
@@ -78,12 +73,8 @@ export class TopicService {
    */
   async create(dto: CreateTopicDto): Promise<Topic> {
     const db = dbService.getDb()
-    const now = Date.now()
-    const id = uuidv4()
 
     // If forking from existing node, copy the path
-    let activeNodeId: string | null = null
-
     if (dto.sourceNodeId) {
       // Verify source node exists
       try {
@@ -95,70 +86,76 @@ export class TopicService {
       // Get path from root to source node
       const path = await messageService.getPathToNode(dto.sourceNodeId)
 
-      // Create new topic first
-      await db.insert(topicTable).values({
-        id,
-        name: dto.name,
-        assistantId: dto.assistantId,
-        assistantMeta: dto.assistantMeta,
-        prompt: dto.prompt,
-        groupId: dto.groupId,
-        createdAt: now,
-        updatedAt: now
-      })
+      // Create new topic first using returning() to get the id
+      const [topicRow] = await db
+        .insert(topicTable)
+        .values({
+          name: dto.name,
+          assistantId: dto.assistantId,
+          assistantMeta: dto.assistantMeta,
+          prompt: dto.prompt,
+          groupId: dto.groupId
+        })
+        .returning()
 
-      // Copy messages with new IDs
+      const topicId = topicRow.id
+
+      // Copy messages with new IDs using returning()
       const idMapping = new Map<string, string>()
+      let activeNodeId: string | null = null
 
       for (const message of path) {
-        const newId = uuidv7()
         const newParentId = message.parentId ? idMapping.get(message.parentId) || null : null
 
-        idMapping.set(message.id, newId)
+        const [messageRow] = await db
+          .insert(messageTable)
+          .values({
+            topicId,
+            parentId: newParentId,
+            role: message.role,
+            data: message.data,
+            status: message.status,
+            siblingsGroupId: 0, // Simplify multi-model to normal node
+            assistantId: message.assistantId,
+            assistantMeta: message.assistantMeta,
+            modelId: message.modelId,
+            modelMeta: message.modelMeta,
+            traceId: null,
+            stats: null
+          })
+          .returning()
 
-        await db.insert(messageTable).values({
-          id: newId,
-          topicId: id,
-          parentId: newParentId,
-          role: message.role,
-          data: message.data,
-          status: message.status,
-          siblingsGroupId: 0, // Simplify multi-model to normal node
-          assistantId: message.assistantId,
-          assistantMeta: message.assistantMeta,
-          modelId: message.modelId,
-          modelMeta: message.modelMeta,
-          traceId: null, // Clear trace ID
-          stats: null, // Clear stats
-          createdAt: now,
-          updatedAt: now
-        })
-
-        // Last node becomes the active node
-        activeNodeId = newId
+        idMapping.set(message.id, messageRow.id)
+        activeNodeId = messageRow.id
       }
 
       // Update topic with active node
-      await db.update(topicTable).set({ activeNodeId }).where(eq(topicTable.id, id))
+      await db.update(topicTable).set({ activeNodeId }).where(eq(topicTable.id, topicId))
 
-      logger.info('Created topic by forking', { id, sourceNodeId: dto.sourceNodeId, messageCount: path.length })
-    } else {
-      // Create empty topic
-      await db.insert(topicTable).values({
-        id,
-        name: dto.name,
-        assistantId: dto.assistantId,
-        assistantMeta: dto.assistantMeta,
-        prompt: dto.prompt,
-        groupId: dto.groupId,
-        createdAt: now,
-        updatedAt: now
+      logger.info('Created topic by forking', {
+        id: topicId,
+        sourceNodeId: dto.sourceNodeId,
+        messageCount: path.length
       })
 
-      logger.info('Created empty topic', { id })
-    }
+      return this.getById(topicId)
+    } else {
+      // Create empty topic using returning()
+      const [row] = await db
+        .insert(topicTable)
+        .values({
+          name: dto.name,
+          assistantId: dto.assistantId,
+          assistantMeta: dto.assistantMeta,
+          prompt: dto.prompt,
+          groupId: dto.groupId
+        })
+        .returning()
 
-    return this.getById(id)
+      logger.info('Created empty topic', { id: row.id })
+
+      return rowToTopic(row)
+    }
   }
 
   /**
@@ -171,9 +168,7 @@ export class TopicService {
     await this.getById(id)
 
     // Build update object
-    const updates: Partial<typeof topicTable.$inferInsert> = {
-      updatedAt: Date.now()
-    }
+    const updates: Partial<typeof topicTable.$inferInsert> = {}
 
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
@@ -185,15 +180,15 @@ export class TopicService {
     if (dto.isPinned !== undefined) updates.isPinned = dto.isPinned
     if (dto.pinnedOrder !== undefined) updates.pinnedOrder = dto.pinnedOrder
 
-    await db.update(topicTable).set(updates).where(eq(topicTable.id, id))
+    const [row] = await db.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning()
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
-    return this.getById(id)
+    return rowToTopic(row)
   }
 
   /**
-   * Delete a topic and all its messages
+   * Delete a topic and all its messages (hard delete)
    */
   async delete(id: string): Promise<void> {
     const db = dbService.getDb()
@@ -201,13 +196,11 @@ export class TopicService {
     // Verify topic exists
     await this.getById(id)
 
-    const now = Date.now()
+    // Hard delete all messages first (due to foreign key)
+    await db.delete(messageTable).where(eq(messageTable.topicId, id))
 
-    // Soft delete all messages
-    await db.update(messageTable).set({ deletedAt: now }).where(eq(messageTable.topicId, id))
-
-    // Soft delete topic
-    await db.update(topicTable).set({ deletedAt: now }).where(eq(topicTable.id, id))
+    // Hard delete topic
+    await db.delete(topicTable).where(eq(topicTable.id, id))
 
     logger.info('Deleted topic', { id })
   }
@@ -222,18 +215,14 @@ export class TopicService {
     await this.getById(topicId)
 
     // Verify node exists and belongs to this topic
-    const [message] = await db
-      .select()
-      .from(messageTable)
-      .where(and(eq(messageTable.id, nodeId), eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
-      .limit(1)
+    const [message] = await db.select().from(messageTable).where(eq(messageTable.id, nodeId)).limit(1)
 
-    if (!message) {
+    if (!message || message.topicId !== topicId) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
     // Update active node
-    await db.update(topicTable).set({ activeNodeId: nodeId, updatedAt: Date.now() }).where(eq(topicTable.id, topicId))
+    await db.update(topicTable).set({ activeNodeId: nodeId }).where(eq(topicTable.id, topicId))
 
     logger.info('Set active node', { topicId, nodeId })
 

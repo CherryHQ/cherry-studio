@@ -103,3 +103,32 @@ Generate migrations after schema changes:
 ```bash
 yarn db:migrations:generate
 ```
+
+## Field Generation Rules
+
+The schema uses Drizzle's auto-generation features. Follow these rules:
+
+### Auto-generated fields (NEVER set manually)
+
+- `id`: Uses `$defaultFn()` with UUID v4/v7, auto-generated on insert
+- `createdAt`: Uses `$defaultFn()` with `Date.now()`, auto-generated on insert
+- `updatedAt`: Uses `$defaultFn()` and `$onUpdateFn()`, auto-updated on every update
+
+### Using `.returning()` pattern
+
+Always use `.returning()` to get inserted/updated data instead of re-querying:
+
+```typescript
+// Good: Use returning()
+const [row] = await db.insert(table).values(data).returning()
+return rowToEntity(row)
+
+// Avoid: Re-query after insert (unnecessary database round-trip)
+await db.insert(table).values({ id, ...data })
+return this.getById(id)
+```
+
+### Soft delete support
+
+The schema supports soft delete via `deletedAt` field (see `createUpdateDeleteTimestamps`).
+Business logic can choose to use soft delete or hard delete based on requirements.

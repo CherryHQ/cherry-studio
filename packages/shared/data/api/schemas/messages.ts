@@ -46,6 +46,8 @@ export interface CreateMessageDto {
   traceId?: string
   /** Statistics */
   stats?: MessageStats
+  /** Set this message as the active node in the topic (default: true) */
+  setAsActive?: boolean
 }
 
 /**
