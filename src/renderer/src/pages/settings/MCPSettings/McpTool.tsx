@@ -137,7 +137,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     {
       title: (
         <Flex align="center" justify="center" gap={4}>
-          <McpLogo width={14} height={14} />
+          <McpLogo width={14} height={14} style={{ opacity: 0.8 }} />
           <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
         </Flex>
       ),

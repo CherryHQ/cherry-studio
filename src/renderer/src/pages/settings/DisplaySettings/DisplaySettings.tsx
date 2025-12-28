@@ -18,7 +18,7 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, ColorPicker, Segmented, Select, Switch } from 'antd'
+import { Button, ColorPicker, Segmented, Select, Switch, Tooltip } from 'antd'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -196,6 +196,21 @@ const DisplaySettings: FC = () => {
     [t]
   )
 
+  const renderFontOption = useCallback(
+    (font: string) => (
+      <Tooltip title={font} placement="left" mouseEnterDelay={0.5}>
+        <div
+          className="truncate"
+          style={{
+            fontFamily: font
+          }}>
+          {font}
+        </div>
+      </Tooltip>
+    ),
+    []
+  )
+
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -292,7 +307,7 @@ const DisplaySettings: FC = () => {
           <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
           <SelectRow>
             <Select
-              style={{ width: 200 }}
+              style={{ width: 280 }}
               placeholder={t('settings.display.font.select')}
               options={[
                 {
@@ -303,7 +318,7 @@ const DisplaySettings: FC = () => {
                   ),
                   value: ''
                 },
-                ...fontList.map((font) => ({ label: <span style={{ fontFamily: font }}>{font}</span>, value: font }))
+                ...fontList.map((font) => ({ label: renderFontOption(font), value: font }))
               ]}
               value={userTheme.userFontFamily || ''}
               onChange={(font) => handleUserFontChange(font)}
@@ -324,7 +339,7 @@ const DisplaySettings: FC = () => {
           <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
           <SelectRow>
             <Select
-              style={{ width: 200 }}
+              style={{ width: 280 }}
               placeholder={t('settings.display.font.select')}
               options={[
                 {
@@ -335,7 +350,7 @@ const DisplaySettings: FC = () => {
                   ),
                   value: ''
                 },
-                ...fontList.map((font) => ({ label: <span style={{ fontFamily: font }}>{font}</span>, value: font }))
+                ...fontList.map((font) => ({ label: renderFontOption(font), value: font }))
               ]}
               value={userTheme.userCodeFontFamily || ''}
               onChange={(font) => handleUserCodeFontChange(font)}
@@ -480,7 +495,7 @@ const SelectRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  width: 300px;
+  width: 380px;
 `
 
 export default DisplaySettings
