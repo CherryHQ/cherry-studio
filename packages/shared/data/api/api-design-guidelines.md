@@ -147,24 +147,33 @@ Use standard HTTP status codes consistently:
 | 204 No Content | Successful DELETE | No body |
 | 400 Bad Request | Invalid request format | Malformed JSON |
 | 401 Unauthorized | Authentication required | Missing/invalid token |
-| 403 Forbidden | Permission denied | Insufficient access |
+| 403 Permission Denied | Insufficient permissions | Access denied to resource |
 | 404 Not Found | Resource not found | Invalid ID |
-| 409 Conflict | Concurrent modification | Version conflict |
+| 409 Conflict | Concurrent modification or data inconsistency | Version conflict, data corruption |
 | 422 Unprocessable | Validation failed | Invalid field values |
+| 423 Locked | Resource temporarily locked | File being exported |
 | 429 Too Many Requests | Rate limit exceeded | Throttling |
 | 500 Internal Error | Server error | Unexpected failure |
+| 503 Service Unavailable | Service temporarily down | Maintenance mode |
+| 504 Timeout | Request timed out | Long-running operation |
 
 ## Error Response Format
 
-All error responses follow the `DataApiError` structure:
+All error responses follow the `SerializedDataApiError` structure (transmitted via IPC):
 
 ```typescript
-interface DataApiError {
-  code: string      // ErrorCode enum value (e.g., 'NOT_FOUND')
-  message: string   // Human-readable error message
-  status: number    // HTTP status code
-  details?: any     // Additional context (e.g., field errors)
-  stack?: string    // Stack trace (development only)
+interface SerializedDataApiError {
+  code: ErrorCode | string  // ErrorCode enum value (e.g., 'NOT_FOUND')
+  message: string           // Human-readable error message
+  status: number            // HTTP status code
+  details?: Record<string, unknown>  // Additional context (e.g., field errors)
+  requestContext?: {        // Request context for debugging
+    requestId: string
+    path: string
+    method: HttpMethod
+    timestamp?: number
+  }
+  // Note: stack trace is NOT transmitted via IPC - rely on Main process logs
 }
 ```
 
@@ -176,7 +185,8 @@ interface DataApiError {
   code: 'NOT_FOUND',
   message: "Topic with id 'abc123' not found",
   status: 404,
-  details: { resource: 'Topic', id: 'abc123' }
+  details: { resource: 'Topic', id: 'abc123' },
+  requestContext: { requestId: 'req_123', path: '/topics/abc123', method: 'GET' }
 }
 
 // 422 Validation Error
@@ -191,16 +201,32 @@ interface DataApiError {
     }
   }
 }
+
+// 504 Timeout
+{
+  code: 'TIMEOUT',
+  message: 'Request timeout: fetch topics (3000ms)',
+  status: 504,
+  details: { operation: 'fetch topics', timeoutMs: 3000 }
+}
 ```
 
 Use `DataApiErrorFactory` utilities to create consistent errors:
 
 ```typescript
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory, DataApiError } from '@shared/data/api'
 
+// Using factory methods (recommended)
 throw DataApiErrorFactory.notFound('Topic', id)
 throw DataApiErrorFactory.validation({ name: ['Required'] })
 throw DataApiErrorFactory.database(error, 'insert topic')
+throw DataApiErrorFactory.timeout('fetch topics', 3000)
+throw DataApiErrorFactory.dataInconsistent('Topic', 'parent reference broken')
+
+// Check if error is retryable
+if (error instanceof DataApiError && error.isRetryable) {
+  await retry(operation)
+}
 ```
 
 ## Naming Conventions Summary

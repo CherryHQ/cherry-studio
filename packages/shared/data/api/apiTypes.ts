@@ -113,7 +113,7 @@ export interface DataResponse<T = any> {
   /** Response data if successful */
   data?: T
   /** Error information if request failed */
-  error?: DataApiError
+  error?: SerializedDataApiError
   /** Response metadata */
   metadata?: {
     /** Request processing duration in milliseconds */
@@ -127,46 +127,12 @@ export interface DataResponse<T = any> {
   }
 }
 
-/**
- * Standardized error structure for Data API
- */
-export interface DataApiError {
-  /** Error code for programmatic handling */
-  code: string
-  /** Human-readable error message */
-  message: string
-  /** HTTP status code */
-  status: number
-  /** Additional error details */
-  details?: any
-  /** Error stack trace (development mode only) */
-  stack?: string
-}
+// Note: Error types have been moved to apiErrors.ts
+// Import from there: ErrorCode, DataApiError, SerializedDataApiError, DataApiErrorFactory
+import type { SerializedDataApiError } from './apiErrors'
 
-/**
- * Standard error codes for Data API
- */
-export enum ErrorCode {
-  // Client errors (4xx)
-  BAD_REQUEST = 'BAD_REQUEST',
-  UNAUTHORIZED = 'UNAUTHORIZED',
-  FORBIDDEN = 'FORBIDDEN',
-  NOT_FOUND = 'NOT_FOUND',
-  METHOD_NOT_ALLOWED = 'METHOD_NOT_ALLOWED',
-  VALIDATION_ERROR = 'VALIDATION_ERROR',
-  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
-
-  // Server errors (5xx)
-  INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
-  DATABASE_ERROR = 'DATABASE_ERROR',
-  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
-
-  // Custom application errors
-  MIGRATION_ERROR = 'MIGRATION_ERROR',
-  PERMISSION_DENIED = 'PERMISSION_DENIED',
-  RESOURCE_LOCKED = 'RESOURCE_LOCKED',
-  CONCURRENT_MODIFICATION = 'CONCURRENT_MODIFICATION'
-}
+// Re-export for backwards compatibility in DataResponse
+export type { SerializedDataApiError } from './apiErrors'
 
 /**
  * Pagination parameters for list operations

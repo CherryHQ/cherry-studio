@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
+import { toDataApiError } from '@shared/data/api/apiErrors'
 import type { DataRequest, DataResponse } from '@shared/data/api/apiTypes'
-import { toDataApiError } from '@shared/data/api/errorCodes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 
@@ -46,7 +46,7 @@ export class IpcAdapter {
         const errorResponse: DataResponse = {
           id: request.id,
           status: apiError.status,
-          error: apiError,
+          error: apiError.toJSON(), // Serialize for IPC transmission
           metadata: {
             duration: 0,
             timestamp: Date.now()

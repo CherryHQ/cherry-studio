@@ -7,7 +7,7 @@
  * @example
  * ```typescript
  * // Infrastructure types from barrel export
- * import { DataRequest, DataResponse, ErrorCode, ApiClient } from '@shared/data/api'
+ * import { DataRequest, DataResponse, ErrorCode, DataApiError } from '@shared/data/api'
  *
  * // Domain DTOs from schema files directly
  * import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topic'
@@ -19,7 +19,6 @@
 // ============================================================================
 
 export type {
-  DataApiError,
   DataRequest,
   DataResponse,
   HttpMethod,
@@ -58,26 +57,47 @@ export type {
 } from './apiPaths'
 
 // ============================================================================
-// Error Handling
+// Error Handling (from apiErrors.ts)
 // ============================================================================
 
-export { ErrorCode, SubscriptionEvent } from './apiTypes'
+// Error code enum and mappings
 export {
-  DataApiErrorFactory,
   ERROR_MESSAGES,
   ERROR_STATUS_MAP,
+  ErrorCode,
+  isRetryableErrorCode,
+  RETRYABLE_ERROR_CODES
+} from './apiErrors'
+
+// DataApiError class and factory
+export {
+  DataApiError,
+  DataApiErrorFactory,
   isDataApiError,
+  isSerializedDataApiError,
   toDataApiError
-} from './errorCodes'
+} from './apiErrors'
+
+// Error-related types
+export type {
+  ConcurrentModificationErrorDetails,
+  DatabaseErrorDetails,
+  DataInconsistentErrorDetails,
+  DetailsForCode,
+  ErrorDetailsMap,
+  InternalErrorDetails,
+  NotFoundErrorDetails,
+  PermissionDeniedErrorDetails,
+  RequestContext,
+  ResourceLockedErrorDetails,
+  SerializedDataApiError,
+  TimeoutErrorDetails,
+  ValidationErrorDetails
+} from './apiErrors'
 
 // ============================================================================
 // Subscription & Middleware (for advanced usage)
 // ============================================================================
 
-export type {
-  Middleware,
-  RequestContext,
-  ServiceOptions,
-  SubscriptionCallback,
-  SubscriptionOptions
-} from './apiTypes'
+export type { Middleware, ServiceOptions, SubscriptionCallback, SubscriptionOptions } from './apiTypes'
+export { SubscriptionEvent } from './apiTypes'

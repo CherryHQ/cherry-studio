@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
+import { toDataApiError } from '@shared/data/api/apiErrors'
 import type { DataRequest, DataResponse, Middleware, RequestContext } from '@shared/data/api/apiTypes'
-import { toDataApiError } from '@shared/data/api/errorCodes'
 
 const logger = loggerService.withContext('MiddlewareEngine')
 
@@ -82,7 +82,7 @@ export class MiddlewareEngine {
           logger.error(`Request error: ${req.method} ${req.path}`, error as Error)
 
           const apiError = toDataApiError(error, `${req.method} ${req.path}`)
-          res.error = apiError
+          res.error = apiError.toJSON() // Serialize for IPC transmission
           res.status = apiError.status
         }
       }

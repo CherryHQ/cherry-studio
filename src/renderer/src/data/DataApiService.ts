@@ -30,6 +30,8 @@
  */
 
 import { loggerService } from '@logger'
+import type { RequestContext } from '@shared/data/api/apiErrors'
+import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@shared/data/api/apiErrors'
 import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type {
   DataRequest,
@@ -38,18 +40,20 @@ import type {
   SubscriptionEvent,
   SubscriptionOptions
 } from '@shared/data/api/apiTypes'
-import { toDataApiError } from '@shared/data/api/errorCodes'
 
 const logger = loggerService.withContext('DataApiService')
 
 /**
- * Retry options interface
+ * Retry options interface.
+ * Retryability is now determined by DataApiError.isRetryable getter.
  */
 interface RetryOptions {
+  /** Maximum number of retry attempts */
   maxRetries: number
+  /** Initial delay between retries in milliseconds */
   retryDelay: number
+  /** Multiplier for exponential backoff */
   backoffMultiplier: number
-  retryCondition: (error: Error) => boolean
 }
 
 /**
@@ -71,22 +75,11 @@ export class DataApiService implements ApiClient {
   >()
 
   // Default retry options
+  // Retryability is determined by DataApiError.isRetryable
   private defaultRetryOptions: RetryOptions = {
     maxRetries: 2,
     retryDelay: 1000,
-    backoffMultiplier: 2,
-    retryCondition: (error: Error) => {
-      // Retry on network errors or temporary failures
-      const message = error.message.toLowerCase()
-      return (
-        message.includes('timeout') ||
-        message.includes('network') ||
-        message.includes('connection') ||
-        message.includes('unavailable') ||
-        message.includes('500') ||
-        message.includes('503')
-      )
-    }
+    backoffMultiplier: 2
   }
 
   private constructor() {
@@ -131,11 +124,20 @@ export class DataApiService implements ApiClient {
   }
 
   /**
-   * Send request via IPC with direct return and retry logic
+   * Send request via IPC with direct return and retry logic.
+   * Uses DataApiError.isRetryable to determine if retry is appropriate.
    */
   private async sendRequest<T>(request: DataRequest, retryCount = 0): Promise<T> {
     if (!window.api.dataApi.request) {
-      throw new Error('Data API not available')
+      throw DataApiErrorFactory.create(ErrorCode.SERVICE_UNAVAILABLE, 'Data API not available')
+    }
+
+    // Build request context for error tracking
+    const requestContext: RequestContext = {
+      requestId: request.id,
+      path: request.path,
+      method: request.method as HttpMethod,
+      timestamp: Date.now()
     }
 
     try {
@@ -144,11 +146,14 @@ export class DataApiService implements ApiClient {
       // Direct IPC call with timeout
       const response = await Promise.race([
         window.api.dataApi.request(request),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`Request timeout: ${request.path}`)), 3000))
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(DataApiErrorFactory.timeout(request.path, 3000, requestContext)), 3000)
+        )
       ])
 
       if (response.error) {
-        throw new Error(response.error.message)
+        // Reconstruct DataApiError from serialized response
+        throw DataApiError.fromJSON(response.error)
       }
 
       logger.debug(`Request succeeded: ${request.method} ${request.path}`, {
@@ -158,14 +163,17 @@ export class DataApiService implements ApiClient {
 
       return response.data as T
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      logger.debug(`Request failed: ${request.method} ${request.path}`, error as Error)
+      // Ensure we have a DataApiError for consistent handling
+      const apiError =
+        error instanceof DataApiError ? error : toDataApiError(error, `${request.method} ${request.path}`)
 
-      // Check if should retry
-      if (retryCount < this.defaultRetryOptions.maxRetries && this.defaultRetryOptions.retryCondition(error as Error)) {
+      logger.debug(`Request failed: ${request.method} ${request.path}`, apiError)
+
+      // Check if should retry using the error's built-in isRetryable getter
+      if (retryCount < this.defaultRetryOptions.maxRetries && apiError.isRetryable) {
         logger.debug(
           `Retrying request attempt ${retryCount + 1}/${this.defaultRetryOptions.maxRetries}: ${request.path}`,
-          { error: errorMessage }
+          { error: apiError.message, code: apiError.code }
         )
 
         // Calculate delay with exponential backoff
@@ -179,7 +187,7 @@ export class DataApiService implements ApiClient {
         return this.sendRequest<T>(retryRequest, retryCount + 1)
       }
 
-      throw error
+      throw apiError
     }
   }
 

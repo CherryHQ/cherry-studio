@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
+import type { RequestContext as ErrorRequestContext } from '@shared/data/api/apiErrors'
+import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/apiErrors'
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 import type { DataRequest, DataResponse, HttpMethod, RequestContext } from '@shared/data/api/apiTypes'
-import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errorCodes'
 
 import { MiddlewareEngine } from './MiddlewareEngine'
 
@@ -59,6 +60,14 @@ export class ApiServer {
     const { method, path } = request
     const startTime = Date.now()
 
+    // Build error request context for tracking
+    const errorContext: ErrorRequestContext = {
+      requestId: request.id,
+      path,
+      method: method as HttpMethod,
+      timestamp: startTime
+    }
+
     logger.debug(`Processing request: ${method} ${path}`)
 
     try {
@@ -66,7 +75,7 @@ export class ApiServer {
       const handlerMatch = this.findHandler(path, method as HttpMethod)
 
       if (!handlerMatch) {
-        throw DataApiErrorFactory.create(ErrorCode.NOT_FOUND, `Handler not found: ${method} ${path}`)
+        throw DataApiErrorFactory.notFound('Handler', `${method} ${path}`, errorContext)
       }
 
       // Create request context
@@ -91,12 +100,13 @@ export class ApiServer {
     } catch (error) {
       logger.error(`Request handling failed: ${method} ${path}`, error as Error)
 
-      const apiError = DataApiErrorFactory.create(ErrorCode.INTERNAL_SERVER_ERROR, (error as Error).message)
+      // Convert to DataApiError and serialize for IPC
+      const apiError = error instanceof DataApiError ? error : toDataApiError(error, `${method} ${path}`)
 
       return {
         id: request.id,
         status: apiError.status,
-        error: apiError,
+        error: apiError.toJSON(), // Serialize for IPC transmission
         metadata: {
           duration: Date.now() - startTime,
           timestamp: Date.now()

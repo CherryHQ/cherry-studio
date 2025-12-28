@@ -9,7 +9,7 @@ packages/shared/data/api/
 ├── index.ts           # Barrel export for infrastructure types
 ├── apiTypes.ts        # Core request/response types and API utilities
 ├── apiPaths.ts        # Path template literal type utilities
-├── errorCodes.ts      # Error handling utilities and factories
+├── apiErrors.ts       # Error handling: ErrorCode, DataApiError class, factory
 └── schemas/
     ├── index.ts       # Schema composition (merges all domain schemas)
     └── test.ts        # Test API schema and DTOs
@@ -21,7 +21,7 @@ packages/shared/data/api/
 |------|---------|
 | `apiTypes.ts` | Core types (`DataRequest`, `DataResponse`, `ApiClient`) and schema utilities |
 | `apiPaths.ts` | Template literal types for path resolution (`/items/:id` → `/items/${string}`) |
-| `errorCodes.ts` | `DataApiErrorFactory`, error codes, and error handling utilities |
+| `apiErrors.ts` | `ErrorCode` enum, `DataApiError` class, `DataApiErrorFactory`, retryability config |
 | `index.ts` | Unified export of infrastructure types (not domain DTOs) |
 | `schemas/index.ts` | Composes all domain schemas into `ApiSchemas` using intersection types |
 | `schemas/*.ts` | Domain-specific API definitions and DTOs |
@@ -37,11 +37,16 @@ import type {
   DataRequest,
   DataResponse,
   ApiClient,
-  PaginatedResponse,
-  ErrorCode
+  PaginatedResponse
 } from '@shared/data/api'
 
-import { DataApiErrorFactory, isDataApiError } from '@shared/data/api'
+import {
+  ErrorCode,
+  DataApiError,
+  DataApiErrorFactory,
+  isDataApiError,
+  toDataApiError
+} from '@shared/data/api'
 ```
 
 ### Domain DTOs (directly from schema files)
@@ -153,21 +158,64 @@ await api.post('/topics', { body: { name: 'New' } })  // Body is typed as Create
 
 ## Error Handling
 
-Use `DataApiErrorFactory` for consistent error creation:
+The error system provides type-safe error handling with automatic retryability detection:
 
 ```typescript
-import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
+import {
+  DataApiError,
+  DataApiErrorFactory,
+  ErrorCode,
+  isDataApiError,
+  toDataApiError
+} from '@shared/data/api'
 
-// Create errors
+// Create errors using the factory (recommended)
 throw DataApiErrorFactory.notFound('Topic', id)
-throw DataApiErrorFactory.validationError('Name is required')
-throw DataApiErrorFactory.fromCode(ErrorCode.DATABASE_ERROR, 'Connection failed')
+throw DataApiErrorFactory.validation({ name: ['Name is required'] })
+throw DataApiErrorFactory.timeout('fetch topics', 3000)
+throw DataApiErrorFactory.database(originalError, 'insert topic')
 
-// Check errors
-if (isDataApiError(error)) {
-  console.log(error.code, error.status)
+// Or create directly with the class
+throw new DataApiError(
+  ErrorCode.NOT_FOUND,
+  'Topic not found',
+  404,
+  { resource: 'Topic', id: 'abc123' }
+)
+
+// Check if error is retryable (for automatic retry logic)
+if (error instanceof DataApiError && error.isRetryable) {
+  await retry(operation)
 }
+
+// Check error type
+if (error instanceof DataApiError) {
+  if (error.isClientError) {
+    // 4xx - issue with the request
+  } else if (error.isServerError) {
+    // 5xx - server-side issue
+  }
+}
+
+// Convert any error to DataApiError
+const apiError = toDataApiError(unknownError, 'context')
+
+// Serialize for IPC (Main → Renderer)
+const serialized = apiError.toJSON()
+
+// Reconstruct from IPC response (Renderer)
+const reconstructed = DataApiError.fromJSON(response.error)
 ```
+
+### Retryable Error Codes
+
+The following errors are automatically considered retryable:
+- `SERVICE_UNAVAILABLE` (503)
+- `TIMEOUT` (504)
+- `RATE_LIMIT_EXCEEDED` (429)
+- `DATABASE_ERROR` (500)
+- `INTERNAL_SERVER_ERROR` (500)
+- `RESOURCE_LOCKED` (423)
 
 ## Architecture Overview
 
