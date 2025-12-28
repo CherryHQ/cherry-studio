@@ -182,9 +182,13 @@ import type { AssistantMeta, ModelMeta } from './meta'
 export type MessageRole = 'user' | 'assistant' | 'system'
 
 /**
- * Message status - final state after processing
+ * Message status
+ * - pending: Placeholder created, streaming in progress
+ * - success: Completed successfully
+ * - error: Failed with error
+ * - paused: User stopped generation
  */
-export type MessageStatus = 'success' | 'error' | 'paused'
+export type MessageStatus = 'pending' | 'success' | 'error' | 'paused'
 
 /**
  * Complete message entity as stored in database

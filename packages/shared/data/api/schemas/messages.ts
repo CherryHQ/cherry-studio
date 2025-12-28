@@ -11,6 +11,7 @@ import type {
   MessageData,
   MessageRole,
   MessageStats,
+  MessageStatus,
   TreeResponse
 } from '@shared/data/types/message'
 import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
@@ -30,7 +31,7 @@ export interface CreateMessageDto {
   /** Message content */
   data: MessageData
   /** Message status */
-  status?: 'success' | 'error' | 'paused'
+  status?: MessageStatus
   /** Siblings group ID (0 = normal, >0 = multi-model group) */
   siblingsGroupId?: number
   /** Assistant ID */
@@ -58,7 +59,7 @@ export interface UpdateMessageDto {
   /** Change siblings group */
   siblingsGroupId?: number
   /** Update status */
-  status?: 'success' | 'error' | 'paused'
+  status?: MessageStatus
 }
 
 /**
