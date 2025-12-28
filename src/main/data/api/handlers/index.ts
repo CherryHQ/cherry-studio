@@ -6,21 +6,15 @@
  *
  * Handler files are organized by domain:
  * - test.ts - Test API handlers
- *
- * @example Adding a new domain:
- * ```typescript
- * import { topicHandlers } from './topic'
- *
- * export const apiHandlers: ApiImplementation = {
- *   ...testHandlers,
- *   ...topicHandlers  // Add new domain handlers here
- * }
- * ```
+ * - topics.ts - Topic API handlers
+ * - messages.ts - Message API handlers
  */
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
+import { messageHandlers } from './messages'
 import { testHandlers } from './test'
+import { topicHandlers } from './topics'
 
 /**
  * Complete API handlers implementation
@@ -30,5 +24,7 @@ import { testHandlers } from './test'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
-  ...testHandlers
+  ...testHandlers,
+  ...topicHandlers,
+  ...messageHandlers
 }

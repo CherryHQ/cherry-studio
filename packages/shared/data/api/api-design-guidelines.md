@@ -146,6 +146,7 @@ Use standard HTTP status codes consistently:
 | 201 Created | Successful POST | Return created resource |
 | 204 No Content | Successful DELETE | No body |
 | 400 Bad Request | Invalid request format | Malformed JSON |
+| 400 Invalid Operation | Business rule violation | Delete root without cascade, cycle creation |
 | 401 Unauthorized | Authentication required | Missing/invalid token |
 | 403 Permission Denied | Insufficient permissions | Access denied to resource |
 | 404 Not Found | Resource not found | Invalid ID |
@@ -209,6 +210,14 @@ interface SerializedDataApiError {
   status: 504,
   details: { operation: 'fetch topics', timeoutMs: 3000 }
 }
+
+// 400 Invalid Operation
+{
+  code: 'INVALID_OPERATION',
+  message: 'Invalid operation: delete root message - cascade=true required',
+  status: 400,
+  details: { operation: 'delete root message', reason: 'cascade=true required' }
+}
 ```
 
 Use `DataApiErrorFactory` utilities to create consistent errors:
@@ -222,6 +231,7 @@ throw DataApiErrorFactory.validation({ name: ['Required'] })
 throw DataApiErrorFactory.database(error, 'insert topic')
 throw DataApiErrorFactory.timeout('fetch topics', 3000)
 throw DataApiErrorFactory.dataInconsistent('Topic', 'parent reference broken')
+throw DataApiErrorFactory.invalidOperation('delete root message', 'cascade=true required')
 
 // Check if error is retryable
 if (error instanceof DataApiError && error.isRetryable) {

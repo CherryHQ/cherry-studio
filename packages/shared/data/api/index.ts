@@ -86,6 +86,7 @@ export type {
   DetailsForCode,
   ErrorDetailsMap,
   InternalErrorDetails,
+  InvalidOperationErrorDetails,
   NotFoundErrorDetails,
   PermissionDeniedErrorDetails,
   RequestContext,

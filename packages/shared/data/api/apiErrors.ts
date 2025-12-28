@@ -58,6 +58,13 @@ export enum ErrorCode {
   /** 403 - Authenticated but lacks required permissions */
   PERMISSION_DENIED = 'PERMISSION_DENIED',
 
+  /**
+   * 400 - Operation is not valid in current state.
+   * Use when: deleting root message without cascade, moving node would create cycle,
+   * or any operation that violates business rules but isn't a validation error.
+   */
+  INVALID_OPERATION = 'INVALID_OPERATION',
+
   // ─────────────────────────────────────────────────────────────────
   // Server errors (5xx) - Issues on the server side
   // ─────────────────────────────────────────────────────────────────
@@ -123,6 +130,7 @@ export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   [ErrorCode.VALIDATION_ERROR]: 422,
   [ErrorCode.RATE_LIMIT_EXCEEDED]: 429,
   [ErrorCode.PERMISSION_DENIED]: 403,
+  [ErrorCode.INVALID_OPERATION]: 400,
 
   // Server errors (5xx)
   [ErrorCode.INTERNAL_SERVER_ERROR]: 500,
@@ -149,6 +157,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.VALIDATION_ERROR]: 'Validation error: Request data does not meet requirements',
   [ErrorCode.RATE_LIMIT_EXCEEDED]: 'Rate limit exceeded: Too many requests',
   [ErrorCode.PERMISSION_DENIED]: 'Permission denied: Insufficient permissions for this operation',
+  [ErrorCode.INVALID_OPERATION]: 'Invalid operation: Operation not allowed in current state',
 
   [ErrorCode.INTERNAL_SERVER_ERROR]: 'Internal server error: An unexpected error occurred',
   [ErrorCode.DATABASE_ERROR]: 'Database error: Failed to access or modify data',
@@ -233,6 +242,14 @@ export interface PermissionDeniedErrorDetails {
 }
 
 /**
+ * Details for INVALID_OPERATION - what operation was invalid.
+ */
+export interface InvalidOperationErrorDetails {
+  operation: string
+  reason?: string
+}
+
+/**
  * Details for RESOURCE_LOCKED - which resource is locked.
  */
 export interface ResourceLockedErrorDetails {
@@ -272,6 +289,7 @@ export type ErrorDetailsMap = {
   [ErrorCode.TIMEOUT]: TimeoutErrorDetails
   [ErrorCode.DATA_INCONSISTENT]: DataInconsistentErrorDetails
   [ErrorCode.PERMISSION_DENIED]: PermissionDeniedErrorDetails
+  [ErrorCode.INVALID_OPERATION]: InvalidOperationErrorDetails
   [ErrorCode.RESOURCE_LOCKED]: ResourceLockedErrorDetails
   [ErrorCode.CONCURRENT_MODIFICATION]: ConcurrentModificationErrorDetails
   [ErrorCode.INTERNAL_SERVER_ERROR]: InternalErrorDetails
@@ -627,6 +645,29 @@ export class DataApiErrorFactory {
       message,
       ERROR_STATUS_MAP[ErrorCode.TIMEOUT],
       { operation, timeoutMs },
+      requestContext
+    )
+  }
+
+  /**
+   * Create an invalid operation error.
+   * Use when an operation violates business rules but isn't a validation error.
+   * @param operation - Description of the invalid operation
+   * @param reason - Optional reason why the operation is invalid
+   * @param requestContext - Optional request context
+   * @returns DataApiError with INVALID_OPERATION code
+   */
+  static invalidOperation(
+    operation: string,
+    reason?: string,
+    requestContext?: RequestContext
+  ): DataApiError<ErrorCode.INVALID_OPERATION> {
+    const message = reason ? `Invalid operation: ${operation} - ${reason}` : `Invalid operation: ${operation}`
+    return new DataApiError(
+      ErrorCode.INVALID_OPERATION,
+      message,
+      ERROR_STATUS_MAP[ErrorCode.INVALID_OPERATION],
+      { operation, reason },
       requestContext
     )
   }
