@@ -383,7 +383,7 @@ export class MessageService {
       parentId: dto.parentId,
       role: dto.role,
       data: dto.data,
-      status: dto.status || 'success',
+      status: dto.status ?? 'pending',
       siblingsGroupId: dto.siblingsGroupId ?? 0,
       assistantId: dto.assistantId,
       assistantMeta: dto.assistantMeta,
