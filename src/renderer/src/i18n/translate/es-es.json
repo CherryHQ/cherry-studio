@@ -1296,8 +1296,8 @@
     "availableTools": "Herramientas disponibles",
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto",
-      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
-      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
+      "file_locked": "No se puede restaurar: Algunos archivos están en uso. Por favor cierre todas las bases de conocimiento o reinicie la aplicación e intente de nuevo.",
+      "file_not_found": "Archivo de respaldo no encontrado o está corrupto"
     },
     "boundary": {
       "default": {

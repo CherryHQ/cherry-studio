@@ -1296,8 +1296,8 @@
     "availableTools": "Доступные инструменты",
     "backup": {
       "file_format": "Ошибка формата файла резервной копии",
-      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
-      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
+      "file_locked": "Восстановление невозможно: некоторые файлы используются. Закройте все базы знаний или перезапустите приложение и повторите попытку.",
+      "file_not_found": "Файл резервной копии не найден или повреждён"
     },
     "boundary": {
       "default": {

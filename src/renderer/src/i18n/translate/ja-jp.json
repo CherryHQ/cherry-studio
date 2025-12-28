@@ -1296,8 +1296,8 @@
     "availableTools": "利用可能なツール",
     "backup": {
       "file_format": "バックアップファイルの形式エラー",
-      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
-      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
+      "file_locked": "一部のファイルが使用中です。全ナレッジベースを閉じるか、アプリを再起動して再度お試しください。",
+      "file_not_found": "バックアップファイルが見つからないか、壊れています"
     },
     "boundary": {
       "default": {

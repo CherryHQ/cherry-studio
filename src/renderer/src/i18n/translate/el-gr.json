@@ -1296,8 +1296,8 @@
     "availableTools": "Διαθέσιμα εργαλεία",
     "backup": {
       "file_format": "Λάθος μορφή αρχείου που επιστρέφεται",
-      "file_locked": "[to be translated]:Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
-      "file_not_found": "[to be translated]:Backup file not found or is corrupted"
+      "file_locked": "Δεν είναι δυνατή η επαναφορά: Μερικά αρχεία χρησιμοποιούνται. Παρακαλώ κλείστε όλες τις βάσεις γνώσεων ή επανεκκινήστε την εφαρμογή και δοκιμάστε ξανά.",
+      "file_not_found": "Αντίγραφο ασφαλείας δεν βρέθηκε ή είναι κατεστραμμένο"
     },
     "boundary": {
       "default": {
