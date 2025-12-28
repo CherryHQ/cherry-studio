@@ -134,68 +134,38 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.7 - New Models & UI Improvements
+    Cherry Studio 1.7.8 - Bug Fixes & Performance Improvements
 
-    This release adds new AI model support, OpenRouter integration, and UI redesigns.
+    This release focuses on bug fixes and performance optimizations.
 
-    ✨ New Features
-    - [Models] Add GLM-4.7 and MiniMax-M2.1 model support
-    - [Provider] Add OpenRouter provider support
-    - [OVMS] Upgrade to 2025.4 with Qwen3-4B-int4-ov preset model
-    - [OVMS] Close OVMS process when app quits
-    - [Search] Show keyword-adjacent snippets in history search
-    - [Painting] Add extend_params support for DMX painting
-    - [UI] Add MCP logo and replace Hammer icon
-
-    🎨 UI Improvements
-    - [Notes] Move notes settings to popup in NotesPage for quick access
-    - [WebSearch] Redesign settings with two-column layout and "Set as Default" button
-    - [Display] Improve font selector for long font names
-    - [Transfer] Rename LanDrop to LanTransfer
+    ⚡ Performance
+    - [ModelList] Improve model list loading performance
 
     🐛 Bug Fixes
-    - [API] Correct aihubmix Anthropic API path
-    - [OpenRouter] Support GPT-5.1/5.2 reasoning effort 'none' and improve error handling
-    - [Thinking] Fix interleaved thinking support
-    - [Memory] Fix retrieval issues and enable database backup
-    - [Settings] Update default assistant settings to disable temperature
-    - [OpenAI] Add persistent server configuration support
-    - [Azure] Normalize Azure endpoint
-    - [MCP] Check system npx/uvx before falling back to bundled binaries
-    - [Prompt] Improve language instruction clarity
-    - [Models] Include GPT5.2 series in verbosity check
-    - [URL] Enhance urlContext validation for supported providers and models
+    - [Ollama] Fix new users unable to use Ollama models
+    - [Ollama] Improve reasoningEffort handling
+    - [Assistants] Prevent deleting last assistant and add error message
+    - [Shortcut] Fix shortcut icons sorting disorder
+    - [Memory] Fix global memory settings submit failure
+    - [Windows] Fix remember size not working for SelectionAction window
+    - [Anthropic] Fix API base URL handling
+    - [Files] Allow more file extensions
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.7 - 新模型与界面改进
+    Cherry Studio 1.7.8 - 问题修复与性能优化
 
-    本次更新添加了新 AI 模型支持、OpenRouter 集成以及界面重新设计。
+    本次更新专注于问题修复和性能优化。
 
-    ✨ 新功能
-    - [模型] 添加 GLM-4.7 和 MiniMax-M2.1 模型支持
-    - [服务商] 添加 OpenRouter 服务商支持
-    - [OVMS] 升级至 2025.4，新增 Qwen3-4B-int4-ov 预设模型
-    - [OVMS] 应用退出时关闭 OVMS 进程
-    - [搜索] 历史搜索显示关键词上下文片段
-    - [绘图] DMX 绘图添加扩展参数支持
-    - [界面] 添加 MCP 图标并替换锤子图标
-
-    🎨 界面改进
-    - [笔记] 将笔记设置移至笔记页弹窗，快速访问无需离开当前页面
-    - [网页搜索] 采用两栏布局重新设计设置界面，添加"设为默认"按钮
-    - [显示] 改进长字体名称的字体选择器
-    - [传输] LanDrop 重命名为 LanTransfer
+    ⚡ 性能优化
+    - [模型列表] 提升模型列表加载性能
 
     🐛 问题修复
-    - [API] 修复 aihubmix Anthropic API 路径
-    - [OpenRouter] 支持 GPT-5.1/5.2 reasoning effort 'none' 并改进错误处理
-    - [思考] 修复交错思考支持
-    - [记忆] 修复检索问题并启用数据库备份
-    - [设置] 更新默认助手设置禁用温度
-    - [OpenAI] 添加持久化服务器配置支持
-    - [Azure] 规范化 Azure 端点
-    - [MCP] 优先检查系统 npx/uvx 再回退到内置二进制文件
-    - [提示词] 改进语言指令清晰度
-    - [模型] GPT5.2 系列添加到 verbosity 检查
-    - [URL] 增强 urlContext 对支持的服务商和模型的验证
+    - [Ollama] 修复新用户无法使用 Ollama 模型的问题
+    - [Ollama] 改进推理参数处理
+    - [助手] 防止删除最后一个助手并添加错误提示
+    - [快捷方式] 修复快捷方式图标排序混乱
+    - [记忆] 修复全局记忆设置提交失败
+    - [窗口] 修复 SelectionAction 窗口记住尺寸不生效
+    - [Anthropic] 修复 API 地址处理
+    - [文件] 允许更多文件扩展名
     <!--LANG:END-->
