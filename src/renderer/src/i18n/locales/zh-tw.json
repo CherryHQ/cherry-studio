@@ -1,4 +1,4 @@
-{
+﻿{
   "agent": {
     "add": {
       "description": "呼叫各種工具處理複雜任務",
@@ -1892,6 +1892,50 @@
         "title": "刪除分組訊息"
       },
       "retry_failed": "重試出錯的訊息"
+    },
+    "committee": {
+      "label": "LLM委員會",
+      "title": "LLM委員會",
+      "chairman": "委員長模型",
+      "chairman_placeholder": "選擇委員長模型",
+      "run": "開始評審",
+      "rerun": "重新評審",
+      "elapsed": "耗時 {{time}}",
+      "elapsed_running": "進行中 · 耗時 {{time}}",
+      "stage1": "Stage 1：獨立回答",
+      "stage2": "Stage 2：互評排名",
+      "stage3": "Stage 3：主席綜合",
+      "stage3_retry": "重試主席綜合",
+      "aggregate": "街頭信譽",
+      "aggregate_desc": "彙總互評排名（名次越低越好）",
+      "parsed": "抽取排名",
+      "status": {
+        "stage2": "Stage2 執行中",
+        "stage3": "Stage3 執行中",
+        "complete": "已完成"
+      },
+      "empty": {
+        "stage1": "沒有可用的多模型回答",
+        "stage2": "尚未生成互評結果",
+        "stage3": "尚未生成主席答案"
+      },
+      "warning": {
+        "no_question": "未找到對應的使用者提問，無法評審",
+        "no_responses": "沒有可用的多模型回答",
+        "need_multi_models": "請至少選擇兩個模型啟用 LLM委員會"
+      },
+      "scorecard": {
+        "title": "評分矩陣",
+        "response": "回答",
+        "accuracy": "準確性",
+        "reasoning": "推理品質",
+        "coverage": "覆蓋度",
+        "actionability": "可操作性",
+        "grounding": "事實依據",
+        "hallucination": "幻覺風險"
+      },
+      "appended": "委員長結果已追加到對話",
+      "error": "LLM委員會執行失敗"
     },
     "ignore": {
       "knowledge": {
@@ -5099,3 +5143,4 @@
     "visualization": "視覺化"
   }
 }
+

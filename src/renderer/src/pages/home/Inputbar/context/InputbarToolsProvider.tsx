@@ -18,6 +18,12 @@ export interface InputbarToolsState {
   selectedKnowledgeBases: KnowledgeBase[]
   /** Whether the inputbar is expanded */
   isExpanded: boolean
+  /** Whether LLM council is armed for next send */
+  isCommitteeArmed: boolean
+  /** Pending askId for LLM council auto-run */
+  committeePendingAskId: string | null
+  /** Pending topicId for LLM council auto-run */
+  committeePendingTopicId: string | null
 
   /** Whether image files can be added (derived state) */
   couldAddImageFile: boolean
@@ -79,6 +85,9 @@ export interface InputbarToolsDispatch {
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   setSelectedKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>
   setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>
+  setCommitteeArmed: React.Dispatch<React.SetStateAction<boolean>>
+  setCommitteePendingAskId: React.Dispatch<React.SetStateAction<string | null>>
+  setCommitteePendingTopicId: React.Dispatch<React.SetStateAction<string | null>>
 
   /** Parent component actions */
   resizeTextArea: () => void
@@ -147,6 +156,9 @@ interface InputbarToolsProviderProps {
     mentionedModels: Model[]
     selectedKnowledgeBases: KnowledgeBase[]
     isExpanded: boolean
+    isCommitteeArmed: boolean
+    committeePendingAskId: string | null
+    committeePendingTopicId: string | null
     couldAddImageFile: boolean
     extensions: string[]
   }>
@@ -168,6 +180,13 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
     initialState?.selectedKnowledgeBases || []
   )
   const [isExpanded, setIsExpanded] = useState(initialState?.isExpanded || false)
+  const [isCommitteeArmed, setCommitteeArmed] = useState(initialState?.isCommitteeArmed || false)
+  const [committeePendingAskId, setCommitteePendingAskId] = useState<string | null>(
+    initialState?.committeePendingAskId ?? null
+  )
+  const [committeePendingTopicId, setCommitteePendingTopicId] = useState<string | null>(
+    initialState?.committeePendingTopicId ?? null
+  )
 
   // Derived state (internal management)
   const [couldAddImageFile, setCouldAddImageFile] = useState(initialState?.couldAddImageFile || false)
@@ -249,6 +268,9 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
       mentionedModels,
       selectedKnowledgeBases,
       isExpanded,
+      isCommitteeArmed,
+      committeePendingAskId,
+      committeePendingTopicId,
       couldAddImageFile,
       couldMentionNotVisionModel,
       extensions
@@ -258,6 +280,9 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
       mentionedModels,
       selectedKnowledgeBases,
       isExpanded,
+      isCommitteeArmed,
+      committeePendingAskId,
+      committeePendingTopicId,
       couldAddImageFile,
       couldMentionNotVisionModel,
       extensions
@@ -290,6 +315,9 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
       setMentionedModels,
       setSelectedKnowledgeBases,
       setIsExpanded,
+      setCommitteeArmed,
+      setCommitteePendingAskId,
+      setCommitteePendingTopicId,
 
       // Stable actions
       ...stableActions,

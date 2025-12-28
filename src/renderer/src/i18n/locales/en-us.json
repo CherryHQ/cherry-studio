@@ -1,4 +1,4 @@
-{
+﻿{
   "agent": {
     "add": {
       "description": "Handle complex tasks with various tools",
@@ -1892,6 +1892,50 @@
         "title": "Delete Group Message"
       },
       "retry_failed": "Retry failed messages"
+    },
+    "committee": {
+      "label": "LLM Council",
+      "title": "LLM Council",
+      "chairman": "Chairman model",
+      "chairman_placeholder": "Select chairman model",
+      "run": "Run council",
+      "rerun": "Rerun council",
+      "elapsed": "Elapsed {{time}}",
+      "elapsed_running": "Running · {{time}} elapsed",
+      "stage1": "Stage 1: Independent responses",
+      "stage2": "Stage 2: Peer rankings",
+      "stage3": "Stage 3: Chairman synthesis",
+      "stage3_retry": "Retry chairman synthesis",
+      "aggregate": "Street Cred",
+      "aggregate_desc": "Aggregated peer rankings (lower is better)",
+      "parsed": "Parsed ranking",
+      "status": {
+        "stage2": "Stage2 running",
+        "stage3": "Stage3 running",
+        "complete": "Complete"
+      },
+      "empty": {
+        "stage1": "No available multi-model responses",
+        "stage2": "No peer rankings generated yet",
+        "stage3": "No chairman answer generated yet"
+      },
+      "warning": {
+        "no_question": "No matching user question found",
+        "no_responses": "No available multi-model responses",
+        "need_multi_models": "Select at least two models to enable the LLM council"
+      },
+      "scorecard": {
+        "title": "Scorecard",
+        "response": "Response",
+        "accuracy": "Accuracy",
+        "reasoning": "Reasoning",
+        "coverage": "Coverage",
+        "actionability": "Actionability",
+        "grounding": "Grounding",
+        "hallucination": "Hallucination Risk"
+      },
+      "appended": "Chairman result appended to chat",
+      "error": "LLM council failed"
     },
     "ignore": {
       "knowledge": {
@@ -5099,3 +5143,4 @@
     "visualization": "Visualization"
   }
 }
+

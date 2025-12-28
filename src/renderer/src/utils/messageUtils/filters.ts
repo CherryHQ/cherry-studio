@@ -92,7 +92,13 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
   const groups: { [key: string]: (Message & { index: number })[] } = {}
   messages.forEach((message, index) => {
     // Use askId if available (should be on assistant messages), otherwise group user messages individually
-    const key = message.role === 'assistant' && message.askId ? 'assistant' + message.askId : message.role + message.id
+    const isCommittee = message.role === 'assistant' && message.type === 'committee'
+    const key =
+      isCommittee && message.id
+        ? 'committee' + message.id
+        : message.role === 'assistant' && message.askId
+          ? 'assistant' + message.askId
+          : message.role + message.id
     if (key && !groups[key]) {
       groups[key] = []
     }

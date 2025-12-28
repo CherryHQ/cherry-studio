@@ -4,7 +4,8 @@ import {
   DeleteOutlined,
   FolderOutlined,
   NumberOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  TeamOutlined
 } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -16,11 +17,12 @@ import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Button, Tooltip } from 'antd'
 import type { FC } from 'react'
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import MessageGroupModelList from './MessageGroupModelList'
+import MessageGroupCouncilModal from './MessageGroupCouncilModal'
 import MessageGroupSettings from './MessageGroupSettings'
 
 interface Props {
@@ -43,6 +45,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   const { t } = useTranslation()
   const { deleteGroupMessages, regenerateAssistantMessage } = useMessageOperations(topic)
   const { assistant } = useAssistant(messages[0]?.assistantId)
+  const [isCouncilOpen, setIsCouncilOpen] = useState(false)
 
   const handleDeleteGroup = async () => {
     const askId = messages[0]?.askId
@@ -145,11 +148,26 @@ const MessageGroupMenuBar: FC<Props> = ({
           />
         </Tooltip>
       )}
+      <Tooltip title={t('message.committee.label')} mouseEnterDelay={0.6}>
+        <Button
+          type="text"
+          size="small"
+          icon={<TeamOutlined />}
+          onClick={() => setIsCouncilOpen(true)}
+          style={{ marginRight: 4 }}
+        />
+      </Tooltip>
       <Button
         type="text"
         size="small"
         icon={<DeleteOutlined style={{ color: 'var(--color-error)' }} />}
         onClick={handleDeleteGroup}
+      />
+      <MessageGroupCouncilModal
+        open={isCouncilOpen}
+        onClose={() => setIsCouncilOpen(false)}
+        messages={messages}
+        topic={topic}
       />
     </GroupMenuBar>
   )

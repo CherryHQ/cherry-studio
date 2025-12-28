@@ -10,6 +10,7 @@ export type InputBarToolType =
   | 'mcp_tools'
   | 'generate_image'
   | 'mention_models'
+  | 'llm_committee'
   | 'quick_phrases'
   | 'clear_topic'
   | 'toggle_expand'
