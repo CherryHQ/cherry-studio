@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { getModel, useModel } from '@renderer/hooks/useModel'
+import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { selectMemoryConfig, updateMemoryConfig } from '@renderer/store/memory'
@@ -56,8 +56,12 @@ const MemorySettingsModal: FC<MemorySettingsModalProps> = ({ visible, onSubmit, 
   const handleFormSubmit = async (values: formValue) => {
     try {
       // Convert model IDs back to Model objects
-      const llmModel = getModel(values.llmModel)
-      const embeddingModel = getModel(values.embeddingModel)
+      // values.llmModel and values.embeddingModel are JSON strings from getModelUniqId()
+      // e.g., '{"id":"gpt-4","provider":"openai"}'
+      // We need to find models by comparing with getModelUniqId() result
+      const allModels = providers.flatMap((p) => p.models)
+      const llmModel = allModels.find((m) => getModelUniqId(m) === values.llmModel)
+      const embeddingModel = allModels.find((m) => getModelUniqId(m) === values.embeddingModel)
 
       if (embeddingModel) {
         setLoading(true)
@@ -142,7 +146,9 @@ const MemorySettingsModal: FC<MemorySettingsModalProps> = ({ visible, onSubmit, 
           shouldUpdate={(prevValues, currentValues) => prevValues.embeddingModel !== currentValues.embeddingModel}>
           {({ getFieldValue }) => {
             const embeddingModelId = getFieldValue('embeddingModel')
-            const embeddingModel = getModel(embeddingModelId)
+            // embeddingModelId is a JSON string from getModelUniqId(), find model by comparing
+            const allModels = providers.flatMap((p) => p.models)
+            const embeddingModel = allModels.find((m) => getModelUniqId(m) === embeddingModelId)
             return (
               <Form.Item
                 label={

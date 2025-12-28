@@ -10,6 +10,7 @@ import type { Assistant, Topic } from '@renderer/types'
 import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import UnifiedAddButton from './components/UnifiedAddButton'
@@ -32,6 +33,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const { apiServerConfig } = useApiServer()
   const apiServerEnabled = apiServerConfig.enabled
+  const { t } = useTranslation()
 
   // Agent related hooks
   const { agents, deleteAgent, isLoading: agentsLoading, error: agentsError } = useAgents()
@@ -75,13 +77,18 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const onDeleteAssistant = useCallback(
     (assistant: Assistant) => {
       const remaining = assistants.filter((a) => a.id !== assistant.id)
+      if (remaining.length === 0) {
+        window.toast.error(t('assistants.delete.error.remain_one'))
+        return
+      }
+
       if (assistant.id === activeAssistant?.id) {
         const newActive = remaining[remaining.length - 1]
-        newActive ? setActiveAssistant(newActive) : onCreateDefaultAssistant()
+        setActiveAssistant(newActive)
       }
       removeAssistant(assistant.id)
     },
-    [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
+    [assistants, activeAssistant?.id, removeAssistant, t, setActiveAssistant]
   )
 
   const handleSortByChange = useCallback(
