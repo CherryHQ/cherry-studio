@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "アシスタントを削除すると、そのアシスタントのすべてのトピックとファイルが削除されます。削除しますか？",
+      "error": {
+        "remain_one": "最後の1人のアシスタントは削除できません"
+      },
       "title": "アシスタントを削除"
     },
     "edit": {
@@ -4805,7 +4808,7 @@
         "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
         "default_provider": "デフォルトプロバイダー",
         "free": "無料",
-        "is_default": "[to be translated]:Default",
+        "is_default": "デフォルト",
         "local_provider": {
           "hint": "ウェブサイトにログインして、より良い検索結果を得て、検索設定をパーソナライズしてください。",
           "open_settings": "{{provider}}設定を開く",
@@ -4822,7 +4825,7 @@
         "search_provider": "検索サービスプロバイダー",
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
         "search_with_time": "日付を含む検索",
-        "set_as_default": "[to be translated]:Set as Default",
+        "set_as_default": "既定として設定",
         "subscribe": "ブラックリスト購読",
         "subscribe_add": "購読を追加",
         "subscribe_add_failed": "購読ソースの追加に失敗しました",

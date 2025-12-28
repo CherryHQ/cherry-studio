@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
+      "error": {
+        "remain_one": "Not allowed to delete the last one assistant"
+      },
       "title": "Delete Assistant"
     },
     "edit": {
