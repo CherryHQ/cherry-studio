@@ -92,6 +92,7 @@ const ThinkModelTypes = [
   'gpt5_2',
   'gpt5pro',
   'gpt52pro',
+  'gpt_oss',
   'grok',
   'grok4_fast',
   'gemini2_flash',

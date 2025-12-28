@@ -20209,13 +20209,13 @@ __metadata:
 
 "ollama-ai-provider-v2@patch:ollama-ai-provider-v2@npm%3A1.5.5#~/.yarn/patches/ollama-ai-provider-v2-npm-1.5.5-8bef249af9.patch":
   version: 1.5.5
-  resolution: "ollama-ai-provider-v2@patch:ollama-ai-provider-v2@npm%3A1.5.5#~/.yarn/patches/ollama-ai-provider-v2-npm-1.5.5-8bef249af9.patch::version=1.5.5&hash=16c016"
+  resolution: "ollama-ai-provider-v2@patch:ollama-ai-provider-v2@npm%3A1.5.5#~/.yarn/patches/ollama-ai-provider-v2-npm-1.5.5-8bef249af9.patch::version=1.5.5&hash=0aef28"
   dependencies:
     "@ai-sdk/provider": "npm:^2.0.0"
     "@ai-sdk/provider-utils": "npm:^3.0.17"
   peerDependencies:
     zod: ^4.0.16
-  checksum: 10c0/aa6bd3415d08f7bbd1a3051f45b1cd3a8fa8bb01413e98de45e8888f64e6b12bca6e340453a3e82e4193ca5354397f524c6c0f7b3e9996d70f53c81374c69180
+  checksum: 10c0/32ca1f543ee791ac96061a5f6d8899c00644eeb774b3b951ca1e3e3810b60753acacf8229b2c1ba099b25a01732c54e51e0df44d11f4d90ae201f483d41aa149
   languageName: node
   linkType: hard
 
