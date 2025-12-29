@@ -9,6 +9,18 @@ import type { ExecInput, SearchQuery } from './types'
 
 const logger = loggerService.withContext('MCPServer:Hub')
 
+/**
+ * Hub MCP Server - A meta-server that aggregates all active MCP servers.
+ *
+ * This server is NOT included in builtinMCPServers because:
+ * 1. It aggregates tools from all other MCP servers, not a standalone tool provider
+ * 2. It's designed for LLM "code mode" - enabling AI to discover and call tools programmatically
+ * 3. It should be auto-enabled when code mode features are used, not manually installed by users
+ *
+ * The server exposes two tools:
+ * - `search`: Find available tools by keywords, returns JS function signatures
+ * - `exec`: Execute JavaScript code that calls discovered tools
+ */
 export class HubServer {
   public server: Server
   private toolRegistry: ToolRegistry
