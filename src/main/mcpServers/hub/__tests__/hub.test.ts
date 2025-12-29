@@ -97,10 +97,10 @@ describe('HubServer Integration', () => {
       expect(searchResult.content).toBeDefined()
       const searchText = JSON.parse(searchResult.content[0].text)
       expect(searchText.total).toBeGreaterThan(0)
-      expect(searchText.tools).toContain('gitHub_searchRepos')
+      expect(searchText.tools).toContain('github_searchRepos')
 
       const execResult = await (hubServer as any).handleExec({
-        code: 'return await gitHub_searchRepos({ query: "test" })'
+        code: 'return await github_searchRepos({ query: "test" })'
       })
 
       expect(execResult.content).toBeDefined()
@@ -114,8 +114,8 @@ describe('HubServer Integration', () => {
       const execResult = await (hubServer as any).handleExec({
         code: `
           const results = await parallel(
-            gitHub_searchRepos({ query: "react" }),
-            gitHub_getUser({ username: "octocat" })
+            github_searchRepos({ query: "react" }),
+            github_getUser({ username: "octocat" })
           );
           return results
         `
