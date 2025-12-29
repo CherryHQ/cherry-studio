@@ -23,8 +23,9 @@ CacheService handles data that:
 - Best for: expensive computations, API response caching
 
 ### Shared Cache
-- Synchronized across all windows via IPC
-- Main process acts as the source of truth
+- Synchronized bidirectionally between Main and all Renderer windows via IPC
+- Main process maintains authoritative copy and provides initialization sync for new windows
+- New windows fetch complete shared cache state from Main on startup
 - Best for: window layouts, shared UI state
 
 ### Persist Cache
@@ -101,14 +102,17 @@ cacheService.set('temp.calculation', result, 30000)
 ## Main vs Renderer Responsibilities
 
 ### Main Process CacheService
-- Manages shared and persist cache storage
-- Handles IPC requests from renderers
-- Broadcasts updates to all windows
-- Manages TTL expiration for shared caches
+- Manages internal cache for Main process services
+- Maintains authoritative SharedCache with type-safe access (`getShared`, `setShared`, `hasShared`, `deleteShared`)
+- Provides `getAllShared()` for new window initialization sync
+- Handles IPC requests from renderers and broadcasts updates to all windows
+- Manages TTL expiration using absolute timestamps (`expireAt`) for precise cross-window sync
 
 ### Renderer Process CacheService
-- Manages local memory cache
-- Proxies shared/persist operations to Main
+- Manages local memory cache and SharedCache local copy
+- Syncs SharedCache from Main on window initialization (async, non-blocking)
+- Provides ready state tracking via `isSharedCacheReady()` and `onSharedCacheReady()`
+- Broadcasts cache updates to Main for cross-window sync
 - Handles hook subscriptions and updates
 - Local TTL management for memory cache
 

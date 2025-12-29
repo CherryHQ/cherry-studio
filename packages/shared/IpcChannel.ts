@@ -343,6 +343,7 @@ export enum IpcChannel {
   // Data: Cache
   Cache_Sync = 'cache:sync',
   Cache_SyncBatch = 'cache:sync-batch',
+  Cache_GetAllShared = 'cache:get-all-shared',
 
   // Data: API Channels
   DataApi_Request = 'data-api:request',

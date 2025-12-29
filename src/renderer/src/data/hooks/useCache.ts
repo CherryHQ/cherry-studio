@@ -3,12 +3,12 @@ import { loggerService } from '@logger'
 import type {
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
+  SharedCacheKey,
+  SharedCacheSchema,
   UseCacheKey,
-  UseCacheSchema,
-  UseSharedCacheKey,
-  UseSharedCacheSchema
+  UseCacheSchema
 } from '@shared/data/cache/cacheSchemas'
-import { DefaultUseCache, DefaultUseSharedCache } from '@shared/data/cache/cacheSchemas'
+import { DefaultSharedCache, DefaultUseCache } from '@shared/data/cache/cacheSchemas'
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 const logger = loggerService.withContext('useCache')
 
@@ -121,10 +121,10 @@ export function useCache<K extends UseCacheKey>(
  * setWindowCount(3)
  * ```
  */
-export function useSharedCache<K extends UseSharedCacheKey>(
+export function useSharedCache<K extends SharedCacheKey>(
   key: K,
-  initValue?: UseSharedCacheSchema[K]
-): [UseSharedCacheSchema[K], (value: UseSharedCacheSchema[K]) => void] {
+  initValue?: SharedCacheSchema[K]
+): [SharedCacheSchema[K], (value: SharedCacheSchema[K]) => void] {
   /**
    * Subscribe to shared cache changes using React's useSyncExternalStore
    * This ensures the component re-renders when the shared cache value changes
@@ -145,7 +145,7 @@ export function useSharedCache<K extends UseSharedCacheKey>(
     }
 
     if (initValue === undefined) {
-      cacheService.setShared(key, DefaultUseSharedCache[key])
+      cacheService.setShared(key, DefaultSharedCache[key])
     } else {
       cacheService.setShared(key, initValue)
     }
@@ -178,13 +178,13 @@ export function useSharedCache<K extends UseSharedCacheKey>(
    * @param newValue - New value to store in shared cache
    */
   const setValue = useCallback(
-    (newValue: UseSharedCacheSchema[K]) => {
+    (newValue: SharedCacheSchema[K]) => {
       cacheService.setShared(key, newValue)
     },
     [key]
   )
 
-  return [value ?? initValue ?? DefaultUseSharedCache[key], setValue]
+  return [value ?? initValue ?? DefaultSharedCache[key], setValue]
 }
 
 /**

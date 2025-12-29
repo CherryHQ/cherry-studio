@@ -3,10 +3,10 @@ import type {
   RendererPersistCacheSchema,
   UseCacheKey,
   UseCacheSchema,
-  UseSharedCacheKey,
-  UseSharedCacheSchema
+  SharedCacheKey,
+  SharedCacheSchema
 } from '@shared/data/cache/cacheSchemas'
-import { DefaultRendererPersistCache, DefaultUseCache, DefaultUseSharedCache } from '@shared/data/cache/cacheSchemas'
+import { DefaultRendererPersistCache, DefaultUseCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import { vi } from 'vitest'
 
 /**
@@ -16,7 +16,7 @@ import { vi } from 'vitest'
 
 // Mock cache state storage
 const mockMemoryCache = new Map<UseCacheKey, any>()
-const mockSharedCache = new Map<UseSharedCacheKey, any>()
+const mockSharedCache = new Map<SharedCacheKey, any>()
 const mockPersistCache = new Map<RendererPersistCacheKey, any>()
 
 // Initialize caches with defaults
@@ -24,8 +24,8 @@ Object.entries(DefaultUseCache).forEach(([key, value]) => {
   mockMemoryCache.set(key as UseCacheKey, value)
 })
 
-Object.entries(DefaultUseSharedCache).forEach(([key, value]) => {
-  mockSharedCache.set(key as UseSharedCacheKey, value)
+Object.entries(DefaultSharedCache).forEach(([key, value]) => {
+  mockSharedCache.set(key as SharedCacheKey, value)
 })
 
 Object.entries(DefaultRendererPersistCache).forEach(([key, value]) => {
@@ -34,7 +34,7 @@ Object.entries(DefaultRendererPersistCache).forEach(([key, value]) => {
 
 // Mock subscribers for cache changes
 const mockMemorySubscribers = new Map<UseCacheKey, Set<() => void>>()
-const mockSharedSubscribers = new Map<UseSharedCacheKey, Set<() => void>>()
+const mockSharedSubscribers = new Map<SharedCacheKey, Set<() => void>>()
 const mockPersistSubscribers = new Map<RendererPersistCacheKey, Set<() => void>>()
 
 // Helper functions to notify subscribers
@@ -51,7 +51,7 @@ const notifyMemorySubscribers = (key: UseCacheKey) => {
   }
 }
 
-const notifySharedSubscribers = (key: UseSharedCacheKey) => {
+const notifySharedSubscribers = (key: SharedCacheKey) => {
   const subscribers = mockSharedSubscribers.get(key)
   if (subscribers) {
     subscribers.forEach((callback) => {
@@ -108,21 +108,21 @@ export const mockUseCache = vi.fn(
  * Mock useSharedCache hook (shared cache)
  */
 export const mockUseSharedCache = vi.fn(
-  <K extends UseSharedCacheKey>(
+  <K extends SharedCacheKey>(
     key: K,
-    initValue?: UseSharedCacheSchema[K]
-  ): [UseSharedCacheSchema[K], (value: UseSharedCacheSchema[K]) => void] => {
+    initValue?: SharedCacheSchema[K]
+  ): [SharedCacheSchema[K], (value: SharedCacheSchema[K]) => void] => {
     // Get current value
     let currentValue = mockSharedCache.get(key)
     if (currentValue === undefined) {
-      currentValue = initValue ?? DefaultUseSharedCache[key]
+      currentValue = initValue ?? DefaultSharedCache[key]
       if (currentValue !== undefined) {
         mockSharedCache.set(key, currentValue)
       }
     }
 
     // Mock setValue function
-    const setValue = vi.fn((value: UseSharedCacheSchema[K]) => {
+    const setValue = vi.fn((value: SharedCacheSchema[K]) => {
       mockSharedCache.set(key, value)
       notifySharedSubscribers(key)
     })
@@ -188,8 +188,8 @@ export const MockUseCacheUtils = {
       mockMemoryCache.set(key as UseCacheKey, value)
     })
 
-    Object.entries(DefaultUseSharedCache).forEach(([key, value]) => {
-      mockSharedCache.set(key as UseSharedCacheKey, value)
+    Object.entries(DefaultSharedCache).forEach(([key, value]) => {
+      mockSharedCache.set(key as SharedCacheKey, value)
     })
 
     Object.entries(DefaultRendererPersistCache).forEach(([key, value]) => {
@@ -220,7 +220,7 @@ export const MockUseCacheUtils = {
   /**
    * Set shared cache value for testing
    */
-  setSharedCacheValue: <K extends UseSharedCacheKey>(key: K, value: UseSharedCacheSchema[K]) => {
+  setSharedCacheValue: <K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K]) => {
     mockSharedCache.set(key, value)
     notifySharedSubscribers(key)
   },
@@ -228,8 +228,8 @@ export const MockUseCacheUtils = {
   /**
    * Get shared cache value
    */
-  getSharedCacheValue: <K extends UseSharedCacheKey>(key: K): UseSharedCacheSchema[K] => {
-    return mockSharedCache.get(key) ?? DefaultUseSharedCache[key]
+  getSharedCacheValue: <K extends SharedCacheKey>(key: K): SharedCacheSchema[K] => {
+    return mockSharedCache.get(key) ?? DefaultSharedCache[key]
   },
 
   /**
@@ -252,7 +252,7 @@ export const MockUseCacheUtils = {
    */
   setMultipleCacheValues: (values: {
     memory?: Array<[UseCacheKey, any]>
-    shared?: Array<[UseSharedCacheKey, any]>
+    shared?: Array<[SharedCacheKey, any]>
     persist?: Array<[RendererPersistCacheKey, any]>
   }) => {
     values.memory?.forEach(([key, value]) => {
@@ -310,10 +310,10 @@ export const MockUseCacheUtils = {
   /**
    * Mock shared cache hook to return specific value for a key
    */
-  mockSharedCacheReturn: <K extends UseSharedCacheKey>(
+  mockSharedCacheReturn: <K extends SharedCacheKey>(
     key: K,
-    value: UseSharedCacheSchema[K],
-    setValue?: (value: UseSharedCacheSchema[K]) => void
+    value: SharedCacheSchema[K],
+    setValue?: (value: SharedCacheSchema[K]) => void
   ) => {
     mockUseSharedCache.mockImplementation((cacheKey, initValue) => {
       if (cacheKey === key) {
@@ -321,7 +321,7 @@ export const MockUseCacheUtils = {
       }
 
       // Default behavior for other keys
-      const defaultValue = mockSharedCache.get(cacheKey) ?? initValue ?? DefaultUseSharedCache[cacheKey]
+      const defaultValue = mockSharedCache.get(cacheKey) ?? initValue ?? DefaultSharedCache[cacheKey]
       return [defaultValue, vi.fn()]
     })
   },
@@ -368,7 +368,7 @@ export const MockUseCacheUtils = {
   /**
    * Add subscriber for shared cache changes
    */
-  addSharedSubscriber: (key: UseSharedCacheKey, callback: () => void): (() => void) => {
+  addSharedSubscriber: (key: SharedCacheKey, callback: () => void): (() => void) => {
     if (!mockSharedSubscribers.has(key)) {
       mockSharedSubscribers.set(key, new Set())
     }

@@ -106,6 +106,39 @@ const files = cacheService.getPersist('app.recent_files')
 cacheService.deletePersist('app.recent_files')
 ```
 
+## Main Process Usage
+
+Main process CacheService provides SharedCache for cross-window state management.
+
+### SharedCache in Main Process
+
+```typescript
+import { cacheService } from '@main/data/CacheService'
+
+// Type-safe (schema key) - matches Renderer's type system
+cacheService.setShared('window.layout', layoutConfig)
+const layout = cacheService.getShared('window.layout')
+
+// With TTL (30 seconds)
+cacheService.setShared('temp.state', state, 30000)
+
+// Check existence
+if (cacheService.hasShared('window.layout')) {
+  // ...
+}
+
+// Delete
+cacheService.deleteShared('window.layout')
+```
+
+**Note**: Main CacheService does NOT support Casual methods (`getSharedCasual`, etc.). Only schema-based type-safe access is available in Main process.
+
+### Sync Strategy
+
+- **Renderer → Main**: When Renderer calls `setShared()`, it broadcasts to Main via IPC. Main updates its SharedCache and relays to other windows.
+- **Main → Renderer**: When Main calls `setShared()`, it broadcasts to all Renderer windows.
+- **New Window Initialization**: New windows fetch complete SharedCache state from Main via `getAllShared()`. Uses Main-priority override strategy for conflicts.
+
 ## Type-Safe vs Casual Methods
 
 ### Type-Safe Methods
@@ -237,6 +270,34 @@ export interface MyDataType {
 const [data, setData] = useCache('myFeature.data', defaultValue)
 ```
 
+## Shared Cache Ready State
+
+Renderer CacheService provides ready state tracking for SharedCache initialization sync.
+
+```typescript
+import { cacheService } from '@data/CacheService'
+
+// Check if shared cache is ready
+if (cacheService.isSharedCacheReady()) {
+  // SharedCache has been synced from Main
+}
+
+// Register callback when ready
+const unsubscribe = cacheService.onSharedCacheReady(() => {
+  // Called immediately if already ready, or when sync completes
+  console.log('SharedCache ready!')
+})
+
+// Cleanup
+unsubscribe()
+```
+
+**Behavior notes**:
+- `getShared()` returns `undefined` before ready (expected behavior)
+- `setShared()` works immediately and broadcasts to Main (Main updates its cache)
+- Hooks like `useSharedCache` work normally - they set initial values and update when sync completes
+- Main-priority override: when sync completes, Main's values override local values
+
 ## Best Practices
 
 1. **Choose the right tier**: Memory for temp, Shared for cross-window, Persist for survival
@@ -244,3 +305,4 @@ const [data, setData] = useCache('myFeature.data', defaultValue)
 3. **Prefer type-safe keys**: Add to schema when possible
 4. **Clean up dynamic keys**: Remove casual cache entries when no longer needed
 5. **Consider data size**: Persist cache uses localStorage (limited to ~5MB)
+6. **Use absolute timestamps for sync**: CacheSyncMessage uses `expireAt` (absolute Unix timestamp) for precise cross-window TTL sync

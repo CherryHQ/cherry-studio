@@ -14,7 +14,7 @@ import type {
   WebviewKeyEvent
 } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
-import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   PreferenceDefaultScopeType,
   PreferenceKeyType,
@@ -580,7 +580,10 @@ const api = {
       const listener = (_: any, message: CacheSyncMessage) => callback(message)
       ipcRenderer.on(IpcChannel.Cache_Sync, listener)
       return () => ipcRenderer.off(IpcChannel.Cache_Sync, listener)
-    }
+    },
+
+    // Get all shared cache entries from Main for initialization sync
+    getAllShared: (): Promise<Record<string, CacheEntry>> => ipcRenderer.invoke(IpcChannel.Cache_GetAllShared)
   },
 
   // PreferenceService related APIs

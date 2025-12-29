@@ -2,9 +2,9 @@ import type {
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
   UseCacheKey,
-  UseSharedCacheKey
+  SharedCacheKey
 } from '@shared/data/cache/cacheSchemas'
-import { DefaultRendererPersistCache, DefaultUseCache, DefaultUseSharedCache } from '@shared/data/cache/cacheSchemas'
+import { DefaultRendererPersistCache, DefaultUseCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheSubscriber } from '@shared/data/cache/cacheTypes'
 import { vi } from 'vitest'
 
@@ -235,8 +235,8 @@ function getDefaultValueForKey(key: string): any {
 }
 
 function getDefaultSharedValueForKey(key: string): any {
-  if (key in DefaultUseSharedCache) {
-    return DefaultUseSharedCache[key as UseSharedCacheKey]
+  if (key in DefaultSharedCache) {
+    return DefaultSharedCache[key as SharedCacheKey]
   }
   return undefined
 }

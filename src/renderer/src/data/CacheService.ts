@@ -21,10 +21,10 @@ import { loggerService } from '@logger'
 import type {
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
+  SharedCacheKey,
+  SharedCacheSchema,
   UseCacheKey,
-  UseCacheSchema,
-  UseSharedCacheKey,
-  UseSharedCacheSchema
+  UseCacheSchema
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSubscriber, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
@@ -66,6 +66,10 @@ export class CacheService {
   private persistSaveTimer?: NodeJS.Timeout
   private persistDirty = false
 
+  // Shared cache ready state for initialization sync
+  private sharedCacheReady = false
+  private sharedCacheReadyCallbacks: Array<() => void> = []
+
   private constructor() {
     this.initialize()
   }
@@ -87,6 +91,10 @@ export class CacheService {
     this.loadPersistCache()
     this.setupIpcListeners()
     this.setupWindowUnloadHandler()
+
+    // Async sync SharedCache from Main (does not block initialization)
+    this.syncSharedCacheFromMain()
+
     logger.debug('CacheService initialized')
   }
 
@@ -279,7 +287,7 @@ export class CacheService {
    * @param key - Schema-defined shared cache key
    * @returns True if key has TTL configured
    */
-  hasSharedTTL<K extends UseSharedCacheKey>(key: K): boolean {
+  hasSharedTTL<K extends SharedCacheKey>(key: K): boolean {
     const entry = this.sharedCache.get(key)
     return entry?.expireAt !== undefined
   }
@@ -289,7 +297,7 @@ export class CacheService {
    * @param key - Dynamic shared cache key
    * @returns True if key has TTL configured
    */
-  hasSharedTTLCasual(key: Exclude<string, UseSharedCacheKey>): boolean {
+  hasSharedTTLCasual(key: Exclude<string, SharedCacheKey>): boolean {
     const entry = this.sharedCache.get(key)
     return entry?.expireAt !== undefined
   }
@@ -301,7 +309,7 @@ export class CacheService {
    * @param key - Schema-defined shared cache key
    * @returns Cached value or undefined if not found or expired
    */
-  getShared<K extends UseSharedCacheKey>(key: K): UseSharedCacheSchema[K] | undefined {
+  getShared<K extends SharedCacheKey>(key: K): SharedCacheSchema[K] | undefined {
     return this.getSharedInternal(key)
   }
 
@@ -310,7 +318,7 @@ export class CacheService {
    * @param key - Dynamic shared cache key (e.g., `window:${id}`)
    * @returns Cached value or undefined if not found or expired
    */
-  getSharedCasual<T>(key: Exclude<string, UseSharedCacheKey>): T | undefined {
+  getSharedCasual<T>(key: Exclude<string, SharedCacheKey>): T | undefined {
     return this.getSharedInternal(key)
   }
 
@@ -337,7 +345,7 @@ export class CacheService {
    * @param value - Value to cache (type inferred from schema)
    * @param ttl - Time to live in milliseconds (optional)
    */
-  setShared<K extends UseSharedCacheKey>(key: K, value: UseSharedCacheSchema[K], ttl?: number): void {
+  setShared<K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K], ttl?: number): void {
     this.setSharedInternal(key, value, ttl)
   }
 
@@ -347,7 +355,7 @@ export class CacheService {
    * @param value - Value to cache
    * @param ttl - Time to live in milliseconds (optional)
    */
-  setSharedCasual<T>(key: Exclude<string, UseSharedCacheKey>, value: T, ttl?: number): void {
+  setSharedCasual<T>(key: Exclude<string, SharedCacheKey>, value: T, ttl?: number): void {
     this.setSharedInternal(key, value, ttl)
   }
 
@@ -356,11 +364,11 @@ export class CacheService {
    */
   private setSharedInternal(key: string, value: any, ttl?: number): void {
     const existingEntry = this.sharedCache.get(key)
+    const newExpireAt = ttl ? Date.now() + ttl : undefined
 
     // Value comparison optimization
     if (existingEntry && Object.is(existingEntry.value, value)) {
       // Value is same, only update TTL if needed
-      const newExpireAt = ttl ? Date.now() + ttl : undefined
       if (!Object.is(existingEntry.expireAt, newExpireAt)) {
         existingEntry.expireAt = newExpireAt
         logger.verbose(`Updated TTL for shared cache key "${key}"`)
@@ -369,7 +377,7 @@ export class CacheService {
           type: 'shared',
           key,
           value,
-          ttl
+          expireAt: newExpireAt // Use absolute timestamp for precise sync
         })
       } else {
         logger.verbose(`Skipped shared cache update for key "${key}" - value and TTL unchanged`)
@@ -379,7 +387,7 @@ export class CacheService {
 
     const entry: CacheEntry = {
       value,
-      expireAt: ttl ? Date.now() + ttl : undefined
+      expireAt: newExpireAt
     }
 
     // Update local copy first
@@ -391,7 +399,7 @@ export class CacheService {
       type: 'shared',
       key,
       value,
-      ttl
+      expireAt: newExpireAt // Use absolute timestamp for precise sync
     })
     logger.verbose(`Updated shared cache for key "${key}"`)
   }
@@ -401,7 +409,7 @@ export class CacheService {
    * @param key - Schema-defined shared cache key
    * @returns True if key exists and is valid, false otherwise
    */
-  hasShared<K extends UseSharedCacheKey>(key: K): boolean {
+  hasShared<K extends SharedCacheKey>(key: K): boolean {
     return this.hasSharedInternal(key)
   }
 
@@ -410,7 +418,7 @@ export class CacheService {
    * @param key - Dynamic shared cache key
    * @returns True if key exists and is valid, false otherwise
    */
-  hasSharedCasual(key: Exclude<string, UseSharedCacheKey>): boolean {
+  hasSharedCasual(key: Exclude<string, SharedCacheKey>): boolean {
     return this.hasSharedInternal(key)
   }
 
@@ -436,7 +444,7 @@ export class CacheService {
    * @param key - Schema-defined shared cache key
    * @returns True if deletion succeeded, false if key is protected by active hooks
    */
-  deleteShared<K extends UseSharedCacheKey>(key: K): boolean {
+  deleteShared<K extends SharedCacheKey>(key: K): boolean {
     return this.deleteSharedInternal(key)
   }
 
@@ -445,7 +453,7 @@ export class CacheService {
    * @param key - Dynamic shared cache key
    * @returns True if deletion succeeded, false if key is protected by active hooks
    */
-  deleteSharedCasual(key: Exclude<string, UseSharedCacheKey>): boolean {
+  deleteSharedCasual(key: Exclude<string, SharedCacheKey>): boolean {
     return this.deleteSharedInternal(key)
   }
 
@@ -555,6 +563,91 @@ export class CacheService {
    */
   unregisterHook(key: string): void {
     this.activeHooks.delete(key)
+  }
+
+  // ============ Shared Cache Ready State Management ============
+
+  /**
+   * Check if shared cache has finished initial sync from Main
+   * @returns True if shared cache is ready
+   */
+  isSharedCacheReady(): boolean {
+    return this.sharedCacheReady
+  }
+
+  /**
+   * Register a callback to be called when shared cache is ready
+   * If already ready, callback is invoked immediately
+   * @param callback - Function to call when ready
+   * @returns Unsubscribe function
+   */
+  onSharedCacheReady(callback: () => void): () => void {
+    if (this.sharedCacheReady) {
+      callback()
+      return () => {}
+    }
+
+    this.sharedCacheReadyCallbacks.push(callback)
+    return () => {
+      const idx = this.sharedCacheReadyCallbacks.indexOf(callback)
+      if (idx >= 0) {
+        this.sharedCacheReadyCallbacks.splice(idx, 1)
+      }
+    }
+  }
+
+  /**
+   * Mark shared cache as ready and notify all waiting callbacks
+   */
+  private markSharedCacheReady(): void {
+    this.sharedCacheReady = true
+    this.sharedCacheReadyCallbacks.forEach((cb) => cb())
+    this.sharedCacheReadyCallbacks = []
+  }
+
+  /**
+   * Sync shared cache from Main process during initialization
+   * Uses Main-priority override strategy for conflict resolution
+   */
+  private async syncSharedCacheFromMain(): Promise<void> {
+    if (!window.api?.cache?.getAllShared) {
+      logger.warn('Cache getAllShared API not available')
+      this.markSharedCacheReady()
+      return
+    }
+
+    try {
+      const allShared = await window.api.cache.getAllShared()
+      let syncedCount = 0
+
+      for (const [key, entry] of Object.entries(allShared)) {
+        // Skip expired entries
+        if (entry.expireAt && Date.now() > entry.expireAt) {
+          continue
+        }
+
+        const existingEntry = this.sharedCache.get(key)
+
+        // Compare value and expireAt to determine if update is needed
+        const valueChanged = !existingEntry || !Object.is(existingEntry.value, entry.value)
+        const ttlChanged = !existingEntry || !Object.is(existingEntry.expireAt, entry.expireAt)
+
+        if (valueChanged || ttlChanged) {
+          // Main-priority override: always use Main's value
+          this.sharedCache.set(key, entry)
+          this.notifySubscribers(key) // Only notify on actual change
+          syncedCount++
+        }
+      }
+
+      logger.debug(
+        `Synced ${syncedCount} changed shared cache entries from Main (total: ${Object.keys(allShared).length})`
+      )
+    } catch (error) {
+      logger.error('Failed to sync shared cache from Main:', error as Error)
+    } finally {
+      this.markSharedCacheReady()
+    }
   }
 
   // ============ Subscription Management ============
@@ -746,10 +839,10 @@ export class CacheService {
           // Handle deletion
           this.sharedCache.delete(message.key)
         } else {
-          // Handle set
+          // Handle set - use expireAt directly (absolute timestamp from sender)
           const entry: CacheEntry = {
             value: message.value,
-            expireAt: message.ttl ? Date.now() + message.ttl : undefined
+            expireAt: message.expireAt
           }
           this.sharedCache.set(message.key, entry)
         }

@@ -101,11 +101,11 @@ export const DefaultUseCache: UseCacheSchema = {
 /**
  * Use shared cache schema for renderer hook
  */
-export type UseSharedCacheSchema = {
+export type SharedCacheSchema = {
   'example_scope.example_key': string
 }
 
-export const DefaultUseSharedCache: UseSharedCacheSchema = {
+export const DefaultSharedCache: SharedCacheSchema = {
   'example_scope.example_key': 'example default value'
 }
 
@@ -126,4 +126,4 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  */
 export type RendererPersistCacheKey = keyof RendererPersistCacheSchema
 export type UseCacheKey = keyof UseCacheSchema
-export type UseSharedCacheKey = keyof UseSharedCacheSchema
+export type SharedCacheKey = keyof SharedCacheSchema
