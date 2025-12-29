@@ -92,6 +92,7 @@ const ThinkModelTypes = [
   'gpt5_2',
   'gpt5pro',
   'gpt52pro',
+  'gpt_oss',
   'grok',
   'grok4_fast',
   'gemini2_flash',
@@ -395,6 +396,7 @@ export interface DmxapiPainting extends PaintingParams {
   autoCreate?: boolean
   generationMode?: generationModeType
   priceModel?: string
+  extend_params?: Record<string, unknown>
 }
 
 export interface TokenFluxPainting extends PaintingParams {

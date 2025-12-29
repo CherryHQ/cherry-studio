@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import {
@@ -3104,7 +3120,19 @@ const migrateConfig = {
       addPreprocessProviders(state, 'paddleocr')
       return state
     } catch (error) {
-      logger.error('migrate 185 error', error as Error)
+      logger.error('migrate 190 error', error as Error)
+  // 1.7.8
+  '191': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
+      logger.info('migrate 190 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 190 error', error as Error)
       return state
     }
   }

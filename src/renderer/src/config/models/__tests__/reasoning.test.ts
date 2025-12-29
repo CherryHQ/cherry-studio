@@ -680,7 +680,12 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       expect(getThinkModelType(createModel({ id: 'o3' }))).toBe('o')
       expect(getThinkModelType(createModel({ id: 'o3-mini' }))).toBe('o')
       expect(getThinkModelType(createModel({ id: 'o4' }))).toBe('o')
-      expect(getThinkModelType(createModel({ id: 'gpt-oss-reasoning' }))).toBe('o')
+    })
+
+    it('should return gpt_oss for gpt-oss models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-oss' }))).toBe('gpt_oss')
+      expect(getThinkModelType(createModel({ id: 'gpt-oss:20b' }))).toBe('gpt_oss')
+      expect(getThinkModelType(createModel({ id: 'gpt-oss-reasoning' }))).toBe('gpt_oss')
     })
   })
 
@@ -1758,6 +1763,21 @@ describe('getModelSupportedReasoningEffortOptions', () => {
         'high'
       ])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'o4' }))).toEqual([
+        'default',
+        'low',
+        'medium',
+        'high'
+      ])
+    })
+
+    it('should return correct options for gpt-oss models', () => {
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-oss' }))).toEqual([
+        'default',
+        'low',
+        'medium',
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-oss:20b' }))).toEqual([
         'default',
         'low',
         'medium',

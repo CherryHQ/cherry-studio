@@ -1,5 +1,6 @@
 import store from '@renderer/store'
 import type { VertexProvider } from '@renderer/types'
+import { getTrailingApiVersion, withoutTrailingApiVersion } from '@shared/utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -8,14 +9,12 @@ import {
   formatAzureOpenAIApiHost,
   formatOllamaApiHost,
   formatVertexApiHost,
-  getTrailingApiVersion,
   hasAPIVersion,
   isWithTrailingSharp,
   maskApiKey,
   routeToEndpoint,
   splitApiKeyString,
   validateApiHost,
-  withoutTrailingApiVersion,
   withoutTrailingSharp
 } from '../api'
 
