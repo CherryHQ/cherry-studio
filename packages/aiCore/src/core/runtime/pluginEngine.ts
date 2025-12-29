@@ -75,10 +75,7 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
    * 执行带插件的操作（非流式）
    * 提供给AiExecutor使用
    */
-  async executeWithPlugins<
-    TParams extends GenerateTextParams,
-    TResult extends GenerateTextResult
-  >(
+  async executeWithPlugins<TParams extends GenerateTextParams, TResult extends GenerateTextResult>(
     methodName: string,
     params: TParams,
     executor: (model: LanguageModel, transformedParams: TParams) => TResult,
@@ -101,9 +98,7 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
     const context = _context ?? createContext(this.providerId, model, params)
 
     // ✅ 创建类型化的 manager（逆变安全）
-    const manager = new PluginManager<TParams, TResult>(
-      this.basePlugins as AiPlugin<TParams, TResult>[]
-    )
+    const manager = new PluginManager<TParams, TResult>(this.basePlugins as AiPlugin<TParams, TResult>[])
 
     // ✅ 递归调用泛型化，增加深度限制
     context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
@@ -118,12 +113,12 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
         context.recursiveDepth = previousDepth + 1
         context.isRecursiveCall = true
 
-        return await this.executeWithPlugins(
+        return (await this.executeWithPlugins(
           methodName,
           { ...params, ...newParams } as TParams,
           executor,
           context
-        ) as unknown as R
+        )) as unknown as R
       } finally {
         // ✅ finally 确保状态恢复
         context.recursiveDepth = previousDepth
@@ -201,9 +196,7 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
     const context = _context ?? createContext(this.providerId, model, params)
 
     // ✅ 创建类型化的 manager（逆变安全）
-    const manager = new PluginManager<TParams, TResult>(
-      this.basePlugins as AiPlugin<TParams, TResult>[]
-    )
+    const manager = new PluginManager<TParams, TResult>(this.basePlugins as AiPlugin<TParams, TResult>[])
 
     // ✅ 递归调用泛型化，增加深度限制
     context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
@@ -218,12 +211,12 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
         context.recursiveDepth = previousDepth + 1
         context.isRecursiveCall = true
 
-        return await this.executeImageWithPlugins(
+        return (await this.executeImageWithPlugins(
           methodName,
           { ...params, ...newParams } as TParams,
           executor,
           context
-        ) as unknown as R
+        )) as unknown as R
       } finally {
         // ✅ finally 确保状态恢复
         context.recursiveDepth = previousDepth
@@ -275,10 +268,7 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
    * 执行流式调用的通用逻辑（支持流转换器）
    * 提供给AiExecutor使用
    */
-  async executeStreamWithPlugins<
-    TParams extends StreamTextParams,
-    TResult extends StreamTextResult
-  >(
+  async executeStreamWithPlugins<TParams extends StreamTextParams, TResult extends StreamTextResult>(
     methodName: string,
     params: TParams,
     executor: (model: LanguageModel, transformedParams: TParams, streamTransforms: any[]) => TResult,
@@ -301,9 +291,7 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
     const context = _context ?? createContext(this.providerId, model, params)
 
     // ✅ 创建类型化的 manager（逆变安全）
-    const manager = new PluginManager<TParams, TResult>(
-      this.basePlugins as AiPlugin<TParams, TResult>[]
-    )
+    const manager = new PluginManager<TParams, TResult>(this.basePlugins as AiPlugin<TParams, TResult>[])
 
     // ✅ 递归调用泛型化，增加深度限制
     context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
@@ -318,12 +306,12 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
         context.recursiveDepth = previousDepth + 1
         context.isRecursiveCall = true
 
-        return await this.executeStreamWithPlugins(
+        return (await this.executeStreamWithPlugins(
           methodName,
           { ...params, ...newParams } as TParams,
           executor,
           context
-        ) as unknown as R
+        )) as unknown as R
       } finally {
         // ✅ finally 确保状态恢复
         context.recursiveDepth = previousDepth

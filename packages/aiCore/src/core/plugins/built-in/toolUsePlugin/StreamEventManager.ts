@@ -4,6 +4,7 @@
  * 负责处理 AI SDK 流事件的发送和管理
  * 从 promptToolUsePlugin.ts 中提取出来以降低复杂度
  */
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { EmbeddingModelUsage, ImageModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 
 import type { AiSdkUsage } from '../../../providers/types'
@@ -79,7 +80,11 @@ export class StreamEventManager {
    */
   sendStepFinishEvent(
     controller: StreamController,
-    chunk: any,
+    chunk: {
+      usage?: Partial<AiSdkUsage>
+      response?: { id: string; [key: string]: unknown }
+      providerMetadata?: SharedV3ProviderMetadata
+    },
     context: AiRequestContext,
     finishReason: string = 'stop'
   ): void {
@@ -154,7 +159,7 @@ export class StreamEventManager {
     context: AiRequestContext<TParams, StreamTextResult>,
     textBuffer: string,
     toolResultsText: string,
-    tools: any
+    tools: Record<string, unknown>
   ): Partial<TParams> {
     const params = context.originalParams
 

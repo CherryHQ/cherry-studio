@@ -72,10 +72,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
    * 执行 transformParams 钩子 - 链式参数转换
    * 每个插件返回 Partial<TParams>，逐步合并到原始参数
    */
-  async executeTransformParams(
-    initialValue: TParams,
-    context: AiRequestContext<TParams, TResult>
-  ): Promise<TParams> {
+  async executeTransformParams(initialValue: TParams, context: AiRequestContext<TParams, TResult>): Promise<TParams> {
     let result = initialValue
 
     for (const plugin of this.plugins) {
@@ -93,10 +90,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
    * 执行 transformResult 钩子 - 链式结果转换
    * 每个插件接收并返回完整的 TResult
    */
-  async executeTransformResult(
-    initialValue: TResult,
-    context: AiRequestContext<TParams, TResult>
-  ): Promise<TResult> {
+  async executeTransformResult(initialValue: TResult, context: AiRequestContext<TParams, TResult>): Promise<TResult> {
     let result = initialValue
 
     for (const plugin of this.plugins) {

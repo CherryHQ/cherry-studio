@@ -11,18 +11,20 @@ import { vi } from 'vitest'
  */
 export function createMockLanguageModel(overrides?: Partial<LanguageModelV3>): LanguageModelV3 {
   return {
-    specificationVersion: 'v1',
+    specificationVersion: 'v3',
     provider: 'mock-provider',
     modelId: 'mock-model',
-    defaultObjectGenerationMode: 'tool',
+    supportedUrls: {},
 
     doGenerate: vi.fn().mockResolvedValue({
       text: 'Mock response text',
       finishReason: 'stop',
       usage: {
-        promptTokens: 10,
-        completionTokens: 20,
-        totalTokens: 30
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
       },
       rawCall: { rawPrompt: null, rawSettings: {} },
       rawResponse: { headers: {} },
@@ -47,9 +49,11 @@ export function createMockLanguageModel(overrides?: Partial<LanguageModelV3>): L
           type: 'finish',
           finishReason: 'stop',
           usage: {
-            promptTokens: 10,
-            completionTokens: 15,
-            totalTokens: 25
+            inputTokens: 10,
+            outputTokens: 15,
+            totalTokens: 25,
+            inputTokenDetails: {},
+            outputTokenDetails: {}
           }
         }
       })(),
@@ -64,12 +68,14 @@ export function createMockLanguageModel(overrides?: Partial<LanguageModelV3>): L
 
 /**
  * Creates a mock image model with customizable behavior
+ * Compliant with AI SDK v3 specification
  */
 export function createMockImageModel(overrides?: Partial<ImageModelV3>): ImageModelV3 {
   return {
-    specificationVersion: 'V3',
+    specificationVersion: 'v3',
     provider: 'mock-provider',
     modelId: 'mock-image-model',
+    maxImagesPerCall: undefined,
 
     doGenerate: vi.fn().mockResolvedValue({
       images: [

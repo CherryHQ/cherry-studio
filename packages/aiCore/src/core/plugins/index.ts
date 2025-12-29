@@ -33,8 +33,8 @@ export function createContext<T extends ProviderId, TParams = unknown, TResult =
     startTime: Date.now(),
     requestId: `${providerId}-${typeof model === 'string' ? model : model?.modelId}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     isRecursiveCall: false,
-    recursiveDepth: 0,  // 初始化递归深度为 0
-    maxRecursiveDepth: 10,  // 默认最大递归深度为 10
+    recursiveDepth: 0, // 初始化递归深度为 0
+    maxRecursiveDepth: 10, // 默认最大递归深度为 10
     extensions: new Map(),
     middlewares: [],
     // 占位递归调用函数，实际使用时会被 PluginEngine 替换
