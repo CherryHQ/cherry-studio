@@ -201,6 +201,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://tokenflux.ai',
+    anthropicApiHost: 'https://tokenflux.ai',
     models: SYSTEM_MODELS.tokenflux,
     isSystem: true,
     enabled: false
