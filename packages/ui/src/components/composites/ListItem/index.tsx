@@ -1,8 +1,7 @@
 // Original path: src/renderer/src/components/ListItem/index.tsx
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { Tooltip } from '@heroui/react'
 import type { ReactNode } from 'react'
-
-import { cn } from '../../../utils'
 
 interface ListItemProps {
   active?: boolean

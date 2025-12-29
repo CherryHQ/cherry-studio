@@ -1,4 +1,5 @@
-import { cn, toUndefinedIfNull } from '@cherrystudio/ui/utils'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { toUndefinedIfNull } from '@cherrystudio/ui/utils/index'
 import type { VariantProps } from 'class-variance-authority'
 import { cva } from 'class-variance-authority'
 import { Edit2Icon, EyeIcon, EyeOffIcon } from 'lucide-react'

@@ -1,7 +1,8 @@
 import type { AvatarProps } from '@cherrystudio/ui'
-import { Avatar, cn } from '@cherrystudio/ui'
+import { Avatar } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
+import { cn } from '@renderer/utils'
 import { first } from 'lodash'
 import type { FC } from 'react'
 
