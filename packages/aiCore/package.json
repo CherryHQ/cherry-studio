@@ -43,7 +43,7 @@
     "@ai-sdk/anthropic": "^3.0.0",
     "@ai-sdk/azure": "^3.0.0",
     "@ai-sdk/deepseek": "^2.0.0",
-    "@ai-sdk/openai-compatible": "^2.0.0",
+    "@ai-sdk/openai-compatible": "patch:@ai-sdk/openai-compatible@npm%3A2.0.0#~/.yarn/patches/@ai-sdk-openai-compatible-npm-2.0.0-d8d5f27c45.patch",
     "@ai-sdk/provider": "^3.0.0",
     "@ai-sdk/provider-utils": "^4.0.0",
     "@ai-sdk/xai": "^3.0.0",

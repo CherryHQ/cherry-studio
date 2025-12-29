@@ -182,7 +182,7 @@ describe('ModelResolver', () => {
 
     describe('Middleware Application', () => {
       it('should apply middlewares to resolved model', async () => {
-        const mockMiddleware = createMockMiddleware({ name: 'test-middleware' })
+        const mockMiddleware = createMockMiddleware()
 
         const result = await resolver.resolveLanguageModel('gpt-4', 'openai', undefined, [mockMiddleware])
 
@@ -190,8 +190,8 @@ describe('ModelResolver', () => {
       })
 
       it('should apply multiple middlewares in order', async () => {
-        const middleware1 = createMockMiddleware({ name: 'middleware-1' })
-        const middleware2 = createMockMiddleware({ name: 'middleware-2' })
+        const middleware1 = createMockMiddleware()
+        const middleware2 = createMockMiddleware()
 
         const result = await resolver.resolveLanguageModel('gpt-4', 'openai', undefined, [middleware1, middleware2])
 

@@ -269,7 +269,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
 
   describe('Middleware Application', () => {
     it('should apply middlewares to string modelId', async () => {
-      const testMiddleware = createMockMiddleware({ name: 'test-middleware' })
+      const testMiddleware = createMockMiddleware()
 
       await executor.generateText(
         {
@@ -285,8 +285,8 @@ describe('RuntimeExecutor - Model Resolution', () => {
     })
 
     it('should apply multiple middlewares in order', async () => {
-      const middleware1 = createMockMiddleware({ name: 'middleware-1' })
-      const middleware2 = createMockMiddleware({ name: 'middleware-2' })
+      const middleware1 = createMockMiddleware()
+      const middleware2 = createMockMiddleware()
 
       await executor.generateText(
         {
@@ -303,7 +303,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
     })
 
     it('should pass middlewares to model resolver for string modelIds', async () => {
-      const testMiddleware = createMockMiddleware({ name: 'test-middleware' })
+      const testMiddleware = createMockMiddleware()
 
       await executor.generateText(
         {
@@ -346,7 +346,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
     })
 
     it('should work with middlewares in streamText', async () => {
-      const middleware = createMockMiddleware({ name: 'stream-middleware' })
+      const middleware = createMockMiddleware()
 
       await executor.streamText(
         {

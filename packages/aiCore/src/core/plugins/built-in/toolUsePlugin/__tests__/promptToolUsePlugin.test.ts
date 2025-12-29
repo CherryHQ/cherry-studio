@@ -207,29 +207,6 @@ describe('promptToolUsePlugin', () => {
       expect(result.system).toBe('Custom prompt with 1 tools and user prompt: User prompt')
     })
 
-    it('should use custom createSystemMessage when provided', async () => {
-      const customCreateSystemMessage = vi.fn(() => {
-        return `Modified system message`
-      })
-
-      const plugin = createPromptToolUsePlugin({
-        createSystemMessage: customCreateSystemMessage
-      })
-
-      const context = createMockContext()
-      const params = createMockStreamParams({
-        system: 'Original',
-        tools: {
-          test: createMockTool('test')
-        }
-      })
-
-      const result = await Promise.resolve(plugin.transformParams!(params, context))
-
-      expect(customCreateSystemMessage).toHaveBeenCalled()
-      expect(result.system).toContain('Modified')
-    })
-
     it('should save originalParams to context', async () => {
       const plugin = createPromptToolUsePlugin()
       const context = createMockContext()

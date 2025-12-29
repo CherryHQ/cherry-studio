@@ -168,7 +168,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/google@npm:3.0.0, @ai-sdk/google@npm:^3.0.0":
+"@ai-sdk/google@npm:3.0.0":
   version: 3.0.0
   resolution: "@ai-sdk/google@npm:3.0.0"
   dependencies:
@@ -177,6 +177,18 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/161c0c0f813f117d644ba3b9d34b877a5e6e68f0b8e1a2a84691fb3942659d4597ef5e17ad6b12e5a04683b990fd33d229cd3cfc4cc3148d7749f5574a9140de
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/google@patch:@ai-sdk/google@npm%3A3.0.0#~/.yarn/patches/@ai-sdk-google-npm-3.0.0-ef668576ff.patch":
+  version: 3.0.0
+  resolution: "@ai-sdk/google@patch:@ai-sdk/google@npm%3A3.0.0#~/.yarn/patches/@ai-sdk-google-npm-3.0.0-ef668576ff.patch::version=3.0.0&hash=296a79"
+  dependencies:
+    "@ai-sdk/provider": "npm:3.0.0"
+    "@ai-sdk/provider-utils": "npm:4.0.0"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/19dc30dbd25fce5dd52d3d03fa3cc7c0c043f5b14ca32e968d8c0406f4661251bc7333c29da4324fca067e426339c297879377c7105c5c2bb0b623ba0b14dcb8
   languageName: node
   linkType: hard
 
@@ -217,7 +229,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai-compatible@npm:2.0.0, @ai-sdk/openai-compatible@npm:^2.0.0":
+"@ai-sdk/openai-compatible@npm:2.0.0":
   version: 2.0.0
   resolution: "@ai-sdk/openai-compatible@npm:2.0.0"
   dependencies:
@@ -241,19 +253,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@npm:2.0.85":
-  version: 2.0.85
-  resolution: "@ai-sdk/openai@npm:2.0.85"
+"@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A2.0.0#~/.yarn/patches/@ai-sdk-openai-compatible-npm-2.0.0-d8d5f27c45.patch":
+  version: 2.0.0
+  resolution: "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A2.0.0#~/.yarn/patches/@ai-sdk-openai-compatible-npm-2.0.0-d8d5f27c45.patch::version=2.0.0&hash=0d8c46"
   dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.19"
+    "@ai-sdk/provider": "npm:3.0.0"
+    "@ai-sdk/provider-utils": "npm:4.0.0"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/c8e50de443d939d7a5d7444e1a2ff35357d05dd3add0fca8226b578b199f4ca53c8a9e22c376e88006466b86e39c88d7ceca790a6a866300e3964ad24756d580
+  checksum: 10c0/754c647f70aef954b1258f8978ec7c13bcfa6c52062ed0685cb09793bfb1650ee65394868c2ec3974ef0d8950c1a19c857de968be5d1cccefd04d94997275cd9
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@npm:3.0.0, @ai-sdk/openai@npm:^3.0.0":
+"@ai-sdk/openai@npm:3.0.0":
   version: 3.0.0
   resolution: "@ai-sdk/openai@npm:3.0.0"
   dependencies:
@@ -265,15 +277,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.85#~/.yarn/patches/@ai-sdk-openai-npm-2.0.85-27483d1d6a.patch":
-  version: 2.0.85
-  resolution: "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.85#~/.yarn/patches/@ai-sdk-openai-npm-2.0.85-27483d1d6a.patch::version=2.0.85&hash=81ee54"
+"@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A3.0.0#~/.yarn/patches/@ai-sdk-openai-npm-3.0.0-0b1bba0aab.patch":
+  version: 3.0.0
+  resolution: "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A3.0.0#~/.yarn/patches/@ai-sdk-openai-npm-3.0.0-0b1bba0aab.patch::version=3.0.0&hash=f40a70"
   dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.19"
+    "@ai-sdk/provider": "npm:3.0.0"
+    "@ai-sdk/provider-utils": "npm:4.0.0"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/8fd0e4e63840b0ceb3fbf61b567e3318edfd5c3177b502076fb04b340ef8ea0a6b4cb95e4c6f7634b3bd8661ef0b69828a22b5434542c8e7d3488bff291e99c1
+  checksum: 10c0/70cd0d032a54f2a3312c91cb9a87c68e61a9e903b875827bfc4332a552017a5c0a6af2cd5b6cac63f96c89638235cb2496667c7d7397e42d8d04b4d38ba5f0d4
   languageName: node
   linkType: hard
 
@@ -299,19 +311,6 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/209c15b0dceef0ba95a7d3de544be0a417ad4a0bd5143496b3966a35fedf144156d93a42ff8c3d7db56781b9836bafc8c132c98978c49240e55bc1a36e18a67f
-  languageName: node
-  linkType: hard
-
-"@ai-sdk/provider-utils@npm:3.0.19":
-  version: 3.0.19
-  resolution: "@ai-sdk/provider-utils@npm:3.0.19"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@standard-schema/spec": "npm:^1.0.0"
-    eventsource-parser: "npm:^3.0.6"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/e4decb19264067fa1b1642e07d515d25d1509a1a9143f59ccc051e3ca413c9fb1d708e1052a70eaf329ca39ddf6152520cd833dbf8c95d9bf02bbeffae8ea363
   languageName: node
   linkType: hard
 
@@ -1933,7 +1932,7 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^3.0.0"
     "@ai-sdk/azure": "npm:^3.0.0"
     "@ai-sdk/deepseek": "npm:^2.0.0"
-    "@ai-sdk/openai-compatible": "npm:^2.0.0"
+    "@ai-sdk/openai-compatible": "patch:@ai-sdk/openai-compatible@npm%3A2.0.0#~/.yarn/patches/@ai-sdk-openai-compatible-npm-2.0.0-d8d5f27c45.patch"
     "@ai-sdk/provider": "npm:^3.0.0"
     "@ai-sdk/provider-utils": "npm:^4.0.0"
     "@ai-sdk/xai": "npm:^3.0.0"
@@ -1953,7 +1952,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@cherrystudio/ai-sdk-provider@workspace:packages/ai-sdk-provider"
   dependencies:
-    "@ai-sdk/openai-compatible": "npm:^2.0.0"
+    "@ai-sdk/openai-compatible": "patch:@ai-sdk/openai-compatible@npm%3A2.0.0#~/.yarn/patches/@ai-sdk-openai-compatible-npm-2.0.0-d8d5f27c45.patch"
     "@ai-sdk/provider": "npm:^3.0.0"
     "@ai-sdk/provider-utils": "npm:^4.0.0"
     tsdown: "npm:^0.13.3"
@@ -10135,11 +10134,11 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^3.0.0"
     "@ai-sdk/cerebras": "npm:^2.0.0"
     "@ai-sdk/gateway": "npm:^3.0.0"
-    "@ai-sdk/google": "npm:^3.0.0"
+    "@ai-sdk/google": "patch:@ai-sdk/google@npm%3A3.0.0#~/.yarn/patches/@ai-sdk-google-npm-3.0.0-ef668576ff.patch"
     "@ai-sdk/google-vertex": "npm:^4.0.0"
     "@ai-sdk/huggingface": "npm:^1.0.0"
     "@ai-sdk/mistral": "npm:^3.0.0"
-    "@ai-sdk/openai": "npm:^3.0.0"
+    "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A3.0.0#~/.yarn/patches/@ai-sdk-openai-npm-3.0.0-0b1bba0aab.patch"
     "@ai-sdk/perplexity": "npm:^3.0.0"
     "@ai-sdk/test-server": "npm:^1.0.0"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"

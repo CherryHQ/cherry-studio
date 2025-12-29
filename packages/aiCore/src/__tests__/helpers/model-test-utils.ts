@@ -190,7 +190,7 @@ export function createMockProviderV3(overrides?: {
  * })
  * ```
  */
-export function createMockMiddleware(_options?: { name?: string }): LanguageModelV3Middleware {
+export function createMockMiddleware(): LanguageModelV3Middleware {
   return {
     specificationVersion: 'v3',
     wrapGenerate: vi.fn((doGenerate) => doGenerate),
