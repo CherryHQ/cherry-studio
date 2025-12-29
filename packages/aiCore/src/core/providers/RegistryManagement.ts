@@ -11,8 +11,6 @@ type PROVIDERS = Record<string, ProviderV3>
 
 export const DEFAULT_SEPARATOR = '|'
 
-// export type MODEL_ID = `${string}${typeof DEFAULT_SEPARATOR}${string}`
-
 export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARATOR> {
   private providers: PROVIDERS = {}
   private aliases: Set<string> = new Set() // 记录哪些key是别名

@@ -4,10 +4,16 @@
  */
 import type { ImageModelV3, LanguageModelV3, LanguageModelV3Middleware } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
-import { generateImage as _generateImage, generateText as _generateText, streamText as _streamText } from 'ai'
+import {
+  generateImage as _generateImage,
+  generateText as _generateText,
+  streamText as _streamText,
+  wrapLanguageModel
+} from 'ai'
 
 import { globalModelResolver } from '../models'
 import { type ModelConfig } from '../models/types'
+import { isV3Model } from '../models/utils'
 import { type AiPlugin, type AiRequestContext, definePlugin } from '../plugins'
 import { type ProviderId } from '../providers'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
@@ -181,8 +187,20 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
         middlewares // 中间件数组
       )
     } else {
-      // 已经是模型，直接返回
-      return modelOrId
+      // 已经是模型对象
+      // 所有 provider 都应该返回 V3 模型（通过 wrapProvider 确保）
+      if (!isV3Model(modelOrId)) {
+        throw new Error(
+          `Model must be V3. Provider "${this.config.providerId}" returned a V2 model. ` +
+            'All providers should be wrapped with wrapProvider to return V3 models.'
+        )
+      }
+
+      // V3 模型，使用 wrapLanguageModel 应用中间件
+      return wrapLanguageModel({
+        model: modelOrId,
+        middleware: middlewares || []
+      })
     }
   }
 

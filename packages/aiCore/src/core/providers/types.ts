@@ -4,15 +4,18 @@ import { type DeepSeekProviderSettings } from '@ai-sdk/deepseek'
 import { type GoogleGenerativeAIProviderSettings } from '@ai-sdk/google'
 import { type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { type OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
-import type {
-  EmbeddingModelV3 as EmbeddingModel,
-  ImageModelV3 as ImageModel,
-  LanguageModelV3 as LanguageModel,
-  ProviderV3,
-  SpeechModelV3 as SpeechModel,
-  TranscriptionModelV3 as TranscriptionModel
-} from '@ai-sdk/provider'
+import type { ProviderV2, ProviderV3 } from '@ai-sdk/provider'
 import { type XaiProviderSettings } from '@ai-sdk/xai'
+import type {
+  EmbeddingModel,
+  EmbeddingModelUsage,
+  ImageModel,
+  ImageModelUsage,
+  LanguageModel,
+  LanguageModelUsage,
+  SpeechModel,
+  TranscriptionModel
+} from 'ai'
 
 // 导入基于 Zod 的 ProviderId 类型
 import { type ProviderId as ZodProviderId } from './schemas'
@@ -70,6 +73,8 @@ export type {
 }
 
 export type AiSdkModel = LanguageModel | ImageModel | EmbeddingModel | TranscriptionModel | SpeechModel
+export type AiSdkProvider = ProviderV2 | ProviderV3
+export type AiSdkUsage = LanguageModelUsage | ImageModelUsage | EmbeddingModelUsage
 
 export type AiSdkModelType = 'text' | 'image' | 'embedding' | 'transcription' | 'speech'
 

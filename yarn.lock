@@ -205,6 +205,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/openai-compatible@npm:1.0.28":
+  version: 1.0.28
+  resolution: "@ai-sdk/openai-compatible@npm:1.0.28"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.18"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/f484774e0094a12674f392d925038a296191723b4c76bd833eabf1b334cf3c84fe77a2e2c5fbac974ec5e18340e113c6a81c86d957c9529a7a60e87cd390ada8
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/openai-compatible@npm:2.0.0, @ai-sdk/openai-compatible@npm:^2.0.0":
   version: 2.0.0
   resolution: "@ai-sdk/openai-compatible@npm:2.0.0"
@@ -217,15 +229,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai-compatible@npm:^1.0.19":
-  version: 1.0.27
-  resolution: "@ai-sdk/openai-compatible@npm:1.0.27"
+"@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.28#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch":
+  version: 1.0.28
+  resolution: "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.28#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch::version=1.0.28&hash=f2cb20"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
+    "@ai-sdk/provider-utils": "npm:3.0.18"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/9f656e4f2ea4d714dc05be588baafd962b2e0360e9195fef373e745efeb20172698ea87e1033c0c5e1f1aa6e0db76a32629427bc8433eb42bd1a0ee00e04af0c
+  checksum: 10c0/0b1d99fe8ce506e5c0a3703ae0511ac2017781584074d41faa2df82923c64eb1229ffe9f036de150d0248923613c761a463fe89d5923493983e0463a1101e792
   languageName: node
   linkType: hard
 
@@ -277,16 +289,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/provider-utils@npm:3.0.17, @ai-sdk/provider-utils@npm:^3.0.10, @ai-sdk/provider-utils@npm:^3.0.17":
-  version: 3.0.17
-  resolution: "@ai-sdk/provider-utils@npm:3.0.17"
+"@ai-sdk/provider-utils@npm:3.0.18":
+  version: 3.0.18
+  resolution: "@ai-sdk/provider-utils@npm:3.0.18"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
     "@standard-schema/spec": "npm:^1.0.0"
     eventsource-parser: "npm:^3.0.6"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/1bae6dc4cacd0305b6aa152f9589bbd61c29f150155482c285a77f83d7ed416d52bc2aa7fdaba2e5764530392d9e8f799baea34a63dce6c72ecd3de364dc62d1
+  checksum: 10c0/209c15b0dceef0ba95a7d3de544be0a417ad4a0bd5143496b3966a35fedf144156d93a42ff8c3d7db56781b9836bafc8c132c98978c49240e55bc1a36e18a67f
   languageName: node
   linkType: hard
 
@@ -313,6 +325,19 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/2f44949b9d52669f7547a533b5da56e70795be4e7b853b365e6a541772b5280ced52d990b2c9d09cd50f242395108365a84b5a5e187d585b4f494e348931ba89
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/provider-utils@npm:^3.0.10, @ai-sdk/provider-utils@npm:^3.0.17":
+  version: 3.0.17
+  resolution: "@ai-sdk/provider-utils@npm:3.0.17"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@standard-schema/spec": "npm:^1.0.0"
+    eventsource-parser: "npm:^3.0.6"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/1bae6dc4cacd0305b6aa152f9589bbd61c29f150155482c285a77f83d7ed416d52bc2aa7fdaba2e5764530392d9e8f799baea34a63dce6c72ecd3de364dc62d1
   languageName: node
   linkType: hard
 

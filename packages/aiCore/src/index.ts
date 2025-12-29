@@ -15,19 +15,34 @@ export {
 } from './core/runtime'
 
 // ==================== 高级API ====================
-export { globalModelResolver as modelResolver } from './core/models'
+export { isV2Model, isV3Model, globalModelResolver as modelResolver } from './core/models'
 
 // ==================== 插件系统 ====================
-export type { AiPlugin, AiRequestContext, HookResult, PluginManagerConfig } from './core/plugins'
+export type {
+  AiPlugin,
+  AiRequestContext,
+  AiRequestMetadata,
+  GenerateTextParams,
+  GenerateTextResult,
+  HookResult,
+  PluginManagerConfig,
+  RecursiveCallFn,
+  StreamTextParams,
+  StreamTextResult
+} from './core/plugins'
 export { createContext, definePlugin, PluginManager } from './core/plugins'
-// export { createPromptToolUsePlugin, webSearchPlugin } from './core/plugins/built-in'
 export { PluginEngine } from './core/runtime/pluginEngine'
 
-// ==================== AI SDK 常用类型导出 ====================
-// 直接导出 AI SDK 的常用类型，方便使用
-export type { LanguageModelV3Middleware, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-export type { ToolCall } from '@ai-sdk/provider-utils'
-export type { ReasoningPart } from '@ai-sdk/provider-utils'
+// ==================== 类型工具 ====================
+export type { ModelId, ProviderId, RequestId } from './core/types/branded'
+export { isModelId, isProviderId, isRequestId } from './core/types/branded'
+// Branded type constructors (values, not types)
+export type { AiSdkModel } from './core/providers'
+export {
+  ModelId as createModelId,
+  ProviderId as createProviderId,
+  RequestId as createRequestId
+} from './core/types/branded'
 
 // ==================== 选项 ====================
 export {
@@ -39,6 +54,17 @@ export {
   type ProviderOptionsMap,
   type TypedProviderOptions
 } from './core/options'
+
+// ==================== 错误处理 ====================
+export {
+  AiCoreError,
+  ModelResolutionError,
+  ParameterValidationError,
+  PluginExecutionError,
+  ProviderConfigError,
+  RecursiveDepthError,
+  TemplateLoadError
+} from './core/errors'
 
 // ==================== 包信息 ====================
 export const AI_CORE_VERSION = '1.0.0'

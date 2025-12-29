@@ -2,8 +2,8 @@
  * 职责：提供原子化的、无状态的API调用函数
  */
 import { loggerService } from '@logger'
-import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
+import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'

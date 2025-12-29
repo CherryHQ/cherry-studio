@@ -47,7 +47,7 @@ import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
 
-type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider-defined' }>
+type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider' }>
 
 function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | undefined {
   if (isAnthropicModel(model)) {
@@ -62,9 +62,7 @@ function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | und
   if (isOpenAIModel(model)) {
     return 'openai'
   }
-  logger.warn(
-    `[mapVertexAIGatewayModelToProviderId] Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`
-  )
+  logger.warn(`Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`)
   return undefined
 }
 

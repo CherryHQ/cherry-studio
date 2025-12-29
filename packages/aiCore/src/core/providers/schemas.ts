@@ -12,8 +12,8 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
 import { type CherryInProviderSettings, createCherryIn } from '@cherrystudio/ai-sdk-provider'
-import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { customProvider } from 'ai'
+import { createOpenRouter, type OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
+import { customProvider, wrapProvider } from 'ai'
 import * as z from 'zod'
 
 /**
@@ -133,7 +133,10 @@ export const baseProviders = [
   {
     id: 'openrouter',
     name: 'OpenRouter',
-    creator: createOpenRouter,
+    creator: (options?: OpenRouterProviderSettings) => {
+      const provider = createOpenRouter(options)
+      return wrapProvider({ provider, languageModelMiddleware: [] })
+    },
     supportsImageGeneration: true
   },
   {
