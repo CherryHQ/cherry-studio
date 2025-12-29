@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import type { BuiltinMCPServerName, MCPServer } from '@types'
+import type { BuiltinMCPServerName } from '@types'
 import { BuiltinMCPServerNames } from '@types'
 
 import BraveSearchServer from './brave-search'
@@ -15,23 +15,6 @@ import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
 
 const logger = loggerService.withContext('MCPFactory')
-
-interface HubServerDependencies {
-  mcpService: {
-    listTools(_: null, server: MCPServer): Promise<unknown[]>
-    callTool(
-      _: null,
-      args: { server: MCPServer; name: string; args: unknown; callId?: string }
-    ): Promise<{ content: Array<{ type: string; text?: string }> }>
-  }
-  mcpServersGetter: () => MCPServer[]
-}
-
-let hubServerDependencies: HubServerDependencies | null = null
-
-export function setHubServerDependencies(deps: HubServerDependencies): void {
-  hubServerDependencies = deps
-}
 
 export function createInMemoryMCPServer(
   name: BuiltinMCPServerName,
@@ -71,10 +54,7 @@ export function createInMemoryMCPServer(
       return new BrowserServer().server
     }
     case BuiltinMCPServerNames.hub: {
-      if (!hubServerDependencies) {
-        throw new Error('Hub server dependencies not set. Call setHubServerDependencies first.')
-      }
-      return new HubServer(hubServerDependencies.mcpService, hubServerDependencies.mcpServersGetter).server
+      return new HubServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

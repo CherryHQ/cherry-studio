@@ -1,9 +1,7 @@
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import type { MCPServer } from '@types'
 
-import { setMCPServersGetter, setMCPService } from './mcp-bridge'
 import { Runtime } from './runtime'
 import { searchTools } from './search'
 import { ToolRegistry } from './tool-registry'
@@ -11,23 +9,12 @@ import type { ExecInput, SearchQuery } from './types'
 
 const logger = loggerService.withContext('MCPServer:Hub')
 
-interface MCPServiceInterface {
-  listTools(_: null, server: MCPServer): Promise<unknown[]>
-  callTool(
-    _: null,
-    args: { server: MCPServer; name: string; args: unknown; callId?: string }
-  ): Promise<{ content: Array<{ type: string; text?: string }> }>
-}
-
 export class HubServer {
   public server: Server
   private toolRegistry: ToolRegistry
   private runtime: Runtime
 
-  constructor(mcpService: MCPServiceInterface, mcpServersGetter: () => MCPServer[]) {
-    setMCPService(mcpService as any)
-    setMCPServersGetter(mcpServersGetter)
-
+  constructor() {
     this.toolRegistry = new ToolRegistry()
     this.runtime = new Runtime()
 

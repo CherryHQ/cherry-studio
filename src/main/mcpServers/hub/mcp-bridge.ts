@@ -22,6 +22,11 @@ export function setMCPServersGetter(getter: () => MCPServer[]): void {
   mcpServersGetter = getter
 }
 
+export function initHubBridge(service: MCPServiceInterface, serversGetter: () => MCPServer[]): void {
+  mcpServiceInstance = service
+  mcpServersGetter = serversGetter
+}
+
 export function getActiveServers(): MCPServer[] {
   if (!mcpServersGetter) {
     logger.warn('MCP servers getter not set')

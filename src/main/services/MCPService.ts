@@ -3,7 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { createInMemoryMCPServer, setHubServerDependencies } from '@main/mcpServers/factory'
+import { createInMemoryMCPServer } from '@main/mcpServers/factory'
+import { initHubBridge } from '@main/mcpServers/hub/mcp-bridge'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
@@ -169,14 +170,14 @@ class McpService {
   }
 
   private initializeHubDependencies(): void {
-    setHubServerDependencies({
-      mcpService: {
+    initHubBridge(
+      {
         listTools: (_: null, server: MCPServer) => this.listToolsImpl(server),
         callTool: async (_: null, args: { server: MCPServer; name: string; args: unknown; callId?: string }) => {
           return this.callTool(null as unknown as Electron.IpcMainInvokeEvent, args)
         }
       },
-      mcpServersGetter: () => {
+      () => {
         try {
           const servers = reduxService.selectSync<MCPServer[]>('state.mcp.servers')
           return servers || []
@@ -184,7 +185,7 @@ class McpService {
           return []
         }
       }
-    })
+    )
   }
 
   private getServerKey(server: MCPServer): string {
