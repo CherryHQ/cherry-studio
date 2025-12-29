@@ -65,6 +65,11 @@ export interface UpdateMessageDto {
 }
 
 /**
+ * Strategy for updating activeNodeId when the active message is deleted
+ */
+export type ActiveNodeStrategy = 'parent' | 'clear'
+
+/**
  * Response for delete operation
  */
 export interface DeleteMessageResponse {
@@ -72,6 +77,8 @@ export interface DeleteMessageResponse {
   deletedIds: string[]
   /** IDs of reparented children (only when cascade=false) */
   reparentedIds?: string[]
+  /** New activeNodeId for the topic (only if activeNodeId was affected by deletion) */
+  newActiveNodeId?: string | null
 }
 
 // ============================================================================
@@ -168,10 +175,19 @@ export interface MessageSchemas {
       body: UpdateMessageDto
       response: Message
     }
-    /** Delete a message (cascade=true deletes descendants, cascade=false reparents children) */
+    /**
+     * Delete a message
+     * - cascade=true: deletes message and all descendants
+     * - cascade=false: reparents children to grandparent
+     * - activeNodeStrategy='parent' (default): sets activeNodeId to parent if affected
+     * - activeNodeStrategy='clear': sets activeNodeId to null if affected
+     */
     DELETE: {
       params: { id: string }
-      query?: { cascade?: boolean }
+      query?: {
+        cascade?: boolean
+        activeNodeStrategy?: ActiveNodeStrategy
+      }
       response: DeleteMessageResponse
     }
   }

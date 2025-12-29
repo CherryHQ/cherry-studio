@@ -9,7 +9,12 @@
 
 import { messageService } from '@data/services/MessageService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { BranchMessagesQueryParams, MessageSchemas, TreeQueryParams } from '@shared/data/api/schemas/messages'
+import type {
+  ActiveNodeStrategy,
+  BranchMessagesQueryParams,
+  MessageSchemas,
+  TreeQueryParams
+} from '@shared/data/api/schemas/messages'
 
 /**
  * Handler type for a specific message endpoint
@@ -61,9 +66,10 @@ export const messageHandlers: {
     },
 
     DELETE: async ({ params, query }) => {
-      const q = (query || {}) as { cascade?: boolean }
+      const q = (query || {}) as { cascade?: boolean; activeNodeStrategy?: ActiveNodeStrategy }
       const cascade = q.cascade ?? false
-      return await messageService.delete(params.id, cascade)
+      const activeNodeStrategy = q.activeNodeStrategy ?? 'parent'
+      return await messageService.delete(params.id, cascade, activeNodeStrategy)
     }
   }
 }

@@ -13,7 +13,12 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { CreateMessageDto, UpdateMessageDto } from '@shared/data/api/schemas/messages'
+import type {
+  ActiveNodeStrategy,
+  CreateMessageDto,
+  DeleteMessageResponse,
+  UpdateMessageDto
+} from '@shared/data/api/schemas/messages'
 import type {
   BranchMessage,
   BranchMessagesResponse,
@@ -431,12 +436,41 @@ export class MessageService {
 
   /**
    * Delete a message (hard delete)
+   *
+   * Supports two modes:
+   * - cascade=true: Delete the message and all its descendants
+   * - cascade=false: Delete only this message, reparent children to grandparent
+   *
+   * When the deleted message(s) include the topic's activeNodeId, it will be
+   * automatically updated based on activeNodeStrategy:
+   * - 'parent' (default): Sets activeNodeId to the deleted message's parent
+   * - 'clear': Sets activeNodeId to null
+   *
+   * All operations are performed within a transaction for consistency.
+   *
+   * @param id - Message ID to delete
+   * @param cascade - If true, delete descendants; if false, reparent children (default: false)
+   * @param activeNodeStrategy - Strategy for updating activeNodeId if affected (default: 'parent')
+   * @returns Deletion result including deletedIds, reparentedIds, and newActiveNodeId
+   * @throws NOT_FOUND if message doesn't exist
+   * @throws INVALID_OPERATION if deleting root without cascade=true
    */
-  async delete(id: string, cascade: boolean = false): Promise<{ deletedIds: string[]; reparentedIds?: string[] }> {
+  async delete(
+    id: string,
+    cascade: boolean = false,
+    activeNodeStrategy: ActiveNodeStrategy = 'parent'
+  ): Promise<DeleteMessageResponse> {
     const db = dbService.getDb()
 
     // Get the message
     const message = await this.getById(id)
+
+    // Get topic to check activeNodeId
+    const [topic] = await db.select().from(topicTable).where(eq(topicTable.id, message.topicId)).limit(1)
+
+    if (!topic) {
+      throw DataApiErrorFactory.notFound('Topic', message.topicId)
+    }
 
     // Check if it's a root message
     const isRoot = message.parentId === null
@@ -445,34 +479,76 @@ export class MessageService {
       throw DataApiErrorFactory.invalidOperation('delete root message', 'cascade=true required')
     }
 
+    // Get all descendant IDs before transaction (for cascade delete)
+    let descendantIds: string[] = []
     if (cascade) {
-      // Get all descendants
-      const descendantIds = await this.getDescendantIds(id)
-      const allIds = [id, ...descendantIds]
+      descendantIds = await this.getDescendantIds(id)
+    }
 
-      // Hard delete all
-      await db.delete(messageTable).where(inArray(messageTable.id, allIds))
+    // Use transaction for atomic delete + activeNodeId update
+    return await db.transaction(async (tx) => {
+      let deletedIds: string[]
+      let reparentedIds: string[] | undefined
+      let newActiveNodeId: string | null | undefined
 
-      logger.info('Cascade deleted messages', { rootId: id, count: allIds.length })
+      if (cascade) {
+        deletedIds = [id, ...descendantIds]
 
-      return { deletedIds: allIds }
-    } else {
-      // Reparent children to this message's parent
-      const children = await db.select({ id: messageTable.id }).from(messageTable).where(eq(messageTable.parentId, id))
+        // Check if activeNodeId is affected
+        if (topic.activeNodeId && deletedIds.includes(topic.activeNodeId)) {
+          newActiveNodeId = activeNodeStrategy === 'clear' ? null : message.parentId
+        }
 
-      const childIds = children.map((c) => c.id)
+        // Hard delete all
+        await tx.delete(messageTable).where(inArray(messageTable.id, deletedIds))
 
-      if (childIds.length > 0) {
-        await db.update(messageTable).set({ parentId: message.parentId }).where(inArray(messageTable.id, childIds))
+        logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
+      } else {
+        // Reparent children to this message's parent
+        const children = await tx
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .where(eq(messageTable.parentId, id))
+
+        reparentedIds = children.map((c) => c.id)
+
+        if (reparentedIds.length > 0) {
+          await tx
+            .update(messageTable)
+            .set({ parentId: message.parentId })
+            .where(inArray(messageTable.id, reparentedIds))
+        }
+
+        deletedIds = [id]
+
+        // Check if activeNodeId is affected
+        if (topic.activeNodeId === id) {
+          newActiveNodeId = activeNodeStrategy === 'clear' ? null : message.parentId
+        }
+
+        // Hard delete this message
+        await tx.delete(messageTable).where(eq(messageTable.id, id))
+
+        logger.info('Deleted message with reparenting', { id, reparentedCount: reparentedIds.length })
       }
 
-      // Hard delete this message
-      await db.delete(messageTable).where(eq(messageTable.id, id))
+      // Update topic.activeNodeId if needed
+      if (newActiveNodeId !== undefined) {
+        await tx.update(topicTable).set({ activeNodeId: newActiveNodeId }).where(eq(topicTable.id, message.topicId))
 
-      logger.info('Deleted message with reparenting', { id, reparentedCount: childIds.length })
+        logger.info('Updated topic activeNodeId after message deletion', {
+          topicId: message.topicId,
+          oldActiveNodeId: topic.activeNodeId,
+          newActiveNodeId
+        })
+      }
 
-      return { deletedIds: [id], reparentedIds: childIds }
-    }
+      return {
+        deletedIds,
+        reparentedIds: reparentedIds?.length ? reparentedIds : undefined,
+        newActiveNodeId
+      }
+    })
   }
 
   /**
