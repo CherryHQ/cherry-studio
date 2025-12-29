@@ -17,6 +17,7 @@ import {
   isGPT52ProModel,
   isGPT52SeriesModel,
   isOpenAIDeepResearchModel,
+  isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
 } from './openai'
@@ -41,6 +42,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
   gpt52pro: ['medium', 'high', 'xhigh'] as const,
+  gpt_oss: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini2_flash: ['low', 'medium', 'high', 'auto'] as const,
@@ -72,6 +74,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_2: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2] as const,
   gpt5_1_codex_max: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max] as const,
   gpt52pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro] as const,
+  gpt_oss: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt_oss] as const,
   grok: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
   grok4_fast: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
   gemini2_flash: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini2_flash] as const,
@@ -127,6 +130,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
         thinkingModelType = 'gpt5pro'
       }
     }
+  } else if (isOpenAIOpenWeightModel(model)) {
+    thinkingModelType = 'gpt_oss'
   } else if (isSupportedReasoningEffortOpenAIModel(model)) {
     thinkingModelType = 'o'
   } else if (isGrok4FastReasoningModel(model)) {

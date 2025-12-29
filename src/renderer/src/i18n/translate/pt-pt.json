@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "Excluir o assistente removerá todos os tópicos e arquivos sob esse assistente. Tem certeza de que deseja continuar?",
+      "error": {
+        "remain_one": "Não é permitido apagar o último assistente."
+      },
       "title": "Excluir Assistente"
     },
     "edit": {
@@ -4805,7 +4808,7 @@
         "content_limit_tooltip": "Limita o comprimento do conteúdo dos resultados de pesquisa; o conteúdo excedente será truncado",
         "default_provider": "Provedor Padrão",
         "free": "Grátis",
-        "is_default": "[to be translated]:Default",
+        "is_default": "Padrão",
         "local_provider": {
           "hint": "Faça login no site para obter melhores resultados de pesquisa e personalizar suas configurações de busca.",
           "open_settings": "Abrir Configurações do {{provider}}",
@@ -4822,7 +4825,7 @@
         "search_provider": "Provedor de pesquisa",
         "search_provider_placeholder": "Selecione um provedor de pesquisa",
         "search_with_time": "Pesquisar com data",
-        "set_as_default": "[to be translated]:Set as Default",
+        "set_as_default": "Definir como Padrão",
         "subscribe": "Assinatura de lista negra",
         "subscribe_add": "Adicionar assinatura",
         "subscribe_add_failed": "Falha ao adicionar a fonte de subscrição",

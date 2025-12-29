@@ -18,6 +18,7 @@ import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
+import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -112,6 +113,13 @@ class ClaudeCodeService implements AgentServiceInterface {
     // Auto-discover Git Bash path on Windows (already logs internally)
     const customGitBashPath = isWin ? autoDiscoverGitBash() : null
 
+    // Claude Agent SDK builds the final endpoint as `${ANTHROPIC_BASE_URL}/v1/messages`.
+    // To avoid malformed URLs like `/v1/v1/messages`, we normalize the provider host
+    // by stripping any trailing API version (e.g. `/v1`).
+    const anthropicBaseUrl = withoutTrailingApiVersion(
+      modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost
+    )
+
     const env = {
       ...loginShellEnvWithoutProxies,
       // TODO: fix the proxy api server
@@ -120,7 +128,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
       ANTHROPIC_API_KEY: modelInfo.provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
-      ANTHROPIC_BASE_URL: modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost,
+      ANTHROPIC_BASE_URL: anthropicBaseUrl,
       ANTHROPIC_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_OPUS_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_SONNET_MODEL: modelInfo.modelId,
