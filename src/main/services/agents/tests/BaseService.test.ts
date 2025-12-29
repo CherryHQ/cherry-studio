@@ -14,8 +14,12 @@ vi.mock('@main/apiServer/utils', () => ({
 import { BaseService } from '../BaseService'
 
 class TestBaseService extends BaseService {
-  public normalize(allowedTools: string[] | undefined, tools: Tool[]): string[] | undefined {
-    return this.normalizeAllowedTools(allowedTools, tools)
+  public normalize(
+    allowedTools: string[] | undefined,
+    tools: Tool[],
+    legacyIdMap?: Map<string, string>
+  ): string[] | undefined {
+    return this.normalizeAllowedTools(allowedTools, tools, legacyIdMap)
   }
 }
 
@@ -37,31 +41,45 @@ describe('BaseService.normalizeAllowedTools', () => {
 
   it('normalizes legacy MCP tool IDs and deduplicates entries', () => {
     const tools: Tool[] = [
-      buildMcpTool('mcp__server-one__tool-one'),
-      buildMcpTool('mcp__server-two__tool-two'),
+      buildMcpTool('mcp__server_one__tool_one'),
+      buildMcpTool('mcp__server_two__tool_two'),
       { id: 'custom_tool', name: 'custom_tool', type: 'custom' }
     ]
 
+    const legacyIdMap = new Map<string, string>([
+      ['mcp__server-1__tool-one', 'mcp__server_one__tool_one'],
+      ['mcp_server-1_tool-one', 'mcp__server_one__tool_one'],
+      ['mcp__server-2__tool-two', 'mcp__server_two__tool_two']
+    ])
+
     const allowedTools = [
-      'mcp_server-one_tool-one',
-      'mcp__server-one__tool-one',
+      'mcp__server-1__tool-one',
+      'mcp_server-1_tool-one',
+      'mcp_server_one_tool_one',
+      'mcp__server_one__tool_one',
       'custom_tool',
-      'mcp_server-two_tool-two'
+      'mcp__server_two__tool_two',
+      'mcp_server_two_tool_two',
+      'mcp__server-2__tool-two'
     ]
 
-    expect(service.normalize(allowedTools, tools)).toEqual([
-      'mcp__server-one__tool-one',
+    expect(service.normalize(allowedTools, tools, legacyIdMap)).toEqual([
+      'mcp__server_one__tool_one',
       'custom_tool',
-      'mcp__server-two__tool-two'
+      'mcp__server_two__tool_two'
     ])
   })
 
   it('keeps legacy IDs when no matching MCP tool exists', () => {
-    const tools: Tool[] = [buildMcpTool('mcp__server-one__tool-one')]
+    const tools: Tool[] = [buildMcpTool('mcp__server_one__tool_one')]
+    const legacyIdMap = new Map<string, string>([['mcp__server-1__tool-one', 'mcp__server_one__tool_one']])
 
-    const allowedTools = ['mcp_unknown_tool', 'mcp__server-one__tool-one']
+    const allowedTools = ['mcp__unknown__tool', 'mcp__server_one__tool_one']
 
-    expect(service.normalize(allowedTools, tools)).toEqual(['mcp_unknown_tool', 'mcp__server-one__tool-one'])
+    expect(service.normalize(allowedTools, tools, legacyIdMap)).toEqual([
+      'mcp__unknown__tool',
+      'mcp__server_one__tool_one'
+    ])
   })
 
   it('returns allowed tools unchanged when no MCP tools are available', () => {
