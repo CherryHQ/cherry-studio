@@ -271,28 +271,6 @@ export function createTelemetryPlugin(config: TelemetryPluginConfig) {
         }
       }
 
-      // 如果有父span，尝试在telemetry配置中设置父上下文
-      // if (parentSpan) {
-      //   try {
-      //     // 设置活跃上下文，确保 AI SDK spans 在正确的 trace 上下文中创建
-      //     const activeContext = trace.setSpan(otelContext.active(), parentSpan)
-
-      //     // 更新全局上下文
-      //     otelContext.with(activeContext, () => {
-      //       logger.debug('Updated active context with parent span')
-      //     })
-
-      //     logger.debug('Set parent context for AI SDK spans', {
-      //       parentSpanId: parentSpanContext?.spanId,
-      //       parentTraceId: parentSpanContext?.traceId,
-      //       hasActiveContext: !!activeContext,
-      //       hasParentSpan: !!parentSpan
-      //     })
-      //   } catch (error) {
-      //     logger.warn('Failed to set parent context in telemetry config', error as Error)
-      //   }
-      // }
-
       logger.debug('Injecting AI SDK telemetry config with adapter', {
         requestId: context.requestId,
         topicId: traceContext?.topicId,

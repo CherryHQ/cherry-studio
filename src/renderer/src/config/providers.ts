@@ -107,7 +107,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://aihubmix.com',
-    anthropicApiHost: 'https://aihubmix.com/anthropic',
+    anthropicApiHost: 'https://aihubmix.com',
     models: SYSTEM_MODELS.aihubmix,
     isSystem: true,
     enabled: false
@@ -289,7 +289,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
   ollama: {
     id: 'ollama',
     name: 'Ollama',
-    type: 'openai',
+    type: 'ollama',
     apiKey: '',
     apiHost: 'http://localhost:11434',
     models: SYSTEM_MODELS.ollama,

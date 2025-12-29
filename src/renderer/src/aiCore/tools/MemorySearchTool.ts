@@ -24,7 +24,8 @@ export const memorySearchTool = () => {
       }
 
       const memoryConfig = selectMemoryConfig(store.getState())
-      if (!memoryConfig.llmApiClient || !memoryConfig.embedderApiClient) {
+
+      if (!memoryConfig.llmModel || !memoryConfig.embeddingModel) {
         return []
       }
 

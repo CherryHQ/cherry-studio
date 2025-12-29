@@ -14,8 +14,8 @@ const logger = loggerService.withContext('SpanCacheService')
 
 class SpanCacheService implements TraceCache {
   private topicMap: Map<string, string> = new Map<string, string>()
-  private fileDir: string
   private cache: Map<string, SpanEntity> = new Map<string, SpanEntity>()
+  private fileDir: string
 
   constructor() {
     this.fileDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'trace')

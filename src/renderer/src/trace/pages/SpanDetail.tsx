@@ -2,7 +2,6 @@ import './Trace.css'
 
 import { DoubleLeftOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-// import TraceModal from '@renderer/trace/TraceModal'
 import type { TraceModal } from '@renderer/trace/pages/TraceModel'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -88,8 +87,6 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
   }
 
   const shouldCollapse = (node: CollapsedFieldProps | null) => {
-    // const before = { ...beforeNode }
-    // setBeforeNode(node)
     return Array.isArray(jsonData) && !!node && node.namespace.length === 3
   }
 
