@@ -288,16 +288,11 @@ export const createPromptToolUsePlugin = (
       // 构建系统提示符（只包含非 provider 工具）
       const userSystemPrompt = typeof params.system === 'string' ? params.system : ''
       const systemPrompt = buildSystemPrompt(userSystemPrompt, promptTools)
-      let systemMessage: string | null = systemPrompt
-      if (config.createSystemMessage) {
-        // 🎯 如果用户提供了自定义处理函数，使用它
-        systemMessage = config.createSystemMessage(systemPrompt, params, context)
-      }
 
       // 保留 provide tools，移除其他 tools
       const transformedParams = {
         ...params,
-        ...(systemMessage ? { system: systemMessage } : {}),
+        ...(systemPrompt ? { system: systemPrompt } : {}),
         tools: Object.keys(providerDefinedTools).length > 0 ? providerDefinedTools : undefined
       }
       context.originalParams = transformedParams

@@ -28,7 +28,7 @@ const logger = loggerService.withContext('PluginBuilder')
 export function buildPlugins(
   middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant; topicId?: string }
 ): AiPlugin[] {
-  const plugins: AiPlugin[] = []
+  const plugins: AiPlugin<any, any>[] = []
 
   if (middlewareConfig.topicId && getEnableDeveloperMode()) {
     // 0. 添加 telemetry 插件
@@ -58,7 +58,7 @@ export function buildPlugins(
   }
 
   // 0.3 OpenRouter reasoning redaction
-  if (middlewareConfig.provider?.id === SystemProviderIds.openrouter && middlewareConfig.enableReasoning) {
+  if (middlewareConfig.provider?.id === SystemProviderIds.openrouter) {
     plugins.push(createOpenrouterReasoningPlugin())
   }
 
@@ -112,24 +112,7 @@ export function buildPlugins(
   if (middlewareConfig.isPromptToolUse) {
     plugins.push(
       createPromptToolUsePlugin({
-        enabled: true,
-        createSystemMessage: (systemPrompt, params, context) => {
-          const modelId = typeof context.model === 'string' ? context.model : context.model.modelId
-          if (modelId.includes('o1-mini') || modelId.includes('o1-preview')) {
-            if (context.isRecursiveCall) {
-              return null
-            }
-            params.messages = [
-              {
-                role: 'assistant',
-                content: systemPrompt
-              },
-              ...params.messages
-            ]
-            return null
-          }
-          return systemPrompt
-        }
+        enabled: true
       })
     )
   }
