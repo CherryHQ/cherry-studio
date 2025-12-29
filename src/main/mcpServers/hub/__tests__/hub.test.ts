@@ -1,102 +1,93 @@
-import type { MCPServer } from '@types'
+import type { MCPTool } from '@types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HubServer } from '../index'
-import { initHubBridge } from '../mcp-bridge'
 
-const mockMcpServers: MCPServer[] = [
+const mockTools: MCPTool[] = [
   {
-    id: 'github',
-    name: 'GitHub',
-    command: 'npx',
-    args: ['-y', 'github-mcp-server'],
-    isActive: true
-  } as MCPServer,
+    id: 'github__search_repos',
+    name: 'search_repos',
+    description: 'Search for GitHub repositories',
+    serverId: 'github',
+    serverName: 'GitHub',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query' },
+        limit: { type: 'number', description: 'Max results' }
+      },
+      required: ['query']
+    },
+    type: 'mcp'
+  },
   {
-    id: 'database',
-    name: 'Database',
-    command: 'npx',
-    args: ['-y', 'db-mcp-server'],
-    isActive: true
-  } as MCPServer
+    id: 'github__get_user',
+    name: 'get_user',
+    description: 'Get GitHub user profile',
+    serverId: 'github',
+    serverName: 'GitHub',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        username: { type: 'string', description: 'GitHub username' }
+      },
+      required: ['username']
+    },
+    type: 'mcp'
+  },
+  {
+    id: 'database__query',
+    name: 'query',
+    description: 'Execute a database query',
+    serverId: 'database',
+    serverName: 'Database',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sql: { type: 'string', description: 'SQL query to execute' }
+      },
+      required: ['sql']
+    },
+    type: 'mcp'
+  }
 ]
 
-const mockToolDefinitions = {
-  github: [
-    {
-      name: 'search_repos',
-      description: 'Search for GitHub repositories',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: 'Search query' },
-          limit: { type: 'number', description: 'Max results' }
-        },
-        required: ['query']
+vi.mock('@main/services/MCPService', () => ({
+  default: {
+    listAllActiveServerTools: vi.fn(async () => mockTools),
+    callToolById: vi.fn(async (toolId: string, args: unknown) => {
+      if (toolId === 'github__search_repos') {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ repos: ['repo1', 'repo2'], query: args }) }]
+        }
       }
-    },
-    {
-      name: 'get_user',
-      description: 'Get GitHub user profile',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          username: { type: 'string', description: 'GitHub username' }
-        },
-        required: ['username']
+      if (toolId === 'github__get_user') {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ username: (args as any).username, id: 123 }) }]
+        }
       }
-    }
-  ],
-  database: [
-    {
-      name: 'query',
-      description: 'Execute a database query',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          sql: { type: 'string', description: 'SQL query to execute' }
-        },
-        required: ['sql']
+      if (toolId === 'database__query') {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ rows: [{ id: 1 }, { id: 2 }] }) }]
+        }
       }
-    }
-  ]
-}
+      return { content: [{ type: 'text', text: '{}' }] }
+    })
+  }
+}))
 
-const mockMcpService = {
-  listTools: vi.fn(async (_: null, server: MCPServer) => {
-    return mockToolDefinitions[server.id as keyof typeof mockToolDefinitions] || []
-  }),
-  callTool: vi.fn(async (_: null, args: { server: MCPServer; name: string; args: unknown }) => {
-    if (args.server.id === 'github' && args.name === 'search_repos') {
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ repos: ['repo1', 'repo2'], query: args.args }) }]
-      }
-    }
-    if (args.server.id === 'github' && args.name === 'get_user') {
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ username: (args.args as any).username, id: 123 }) }]
-      }
-    }
-    if (args.server.id === 'database' && args.name === 'query') {
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ rows: [{ id: 1 }, { id: 2 }] }) }]
-      }
-    }
-    return { content: [{ type: 'text', text: '{}' }] }
-  })
-}
+import mcpService from '@main/services/MCPService'
 
 describe('HubServer Integration', () => {
   let hubServer: HubServer
 
   beforeEach(() => {
     vi.clearAllMocks()
-    initHubBridge(mockMcpService as any, () => mockMcpServers)
     hubServer = new HubServer()
   })
 
   afterEach(() => {
-    hubServer.invalidateCache()
+    vi.clearAllMocks()
   })
 
   describe('full search → exec flow', () => {
@@ -106,10 +97,10 @@ describe('HubServer Integration', () => {
       expect(searchResult.content).toBeDefined()
       const searchText = JSON.parse(searchResult.content[0].text)
       expect(searchText.total).toBeGreaterThan(0)
-      expect(searchText.tools).toContain('searchRepos')
+      expect(searchText.tools).toContain('gitHub_searchRepos')
 
       const execResult = await (hubServer as any).handleExec({
-        code: 'return await searchRepos({ query: "test" })'
+        code: 'return await gitHub_searchRepos({ query: "test" })'
       })
 
       expect(execResult.content).toBeDefined()
@@ -123,8 +114,8 @@ describe('HubServer Integration', () => {
       const execResult = await (hubServer as any).handleExec({
         code: `
           const results = await parallel(
-            searchRepos({ query: "react" }),
-            getUser({ username: "octocat" })
+            gitHub_searchRepos({ query: "react" }),
+            gitHub_getUser({ username: "octocat" })
           );
           return results
         `
@@ -140,21 +131,31 @@ describe('HubServer Integration', () => {
       const searchResult = await (hubServer as any).handleSearch({ query: 'query' })
 
       const searchText = JSON.parse(searchResult.content[0].text)
-      expect(searchText.tools).toContain('query')
+      expect(searchText.tools).toContain('database_query')
     })
   })
 
-  describe('cache invalidation', () => {
-    it('refreshes tools after invalidation', async () => {
+  describe('tools caching', () => {
+    it('uses cached tools within TTL', async () => {
       await (hubServer as any).handleSearch({ query: 'github' })
+      const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
-      const initialCallCount = mockMcpService.listTools.mock.calls.length
+      await (hubServer as any).handleSearch({ query: 'github' })
+      const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+
+      expect(secondCallCount).toBe(firstCallCount) // Should use cache
+    })
+
+    it('refreshes tools after cache invalidation', async () => {
+      await (hubServer as any).handleSearch({ query: 'github' })
+      const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
       hubServer.invalidateCache()
 
       await (hubServer as any).handleSearch({ query: 'github' })
+      const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
-      expect(mockMcpService.listTools.mock.calls.length).toBeGreaterThan(initialCallCount)
+      expect(secondCallCount).toBe(firstCallCount + 1)
     })
   })
 

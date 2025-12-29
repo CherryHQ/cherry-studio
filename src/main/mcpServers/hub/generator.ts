@@ -1,24 +1,7 @@
-import type { MCPServer, MCPTool } from '@types'
+import { generateMcpToolFunctionName } from '@shared/mcp'
+import type { MCPTool } from '@types'
 
 import type { GeneratedTool } from './types'
-
-function toCamelCase(str: string): string {
-  return str
-    .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase())
-    .replace(/^[A-Z]/, (char) => char.toLowerCase())
-    .replace(/[^a-zA-Z0-9]/g, '')
-}
-
-function makeUniqueFunctionName(baseName: string, existingNames: Set<string>): string {
-  let name = baseName
-  let counter = 1
-  while (existingNames.has(name)) {
-    name = `${baseName}${counter}`
-    counter++
-  }
-  existingNames.add(name)
-  return name
-}
 
 function jsonSchemaToSignature(schema: Record<string, unknown> | undefined): string {
   if (!schema || typeof schema !== 'object') {
@@ -109,13 +92,10 @@ function generateJSDoc(tool: MCPTool, signature: string, returns: string): strin
 
 export function generateToolFunction(
   tool: MCPTool,
-  server: MCPServer,
   existingNames: Set<string>,
-  callToolFn: (toolId: string, params: unknown) => Promise<unknown>
+  callToolFn: (functionName: string, params: unknown) => Promise<unknown>
 ): GeneratedTool {
-  const toolId = `${server.id}__${tool.name}`
-  const baseName = toCamelCase(tool.name)
-  const functionName = makeUniqueFunctionName(baseName, existingNames)
+  const functionName = generateMcpToolFunctionName(tool.serverName, tool.name, existingNames)
 
   const inputSchema = tool.inputSchema as Record<string, unknown> | undefined
   const outputSchema = tool.outputSchema as Record<string, unknown> | undefined
@@ -127,18 +107,17 @@ export function generateToolFunction(
 
   const jsCode = `${jsDoc}
 async function ${functionName}(params) {
-  return await __callTool("${toolId}", params);
+  return await __callTool("${functionName}", params);
 }`
 
   const fn = async (params: unknown): Promise<unknown> => {
-    return await callToolFn(toolId, params)
+    return await callToolFn(functionName, params)
   }
 
   return {
-    serverId: server.id,
-    serverName: server.name,
+    serverId: tool.serverId,
+    serverName: tool.serverName,
     toolName: tool.name,
-    toolId,
     functionName,
     jsCode,
     fn,

@@ -4,7 +4,6 @@ export interface GeneratedTool {
   serverId: string
   serverName: string
   toolName: string
-  toolId: string
   functionName: string
   jsCode: string
   fn: (params: unknown) => Promise<unknown>
@@ -42,7 +41,7 @@ export interface MCPToolWithServer extends MCPTool {
 }
 
 export interface ExecutionContext {
-  __callTool: (toolId: string, params: unknown) => Promise<unknown>
+  __callTool: (functionName: string, params: unknown) => Promise<unknown>
   parallel: <T>(...promises: Promise<T>[]) => Promise<T[]>
   settle: <T>(...promises: Promise<T>[]) => Promise<PromiseSettledResult<T>[]>
   console: ConsoleMethods

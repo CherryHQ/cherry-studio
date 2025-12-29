@@ -4,12 +4,11 @@ import { searchTools } from '../search'
 import type { GeneratedTool } from '../types'
 
 const createMockTool = (partial: Partial<GeneratedTool>): GeneratedTool => {
-  const functionName = partial.functionName || 'tool'
+  const functionName = partial.functionName || 'server1_tool'
   return {
     serverId: 'server1',
     serverName: 'server1',
     toolName: partial.toolName || 'tool',
-    toolId: partial.toolId || 'server1__tool',
     functionName,
     jsCode: `async function ${functionName}() {}`,
     fn: async () => ({}),
@@ -86,13 +85,13 @@ describe('search', () => {
 
     it('respects limit parameter', () => {
       const tools = Array.from({ length: 20 }, (_, i) =>
-        createMockTool({ toolName: `tool${i}`, functionName: `tool${i}`, toolId: `s__tool${i}` })
+        createMockTool({ toolName: `tool${i}`, functionName: `server1_tool${i}` })
       )
 
       const result = searchTools(tools, { query: 'tool', limit: 5 })
 
       expect(result.total).toBe(20)
-      const matches = (result.tools.match(/async function tool\d+/g) || []).length
+      const matches = (result.tools.match(/async function server1_tool\d+/g) || []).length
       expect(matches).toBe(5)
     })
 

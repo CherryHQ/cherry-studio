@@ -13,7 +13,7 @@ import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { addMCPServer } from '@renderer/store/mcp'
+import { addMCPServer, hubMCPServer } from '@renderer/store/mcp'
 import type {
   Assistant,
   MCPCallToolResponse,
@@ -325,7 +325,16 @@ export function filterMCPTools(
 
 export function getMcpServerByTool(tool: MCPTool) {
   const servers = store.getState().mcp.servers
-  return servers.find((s) => s.id === tool.serverId)
+  const server = servers.find((s) => s.id === tool.serverId)
+  if (server) {
+    return server
+  }
+  // For hub server (auto mode), the server isn't in the store
+  // Return the hub server constant if the tool's serverId matches
+  if (tool.serverId === 'hub') {
+    return hubMCPServer
+  }
+  return undefined
 }
 
 export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {

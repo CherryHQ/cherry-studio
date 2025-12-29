@@ -6,6 +6,62 @@ A built-in MCP server that aggregates all active MCP servers in Cherry Studio an
 
 The Hub server enables LLMs to discover and call tools from all active MCP servers without needing to know the specific server names or tool signatures upfront.
 
+## Auto Mode Integration
+
+The Hub server is the core component of Cherry Studio's **Auto MCP Mode**. When an assistant is set to Auto mode:
+
+1. **Automatic Injection**: The Hub server is automatically injected as the only MCP server for the assistant
+2. **System Prompt**: A specialized system prompt (`HUB_MODE_SYSTEM_PROMPT`) is appended to guide the LLM on how to use the `search` and `exec` tools
+3. **Dynamic Discovery**: The LLM can discover and use any tools from all active MCP servers without manual configuration
+
+### MCP Modes
+
+Cherry Studio supports three MCP modes per assistant:
+
+| Mode | Description | Tools Available |
+|------|-------------|-----------------|
+| **Disabled** | No MCP tools | None |
+| **Auto** | Hub server only | `search`, `exec` |
+| **Manual** | User selects servers | Selected server tools |
+
+### How Auto Mode Works
+
+```
+User Message
+     │
+     ▼
+┌─────────────────────────────────────────┐
+│ Assistant (mcpMode: 'auto')             │
+│                                         │
+│ System Prompt + HUB_MODE_SYSTEM_PROMPT  │
+│ Tools: [hub.search, hub.exec]           │
+└─────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────┐
+│ LLM decides to use MCP tools            │
+│                                         │
+│ 1. search({ query: "github,repo" })     │
+│ 2. exec({ code: "await searchRepos()" })│
+└─────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────┐
+│ Hub Server                              │
+│                                         │
+│ Aggregates all active MCP servers       │
+│ Routes tool calls to appropriate server │
+└─────────────────────────────────────────┘
+```
+
+### Relevant Code
+
+- **Type Definition**: `src/renderer/src/types/index.ts` - `McpMode` type and `getEffectiveMcpMode()`
+- **Hub Server Constant**: `src/renderer/src/store/mcp.ts` - `hubMCPServer`
+- **Server Selection**: `src/renderer/src/services/ApiService.ts` - `getMcpServersForAssistant()`
+- **System Prompt**: `src/renderer/src/config/prompts.ts` - `HUB_MODE_SYSTEM_PROMPT`
+- **Prompt Injection**: `src/renderer/src/aiCore/prepareParams/parameterBuilder.ts`
+
 ## Tools
 
 ### `search`
@@ -95,11 +151,24 @@ return { users, repos };
 
 ## Configuration
 
-The Hub server is a built-in server identified as `@cherry/hub`. To enable it:
+The Hub server is a built-in server identified as `@cherry/hub`.
+
+### Using Auto Mode (Recommended)
+
+The easiest way to use the Hub server is through Auto mode:
+
+1. Click the **MCP Tools** button (hammer icon) in the input bar
+2. Select **Auto** mode
+3. The Hub server is automatically enabled for the assistant
+
+### Manual Configuration
+
+Alternatively, you can enable the Hub server manually:
 
 1. Go to **Settings** → **MCP Servers**
 2. Find **Hub** in the built-in servers list
 3. Toggle it on
+4. In the assistant's MCP settings, select the Hub server
 
 ## Caching
 

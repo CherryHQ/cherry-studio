@@ -23,20 +23,13 @@ describe('generator', () => {
         type: 'mcp' as const
       }
 
-      const server = {
-        id: 'github',
-        name: 'github-server',
-        isActive: true
-      }
-
       const existingNames = new Set<string>()
       const callTool = async () => ({ success: true })
 
-      const result = generateToolFunction(tool, server as any, existingNames, callTool)
+      const result = generateToolFunction(tool, existingNames, callTool)
 
-      expect(result.toolId).toBe('github__search_repos')
-      expect(result.functionName).toBe('searchRepos')
-      expect(result.jsCode).toContain('async function searchRepos')
+      expect(result.functionName).toBe('githubServer_searchRepos')
+      expect(result.jsCode).toContain('async function githubServer_searchRepos')
       expect(result.jsCode).toContain('Search for GitHub repositories')
       expect(result.jsCode).toContain('__callTool')
     })
@@ -51,13 +44,12 @@ describe('generator', () => {
         type: 'mcp' as const
       }
 
-      const server = { id: 'server1', name: 'server1', isActive: true }
-      const existingNames = new Set<string>(['search'])
+      const existingNames = new Set<string>(['server1_search'])
       const callTool = async () => ({})
 
-      const result = generateToolFunction(tool, server as any, existingNames, callTool)
+      const result = generateToolFunction(tool, existingNames, callTool)
 
-      expect(result.functionName).toBe('search1')
+      expect(result.functionName).toBe('server1_search1')
     })
 
     it('handles enum types in schema', () => {
@@ -78,11 +70,10 @@ describe('generator', () => {
         type: 'mcp' as const
       }
 
-      const server = { id: 'browser', name: 'browser', isActive: true }
       const existingNames = new Set<string>()
       const callTool = async () => ({})
 
-      const result = generateToolFunction(tool, server as any, existingNames, callTool)
+      const result = generateToolFunction(tool, existingNames, callTool)
 
       expect(result.jsCode).toContain('"chromium" | "firefox" | "webkit"')
     })
@@ -95,9 +86,8 @@ describe('generator', () => {
           serverId: 's1',
           serverName: 'server1',
           toolName: 'tool1',
-          toolId: 's1__tool1',
-          functionName: 'tool1',
-          jsCode: 'async function tool1() {}',
+          functionName: 'server1_tool1',
+          jsCode: 'async function server1_tool1() {}',
           fn: async () => ({}),
           signature: '{}',
           returns: 'unknown'
@@ -106,9 +96,8 @@ describe('generator', () => {
           serverId: 's2',
           serverName: 'server2',
           toolName: 'tool2',
-          toolId: 's2__tool2',
-          functionName: 'tool2',
-          jsCode: 'async function tool2() {}',
+          functionName: 'server2_tool2',
+          jsCode: 'async function server2_tool2() {}',
           fn: async () => ({}),
           signature: '{}',
           returns: 'unknown'
@@ -118,8 +107,8 @@ describe('generator', () => {
       const result = generateToolsCode(tools)
 
       expect(result).toContain('Found 2 tool(s)')
-      expect(result).toContain('async function tool1')
-      expect(result).toContain('async function tool2')
+      expect(result).toContain('async function server1_tool1')
+      expect(result).toContain('async function server2_tool2')
     })
 
     it('returns message for empty tools', () => {

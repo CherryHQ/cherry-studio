@@ -87,6 +87,20 @@ export { mcpSlice }
 export default mcpSlice.reducer
 
 /**
+ * Hub MCP server for auto mode - aggregates all MCP servers for LLM code mode.
+ * This server is injected automatically when mcpMode === 'auto'.
+ */
+export const hubMCPServer: BuiltinMCPServer = {
+  id: 'hub',
+  name: BuiltinMCPServerNames.hub,
+  type: 'inMemory',
+  isActive: true,
+  provider: 'CherryAI',
+  installSource: 'builtin',
+  isTrusted: true
+}
+
+/**
  * User-installable built-in MCP servers shown in the UI.
  *
  * Note: The `hub` server (@cherry/hub) is intentionally excluded because:

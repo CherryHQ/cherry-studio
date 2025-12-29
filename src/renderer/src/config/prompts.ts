@@ -1,3 +1,4 @@
+import { generateMcpToolFunctionName } from '@shared/mcp'
 import dayjs from 'dayjs'
 
 export const AGENT_PROMPT = `
@@ -468,3 +469,68 @@ Example: [nytimes.com](https://nytimes.com/some-page).
 If have multiple citations, please directly list them like this:
 [www.nytimes.com](https://nytimes.com/some-page)[www.bbc.com](https://bbc.com/some-page)
 `
+
+const HUB_MODE_SYSTEM_PROMPT_BASE = `
+## MCP Tools (Code Mode)
+
+You have access to MCP tools via the hub server.
+
+### Workflow
+1. Call \`search\` with relevant keywords to discover tools
+2. Review the returned function signatures and their parameters
+3. Call \`exec\` with JavaScript code using those functions
+4. The last expression in your code becomes the result
+
+### Example Usage
+
+**Step 1: Search for tools**
+\`\`\`
+search({ query: "github,repository" })
+\`\`\`
+
+**Step 2: Use discovered tools**
+\`\`\`javascript
+exec({
+  code: \`
+    const repos = await searchRepos({ query: "react", limit: 5 })
+    const details = await parallel(
+      repos.map(r => getRepoDetails({ owner: r.owner, repo: r.name }))
+    )
+    return { repos, details }
+  \`
+})
+\`\`\`
+
+### Best Practices
+- Always search first to discover available tools and their exact signatures
+- Use descriptive variable names in your code
+- Handle errors gracefully with try/catch when needed
+- Use \`parallel()\` for independent operations to improve performance
+`
+
+interface ToolInfo {
+  name: string
+  serverName?: string
+  description?: string
+}
+
+export function getHubModeSystemPrompt(tools: ToolInfo[] = []): string {
+  if (tools.length === 0) {
+    return HUB_MODE_SYSTEM_PROMPT_BASE
+  }
+
+  const existingNames = new Set<string>()
+  const toolsSection = tools
+    .map((t) => {
+      const functionName = generateMcpToolFunctionName(t.serverName, t.name, existingNames)
+      const desc = t.description || ''
+      const truncatedDesc = desc.length > 50 ? `${desc.slice(0, 50)}...` : desc
+      return `- ${functionName}: ${truncatedDesc}`
+    })
+    .join('\n')
+
+  return `${HUB_MODE_SYSTEM_PROMPT_BASE}
+### Available Tools
+${toolsSection}
+`
+}

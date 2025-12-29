@@ -1,84 +1,38 @@
-import { loggerService } from '@logger'
-import { BuiltinMCPServerNames, type MCPServer, type MCPTool } from '@types'
+/**
+ * Bridge module for Hub server to access MCPService.
+ * Re-exports the methods needed by tool-registry and runtime.
+ */
+import mcpService from '@main/services/MCPService'
+import { generateMcpToolFunctionName } from '@shared/mcp'
 
-const logger = loggerService.withContext('MCPServer:Hub:Bridge')
+export const listAllTools = () => mcpService.listAllActiveServerTools()
 
-let mcpServiceInstance: MCPServiceInterface | null = null
-let mcpServersGetter: (() => MCPServer[]) | null = null
+const toolFunctionNameToIdMap = new Map<string, { serverId: string; toolName: string }>()
 
-interface MCPServiceInterface {
-  listTools(_: null, server: MCPServer): Promise<MCPTool[]>
-  callTool(
-    _: null,
-    args: { server: MCPServer; name: string; args: unknown; callId?: string }
-  ): Promise<{ content: Array<{ type: string; text?: string }> }>
-}
-
-export function setMCPService(service: MCPServiceInterface): void {
-  mcpServiceInstance = service
-}
-
-export function setMCPServersGetter(getter: () => MCPServer[]): void {
-  mcpServersGetter = getter
-}
-
-export function initHubBridge(service: MCPServiceInterface, serversGetter: () => MCPServer[]): void {
-  mcpServiceInstance = service
-  mcpServersGetter = serversGetter
-}
-
-export function getActiveServers(): MCPServer[] {
-  if (!mcpServersGetter) {
-    logger.warn('MCP servers getter not set')
-    return []
-  }
-
-  const servers = mcpServersGetter()
-  return servers.filter((s) => s.isActive && s.name !== BuiltinMCPServerNames.hub)
-}
-
-export async function listToolsFromServer(server: MCPServer): Promise<MCPTool[]> {
-  if (!mcpServiceInstance) {
-    logger.error('MCP service not initialized')
-    return []
-  }
-
-  try {
-    return await mcpServiceInstance.listTools(null, server)
-  } catch (error) {
-    logger.error(`Failed to list tools from server ${server.name}:`, error as Error)
-    return []
+export async function refreshToolMap(): Promise<void> {
+  const tools = await listAllTools()
+  toolFunctionNameToIdMap.clear()
+  const existingNames = new Set<string>()
+  for (const tool of tools) {
+    const functionName = generateMcpToolFunctionName(tool.serverName, tool.name, existingNames)
+    toolFunctionNameToIdMap.set(functionName, { serverId: tool.serverId, toolName: tool.name })
   }
 }
 
-export async function callMcpTool(toolId: string, params: unknown): Promise<unknown> {
-  if (!mcpServiceInstance) {
-    throw new Error('MCP service not initialized')
+export const callMcpTool = async (functionName: string, params: unknown): Promise<unknown> => {
+  const toolInfo = toolFunctionNameToIdMap.get(functionName)
+  if (!toolInfo) {
+    await refreshToolMap()
+    const retryToolInfo = toolFunctionNameToIdMap.get(functionName)
+    if (!retryToolInfo) {
+      throw new Error(`Tool not found: ${functionName}`)
+    }
+    const toolId = `${retryToolInfo.serverId}__${retryToolInfo.toolName}`
+    const result = await mcpService.callToolById(toolId, params)
+    return extractToolResult(result)
   }
-
-  const parts = toolId.split('__')
-  if (parts.length < 2) {
-    throw new Error(`Invalid tool ID format: ${toolId}`)
-  }
-
-  const serverId = parts[0]
-  const toolName = parts.slice(1).join('__')
-
-  const servers = getActiveServers()
-  const server = servers.find((s) => s.id === serverId)
-
-  if (!server) {
-    throw new Error(`Server not found: ${serverId}`)
-  }
-
-  logger.debug(`Calling tool ${toolName} on server ${server.name}`)
-
-  const result = await mcpServiceInstance.callTool(null, {
-    server,
-    name: toolName,
-    args: params
-  })
-
+  const toolId = `${toolInfo.serverId}__${toolInfo.toolName}`
+  const result = await mcpService.callToolById(toolId, params)
   return extractToolResult(result)
 }
 

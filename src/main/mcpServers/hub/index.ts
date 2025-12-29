@@ -1,13 +1,17 @@
 import { loggerService } from '@logger'
+import { CacheService } from '@main/services/CacheService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 
+import { generateToolFunction } from './generator'
+import { callMcpTool, listAllTools } from './mcp-bridge'
 import { Runtime } from './runtime'
 import { searchTools } from './search'
-import { ToolRegistry } from './tool-registry'
-import type { ExecInput, SearchQuery } from './types'
+import type { ExecInput, GeneratedTool, SearchQuery } from './types'
 
 const logger = loggerService.withContext('MCPServer:Hub')
+const TOOLS_CACHE_KEY = 'hub:tools'
+const TOOLS_CACHE_TTL = 60 * 1000 // 1 minute
 
 /**
  * Hub MCP Server - A meta-server that aggregates all active MCP servers.
@@ -23,11 +27,9 @@ const logger = loggerService.withContext('MCPServer:Hub')
  */
 export class HubServer {
   public server: Server
-  private toolRegistry: ToolRegistry
   private runtime: Runtime
 
   constructor() {
-    this.toolRegistry = new ToolRegistry()
     this.runtime = new Runtime()
 
     this.server = new Server(
@@ -118,12 +120,32 @@ export class HubServer {
     })
   }
 
+  private async fetchTools(): Promise<GeneratedTool[]> {
+    const cached = CacheService.get<GeneratedTool[]>(TOOLS_CACHE_KEY)
+    if (cached) {
+      logger.debug('Returning cached tools')
+      return cached
+    }
+
+    logger.debug('Fetching fresh tools')
+    const allTools = await listAllTools()
+    const existingNames = new Set<string>()
+    const tools = allTools.map((tool) => generateToolFunction(tool, existingNames, callMcpTool))
+    CacheService.set(TOOLS_CACHE_KEY, tools, TOOLS_CACHE_TTL)
+    return tools
+  }
+
+  invalidateCache(): void {
+    CacheService.remove(TOOLS_CACHE_KEY)
+    logger.debug('Tools cache invalidated')
+  }
+
   private async handleSearch(query: SearchQuery) {
     if (!query.query || typeof query.query !== 'string') {
       throw new McpError(ErrorCode.InvalidParams, 'query parameter is required and must be a string')
     }
 
-    const tools = await this.toolRegistry.getTools()
+    const tools = await this.fetchTools()
     const result = searchTools(tools, query)
 
     return {
@@ -141,7 +163,7 @@ export class HubServer {
       throw new McpError(ErrorCode.InvalidParams, 'code parameter is required and must be a string')
     }
 
-    const tools = await this.toolRegistry.getTools()
+    const tools = await this.fetchTools()
     const result = await this.runtime.execute(input.code, tools)
 
     return {
@@ -152,10 +174,6 @@ export class HubServer {
         }
       ]
     }
-  }
-
-  invalidateCache(): void {
-    this.toolRegistry.invalidate()
   }
 }
 

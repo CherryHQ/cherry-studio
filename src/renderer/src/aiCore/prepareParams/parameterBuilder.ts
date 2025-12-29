@@ -26,11 +26,13 @@ import {
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { getHubModeSystemPrompt } from '@renderer/config/prompts'
+import { fetchAllActiveServerTools } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
-import { type Assistant, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
+import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { replacePromptVariables } from '@renderer/utils/prompt'
@@ -244,7 +246,15 @@ export async function buildStreamTextParams(
   }
 
   if (assistant.prompt) {
-    params.system = await replacePromptVariables(assistant.prompt, model.name)
+    let systemPrompt = await replacePromptVariables(assistant.prompt, model.name)
+    if (getEffectiveMcpMode(assistant) === 'auto') {
+      const allActiveTools = await fetchAllActiveServerTools()
+      systemPrompt = systemPrompt + '\n\n' + getHubModeSystemPrompt(allActiveTools)
+    }
+    params.system = systemPrompt
+  } else if (getEffectiveMcpMode(assistant) === 'auto') {
+    const allActiveTools = await fetchAllActiveServerTools()
+    params.system = getHubModeSystemPrompt(allActiveTools)
   }
 
   logger.debug('params', params)

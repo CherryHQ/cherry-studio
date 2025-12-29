@@ -37,7 +37,15 @@ export function searchTools(tools: GeneratedTool[], query: SearchQuery): SearchR
 }
 
 function buildSearchText(tool: GeneratedTool): string {
-  const parts = [tool.toolName, tool.functionName, tool.serverName, tool.description || '', tool.signature]
+  const combinedName = tool.serverName ? `${tool.serverName}_${tool.toolName}` : tool.toolName
+  const parts = [
+    tool.toolName,
+    tool.functionName,
+    tool.serverName,
+    combinedName,
+    tool.description || '',
+    tool.signature
+  ]
   return parts.join(' ')
 }
 
@@ -55,10 +63,12 @@ function rankTools(tools: GeneratedTool[], keywords: string[]): GeneratedTool[] 
 function calculateScore(tool: GeneratedTool, keywords: string[]): number {
   let score = 0
   const toolName = tool.toolName.toLowerCase()
+  const serverName = (tool.serverName || '').toLowerCase()
   const functionName = tool.functionName.toLowerCase()
   const description = (tool.description || '').toLowerCase()
 
   for (const keyword of keywords) {
+    // Match tool name
     if (toolName === keyword) {
       score += 10
     } else if (toolName.startsWith(keyword)) {
@@ -67,10 +77,22 @@ function calculateScore(tool: GeneratedTool, keywords: string[]): number {
       score += 3
     }
 
-    if (functionName === keyword) {
+    // Match server name
+    if (serverName === keyword) {
       score += 8
-    } else if (functionName.includes(keyword)) {
+    } else if (serverName.startsWith(keyword)) {
+      score += 4
+    } else if (serverName.includes(keyword)) {
       score += 2
+    }
+
+    // Match function name (serverName_toolName format)
+    if (functionName === keyword) {
+      score += 10
+    } else if (functionName.startsWith(keyword)) {
+      score += 5
+    } else if (functionName.includes(keyword)) {
+      score += 3
     }
 
     if (description.includes(keyword)) {

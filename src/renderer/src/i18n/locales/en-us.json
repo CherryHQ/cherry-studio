@@ -544,6 +544,20 @@
         "description": "Default enabled MCP servers",
         "enableFirst": "Enable this server in MCP settings first",
         "label": "MCP Servers",
+        "mode": {
+          "auto": {
+            "description": "AI discovers and uses tools automatically",
+            "label": "Auto"
+          },
+          "disabled": {
+            "description": "No MCP tools",
+            "label": "Disabled"
+          },
+          "manual": {
+            "description": "Select specific MCP servers",
+            "label": "Manual"
+          }
+        },
         "noServersAvailable": "No MCP servers available. Add servers in settings",
         "title": "MCP Settings"
       },
