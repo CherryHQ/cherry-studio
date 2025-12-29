@@ -389,6 +389,8 @@
     "zod": "^4.1.5"
   },
   "resolutions": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "@smithy/types": "4.7.1",
     "@codemirror/language": "6.11.3",
     "@codemirror/lint": "6.8.5",
