@@ -203,6 +203,11 @@ export class SessionService extends BaseService {
 
     const sessions = result.map((row) => this.deserializeJsonFields(row)) as GetAgentSessionResponse[]
 
+    for (const session of sessions) {
+      session.tools = await this.listMcpTools(session.agent_type, session.mcps)
+      session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools)
+    }
+
     return { sessions, total }
   }
 

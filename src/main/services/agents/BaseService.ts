@@ -78,6 +78,14 @@ export abstract class BaseService {
     return tools
   }
 
+  /**
+   * Normalize MCP tool IDs in allowed_tools to the current format.
+   *
+   * Legacy format: "mcp_<serverId>_<toolName>" (single underscore separators).
+   * Current format: "mcp__<serverId>__<toolName>" (double underscore separators).
+   *
+   * This keeps persisted data compatible without requiring a database migration.
+   */
   protected normalizeAllowedTools(allowedTools: string[] | undefined, tools: Tool[]): string[] | undefined {
     if (!allowedTools || allowedTools.length === 0) {
       return allowedTools
