@@ -20,8 +20,18 @@ import { type ProviderId } from '../providers/types'
  * 专注于插件处理，不暴露用户API
  */
 export class PluginEngine<T extends ProviderId = ProviderId> {
-  // ✅ 存储为非泛型数组（允许混合不同类型的插件）
-  private basePlugins: AiPlugin[] = []
+  /**
+   * Plugin storage with explicit any/any generics
+   *
+   * SAFETY: Plugins are contravariant in TParams and covariant in TResult.
+   * The cast to AiPlugin<TParams, TResult>[] in PluginManager is safe due to variance rules:
+   * - A plugin accepting any params (TParams = any) can handle specific params
+   * - A plugin returning any result (TResult = any) can be used as any specific result type
+   *
+   * Using AiPlugin<any, any> instead of AiPlugin preserves generic type information
+   * and makes the variance relationship explicit for type checking.
+   */
+  private basePlugins: AiPlugin<any, any>[] = []
 
   constructor(
     private readonly providerId: T,

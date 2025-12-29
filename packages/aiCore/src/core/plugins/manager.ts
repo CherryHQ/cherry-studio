@@ -1,8 +1,7 @@
 import type { AiPlugin, AiRequestContext } from './types'
 
 /**
- * 插件管理器（泛型化）
- * 支持类型安全的插件管理，同时通过逆变保持灵活性
+ * 插件管理器
  */
 export class PluginManager<TParams = unknown, TResult = unknown> {
   private plugins: AiPlugin<TParams, TResult>[] = []
@@ -12,7 +11,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
   }
 
   /**
-   * 添加插件（支持逆变：AiPlugin<unknown> 可赋值给 AiPlugin<TParams>）
+   * 添加插件
    */
   use(plugin: AiPlugin<TParams, TResult>): this {
     this.plugins = this.sortPlugins([...this.plugins, plugin])
@@ -131,12 +130,12 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
         const hook = plugin[hookName]
         if (!hook) return null
 
-        if (hookName === 'onError' && error) {
-          return (hook as any)(error, context)
+        if (hookName === 'onError' && error !== undefined) {
+          return (hook as NonNullable<typeof plugin.onError>)(error, context)
         } else if (hookName === 'onRequestEnd' && result !== undefined) {
-          return (hook as any)(context, result)
+          return (hook as NonNullable<typeof plugin.onRequestEnd>)(context, result)
         } else if (hookName === 'onRequestStart') {
-          return (hook as any)(context)
+          return (hook as NonNullable<typeof plugin.onRequestStart>)(context)
         }
         return null
       })
