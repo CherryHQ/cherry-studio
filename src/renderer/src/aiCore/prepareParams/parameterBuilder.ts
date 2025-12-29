@@ -21,6 +21,7 @@ import {
   isGrokModel,
   isOpenAIModel,
   isOpenRouterBuiltInWebSearchModel,
+  isPureGenerateImageModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
@@ -34,7 +35,7 @@ import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import type { WebTraceContext } from '@renderer/types/trace'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { replacePromptVariables } from '@renderer/utils/prompt'
-import { isAIGatewayProvider, isAwsBedrockProvider } from '@renderer/utils/provider'
+import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
@@ -119,7 +120,13 @@ export async function buildStreamTextParams(
       isOpenRouterBuiltInWebSearchModel(model) ||
       model.id.includes('sonar'))
 
-  const enableUrlContext = assistant.enableUrlContext || false
+  // Validate provider and model support to prevent stale state from triggering urlContext
+  const enableUrlContext = !!(
+    assistant.enableUrlContext &&
+    isSupportUrlContextProvider(provider) &&
+    !isPureGenerateImageModel(model) &&
+    (isGeminiModel(model) || isAnthropicModel(model))
+  )
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 

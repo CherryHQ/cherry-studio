@@ -41,7 +41,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
-  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? true)
+  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? false)
 
   const customParametersRef = useRef(customParameters)
 
@@ -168,7 +168,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const onReset = () => {
     setTemperature(DEFAULT_ASSISTANT_SETTINGS.temperature)
-    setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? true)
+    setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? false)
     setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
     setEnableMaxTokens(DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens ?? false)
     setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)

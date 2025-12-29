@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import {
   checkName,
   getFilesDir,
-  getFileType,
+  getFileType as getFileTypeByExt,
   getName,
   getNotesDir,
   getTempDir,
@@ -11,13 +11,13 @@ import {
 } from '@main/utils/file'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import type { FileMetadata, NotesTreeNode } from '@types'
+import { FileTypes } from '@types'
 import chardet from 'chardet'
 import type { FSWatcher } from 'chokidar'
 import chokidar from 'chokidar'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { app } from 'electron'
-import { dialog, net, shell } from 'electron'
+import { app, dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
@@ -185,7 +185,7 @@ class FileStorage {
     })
   }
 
-  findDuplicateFile = async (filePath: string): Promise<FileMetadata | null> => {
+  private findDuplicateFile = async (filePath: string): Promise<FileMetadata | null> => {
     const stats = fs.statSync(filePath)
     logger.debug(`stats: ${stats}, filePath: ${filePath}`)
     const fileSize = stats.size
@@ -204,6 +204,8 @@ class FileStorage {
         if (originalHash === storedHash) {
           const ext = path.extname(file)
           const id = path.basename(file, ext)
+          const type = await this.getFileType(filePath)
+
           return {
             id,
             origin_name: file,
@@ -212,7 +214,7 @@ class FileStorage {
             created_at: storedStats.birthtime.toISOString(),
             size: storedStats.size,
             ext,
-            type: getFileType(ext),
+            type,
             count: 2
           }
         }
@@ -220,6 +222,13 @@ class FileStorage {
     }
 
     return null
+  }
+
+  public getFileType = async (filePath: string): Promise<FileTypes> => {
+    const ext = path.extname(filePath)
+    const fileType = getFileTypeByExt(ext)
+
+    return fileType === FileTypes.OTHER && (await this._isTextFile(filePath)) ? FileTypes.TEXT : fileType
   }
 
   public selectFile = async (
@@ -241,7 +250,7 @@ class FileStorage {
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
       const ext = path.extname(filePath)
-      const fileType = getFileType(ext)
+      const fileType = await this.getFileType(filePath)
 
       return {
         id: uuidv4(),
@@ -307,7 +316,7 @@ class FileStorage {
     }
 
     const stats = await fs.promises.stat(destPath)
-    const fileType = getFileType(ext)
+    const fileType = await this.getFileType(destPath)
 
     const fileMetadata: FileMetadata = {
       id: uuid,
@@ -332,8 +341,7 @@ class FileStorage {
     }
 
     const stats = fs.statSync(filePath)
-    const ext = path.extname(filePath)
-    const fileType = getFileType(ext)
+    const fileType = await this.getFileType(filePath)
 
     return {
       id: uuidv4(),
@@ -342,7 +350,7 @@ class FileStorage {
       path: filePath,
       created_at: stats.birthtime.toISOString(),
       size: stats.size,
-      ext: ext,
+      ext: path.extname(filePath),
       type: fileType,
       count: 1
     }
@@ -690,7 +698,7 @@ class FileStorage {
         created_at: new Date().toISOString(),
         size: buffer.length,
         ext: ext.slice(1),
-        type: getFileType(ext),
+        type: getFileTypeByExt(ext),
         count: 1
       }
     } catch (error) {
@@ -740,7 +748,7 @@ class FileStorage {
         created_at: new Date().toISOString(),
         size: stats.size,
         ext: ext.slice(1),
-        type: getFileType(ext),
+        type: getFileTypeByExt(ext),
         count: 1
       }
     } catch (error) {
@@ -1317,7 +1325,7 @@ class FileStorage {
       await fs.promises.writeFile(destPath, buffer)
 
       const stats = await fs.promises.stat(destPath)
-      const fileType = getFileType(ext)
+      const fileType = await this.getFileType(destPath)
 
       return {
         id: uuid,
@@ -1604,6 +1612,10 @@ class FileStorage {
   }
 
   public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+    return this._isTextFile(filePath)
+  }
+
+  private _isTextFile = async (filePath: string): Promise<boolean> => {
     try {
       const isBinary = await isBinaryFile(filePath)
       if (isBinary) {
