@@ -156,7 +156,9 @@ export class SessionService extends BaseService {
     }
 
     const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
-    session.tools = await this.listMcpTools(session.agent_type, session.mcps)
+    const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+    session.tools = tools
+    session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
 
     // If slash_commands is not in database yet (e.g., first invoke before init message),
     // fall back to builtin + local commands. Otherwise, use the merged commands from database.
@@ -201,6 +203,12 @@ export class SessionService extends BaseService {
         : await baseQuery
 
     const sessions = result.map((row) => this.deserializeJsonFields(row)) as GetAgentSessionResponse[]
+
+    for (const session of sessions) {
+      const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+      session.tools = tools
+      session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+    }
 
     return { sessions, total }
   }

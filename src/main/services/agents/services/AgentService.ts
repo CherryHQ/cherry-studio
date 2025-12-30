@@ -89,7 +89,9 @@ export class AgentService extends BaseService {
     }
 
     const agent = this.deserializeJsonFields(result[0]) as GetAgentResponse
-    agent.tools = await this.listMcpTools(agent.type, agent.mcps)
+    const { tools, legacyIdMap } = await this.listMcpTools(agent.type, agent.mcps)
+    agent.tools = tools
+    agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
 
     // Load installed_plugins from cache file instead of database
     const workdir = agent.accessible_paths?.[0]
@@ -134,7 +136,9 @@ export class AgentService extends BaseService {
     const agents = result.map((row) => this.deserializeJsonFields(row)) as GetAgentResponse[]
 
     for (const agent of agents) {
-      agent.tools = await this.listMcpTools(agent.type, agent.mcps)
+      const { tools, legacyIdMap } = await this.listMcpTools(agent.type, agent.mcps)
+      agent.tools = tools
+      agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
     }
 
     return { agents, total: totalResult[0].count }
