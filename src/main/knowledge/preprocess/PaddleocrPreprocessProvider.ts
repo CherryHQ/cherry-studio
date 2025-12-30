@@ -26,9 +26,7 @@ type ApiResponse = {
     layoutParsingResults: Array<{
       markdown: {
         text: string
-        images: Record<string, string>
       }
-      // outputImages: Record<string, string>
     }>
   }
   errorCode?: number
@@ -48,6 +46,13 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     super(provider, userId)
   }
 
+  /**
+   * 解析文件并通过 PaddleOCR 进行预处理（当前仅支持 PDF 文件）
+   * @param sourceId - 源任务ID，用于进度更新/日志追踪
+   * @param file - 待处理的文件元数据（仅支持 ext 为 .pdf 的文件）
+   * @returns {Promise<{processedFile: FileMetadata; quota: number}>} 处理后的文件元数据 + 配额消耗（当前 PaddleOCR 配额为 0）
+   * @throws {Error} 若传入非 PDF 文件、文件大小超限、页数超限等会抛出异常
+   */
   public async parseFile(
     sourceId: string,
     file: FileMetadata
