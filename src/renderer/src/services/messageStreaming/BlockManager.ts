@@ -62,6 +62,24 @@ export class BlockManager {
     return this.hasInitialPlaceholder ? this._activeBlockInfo?.id || null : null
   }
 
+  /**
+   * 检查消息中是否存在指定类型的 block
+   *
+   * @param messageId - 要检查的消息 ID
+   * @param blockType - 要检查的 block 类型
+   * @returns 如果存在该类型的 block 返回 true，否则返回 false
+   */
+  hasBlockOfType(messageId: string, blockType: MessageBlockType): boolean {
+    const state = this.deps.getState()
+    const message = state.messages?.entities?.[messageId]
+    if (!message?.blocks) return false
+
+    return message.blocks.some((blockId: string) => {
+      const block = state.messageBlocks?.entities?.[blockId]
+      return block?.type === blockType
+    })
+  }
+
   // Setters
   set lastBlockType(value: MessageBlockType | null) {
     this._lastBlockType = value
