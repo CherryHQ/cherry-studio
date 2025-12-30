@@ -1,3 +1,4 @@
+export const hubWorkerSource = `
 const crypto = require('node:crypto')
 const { parentPort } = require('node:worker_threads')
 
@@ -26,7 +27,7 @@ const pushLog = (level, args) => {
     return
   }
   const message = args.map((arg) => stringify(arg)).join(' ')
-  const entry = `[${level}] ${message}`
+  const entry = \`[\${level}] \${message}\`
   logs.push(entry)
   parentPort?.postMessage({ type: 'log', entry })
 }
@@ -65,11 +66,11 @@ const runCode = async (code, context) => {
   const contextKeys = Object.keys(context)
   const contextValues = contextKeys.map((key) => context[key])
 
-  const wrappedCode = `
+  const wrappedCode = \`
     return (async () => {
-      ${code}
+      \${code}
     })()
-  `
+  \`
 
   const fn = new Function(...contextKeys, wrappedCode)
   return await fn(...contextValues)
@@ -129,3 +130,4 @@ parentPort?.on('message', (message) => {
       break
   }
 })
+`

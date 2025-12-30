@@ -12,12 +12,12 @@ import type {
   HubWorkerMessage,
   HubWorkerResultMessage
 } from './types'
+import { hubWorkerSource } from './worker'
 
 const logger = loggerService.withContext('MCPServer:Hub:Runtime')
 
 const MAX_LOGS = 1000
 const EXECUTION_TIMEOUT = 60000
-const WORKER_URL = new URL('./worker.js', import.meta.url)
 
 export class Runtime {
   async execute(code: string, tools: GeneratedTool[]): Promise<ExecOutput> {
@@ -28,7 +28,7 @@ export class Runtime {
       let timedOut = false
       let timeoutId: NodeJS.Timeout | null = null
 
-      const worker = new Worker(WORKER_URL)
+      const worker = new Worker(hubWorkerSource, { eval: true })
 
       const addLog = (entry: string) => {
         if (logs.length >= MAX_LOGS) {
