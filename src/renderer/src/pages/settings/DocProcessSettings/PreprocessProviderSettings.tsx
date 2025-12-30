@@ -118,7 +118,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             />
           </Flex>
           {preprocessProvider.id !== 'paddleocr' && (
-            <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
+            <SettingHelpTextRow className="mt-[5px] justify-between">
               <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                 {t('settings.provider.get_api_key')}
               </SettingHelpLink>
