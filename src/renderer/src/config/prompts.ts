@@ -479,7 +479,7 @@ You have access to MCP tools via the hub server.
 1. Call \`search\` with relevant keywords to discover tools
 2. Review the returned function signatures and their parameters
 3. Call \`exec\` with JavaScript code using those functions (you can chain multiple MCP tools in one \`exec\`)
-4. The last expression in your code becomes the result (avoid top-level \`return\`)
+4. The last expression (or an explicit \`return\`) becomes the result. If you don't return anything, the result is \`undefined\`.
 
 ### Example Usage
 
@@ -527,7 +527,7 @@ exec({
 - Handle errors gracefully with try/catch when needed
 - Use \`parallel()\` for independent operations to improve performance
 - Prefer a single \`exec\` for multi-step flows to reduce round-trips
-- Avoid top-level \`return\`; use the last expression or wrap in an async IIFE
+- Return a value (or end with a final expression) so \`exec\` produces output
 - Use the exact tool names/signatures returned by \`search\`
 `
 

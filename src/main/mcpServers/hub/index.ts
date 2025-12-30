@@ -81,7 +81,7 @@ export class HubServer {
                 code: {
                   type: 'string',
                   description:
-                    'JavaScript code to execute. Can use async/await. Available helpers: parallel(...promises), settle(...promises). The last expression is returned.'
+                    'JavaScript code to execute. Runs inside an async function. Can use async/await. Available helpers: parallel(...promises), settle(...promises). Use return (or a final expression) to produce output; otherwise result is undefined.'
                 }
               },
               required: ['code']
