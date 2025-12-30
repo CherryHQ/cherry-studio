@@ -3115,14 +3115,8 @@ const migrateConfig = {
       return state
     }
   },
-  '190': (state: RootState) => {
-    try {
-      addPreprocessProviders(state, 'paddleocr')
-      return state
-    } catch (error) {
-      logger.error('migrate 190 error', error as Error)
   // 1.7.8
-  '191': (state: RootState) => {
+  '190': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.ollama) {
@@ -3133,6 +3127,16 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 190 error', error as Error)
+      return state
+    }
+  },
+  '191': (state: RootState) => {
+    try {
+      addPreprocessProviders(state, 'paddleocr')
+      logger.info('migrate 191 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 191 error', error as Error)
       return state
     }
   }
