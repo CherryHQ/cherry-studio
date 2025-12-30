@@ -7,8 +7,7 @@ import type { FileMetadata, PreprocessProvider } from '@types'
 import { net } from 'electron'
 import { MB } from '@shared/config/constant'
 import { t } from 'i18next'
-import { FileTypes } from '@types'
-
+import { getFileType } from '@main/utils/file'
 import BasePreprocessProvider from './BasePreprocessProvider'
 
 const logger = loggerService.withContext('PaddleocrPreprocessProvider')
@@ -170,13 +169,23 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       finalPath = path.join(outputPath, `${file.id}.md`)
     }
 
+    if (!fs.existsSync(finalPath)) {
+      const errorMsg = `Final processed file does not exist at path: ${finalPath}`
+      logger.error(errorMsg)
+      throw new Error(errorMsg)
+    }
+
+    const ext = path.extname(finalPath)
+    const type = getFileType(ext)
+    const fileSize = fs.statSync(finalPath).size
+
     return {
       ...file,
       name: finalName,
       path: finalPath,
-      type: FileTypes.DOCUMENT,
-      ext: '.md',
-      size: fs.existsSync(finalPath) ? fs.statSync(finalPath).size : 0
+      type: type,
+      ext: ext,
+      size: fileSize
     }
   }
 

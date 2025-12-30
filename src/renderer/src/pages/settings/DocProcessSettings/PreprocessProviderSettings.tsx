@@ -75,22 +75,15 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
           <ProviderName> {preprocessProvider.name}</ProviderName>
           {officialWebsite && preprocessProviderConfig?.websites && (
             <Link target="_blank" href={preprocessProviderConfig.websites.official}>
-              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
+              <ExportOutlined className="text-[--color-text] text-[12px]" />
             </Link>
           )}
         </Flex>
       </SettingTitle>
-      <Divider style={{ width: '100%', margin: '10px 0' }} />
+      <Divider className="my-[10px] w-full" />
       {hasObjectKey(preprocessProvider, 'apiKey') && (
         <>
-          <SettingSubtitle
-            style={{
-              marginTop: 5,
-              marginBottom: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
+          <SettingSubtitle className="mt-[5px] mb-[10px] flex items-center justify-between">
             {preprocessProvider.id === 'paddleocr'
               ? t('settings.tool.preprocess.paddleocr.aistudio_access_token')
               : t('settings.provider.api_key.label')}
@@ -130,7 +123,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
       {hasObjectKey(preprocessProvider, 'apiHost') && (
         <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
+          <SettingSubtitle className="mt-[5px] mb-[10px]">
             {preprocessProvider.id === 'paddleocr'
               ? t('settings.tool.preprocess.paddleocr.api_url')
               : t('settings.provider.api_host')}
@@ -148,15 +141,16 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             />
           </Flex>
           {preprocessProvider.id === 'paddleocr' && (
-            <SettingHelpTextRow style={{ display: 'flex', flexDirection: 'column' }}>
-              <SettingHelpText style={{ marginBottom: 5 }}>
-                {t('settings.tool.preprocess.paddleocr.tip')}
-              </SettingHelpText>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <SettingHelpLink target="_blank" href="https://aistudio.baidu.com/paddleocr/task">
+            <SettingHelpTextRow className="!flex-col">
+              <SettingHelpText className="mb-[5px]">{t('settings.tool.preprocess.paddleocr.tip')}</SettingHelpText>
+              <div className="!flex !gap-3">
+                <SettingHelpLink
+                  className="!inline-block"
+                  target="_blank"
+                  href="https://aistudio.baidu.com/paddleocr/task">
                   {t('settings.tool.preprocess.paddleocr.api_url_label')}
                 </SettingHelpLink>
-                <SettingHelpLink target="_blank" href="https://aistudio.baidu.com/paddleocr">
+                <SettingHelpLink className="!inline-block" target="_blank" href="https://aistudio.baidu.com/paddleocr">
                   {t('settings.tool.preprocess.paddleocr.paddleocr_url_label')}
                 </SettingHelpLink>
               </div>
