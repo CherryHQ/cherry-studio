@@ -17,6 +17,11 @@ export const PDF_SIZE_LIMIT_MB = 50
 export const PDF_PAGE_LIMIT = 100
 export const PDF_SIZE_LIMIT_BYTES = PDF_SIZE_LIMIT_MB * MB
 
+enum FileType {
+  PDF = 0,
+  Image = 1
+}
+
 type ApiResponse = {
   result: {
     layoutParsingResults: Array<{
@@ -63,7 +68,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       await this.sendPreprocessProgress(sourceId, 50)
 
       // 2. Call PaddleOCR API
-      const result = await this.callPaddleOcrApi(fileData, file.ext.toLowerCase() === '.pdf' ? 0 : 1)
+      const result = await this.callPaddleOcrApi(fileData, FileType.PDF)
       logger.info(`PaddleOCR API call completed`)
 
       await this.sendPreprocessProgress(sourceId, 75)
