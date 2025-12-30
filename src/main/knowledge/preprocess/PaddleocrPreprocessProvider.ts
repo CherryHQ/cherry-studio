@@ -7,6 +7,7 @@ import type { FileMetadata, PreprocessProvider } from '@types'
 import { net } from 'electron'
 import { MB } from '@shared/config/constant'
 import { t } from 'i18next'
+import { FileTypes } from '@types'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 
@@ -91,6 +92,11 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
   private async validateFile(filePath: string): Promise<void> {
     // Phase 1: check file size (without loading into memory)
     logger.info(`Validating PDF file: ${filePath}`)
+    const ext = path.extname(filePath).toLowerCase()
+    if (ext !== '.pdf') {
+      throw new Error(`File ${filePath} is not a PDF (extension: ${ext.slice(1)})`)
+    }
+
     const stats = await fs.promises.stat(filePath)
     const fileSizeBytes = stats.size
 
@@ -163,6 +169,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       ...file,
       name: finalName,
       path: finalPath,
+      type: FileTypes.DOCUMENT,
       ext: '.md',
       size: fs.existsSync(finalPath) ? fs.statSync(finalPath).size : 0
     }
