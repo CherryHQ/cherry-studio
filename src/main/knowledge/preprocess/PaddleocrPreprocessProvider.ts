@@ -5,10 +5,16 @@ import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import type { FileMetadata, PreprocessProvider } from '@types'
 import { net } from 'electron'
+import { MB } from '@shared/config/constant'
+import { t } from 'i18next'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 
 const logger = loggerService.withContext('PaddleocrPreprocessProvider')
+
+export const PDF_SIZE_LIMIT_MB = 50
+export const PDF_PAGE_LIMIT = 100
+export const PDF_SIZE_LIMIT_BYTES = PDF_SIZE_LIMIT_MB * MB
 
 type ApiResponse = {
   result: {
@@ -22,6 +28,14 @@ type ApiResponse = {
   }
   errorCode?: number
   errorMsg?: string
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  } else {
+    return t('error.unknown')
+  }
 }
 
 export default class PaddleocrPreprocessProvider extends BasePreprocessProvider {
@@ -63,9 +77,9 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
         processedFile: this.createProcessedFileInfo(file, outputPath),
         quota: 0
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(`PaddleOCR preprocess processing failed for:`, error as Error)
-      throw new Error(error.message)
+      throw new Error(getErrorMessage(error))
     }
   }
 
@@ -81,8 +95,8 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     const fileSizeBytes = stats.size
 
     // Ensure file size is no more than 50MB
-    if (fileSizeBytes > 50 * 1024 * 1024) {
-      const fileSizeMB = Math.round(fileSizeBytes / (1024 * 1024))
+    if (fileSizeBytes > PDF_SIZE_LIMIT_BYTES) {
+      const fileSizeMB = Math.round(fileSizeBytes / MB)
       throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 50MB`)
     }
 
@@ -93,14 +107,14 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       const doc = await this.readPdf(pdfBuffer)
 
       // Ensure page count is no more than 100 pages
-      if (doc.numPages > 100) {
+      if (doc.numPages > PDF_PAGE_LIMIT) {
         throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 100 pages`)
       }
 
-      logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / (1024 * 1024))}MB`)
-    } catch (error: any) {
+      logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / MB)}MB`)
+    } catch (error: unknown) {
       // If the page limit is exceeded, rethrow immediately
-      if (error.message.includes('exceeds the limit')) {
+      if (getErrorMessage(error).includes('exceeds the limit')) {
         throw error
       }
 
@@ -108,7 +122,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       logger.warn(
         `Failed to parse PDF structure (file may be corrupted or use non-standard format). ` +
           `Skipping page count validation. Will attempt to process with PaddleOCR API. ` +
-          `Error details: ${error.message}. ` +
+          `Error details: ${getErrorMessage(error)}. ` +
           `Suggestion: If processing fails, try repairing the PDF using tools like Adobe Acrobat or online PDF repair services.`
       )
       // Do not throw; continue processing
@@ -206,9 +220,9 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       }
 
       return data.result
-    } catch (error: any) {
-      logger.error(`Failed to call PaddleOCR API: ${error.message}`)
-      throw new Error(error.message)
+    } catch (error: unknown) {
+      logger.error(`Failed to call PaddleOCR API: ${getErrorMessage(error)}`)
+      throw new Error(getErrorMessage(error))
     }
   }
 
