@@ -3,11 +3,12 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
+import { getFileType } from '@main/utils/file'
+import { MB } from '@shared/config/constant'
 import type { FileMetadata, PreprocessProvider } from '@types'
 import { net } from 'electron'
-import { MB } from '@shared/config/constant'
 import { t } from 'i18next'
-import { getFileType } from '@main/utils/file'
+
 import BasePreprocessProvider from './BasePreprocessProvider'
 
 const logger = loggerService.withContext('PaddleocrPreprocessProvider')
