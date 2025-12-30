@@ -105,10 +105,10 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     const stats = await fs.promises.stat(filePath)
     const fileSizeBytes = stats.size
 
-    // Ensure file size is no more than 50MB
+    // Ensure file size is no more than PDF_SIZE_LIMIT_MB MB
     if (fileSizeBytes > PDF_SIZE_LIMIT_BYTES) {
       const fileSizeMB = Math.round(fileSizeBytes / MB)
-      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 50MB`)
+      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of ${PDF_SIZE_LIMIT_MB}MB`)
     }
 
     // Phase 2: check page count (requires reading file with error handling)
@@ -117,9 +117,9 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     try {
       const doc = await this.readPdf(pdfBuffer)
 
-      // Ensure page count is no more than 100 pages
+      // Ensure page count is no more than PDF_PAGE_LIMIT pages
       if (doc.numPages > PDF_PAGE_LIMIT) {
-        throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 100 pages`)
+        throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of ${PDF_PAGE_LIMIT} pages`)
       }
 
       logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / MB)}MB`)
