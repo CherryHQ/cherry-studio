@@ -103,7 +103,8 @@ export class Runtime {
           {
             result: undefined,
             logs: resolvedLogs.length > 0 ? resolvedLogs : undefined,
-            error: errorMessage
+            error: errorMessage,
+            isError: true
           },
           terminateWorker
         )

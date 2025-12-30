@@ -176,6 +176,7 @@ describe('HubServer Integration', () => {
 
       const execOutput = JSON.parse(execResult.content[0].text)
       expect(execOutput.error).toBe('test error')
+      expect(execOutput.isError).toBe(true)
     })
   })
 
@@ -213,6 +214,7 @@ describe('HubServer Integration', () => {
 
       expect(execOutput.error).toBe('Execution timed out after 60000ms')
       expect(execOutput.result).toBeUndefined()
+      expect(execOutput.isError).toBe(true)
       expect(execOutput.logs).toContain('[log] starting')
       expect(vi.mocked(mcpService.abortTool)).toHaveBeenCalled()
     })

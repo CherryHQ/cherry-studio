@@ -26,10 +26,11 @@ export interface ExecInput {
   code: string
 }
 
-export interface ExecOutput {
+export type ExecOutput = {
   result: unknown
   logs?: string[]
   error?: string
+  isError?: boolean
 }
 
 export interface ToolRegistryOptions {

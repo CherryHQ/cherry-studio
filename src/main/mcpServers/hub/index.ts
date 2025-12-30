@@ -175,7 +175,8 @@ export class HubServer {
           type: 'text',
           text: JSON.stringify(result, null, 2)
         }
-      ]
+      ],
+      isError: result.isError
     }
   }
 }

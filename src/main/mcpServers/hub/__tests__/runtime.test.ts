@@ -85,6 +85,7 @@ describe('Runtime', () => {
 
       expect(result.result).toBeUndefined()
       expect(result.error).toBe('test error')
+      expect(result.isError).toBe(true)
     })
 
     it('supports parallel helper', async () => {
@@ -138,6 +139,21 @@ describe('Runtime', () => {
       )
 
       expect(result.result).toBe(30)
+    })
+
+    it('stops execution when a tool throws', async () => {
+      const runtime = new Runtime()
+      const tools = [
+        createMockTool({
+          functionName: 'server__failing_tool'
+        })
+      ]
+
+      const result = await runtime.execute('return await server__failing_tool({})', tools)
+
+      expect(result.result).toBeUndefined()
+      expect(result.error).toBe('Tool failed')
+      expect(result.isError).toBe(true)
     })
   })
 })

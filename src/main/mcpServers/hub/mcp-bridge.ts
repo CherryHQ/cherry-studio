@@ -4,7 +4,7 @@
  */
 import mcpService from '@main/services/MCPService'
 import { generateMcpToolFunctionName } from '@shared/mcp'
-import type { MCPTool } from '@types'
+import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
 
 import type { GeneratedTool } from './types'
 
@@ -47,10 +47,12 @@ export const callMcpTool = async (functionName: string, params: unknown, callId?
     }
     const toolId = `${retryToolInfo.serverId}__${retryToolInfo.toolName}`
     const result = await mcpService.callToolById(toolId, params, callId)
+    throwIfToolError(result)
     return extractToolResult(result)
   }
   const toolId = `${toolInfo.serverId}__${toolInfo.toolName}`
   const result = await mcpService.callToolById(toolId, params, callId)
+  throwIfToolError(result)
   return extractToolResult(result)
 }
 
@@ -58,7 +60,7 @@ export const abortMcpTool = async (callId: string): Promise<boolean> => {
   return mcpService.abortTool(null as unknown as Electron.IpcMainInvokeEvent, callId)
 }
 
-function extractToolResult(result: { content: Array<{ type: string; text?: string }> }): unknown {
+function extractToolResult(result: MCPCallToolResponse): unknown {
   if (!result.content || result.content.length === 0) {
     return null
   }
@@ -73,4 +75,22 @@ function extractToolResult(result: { content: Array<{ type: string; text?: strin
   }
 
   return result.content
+}
+
+function throwIfToolError(result: MCPCallToolResponse): void {
+  if (!result.isError) {
+    return
+  }
+
+  const textContent = extractTextContent(result.content)
+  throw new Error(textContent ?? 'Tool execution failed')
+}
+
+function extractTextContent(content: MCPToolResultContent[] | undefined): string | undefined {
+  if (!content || content.length === 0) {
+    return undefined
+  }
+
+  const textBlock = content.find((item) => item.type === 'text' && item.text)
+  return textBlock?.text
 }

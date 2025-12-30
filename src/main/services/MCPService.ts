@@ -195,11 +195,7 @@ class McpService {
    * Call a tool by its full ID (serverId__toolName format).
    * Used by Hub server's runtime.
    */
-  public async callToolById(
-    toolId: string,
-    params: unknown,
-    callId?: string
-  ): Promise<{ content: Array<{ type: string; text?: string }> }> {
+  public async callToolById(toolId: string, params: unknown, callId?: string): Promise<MCPCallToolResponse> {
     const parts = toolId.split('__')
     if (parts.length < 2) {
       throw new Error(`Invalid tool ID format: ${toolId}`)
