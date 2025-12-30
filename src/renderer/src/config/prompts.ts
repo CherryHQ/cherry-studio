@@ -478,8 +478,8 @@ You have access to MCP tools via the hub server.
 ### Workflow
 1. Call \`search\` with relevant keywords to discover tools
 2. Review the returned function signatures and their parameters
-3. Call \`exec\` with JavaScript code using those functions
-4. The last expression in your code becomes the result
+3. Call \`exec\` with JavaScript code using those functions (you can chain multiple MCP tools in one \`exec\`)
+4. The last expression in your code becomes the result (avoid top-level \`return\`)
 
 ### Example Usage
 
@@ -501,11 +501,34 @@ exec({
 })
 \`\`\`
 
+### Example: Open a URL and Save to a File
+
+**Step 1: Search for tools**
+\`\`\`
+search({ query: "browser,chrome,file,open,write" })
+\`\`\`
+
+**Step 2: Use discovered tools in a single exec**
+\`\`\`javascript
+exec({
+  code: \`
+    // Replace tool names with the exact signatures returned by search.
+    await CherryBrowser_open({ url: "https://sspai.com", timeout: 10000 })
+    const page = await CherryBrowser_fetch({ url: "https://sspai.com" })
+    await CherryFilesystem_write({ path: "./sspai.html", content: page })
+    ({ saved: true, path: "./sspai.html" })
+  \`
+})
+\`\`\`
+
 ### Best Practices
 - Always search first to discover available tools and their exact signatures
 - Use descriptive variable names in your code
 - Handle errors gracefully with try/catch when needed
 - Use \`parallel()\` for independent operations to improve performance
+- Prefer a single \`exec\` for multi-step flows to reduce round-trips
+- Avoid top-level \`return\`; use the last expression or wrap in an async IIFE
+- Use the exact tool names/signatures returned by \`search\`
 `
 
 interface ToolInfo {
@@ -524,7 +547,8 @@ export function getHubModeSystemPrompt(tools: ToolInfo[] = []): string {
     .map((t) => {
       const functionName = generateMcpToolFunctionName(t.serverName, t.name, existingNames)
       const desc = t.description || ''
-      const truncatedDesc = desc.length > 50 ? `${desc.slice(0, 50)}...` : desc
+      const normalizedDesc = desc.replace(/\s+/g, ' ').trim()
+      const truncatedDesc = normalizedDesc.length > 50 ? `${normalizedDesc.slice(0, 50)}...` : normalizedDesc
       return `- ${functionName}: ${truncatedDesc}`
     })
     .join('\n')
