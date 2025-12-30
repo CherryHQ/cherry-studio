@@ -3132,11 +3132,26 @@ const migrateConfig = {
   },
   '191': (state: RootState) => {
     try {
-      addPreprocessProviders(state, 'paddleocr')
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'tokenflux') {
+          provider.apiHost = 'https://api.tokenflux.ai/openai/v1'
+          provider.anthropicApiHost = 'https://api.tokenflux.ai/anthropic'
+        }
+      })
       logger.info('migrate 191 success')
       return state
     } catch (error) {
       logger.error('migrate 191 error', error as Error)
+      return state
+    }
+  },
+  '192': (state: RootState) => {
+    try {
+      addPreprocessProviders(state, 'paddleocr')
+      logger.info('migrate 192 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 192 error', error as Error)
       return state
     }
   }
