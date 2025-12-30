@@ -4,6 +4,9 @@
  */
 import mcpService from '@main/services/MCPService'
 import { generateMcpToolFunctionName } from '@shared/mcp'
+import type { MCPTool } from '@types'
+
+import type { GeneratedTool } from './types'
 
 export const listAllTools = () => mcpService.listAllActiveServerTools()
 
@@ -11,12 +14,27 @@ const toolFunctionNameToIdMap = new Map<string, { serverId: string; toolName: st
 
 export async function refreshToolMap(): Promise<void> {
   const tools = await listAllTools()
+  syncToolMapFromTools(tools)
+}
+
+export function syncToolMapFromTools(tools: MCPTool[]): void {
   toolFunctionNameToIdMap.clear()
   const existingNames = new Set<string>()
   for (const tool of tools) {
     const functionName = generateMcpToolFunctionName(tool.serverName, tool.name, existingNames)
     toolFunctionNameToIdMap.set(functionName, { serverId: tool.serverId, toolName: tool.name })
   }
+}
+
+export function syncToolMapFromGeneratedTools(tools: GeneratedTool[]): void {
+  toolFunctionNameToIdMap.clear()
+  for (const tool of tools) {
+    toolFunctionNameToIdMap.set(tool.functionName, { serverId: tool.serverId, toolName: tool.toolName })
+  }
+}
+
+export function clearToolMap(): void {
+  toolFunctionNameToIdMap.clear()
 }
 
 export const callMcpTool = async (functionName: string, params: unknown, callId?: string): Promise<unknown> => {

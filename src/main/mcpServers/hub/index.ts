@@ -4,7 +4,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 
 import { generateToolFunction } from './generator'
-import { callMcpTool, listAllTools } from './mcp-bridge'
+import { callMcpTool, clearToolMap, listAllTools, syncToolMapFromGeneratedTools } from './mcp-bridge'
 import { Runtime } from './runtime'
 import { searchTools } from './search'
 import type { ExecInput, GeneratedTool, SearchQuery } from './types'
@@ -124,6 +124,7 @@ export class HubServer {
     const cached = CacheService.get<GeneratedTool[]>(TOOLS_CACHE_KEY)
     if (cached) {
       logger.debug('Returning cached tools')
+      syncToolMapFromGeneratedTools(cached)
       return cached
     }
 
@@ -132,11 +133,13 @@ export class HubServer {
     const existingNames = new Set<string>()
     const tools = allTools.map((tool) => generateToolFunction(tool, existingNames, callMcpTool))
     CacheService.set(TOOLS_CACHE_KEY, tools, TOOLS_CACHE_TTL)
+    syncToolMapFromGeneratedTools(tools)
     return tools
   }
 
   invalidateCache(): void {
     CacheService.remove(TOOLS_CACHE_KEY)
+    clearToolMap()
     logger.debug('Tools cache invalidated')
   }
 
