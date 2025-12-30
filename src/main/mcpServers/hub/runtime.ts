@@ -1,105 +1,169 @@
+import crypto from 'node:crypto'
+import { Worker } from 'node:worker_threads'
+
 import { loggerService } from '@logger'
 
-import { callMcpTool } from './mcp-bridge'
-import type { ConsoleMethods, ExecOutput, ExecutionContext, GeneratedTool } from './types'
+import { abortMcpTool, callMcpTool } from './mcp-bridge'
+import type {
+  ExecOutput,
+  GeneratedTool,
+  HubWorkerCallToolMessage,
+  HubWorkerExecMessage,
+  HubWorkerMessage,
+  HubWorkerResultMessage
+} from './types'
 
 const logger = loggerService.withContext('MCPServer:Hub:Runtime')
 
 const MAX_LOGS = 1000
 const EXECUTION_TIMEOUT = 60000
+const WORKER_URL = new URL('./worker.js', import.meta.url)
 
 export class Runtime {
   async execute(code: string, tools: GeneratedTool[]): Promise<ExecOutput> {
-    const logs: string[] = []
-    const capturedConsole = this.createCapturedConsole(logs)
+    return await new Promise<ExecOutput>((resolve) => {
+      const logs: string[] = []
+      const activeCallIds = new Map<string, string>()
+      let finished = false
+      let timedOut = false
+      let timeoutId: NodeJS.Timeout | null = null
 
-    try {
-      const context = this.buildContext(tools, capturedConsole)
-      const result = await this.runCode(code, context)
+      const worker = new Worker(WORKER_URL)
 
-      return {
-        result,
-        logs: logs.length > 0 ? logs : undefined
+      const addLog = (entry: string) => {
+        if (logs.length >= MAX_LOGS) {
+          return
+        }
+        logs.push(entry)
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Execution error:', error as Error)
 
-      return {
-        result: undefined,
-        logs: logs.length > 0 ? logs : undefined,
-        error: errorMessage
+      const finalize = async (output: ExecOutput, terminateWorker = true) => {
+        if (finished) {
+          return
+        }
+        finished = true
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
+        worker.removeAllListeners()
+        if (terminateWorker) {
+          try {
+            await worker.terminate()
+          } catch (error) {
+            logger.warn('Failed to terminate exec worker', error as Error)
+          }
+        }
+        resolve(output)
       }
-    }
-  }
 
-  private buildContext(tools: GeneratedTool[], capturedConsole: ConsoleMethods): ExecutionContext {
-    const context: ExecutionContext = {
-      __callTool: callMcpTool,
-      parallel: <T>(...promises: Promise<T>[]) => Promise.all(promises),
-      settle: <T>(...promises: Promise<T>[]) => Promise.allSettled(promises),
-      console: capturedConsole
-    }
+      const abortActiveTools = async () => {
+        const callIds = Array.from(activeCallIds.values())
+        activeCallIds.clear()
+        if (callIds.length === 0) {
+          return
+        }
+        await Promise.allSettled(callIds.map((callId) => abortMcpTool(callId)))
+      }
 
-    for (const tool of tools) {
-      context[tool.functionName] = tool.fn
-    }
+      const handleToolCall = async (message: HubWorkerCallToolMessage) => {
+        if (finished || timedOut) {
+          return
+        }
+        const callId = crypto.randomUUID()
+        activeCallIds.set(message.requestId, callId)
 
-    return context
-  }
+        try {
+          const result = await callMcpTool(message.functionName, message.params, callId)
+          if (finished || timedOut) {
+            return
+          }
+          worker.postMessage({ type: 'toolResult', requestId: message.requestId, result })
+        } catch (error) {
+          if (finished || timedOut) {
+            return
+          }
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          worker.postMessage({ type: 'toolError', requestId: message.requestId, error: errorMessage })
+        } finally {
+          activeCallIds.delete(message.requestId)
+        }
+      }
 
-  private async runCode(code: string, context: ExecutionContext): Promise<unknown> {
-    const contextKeys = Object.keys(context)
-    const contextValues = contextKeys.map((k) => context[k])
+      const handleResult = (message: HubWorkerResultMessage) => {
+        const resolvedLogs = message.logs && message.logs.length > 0 ? message.logs : logs
+        void finalize({
+          result: message.result,
+          logs: resolvedLogs.length > 0 ? resolvedLogs : undefined
+        })
+      }
 
-    const wrappedCode = `
-      return (async () => {
-        ${code}
-      })()
-    `
+      const handleError = (errorMessage: string, messageLogs?: string[], terminateWorker = true) => {
+        const resolvedLogs = messageLogs && messageLogs.length > 0 ? messageLogs : logs
+        void finalize(
+          {
+            result: undefined,
+            logs: resolvedLogs.length > 0 ? resolvedLogs : undefined,
+            error: errorMessage
+          },
+          terminateWorker
+        )
+      }
 
-    const fn = new Function(...contextKeys, wrappedCode)
+      const handleMessage = (message: HubWorkerMessage) => {
+        if (!message || typeof message !== 'object') {
+          return
+        }
+        switch (message.type) {
+          case 'log':
+            addLog(message.entry)
+            break
+          case 'callTool':
+            void handleToolCall(message)
+            break
+          case 'result':
+            handleResult(message)
+            break
+          case 'error':
+            handleError(message.error, message.logs)
+            break
+          default:
+            break
+        }
+      }
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Execution timed out after ${EXECUTION_TIMEOUT}ms`))
+      timeoutId = setTimeout(() => {
+        timedOut = true
+        void (async () => {
+          await abortActiveTools()
+          try {
+            await worker.terminate()
+          } catch (error) {
+            logger.warn('Failed to terminate exec worker after timeout', error as Error)
+          }
+          handleError(`Execution timed out after ${EXECUTION_TIMEOUT}ms`, undefined, false)
+        })()
       }, EXECUTION_TIMEOUT)
-    })
 
-    const executionPromise = fn(...contextValues)
+      worker.on('message', handleMessage)
+      worker.on('error', (error) => {
+        logger.error('Worker execution error', error)
+        handleError(error instanceof Error ? error.message : String(error))
+      })
+      worker.on('exit', (code) => {
+        if (finished || timedOut) {
+          return
+        }
+        const message = code === 0 ? 'Exec worker exited unexpectedly' : `Exec worker exited with code ${code}`
+        logger.error(message)
+        handleError(message, undefined, false)
+      })
 
-    return Promise.race([executionPromise, timeoutPromise])
-  }
-
-  private createCapturedConsole(logs: string[]): ConsoleMethods {
-    const addLog = (level: string, ...args: unknown[]) => {
-      if (logs.length >= MAX_LOGS) {
-        return
+      const execMessage: HubWorkerExecMessage = {
+        type: 'exec',
+        code,
+        tools: tools.map((tool) => ({ functionName: tool.functionName }))
       }
-      const message = args.map((arg) => this.stringify(arg)).join(' ')
-      logs.push(`[${level}] ${message}`)
-    }
-
-    return {
-      log: (...args: unknown[]) => addLog('log', ...args),
-      warn: (...args: unknown[]) => addLog('warn', ...args),
-      error: (...args: unknown[]) => addLog('error', ...args),
-      info: (...args: unknown[]) => addLog('info', ...args),
-      debug: (...args: unknown[]) => addLog('debug', ...args)
-    }
-  }
-
-  private stringify(value: unknown): string {
-    if (value === undefined) return 'undefined'
-    if (value === null) return 'null'
-    if (typeof value === 'string') return value
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-    if (value instanceof Error) return value.message
-
-    try {
-      return JSON.stringify(value, null, 2)
-    } catch {
-      return String(value)
-    }
+      worker.postMessage(execMessage)
+    })
   }
 }

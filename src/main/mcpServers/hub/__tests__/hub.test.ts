@@ -72,7 +72,8 @@ vi.mock('@main/services/MCPService', () => ({
         }
       }
       return { content: [{ type: 'text', text: '{}' }] }
-    })
+    }),
+    abortTool: vi.fn(async () => true)
   }
 }))
 
@@ -175,6 +176,45 @@ describe('HubServer Integration', () => {
 
       const execOutput = JSON.parse(execResult.content[0].text)
       expect(execOutput.error).toBe('test error')
+    })
+  })
+
+  describe('exec timeouts', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('aborts in-flight tool calls and returns logs on timeout', async () => {
+      vi.useFakeTimers()
+
+      let toolCallStarted: (() => void) | null = null
+      const toolCallStartedPromise = new Promise<void>((resolve) => {
+        toolCallStarted = resolve
+      })
+
+      vi.mocked(mcpService.callToolById).mockImplementationOnce(async () => {
+        toolCallStarted?.()
+        return await new Promise(() => {})
+      })
+
+      const execPromise = (hubServer as any).handleExec({
+        code: `
+          console.log("starting");
+          return await github_searchRepos({ query: "hang" });
+        `
+      })
+
+      await toolCallStartedPromise
+      await vi.advanceTimersByTimeAsync(60000)
+      await vi.runAllTimersAsync()
+
+      const execResult = await execPromise
+      const execOutput = JSON.parse(execResult.content[0].text)
+
+      expect(execOutput.error).toBe('Execution timed out after 60000ms')
+      expect(execOutput.result).toBeUndefined()
+      expect(execOutput.logs).toContain('[log] starting')
+      expect(vi.mocked(mcpService.abortTool)).toHaveBeenCalled()
     })
   })
 

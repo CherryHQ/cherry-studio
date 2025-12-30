@@ -19,7 +19,7 @@ export async function refreshToolMap(): Promise<void> {
   }
 }
 
-export const callMcpTool = async (functionName: string, params: unknown): Promise<unknown> => {
+export const callMcpTool = async (functionName: string, params: unknown, callId?: string): Promise<unknown> => {
   const toolInfo = toolFunctionNameToIdMap.get(functionName)
   if (!toolInfo) {
     await refreshToolMap()
@@ -28,12 +28,16 @@ export const callMcpTool = async (functionName: string, params: unknown): Promis
       throw new Error(`Tool not found: ${functionName}`)
     }
     const toolId = `${retryToolInfo.serverId}__${retryToolInfo.toolName}`
-    const result = await mcpService.callToolById(toolId, params)
+    const result = await mcpService.callToolById(toolId, params, callId)
     return extractToolResult(result)
   }
   const toolId = `${toolInfo.serverId}__${toolInfo.toolName}`
-  const result = await mcpService.callToolById(toolId, params)
+  const result = await mcpService.callToolById(toolId, params, callId)
   return extractToolResult(result)
+}
+
+export const abortMcpTool = async (callId: string): Promise<boolean> => {
+  return mcpService.abortTool(null as unknown as Electron.IpcMainInvokeEvent, callId)
 }
 
 function extractToolResult(result: { content: Array<{ type: string; text?: string }> }): unknown {

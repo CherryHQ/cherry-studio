@@ -56,7 +56,7 @@ describe('Runtime', () => {
 
       const result = await runtime.execute('return await searchRepos({ query: "test" })', tools)
 
-      expect(result.result).toEqual({ repos: ['repo1', 'repo2'], query: { query: 'test' } })
+      expect(result.result).toEqual({ toolId: 'searchRepos', params: { query: 'test' }, success: true })
     })
 
     it('captures console logs', async () => {

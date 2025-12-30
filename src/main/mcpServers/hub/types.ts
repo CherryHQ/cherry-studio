@@ -55,3 +55,58 @@ export interface ConsoleMethods {
   info: (...args: unknown[]) => void
   debug: (...args: unknown[]) => void
 }
+
+export type HubWorkerTool = {
+  functionName: string
+}
+
+export type HubWorkerExecMessage = {
+  type: 'exec'
+  code: string
+  tools: HubWorkerTool[]
+}
+
+export type HubWorkerCallToolMessage = {
+  type: 'callTool'
+  requestId: string
+  functionName: string
+  params: unknown
+}
+
+export type HubWorkerToolResultMessage = {
+  type: 'toolResult'
+  requestId: string
+  result: unknown
+}
+
+export type HubWorkerToolErrorMessage = {
+  type: 'toolError'
+  requestId: string
+  error: string
+}
+
+export type HubWorkerResultMessage = {
+  type: 'result'
+  result: unknown
+  logs?: string[]
+}
+
+export type HubWorkerErrorMessage = {
+  type: 'error'
+  error: string
+  logs?: string[]
+}
+
+export type HubWorkerLogMessage = {
+  type: 'log'
+  entry: string
+}
+
+export type HubWorkerMessage =
+  | HubWorkerExecMessage
+  | HubWorkerCallToolMessage
+  | HubWorkerToolResultMessage
+  | HubWorkerToolErrorMessage
+  | HubWorkerResultMessage
+  | HubWorkerErrorMessage
+  | HubWorkerLogMessage

@@ -180,7 +180,9 @@ class McpService {
       }
       try {
         const tools = await this.listToolsImpl(server)
-        allTools.push(...tools)
+        const disabledTools = new Set(server.disabledTools ?? [])
+        const enabledTools = disabledTools.size > 0 ? tools.filter((tool) => !disabledTools.has(tool.name)) : tools
+        allTools.push(...enabledTools)
       } catch (error) {
         logger.error(`[listAllActiveServerTools] Failed to list tools from ${server.name}:`, error as Error)
       }
@@ -195,7 +197,8 @@ class McpService {
    */
   public async callToolById(
     toolId: string,
-    params: unknown
+    params: unknown,
+    callId?: string
   ): Promise<{ content: Array<{ type: string; text?: string }> }> {
     const parts = toolId.split('__')
     if (parts.length < 2) {
@@ -217,7 +220,8 @@ class McpService {
     return this.callTool(null as unknown as Electron.IpcMainInvokeEvent, {
       server,
       name: toolName,
-      args: params
+      args: params,
+      callId
     })
   }
 
