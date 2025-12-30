@@ -27,7 +27,7 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
       })
 
       if (blockManager.hasInitialPlaceholder) {
-        // 场景1: 转换占位符为图像块
+        // Scenario 1: Convert placeholder to image block
         const initialChanges = {
           type: MessageBlockType.IMAGE,
           status: MessageBlockStatus.PENDING
@@ -36,7 +36,7 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
         blockManager.smartBlockUpdate(imageBlockId, initialChanges, MessageBlockType.IMAGE)
         logger.debug('[onImageCreated] Converted placeholder to image block', { imageBlockId })
       } else if (!imageBlockId) {
-        // 场景2: 创建新的图像块
+        // Scenario 2: Create new image block
         const imageBlock = createImageBlock(assistantMsgId, {
           status: MessageBlockStatus.PENDING
         })
@@ -44,7 +44,7 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
         await blockManager.handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
         logger.debug('[onImageCreated] Created new image block', { imageBlockId })
       } else {
-        // 场景3: imageBlockId 已存在（可能是重复调用）
+        // Scenario 3: imageBlockId already exists (possibly duplicate call)
         logger.warn('[onImageCreated] Image block already exists, skipping creation', { imageBlockId })
       }
     },
@@ -69,7 +69,7 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
       })
 
       if (imageBlockId) {
-        // 正常路径：更新现有图像块
+        // Normal path: Update existing image block
         if (!imageData) {
           const changes: Partial<ImageMessageBlock> = {
             status: MessageBlockStatus.SUCCESS
@@ -89,15 +89,15 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
             imageUrl
           })
         }
-        imageBlockId = null // 清空状态，为下一次图像生成做准备
+        imageBlockId = null // Clear state to prepare for next image generation
       } else {
-        // imageBlockId 为 null 的情况
+        // imageBlockId is null
         if (imageData) {
-          // 检查是否已存在 IMAGE 类型的 block（防止重复）
+          // Check if IMAGE block already exists (prevent duplicate)
           if (blockManager.hasBlockOfType(assistantMsgId, MessageBlockType.IMAGE)) {
             logger.warn('[onImageGenerated] IMAGE block already exists, skipping creation.', { assistantMsgId })
           } else {
-            // 不存在 IMAGE block，创建新的（正常流程）
+            // No IMAGE block exists, create new (normal flow)
             const imageBlock = createImageBlock(assistantMsgId, {
               status: MessageBlockStatus.SUCCESS,
               url: imageData.images?.[0] || 'placeholder_image_url',
@@ -122,7 +122,7 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
       })
 
       if (!imageBlockId) {
-        // onImageSearched 总是创建新块（这是设计如此，因为它是独立的搜索结果）
+        // onImageSearched always creates a new block by design, as each result is an independent search result
         const imageBlock = createImageBlock(assistantMsgId, {
           status: MessageBlockStatus.SUCCESS,
           metadata: {
