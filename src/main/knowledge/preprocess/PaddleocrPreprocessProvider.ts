@@ -220,44 +220,18 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       fs.mkdirSync(outputDir, { recursive: true })
     }
 
-    // Get the first layout parsing result (usually there's only one for a single file)
-    const layoutResult = result.layoutParsingResults[0]
-    if (!layoutResult) {
+    if (!result.layoutParsingResults || result.layoutParsingResults.length === 0) {
       throw new Error('No layout parsing result found')
     }
+
+    const markdownText = result.layoutParsingResults
+      .filter((layoutResult) => layoutResult?.markdown?.text)
+      .map((layoutResult) => layoutResult.markdown.text)
+      .join('\n\n')
 
     // Save markdown text
     const mdFileName = `${file.id}.md`
     const mdFilePath = path.join(outputDir, mdFileName)
-    const markdownText = layoutResult.markdown.text
-
-    // Download and save images from markdown.images
-    if (layoutResult.markdown.images && Object.keys(layoutResult.markdown.images).length > 0) {
-      const imagesDir = path.join(outputDir, 'images')
-      if (!fs.existsSync(imagesDir)) {
-        fs.mkdirSync(imagesDir, { recursive: true })
-      }
-
-      for (const [imgPath, imgUrl] of Object.entries(layoutResult.markdown.images)) {
-        try {
-          const imgResponse = await net.fetch(imgUrl, { method: 'GET' })
-          if (imgResponse.ok) {
-            const imgBuffer = await imgResponse.arrayBuffer()
-            const fullImgPath = path.join(imagesDir, path.basename(imgPath))
-            const imgDir = path.dirname(fullImgPath)
-            if (!fs.existsSync(imgDir)) {
-              fs.mkdirSync(imgDir, { recursive: true })
-            }
-            fs.writeFileSync(fullImgPath, Buffer.from(imgBuffer))
-            logger.info(`Downloaded image: ${fullImgPath}`)
-          } else {
-            logger.warn(`Failed to download image from ${imgUrl}: HTTP ${imgResponse.status}`)
-          }
-        } catch (error: any) {
-          logger.warn(`Failed to download image ${imgPath}: ${error.message}`)
-        }
-      }
-    }
 
     // Write markdown file
     fs.writeFileSync(mdFilePath, markdownText, 'utf-8')
