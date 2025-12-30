@@ -25,7 +25,7 @@ type ViewMode = 'split' | 'code' | 'preview'
 const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onSave, onClose }) => {
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
-  const [isFullscreen, setIsFullscreen] = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
   const codeEditorRef = useRef<CodeEditorHandles>(null)
   const previewFrameRef = useRef<HTMLIFrameElement>(null)
@@ -39,6 +39,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     body.style.overflow = 'hidden'
 
     return () => {
+      setIsFullscreen(false)
       body.style.overflow = originalOverflow
     }
   }, [isFullscreen, open])
