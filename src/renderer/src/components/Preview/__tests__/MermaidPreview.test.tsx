@@ -31,9 +31,9 @@ vi.mock('@renderer/components/Preview/hooks/useDebouncedRender', () => ({
 
 // Mock nanoid
 vi.mock('@reduxjs/toolkit', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@reduxjs/toolkit')>()
+  const actual = await importOriginal()
   return {
-    ...actual,
+    ...(actual as object),
     nanoid: () => 'test-id-123456'
   }
 })
