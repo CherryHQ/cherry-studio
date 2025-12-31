@@ -4,7 +4,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
-import { ShadowWhiteContainer } from './styles'
+import { ShadowTransparentContainer } from './styles'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 
 const InfographicPreview = ({
@@ -26,7 +26,7 @@ const InfographicPreview = ({
     async (content: string, container: HTMLDivElement) => {
       if (!InfographicClass) return
 
-      const { width, height } = container.getBoundingClientRect()
+      const { width } = container.getBoundingClientRect()
       if (width === 0) return
 
       if (infographicInstanceRef.current) {
@@ -39,7 +39,7 @@ const InfographicPreview = ({
       const infographic = new InfographicClass({
         container,
         width,
-        height: height || 400,
+        height: Math.min(width * 0.6, 400),
         editable: false,
         theme
       })
@@ -125,7 +125,7 @@ const InfographicPreview = ({
       ref={ref}
       imageRef={containerRef}
       source="infographic">
-      <ShadowWhiteContainer ref={containerRef} className="infographic special-preview" />
+      <ShadowTransparentContainer ref={containerRef} className="infographic special-preview" />
     </ImagePreviewLayout>
   )
 }
