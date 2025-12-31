@@ -471,64 +471,125 @@ If have multiple citations, please directly list them like this:
 `
 
 const HUB_MODE_SYSTEM_PROMPT_BASE = `
-## MCP Tools (Code Mode)
+## Hub MCP Tools – Code Execution Mode
 
-You have access to MCP tools via the hub server.
+You can discover and call MCP tools through the hub server using two meta-tools: **search** and **exec**.
+
+### Critical Rules (Read First)
+
+1. You MUST explicitly \`return\` the final value from your \`exec\` code. If you do not return a value, the result will be \`undefined\`.
+2. All MCP tools are async functions. Always call them as \`await ToolName(params)\`.
+3. Use the exact function names and parameter shapes returned by \`search\`.
+4. You CANNOT call \`search\` or \`exec\` from inside \`exec\` code—use them only as MCP tools.
+5. \`console.log\` output is NOT the result. Logs are separate; the final answer must come from \`return\`.
 
 ### Workflow
-1. Call \`search\` with relevant keywords to discover tools
-2. Review the returned function signatures and their parameters
-3. Call \`exec\` with JavaScript code using those functions (you can chain multiple MCP tools in one \`exec\`)
-4. The last expression (or an explicit \`return\`) becomes the result. If you don't return anything, the result is \`undefined\`.
 
-### Example Usage
+1. Call \`search\` with relevant keywords to discover tools.
+2. Read the returned JavaScript function declarations and JSDoc to understand names and parameters.
+3. Call \`exec\` with JavaScript code that uses the discovered tools and ends with an explicit \`return\`.
+4. Use the \`exec\` result as your answer.
 
-**Step 1: Search for tools**
-\`\`\`
-search({ query: "github,repository" })
-\`\`\`
+### What \`search\` Does
 
-**Step 2: Use discovered tools**
+- Input: keyword string (comma-separated for OR-matching), plus optional \`limit\`.
+- Output: JavaScript async function declarations with JSDoc showing exact function names, parameters, and return types.
+
+### What \`exec\` Does
+
+- Runs JavaScript code in an isolated async context (wrapped as \`(async () => { your code })())\`.
+- All discovered tools are exposed as async functions: \`await ToolName(params)\`.
+- Available helpers:
+  - \`parallel(...promises)\` → \`Promise.all(promises)\`
+  - \`settle(...promises)\` → \`Promise.allSettled(promises)\`
+  - \`console.log/info/warn/error/debug\`
+- Returns JSON with: \`result\` (your returned value), \`logs\` (optional), \`error\` (optional), \`isError\` (optional).
+
+### Example: Single Tool Call
+
 \`\`\`javascript
-exec({
-  code: \`
-    const repos = await searchRepos({ query: "react", limit: 5 })
-    const details = await parallel(
-      repos.map(r => getRepoDetails({ owner: r.owner, repo: r.name }))
-    )
-    return { repos, details }
-  \`
-})
+// Step 1: search({ query: "browser,fetch" })
+// Step 2: exec with:
+const page = await CherryBrowser_fetch({ url: "https://example.com" })
+return page
 \`\`\`
 
-### Example: Open a URL and Save to a File
+### Example: Multiple Tools with Parallel
 
-**Step 1: Search for tools**
-\`\`\`
-search({ query: "browser,chrome,file,open,write" })
-\`\`\`
-
-**Step 2: Use discovered tools in a single exec**
 \`\`\`javascript
-exec({
-  code: \`
-    // Replace tool names with the exact signatures returned by search.
-    await CherryBrowser_open({ url: "https://sspai.com", timeout: 10000 })
-    const page = await CherryBrowser_fetch({ url: "https://sspai.com" })
-    await CherryFilesystem_write({ path: "./sspai.html", content: page })
-    ({ saved: true, path: "./sspai.html" })
-  \`
-})
+const [forecast, time] = await parallel(
+  Weather_getForecast({ city: "Paris" }),
+  Time_getLocalTime({ city: "Paris" })
+)
+return { city: "Paris", forecast, time }
+\`\`\`
+
+### Example: Handle Partial Failures with Settle
+
+\`\`\`javascript
+const results = await settle(
+  Weather_getForecast({ city: "Paris" }),
+  Weather_getForecast({ city: "Tokyo" })
+)
+const successful = results.filter(r => r.status === "fulfilled").map(r => r.value)
+return { results, successful }
+\`\`\`
+
+### Example: Error Handling
+
+\`\`\`javascript
+try {
+  const user = await User_lookup({ email: "user@example.com" })
+  return { found: true, user }
+} catch (error) {
+  return { found: false, error: String(error) }
+}
+\`\`\`
+
+### Common Mistakes to Avoid
+
+❌ **Forgetting to return** (result will be \`undefined\`):
+\`\`\`javascript
+const data = await SomeTool({ id: "123" })
+// Missing return!
+\`\`\`
+
+✅ **Always return**:
+\`\`\`javascript
+const data = await SomeTool({ id: "123" })
+return data
+\`\`\`
+
+❌ **Only logging, not returning**:
+\`\`\`javascript
+const data = await SomeTool({ id: "123" })
+console.log(data)  // Logs are NOT the result!
+\`\`\`
+
+❌ **Missing await**:
+\`\`\`javascript
+const data = SomeTool({ id: "123" })  // Returns Promise, not value!
+return data
+\`\`\`
+
+❌ **Awaiting before parallel**:
+\`\`\`javascript
+await parallel(await ToolA(), await ToolB())  // Wrong: runs sequentially
+\`\`\`
+
+✅ **Pass promises directly to parallel**:
+\`\`\`javascript
+await parallel(ToolA(), ToolB())  // Correct: runs in parallel
 \`\`\`
 
 ### Best Practices
-- Always search first to discover available tools and their exact signatures
-- Use descriptive variable names in your code
-- Handle errors gracefully with try/catch when needed
-- Use \`parallel()\` for independent operations to improve performance
-- Prefer a single \`exec\` for multi-step flows to reduce round-trips
-- Return a value (or end with a final expression) so \`exec\` produces output
-- Use the exact tool names/signatures returned by \`search\`
+
+- Always call \`search\` first to discover tools and confirm signatures.
+- Always use an explicit \`return\` at the end of \`exec\` code.
+- Use \`parallel\` for independent operations that can run at the same time.
+- Use \`settle\` when some calls may fail but you still want partial results.
+- Prefer a single \`exec\` call for multi-step flows.
+- Treat \`console.*\` as debugging only, never as the primary result.
 `
 
 interface ToolInfo {

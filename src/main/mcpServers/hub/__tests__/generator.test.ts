@@ -106,7 +106,7 @@ describe('generator', () => {
 
       const result = generateToolsCode(tools)
 
-      expect(result).toContain('Found 2 tool(s)')
+      expect(result).toContain('2 tool(s)')
       expect(result).toContain('async function server1_tool1')
       expect(result).toContain('async function server2_tool2')
     })

@@ -3,26 +3,11 @@ import type { MCPTool } from '@types'
 
 import type { GeneratedTool } from './types'
 
-function jsonSchemaToSignature(schema: Record<string, unknown> | undefined): string {
-  if (!schema || typeof schema !== 'object') {
-    return '{}'
-  }
-
-  const properties = schema.properties as Record<string, Record<string, unknown>> | undefined
-  if (!properties) {
-    return '{}'
-  }
-
-  const required = (schema.required as string[]) || []
-  const parts: string[] = []
-
-  for (const [key, prop] of Object.entries(properties)) {
-    const isRequired = required.includes(key)
-    const typeStr = schemaTypeToTS(prop)
-    parts.push(`${key}${isRequired ? '' : '?'}: ${typeStr}`)
-  }
-
-  return `{ ${parts.join(', ')} }`
+type PropertySchema = Record<string, unknown>
+type InputSchema = {
+  type?: string
+  properties?: Record<string, PropertySchema>
+  required?: string[]
 }
 
 function schemaTypeToTS(prop: Record<string, unknown>): string {
@@ -40,16 +25,12 @@ function schemaTypeToTS(prop: Record<string, unknown>): string {
   if (type === 'array') {
     const items = prop.items as Record<string, unknown> | undefined
     if (items) {
-      return `Array<${schemaTypeToTS(items)}>`
+      return `${schemaTypeToTS(items)}[]`
     }
-    return 'Array<unknown>'
+    return 'unknown[]'
   }
 
   if (type === 'object') {
-    const properties = prop.properties as Record<string, Record<string, unknown>> | undefined
-    if (properties) {
-      return jsonSchemaToSignature(prop)
-    }
     return 'object'
   }
 
@@ -72,18 +53,50 @@ function primitiveTypeToTS(type: string | undefined): string {
   }
 }
 
-function generateJSDoc(tool: MCPTool, signature: string, returns: string): string {
+function jsonSchemaToSignature(schema: Record<string, unknown> | undefined): string {
+  if (!schema || typeof schema !== 'object') {
+    return '{}'
+  }
+
+  const properties = schema.properties as Record<string, Record<string, unknown>> | undefined
+  if (!properties) {
+    return '{}'
+  }
+
+  const required = (schema.required as string[]) || []
+  const parts: string[] = []
+
+  for (const [key, prop] of Object.entries(properties)) {
+    const isRequired = required.includes(key)
+    const typeStr = schemaTypeToTS(prop)
+    parts.push(`${key}${isRequired ? '' : '?'}: ${typeStr}`)
+  }
+
+  return `{ ${parts.join(', ')} }`
+}
+
+function generateJSDoc(tool: MCPTool, inputSchema: InputSchema | undefined, returns: string): string {
   const lines: string[] = ['/**']
 
   if (tool.description) {
-    const descLines = tool.description.split('\n')
-    for (const line of descLines) {
-      lines.push(` * ${line}`)
+    const desc = tool.description.split('\n')[0].slice(0, 100)
+    lines.push(` * ${desc}`)
+  }
+
+  const properties = inputSchema?.properties || {}
+  const required = inputSchema?.required || []
+
+  if (Object.keys(properties).length > 0) {
+    lines.push(` * @param {Object} params`)
+    for (const [name, prop] of Object.entries(properties)) {
+      const isReq = required.includes(name)
+      const type = schemaTypeToTS(prop)
+      const paramName = isReq ? `params.${name}` : `[params.${name}]`
+      const desc = (prop.description as string)?.split('\n')[0]?.slice(0, 60) || ''
+      lines.push(` * @param {${type}} ${paramName} ${desc}`)
     }
   }
 
-  lines.push(` *`)
-  lines.push(` * @param {${signature}} params`)
   lines.push(` * @returns {Promise<${returns}>}`)
   lines.push(` */`)
 
@@ -97,13 +110,13 @@ export function generateToolFunction(
 ): GeneratedTool {
   const functionName = generateMcpToolFunctionName(tool.serverName, tool.name, existingNames)
 
-  const inputSchema = tool.inputSchema as Record<string, unknown> | undefined
+  const inputSchema = tool.inputSchema as InputSchema | undefined
   const outputSchema = tool.outputSchema as Record<string, unknown> | undefined
 
   const signature = jsonSchemaToSignature(inputSchema)
   const returns = outputSchema ? jsonSchemaToSignature(outputSchema) : 'unknown'
 
-  const jsDoc = generateJSDoc(tool, signature, returns)
+  const jsDoc = generateJSDoc(tool, inputSchema, returns)
 
   const jsCode = `${jsDoc}
 async function ${functionName}(params) {
@@ -132,8 +145,8 @@ export function generateToolsCode(tools: GeneratedTool[]): string {
     return '// No tools available'
   }
 
-  const header = `// Found ${tools.length} tool(s):\n`
+  const header = `// ${tools.length} tool(s). ALWAYS use: const r = await ToolName({...}); return r;`
   const code = tools.map((t) => t.jsCode).join('\n\n')
 
-  return header + '\n' + code
+  return header + '\n\n' + code
 }

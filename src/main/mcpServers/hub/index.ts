@@ -54,14 +54,14 @@ export class HubServer {
           {
             name: 'search',
             description:
-              'Search for available MCP tools by keywords. Returns JavaScript function declarations with JSDoc that can be used in the exec tool.',
+              'Search for available MCP tools by keywords. Use this FIRST to discover tools. Returns JavaScript async function declarations with JSDoc showing exact function names, parameters, and return types for use in `exec`.',
             inputSchema: {
               type: 'object',
               properties: {
                 query: {
                   type: 'string',
                   description:
-                    'Search keywords, comma-separated for OR matching. Example: "chrome,browser" matches tools with "chrome" OR "browser"'
+                    'Comma-separated search keywords. A tool matches if ANY keyword appears in its name, description, or server name. Example: "chrome,browser,tab" matches tools related to Chrome OR browser OR tabs.'
                 },
                 limit: {
                   type: 'number',
@@ -74,14 +74,14 @@ export class HubServer {
           {
             name: 'exec',
             description:
-              'Execute JavaScript code that calls MCP tools. Use the search tool first to discover available tools and their signatures.',
+              'Execute JavaScript that calls MCP tools discovered via `search`. IMPORTANT: You MUST explicitly `return` the final value, or the result will be `undefined`.',
             inputSchema: {
               type: 'object',
               properties: {
                 code: {
                   type: 'string',
                   description:
-                    'JavaScript code to execute. Runs inside an async function. Can use async/await. Available helpers: parallel(...promises), settle(...promises). Use return (or a final expression) to produce output; otherwise result is undefined.'
+                    'JavaScript code wrapped as `(async () => { your code })()`. All discovered tools are async functions (call as `await ToolName(params)`). Helpers: `parallel(...promises)`, `settle(...promises)`, `console.*`. You MUST `return` the final value. Examples: `const r = await Tool({ id: "1" }); return r` or `return await Tool({ x: 1 })`'
                 }
               },
               required: ['code']
