@@ -1,13 +1,11 @@
-import type { Infographic } from '@antv/infographic'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
 import { useEffect, useState } from 'react'
 
-type InfographicModule = { Infographic: typeof Infographic }
-
-let infographicModule: InfographicModule | null = null
+let infographicModule: any = null
 let infographicLoading = false
-let infographicLoadPromise: Promise<InfographicModule> | null = null
+
+let infographicLoadPromise: Promise<any> | null = null
 
 const loadInfographicModule = async () => {
   if (infographicModule) return infographicModule

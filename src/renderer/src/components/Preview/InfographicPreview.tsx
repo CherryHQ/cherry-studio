@@ -38,14 +38,19 @@ const InfographicPreview = ({
 
       const infographic = new InfographicClass({
         container,
-        width: width || 600,
+        width,
         height: height || 400,
         editable: false,
         theme
       })
 
-      infographicInstanceRef.current = infographic
-      await infographic.render(content)
+      try {
+        await infographic.render(content)
+        infographicInstanceRef.current = infographic
+      } catch (err) {
+        infographic.destroy()
+        throw err
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [InfographicClass, forceRenderKey, theme]
