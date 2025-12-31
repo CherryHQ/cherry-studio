@@ -26,7 +26,7 @@ import {
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { getAutoModeSystemPrompt } from '@renderer/config/prompts'
+import { getAutoModeSystemPrompt } from '@renderer/config/prompts-code-mode'
 import { fetchAllActiveServerTools } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
