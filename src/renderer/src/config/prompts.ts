@@ -600,7 +600,7 @@ interface ToolInfo {
 
 export function getHubModeSystemPrompt(tools: ToolInfo[] = []): string {
   if (tools.length === 0) {
-    return HUB_MODE_SYSTEM_PROMPT_BASE
+    return ''
   }
 
   const existingNames = new Set<string>()
