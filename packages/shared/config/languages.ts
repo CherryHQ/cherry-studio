@@ -1313,6 +1313,11 @@ export const languages: Record<string, LanguageData> = {
     type: 'programming',
     extensions: ['.imba']
   },
+  Infographic: {
+    type: 'markup',
+    extensions: ['.infographic'],
+    aliases: ['antv-infographic']
+  },
   'Inform 7': {
     type: 'programming',
     extensions: ['.ni', '.i7x'],
