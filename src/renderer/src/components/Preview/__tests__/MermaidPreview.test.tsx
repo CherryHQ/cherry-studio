@@ -30,9 +30,13 @@ vi.mock('@renderer/components/Preview/hooks/useDebouncedRender', () => ({
 }))
 
 // Mock nanoid
-vi.mock('@reduxjs/toolkit', () => ({
-  nanoid: () => 'test-id-123456'
-}))
+vi.mock('@reduxjs/toolkit', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@reduxjs/toolkit')>()
+  return {
+    ...actual,
+    nanoid: () => 'test-id-123456'
+  }
+})
 
 describe('MermaidPreview', () => {
   const mermaidCode = 'graph TD\nA-->B'
