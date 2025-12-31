@@ -58,7 +58,7 @@ export interface BaseBlock {
   type: BlockType
   createdAt: number // timestamp
   updatedAt?: number
-  modelId?: string
+  // modelId?: string // v1's dead code, will be removed in v2
   metadata?: Record<string, unknown>
   error?: SerializedErrorData
 }
@@ -84,7 +84,7 @@ export interface UnknownBlock extends BaseBlock {
 export interface MainTextBlock extends BaseBlock {
   type: BlockType.MAIN_TEXT
   content: string
-  knowledgeBaseIds?: string[]
+  //knowledgeBaseIds?: string[] // v1's dead code, will be removed in v2
   citationReferences?: {
     citationBlockId?: string
     citationBlockSource?: string
