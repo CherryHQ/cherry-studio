@@ -8,6 +8,7 @@ import {
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { ProviderAvatar } from '@renderer/components/ProviderAvatar'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useTimer } from '@renderer/hooks/useTimer'
 import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
@@ -30,8 +31,6 @@ import UrlSchemaInfoPopup from './UrlSchemaInfoPopup'
 const logger = loggerService.withContext('ProviderList')
 
 const BUTTON_WRAPPER_HEIGHT = 50
-const systemType = await window.api.system.getDeviceType()
-const cpuName = await window.api.system.getCpuName()
 
 const ProviderList: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -44,6 +43,7 @@ const ProviderList: FC = () => {
   const [dragging, setDragging] = useState(false)
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
   const listRef = useRef<DraggableVirtualListRef>(null)
+  const { isOvmsSupported } = useRuntime()
 
   const setSelectedProvider = useCallback((provider: Provider) => {
     startTransition(() => _setSelectedProvider(provider))
@@ -278,7 +278,7 @@ const ProviderList: FC = () => {
   }
 
   const filteredProviders = providers.filter((provider) => {
-    if (provider.id === 'ovms' && (systemType !== 'windows' || !cpuName.toLowerCase().includes('intel'))) {
+    if (provider.id === 'ovms' && !isOvmsSupported) {
       return false
     }
 
