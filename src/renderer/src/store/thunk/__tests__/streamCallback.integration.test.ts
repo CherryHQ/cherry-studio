@@ -93,7 +93,8 @@ vi.mock('@renderer/config/models', () => ({
     'tencent-cloud-ti': [],
     'baidu-cloud': [],
     gpustack: [],
-    voyageai: []
+    voyageai: [],
+    zenmux: []
   },
   getModelLogo: vi.fn(),
   isVisionModel: vi.fn(() => false),
