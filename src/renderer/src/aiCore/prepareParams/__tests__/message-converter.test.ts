@@ -24,10 +24,14 @@ vi.mock('../fileProcessor', () => ({
 
 const visionModelIds = new Set(['gpt-4o-mini', 'qwen-image-edit'])
 const imageEnhancementModelIds = new Set(['qwen-image-edit'])
+const reasoningModelIds = new Set(['o3-mini', 'claude-3-7-sonnet'])
 
 vi.mock('@renderer/config/models', () => ({
   isVisionModel: (model: Model) => visionModelIds.has(model.id),
-  isImageEnhancementModel: (model: Model) => imageEnhancementModelIds.has(model.id)
+  isImageEnhancementModel: (model: Model) => imageEnhancementModelIds.has(model.id),
+  isReasoningModel: (model: Model) => reasoningModelIds.has(model.id),
+  isSupportedThinkingTokenModel: (model: Model) => reasoningModelIds.has(model.id),
+  isSupportedReasoningEffortModel: (model: Model) => reasoningModelIds.has(model.id)
 }))
 
 type MockableMessage = Message & {
@@ -244,8 +248,9 @@ describe('messageConverter', () => {
       ])
     })
 
-    it('includes reasoning parts for assistant messages with thinking blocks', async () => {
-      const model = createModel()
+    it('includes reasoning parts for assistant messages with thinking blocks when model supports reasoning', async () => {
+      // Use a reasoning model (o3-mini is in our mock's reasoningModelIds set)
+      const model = createModel({ id: 'o3-mini', name: 'O3 Mini', provider: 'openai' })
       const message = createMessage('assistant')
       message.__mockContent = 'Here is my answer'
       message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Let me think...' })]
@@ -258,6 +263,23 @@ describe('messageConverter', () => {
           { type: 'text', text: 'Here is my answer' },
           { type: 'reasoning', text: 'Let me think...' }
         ]
+      })
+    })
+
+    it('excludes reasoning parts for assistant messages when model does not support reasoning', async () => {
+      // Use a non-reasoning model (gpt-4o-mini is not in our mock's reasoningModelIds set)
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Here is my answer'
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Let me think...' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Reasoning parts should be excluded for non-reasoning models
+      // This prevents the "reasoning_content is unsupported" error on providers like Groq
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Here is my answer' }]
       })
     })
   })

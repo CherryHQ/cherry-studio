@@ -5,7 +5,13 @@
 
 import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
-import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
+import {
+  isImageEnhancementModel,
+  isReasoningModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenModel,
+  isVisionModel
+} from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
 import type { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { parseDataUrlMediaType } from '@renderer/utils/image'
@@ -156,6 +162,15 @@ async function convertMessageToUserModelMessage(
 }
 
 /**
+ * 检查模型是否支持 reasoning parts
+ * 只有支持 reasoning/thinking 的模型才应该在请求中包含 reasoning parts
+ */
+function isModelSupportReasoning(model?: Model): boolean {
+  if (!model) return false
+  return isReasoningModel(model) || isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
+}
+
+/**
  * 转换为助手模型消息
  */
 async function convertMessageToAssistantModelMessage(
@@ -169,8 +184,13 @@ async function convertMessageToAssistantModelMessage(
     parts.push({ type: 'text', text: content })
   }
 
-  for (const thinkingBlock of thinkingBlocks) {
-    parts.push({ type: 'reasoning', text: thinkingBlock.content })
+  // 只有支持 reasoning 的模型才包含 thinking blocks
+  // 不支持 reasoning 的模型（如 Groq 上的普通模型）会因为 reasoning_content 字段报错
+  // 参考: https://github.com/CherryHQ/cherry-studio/issues/12140
+  if (isModelSupportReasoning(model)) {
+    for (const thinkingBlock of thinkingBlocks) {
+      parts.push({ type: 'reasoning', text: thinkingBlock.content })
+    }
   }
 
   for (const fileBlock of fileBlocks) {
