@@ -166,12 +166,6 @@ describe('Type Utilities', () => {
       type MockSettings = { apiKey: string }
       type MockConfig = { name: 'mock' }
 
-      // Simulate ProviderExtension structure
-      type MockExtension = {
-        config: MockConfig
-        // ProviderExtension<TSettings, TStorage, TProvider, TConfig>
-      } & { __settings: MockSettings }
-
       // This tests the concept - actual implementation depends on ProviderExtension structure
       type Result = { [K in ExtractProviderIds<MockConfig>]: MockSettings }
 
