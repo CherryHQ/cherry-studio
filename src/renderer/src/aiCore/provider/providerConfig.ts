@@ -144,9 +144,17 @@ export function adaptProvider({ provider, model }: { provider: Provider; model?:
  *
  * @param actualProvider - Cherry Studio provider配置
  * @param model - 模型配置
- * @returns 类型安全的 Provider 配置
+ * @returns 类型安全的 Provider 配置（同步或异步）
+ *
+ * @remarks
+ * - 对于需要异步操作的 provider（copilot, cherryin, anthropic OAuth），返回 Promise
+ * - 对于其他 provider，返回同步值
+ * - 返回类型基于 provider.id 进行类型收窄，提供更精确的类型推断
  */
-export function providerToAiSdkConfig(actualProvider: Provider, model: Model): ProviderConfig {
+export function providerToAiSdkConfig(
+  actualProvider: Provider,
+  model: Model
+): ProviderConfig | Promise<ProviderConfig> {
   const aiSdkProviderId = getAiSdkProviderId(actualProvider)
   const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
 
@@ -162,11 +170,21 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): P
     aiSdkProviderId
   }
 
-  // 路由到专门的构建器
+  // 需要异步处理的 providers
   if (actualProvider.id === SystemProviderIds.copilot) {
     return buildCopilotConfig(ctx)
   }
 
+  if (actualProvider.id === 'cherryai') {
+    return buildCherryAIConfig(ctx)
+  }
+
+  // Anthropic provider 的 OAuth 需要异步处理
+  if (actualProvider.id === 'anthropic' && actualProvider.authType === 'oauth') {
+    return buildAnthropicConfig(ctx)
+  }
+
+  // 同步处理的 providers
   if (isOllamaProvider(actualProvider)) {
     return buildOllamaConfig(ctx)
   }
@@ -198,80 +216,10 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): P
 
 /**
  * 检查是否支持使用新的AI SDK
- * 简化版：利用新的别名映射和动态provider系统
  */
 export function isModernSdkSupported(provider: Provider): boolean {
-  // 特殊检查：vertexai需要配置完整
-  if (provider.type === 'vertexai' && !isVertexAIConfigured()) {
-    return false
-  }
-
-  // 使用getAiSdkProviderId获取映射后的providerId，然后检查AI SDK是否支持
-  const aiSdkProviderId = getAiSdkProviderId(provider)
-
   // 如果映射到了支持的provider，则支持现代SDK
-  return hasProviderConfig(aiSdkProviderId)
-}
-
-/**
- * 准备特殊provider的配置,主要用于异步处理的配置
- */
-export async function prepareSpecialProviderConfig(provider: Provider, config: ProviderConfig) {
-  switch (provider.id) {
-    case 'copilot': {
-      const defaultHeaders = store.getState().copilot.defaultHeaders ?? {}
-      const headers = {
-        ...COPILOT_DEFAULT_HEADERS,
-        ...defaultHeaders
-      }
-      const { token } = await window.api.copilot.getToken(headers)
-      const settings = config.providerSettings as any
-      settings.apiKey = token
-      settings.headers = {
-        ...headers,
-        ...settings.headers
-      }
-      break
-    }
-    case 'cherryai': {
-      const settings = config.providerSettings as any
-      settings.fetch = async (url: string, options: any) => {
-        // 在这里对最终参数进行签名
-        const signature = await window.api.cherryai.generateSignature({
-          method: 'POST',
-          path: '/chat/completions',
-          query: '',
-          body: JSON.parse(options.body)
-        })
-        return fetch(url, {
-          ...options,
-          headers: {
-            ...options.headers,
-            ...signature
-          }
-        })
-      }
-      break
-    }
-    case 'anthropic': {
-      if (provider.authType === 'oauth') {
-        const oauthToken = await window.api.anthropic_oauth.getAccessToken()
-        const settings = config.providerSettings as any
-        config.providerSettings = {
-          ...settings,
-          headers: {
-            ...(settings.headers ? settings.headers : {}),
-            'Content-Type': 'application/json',
-            'anthropic-version': '2023-06-01',
-            Authorization: `Bearer ${oauthToken}`
-          },
-          baseURL: 'https://api.anthropic.com/v1',
-          apiKey: ''
-        }
-      }
-    }
-  }
-  return config
+  return hasProviderConfig(getAiSdkProviderId(provider))
 }
 
 /**
@@ -295,17 +243,26 @@ interface BuilderContext {
 
 /**
  * GitHub Copilot 配置构建器
+ * 需要动态获取 token
  */
-function buildCopilotConfig(ctx: BuilderContext): ProviderConfig<'github-copilot-openai-compatible'> {
+async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
   const storedHeaders = store.getState().copilot.defaultHeaders ?? {}
+  const headers = {
+    ...COPILOT_DEFAULT_HEADERS,
+    ...storedHeaders
+  }
+
+  // 动态获取 token
+  const { token } = await window.api.copilot.getToken(headers)
 
   return {
     providerId: 'github-copilot-openai-compatible',
+    endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      apiKey: token, // 使用动态获取的 token
       headers: {
-        ...COPILOT_DEFAULT_HEADERS,
-        ...storedHeaders,
+        ...headers,
         ...ctx.actualProvider.extra_headers
       },
       name: ctx.actualProvider.id
@@ -327,6 +284,7 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
 
   return {
     providerId: 'ollama',
+    endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
       headers
@@ -344,6 +302,7 @@ function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
   if (authType === 'apiKey') {
     return {
       providerId: 'bedrock',
+      endpoint: ctx.endpoint,
       providerSettings: {
         ...ctx.baseConfig,
         region,
@@ -354,6 +313,7 @@ function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
 
   return {
     providerId: 'bedrock',
+    endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
       region,
@@ -381,6 +341,7 @@ function buildVertexConfig(
   if (isAnthropic) {
     return {
       providerId: 'google-vertex-anthropic',
+      endpoint: ctx.endpoint,
       providerSettings: {
         ...ctx.baseConfig,
         baseURL,
@@ -396,6 +357,7 @@ function buildVertexConfig(
 
   return {
     providerId: 'google-vertex',
+    endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
       baseURL,
@@ -417,6 +379,7 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig<'cherryin'> {
 
   return {
     providerId: 'cherryin',
+    endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
       endpointType: ctx.model.endpoint_type,
@@ -431,6 +394,41 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig<'cherryin'> {
 }
 
 /**
+ * CherryAI 配置构建器（异步）
+ * 需要动态生成签名
+ */
+async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<'openai-compatible'>> {
+  return {
+    providerId: 'openai-compatible',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      name: ctx.actualProvider.id,
+      headers: {
+        ...defaultAppHeaders(),
+        ...ctx.actualProvider.extra_headers
+      },
+      // 自定义 fetch 函数，用于签名
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const signature = await window.api.cherryai.generateSignature({
+          method: 'POST',
+          path: '/chat/completions',
+          query: '',
+          body: init?.body ? JSON.parse(init.body as string) : undefined
+        })
+        return fetch(input, {
+          ...init,
+          headers: {
+            ...init?.headers,
+            ...signature
+          }
+        })
+      }
+    }
+  }
+}
+
+/**
  * Azure OpenAI 配置构建器
  */
 function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> | ProviderConfig<'azure-responses'> {
@@ -439,9 +437,8 @@ function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> | Provid
   // 根据 apiVersion 决定使用 azure 还是 azure-responses
   const useResponsesMode = apiVersion && ['preview', 'v1'].includes(apiVersion)
 
-  const providerSettings: Record<string, any> = {
+  const providerSettings: ProviderConfig<'azure'>['providerSettings'] = {
     ...ctx.baseConfig,
-    endpoint: ctx.endpoint,
     headers: {
       ...defaultAppHeaders(),
       ...ctx.actualProvider.extra_headers
@@ -459,12 +456,14 @@ function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> | Provid
   if (useResponsesMode) {
     return {
       providerId: 'azure-responses',
+      endpoint: ctx.endpoint,
       providerSettings
     }
   }
 
   return {
     providerId: 'azure',
+    endpoint: ctx.endpoint,
     providerSettings
   }
 }
@@ -474,7 +473,6 @@ function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> | Provid
  */
 function buildCommonOptions(ctx: BuilderContext) {
   const options: Record<string, any> = {
-    endpoint: ctx.endpoint,
     headers: {
       ...defaultAppHeaders(),
       ...ctx.actualProvider.extra_headers
@@ -500,6 +498,7 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
 
   return {
     providerId: 'openai-compatible',
+    endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
       ...commonOptions,
@@ -517,9 +516,32 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
 
   return {
     providerId: ctx.aiSdkProviderId,
+    endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
       ...commonOptions
+    }
+  }
+}
+
+/**
+ * Anthropic OAuth 配置构建器（异步）
+ * 需要动态获取 OAuth token
+ */
+async function buildAnthropicConfig(ctx: BuilderContext): Promise<ProviderConfig<'anthropic'>> {
+  const oauthToken = await window.api.anthropic_oauth.getAccessToken()
+
+  return {
+    providerId: 'anthropic',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      baseURL: 'https://api.anthropic.com/v1',
+      apiKey: '', // OAuth 模式不需要 apiKey
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        Authorization: `Bearer ${oauthToken}`
+      }
     }
   }
 }

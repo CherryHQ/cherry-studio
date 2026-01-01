@@ -13,7 +13,8 @@ import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/hug
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV2, ProviderV3 } from '@ai-sdk/provider'
-import { ExtensionStorage, ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
+import type { ExtensionStorage } from '@cherrystudio/ai-core/provider'
+import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
   createGitHubCopilotOpenAICompatible,
   type GitHubCopilotProviderSettings

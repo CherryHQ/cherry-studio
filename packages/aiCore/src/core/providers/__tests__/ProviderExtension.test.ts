@@ -45,15 +45,16 @@ describe('ProviderExtension', () => {
       interface TestSettings {
         apiKey: string
         baseURL?: string
+        name: string
       }
 
       interface TestStorage extends ExtensionStorage {
         cache: Map<string, any>
       }
 
-      const extension = ProviderExtension.create<TestSettings, TestStorage>({
+      const extension = new ProviderExtension<TestSettings, TestStorage>({
         name: 'test-provider',
-        create: createMockProviderV3 as any,
+        create: createMockProviderV3 as any, // Type assertion needed as mock has different signature
         defaultOptions: {
           apiKey: 'test-key'
         },
@@ -330,12 +331,6 @@ describe('ProviderExtension', () => {
         .setSupportsImageGeneration(true)
         .setCreate(createMockProviderV3 as any)
         .setDefaultOptions({ apiKey: 'test-key' })
-        .setValidate((settings: any) => {
-          if (!settings?.apiKey) {
-            return { success: false, error: 'API key required' }
-          }
-          return { success: true }
-        })
         .addVariant({
           suffix: 'chat',
           name: 'Chat',

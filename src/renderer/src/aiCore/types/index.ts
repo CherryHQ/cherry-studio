@@ -10,35 +10,17 @@
 import type { AppProviderId, AppRuntimeConfig } from './merged'
 
 /**
- * Provider 配置（不含 plugins）
+ * Provider 配置
  * 基于 RuntimeConfig，用于构建 provider 实例的基础配置
- *
- * 🎯 Zero maintenance! Auto-extracts types from core and project extensions.
- *
- * @typeParam T - The specific provider ID type for type-safe settings
- *
- * @example
- * ```ts
- * // Type-safe config for core provider
- * const config1: ProviderConfig<'openai'> = {
- *   providerId: 'openai',
- *   providerSettings: { apiKey: '...', baseURL: '...' } // ✅ Typed as OpenAIProviderSettings
- * }
- *
- * // Type-safe config for project provider
- * const config2: ProviderConfig<'google-vertex'> = {
- *   providerId: 'google-vertex',
- *   providerSettings: { ... } // ✅ Typed as GoogleVertexProviderSettings
- * }
- *
- * // Type-safe config with alias
- * const config3: ProviderConfig<'oai'> = {
- *   providerId: 'oai',
- *   providerSettings: { apiKey: '...' } // ✅ Same type as 'openai'
- * }
- * ```
  */
-export type ProviderConfig<T extends AppProviderId = AppProviderId> = Omit<AppRuntimeConfig<T>, 'plugins'>
+export type ProviderConfig<T extends AppProviderId = AppProviderId> = Omit<AppRuntimeConfig<T>, 'plugins'> & {
+  /**
+   * API endpoint path extracted from baseURL
+   * Used for identifying image generation endpoints and other special cases
+   * @example 'chat/completions', 'images/generations', 'predict'
+   */
+  endpoint?: string
+}
 
 export type { AppProviderId, AppProviderSettingsMap } from './merged'
 export { appProviderIds, getAllProviderIds, isRegisteredProviderId } from './merged'
