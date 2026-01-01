@@ -26,13 +26,15 @@ export type ProviderModule<TSettings = any> = Record<string, any> & {
 }
 
 /**
- * Provider Extension 配置接口
+ * Provider Extension 配置基础接口
+ * 包含共享的配置属性
  *
  * @typeParam TSettings - Provider 配置类型
  * @typeParam TStorage - Extension storage 类型
  * @typeParam TProvider - 实际 provider 类型（用于 variants）
+ * @typeParam TName - Provider 名称类型（用于字面量推导）
  */
-export interface ProviderExtensionConfig<
+interface ProviderExtensionConfigBase<
   TSettings = any,
   TStorage extends ExtensionStorage = ExtensionStorage,
   TProvider extends ProviderV3 = ProviderV3,
@@ -54,24 +56,6 @@ export interface ProviderExtensionConfig<
   supportsImageGeneration?: boolean
 
   /**
-   * 创建 provider 实例的函数
-   * 与 import 二选一，优先使用 create
-   */
-  create?: ProviderCreatorFunction<TSettings>
-
-  /**
-   * 动态导入模块的函数
-   * 用于延迟加载第三方 provider
-   */
-  import?: () => Promise<ProviderModule<TSettings>>
-
-  /**
-   * 导入模块后的 creator 函数名
-   * 配合 import 使用
-   */
-  creatorFunctionName?: string
-
-  /**
    * 生命周期钩子
    */
   hooks?: LifecycleHooks<TSettings, TStorage, TProvider>
@@ -85,6 +69,79 @@ export interface ProviderExtensionConfig<
    */
   variants?: readonly ProviderVariant<TSettings, TProvider>[]
 }
+
+/**
+ * Provider Extension 配置接口 - 使用 create 函数
+ * 直接提供创建函数，不使用动态导入
+ */
+interface ProviderExtensionConfigWithCreate<
+  TSettings = any,
+  TStorage extends ExtensionStorage = ExtensionStorage,
+  TProvider extends ProviderV3 = ProviderV3,
+  TName extends string = string
+> extends ProviderExtensionConfigBase<TSettings, TStorage, TProvider, TName> {
+  /**
+   * 创建 provider 实例的函数
+   */
+  create: ProviderCreatorFunction<TSettings>
+
+  /**
+   * 禁止使用 import（与 create 互斥）
+   */
+  import?: never
+
+  /**
+   * 禁止使用 creatorFunctionName（与 create 互斥）
+   */
+  creatorFunctionName?: never
+}
+
+/**
+ * Provider Extension 配置接口 - 使用动态导入
+ * 延迟加载第三方 provider
+ * NOTE: 会损失类型安全
+ */
+interface ProviderExtensionConfigWithImport<
+  TSettings = any,
+  TStorage extends ExtensionStorage = ExtensionStorage,
+  TProvider extends ProviderV3 = ProviderV3,
+  TName extends string = string
+> extends ProviderExtensionConfigBase<TSettings, TStorage, TProvider, TName> {
+  /**
+   * 禁止使用 create（与 import 互斥）
+   */
+  create?: never
+
+  /**
+   * 动态导入模块的函数
+   * 用于延迟加载第三方 provider
+   */
+  import: () => Promise<ProviderModule<TSettings>>
+
+  /**
+   * 导入模块后的 creator 函数名
+   * 必须与 import 一起使用
+   */
+  creatorFunctionName: string
+}
+
+/**
+ * Provider Extension 配置接口
+ * 使用联合类型确保 create 和 import 互斥
+ *
+ * @typeParam TSettings - Provider 配置类型
+ * @typeParam TStorage - Extension storage 类型
+ * @typeParam TProvider - 实际 provider 类型（用于 variants）
+ * @typeParam TName - Provider 名称类型（用于字面量推导）
+ */
+export type ProviderExtensionConfig<
+  TSettings = any,
+  TStorage extends ExtensionStorage = ExtensionStorage,
+  TProvider extends ProviderV3 = ProviderV3,
+  TName extends string = string
+> =
+  | ProviderExtensionConfigWithCreate<TSettings, TStorage, TProvider, TName>
+  | ProviderExtensionConfigWithImport<TSettings, TStorage, TProvider, TName>
 
 /**
  * Provider Extension 类
@@ -149,14 +206,6 @@ export class ProviderExtension<
     // 验证配置
     if (!config.name) {
       throw new Error('ProviderExtension: name is required')
-    }
-
-    if (!config.create && !config.import) {
-      throw new Error(`ProviderExtension "${config.name}": either create or import must be provided`)
-    }
-
-    if (config.import && !config.creatorFunctionName) {
-      throw new Error(`ProviderExtension "${config.name}": creatorFunctionName is required when using import`)
     }
 
     // 初始化 storage

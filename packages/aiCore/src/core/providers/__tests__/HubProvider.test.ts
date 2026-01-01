@@ -5,7 +5,6 @@
  */
 
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
-import type * as AiModule from 'ai'
 import { customProvider, wrapProvider } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
