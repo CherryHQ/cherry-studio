@@ -300,7 +300,7 @@ export default class ModernAiProvider {
     const plugins = buildPlugins(config)
 
     // 用构建好的插件数组创建executor
-    const executor = createExecutor(this.config!.providerId, this.config!.providerSettings, plugins)
+    const executor = await createExecutor(this.config!.providerId, this.config!.providerSettings, plugins)
 
     // 创建带有中间件的执行器
     if (config.onChunk) {
@@ -385,7 +385,7 @@ export default class ModernAiProvider {
       }
 
       // 调用新 AI SDK 的图像生成功能
-      const executor = createExecutor(this.config!.providerId, this.config!.providerSettings, [])
+      const executor = await createExecutor(this.config!.providerId, this.config!.providerSettings, [])
       const result = await executor.generateImage({
         model,
         ...imageParams
@@ -508,7 +508,7 @@ export default class ModernAiProvider {
       ...(signal && { abortSignal: signal })
     }
 
-    const executor = createExecutor(this.config!.providerId, this.config!.providerSettings, [])
+    const executor = await createExecutor(this.config!.providerId, this.config!.providerSettings, [])
     const result = await executor.generateImage({
       model: model, // 直接使用 model ID 字符串，由 executor 内部解析
       ...aiSdkParams

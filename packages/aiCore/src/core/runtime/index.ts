@@ -14,19 +14,39 @@ export type { RuntimeConfig } from './types'
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider'
 
 import { type AiPlugin } from '../plugins'
+import { extensionRegistry, globalProviderStorage } from '../providers'
 import { type CoreProviderSettingsMap, type RegisteredProviderId } from '../providers/types'
 import { RuntimeExecutor } from './executor'
 
 /**
  * 创建运行时执行器 - 支持类型安全的已知provider
+ * 自动确保 provider 已初始化
  */
-export function createExecutor<T extends RegisteredProviderId & keyof CoreProviderSettingsMap>(
+export async function createExecutor<T extends RegisteredProviderId & keyof CoreProviderSettingsMap>(
   providerId: T,
   options: CoreProviderSettingsMap[T],
   plugins?: AiPlugin[]
-): RuntimeExecutor<T>
-export function createExecutor<T extends string>(providerId: T, options: any, plugins?: AiPlugin[]): RuntimeExecutor<T>
-export function createExecutor(providerId: string, options: any, plugins?: AiPlugin[]): RuntimeExecutor<string> {
+): Promise<RuntimeExecutor<T>>
+export async function createExecutor<T extends string>(
+  providerId: T,
+  options: any,
+  plugins?: AiPlugin[]
+): Promise<RuntimeExecutor<T>>
+export async function createExecutor(
+  providerId: string,
+  options: any,
+  plugins?: AiPlugin[]
+): Promise<RuntimeExecutor<string>> {
+  // 确保 provider 已初始化
+  if (!globalProviderStorage.has(providerId) && extensionRegistry.has(providerId)) {
+    try {
+      await extensionRegistry.createProvider(providerId, options || {}, providerId)
+    } catch (error) {
+      // 创建失败会在 ModelResolver 抛出更详细的错误
+      console.warn(`Failed to auto-initialize provider "${providerId}":`, error)
+    }
+  }
+
   return RuntimeExecutor.create(providerId as RegisteredProviderId, options, plugins)
 }
 
@@ -42,7 +62,7 @@ export async function streamText<T extends RegisteredProviderId & keyof CoreProv
   plugins?: AiPlugin[],
   middlewares?: LanguageModelV3Middleware[]
 ): Promise<ReturnType<RuntimeExecutor<T>['streamText']>> {
-  const executor = createExecutor(providerId, options, plugins)
+  const executor = await createExecutor(providerId, options, plugins)
   return executor.streamText(params, { middlewares })
 }
 
@@ -56,7 +76,7 @@ export async function generateText<T extends RegisteredProviderId & keyof CorePr
   plugins?: AiPlugin[],
   middlewares?: LanguageModelV3Middleware[]
 ): Promise<ReturnType<RuntimeExecutor<T>['generateText']>> {
-  const executor = createExecutor(providerId, options, plugins)
+  const executor = await createExecutor(providerId, options, plugins)
   return executor.generateText(params, { middlewares })
 }
 
@@ -69,7 +89,7 @@ export async function generateImage<T extends RegisteredProviderId & keyof CoreP
   params: Parameters<RuntimeExecutor<T>['generateImage']>[0],
   plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<T>['generateImage']>> {
-  const executor = createExecutor(providerId, options, plugins)
+  const executor = await createExecutor(providerId, options, plugins)
   return executor.generateImage(params)
 }
 

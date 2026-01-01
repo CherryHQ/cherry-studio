@@ -137,7 +137,7 @@ export class RuntimeExecutor<
   /**
    * 生成图像
    */
-  generateImage(params: generateImageParams): Promise<ReturnType<typeof _generateImage>> {
+  async generateImage(params: generateImageParams): Promise<ReturnType<typeof _generateImage>> {
     try {
       const { model } = params
 
