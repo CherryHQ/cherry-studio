@@ -3,9 +3,9 @@
  */
 
 import type { ProviderV3 } from '@ai-sdk/provider'
+import { createMockProviderV3 } from '@test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createMockProviderV3 } from '@test-utils'
 import {
   createProviderExtension,
   ProviderExtension,

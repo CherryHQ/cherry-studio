@@ -5,10 +5,10 @@
  */
 
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import { createMockEmbeddingModel, createMockImageModel, createMockLanguageModel } from '@test-utils'
 import { customProvider } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createMockEmbeddingModel, createMockImageModel, createMockLanguageModel } from '@test-utils'
 import { ExtensionRegistry } from '../core/ExtensionRegistry'
 import { ProviderExtension } from '../core/ProviderExtension'
 import {
