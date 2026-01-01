@@ -51,7 +51,7 @@
     "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true yarn build",
     "analyze:main": "VISUALIZER_MAIN=true yarn build",
-    "typecheck": "concurrently -n \"node,web,aicore\" -c \"cyan,magenta,yellow\" \"npm run typecheck:node\" \"npm run typecheck:web\" \"yarn workspace @cherrystudio/ai-core typecheck\"",
+    "typecheck": "yarn workspace @cherrystudio/ai-sdk-provider build && concurrently -n \"node,web,aicore\" -c \"cyan,magenta,yellow\" \"npm run typecheck:node\" \"npm run typecheck:web\" \"yarn workspace @cherrystudio/ai-core typecheck\"",
     "typecheck:node": "tsgo --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsgo --noEmit -p tsconfig.web.json --composite false",
     "i18n:check": "dotenv -e .env -- tsx scripts/check-i18n.ts",
