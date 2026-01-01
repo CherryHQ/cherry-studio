@@ -3,7 +3,7 @@ import { generateImage as aiGenerateImage, NoImageGeneratedError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type AiPlugin } from '../../plugins'
-import { globalRegistryManagement } from '../../providers/RegistryManagement'
+import { globalProviderInstanceRegistry } from '../../providers/core/ProviderInstanceRegistry'
 import { ImageGenerationError, ImageModelResolutionError } from '../errors'
 import { RuntimeExecutor } from '../executor'
 
@@ -19,8 +19,8 @@ vi.mock('ai', () => ({
   }
 }))
 
-vi.mock('../../providers/RegistryManagement', () => ({
-  globalRegistryManagement: {
+vi.mock('../../providers/core/ProviderInstanceRegistry', () => ({
+  globalProviderInstanceRegistry: {
     imageModel: vi.fn()
   },
   DEFAULT_SEPARATOR: '|'
@@ -70,7 +70,7 @@ describe('RuntimeExecutor.generateImage', () => {
     }
 
     // Setup mocks to avoid "No providers registered" error
-    vi.mocked(globalRegistryManagement.imageModel).mockReturnValue(mockImageModel)
+    vi.mocked(globalProviderInstanceRegistry.imageModel).mockReturnValue(mockImageModel)
     vi.mocked(aiGenerateImage).mockResolvedValue(mockGenerateImageResult)
   })
 
@@ -78,7 +78,7 @@ describe('RuntimeExecutor.generateImage', () => {
     it('should generate a single image with minimal parameters', async () => {
       const result = await executor.generateImage({ model: 'dall-e-3', prompt: 'A futuristic cityscape at sunset' })
 
-      expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith('openai|dall-e-3')
+      expect(globalProviderInstanceRegistry.imageModel).toHaveBeenCalledWith('openai|dall-e-3')
 
       expect(aiGenerateImage).toHaveBeenCalledWith({
         model: mockImageModel,
@@ -94,7 +94,7 @@ describe('RuntimeExecutor.generateImage', () => {
         prompt: 'A beautiful landscape'
       })
 
-      // Note: globalRegistryManagement.imageModel may still be called due to resolveImageModel logic
+      // Note: globalProviderInstanceRegistry.imageModel may still be called due to resolveImageModel logic
       expect(aiGenerateImage).toHaveBeenCalledWith({
         model: mockImageModel,
         prompt: 'A beautiful landscape'
@@ -323,7 +323,7 @@ describe('RuntimeExecutor.generateImage', () => {
   describe('Error handling', () => {
     it('should handle model creation errors', async () => {
       const modelError = new Error('Failed to get image model')
-      vi.mocked(globalRegistryManagement.imageModel).mockImplementation(() => {
+      vi.mocked(globalProviderInstanceRegistry.imageModel).mockImplementation(() => {
         throw modelError
       })
 
@@ -334,7 +334,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
     it('should handle ImageModelResolutionError correctly', async () => {
       const resolutionError = new ImageModelResolutionError('invalid-model', 'openai', new Error('Model not found'))
-      vi.mocked(globalRegistryManagement.imageModel).mockImplementation(() => {
+      vi.mocked(globalProviderInstanceRegistry.imageModel).mockImplementation(() => {
         throw resolutionError
       })
 
@@ -351,7 +351,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
     it('should handle ImageModelResolutionError without provider', async () => {
       const resolutionError = new ImageModelResolutionError('unknown-model')
-      vi.mocked(globalRegistryManagement.imageModel).mockImplementation(() => {
+      vi.mocked(globalProviderInstanceRegistry.imageModel).mockImplementation(() => {
         throw resolutionError
       })
 
@@ -440,7 +440,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
       await googleExecutor.generateImage({ model: 'imagen-3.0-generate-002', prompt: 'A landscape' })
 
-      expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith('google|imagen-3.0-generate-002')
+      expect(globalProviderInstanceRegistry.imageModel).toHaveBeenCalledWith('google|imagen-3.0-generate-002')
     })
 
     it('should support xAI Grok image models', async () => {
@@ -450,7 +450,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
       await xaiExecutor.generateImage({ model: 'grok-2-image', prompt: 'A futuristic robot' })
 
-      expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith('xai|grok-2-image')
+      expect(globalProviderInstanceRegistry.imageModel).toHaveBeenCalledWith('xai|grok-2-image')
     })
   })
 

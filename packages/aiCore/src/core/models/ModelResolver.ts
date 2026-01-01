@@ -8,9 +8,40 @@
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, LanguageModelV3Middleware } from '@ai-sdk/provider'
 
 import { wrapModelWithMiddlewares } from '../middleware/wrapper'
-import { DEFAULT_SEPARATOR, globalRegistryManagement } from '../providers/RegistryManagement'
+import { globalProviderStorage } from '../providers/core/ProviderExtension'
+import { DEFAULT_SEPARATOR } from '../providers/features/HubProvider'
 
 export class ModelResolver {
+  /**
+   * 从 globalProviderStorage 获取 provider
+   * @param providerId - Provider explicit ID
+   * @throws Error if provider not found
+   */
+  private getProvider(providerId: string) {
+    const provider = globalProviderStorage.get(providerId)
+    if (!provider) {
+      throw new Error(
+        `Provider "${providerId}" not found. Please ensure it has been initialized with extension.createProvider(settings, "${providerId}")`
+      )
+    }
+    return provider
+  }
+
+  /**
+   * 解析完整的模型ID (providerId:modelId 格式)
+   * @returns { providerId, modelId }
+   */
+  private parseFullModelId(fullModelId: string): { providerId: string; modelId: string } {
+    const parts = fullModelId.split(DEFAULT_SEPARATOR)
+    if (parts.length < 2) {
+      throw new Error(`Invalid model ID format: "${fullModelId}". Expected "providerId${DEFAULT_SEPARATOR}modelId"`)
+    }
+    // 支持多个分隔符的情况（如 hub:provider:model）
+    const providerId = parts[0]
+    const modelId = parts.slice(1).join(DEFAULT_SEPARATOR)
+    return { providerId, modelId }
+  }
+
   /**
    * 核心方法：解析任意格式的modelId为语言模型
    *
@@ -72,49 +103,55 @@ export class ModelResolver {
 
   /**
    * 解析命名空间格式的语言模型
-   * aihubmix:anthropic:claude-3 -> globalRegistryManagement.languageModel('aihubmix:anthropic:claude-3')
+   * aihubmix:anthropic:claude-3 -> 从 globalProviderStorage 获取 'aihubmix' provider，调用 languageModel('anthropic:claude-3')
    */
-  private resolveNamespacedModel(modelId: string): LanguageModelV3 {
-    return globalRegistryManagement.languageModel(modelId as any)
+  private resolveNamespacedModel(fullModelId: string): LanguageModelV3 {
+    const { providerId, modelId } = this.parseFullModelId(fullModelId)
+    const provider = this.getProvider(providerId)
+    return provider.languageModel(modelId)
   }
 
   /**
    * 解析传统格式的语言模型
-   * providerId: 'openai', modelId: 'gpt-4' -> globalRegistryManagement.languageModel('openai:gpt-4')
+   * providerId: 'openai', modelId: 'gpt-4' -> 从 globalProviderStorage 获取 'openai' provider，调用 languageModel('gpt-4')
    */
   private resolveTraditionalModel(providerId: string, modelId: string): LanguageModelV3 {
-    const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
-    return globalRegistryManagement.languageModel(fullModelId as any)
+    const provider = this.getProvider(providerId)
+    return provider.languageModel(modelId)
   }
 
   /**
    * 解析命名空间格式的嵌入模型
    */
-  private resolveNamespacedEmbeddingModel(modelId: string): EmbeddingModelV3 {
-    return globalRegistryManagement.embeddingModel(modelId as any)
+  private resolveNamespacedEmbeddingModel(fullModelId: string): EmbeddingModelV3 {
+    const { providerId, modelId } = this.parseFullModelId(fullModelId)
+    const provider = this.getProvider(providerId)
+    return provider.embeddingModel(modelId)
   }
 
   /**
    * 解析传统格式的嵌入模型
    */
   private resolveTraditionalEmbeddingModel(providerId: string, modelId: string): EmbeddingModelV3 {
-    const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
-    return globalRegistryManagement.embeddingModel(fullModelId as any)
+    const provider = this.getProvider(providerId)
+    return provider.embeddingModel(modelId)
   }
 
   /**
    * 解析命名空间格式的图像模型
    */
-  private resolveNamespacedImageModel(modelId: string): ImageModelV3 {
-    return globalRegistryManagement.imageModel(modelId as any)
+  private resolveNamespacedImageModel(fullModelId: string): ImageModelV3 {
+    const { providerId, modelId } = this.parseFullModelId(fullModelId)
+    const provider = this.getProvider(providerId)
+    return provider.imageModel(modelId)
   }
 
   /**
    * 解析传统格式的图像模型
    */
   private resolveTraditionalImageModel(providerId: string, modelId: string): ImageModelV3 {
-    const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
-    return globalRegistryManagement.imageModel(fullModelId as any)
+    const provider = this.getProvider(providerId)
+    return provider.imageModel(modelId)
   }
 }
 

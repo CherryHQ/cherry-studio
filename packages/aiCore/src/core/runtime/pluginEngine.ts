@@ -35,7 +35,6 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
 
   constructor(
     private readonly providerId: T,
-    // private readonly options: ProviderSettingsMap[T],
     plugins: AiPlugin[] = []
   ) {
     this.basePlugins = plugins

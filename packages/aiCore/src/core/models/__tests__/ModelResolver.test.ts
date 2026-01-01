@@ -13,12 +13,12 @@ import {
   createMockLanguageModel,
   createMockMiddleware
 } from '../../../__tests__'
-import { DEFAULT_SEPARATOR, globalRegistryManagement } from '../../providers/RegistryManagement'
+import { DEFAULT_SEPARATOR, globalProviderInstanceRegistry } from '../../providers/core/ProviderInstanceRegistry'
 import { ModelResolver } from '../ModelResolver'
 
 // Mock the dependencies
-vi.mock('../../providers/RegistryManagement', () => ({
-  globalRegistryManagement: {
+vi.mock('../../providers/core/ProviderInstanceRegistry', () => ({
+  globalProviderInstanceRegistry: {
     languageModel: vi.fn(),
     embeddingModel: vi.fn(),
     imageModel: vi.fn()
@@ -63,9 +63,9 @@ describe('ModelResolver', () => {
     })
 
     // Setup default mock implementations
-    vi.mocked(globalRegistryManagement.languageModel).mockReturnValue(mockLanguageModel)
-    vi.mocked(globalRegistryManagement.embeddingModel).mockReturnValue(mockEmbeddingModel)
-    vi.mocked(globalRegistryManagement.imageModel).mockReturnValue(mockImageModel)
+    vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(mockLanguageModel)
+    vi.mocked(globalProviderInstanceRegistry.embeddingModel).mockReturnValue(mockEmbeddingModel)
+    vi.mocked(globalProviderInstanceRegistry.imageModel).mockReturnValue(mockImageModel)
   })
 
   describe('resolveLanguageModel', () => {
@@ -73,7 +73,7 @@ describe('ModelResolver', () => {
       it('should resolve traditional format modelId without separator', async () => {
         const result = await resolver.resolveLanguageModel('gpt-4', 'openai')
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(`openai${DEFAULT_SEPARATOR}gpt-4`)
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(`openai${DEFAULT_SEPARATOR}gpt-4`)
         expect(result).toBe(mockLanguageModel)
       })
 
@@ -89,7 +89,7 @@ describe('ModelResolver', () => {
           vi.clearAllMocks()
           await resolver.resolveLanguageModel(testCase.modelId, testCase.providerId)
 
-          expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(testCase.expected)
+          expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(testCase.expected)
         }
       })
 
@@ -100,7 +100,9 @@ describe('ModelResolver', () => {
           vi.clearAllMocks()
           await resolver.resolveLanguageModel(modelId, 'provider')
 
-          expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(`provider${DEFAULT_SEPARATOR}${modelId}`)
+          expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(
+            `provider${DEFAULT_SEPARATOR}${modelId}`
+          )
         }
       })
     })
@@ -111,7 +113,7 @@ describe('ModelResolver', () => {
 
         const result = await resolver.resolveLanguageModel(namespacedId, 'openai')
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(namespacedId)
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(namespacedId)
         expect(result).toBe(mockLanguageModel)
       })
 
@@ -120,7 +122,7 @@ describe('ModelResolver', () => {
 
         await resolver.resolveLanguageModel(namespacedId, 'fallback-provider')
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(namespacedId)
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(namespacedId)
       })
 
       it('should handle complex namespaced IDs', async () => {
@@ -134,7 +136,7 @@ describe('ModelResolver', () => {
           vi.clearAllMocks()
           await resolver.resolveLanguageModel(id, 'fallback')
 
-          expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(id)
+          expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(id)
         }
       })
     })
@@ -143,31 +145,31 @@ describe('ModelResolver', () => {
       it('should append "-chat" suffix for OpenAI provider with chat mode', async () => {
         await resolver.resolveLanguageModel('gpt-4', 'openai', { mode: 'chat' })
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('openai-chat|gpt-4')
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('openai-chat|gpt-4')
       })
 
       it('should append "-chat" suffix for Azure provider with chat mode', async () => {
         await resolver.resolveLanguageModel('gpt-4', 'azure', { mode: 'chat' })
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('azure-chat|gpt-4')
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('azure-chat|gpt-4')
       })
 
       it('should not append suffix for OpenAI with responses mode', async () => {
         await resolver.resolveLanguageModel('gpt-4', 'openai', { mode: 'responses' })
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('openai|gpt-4')
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('openai|gpt-4')
       })
 
       it('should not append suffix for OpenAI without mode', async () => {
         await resolver.resolveLanguageModel('gpt-4', 'openai')
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('openai|gpt-4')
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('openai|gpt-4')
       })
 
       it('should not append suffix for other providers with chat mode', async () => {
         await resolver.resolveLanguageModel('claude-3', 'anthropic', { mode: 'chat' })
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('anthropic|claude-3')
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('anthropic|claude-3')
       })
 
       it('should handle namespaced IDs with OpenAI chat mode', async () => {
@@ -176,7 +178,7 @@ describe('ModelResolver', () => {
         await resolver.resolveLanguageModel(namespacedId, 'openai', { mode: 'chat' })
 
         // Should use the namespaced ID directly, not apply mode logic
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(namespacedId)
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(namespacedId)
       })
     })
 
@@ -219,19 +221,19 @@ describe('ModelResolver', () => {
         await resolver.resolveLanguageModel('gpt-4', 'openai', options)
 
         // Provider options are used for mode selection logic
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalled()
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalled()
       })
 
       it('should handle empty provider options', async () => {
         await resolver.resolveLanguageModel('gpt-4', 'openai', {})
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('openai|gpt-4')
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('openai|gpt-4')
       })
 
       it('should handle undefined provider options', async () => {
         await resolver.resolveLanguageModel('gpt-4', 'openai', undefined)
 
-        expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('openai|gpt-4')
+        expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('openai|gpt-4')
       })
     })
   })
@@ -241,7 +243,7 @@ describe('ModelResolver', () => {
       it('should resolve traditional embedding model ID', async () => {
         const result = await resolver.resolveTextEmbeddingModel('text-embedding-ada-002', 'openai')
 
-        expect(globalRegistryManagement.embeddingModel).toHaveBeenCalledWith('openai|text-embedding-ada-002')
+        expect(globalProviderInstanceRegistry.embeddingModel).toHaveBeenCalledWith('openai|text-embedding-ada-002')
         expect(result).toBe(mockEmbeddingModel)
       })
 
@@ -257,7 +259,7 @@ describe('ModelResolver', () => {
           vi.clearAllMocks()
           await resolver.resolveTextEmbeddingModel(modelId, providerId)
 
-          expect(globalRegistryManagement.embeddingModel).toHaveBeenCalledWith(`${providerId}|${modelId}`)
+          expect(globalProviderInstanceRegistry.embeddingModel).toHaveBeenCalledWith(`${providerId}|${modelId}`)
         }
       })
     })
@@ -268,7 +270,7 @@ describe('ModelResolver', () => {
 
         const result = await resolver.resolveTextEmbeddingModel(namespacedId, 'openai')
 
-        expect(globalRegistryManagement.embeddingModel).toHaveBeenCalledWith(namespacedId)
+        expect(globalProviderInstanceRegistry.embeddingModel).toHaveBeenCalledWith(namespacedId)
         expect(result).toBe(mockEmbeddingModel)
       })
 
@@ -282,7 +284,7 @@ describe('ModelResolver', () => {
           vi.clearAllMocks()
           await resolver.resolveTextEmbeddingModel(id, 'fallback')
 
-          expect(globalRegistryManagement.embeddingModel).toHaveBeenCalledWith(id)
+          expect(globalProviderInstanceRegistry.embeddingModel).toHaveBeenCalledWith(id)
         }
       })
     })
@@ -293,7 +295,7 @@ describe('ModelResolver', () => {
       it('should resolve traditional image model ID', async () => {
         const result = await resolver.resolveImageModel('dall-e-3', 'openai')
 
-        expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith('openai|dall-e-3')
+        expect(globalProviderInstanceRegistry.imageModel).toHaveBeenCalledWith('openai|dall-e-3')
         expect(result).toBe(mockImageModel)
       })
 
@@ -309,7 +311,7 @@ describe('ModelResolver', () => {
           vi.clearAllMocks()
           await resolver.resolveImageModel(modelId, providerId)
 
-          expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith(`${providerId}|${modelId}`)
+          expect(globalProviderInstanceRegistry.imageModel).toHaveBeenCalledWith(`${providerId}|${modelId}`)
         }
       })
     })
@@ -320,7 +322,7 @@ describe('ModelResolver', () => {
 
         const result = await resolver.resolveImageModel(namespacedId, 'openai')
 
-        expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith(namespacedId)
+        expect(globalProviderInstanceRegistry.imageModel).toHaveBeenCalledWith(namespacedId)
         expect(result).toBe(mockImageModel)
       })
 
@@ -334,7 +336,7 @@ describe('ModelResolver', () => {
           vi.clearAllMocks()
           await resolver.resolveImageModel(id, 'fallback')
 
-          expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith(id)
+          expect(globalProviderInstanceRegistry.imageModel).toHaveBeenCalledWith(id)
         }
       })
     })
@@ -344,7 +346,7 @@ describe('ModelResolver', () => {
     it('should handle empty model IDs', async () => {
       await resolver.resolveLanguageModel('', 'openai')
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('openai|')
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('openai|')
     })
 
     it('should handle model IDs with multiple separators', async () => {
@@ -352,7 +354,7 @@ describe('ModelResolver', () => {
 
       await resolver.resolveLanguageModel(multiSeparatorId, 'fallback')
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(multiSeparatorId)
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(multiSeparatorId)
     })
 
     it('should handle model IDs with only separator', async () => {
@@ -360,12 +362,12 @@ describe('ModelResolver', () => {
 
       await resolver.resolveLanguageModel(onlySeparator, 'provider')
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(onlySeparator)
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(onlySeparator)
     })
 
-    it('should throw if globalRegistryManagement throws', async () => {
+    it('should throw if globalProviderInstanceRegistry throws', async () => {
       const error = new Error('Model not found in registry')
-      vi.mocked(globalRegistryManagement.languageModel).mockImplementation(() => {
+      vi.mocked(globalProviderInstanceRegistry.languageModel).mockImplementation(() => {
         throw error
       })
 
@@ -384,7 +386,7 @@ describe('ModelResolver', () => {
       const results = await Promise.all(promises)
 
       expect(results).toHaveLength(3)
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledTimes(3)
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledTimes(3)
     })
   })
 
@@ -425,7 +427,7 @@ describe('ModelResolver', () => {
     it('should work with OpenAI compatible providers', async () => {
       await resolver.resolveLanguageModel('custom-model', 'openai-compatible')
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('openai-compatible|custom-model')
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('openai-compatible|custom-model')
     })
 
     it('should work with hub providers', async () => {
@@ -433,7 +435,7 @@ describe('ModelResolver', () => {
 
       await resolver.resolveLanguageModel(hubId, 'aihubmix')
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(hubId)
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(hubId)
     })
 
     it('should handle all model types for same provider', async () => {
@@ -446,9 +448,9 @@ describe('ModelResolver', () => {
       await resolver.resolveTextEmbeddingModel(embeddingModel, providerId)
       await resolver.resolveImageModel(imageModel, providerId)
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(`${providerId}|${languageModel}`)
-      expect(globalRegistryManagement.embeddingModel).toHaveBeenCalledWith(`${providerId}|${embeddingModel}`)
-      expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith(`${providerId}|${imageModel}`)
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith(`${providerId}|${languageModel}`)
+      expect(globalProviderInstanceRegistry.embeddingModel).toHaveBeenCalledWith(`${providerId}|${embeddingModel}`)
+      expect(globalProviderInstanceRegistry.imageModel).toHaveBeenCalledWith(`${providerId}|${imageModel}`)
     })
   })
 })

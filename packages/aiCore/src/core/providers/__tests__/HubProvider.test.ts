@@ -5,25 +5,32 @@
  */
 
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type * as AiModule from 'ai'
 import { customProvider, wrapProvider } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createMockEmbeddingModel, createMockImageModel, createMockLanguageModel } from '../../../__tests__'
-import { createHubProvider, type HubProviderConfig, HubProviderError } from '../HubProvider'
-import { DEFAULT_SEPARATOR, globalRegistryManagement } from '../RegistryManagement'
+import { DEFAULT_SEPARATOR, globalProviderInstanceRegistry } from '../core/ProviderInstanceRegistry'
+import { createHubProvider, type HubProviderConfig, HubProviderError } from '../features/HubProvider'
 
 // Mock dependencies
-vi.mock('../RegistryManagement', () => ({
-  globalRegistryManagement: {
+vi.mock('../core/ProviderInstanceRegistry', () => ({
+  globalProviderInstanceRegistry: {
     getProvider: vi.fn()
   },
   DEFAULT_SEPARATOR: '|'
 }))
 
-vi.mock('ai', () => ({
-  customProvider: vi.fn((config) => config.fallbackProvider),
-  wrapProvider: vi.fn((config) => config.provider)
-}))
+vi.mock('ai', async (importOriginal) => {
+  // biome-ignore lint/style/consistent-type-imports: Mock setup requires typeof import
+
+  const actual = await importOriginal<typeof AiModule>()
+  return {
+    jsonSchema: actual.jsonSchema, // Keep real jsonSchema for test utilities
+    customProvider: vi.fn((config) => config.fallbackProvider),
+    wrapProvider: vi.fn((config) => config.provider)
+  }
+})
 
 describe('HubProvider', () => {
   let mockOpenAIProvider: ProviderV3
@@ -67,7 +74,7 @@ describe('HubProvider', () => {
     } as ProviderV3
 
     // Setup default mock implementation
-    vi.mocked(globalRegistryManagement.getProvider).mockImplementation((id) => {
+    vi.mocked(globalProviderInstanceRegistry.getProvider).mockImplementation((id) => {
       if (id === 'openai') return mockOpenAIProvider
       if (id === 'anthropic') return mockAnthropicProvider
       return undefined
@@ -120,7 +127,7 @@ describe('HubProvider', () => {
 
       const result = provider.languageModel(modelId)
 
-      expect(globalRegistryManagement.getProvider).toHaveBeenCalledWith('openai')
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledWith('openai')
       expect(mockOpenAIProvider.languageModel).toHaveBeenCalledWith('gpt-4')
       expect(result).toBe(mockLanguageModel)
     })
@@ -165,7 +172,7 @@ describe('HubProvider', () => {
 
       const result = provider.languageModel(`openai${DEFAULT_SEPARATOR}gpt-4`)
 
-      expect(globalRegistryManagement.getProvider).toHaveBeenCalledWith('openai')
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledWith('openai')
       expect(mockOpenAIProvider.languageModel).toHaveBeenCalledWith('gpt-4')
       expect(result).toBe(mockLanguageModel)
     })
@@ -177,8 +184,8 @@ describe('HubProvider', () => {
       provider.languageModel(`openai${DEFAULT_SEPARATOR}gpt-4`)
       provider.languageModel(`anthropic${DEFAULT_SEPARATOR}claude-3`)
 
-      expect(globalRegistryManagement.getProvider).toHaveBeenCalledWith('openai')
-      expect(globalRegistryManagement.getProvider).toHaveBeenCalledWith('anthropic')
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledWith('openai')
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledWith('anthropic')
       expect(mockOpenAIProvider.languageModel).toHaveBeenCalledWith('gpt-4')
       expect(mockAnthropicProvider.languageModel).toHaveBeenCalledWith('claude-3')
     })
@@ -196,7 +203,7 @@ describe('HubProvider', () => {
     })
 
     it('should throw HubProviderError if provider not initialized', () => {
-      vi.mocked(globalRegistryManagement.getProvider).mockReturnValue(undefined)
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockReturnValue(undefined)
 
       const config: HubProviderConfig = { hubId: 'test-hub' }
       const provider = createHubProvider(config) as ProviderV3
@@ -206,7 +213,7 @@ describe('HubProvider', () => {
     })
 
     it('should include provider ID in error message', () => {
-      vi.mocked(globalRegistryManagement.getProvider).mockReturnValue(undefined)
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockReturnValue(undefined)
 
       const config: HubProviderConfig = { hubId: 'test-hub' }
       const provider = createHubProvider(config) as ProviderV3
@@ -230,7 +237,7 @@ describe('HubProvider', () => {
 
       const result = provider.embeddingModel(`openai${DEFAULT_SEPARATOR}text-embedding-3-small`)
 
-      expect(globalRegistryManagement.getProvider).toHaveBeenCalledWith('openai')
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledWith('openai')
       expect(mockOpenAIProvider.embeddingModel).toHaveBeenCalledWith('text-embedding-3-small')
       expect(result).toBe(mockEmbeddingModel)
     })
@@ -247,7 +254,7 @@ describe('HubProvider', () => {
     })
 
     it('should throw error for uninitialized embedding provider', () => {
-      vi.mocked(globalRegistryManagement.getProvider).mockReturnValue(undefined)
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockReturnValue(undefined)
 
       const config: HubProviderConfig = { hubId: 'test-hub' }
       const provider = createHubProvider(config) as ProviderV3
@@ -263,7 +270,7 @@ describe('HubProvider', () => {
 
       const result = provider.imageModel(`openai${DEFAULT_SEPARATOR}dall-e-3`)
 
-      expect(globalRegistryManagement.getProvider).toHaveBeenCalledWith('openai')
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledWith('openai')
       expect(mockOpenAIProvider.imageModel).toHaveBeenCalledWith('dall-e-3')
       expect(result).toBe(mockImageModel)
     })
@@ -292,7 +299,7 @@ describe('HubProvider', () => {
         transcriptionModel: vi.fn().mockReturnValue(mockTranscriptionModel)
       } as ProviderV3
 
-      vi.mocked(globalRegistryManagement.getProvider).mockReturnValue(providerWithTranscription)
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockReturnValue(providerWithTranscription)
 
       const config: HubProviderConfig = { hubId: 'test-hub' }
       const provider = createHubProvider(config) as ProviderV3
@@ -324,7 +331,7 @@ describe('HubProvider', () => {
         speechModel: vi.fn().mockReturnValue(mockSpeechModel)
       } as ProviderV3
 
-      vi.mocked(globalRegistryManagement.getProvider).mockReturnValue(providerWithSpeech)
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockReturnValue(providerWithSpeech)
 
       const config: HubProviderConfig = { hubId: 'test-hub' }
       const provider = createHubProvider(config) as ProviderV3
@@ -354,7 +361,7 @@ describe('HubProvider', () => {
         rerankingModel: vi.fn().mockReturnValue(mockRerankingModel)
       } as ProviderV3
 
-      vi.mocked(globalRegistryManagement.getProvider).mockReturnValue(providerWithReranking)
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockReturnValue(providerWithReranking)
 
       const config: HubProviderConfig = { hubId: 'test-hub' }
       const provider = createHubProvider(config) as ProviderV3
@@ -397,7 +404,7 @@ describe('HubProvider', () => {
 
     it('should wrap provider errors in HubProviderError', () => {
       const providerError = new Error('Provider failed')
-      vi.mocked(globalRegistryManagement.getProvider).mockImplementation(() => {
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockImplementation(() => {
         throw providerError
       })
 
@@ -416,7 +423,7 @@ describe('HubProvider', () => {
     })
 
     it('should handle null provider from registry', () => {
-      vi.mocked(globalRegistryManagement.getProvider).mockReturnValue(null as any)
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockReturnValue(null as any)
 
       const config: HubProviderConfig = { hubId: 'test-hub' }
       const provider = createHubProvider(config) as ProviderV3
@@ -434,7 +441,7 @@ describe('HubProvider', () => {
       provider.languageModel(`anthropic${DEFAULT_SEPARATOR}claude-3`)
       provider.languageModel(`openai${DEFAULT_SEPARATOR}gpt-3.5`)
 
-      expect(globalRegistryManagement.getProvider).toHaveBeenCalledTimes(3)
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledTimes(3)
       expect(mockOpenAIProvider.languageModel).toHaveBeenCalledTimes(2)
       expect(mockAnthropicProvider.languageModel).toHaveBeenCalledTimes(1)
     })
@@ -447,7 +454,7 @@ describe('HubProvider', () => {
       provider.embeddingModel(`openai${DEFAULT_SEPARATOR}ada-002`)
       provider.imageModel(`openai${DEFAULT_SEPARATOR}dall-e-3`)
 
-      expect(globalRegistryManagement.getProvider).toHaveBeenCalledTimes(3)
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledTimes(3)
       expect(mockOpenAIProvider.languageModel).toHaveBeenCalledWith('gpt-4')
       expect(mockOpenAIProvider.embeddingModel).toHaveBeenCalledWith('ada-002')
       expect(mockOpenAIProvider.imageModel).toHaveBeenCalledWith('dall-e-3')
@@ -461,7 +468,7 @@ describe('HubProvider', () => {
       provider.languageModel(`openai${DEFAULT_SEPARATOR}gpt-3.5`)
 
       // Should call getProvider twice (once per model call)
-      expect(globalRegistryManagement.getProvider).toHaveBeenCalledTimes(2)
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -520,6 +527,121 @@ describe('HubProvider', () => {
 
       expect(result.specificationVersion).toBe('v3')
       expect(result).toHaveProperty('doGenerate')
+    })
+  })
+
+  describe('Dependency Injection', () => {
+    it('should use global registry by default', () => {
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockReturnValue(mockOpenAIProvider)
+
+      const hubProvider = createHubProvider({ hubId: 'test-hub' })
+      const provider = hubProvider as ProviderV3
+
+      provider.languageModel(`openai${DEFAULT_SEPARATOR}gpt-4`)
+
+      // Should call global registry
+      expect(globalProviderInstanceRegistry.getProvider).toHaveBeenCalledWith('openai')
+    })
+
+    it('should use custom registry when provided', () => {
+      const customRegistry = {
+        getProvider: vi.fn().mockReturnValue(mockOpenAIProvider)
+      }
+
+      const hubProvider = createHubProvider({
+        hubId: 'test-hub',
+        providerRegistry: customRegistry as any
+      })
+      const provider = hubProvider as ProviderV3
+
+      provider.languageModel(`openai${DEFAULT_SEPARATOR}gpt-4`)
+
+      // Should call custom registry, not global
+      expect(customRegistry.getProvider).toHaveBeenCalledWith('openai')
+      expect(globalProviderInstanceRegistry.getProvider).not.toHaveBeenCalled()
+    })
+
+    it('should allow testing with mock registry', () => {
+      const mockRegistry = {
+        getProvider: vi.fn((id: string) => {
+          if (id === 'test-provider') {
+            return mockOpenAIProvider
+          }
+          return undefined
+        })
+      }
+
+      const hubProvider = createHubProvider({
+        hubId: 'test-hub',
+        providerRegistry: mockRegistry as any
+      })
+      const provider = hubProvider as ProviderV3
+
+      // Should work with mock registry
+      const model = provider.languageModel(`test-provider${DEFAULT_SEPARATOR}model`)
+      expect(mockRegistry.getProvider).toHaveBeenCalledWith('test-provider')
+      expect(model).toBeDefined()
+    })
+
+    it('should throw error when provider not found in custom registry', () => {
+      const emptyRegistry = {
+        getProvider: vi.fn().mockReturnValue(undefined)
+      }
+
+      const hubProvider = createHubProvider({
+        hubId: 'test-hub',
+        providerRegistry: emptyRegistry as any
+      })
+      const provider = hubProvider as ProviderV3
+
+      expect(() => {
+        provider.languageModel(`unknown${DEFAULT_SEPARATOR}model`)
+      }).toThrow(HubProviderError)
+
+      expect(emptyRegistry.getProvider).toHaveBeenCalledWith('unknown')
+    })
+
+    it('should support multiple hub instances with different registries', () => {
+      const registry1 = {
+        getProvider: vi.fn().mockReturnValue(mockOpenAIProvider)
+      }
+
+      const registry2 = {
+        getProvider: vi.fn().mockReturnValue(mockAnthropicProvider)
+      }
+
+      const hub1 = createHubProvider({
+        hubId: 'hub-1',
+        providerRegistry: registry1 as any
+      }) as ProviderV3
+
+      const hub2 = createHubProvider({
+        hubId: 'hub-2',
+        providerRegistry: registry2 as any
+      }) as ProviderV3
+
+      // Each hub should use its own registry
+      hub1.languageModel(`openai${DEFAULT_SEPARATOR}gpt-4`)
+      hub2.languageModel(`anthropic${DEFAULT_SEPARATOR}claude`)
+
+      expect(registry1.getProvider).toHaveBeenCalledWith('openai')
+      expect(registry2.getProvider).toHaveBeenCalledWith('anthropic')
+
+      // Registries should be independent
+      expect(registry1.getProvider).not.toHaveBeenCalledWith('anthropic')
+      expect(registry2.getProvider).not.toHaveBeenCalledWith('openai')
+    })
+
+    it('should make hubId optional and default to "hub"', () => {
+      vi.mocked(globalProviderInstanceRegistry.getProvider).mockReturnValue(undefined)
+
+      const hubProvider = createHubProvider() // No config
+      const provider = hubProvider as ProviderV3
+
+      // Should use default hubId 'hub' in error messages
+      expect(() => {
+        provider.languageModel(`unknown${DEFAULT_SEPARATOR}model`)
+      }).toThrow(HubProviderError)
     })
   })
 })

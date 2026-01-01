@@ -61,7 +61,6 @@ export {
   ModelResolutionError,
   ParameterValidationError,
   PluginExecutionError,
-  ProviderConfigError,
   RecursiveDepthError,
   TemplateLoadError
 } from './core/errors'

@@ -6,14 +6,20 @@ import type { generateImage, generateText, streamText } from 'ai'
 
 import { type ModelConfig } from '../models/types'
 import { type AiPlugin } from '../plugins'
-import { type ProviderId } from '../providers/types'
+import type { CoreProviderSettingsMap, RegisteredProviderId } from '../providers/types'
 
 /**
  * 运行时执行器配置
+ *
+ * @typeParam T - Provider ID 类型
+ * @typeParam TSettingsMap - Provider Settings Map（默认 CoreProviderSettingsMap）
  */
-export interface RuntimeConfig<T extends ProviderId = ProviderId> {
+export interface RuntimeConfig<
+  T extends RegisteredProviderId | (string & {}) = RegisteredProviderId,
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
+> {
   providerId: T
-  providerSettings: ModelConfig<T>['providerSettings'] & { mode?: 'chat' | 'responses' }
+  providerSettings: ModelConfig<T, TSettingsMap>['providerSettings']
   plugins?: AiPlugin[]
 }
 

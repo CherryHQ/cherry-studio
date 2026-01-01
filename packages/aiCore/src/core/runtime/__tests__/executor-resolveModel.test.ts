@@ -34,7 +34,7 @@ vi.mock('ai', async (importOriginal) => {
   }
 })
 
-vi.mock('../../providers/RegistryManagement', () => ({
+vi.mock('../../providers/core/ProviderInstanceRegistry', () => ({
   globalRegistryManagement: {
     languageModel: vi.fn(),
     imageModel: vi.fn()

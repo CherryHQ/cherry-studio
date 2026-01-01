@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { collectStreamChunks, createMockLanguageModel, mockProviderConfigs, testMessages } from '../../../__tests__'
 import type { AiPlugin } from '../../plugins'
-import { globalRegistryManagement } from '../../providers/RegistryManagement'
+import { globalProviderInstanceRegistry } from '../../providers/core/ProviderInstanceRegistry'
 import { RuntimeExecutor } from '../executor'
 
 // Mock AI SDK - use importOriginal to keep jsonSchema and other non-mocked exports
@@ -20,8 +20,8 @@ vi.mock('ai', async (importOriginal) => {
   }
 })
 
-vi.mock('../../providers/RegistryManagement', () => ({
-  globalRegistryManagement: {
+vi.mock('../../providers/core/ProviderInstanceRegistry', () => ({
+  globalProviderInstanceRegistry: {
     languageModel: vi.fn()
   },
   DEFAULT_SEPARATOR: '|'
@@ -41,7 +41,7 @@ describe('RuntimeExecutor.streamText', () => {
       modelId: 'gpt-4'
     })
 
-    vi.mocked(globalRegistryManagement.languageModel).mockReturnValue(mockLanguageModel)
+    vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(mockLanguageModel)
   })
 
   describe('Basic Functionality', () => {

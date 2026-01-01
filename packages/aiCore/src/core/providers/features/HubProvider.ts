@@ -16,12 +16,15 @@ import type {
 } from '@ai-sdk/provider'
 import { customProvider, wrapProvider } from 'ai'
 
-import { DEFAULT_SEPARATOR, globalRegistryManagement } from './RegistryManagement'
-import type { AiSdkProvider } from './types'
+import { globalProviderStorage } from '../core/ProviderExtension'
+import type { AiSdkProvider } from '../types'
+
+/** Model ID 分隔符 */
+export const DEFAULT_SEPARATOR = '|'
 
 export interface HubProviderConfig {
   /** Hub的唯一标识符 */
-  hubId: string
+  hubId?: string
   /** 是否启用调试日志 */
   debug?: boolean
 }
@@ -55,16 +58,16 @@ function parseHubModelId(modelId: string): { provider: string; actualModelId: st
 /**
  * 创建Hub Provider
  */
-export function createHubProvider(config: HubProviderConfig): AiSdkProvider {
-  const { hubId } = config
+export function createHubProvider(config?: HubProviderConfig): AiSdkProvider {
+  const hubId = config?.hubId ?? 'hub'
 
   function getTargetProvider(providerId: string): ProviderV3 {
-    // 从全局注册表获取provider实例
+    // 从全局 provider storage 获取已注册的provider实例
     try {
-      const provider = globalRegistryManagement.getProvider(providerId)
+      const provider = globalProviderStorage.get(providerId)
       if (!provider) {
         throw new HubProviderError(
-          `Provider "${providerId}" is not initialized. Please call initializeProvider("${providerId}", options) first.`,
+          `Provider "${providerId}" is not registered. Please call extension.createProvider(settings, "${providerId}") first.`,
           hubId,
           providerId
         )

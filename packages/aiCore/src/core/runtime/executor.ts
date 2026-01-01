@@ -15,23 +15,19 @@ import { globalModelResolver } from '../models'
 import { type ModelConfig } from '../models/types'
 import { isV3Model } from '../models/utils'
 import { type AiPlugin, type AiRequestContext, definePlugin } from '../plugins'
-import { type ProviderId } from '../providers'
+import type { CoreProviderSettingsMap, RegisteredProviderId } from '../providers/types'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
 import { PluginEngine } from './pluginEngine'
 import type { generateImageParams, generateTextParams, RuntimeConfig, streamTextParams } from './types'
 
-export class RuntimeExecutor<T extends ProviderId = ProviderId> {
+export class RuntimeExecutor<
+  T extends RegisteredProviderId | (string & {}) = RegisteredProviderId,
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
+> {
   public pluginEngine: PluginEngine<T>
-  // private options: ProviderSettingsMap[T]
-  private config: RuntimeConfig<T>
+  private config: RuntimeConfig<T, TSettingsMap>
 
-  constructor(config: RuntimeConfig<T>) {
-    // if (!isProviderSupported(config.providerId)) {
-    //   throw new Error(`Unsupported provider: ${config.providerId}`)
-    // }
-
-    // 存储options供后续使用
-    // this.options = config.options
+  constructor(config: RuntimeConfig<T, TSettingsMap>) {
     this.config = config
     // 创建插件客户端
     this.pluginEngine = new PluginEngine(config.providerId, config.plugins || [])
@@ -233,11 +229,14 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
   /**
    * 创建执行器 - 支持已知provider的类型安全
    */
-  static create<T extends ProviderId>(
+  static create<
+    T extends RegisteredProviderId | (string & {}) = RegisteredProviderId,
+    TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
+  >(
     providerId: T,
-    options: ModelConfig<T>['providerSettings'],
+    options: ModelConfig<T, TSettingsMap>['providerSettings'],
     plugins?: AiPlugin[]
-  ): RuntimeExecutor<T> {
+  ): RuntimeExecutor<T, TSettingsMap> {
     return new RuntimeExecutor({
       providerId,
       providerSettings: options,

@@ -1,4 +1,5 @@
-import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
+import { extensionRegistry, formatPrivateKey, hasProviderConfig } from '@cherrystudio/ai-core/provider'
+import type { AppProviderId } from '@renderer/aiCore/types'
 import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
@@ -35,7 +36,7 @@ import {
 import { defaultAppHeaders } from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
-import type { AiSdkConfig } from '../types'
+import type { AiSdkConfigRuntime } from '../types'
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
 import { azureAnthropicProviderCreator } from './config/azure-anthropic'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
@@ -141,10 +142,14 @@ export function adaptProvider({ provider, model }: { provider: Provider; model?:
 
 /**
  * 将 Provider 配置转换为新 AI SDK 格式
- * 简化版：利用新的别名映射系统
+ * 使用类型安全的辅助函数构建provider-specific配置
+ *
+ * @param actualProvider - Cherry Studio provider配置
+ * @param model - 模型配置
+ * @returns 类型安全的 AI SDK 配置
  */
-export function providerToAiSdkConfig(actualProvider: Provider, model: Model): AiSdkConfig {
-  const aiSdkProviderId = getAiSdkProviderId(actualProvider)
+export function providerToAiSdkConfig(actualProvider: Provider, model: Model): AiSdkConfigRuntime {
+  const aiSdkProviderId: AppProviderId = getAiSdkProviderId(actualProvider)
 
   // 构建基础配置
   const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
@@ -160,7 +165,8 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot
   if (isCopilotProvider) {
     const storedHeaders = store.getState().copilot.defaultHeaders ?? {}
-    const options = ProviderConfigFactory.fromProvider('github-copilot-openai-compatible', baseConfig, {
+    const options = {
+      ...baseConfig,
       headers: {
         ...COPILOT_DEFAULT_HEADERS,
         ...storedHeaders,
@@ -168,7 +174,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
       },
       name: actualProvider.id,
       includeUsage
-    })
+    }
 
     return {
       providerId: 'github-copilot-openai-compatible',
@@ -192,9 +198,19 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   // 处理OpenAI模式
   const extraOptions: any = {}
   extraOptions.endpoint = endpoint
+
+  // 解析 provider ID，提取 base ID 和 mode
+  const parsed = extensionRegistry.parseProviderId(aiSdkProviderId)
+  if (parsed?.mode) {
+    // 自动设置 mode（如 openai-chat → mode: 'chat', azure-responses → mode: 'responses'）
+    extraOptions.mode = parsed.mode
+  }
+
+  // 特殊处理：OpenAI responses 模式（基于 provider.type）
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
     extraOptions.mode = 'responses'
   } else if (aiSdkProviderId === 'openai' || (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai')) {
+    // 确保 OpenAI 和 CherryIN(type=openai) 使用 chat 模式
     extraOptions.mode = 'chat'
   }
 
@@ -204,15 +220,8 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   }
 
   if (aiSdkProviderId === 'openai') {
-    extraOptions.headers['X-Api-Key'] = baseConfig.apiKey
-  }
-  // azure
-  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
-  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
-  if (aiSdkProviderId === 'azure-responses') {
-    extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'azure') {
-    extraOptions.mode = 'chat'
+    const headers = extraOptions.headers as Record<string, string>
+    headers['X-Api-Key'] = baseConfig.apiKey
   }
   if (isAzureOpenAIProvider(actualProvider)) {
     const apiVersion = actualProvider.apiVersion?.trim()
@@ -265,7 +274,10 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   }
 
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
-    const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
+    const options = {
+      ...baseConfig,
+      ...extraOptions
+    }
     return {
       providerId: aiSdkProviderId,
       options
@@ -273,11 +285,11 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   }
 
   // 否则fallback到openai-compatible
-  const options = ProviderConfigFactory.createOpenAICompatible(baseConfig.baseURL, baseConfig.apiKey)
   return {
     providerId: 'openai-compatible',
     options: {
-      ...options,
+      baseURL: baseConfig.baseURL,
+      apiKey: baseConfig.apiKey,
       name: actualProvider.id,
       ...extraOptions,
       includeUsage

@@ -14,7 +14,7 @@ import {
   testTools
 } from '../../../__tests__'
 import type { AiPlugin } from '../../plugins'
-import { globalRegistryManagement } from '../../providers/RegistryManagement'
+import { globalProviderInstanceRegistry } from '../../providers/core/ProviderInstanceRegistry'
 import { RuntimeExecutor } from '../executor'
 
 // Mock AI SDK - use importOriginal to keep jsonSchema and other non-mocked exports
@@ -26,8 +26,8 @@ vi.mock('ai', async (importOriginal) => {
   }
 })
 
-vi.mock('../../providers/RegistryManagement', () => ({
-  globalRegistryManagement: {
+vi.mock('../../providers/core/ProviderInstanceRegistry', () => ({
+  globalProviderInstanceRegistry: {
     languageModel: vi.fn()
   },
   DEFAULT_SEPARATOR: '|'
@@ -47,7 +47,7 @@ describe('RuntimeExecutor.generateText', () => {
       modelId: 'gpt-4'
     })
 
-    vi.mocked(globalRegistryManagement.languageModel).mockReturnValue(mockLanguageModel)
+    vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(mockLanguageModel)
     vi.mocked(generateText).mockResolvedValue(mockCompleteResponses.simple as any)
   })
 
@@ -238,14 +238,14 @@ describe('RuntimeExecutor.generateText', () => {
         modelId: 'claude-3-5-sonnet-20241022'
       })
 
-      vi.mocked(globalRegistryManagement.languageModel).mockReturnValue(anthropicModel)
+      vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(anthropicModel)
 
       await anthropicExecutor.generateText({
         model: 'claude-3-5-sonnet-20241022',
         messages: testMessages.simple
       })
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('anthropic|claude-3-5-sonnet-20241022')
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('anthropic|claude-3-5-sonnet-20241022')
     })
 
     it('should work with Google provider', async () => {
@@ -256,14 +256,14 @@ describe('RuntimeExecutor.generateText', () => {
         modelId: 'gemini-2.0-flash-exp'
       })
 
-      vi.mocked(globalRegistryManagement.languageModel).mockReturnValue(googleModel)
+      vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(googleModel)
 
       await googleExecutor.generateText({
         model: 'gemini-2.0-flash-exp',
         messages: testMessages.simple
       })
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('google|gemini-2.0-flash-exp')
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('google|gemini-2.0-flash-exp')
     })
 
     it('should work with xAI provider', async () => {
@@ -274,14 +274,14 @@ describe('RuntimeExecutor.generateText', () => {
         modelId: 'grok-2-latest'
       })
 
-      vi.mocked(globalRegistryManagement.languageModel).mockReturnValue(xaiModel)
+      vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(xaiModel)
 
       await xaiExecutor.generateText({
         model: 'grok-2-latest',
         messages: testMessages.simple
       })
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('xai|grok-2-latest')
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('xai|grok-2-latest')
     })
 
     it('should work with DeepSeek provider', async () => {
@@ -292,14 +292,14 @@ describe('RuntimeExecutor.generateText', () => {
         modelId: 'deepseek-chat'
       })
 
-      vi.mocked(globalRegistryManagement.languageModel).mockReturnValue(deepseekModel)
+      vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(deepseekModel)
 
       await deepseekExecutor.generateText({
         model: 'deepseek-chat',
         messages: testMessages.simple
       })
 
-      expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith('deepseek|deepseek-chat')
+      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('deepseek|deepseek-chat')
     })
   })
 
@@ -425,7 +425,7 @@ describe('RuntimeExecutor.generateText', () => {
 
     it('should handle model not found error', async () => {
       const error = new Error('Model not found: invalid-model')
-      vi.mocked(globalRegistryManagement.languageModel).mockImplementation(() => {
+      vi.mocked(globalProviderInstanceRegistry.languageModel).mockImplementation(() => {
         throw error
       })
 
