@@ -1,33 +1,36 @@
-# Cherry Studio AI Core 架构文档
+# Cherry Studio AI Core Architecture Documentation
 
-> **版本**: v2.1 (ModelResolver 简化 + HubProvider 类型安全)
-> **更新日期**: 2026-01-02
-> **适用范围**: Cherry Studio v1.7.7+
+> **Version**: v2.1 (ModelResolver Simplification + HubProvider Type Safety)
+> **Updated**: 2026-01-02
+> **Applicable to**: Cherry Studio v1.7.7+
 
-本文档详细描述了 Cherry Studio 从用户交互到 AI SDK 调用的完整数据流和架构设计，是理解应用核心功能的关键文档。
-
----
-
-## 📖 目录
-
-1. [整体架构概览](#1-整体架构概览)
-2. [完整调用流程](#2-完整调用流程)
-3. [核心组件详解](#3-核心组件详解)
-4. [Provider 系统架构](#4-provider-系统架构)
-5. [插件与中间件系统](#5-插件与中间件系统)
-6. [消息处理流程](#6-消息处理流程)
-7. [类型安全机制](#7-类型安全机制)
-8. [Trace 和可观测性](#8-trace-和可观测性)
-9. [错误处理机制](#9-错误处理机制)
-10. [性能优化](#10-性能优化)
+This document describes the complete data flow and architectural design from user interaction to AI SDK calls in Cherry Studio. It serves as the key documentation for understanding the application's core functionality.
 
 ---
 
-## 1. 整体架构概览
+## Table of Contents
 
-### 1.1 架构分层
+1. [Architecture Overview](#1-architecture-overview)
+2. [Complete Call Flow](#2-complete-call-flow)
+3. [Core Components](#3-core-components)
+4. [Provider System Architecture](#4-provider-system-architecture)
+5. [Plugin and Middleware System](#5-plugin-and-middleware-system)
+6. [Message Processing Flow](#6-message-processing-flow)
+7. [Type Safety Mechanisms](#7-type-safety-mechanisms)
+8. [Tracing and Observability](#8-tracing-and-observability)
+9. [Error Handling](#9-error-handling)
+10. [Performance Optimization](#10-performance-optimization)
+11. [Model Resolver](#11-model-resolver)
+12. [HubProvider System](#12-hubprovider-system)
+13. [Testing Architecture](#13-testing-architecture)
 
-Cherry Studio 的 AI 调用采用清晰的分层架构：
+---
+
+## 1. Architecture Overview
+
+### 1.1 Architectural Layers
+
+Cherry Studio's AI calls follow a clear layered architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -107,39 +110,39 @@ Cherry Studio 的 AI 调用采用清晰的分层架构：
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   LLM Provider API
+│                   LLM Provider API                          │
 │  (OpenAI, Anthropic, Google, etc.)                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 核心设计理念
+### 1.2 Core Design Principles
 
-#### 1.2.1 关注点分离 (Separation of Concerns)
+#### 1.2.1 Separation of Concerns
 
-- **Service Layer**: 业务逻辑、消息准备、工具调用
-- **AI Provider Layer**: Provider 适配、参数转换、插件构建
-- **Core Package**: 统一 API、Provider 管理、插件执行
-- **AI SDK Layer**: 实际的 LLM API 调用
+- **Service Layer**: Business logic, message preparation, tool invocation
+- **AI Provider Layer**: Provider adaptation, parameter conversion, plugin building
+- **Core Package**: Unified API, provider management, plugin execution
+- **AI SDK Layer**: Actual LLM API calls
 
-#### 1.2.2 类型安全优先
+#### 1.2.2 Type Safety First
 
-- 端到端 TypeScript 类型推断
-- Provider Settings 自动关联
-- 编译时参数验证
+- End-to-end TypeScript type inference
+- Automatic Provider Settings association
+- Compile-time parameter validation
 
-#### 1.2.3 可扩展性
+#### 1.2.3 Extensibility
 
-- 插件化架构 (AiPlugin)
-- Provider Extension 系统
-- 中间件机制
+- Plugin architecture (AiPlugin)
+- Provider Extension system
+- Middleware mechanism
 
 ---
 
-## 2. 完整调用流程
+## 2. Complete Call Flow
 
-### 2.1 从用户输入到 LLM 响应的完整流程
+### 2.1 Full Flow from User Input to LLM Response
 
-#### 流程图
+#### Flow Diagram
 
 ```
 User Input (UI)
@@ -157,15 +160,15 @@ User Input (UI)
 │    Location: src/renderer/src/services/ApiService.ts:92      │
 │                                                               │
 │    Step 2.1: ConversationService.prepareMessagesForModel()   │
-│    ├─ 消息格式转换 (UI Message → Model Message)              │
-│    ├─ 处理图片/文件附件                                       │
-│    └─ 应用消息过滤规则                                        │
+│    ├─ Message format conversion (UI Message → Model Message) │
+│    ├─ Process image/file attachments                         │
+│    └─ Apply message filtering rules                          │
 │                                                               │
 │    Step 2.2: replacePromptVariables()                        │
-│    └─ 替换 system prompt 中的变量                            │
+│    └─ Replace variables in system prompt                     │
 │                                                               │
 │    Step 2.3: injectUserMessageWithKnowledgeSearchPrompt()    │
-│    └─ 注入知识库搜索提示（如果启用）                          │
+│    └─ Inject knowledge base search prompt (if enabled)       │
 │                                                               │
 │    Step 2.4: fetchChatCompletion() ────────────────────────► │
 └─────────────────────────────────────────────────────────────┘
@@ -176,21 +179,21 @@ User Input (UI)
 │    Location: src/renderer/src/services/ApiService.ts:139     │
 │                                                               │
 │    Step 3.1: getProviderByModel() + API Key Rotation         │
-│    ├─ 获取 provider 配置                                     │
-│    ├─ 应用 API Key 轮换（多 key 负载均衡）                   │
-│    └─ 创建 providerWithRotatedKey                            │
+│    ├─ Get provider configuration                             │
+│    ├─ Apply API key rotation (multi-key load balancing)      │
+│    └─ Create providerWithRotatedKey                          │
 │                                                               │
 │    Step 3.2: new ModernAiProvider(model, provider)           │
-│    └─ 初始化 AI Provider 实例                                │
+│    └─ Initialize AI Provider instance                        │
 │                                                               │
 │    Step 3.3: buildStreamTextParams()                         │
-│    ├─ 构建 AI SDK 参数                                       │
-│    ├─ 处理 MCP 工具                                          │
-│    ├─ 处理 Web Search 配置                                   │
-│    └─ 返回 aiSdkParams + capabilities                        │
+│    ├─ Build AI SDK parameters                                │
+│    ├─ Process MCP tools                                      │
+│    ├─ Process Web Search configuration                       │
+│    └─ Return aiSdkParams + capabilities                      │
 │                                                               │
 │    Step 3.4: buildPlugins(middlewareConfig)                  │
-│    └─ 根据 capabilities 构建插件数组                         │
+│    └─ Build plugin array based on capabilities               │
 │                                                               │
 │    Step 3.5: AI.completions(modelId, params, config) ──────► │
 └─────────────────────────────────────────────────────────────┘
@@ -201,16 +204,16 @@ User Input (UI)
 │    Location: src/renderer/src/aiCore/index_new.ts:116        │
 │                                                               │
 │    Step 4.1: providerToAiSdkConfig()                         │
-│    ├─ 转换 Cherry Provider → AI SDK Config                   │
-│    ├─ 设置 providerId ('openai', 'anthropic', etc.)          │
-│    └─ 设置 providerSettings (apiKey, baseURL, etc.)          │
+│    ├─ Convert Cherry Provider → AI SDK Config                │
+│    ├─ Set providerId ('openai', 'anthropic', etc.)           │
+│    └─ Set providerSettings (apiKey, baseURL, etc.)           │
 │                                                               │
-│    Step 4.2: Claude Code OAuth 特殊处理                      │
-│    └─ 注入 Claude Code system message（如果是 OAuth）        │
+│    Step 4.2: Claude Code OAuth special handling              │
+│    └─ Inject Claude Code system message (if OAuth)           │
 │                                                               │
-│    Step 4.3: 路由选择                                        │
-│    ├─ 如果启用 trace → _completionsForTrace()                │
-│    └─ 否则 → _completionsOrImageGeneration()                 │
+│    Step 4.3: Routing selection                               │
+│    ├─ If trace enabled → _completionsForTrace()              │
+│    └─ Otherwise → _completionsOrImageGeneration()            │
 └─────────────────────────┬───────────────────────────────────┘
                           │
                           ▼
@@ -218,9 +221,9 @@ User Input (UI)
 │ 5. ModernAiProvider._completionsOrImageGeneration()          │
 │    Location: src/renderer/src/aiCore/index_new.ts:167        │
 │                                                               │
-│    判断：                                                     │
-│    ├─ 图像生成端点 → legacyProvider.completions()            │
-│    └─ 文本生成 → modernCompletions() ──────────────────────► │
+│    Decision:                                                  │
+│    ├─ Image generation endpoint → legacyProvider.completions()│
+│    └─ Text generation → modernCompletions() ───────────────► │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -229,10 +232,10 @@ User Input (UI)
 │    Location: src/renderer/src/aiCore/index_new.ts:284        │
 │                                                               │
 │    Step 6.1: buildPlugins(config)                            │
-│    └─ 构建插件数组（Reasoning, ToolUse, WebSearch, etc.）    │
+│    └─ Build plugin array (Reasoning, ToolUse, WebSearch, etc.)│
 │                                                               │
 │    Step 6.2: createExecutor() ─────────────────────────────► │
-│    └─ 创建 RuntimeExecutor 实例                              │
+│    └─ Create RuntimeExecutor instance                        │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -241,21 +244,21 @@ User Input (UI)
 │    Location: packages/aiCore/src/core/runtime/index.ts:25    │
 │                                                               │
 │    Step 7.1: extensionRegistry.createProvider()              │
-│    ├─ 解析 providerId (支持别名和变体)                       │
-│    ├─ 获取 ProviderExtension 实例                            │
-│    ├─ 计算 settings hash                                     │
-│    ├─ LRU 缓存查找                                           │
-│    │  ├─ Cache hit → 返回缓存实例                            │
-│    │  └─ Cache miss → 创建新实例                             │
-│    └─ 返回 ProviderV3 实例                                   │
+│    ├─ Parse providerId (supports aliases and variants)       │
+│    ├─ Get ProviderExtension instance                         │
+│    ├─ Compute settings hash                                  │
+│    ├─ LRU cache lookup                                       │
+│    │  ├─ Cache hit → Return cached instance                  │
+│    │  └─ Cache miss → Create new instance                    │
+│    └─ Return ProviderV3 instance                             │
 │                                                               │
 │    Step 7.2: RuntimeExecutor.create()                        │
-│    ├─ 创建 RuntimeExecutor 实例                              │
-│    ├─ 注入 provider 引用                                     │
-│    ├─ 初始化 ModelResolver                                   │
-│    └─ 初始化 PluginEngine                                    │
+│    ├─ Create RuntimeExecutor instance                        │
+│    ├─ Inject provider reference                              │
+│    ├─ Initialize ModelResolver                               │
+│    └─ Initialize PluginEngine                                │
 │                                                               │
-│    返回: RuntimeExecutor<T> 实例 ───────────────────────────► │
+│    Return: RuntimeExecutor<T> instance ────────────────────► │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -263,17 +266,17 @@ User Input (UI)
 │ 8. RuntimeExecutor.streamText()                              │
 │    Location: packages/aiCore/src/core/runtime/executor.ts    │
 │                                                               │
-│    Step 8.1: 插件生命周期 - onRequestStart                   │
-│    └─ 执行所有插件的 onRequestStart 钩子                     │
+│    Step 8.1: Plugin lifecycle - onRequestStart               │
+│    └─ Execute all plugins' onRequestStart hooks              │
 │                                                               │
-│    Step 8.2: 插件转换 - transformParams                      │
-│    └─ 链式执行所有插件的参数转换                             │
+│    Step 8.2: Plugin transform - transformParams              │
+│    └─ Chain execute all plugins' parameter transformations   │
 │                                                               │
 │    Step 8.3: modelResolver.resolveModel()                    │
-│    └─ 解析 model string → LanguageModel 实例                 │
+│    └─ Parse model string → LanguageModel instance            │
 │                                                               │
-│    Step 8.4: 调用 AI SDK streamText() ──────────────────────►│
-│    └─ 传入解析后的 model 和转换后的 params                   │
+│    Step 8.4: Call AI SDK streamText() ─────────────────────►│
+│    └─ Pass resolved model and transformed params             │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -281,115 +284,115 @@ User Input (UI)
 │ 9. AI SDK: streamText()                                      │
 │    Location: node_modules/ai/core/generate-text/stream-text  │
 │                                                               │
-│    Step 9.1: 参数验证                                        │
-│    Step 9.2: 调用 provider.doStream()                        │
-│    Step 9.3: 返回 StreamTextResult                           │
+│    Step 9.1: Parameter validation                            │
+│    Step 9.2: Call provider.doStream()                        │
+│    Step 9.3: Return StreamTextResult                         │
 │    └─ textStream, fullStream, usage, etc.                    │
 └─────────────────────────┬───────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 10. 流式数据处理                                             │
+│ 10. Stream Data Processing                                   │
 │     Location: src/renderer/src/aiCore/chunk/                 │
 │                                                               │
 │     Step 10.1: AiSdkToChunkAdapter.processStream()           │
-│     ├─ 监听 AI SDK 的 textStream                             │
-│     ├─ 转换为 Cherry Chunk 格式                              │
-│     ├─ 处理 tool calls                                       │
-│     ├─ 处理 reasoning blocks                                 │
-│     └─ 发送 chunk 到 onChunkReceived callback                │
+│     ├─ Listen to AI SDK's textStream                         │
+│     ├─ Convert to Cherry Chunk format                        │
+│     ├─ Process tool calls                                    │
+│     ├─ Process reasoning blocks                              │
+│     └─ Send chunk to onChunkReceived callback                │
 │                                                               │
 │     Step 10.2: StreamProcessingService                       │
-│     └─ 处理不同类型的 chunk 并更新 UI                        │
+│     └─ Process different chunk types and update UI           │
 └─────────────────────────┬───────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 11. 插件生命周期 - 完成阶段                                  │
+│ 11. Plugin Lifecycle - Completion Phase                      │
 │                                                               │
 │     Step 11.1: transformResult                               │
-│     └─ 插件可以修改最终结果                                  │
+│     └─ Plugins can modify final result                       │
 │                                                               │
 │     Step 11.2: onRequestEnd                                  │
-│     └─ 执行所有插件的完成钩子                                │
+│     └─ Execute all plugins' completion hooks                 │
 └─────────────────────────┬───────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 12. UI Update                                                │
-│     - Redux state 更新                                       │
-│     - React 组件重渲染                                       │
-│     - 显示完整响应                                           │
+│     - Redux state update                                     │
+│     - React component re-render                              │
+│     - Display complete response                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 关键时序说明
+### 2.2 Key Timing Notes
 
-#### 2.2.1 Provider 实例创建（LRU 缓存机制）
+#### 2.2.1 Provider Instance Creation (LRU Cache Mechanism)
 
 ```typescript
-// 场景 1: 首次请求 OpenAI (Cache Miss)
+// Scenario 1: First OpenAI request (Cache Miss)
 const executor1 = await createExecutor('openai', { apiKey: 'sk-xxx' })
 // → extensionRegistry.createProvider('openai', { apiKey: 'sk-xxx' })
-// → 计算 hash: "abc123"
+// → Compute hash: "abc123"
 // → LRU cache miss
-// → OpenAIExtension.factory() 创建新 provider
-// → 存入 LRU: cache.set("abc123", provider)
+// → OpenAIExtension.factory() creates new provider
+// → Store in LRU: cache.set("abc123", provider)
 
-// 场景 2: 相同配置的第二次请求 (Cache Hit)
+// Scenario 2: Second request with same config (Cache Hit)
 const executor2 = await createExecutor('openai', { apiKey: 'sk-xxx' })
-// → 计算 hash: "abc123" (相同)
+// → Compute hash: "abc123" (same)
 // → LRU cache hit!
-// → 直接返回缓存的 provider
-// → executor1 和 executor2 共享同一个 provider 实例
+// → Return cached provider directly
+// → executor1 and executor2 share the same provider instance
 
-// 场景 3: 不同配置 (Cache Miss + 新实例)
+// Scenario 3: Different config (Cache Miss + New Instance)
 const executor3 = await createExecutor('openai', {
-  apiKey: 'sk-yyy',  // 不同的 key
+  apiKey: 'sk-yyy',  // different key
   baseURL: 'https://custom.com/v1'
 })
-// → 计算 hash: "def456" (不同)
+// → Compute hash: "def456" (different)
 // → LRU cache miss
-// → 创建新的独立 provider 实例
-// → 存入 LRU: cache.set("def456", provider2)
+// → Create new independent provider instance
+// → Store in LRU: cache.set("def456", provider2)
 ```
 
-#### 2.2.2 插件执行顺序
+#### 2.2.2 Plugin Execution Order
 
 ```typescript
-// 示例：启用 Reasoning + ToolUse + WebSearch
+// Example: Reasoning + ToolUse + WebSearch enabled
 plugins = [ReasoningPlugin, ToolUsePlugin, WebSearchPlugin]
 
-// 执行顺序：
+// Execution order:
 1. onRequestStart:    Reasoning → ToolUse → WebSearch
-2. transformParams:   Reasoning → ToolUse → WebSearch (链式)
-3. [AI SDK 调用]
-4. transformResult:   WebSearch → ToolUse → Reasoning (反向)
-5. onRequestEnd:      WebSearch → ToolUse → Reasoning (反向)
+2. transformParams:   Reasoning → ToolUse → WebSearch (chain)
+3. [AI SDK call]
+4. transformResult:   WebSearch → ToolUse → Reasoning (reverse)
+5. onRequestEnd:      WebSearch → ToolUse → Reasoning (reverse)
 ```
 
 ---
 
-## 3. 核心组件详解
+## 3. Core Components
 
 ### 3.1 ApiService Layer
 
-#### 文件位置
+#### File Location
 `src/renderer/src/services/ApiService.ts`
 
-#### 核心职责
+#### Core Responsibilities
 
-1. **消息准备和转换**
-2. **MCP 工具集成**
-3. **知识库搜索注入**
-4. **API Key 轮换**
-5. **调用 ModernAiProvider**
+1. **Message preparation and conversion**
+2. **MCP tool integration**
+3. **Knowledge base search injection**
+4. **API Key rotation**
+5. **Call ModernAiProvider**
 
-#### 关键函数详解
+#### Key Function Details
 
 ##### 3.1.1 `transformMessagesAndFetch()`
 
-**签名**:
+**Signature**:
 ```typescript
 async function transformMessagesAndFetch(
   request: {
@@ -409,24 +412,24 @@ async function transformMessagesAndFetch(
 ): Promise<void>
 ```
 
-**执行流程**:
+**Execution Flow**:
 
 ```typescript
-// Step 1: 消息准备
+// Step 1: Message preparation
 const { modelMessages, uiMessages } =
   await ConversationService.prepareMessagesForModel(messages, assistant)
 
-// modelMessages: 转换为 LLM 理解的格式
-// uiMessages: 保留原始 UI 消息（用于某些特殊场景）
+// modelMessages: Converted to LLM-understandable format
+// uiMessages: Original UI messages (for special scenarios)
 
-// Step 2: 替换 prompt 变量
+// Step 2: Replace prompt variables
 assistant.prompt = await replacePromptVariables(
   assistant.prompt,
   assistant.model?.name
 )
-// 例如: "{model_name}" → "GPT-4"
+// e.g.: "{model_name}" → "GPT-4"
 
-// Step 3: 注入知识库搜索
+// Step 3: Inject knowledge base search
 await injectUserMessageWithKnowledgeSearchPrompt({
   modelMessages,
   assistant,
@@ -436,7 +439,7 @@ await injectUserMessageWithKnowledgeSearchPrompt({
   setCitationBlockId
 })
 
-// Step 4: 发起实际请求
+// Step 4: Make actual request
 await fetchChatCompletion({
   messages: modelMessages,
   assistant,
@@ -449,7 +452,7 @@ await fetchChatCompletion({
 
 ##### 3.1.2 `fetchChatCompletion()`
 
-**关键代码分析**:
+**Key Code Analysis**:
 
 ```typescript
 export async function fetchChatCompletion({
@@ -461,26 +464,26 @@ export async function fetchChatCompletion({
   uiMessages
 }: FetchChatCompletionParams) {
 
-  // 1. Provider 准备 + API Key 轮换
+  // 1. Provider preparation + API Key rotation
   const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
   const providerWithRotatedKey = {
     ...baseProvider,
-    apiKey: getRotatedApiKey(baseProvider)  // ✅ 多 key 负载均衡
+    apiKey: getRotatedApiKey(baseProvider)  // ✅ Multi-key load balancing
   }
 
-  // 2. 创建 AI Provider 实例
+  // 2. Create AI Provider instance
   const AI = new ModernAiProvider(
     assistant.model || getDefaultModel(),
     providerWithRotatedKey
   )
 
-  // 3. 获取 MCP 工具
+  // 3. Get MCP tools
   const mcpTools: MCPTool[] = []
   if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
     mcpTools.push(...(await fetchMcpTools(assistant)))
   }
 
-  // 4. 构建 AI SDK 参数
+  // 4. Build AI SDK parameters
   const {
     params: aiSdkParams,
     modelId,
@@ -492,7 +495,7 @@ export async function fetchChatCompletion({
     requestOptions
   })
 
-  // 5. 构建中间件配置
+  // 5. Build middleware configuration
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
@@ -510,7 +513,7 @@ export async function fetchChatCompletion({
     knowledgeRecognition: assistant.knowledgeRecognition
   }
 
-  // 6. 调用 AI.completions()
+  // 6. Call AI.completions()
   await AI.completions(modelId, aiSdkParams, {
     ...middlewareConfig,
     assistant,
@@ -521,7 +524,7 @@ export async function fetchChatCompletion({
 }
 ```
 
-**API Key 轮换机制**:
+**API Key Rotation Mechanism**:
 
 ```typescript
 function getRotatedApiKey(provider: Provider): string {
@@ -540,39 +543,39 @@ function getRotatedApiKey(provider: Provider): string {
   return nextKey
 }
 
-// 使用场景：
+// Usage scenario:
 // provider.apiKey = "sk-key1,sk-key2,sk-key3"
-// 请求 1 → 使用 sk-key1
-// 请求 2 → 使用 sk-key2
-// 请求 3 → 使用 sk-key3
-// 请求 4 → 使用 sk-key1 (轮回)
+// Request 1 → use sk-key1
+// Request 2 → use sk-key2
+// Request 3 → use sk-key3
+// Request 4 → use sk-key1 (cycle)
 ```
 
 ### 3.2 ModernAiProvider Layer
 
-#### 文件位置
+#### File Location
 `src/renderer/src/aiCore/index_new.ts`
 
-#### 核心职责
+#### Core Responsibilities
 
-1. **Provider 配置转换** (Cherry Provider → AI SDK Config)
-2. **插件构建** (根据 capabilities)
-3. **Trace 集成** (OpenTelemetry)
-4. **调用 RuntimeExecutor**
-5. **流式数据适配** (AI SDK Stream → Cherry Chunk)
+1. **Provider configuration conversion** (Cherry Provider → AI SDK Config)
+2. **Plugin building** (based on capabilities)
+3. **Trace integration** (OpenTelemetry)
+4. **Call RuntimeExecutor**
+5. **Stream data adaptation** (AI SDK Stream → Cherry Chunk)
 
-#### 构造函数详解
+#### Constructor Details
 
 ```typescript
 constructor(modelOrProvider: Model | Provider, provider?: Provider) {
   if (this.isModel(modelOrProvider)) {
-    // 情况 1: new ModernAiProvider(model, provider)
+    // Case 1: new ModernAiProvider(model, provider)
     this.model = modelOrProvider
     this.actualProvider = provider
       ? adaptProvider({ provider, model: modelOrProvider })
       : getActualProvider(modelOrProvider)
 
-    // 同步或异步创建 config
+    // Sync or async config creation
     const configOrPromise = providerToAiSdkConfig(
       this.actualProvider,
       modelOrProvider
@@ -581,7 +584,7 @@ constructor(modelOrProvider: Model | Provider, provider?: Provider) {
       ? undefined
       : configOrPromise
   } else {
-    // 情况 2: new ModernAiProvider(provider)
+    // Case 2: new ModernAiProvider(provider)
     this.actualProvider = adaptProvider({ provider: modelOrProvider })
   }
 
@@ -589,7 +592,7 @@ constructor(modelOrProvider: Model | Provider, provider?: Provider) {
 }
 ```
 
-#### completions() 方法详解
+#### completions() Method Details
 
 ```typescript
 public async completions(
@@ -597,14 +600,14 @@ public async completions(
   params: StreamTextParams,
   providerConfig: ModernAiProviderConfig
 ) {
-  // 1. 确保 config 已准备
+  // 1. Ensure config is ready
   if (!this.config) {
     this.config = await Promise.resolve(
       providerToAiSdkConfig(this.actualProvider, this.model!)
     )
   }
 
-  // 2. Claude Code OAuth 特殊处理
+  // 2. Claude Code OAuth special handling
   if (this.actualProvider.id === 'anthropic' &&
       this.actualProvider.authType === 'oauth') {
     const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(
@@ -614,7 +617,7 @@ public async completions(
     params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
   }
 
-  // 3. 路由选择
+  // 3. Routing selection
   if (providerConfig.topicId && getEnableDeveloperMode()) {
     return await this._completionsForTrace(modelId, params, {
       ...providerConfig,
@@ -626,7 +629,7 @@ public async completions(
 }
 ```
 
-#### modernCompletions() 核心实现
+#### modernCompletions() Core Implementation
 
 ```typescript
 private async modernCompletions(
@@ -635,17 +638,17 @@ private async modernCompletions(
   config: ModernAiProviderConfig
 ): Promise<CompletionsResult> {
 
-  // 1. 构建插件
+  // 1. Build plugins
   const plugins = buildPlugins(config)
 
-  // 2. 创建 RuntimeExecutor
+  // 2. Create RuntimeExecutor
   const executor = await createExecutor(
     this.config!.providerId,
     this.config!.providerSettings,
     plugins
   )
 
-  // 3. 流式调用
+  // 3. Streaming call
   if (config.onChunk) {
     const accumulate = this.model!.supported_text_delta !== false
     const adapter = new AiSdkToChunkAdapter(
@@ -665,7 +668,7 @@ private async modernCompletions(
 
     return { getText: () => finalText }
   } else {
-    // 非流式调用
+    // Non-streaming call
     const streamResult = await executor.streamText({
       ...params,
       model: modelId
@@ -679,65 +682,15 @@ private async modernCompletions(
 }
 ```
 
-#### Trace 集成详解
-
-```typescript
-private async _completionsForTrace(
-  modelId: string,
-  params: StreamTextParams,
-  config: ModernAiProviderConfig & { topicId: string }
-): Promise<CompletionsResult> {
-
-  const traceName = `${this.actualProvider.name}.${modelId}.${config.callType}`
-
-  // 1. 创建 OpenTelemetry Span
-  const span = addSpan({
-    name: traceName,
-    tag: 'LLM',
-    topicId: config.topicId,
-    modelName: config.assistant.model?.name,
-    inputs: params
-  })
-
-  if (!span) {
-    return await this._completionsOrImageGeneration(modelId, params, config)
-  }
-
-  try {
-    // 2. 在 span 上下文中执行
-    const result = await this._completionsOrImageGeneration(modelId, params, config)
-
-    // 3. 标记 span 成功
-    endSpan({
-      topicId: config.topicId,
-      outputs: result,
-      span,
-      modelName: modelId
-    })
-
-    return result
-  } catch (error) {
-    // 4. 标记 span 失败
-    endSpan({
-      topicId: config.topicId,
-      error: error as Error,
-      span,
-      modelName: modelId
-    })
-    throw error
-  }
-}
-```
-
 ---
 
-## 4. Provider 系统架构
+## 4. Provider System Architecture
 
-### 4.1 Provider 配置转换
+### 4.1 Provider Configuration Conversion
 
-#### providerToAiSdkConfig() 详解
+#### providerToAiSdkConfig() Details
 
-**文件**: `src/renderer/src/aiCore/provider/providerConfig.ts`
+**File**: `src/renderer/src/aiCore/provider/providerConfig.ts`
 
 ```typescript
 export function providerToAiSdkConfig(
@@ -745,7 +698,7 @@ export function providerToAiSdkConfig(
   model?: Model
 ): ProviderConfig | Promise<ProviderConfig> {
 
-  // 1. 根据 provider.id 路由到具体实现
+  // 1. Route to specific implementation based on provider.id
   switch (provider.id) {
     case 'openai':
       return {
@@ -778,54 +731,19 @@ export function providerToAiSdkConfig(
       }
 
     case 'gateway':
-      // 特殊处理：gateway 需要异步创建
+      // Special handling: gateway requires async creation
       return createGatewayConfig(provider, model)
 
-    // ... 其他 providers
+    // ... other providers
   }
 }
 ```
 
-#### Gateway Provider 特殊处理
+### 4.2 Provider Extension System
 
-```typescript
-async function createGatewayConfig(
-  provider: Provider,
-  model?: Model
-): Promise<ProviderConfig> {
+**File**: `packages/aiCore/src/core/providers/core/ProviderExtension.ts`
 
-  // 1. 从 gateway 获取模型列表
-  const gatewayModels = await fetchGatewayModels(provider)
-
-  // 2. 标准化模型格式
-  const normalizedModels = normalizeGatewayModels(gatewayModels)
-
-  // 3. 使用 AI SDK 的 gateway() 函数
-  const gatewayProvider = gateway({
-    provider: {
-      languageModel: (modelId) => {
-        const targetModel = normalizedModels.find(m => m.id === modelId)
-        if (!targetModel) {
-          throw new Error(`Model ${modelId} not found in gateway`)
-        }
-        // 动态创建对应的 provider
-        return createLanguageModel(targetModel)
-      }
-    }
-  })
-
-  return {
-    providerId: 'gateway',
-    provider: gatewayProvider
-  }
-}
-```
-
-### 4.2 Provider Extension 系统
-
-**文件**: `packages/aiCore/src/core/providers/core/ProviderExtension.ts`
-
-#### 核心设计
+#### Core Design
 
 ```typescript
 export class ProviderExtension<
@@ -836,54 +754,54 @@ export class ProviderExtension<
     ProviderExtensionConfig<TSettings, TStorage, TProvider>
 > {
 
-  // 1. LRU 缓存（settings hash → provider 实例）
+  // 1. LRU cache (settings hash → provider instance)
   private instances: LRUCache<string, TProvider>
 
   constructor(public readonly config: TConfig) {
     this.instances = new LRUCache<string, TProvider>({
-      max: 10,                // 最多缓存 10 个实例
-      updateAgeOnGet: true    // LRU 行为
+      max: 10,                // Cache up to 10 instances
+      updateAgeOnGet: true    // LRU behavior
     })
   }
 
-  // 2. 创建 provider（带缓存）
+  // 2. Create provider (with caching)
   async createProvider(
     settings?: TSettings,
     variantSuffix?: string
   ): Promise<TProvider> {
 
-    // 2.1 合并默认配置
+    // 2.1 Merge default configuration
     const mergedSettings = this.mergeSettings(settings)
 
-    // 2.2 计算 hash（包含 variantSuffix）
+    // 2.2 Compute hash (including variantSuffix)
     const hash = this.computeHash(mergedSettings, variantSuffix)
 
-    // 2.3 LRU 缓存查找
+    // 2.3 LRU cache lookup
     const cachedInstance = this.instances.get(hash)
     if (cachedInstance) {
       return cachedInstance
     }
 
-    // 2.4 缓存未命中，创建新实例
+    // 2.4 Cache miss, create new instance
     const provider = await this.factory(mergedSettings, variantSuffix)
 
-    // 2.5 执行生命周期钩子
+    // 2.5 Execute lifecycle hooks
     await this.lifecycle.onCreate?.(provider, mergedSettings)
 
-    // 2.6 存入 LRU 缓存
+    // 2.6 Store in LRU cache
     this.instances.set(hash, provider)
 
     return provider
   }
 
-  // 3. Hash 计算（保证相同配置得到相同 hash）
+  // 3. Hash computation (ensures same config gets same hash)
   private computeHash(settings?: TSettings, variantSuffix?: string): string {
     const baseHash = (() => {
       if (settings === undefined || settings === null) {
         return 'default'
       }
 
-      // 稳定序列化（对象键排序）
+      // Stable serialization (sort object keys)
       const stableStringify = (obj: any): string => {
         if (obj === null || obj === undefined) return 'null'
         if (typeof obj !== 'object') return JSON.stringify(obj)
@@ -898,7 +816,7 @@ export class ProviderExtension<
 
       const serialized = stableStringify(settings)
 
-      // 简单哈希函数
+      // Simple hash function
       let hash = 0
       for (let i = 0; i < serialized.length; i++) {
         const char = serialized.charCodeAt(i)
@@ -909,83 +827,36 @@ export class ProviderExtension<
       return `${Math.abs(hash).toString(36)}`
     })()
 
-    // 附加 variantSuffix
+    // Append variantSuffix
     return variantSuffix ? `${baseHash}:${variantSuffix}` : baseHash
   }
 }
 ```
 
-#### OpenAI Extension 示例
-
-```typescript
-// packages/aiCore/src/core/providers/extensions/openai.ts
-
-export const OpenAIExtension = new ProviderExtension({
-  name: 'openai',
-  aliases: ['oai'],
-  variants: [
-    {
-      suffix: 'chat',
-      name: 'OpenAI Chat',
-      transform: (baseProvider, settings) => {
-        return customProvider({
-          fallbackProvider: {
-            ...baseProvider,
-            languageModel: (modelId) => baseProvider.chat(modelId)
-          }
-        })
-      }
-    }
-  ],
-
-  // Factory 函数
-  create: async (settings: OpenAIProviderSettings) => {
-    return createOpenAI({
-      apiKey: settings.apiKey,
-      baseURL: settings.baseURL,
-      organization: settings.organization,
-      headers: settings.headers
-    })
-  },
-
-  // 默认配置
-  defaultSettings: {
-    baseURL: 'https://api.openai.com/v1'
-  },
-
-  // 生命周期钩子
-  lifecycle: {
-    onCreate: async (provider, settings) => {
-      console.log(`OpenAI provider created with baseURL: ${settings.baseURL}`)
-    }
-  }
-})
-```
-
 ### 4.3 Extension Registry
 
-**文件**: `packages/aiCore/src/core/providers/core/ExtensionRegistry.ts`
+**File**: `packages/aiCore/src/core/providers/core/ExtensionRegistry.ts`
 
 ```typescript
 export class ExtensionRegistry {
   private extensions: Map<string, ProviderExtension<any, any, any>> = new Map()
   private aliasMap: Map<string, string> = new Map()
 
-  // 1. 注册 extension
+  // 1. Register extension
   register(extension: ProviderExtension<any, any, any>): this {
     const { name, aliases, variants } = extension.config
 
-    // 注册主 ID
+    // Register primary ID
     this.extensions.set(name, extension)
 
-    // 注册别名
+    // Register aliases
     if (aliases) {
       for (const alias of aliases) {
         this.aliasMap.set(alias, name)
       }
     }
 
-    // 注册变体 ID
+    // Register variant IDs
     if (variants) {
       for (const variant of variants) {
         const variantId = `${name}-${variant.suffix}`
@@ -996,7 +867,7 @@ export class ExtensionRegistry {
     return this
   }
 
-  // 2. 创建 provider（类型安全）
+  // 2. Create provider (type-safe)
   async createProvider<T extends RegisteredProviderId & keyof CoreProviderSettingsMap>(
     id: T,
     settings: CoreProviderSettingsMap[T]
@@ -1005,7 +876,7 @@ export class ExtensionRegistry {
   async createProvider(id: string, settings?: any): Promise<ProviderV3>
 
   async createProvider(id: string, settings?: any): Promise<ProviderV3> {
-    // 2.1 解析 ID（支持别名和变体）
+    // 2.1 Parse ID (supports aliases and variants)
     const parsed = this.parseProviderId(id)
     if (!parsed) {
       throw new Error(`Provider extension "${id}" not found`)
@@ -1013,13 +884,13 @@ export class ExtensionRegistry {
 
     const { baseId, mode: variantSuffix } = parsed
 
-    // 2.2 获取 extension
+    // 2.2 Get extension
     const extension = this.get(baseId)
     if (!extension) {
       throw new Error(`Provider extension "${baseId}" not found`)
     }
 
-    // 2.3 委托给 extension 创建
+    // 2.3 Delegate to extension for creation
     try {
       return await extension.createProvider(settings, variantSuffix)
     } catch (error) {
@@ -1030,81 +901,46 @@ export class ExtensionRegistry {
       )
     }
   }
-
-  // 3. 解析 providerId
-  parseProviderId(providerId: string): {
-    baseId: RegisteredProviderId
-    mode?: string
-    isVariant: boolean
-  } | null {
-
-    // 3.1 检查是否是基础 ID 或别名
-    const extension = this.get(providerId)
-    if (extension) {
-      return {
-        baseId: extension.config.name as RegisteredProviderId,
-        isVariant: false
-      }
-    }
-
-    // 3.2 查找变体
-    for (const ext of this.extensions.values()) {
-      if (!ext.config.variants) continue
-
-      for (const variant of ext.config.variants) {
-        const variantId = `${ext.config.name}-${variant.suffix}`
-        if (variantId === providerId) {
-          return {
-            baseId: ext.config.name as RegisteredProviderId,
-            mode: variant.suffix,
-            isVariant: true
-          }
-        }
-      }
-    }
-
-    return null
-  }
 }
 
-// 全局单例
+// Global singleton
 export const extensionRegistry = new ExtensionRegistry()
 ```
 
 ---
 
-## 5. 插件与中间件系统
+## 5. Plugin and Middleware System
 
-### 5.1 插件架构
+### 5.1 Plugin Architecture
 
-#### AiPlugin 接口定义
+#### AiPlugin Interface Definition
 
-**文件**: `packages/aiCore/src/core/plugins/types.ts`
+**File**: `packages/aiCore/src/core/plugins/types.ts`
 
 ```typescript
 export interface AiPlugin {
-  /** 插件名称 */
+  /** Plugin name */
   name: string
 
-  /** 请求开始前 */
+  /** Before request starts */
   onRequestStart?: (context: PluginContext) => void | Promise<void>
 
-  /** 转换参数（链式调用） */
+  /** Transform parameters (chained call) */
   transformParams?: (
     params: any,
     context: PluginContext
   ) => any | Promise<any>
 
-  /** 转换结果 */
+  /** Transform result */
   transformResult?: (
     result: any,
     context: PluginContext
   ) => any | Promise<any>
 
-  /** 请求结束后 */
+  /** After request ends */
   onRequestEnd?: (context: PluginContext) => void | Promise<void>
 
-  /** 错误处理 */
+  /** Error handling */
   onError?: (
     error: Error,
     context: PluginContext
@@ -1116,14 +952,14 @@ export interface PluginContext {
   model?: string
   messages?: any[]
   tools?: any
-  // experimental_context 中的自定义数据
+  // Custom data from experimental_context
   [key: string]: any
 }
 ```
 
-#### PluginEngine 实现
+#### PluginEngine Implementation
 
-**文件**: `packages/aiCore/src/core/plugins/PluginEngine.ts`
+**File**: `packages/aiCore/src/core/plugins/PluginEngine.ts`
 
 ```typescript
 export class PluginEngine {
@@ -1132,7 +968,7 @@ export class PluginEngine {
     private plugins: AiPlugin[]
   ) {}
 
-  // 1. 执行 onRequestStart
+  // 1. Execute onRequestStart
   async executeOnRequestStart(params: any): Promise<void> {
     const context = this.createContext(params)
 
@@ -1143,7 +979,7 @@ export class PluginEngine {
     }
   }
 
-  // 2. 链式执行 transformParams
+  // 2. Chain execute transformParams
   async executeTransformParams(params: any): Promise<any> {
     let transformedParams = params
     const context = this.createContext(params)
@@ -1160,12 +996,12 @@ export class PluginEngine {
     return transformedParams
   }
 
-  // 3. 执行 transformResult
+  // 3. Execute transformResult
   async executeTransformResult(result: any, params: any): Promise<any> {
     let transformedResult = result
     const context = this.createContext(params)
 
-    // 反向执行
+    // Execute in reverse order
     for (let i = this.plugins.length - 1; i >= 0; i--) {
       const plugin = this.plugins[i]
       if (plugin.transformResult) {
@@ -1179,11 +1015,11 @@ export class PluginEngine {
     return transformedResult
   }
 
-  // 4. 执行 onRequestEnd
+  // 4. Execute onRequestEnd
   async executeOnRequestEnd(params: any): Promise<void> {
     const context = this.createContext(params)
 
-    // 反向执行
+    // Execute in reverse order
     for (let i = this.plugins.length - 1; i >= 0; i--) {
       const plugin = this.plugins[i]
       if (plugin.onRequestEnd) {
@@ -1191,39 +1027,14 @@ export class PluginEngine {
       }
     }
   }
-
-  // 5. 执行 onError
-  async executeOnError(error: Error, params: any): Promise<void> {
-    const context = this.createContext(params)
-
-    for (const plugin of this.plugins) {
-      if (plugin.onError) {
-        try {
-          await plugin.onError(error, context)
-        } catch (pluginError) {
-          console.error(`Error in plugin ${plugin.name}:`, pluginError)
-        }
-      }
-    }
-  }
-
-  private createContext(params: any): PluginContext {
-    return {
-      providerId: this.providerId,
-      model: params.model,
-      messages: params.messages,
-      tools: params.tools,
-      ...params.experimental_context
-    }
-  }
 }
 ```
 
-### 5.2 内置插件
+### 5.2 Built-in Plugins
 
 #### 5.2.1 ReasoningPlugin
 
-**文件**: `src/renderer/src/aiCore/plugins/ReasoningPlugin.ts`
+**File**: `src/renderer/src/aiCore/plugins/ReasoningPlugin.ts`
 
 ```typescript
 export const ReasoningPlugin: AiPlugin = {
@@ -1234,15 +1045,15 @@ export const ReasoningPlugin: AiPlugin = {
       return params
     }
 
-    // 根据模型类型添加 reasoning 配置
+    // Add reasoning configuration based on model type
     if (context.model?.includes('o1') || context.model?.includes('o3')) {
-      // OpenAI o1/o3 系列
+      // OpenAI o1/o3 series
       return {
         ...params,
         reasoning_effort: context.reasoningEffort || 'medium'
       }
     } else if (context.model?.includes('claude')) {
-      // Anthropic Claude 系列
+      // Anthropic Claude series
       return {
         ...params,
         thinking: {
@@ -1251,7 +1062,7 @@ export const ReasoningPlugin: AiPlugin = {
         }
       }
     } else if (context.model?.includes('qwen')) {
-      // Qwen 系列
+      // Qwen series
       return {
         ...params,
         experimental_providerMetadata: {
@@ -1267,7 +1078,7 @@ export const ReasoningPlugin: AiPlugin = {
 
 #### 5.2.2 ToolUsePlugin
 
-**文件**: `src/renderer/src/aiCore/plugins/ToolUsePlugin.ts`
+**File**: `src/renderer/src/aiCore/plugins/ToolUsePlugin.ts`
 
 ```typescript
 export const ToolUsePlugin: AiPlugin = {
@@ -1278,17 +1089,17 @@ export const ToolUsePlugin: AiPlugin = {
       return params
     }
 
-    // 1. 收集所有工具
+    // 1. Collect all tools
     const tools: Record<string, CoreTool> = {}
 
-    // 1.1 MCP 工具
+    // 1.1 MCP tools
     if (context.mcpTools && context.mcpTools.length > 0) {
       for (const mcpTool of context.mcpTools) {
         tools[mcpTool.name] = convertMcpToolToCoreTool(mcpTool)
       }
     }
 
-    // 1.2 内置工具（WebSearch, GenerateImage, etc.）
+    // 1.2 Built-in tools (WebSearch, GenerateImage, etc.)
     if (context.enableWebSearch) {
       tools['web_search'] = webSearchTool
     }
@@ -1297,7 +1108,7 @@ export const ToolUsePlugin: AiPlugin = {
       tools['generate_image'] = generateImageTool
     }
 
-    // 2. Prompt Tool Use 模式特殊处理
+    // 2. Prompt Tool Use mode special handling
     if (context.isPromptToolUse) {
       return {
         ...params,
@@ -1305,7 +1116,7 @@ export const ToolUsePlugin: AiPlugin = {
       }
     }
 
-    // 3. 标准 Function Calling 模式
+    // 3. Standard Function Calling mode
     return {
       ...params,
       tools,
@@ -1315,106 +1126,23 @@ export const ToolUsePlugin: AiPlugin = {
 }
 ```
 
-#### 5.2.3 WebSearchPlugin
-
-**文件**: `src/renderer/src/aiCore/plugins/WebSearchPlugin.ts`
-
-```typescript
-export const WebSearchPlugin: AiPlugin = {
-  name: 'WebSearchPlugin',
-
-  transformParams: async (params, context) => {
-    if (!context.enableWebSearch) {
-      return params
-    }
-
-    // 添加 web search 工具
-    const webSearchTool = {
-      type: 'function' as const,
-      function: {
-        name: 'web_search',
-        description: 'Search the web for current information',
-        parameters: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'Search query'
-            }
-          },
-          required: ['query']
-        }
-      },
-      execute: async ({ query }: { query: string }) => {
-        return await executeWebSearch(query, context.webSearchProviderId)
-      }
-    }
-
-    return {
-      ...params,
-      tools: {
-        ...params.tools,
-        web_search: webSearchTool
-      }
-    }
-  }
-}
-```
-
-### 5.3 插件构建器
-
-**文件**: `src/renderer/src/aiCore/plugins/PluginBuilder.ts`
-
-```typescript
-export function buildPlugins(config: AiSdkMiddlewareConfig): AiPlugin[] {
-  const plugins: AiPlugin[] = []
-
-  // 1. Reasoning Plugin
-  if (config.enableReasoning) {
-    plugins.push(ReasoningPlugin)
-  }
-
-  // 2. Tool Use Plugin
-  if (config.isSupportedToolUse || config.isPromptToolUse) {
-    plugins.push(ToolUsePlugin)
-  }
-
-  // 3. Web Search Plugin
-  if (config.enableWebSearch) {
-    plugins.push(WebSearchPlugin)
-  }
-
-  // 4. Image Generation Plugin
-  if (config.enableGenerateImage) {
-    plugins.push(ImageGenerationPlugin)
-  }
-
-  // 5. URL Context Plugin
-  if (config.enableUrlContext) {
-    plugins.push(UrlContextPlugin)
-  }
-
-  return plugins
-}
-```
-
 ---
 
-## 6. 消息处理流程
+## 6. Message Processing Flow
 
-### 6.1 消息转换
+### 6.1 Message Conversion
 
-**文件**: `src/renderer/src/services/ConversationService.ts`
+**File**: `src/renderer/src/services/ConversationService.ts`
 
 ```typescript
 export class ConversationService {
 
   /**
-   * 准备消息用于 LLM 调用
+   * Prepare messages for LLM call
    *
    * @returns {
-   *   modelMessages: AI SDK 格式的消息
-   *   uiMessages: 原始 UI 消息（用于特殊场景）
+   *   modelMessages: AI SDK format messages
+   *   uiMessages: Original UI messages (for special scenarios)
    * }
    */
   static async prepareMessagesForModel(
@@ -1425,18 +1153,18 @@ export class ConversationService {
     uiMessages: Message[]
   }> {
 
-    // 1. 过滤消息
+    // 1. Filter messages
     let filteredMessages = messages
       .filter(m => !m.isDeleted)
       .filter(m => m.role !== 'system')
 
-    // 2. 应用上下文窗口限制
+    // 2. Apply context window limit
     const contextLimit = assistant.settings?.contextLimit || 10
     if (contextLimit > 0) {
       filteredMessages = takeRight(filteredMessages, contextLimit)
     }
 
-    // 3. 转换为 AI SDK 格式
+    // 3. Convert to AI SDK format
     const modelMessages: CoreMessage[] = []
 
     for (const msg of filteredMessages) {
@@ -1446,7 +1174,7 @@ export class ConversationService {
       }
     }
 
-    // 4. 添加 system message
+    // 4. Add system message
     if (assistant.prompt) {
       modelMessages.unshift({
         role: 'system',
@@ -1459,116 +1187,12 @@ export class ConversationService {
       uiMessages: filteredMessages
     }
   }
-
-  /**
-   * 转换单条消息
-   */
-  static async convertMessageToAiSdk(
-    message: Message,
-    assistant: Assistant
-  ): Promise<CoreMessage | null> {
-
-    switch (message.role) {
-      case 'user':
-        return await this.convertUserMessage(message)
-
-      case 'assistant':
-        return await this.convertAssistantMessage(message)
-
-      case 'tool':
-        return {
-          role: 'tool',
-          content: message.content,
-          toolCallId: message.toolCallId
-        }
-
-      default:
-        return null
-    }
-  }
-
-  /**
-   * 转换用户消息（处理多模态内容）
-   */
-  static async convertUserMessage(message: Message): Promise<CoreMessage> {
-    const parts: Array<TextPart | ImagePart | FilePart> = []
-
-    // 1. 处理文本内容
-    const textContent = getMainTextContent(message)
-    if (textContent) {
-      parts.push({
-        type: 'text',
-        text: textContent
-      })
-    }
-
-    // 2. 处理图片
-    const imageBlocks = findImageBlocks(message)
-    for (const block of imageBlocks) {
-      const imageData = await this.loadImageData(block.image.url)
-      parts.push({
-        type: 'image',
-        image: imageData
-      })
-    }
-
-    // 3. 处理文件
-    const fileBlocks = findFileBlocks(message)
-    for (const block of fileBlocks) {
-      const fileData = await this.loadFileData(block.file)
-      parts.push({
-        type: 'file',
-        data: fileData,
-        mimeType: block.file.mime_type
-      })
-    }
-
-    return {
-      role: 'user',
-      content: parts
-    }
-  }
-
-  /**
-   * 转换助手消息（处理工具调用）
-   */
-  static async convertAssistantMessage(
-    message: Message
-  ): Promise<CoreMessage> {
-
-    const parts: Array<TextPart | ToolCallPart> = []
-
-    // 1. 处理文本内容
-    const textContent = getMainTextContent(message)
-    if (textContent) {
-      parts.push({
-        type: 'text',
-        text: textContent
-      })
-    }
-
-    // 2. 处理工具调用
-    const toolCallBlocks = findToolCallBlocks(message)
-    for (const block of toolCallBlocks) {
-      parts.push({
-        type: 'tool-call',
-        toolCallId: block.toolCallId,
-        toolName: block.toolName,
-        args: block.args
-      })
-    }
-
-    return {
-      role: 'assistant',
-      content: parts
-    }
-  }
 }
 ```
 
-### 6.2 流式数据适配
+### 6.2 Stream Data Adaptation
 
-**文件**: `src/renderer/src/aiCore/chunk/AiSdkToChunkAdapter.ts`
+**File**: `src/renderer/src/aiCore/chunk/AiSdkToChunkAdapter.ts`
 
 ```typescript
 export default class AiSdkToChunkAdapter {
@@ -1581,7 +1205,7 @@ export default class AiSdkToChunkAdapter {
   ) {}
 
   /**
-   * 处理 AI SDK 流式结果
+   * Process AI SDK streaming result
    */
   async processStream(streamResult: StreamTextResult<any>): Promise<string> {
     const startTime = Date.now()
@@ -1589,7 +1213,7 @@ export default class AiSdkToChunkAdapter {
     let firstTokenTime = 0
 
     try {
-      // 1. 监听 textStream
+      // 1. Listen to textStream
       for await (const textDelta of streamResult.textStream) {
         if (!firstTokenTime) {
           firstTokenTime = Date.now()
@@ -1598,13 +1222,13 @@ export default class AiSdkToChunkAdapter {
         if (this.accumulate) {
           fullText += textDelta
 
-          // 发送文本增量 chunk
+          // Send text delta chunk
           this.onChunk({
             type: ChunkType.TEXT_DELTA,
             text: textDelta
           })
         } else {
-          // 不累积，直接发送完整文本
+          // Don't accumulate, send complete text
           this.onChunk({
             type: ChunkType.TEXT,
             text: textDelta
@@ -1612,7 +1236,7 @@ export default class AiSdkToChunkAdapter {
         }
       }
 
-      // 2. 处理工具调用
+      // 2. Process tool calls
       const toolCalls = streamResult.toolCalls
       if (toolCalls && toolCalls.length > 0) {
         for (const toolCall of toolCalls) {
@@ -1620,7 +1244,7 @@ export default class AiSdkToChunkAdapter {
         }
       }
 
-      // 3. 处理 reasoning/thinking
+      // 3. Process reasoning/thinking
       const reasoning = streamResult.experimental_providerMetadata?.reasoning
       if (reasoning) {
         this.onChunk({
@@ -1629,7 +1253,7 @@ export default class AiSdkToChunkAdapter {
         })
       }
 
-      // 4. 发送完成 chunk
+      // 4. Send completion chunk
       const usage = await streamResult.usage
       const finishReason = await streamResult.finishReason
 
@@ -1650,17 +1274,6 @@ export default class AiSdkToChunkAdapter {
         }
       })
 
-      this.onChunk({
-        type: ChunkType.LLM_RESPONSE_COMPLETE,
-        response: {
-          usage: {
-            prompt_tokens: usage.promptTokens,
-            completion_tokens: usage.completionTokens,
-            total_tokens: usage.totalTokens
-          }
-        }
-      })
-
       return fullText
 
     } catch (error) {
@@ -1671,86 +1284,28 @@ export default class AiSdkToChunkAdapter {
       throw error
     }
   }
-
-  /**
-   * 处理工具调用
-   */
-  private async handleToolCall(toolCall: ToolCall): Promise<void> {
-    // 1. 发送工具调用开始 chunk
-    this.onChunk({
-      type: ChunkType.TOOL_CALL,
-      toolCall: {
-        id: toolCall.toolCallId,
-        name: toolCall.toolName,
-        arguments: toolCall.args
-      }
-    })
-
-    // 2. 查找工具定义
-    const mcpTool = this.mcpTools?.find(t => t.name === toolCall.toolName)
-
-    // 3. 执行工具
-    try {
-      let result: any
-
-      if (mcpTool) {
-        // MCP 工具
-        result = await window.api.mcp.callTool(
-          mcpTool.serverName,
-          toolCall.toolName,
-          toolCall.args
-        )
-      } else if (toolCall.toolName === 'web_search' && this.enableWebSearch) {
-        // Web Search 工具
-        result = await executeWebSearch(toolCall.args.query)
-      } else {
-        result = { error: `Unknown tool: ${toolCall.toolName}` }
-      }
-
-      // 4. 发送工具结果 chunk
-      this.onChunk({
-        type: ChunkType.TOOL_RESULT,
-        toolResult: {
-          toolCallId: toolCall.toolCallId,
-          toolName: toolCall.toolName,
-          result
-        }
-      })
-
-    } catch (error) {
-      // 5. 发送工具错误 chunk
-      this.onChunk({
-        type: ChunkType.TOOL_ERROR,
-        toolError: {
-          toolCallId: toolCall.toolCallId,
-          toolName: toolCall.toolName,
-          error: error as Error
-        }
-      })
-    }
-  }
 }
 ```
 
 ---
 
-## 7. 类型安全机制
+## 7. Type Safety Mechanisms
 
-### 7.1 Provider Settings 类型映射
+### 7.1 Provider Settings Type Mapping
 
-**文件**: `packages/aiCore/src/core/providers/types/index.ts`
+**File**: `packages/aiCore/src/core/providers/types/index.ts`
 
 ```typescript
 /**
  * Core Provider Settings Map
- * 自动从 Extension 提取类型
+ * Automatically extracts types from Extensions
  */
 export type CoreProviderSettingsMap = UnionToIntersection<
   ExtensionToSettingsMap<(typeof coreExtensions)[number]>
 >
 
 /**
- * 结果类型（示例）：
+ * Result type (example):
  * {
  *   openai: OpenAIProviderSettings
  *   'openai-chat': OpenAIProviderSettings
@@ -1761,71 +1316,41 @@ export type CoreProviderSettingsMap = UnionToIntersection<
  */
 ```
 
-### 7.2 类型安全的 createExecutor
+### 7.2 Type-Safe createExecutor
 
 ```typescript
-// 1. 已知 provider（类型安全）
+// 1. Known provider (type-safe)
 const executor = await createExecutor('openai', {
-  apiKey: 'sk-xxx',      // ✅ 类型推断为 string
-  baseURL: 'https://...' // ✅ 类型推断为 string | undefined
-  // wrongField: 123     // ❌ 编译错误：不存在的字段
+  apiKey: 'sk-xxx',      // ✅ Type inferred as string
+  baseURL: 'https://...' // ✅ Type inferred as string | undefined
+  // wrongField: 123     // ❌ Compile error: unknown field
 })
 
-// 2. 动态 provider（any）
+// 2. Dynamic provider (any)
 const executor = await createExecutor('custom-provider', {
-  anyField: 'value'      // ✅ any 类型
-})
-```
-
-### 7.3 Extension Registry 类型安全
-
-```typescript
-export class ExtensionRegistry {
-
-  // 类型安全的函数重载
-  async createProvider<
-    T extends RegisteredProviderId & keyof CoreProviderSettingsMap
-  >(
-    id: T,
-    settings: CoreProviderSettingsMap[T]
-  ): Promise<ProviderV3>
-
-  async createProvider(
-    id: string,
-    settings?: any
-  ): Promise<ProviderV3>
-
-  async createProvider(id: string, settings?: any): Promise<ProviderV3> {
-    // 实现
-  }
-}
-
-// 使用：
-const provider = await extensionRegistry.createProvider('openai', {
-  apiKey: 'sk-xxx',      // ✅ 类型检查
-  baseURL: 'https://...'
+  anyField: 'value'      // ✅ any type
 })
 ```
 
 ---
 
-## 8. Trace 和可观测性
+## 8. Tracing and Observability
 
-### 8.1 OpenTelemetry 集成
+### 8.1 OpenTelemetry Integration
 
-#### Span 创建
+#### Span Creation
 
-**文件**: `src/renderer/src/services/SpanManagerService.ts`
+**File**: `src/renderer/src/services/SpanManagerService.ts`
 
 ```typescript
 export function addSpan(params: StartSpanParams): Span | null {
   const { name, tag, topicId, modelName, inputs } = params
 
-  // 1. 获取或创建 tracer
+  // 1. Get or create tracer
   const tracer = getTracer(topicId)
   if (!tracer) return null
 
-  // 2. 创建 span
+  // 2. Create span
   const span = tracer.startSpan(name, {
     kind: SpanKind.CLIENT,
     attributes: {
@@ -1838,44 +1363,16 @@ export function addSpan(params: StartSpanParams): Span | null {
     }
   })
 
-  // 3. 设置 span context 为 active
+  // 3. Set span context as active
   context.with(trace.setSpan(context.active(), span), () => {
-    // 后续的 AI SDK 调用会自动继承这个 span
+    // Subsequent AI SDK calls will automatically inherit this span
   })
 
   return span
 }
 ```
 
-#### Span 结束
-
-```typescript
-export function endSpan(params: EndSpanParams): void {
-  const { topicId, span, outputs, error, modelName } = params
-
-  if (outputs) {
-    // 成功情况
-    span.setAttributes({
-      'llm.output_text': outputs.getText(),
-      'llm.finish_reason': outputs.finishReason,
-      'llm.usage.prompt_tokens': outputs.usage.promptTokens,
-      'llm.usage.completion_tokens': outputs.usage.completionTokens
-    })
-    span.setStatus({ code: SpanStatusCode.OK })
-  } else if (error) {
-    // 错误情况
-    span.recordException(error)
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: error.message
-    })
-  }
-
-  span.end()
-}
-```
-
-### 8.2 Trace 层级结构
+### 8.2 Trace Hierarchy Structure
 
 ```
 Parent Span: fetchChatCompletion
@@ -1886,7 +1383,7 @@ Parent Span: fetchChatCompletion
 ├─ Child Span: buildStreamTextParams
 │  └─ attributes: tools_count, web_search_enabled
 │
-├─ Child Span: AI.completions (创建于 _completionsForTrace)
+├─ Child Span: AI.completions (created in _completionsForTrace)
 │  │
 │  ├─ Child Span: buildPlugins
 │  │  └─ attributes: plugin_names
@@ -1896,51 +1393,21 @@ Parent Span: fetchChatCompletion
 │  │
 │  └─ Child Span: executor.streamText
 │     │
-│     ├─ Child Span: AI SDK doStream (自动创建)
+│     ├─ Child Span: AI SDK doStream (auto-created)
 │     │  └─ attributes: model, temperature, tokens
 │     │
-│     └─ Child Span: Tool Execution (如果有工具调用)
+│     └─ Child Span: Tool Execution (if tool calls exist)
 │        ├─ attributes: tool_name, args
 │        └─ attributes: result, latency
 │
 └─ attributes: total_duration, final_token_count
 ```
 
-### 8.3 Trace 导出
-
-```typescript
-// 配置 OTLP Exporter
-const exporter = new OTLPTraceExporter({
-  url: 'http://localhost:4318/v1/traces',
-  headers: {
-    'Authorization': 'Bearer xxx'
-  }
-})
-
-// 配置 Trace Provider
-const provider = new WebTracerProvider({
-  resource: new Resource({
-    'service.name': 'cherry-studio',
-    'service.version': app.getVersion()
-  })
-})
-
-provider.addSpanProcessor(
-  new BatchSpanProcessor(exporter, {
-    maxQueueSize: 100,
-    maxExportBatchSize: 10,
-    scheduledDelayMillis: 500
-  })
-)
-
-provider.register()
-```
-
 ---
 
-## 9. 错误处理机制
+## 9. Error Handling
 
-### 9.1 错误类型层级
+### 9.1 Error Type Hierarchy
 
 ```typescript
 // 1. Base Error
@@ -1990,129 +1457,32 @@ export class ApiError extends ProviderError {
 }
 ```
 
-### 9.2 错误传播
-
-```
-RuntimeExecutor.streamText()
-   │
-   ├─ try {
-   │    await pluginEngine.executeOnRequestStart()
-   │  } catch (error) {
-   │    await pluginEngine.executeOnError(error)
-   │    throw error
-   │  }
-   │
-   ├─ try {
-   │    params = await pluginEngine.executeTransformParams(params)
-   │  } catch (error) {
-   │    await pluginEngine.executeOnError(error)
-   │    throw error
-   │  }
-   │
-   └─ try {
-        const result = await aiSdk.streamText(...)
-        return result
-      } catch (error) {
-        await pluginEngine.executeOnError(error)
-
-        // 转换 AI SDK 错误为统一格式
-        if (isAiSdkError(error)) {
-          throw new ApiError(
-            error.message,
-            this.config.providerId,
-            error.statusCode,
-            error.response
-          )
-        }
-
-        throw error
-      }
-```
-
-### 9.3 用户友好的错误处理
-
-**文件**: `src/renderer/src/services/ApiService.ts`
-
-```typescript
-try {
-  await fetchChatCompletion({...})
-} catch (error: any) {
-
-  // 1. API Key 错误
-  if (error.statusCode === 401) {
-    onChunkReceived({
-      type: ChunkType.ERROR,
-      error: {
-        message: i18n.t('error.invalid_api_key'),
-        code: 'INVALID_API_KEY'
-      }
-    })
-    return
-  }
-
-  // 2. Rate Limit
-  if (error.statusCode === 429) {
-    onChunkReceived({
-      type: ChunkType.ERROR,
-      error: {
-        message: i18n.t('error.rate_limit'),
-        code: 'RATE_LIMIT',
-        retryAfter: error.response?.headers['retry-after']
-      }
-    })
-    return
-  }
-
-  // 3. Abort
-  if (isAbortError(error)) {
-    onChunkReceived({
-      type: ChunkType.ERROR,
-      error: {
-        message: i18n.t('error.request_aborted'),
-        code: 'ABORTED'
-      }
-    })
-    return
-  }
-
-  // 4. 通用错误
-  onChunkReceived({
-    type: ChunkType.ERROR,
-    error: {
-      message: error.message || i18n.t('error.unknown'),
-      code: error.code || 'UNKNOWN_ERROR',
-      details: getEnableDeveloperMode() ? error.stack : undefined
-    }
-  })
-}
-```
-
 ---
 
-## 10. 性能优化
+## 10. Performance Optimization
 
-### 10.1 Provider 实例缓存（LRU）
+### 10.1 Provider Instance Caching (LRU)
 
-**优势**:
-- ✅ 避免重复创建相同配置的 provider
-- ✅ 自动清理最久未使用的实例
-- ✅ 内存可控（max: 10 per extension）
+**Advantages**:
+- ✅ Avoid recreating providers with same configuration
+- ✅ Automatically clean up least recently used instances
+- ✅ Memory controlled (max: 10 per extension)
 
-**性能指标**:
+**Performance Metrics**:
 ```
-Cache Hit:  <1ms  (直接从 Map 获取)
-Cache Miss: ~50ms (创建新 AI SDK provider)
+Cache Hit:  <1ms  (direct Map retrieval)
+Cache Miss: ~50ms (create new AI SDK provider)
 ```
 
-### 10.2 并行请求优化
+### 10.2 Parallel Request Optimization
 
 ```typescript
-// ❌ 串行执行（慢）
+// ❌ Sequential execution (slow)
 const mcpTools = await fetchMcpTools(assistant)
 const params = await buildStreamTextParams(...)
 const plugins = buildPlugins(config)
 
-// ✅ 并行执行（快）
+// ✅ Parallel execution (fast)
 const [mcpTools, params, plugins] = await Promise.all([
   fetchMcpTools(assistant),
   buildStreamTextParams(...),
@@ -2120,15 +1490,15 @@ const [mcpTools, params, plugins] = await Promise.all([
 ])
 ```
 
-### 10.3 流式响应优化
+### 10.3 Streaming Response Optimization
 
 ```typescript
-// 1. 使用 textStream 而非 fullStream
+// 1. Use textStream instead of fullStream
 for await (const textDelta of streamResult.textStream) {
   onChunk({ type: ChunkType.TEXT_DELTA, text: textDelta })
 }
 
-// 2. 批量发送 chunks（减少 IPC 开销）
+// 2. Batch send chunks (reduce IPC overhead)
 const chunkBuffer: Chunk[] = []
 for await (const textDelta of streamResult.textStream) {
   chunkBuffer.push({ type: ChunkType.TEXT_DELTA, text: textDelta })
@@ -2140,42 +1510,23 @@ for await (const textDelta of streamResult.textStream) {
 }
 ```
 
-### 10.4 内存优化
-
-```typescript
-// 1. 及时清理大对象
-async processStream(streamResult: StreamTextResult) {
-  try {
-    for await (const delta of streamResult.textStream) {
-      // 处理 delta
-    }
-  } finally {
-    // 确保流被消费完毕
-    await streamResult.consumeStream()
-  }
-}
-
-// 2. LRU 缓存自动淘汰
-// 当缓存达到 max: 10 时，最久未使用的实例会被自动移除
-```
-
 ---
 
-## 11. 模型解析器 (ModelResolver)
+## 11. Model Resolver
 
-### 11.1 简化后的设计
+### 11.1 Simplified Design
 
-`ModelResolver` 负责将 modelId 字符串解析为 AI SDK 的模型实例。在 v2.1 版本中，我们进行了大幅简化：
+`ModelResolver` is responsible for parsing modelId strings into AI SDK model instances. In v2.1, we significantly simplified this:
 
-**重构前** (176 行):
-- 包含冗余的 `providerId`、`fallbackProviderId` 参数
-- 硬编码了 OpenAI 模式选择逻辑
-- 多个重复的辅助方法
+**Before Refactoring** (176 lines):
+- Redundant `providerId`, `fallbackProviderId` parameters
+- Hardcoded OpenAI mode selection logic
+- Multiple duplicate helper methods
 
-**重构后** (84 行):
-- 简化 API：`resolveLanguageModel(modelId, middlewares?)`
-- 移除所有硬编码逻辑（由 ProviderExtension variants 处理）
-- 清晰的单一职责
+**After Refactoring** (84 lines):
+- Simplified API: `resolveLanguageModel(modelId, middlewares?)`
+- Removed all hardcoded logic (handled by ProviderExtension variants)
+- Clear single responsibility
 
 ```typescript
 export class ModelResolver {
@@ -2186,9 +1537,9 @@ export class ModelResolver {
   }
 
   /**
-   * 解析语言模型
-   * @param modelId - 模型ID（如 "gpt-4", "claude-3-5-sonnet"）
-   * @param middlewares - 可选的中间件数组
+   * Resolve language model
+   * @param modelId - Model ID (e.g., "gpt-4", "claude-3-5-sonnet")
+   * @param middlewares - Optional middleware array
    */
   async resolveLanguageModel(
     modelId: string,
@@ -2202,14 +1553,14 @@ export class ModelResolver {
   }
 
   /**
-   * 解析嵌入模型
+   * Resolve embedding model
    */
   async resolveEmbeddingModel(modelId: string): Promise<EmbeddingModelV3> {
     return this.provider.embeddingModel(modelId)
   }
 
   /**
-   * 解析图像模型
+   * Resolve image model
    */
   async resolveImageModel(modelId: string): Promise<ImageModelV3> {
     return this.provider.imageModel(modelId)
@@ -2217,17 +1568,17 @@ export class ModelResolver {
 }
 ```
 
-### 11.2 模式选择机制
+### 11.2 Mode Selection Mechanism
 
-OpenAI、Azure 等 provider 的模式选择（如 `openai-chat`、`azure-responses`）现在完全由 ProviderExtension 的 variants 机制处理：
+Mode selection for OpenAI, Azure, etc. (e.g., `openai-chat`, `azure-responses`) is now fully handled by ProviderExtension's variants mechanism:
 
 ```typescript
-// ProviderExtension 定义中的 variants
+// Variants in ProviderExtension definition
 const OpenAIExtension = ProviderExtension.create({
   name: 'openai',
   variants: [
     {
-      suffix: 'chat',           // 产生 providerId: 'openai-chat'
+      suffix: 'chat',           // produces providerId: 'openai-chat'
       name: 'OpenAI Chat Mode',
       transform: (baseProvider, settings) => {
         return customProvider({
@@ -2245,51 +1596,51 @@ const OpenAIExtension = ProviderExtension.create({
 
 ---
 
-## 12. HubProvider 系统
+## 12. HubProvider System
 
-### 12.1 多 Provider 路由
+### 12.1 Multi-Provider Routing
 
-`HubProvider` 是一个特殊的 provider，它可以将请求路由到多个不同的底层 provider。使用命名空间格式的 modelId：
+`HubProvider` is a special provider that routes requests to multiple underlying providers. It uses namespace-format modelIds:
 
 ```
-hub|provider|modelId
-例如: aihubmix|openai|gpt-4
-     aihubmix|anthropic|claude-3-5-sonnet
+provider|modelId
+e.g.: openai|gpt-4
+      anthropic|claude-3-5-sonnet
 ```
 
-### 12.2 类型安全的配置
+### 12.2 Type-Safe Configuration
 
-`HubProviderConfig` 使用 `CoreProviderSettingsMap` 确保类型安全：
+`HubProviderConfig` uses `CoreProviderSettingsMap` to ensure type safety:
 
 ```typescript
 export interface HubProviderConfig {
   hubId?: string
   debug?: boolean
   registry: ExtensionRegistry
-  // 类型安全的 provider 设置映射
+  // Type-safe provider settings map
   providerSettingsMap: Map<string, CoreProviderSettingsMap[keyof CoreProviderSettingsMap]>
 }
 
-// 使用示例
+// Usage example
 const hubProvider = await createHubProviderAsync({
   hubId: 'aihubmix',
   registry,
   providerSettingsMap: new Map([
-    ['openai', { apiKey: 'sk-xxx', baseURL: 'https://...' }],    // OpenAI 设置
-    ['anthropic', { apiKey: 'ant-xxx' }],                        // Anthropic 设置
-    ['google', { apiKey: 'goog-xxx' }]                           // Google 设置
+    ['openai', { apiKey: 'sk-xxx', baseURL: 'https://...' }],    // OpenAI settings
+    ['anthropic', { apiKey: 'ant-xxx' }],                        // Anthropic settings
+    ['google', { apiKey: 'goog-xxx' }]                           // Google settings
   ])
 })
 ```
 
-### 12.3 输入验证
+### 12.3 Input Validation
 
-HubProvider 现在包含严格的输入验证：
+HubProvider now includes strict input validation:
 
 ```typescript
 function parseHubModelId(modelId: string): { provider: string; actualModelId: string } {
   const parts = modelId.split(DEFAULT_SEPARATOR)
-  // 验证格式：必须有两部分，且都不为空
+  // Validate format: must have two parts, both non-empty
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
     throw new HubProviderError(
       `Invalid hub model ID format. Expected "provider|modelId", got: ${modelId}`,
@@ -2302,16 +1653,16 @@ function parseHubModelId(modelId: string): { provider: string; actualModelId: st
 
 ---
 
-## 13. 测试架构
+## 13. Testing Architecture
 
-### 13.1 测试工具 (test-utils)
+### 13.1 Test Utilities (test-utils)
 
-`@cherrystudio/ai-core` 提供了完整的测试工具集：
+`@cherrystudio/ai-core` provides a complete set of testing utilities:
 
 ```typescript
 // packages/aiCore/test_utils/helpers/model.ts
 
-// 创建完整的 mock provider（方法是 vi.fn() spies）
+// Create complete mock provider (methods are vi.fn() spies)
 export function createMockProviderV3(overrides?: {
   provider?: string
   languageModel?: (modelId: string) => LanguageModelV3
@@ -2319,44 +1670,44 @@ export function createMockProviderV3(overrides?: {
   embeddingModel?: (modelId: string) => EmbeddingModelV3
 }): ProviderV3
 
-// 创建 mock 语言模型（包含完整的 doGenerate/doStream 实现）
+// Create mock language model (with complete doGenerate/doStream implementation)
 export function createMockLanguageModel(overrides?: Partial<LanguageModelV3>): LanguageModelV3
 
-// 创建 mock 图像模型
+// Create mock image model
 export function createMockImageModel(overrides?: Partial<ImageModelV3>): ImageModelV3
 
-// 创建 mock 嵌入模型
+// Create mock embedding model
 export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV3>): EmbeddingModelV3
 ```
 
-### 13.2 集成测试
+### 13.2 Integration Tests
 
-HubProvider 集成测试覆盖以下场景：
+HubProvider integration tests cover the following scenarios:
 
 ```typescript
 // packages/aiCore/src/core/providers/__tests__/HubProvider.integration.test.ts
 
 describe('HubProvider Integration Tests', () => {
-  // 1. 端到端测试
+  // 1. End-to-end tests
   describe('End-to-End with RuntimeExecutor', () => {
     it('should resolve models through HubProvider using namespace format')
     it('should handle multiple providers in the same hub')
     it('should work with direct model objects instead of strings')
   })
 
-  // 2. LRU 缓存测试
+  // 2. LRU cache tests
   describe('ProviderExtension LRU Cache Integration', () => {
     it('should leverage ProviderExtension LRU cache when creating multiple HubProviders')
     it('should create new providers when settings differ')
   })
 
-  // 3. 错误处理测试
+  // 3. Error handling tests
   describe('Error Handling Integration', () => {
     it('should throw error when using provider not in providerSettingsMap')
     it('should throw error on invalid model ID format')
   })
 
-  // 4. 高级场景
+  // 4. Advanced scenarios
   describe('Advanced Scenarios', () => {
     it('should support image generation through hub')
     it('should handle concurrent model resolutions')
@@ -2365,38 +1716,38 @@ describe('HubProvider Integration Tests', () => {
 })
 ```
 
-### 13.3 测试覆盖率
+### 13.3 Test Coverage
 
-当前测试覆盖：
-- **ModelResolver**: 20 个测试用例
-- **HubProvider 单元测试**: 26 个测试用例
-- **HubProvider 集成测试**: 17 个测试用例
-- **ExtensionRegistry**: 68 个测试用例
-- **PluginEngine**: 38 个测试用例
-- **总计**: 376+ 个测试用例
+Current test coverage:
+- **ModelResolver**: 20 test cases
+- **HubProvider unit tests**: 26 test cases
+- **HubProvider integration tests**: 17 test cases
+- **ExtensionRegistry**: 68 test cases
+- **PluginEngine**: 38 test cases
+- **Total**: 376+ test cases
 
 ---
 
-## 附录 A: 关键文件索引
+## Appendix A: Key File Index
 
 ### Service Layer
-- `src/renderer/src/services/ApiService.ts` - 主要 API 服务
-- `src/renderer/src/services/ConversationService.ts` - 消息准备
-- `src/renderer/src/services/SpanManagerService.ts` - Trace 管理
+- `src/renderer/src/services/ApiService.ts` - Main API service
+- `src/renderer/src/services/ConversationService.ts` - Message preparation
+- `src/renderer/src/services/SpanManagerService.ts` - Trace management
 
 ### AI Provider Layer
 - `src/renderer/src/aiCore/index_new.ts` - ModernAiProvider
-- `src/renderer/src/aiCore/provider/providerConfig.ts` - Provider 配置
-- `src/renderer/src/aiCore/chunk/AiSdkToChunkAdapter.ts` - 流式适配
-- `src/renderer/src/aiCore/plugins/PluginBuilder.ts` - 插件构建
+- `src/renderer/src/aiCore/provider/providerConfig.ts` - Provider configuration
+- `src/renderer/src/aiCore/chunk/AiSdkToChunkAdapter.ts` - Stream adaptation
+- `src/renderer/src/aiCore/plugins/PluginBuilder.ts` - Plugin building
 
 ### Core Package
 - `packages/aiCore/src/core/runtime/executor.ts` - RuntimeExecutor
 - `packages/aiCore/src/core/runtime/index.ts` - createExecutor
-- `packages/aiCore/src/core/providers/core/ProviderExtension.ts` - Extension 基类
-- `packages/aiCore/src/core/providers/core/ExtensionRegistry.ts` - 注册表
-- `packages/aiCore/src/core/models/ModelResolver.ts` - 模型解析
-- `packages/aiCore/src/core/plugins/PluginEngine.ts` - 插件引擎
+- `packages/aiCore/src/core/providers/core/ProviderExtension.ts` - Extension base class
+- `packages/aiCore/src/core/providers/core/ExtensionRegistry.ts` - Registry
+- `packages/aiCore/src/core/models/ModelResolver.ts` - Model resolution
+- `packages/aiCore/src/core/plugins/PluginEngine.ts` - Plugin engine
 
 ### Extensions
 - `packages/aiCore/src/core/providers/extensions/openai.ts` - OpenAI Extension
@@ -2404,37 +1755,37 @@ describe('HubProvider Integration Tests', () => {
 - `packages/aiCore/src/core/providers/extensions/google.ts` - Google Extension
 
 ### Features
-- `packages/aiCore/src/core/providers/features/HubProvider.ts` - Hub Provider 实现
+- `packages/aiCore/src/core/providers/features/HubProvider.ts` - Hub Provider implementation
 
 ### Test Utilities
-- `packages/aiCore/test_utils/helpers/model.ts` - Mock 模型创建工具
-- `packages/aiCore/test_utils/helpers/provider.ts` - Provider 测试辅助
-- `packages/aiCore/test_utils/mocks/providers.ts` - Mock Provider 实例
-- `packages/aiCore/src/core/providers/__tests__/HubProvider.integration.test.ts` - 集成测试
+- `packages/aiCore/test_utils/helpers/model.ts` - Mock model creation utilities
+- `packages/aiCore/test_utils/helpers/provider.ts` - Provider test helpers
+- `packages/aiCore/test_utils/mocks/providers.ts` - Mock Provider instances
+- `packages/aiCore/src/core/providers/__tests__/HubProvider.integration.test.ts` - Integration tests
 
 ---
 
-## 附录 B: 常见问题
+## Appendix B: Frequently Asked Questions
 
-### Q1: 为什么要用 LRU 缓存？
-**A**: 避免为相同配置重复创建 provider，同时自动控制内存（最多 10 个实例/extension）。
+### Q1: Why use LRU cache?
+**A**: Avoid recreating providers with same configuration, while automatically controlling memory (max 10 instances/extension).
 
-### Q2: Plugin 和 Middleware 有什么区别？
+### Q2: What's the difference between Plugin and Middleware?
 **A**:
-- **Plugin**: Cherry Studio 层面的功能扩展（Reasoning, ToolUse, WebSearch）
-- **Middleware**: AI SDK 层面的请求/响应拦截器
+- **Plugin**: Feature extension at Cherry Studio level (Reasoning, ToolUse, WebSearch)
+- **Middleware**: Request/response interceptor at AI SDK level
 
-### Q3: 什么时候用 Legacy Provider？
-**A**: 仅在图像生成端点且非 gateway 时使用，因为需要图片编辑等高级功能。
+### Q3: When to use Legacy Provider?
+**A**: Only for image generation endpoints when not using gateway, as it requires advanced features like image editing.
 
-### Q4: 如何添加新的 Provider？
+### Q4: How to add a new Provider?
 **A**:
-1. 在 `packages/aiCore/src/core/providers/extensions/` 创建 Extension
-2. 注册到 `coreExtensions` 数组
-3. 在 `providerConfig.ts` 添加配置转换逻辑
+1. Create Extension in `packages/aiCore/src/core/providers/extensions/`
+2. Register to `coreExtensions` array
+3. Add configuration conversion logic in `providerConfig.ts`
 
 ---
 
-**文档版本**: v1.0
-**最后更新**: 2025-01-02
-**维护者**: Cherry Studio Team
+**Document Version**: v2.1
+**Last Updated**: 2026-01-02
+**Maintainer**: Cherry Studio Team
