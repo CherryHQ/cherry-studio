@@ -3,7 +3,7 @@ import { simulateReadableStream } from 'ai'
 import { convertReadableStreamToArray } from 'ai/test'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createMockContext, createMockStreamParams, createMockTool, createMockToolSet } from '../../../../../__tests__'
+import { createMockContext, createMockStreamParams, createMockTool, createMockToolSet } from '@test-utils'
 import { createPromptToolUsePlugin, DEFAULT_SYSTEM_PROMPT } from '../promptToolUsePlugin'
 
 describe('promptToolUsePlugin', () => {

@@ -3,18 +3,18 @@
  * Tests non-streaming text generation across all providers with various parameters
  */
 
-import { generateText } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import {
   createMockLanguageModel,
+  createMockProviderV3,
   mockCompleteResponses,
   mockProviderConfigs,
   testMessages,
   testTools
-} from '../../../__tests__'
+} from '@test-utils'
+import { generateText } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { AiPlugin } from '../../plugins'
-import { globalProviderInstanceRegistry } from '../../providers/core/ProviderInstanceRegistry'
 import { RuntimeExecutor } from '../executor'
 
 // Mock AI SDK - use importOriginal to keep jsonSchema and other non-mocked exports
@@ -26,28 +26,28 @@ vi.mock('ai', async (importOriginal) => {
   }
 })
 
-vi.mock('../../providers/core/ProviderInstanceRegistry', () => ({
-  globalProviderInstanceRegistry: {
-    languageModel: vi.fn()
-  },
-  DEFAULT_SEPARATOR: '|'
-}))
-
 describe('RuntimeExecutor.generateText', () => {
   let executor: RuntimeExecutor<'openai'>
   let mockLanguageModel: any
+  let mockProvider: any
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    executor = RuntimeExecutor.create('openai', mockProviderConfigs.openai)
 
     mockLanguageModel = createMockLanguageModel({
       provider: 'openai',
       modelId: 'gpt-4'
     })
 
-    vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(mockLanguageModel)
+    // ✅ Create mock provider with languageModel as a spy
+    mockProvider = createMockProviderV3({
+      provider: 'openai',
+      languageModel: vi.fn(() => mockLanguageModel)
+    })
+
+    // ✅ Pass provider instance to RuntimeExecutor.create()
+    executor = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai)
+
     vi.mocked(generateText).mockResolvedValue(mockCompleteResponses.simple as any)
   })
 
@@ -231,75 +231,87 @@ describe('RuntimeExecutor.generateText', () => {
 
   describe('Multiple Providers', () => {
     it('should work with Anthropic provider', async () => {
-      const anthropicExecutor = RuntimeExecutor.create('anthropic', mockProviderConfigs.anthropic)
-
       const anthropicModel = createMockLanguageModel({
         provider: 'anthropic',
         modelId: 'claude-3-5-sonnet-20241022'
       })
 
-      vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(anthropicModel)
+      const anthropicProvider = createMockProviderV3({
+        provider: 'anthropic',
+        languageModel: vi.fn(() => anthropicModel)
+      })
+
+      const anthropicExecutor = RuntimeExecutor.create('anthropic', anthropicProvider, mockProviderConfigs.anthropic)
 
       await anthropicExecutor.generateText({
         model: 'claude-3-5-sonnet-20241022',
         messages: testMessages.simple
       })
 
-      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('anthropic|claude-3-5-sonnet-20241022')
+      expect(anthropicProvider.languageModel).toHaveBeenCalledWith('claude-3-5-sonnet-20241022')
     })
 
     it('should work with Google provider', async () => {
-      const googleExecutor = RuntimeExecutor.create('google', mockProviderConfigs.google)
-
       const googleModel = createMockLanguageModel({
         provider: 'google',
         modelId: 'gemini-2.0-flash-exp'
       })
 
-      vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(googleModel)
+      const googleProvider = createMockProviderV3({
+        provider: 'google',
+        languageModel: vi.fn(() => googleModel)
+      })
+
+      const googleExecutor = RuntimeExecutor.create('google', googleProvider, mockProviderConfigs.google)
 
       await googleExecutor.generateText({
         model: 'gemini-2.0-flash-exp',
         messages: testMessages.simple
       })
 
-      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('google|gemini-2.0-flash-exp')
+      expect(googleProvider.languageModel).toHaveBeenCalledWith('gemini-2.0-flash-exp')
     })
 
     it('should work with xAI provider', async () => {
-      const xaiExecutor = RuntimeExecutor.create('xai', mockProviderConfigs.xai)
-
       const xaiModel = createMockLanguageModel({
         provider: 'xai',
         modelId: 'grok-2-latest'
       })
 
-      vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(xaiModel)
+      const xaiProvider = createMockProviderV3({
+        provider: 'xai',
+        languageModel: vi.fn(() => xaiModel)
+      })
+
+      const xaiExecutor = RuntimeExecutor.create('xai', xaiProvider, mockProviderConfigs.xai)
 
       await xaiExecutor.generateText({
         model: 'grok-2-latest',
         messages: testMessages.simple
       })
 
-      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('xai|grok-2-latest')
+      expect(xaiProvider.languageModel).toHaveBeenCalledWith('grok-2-latest')
     })
 
     it('should work with DeepSeek provider', async () => {
-      const deepseekExecutor = RuntimeExecutor.create('deepseek', mockProviderConfigs.deepseek)
-
       const deepseekModel = createMockLanguageModel({
         provider: 'deepseek',
         modelId: 'deepseek-chat'
       })
 
-      vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(deepseekModel)
+      const deepseekProvider = createMockProviderV3({
+        provider: 'deepseek',
+        languageModel: vi.fn(() => deepseekModel)
+      })
+
+      const deepseekExecutor = RuntimeExecutor.create('deepseek', deepseekProvider, mockProviderConfigs.deepseek)
 
       await deepseekExecutor.generateText({
         model: 'deepseek-chat',
         messages: testMessages.simple
       })
 
-      expect(globalProviderInstanceRegistry.languageModel).toHaveBeenCalledWith('deepseek|deepseek-chat')
+      expect(deepseekProvider.languageModel).toHaveBeenCalledWith('deepseek-chat')
     })
   })
 
@@ -325,7 +337,9 @@ describe('RuntimeExecutor.generateText', () => {
         })
       }
 
-      const executorWithPlugin = RuntimeExecutor.create('openai', mockProviderConfigs.openai, [testPlugin])
+      const executorWithPlugin = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai, [
+        testPlugin
+      ])
 
       const result = await executorWithPlugin.generateText({
         model: 'gpt-4',
@@ -364,7 +378,10 @@ describe('RuntimeExecutor.generateText', () => {
         })
       }
 
-      const executorWithPlugins = RuntimeExecutor.create('openai', mockProviderConfigs.openai, [plugin1, plugin2])
+      const executorWithPlugins = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai, [
+        plugin1,
+        plugin2
+      ])
 
       await executorWithPlugins.generateText({
         model: 'gpt-4',
@@ -404,7 +421,9 @@ describe('RuntimeExecutor.generateText', () => {
         onError: vi.fn()
       }
 
-      const executorWithPlugin = RuntimeExecutor.create('openai', mockProviderConfigs.openai, [errorPlugin])
+      const executorWithPlugin = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai, [
+        errorPlugin
+      ])
 
       await expect(
         executorWithPlugin.generateText({
@@ -425,7 +444,7 @@ describe('RuntimeExecutor.generateText', () => {
 
     it('should handle model not found error', async () => {
       const error = new Error('Model not found: invalid-model')
-      vi.mocked(globalProviderInstanceRegistry.languageModel).mockImplementation(() => {
+      mockProvider.languageModel.mockImplementationOnce(() => {
         throw error
       })
 

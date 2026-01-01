@@ -1,7 +1,7 @@
 /**
  * Runtime 层类型定义
  */
-import type { ImageModelV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { generateImage, generateText, streamText } from 'ai'
 
 import { type ModelConfig } from '../models/types'
@@ -19,6 +19,7 @@ export interface RuntimeConfig<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
 > {
   providerId: T
+  provider: ProviderV3
   providerSettings: ModelConfig<T, TSettingsMap>['providerSettings']
   plugins?: AiPlugin[]
 }

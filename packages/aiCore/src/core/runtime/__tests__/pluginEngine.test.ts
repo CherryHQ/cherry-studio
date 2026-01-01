@@ -5,9 +5,9 @@
  */
 
 import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
+import { createMockImageModel, createMockLanguageModel } from '@test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createMockImageModel, createMockLanguageModel } from '../../../__tests__'
 import { ModelResolutionError, RecursiveDepthError } from '../../errors'
 import type { AiPlugin, GenerateTextParams, GenerateTextResult } from '../../plugins'
 import { PluginEngine } from '../pluginEngine'

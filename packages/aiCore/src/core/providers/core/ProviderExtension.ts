@@ -1,19 +1,9 @@
 import type { ProviderV3 } from '@ai-sdk/provider'
+import { LRUCache } from 'lru-cache'
 
 import { deepMergeObjects } from '../../utils'
 import type { ExtensionContext, ExtensionStorage, LifecycleHooks, ProviderVariant, StorageAccessor } from '../types'
 
-/**
- * 全局 Provider 存储
- * Extension 创建的 provider 实例注册到这里，供 HubProvider 等使用
- * Key: explicit ID (用户指定的唯一标识)
- * Value: Provider 实例
- */
-export const globalProviderStorage = new Map<string, ProviderV3>()
-
-/**
- * Provider 创建函数类型
- */
 export type ProviderCreatorFunction<TSettings = any> = (settings?: TSettings) => ProviderV3 | Promise<ProviderV3>
 
 /**
@@ -80,19 +70,10 @@ interface ProviderExtensionConfigWithCreate<
   TProvider extends ProviderV3 = ProviderV3,
   TName extends string = string
 > extends ProviderExtensionConfigBase<TSettings, TStorage, TProvider, TName> {
-  /**
-   * 创建 provider 实例的函数
-   */
   create: ProviderCreatorFunction<TSettings>
 
-  /**
-   * 禁止使用 import（与 create 互斥）
-   */
   import?: never
 
-  /**
-   * 禁止使用 creatorFunctionName（与 create 互斥）
-   */
   creatorFunctionName?: never
 }
 
@@ -107,21 +88,10 @@ interface ProviderExtensionConfigWithImport<
   TProvider extends ProviderV3 = ProviderV3,
   TName extends string = string
 > extends ProviderExtensionConfigBase<TSettings, TStorage, TProvider, TName> {
-  /**
-   * 禁止使用 create（与 import 互斥）
-   */
   create?: never
 
-  /**
-   * 动态导入模块的函数
-   * 用于延迟加载第三方 provider
-   */
   import: () => Promise<ProviderModule<TSettings>>
 
-  /**
-   * 导入模块后的 creator 函数名
-   * 必须与 import 一起使用
-   */
   creatorFunctionName: string
 }
 
@@ -196,20 +166,23 @@ export class ProviderExtension<
 > {
   private _storage: Map<string, any>
 
-  /** Provider 实例缓存 - 按 settings hash 存储 */
-  private instances: Map<string, TProvider> = new Map()
+  /** Provider 实例缓存 - 按 settings hash 存储，LRU 自动清理 */
+  private instances: LRUCache<string, TProvider>
 
   /** Settings hash 映射表 - 用于验证缓存是否仍然有效 */
   private settingsHashes: Map<string, TSettings | undefined> = new Map()
 
   constructor(public readonly config: TConfig) {
-    // 验证配置
     if (!config.name) {
       throw new Error('ProviderExtension: name is required')
     }
 
-    // 初始化 storage
     this._storage = new Map(Object.entries(config.initialStorage || {}))
+
+    this.instances = new LRUCache<string, TProvider>({
+      max: 10,
+      updateAgeOnGet: true
+    })
   }
 
   /**
@@ -370,27 +343,14 @@ export class ProviderExtension<
   }
 
   /**
-   * 注册 Provider 到全局注册表
-   * Extension 拥有的 provider 实例会被注册到全局 Map，供 HubProvider 等使用
-   * @private
-   */
-  private registerToAiSdk(provider: TProvider, explicitId: string): void {
-    // 注册到全局 provider storage
-    // 使用 explicit ID 作为 key
-    globalProviderStorage.set(explicitId, provider as any)
-  }
-
-  /**
-   * 创建 Provider 实例（带缓存）
+   * 创建 Provider 实例
    * 相同 settings 会复用实例，不同 settings 会创建新实例
    *
    * @param settings - Provider 配置
-   * @param explicitId - 可选的显式 ID，用于 AI SDK 注册
    * @param variantSuffix - 可选的变体后缀，用于应用变体转换
    * @returns Provider 实例
    */
-  async createProvider(settings?: TSettings, explicitId?: string, variantSuffix?: string): Promise<TProvider> {
-    // 验证变体后缀（如果提供）
+  async createProvider(settings?: TSettings, variantSuffix?: string): Promise<TProvider> {
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)
       if (!variant) {
@@ -402,31 +362,22 @@ export class ProviderExtension<
     }
 
     // 合并 default options
-    const mergedSettings = deepMergeObjects(
-      (this.config.defaultOptions || {}) as any,
-      (settings || {}) as any
-    ) as TSettings
+    const mergedSettings = deepMergeObjects(this.config.defaultOptions || {}, settings || {}) as TSettings
 
-    // 计算 hash（包含变体后缀）
     const hash = this.computeHash(mergedSettings, variantSuffix)
 
-    // 检查缓存
     const cachedInstance = this.instances.get(hash)
     if (cachedInstance) {
       return cachedInstance
     }
 
-    // 执行 onBeforeCreate 钩子
     await this.executeHook('onBeforeCreate', mergedSettings)
 
-    // 创建基础 provider 实例
     let baseProvider: ProviderV3
 
     if (this.config.create) {
-      // 使用直接创建函数
       baseProvider = await Promise.resolve(this.config.create(mergedSettings))
     } else if (this.config.import && this.config.creatorFunctionName) {
-      // 动态导入
       const module = await this.config.import()
       const creatorFn = module[this.config.creatorFunctionName]
 
@@ -441,38 +392,18 @@ export class ProviderExtension<
       throw new Error(`ProviderExtension "${this.config.name}": cannot create provider, invalid configuration`)
     }
 
-    // 应用变体转换（如果提供了变体后缀）
     let finalProvider: TProvider
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)!
-      // 应用变体的 transform 函数
       finalProvider = (await Promise.resolve(variant.transform(baseProvider as TProvider, mergedSettings))) as TProvider
     } else {
       finalProvider = baseProvider as TProvider
     }
 
-    // 执行 onAfterCreate 钩子
     await this.executeHook('onAfterCreate', mergedSettings, finalProvider)
 
-    // 缓存实例
     this.instances.set(hash, finalProvider)
     this.settingsHashes.set(hash, mergedSettings)
-
-    // 确定注册 ID
-    const registrationId = (() => {
-      if (explicitId) {
-        return explicitId
-      }
-      // 如果是变体，使用 name-suffix:hash 格式
-      if (variantSuffix) {
-        return `${this.config.name}-${variantSuffix}:${hash}`
-      }
-      // 否则使用 name:hash
-      return `${this.config.name}:${hash}`
-    })()
-
-    // 注册到 AI SDK
-    this.registerToAiSdk(finalProvider, registrationId)
 
     return finalProvider
   }

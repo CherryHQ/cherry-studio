@@ -5,7 +5,7 @@
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createMockProviderV3 } from '../../../__tests__'
+import { createMockProviderV3 } from '@test-utils'
 import {
   createProviderExtension,
   ProviderExtension,
@@ -85,7 +85,7 @@ describe('ProviderExtension', () => {
       expect(extension.config.defaultOptions).toEqual({ apiKey: 'initial-key' })
     })
 
-    it('should validate config from function same as from object', () => {
+    it('should validate config from function same as from object', async () => {
       expect(() => {
         ProviderExtension.create(() => ({
           name: '', // Invalid
@@ -93,15 +93,16 @@ describe('ProviderExtension', () => {
         }))
       }).toThrow('name is required')
 
-      expect(() => {
-        ProviderExtension.create(
-          () =>
-            ({
-              name: 'test-provider'
-              // Missing create
-            }) as any
-        )
-      }).toThrow('either create or import must be provided')
+      // Note: create/import validation happens at runtime in createProvider(), not in constructor
+      // Extension can be created without create/import, but createProvider() will throw
+      const extension = ProviderExtension.create(
+        () =>
+          ({
+            name: 'test-provider'
+            // Missing create
+          }) as any
+      )
+      await expect(extension.createProvider()).rejects.toThrow('cannot create provider')
     })
   })
 
@@ -115,21 +116,23 @@ describe('ProviderExtension', () => {
       }).toThrow('name is required')
     })
 
-    it('should throw error if neither create nor import is provided', () => {
-      expect(() => {
-        new ProviderExtension({
-          name: 'test-provider'
-        } as any)
-      }).toThrow('either create or import must be provided')
+    it('should throw error at runtime if neither create nor import is provided', async () => {
+      // Constructor doesn't validate create/import - validation happens at runtime
+      const extension = new ProviderExtension({
+        name: 'test-provider'
+      } as any)
+
+      await expect(extension.createProvider()).rejects.toThrow('cannot create provider')
     })
 
-    it('should throw error if import is provided without creatorFunctionName', () => {
-      expect(() => {
-        new ProviderExtension({
-          name: 'test-provider',
-          import: async () => ({})
-        } as any)
-      }).toThrow('creatorFunctionName is required when using import')
+    it('should throw error at runtime if import is provided without creatorFunctionName', async () => {
+      // Constructor doesn't validate creatorFunctionName - validation happens at runtime
+      const extension = new ProviderExtension({
+        name: 'test-provider',
+        import: async () => ({})
+      } as any)
+
+      await expect(extension.createProvider()).rejects.toThrow('cannot create provider')
     })
 
     it('should create extension with valid config', () => {
@@ -808,16 +811,26 @@ describe('ProviderExtension', () => {
       expect(onAfterCreate).toHaveBeenCalledTimes(1)
     })
 
-    it('should support explicit ID parameter', async () => {
+    it('should support variant suffix parameter', async () => {
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
-        create: createMockProviderV3 as any
+        create: createMockProviderV3 as any,
+        variants: [
+          {
+            suffix: 'chat',
+            name: 'Test Chat',
+            transform: (provider) => provider
+          }
+        ]
       })
 
       const settings = { apiKey: 'test-key' }
 
-      // Should not throw when providing explicit ID
-      await expect(extension.createProvider(settings, 'custom-id')).resolves.toBeDefined()
+      // Should work when providing a valid variant suffix
+      await expect(extension.createProvider(settings, 'chat')).resolves.toBeDefined()
+
+      // Should throw for unknown variant suffix
+      await expect(extension.createProvider(settings, 'unknown')).rejects.toThrow('variant "unknown" not found')
     })
 
     it('should support dynamic import providers', async () => {

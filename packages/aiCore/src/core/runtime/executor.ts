@@ -2,7 +2,7 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import type { ImageModelV3, LanguageModelV3, LanguageModelV3Middleware } from '@ai-sdk/provider'
+import type { ImageModelV3, LanguageModelV3, LanguageModelV3Middleware, ProviderV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 import {
   generateImage as _generateImage,
@@ -11,7 +11,7 @@ import {
   wrapLanguageModel
 } from 'ai'
 
-import { globalModelResolver } from '../models'
+import { ModelResolver } from '../models'
 import { type ModelConfig } from '../models/types'
 import { isV3Model } from '../models/utils'
 import { type AiPlugin, type AiRequestContext, definePlugin } from '../plugins'
@@ -26,11 +26,13 @@ export class RuntimeExecutor<
 > {
   public pluginEngine: PluginEngine<T>
   private config: RuntimeConfig<T, TSettingsMap>
+  private modelResolver: ModelResolver
 
   constructor(config: RuntimeConfig<T, TSettingsMap>) {
     this.config = config
     // 创建插件客户端
     this.pluginEngine = new PluginEngine(config.providerId, config.plugins || [])
+    this.modelResolver = new ModelResolver(config.provider)
   }
 
   private createResolveModelPlugin(middlewares?: LanguageModelV3Middleware[]) {
@@ -175,13 +177,9 @@ export class RuntimeExecutor<
     middlewares?: LanguageModelV3Middleware[]
   ): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
-      // 🎯 字符串modelId，使用新的ModelResolver解析，传递完整参数
-      return await globalModelResolver.resolveLanguageModel(
-        modelOrId, // 支持 'gpt-4' 和 'aihubmix:anthropic:claude-3.5-sonnet'
-        this.config.providerId, // fallback provider
-        this.config.providerSettings, // provider options
-        middlewares // 中间件数组
-      )
+      // 字符串modelId，使用 ModelResolver 解析
+      // Provider会处理命名空间格式路由（如果是HubProvider）
+      return await this.modelResolver.resolveLanguageModel(modelOrId, middlewares)
     } else {
       // 已经是模型对象
       // 所有 provider 都应该返回 V3 模型（通过 wrapProvider 确保）
@@ -206,11 +204,9 @@ export class RuntimeExecutor<
   private async resolveImageModel(modelOrId: ImageModelV3 | string): Promise<ImageModelV3> {
     try {
       if (typeof modelOrId === 'string') {
-        // 字符串modelId，使用新的ModelResolver解析
-        return await globalModelResolver.resolveImageModel(
-          modelOrId, // 支持 'dall-e-3' 和 'aihubmix:openai:dall-e-3'
-          this.config.providerId // fallback provider
-        )
+        // 字符串modelId，使用 ModelResolver 解析
+        // Provider会处理命名空间格式路由（如果是HubProvider）
+        return await this.modelResolver.resolveImageModel(modelOrId)
       } else {
         // 已经是模型，直接返回
         return modelOrId
@@ -234,11 +230,13 @@ export class RuntimeExecutor<
     TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
   >(
     providerId: T,
+    provider: ProviderV3, // ✅ Accept provider instance
     options: ModelConfig<T, TSettingsMap>['providerSettings'],
     plugins?: AiPlugin[]
   ): RuntimeExecutor<T, TSettingsMap> {
     return new RuntimeExecutor({
       providerId,
+      provider, // ✅ Pass provider to config
       providerSettings: options,
       plugins
     })
@@ -246,13 +244,16 @@ export class RuntimeExecutor<
 
   /**
    * 创建OpenAI Compatible执行器
+   * ✅ Now accepts provider instance directly
    */
   static createOpenAICompatible(
+    provider: ProviderV3, // ✅ Accept provider instance
     options: ModelConfig<'openai-compatible'>['providerSettings'],
     plugins: AiPlugin[] = []
   ): RuntimeExecutor<'openai-compatible'> {
     return new RuntimeExecutor({
       providerId: 'openai-compatible',
+      provider, // ✅ Pass provider to config
       providerSettings: options,
       plugins
     })

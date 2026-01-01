@@ -16,9 +16,9 @@ import { MockLanguageModelV3 } from 'ai/test'
 import { vi } from 'vitest'
 import * as z from 'zod'
 
-import type { StreamTextParams, StreamTextResult } from '../../core/plugins'
-import type { RegisteredProviderId } from '../../core/providers/types'
-import type { AiRequestContext } from '../../types'
+import type { StreamTextParams, StreamTextResult } from '../../src/core/plugins'
+import type { RegisteredProviderId } from '../../src/core/providers/types'
+import type { AiRequestContext } from '../../src/types'
 
 /**
  * Type for partial overrides that allows omitting the model field
@@ -137,45 +137,95 @@ export function createMockProviderV3(overrides?: {
   imageModel?: (modelId: string) => ImageModelV3
   embeddingModel?: (modelId: string) => EmbeddingModelV3
 }): ProviderV3 {
+  const defaultLanguageModel = (modelId: string) =>
+    ({
+      specificationVersion: 'v3',
+      provider: overrides?.provider ?? 'mock-provider',
+      modelId,
+      defaultObjectGenerationMode: 'tool',
+      supportedUrls: {},
+      doGenerate: vi.fn().mockResolvedValue({
+        text: 'Mock response text',
+        finishReason: 'stop',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 20,
+          totalTokens: 30,
+          inputTokenDetails: {},
+          outputTokenDetails: {}
+        },
+        rawCall: { rawPrompt: null, rawSettings: {} },
+        rawResponse: { headers: {} },
+        warnings: []
+      }),
+      doStream: vi.fn().mockReturnValue({
+        stream: (async function* () {
+          yield { type: 'text-delta', textDelta: 'Mock ' }
+          yield { type: 'text-delta', textDelta: 'streaming ' }
+          yield { type: 'text-delta', textDelta: 'response' }
+          yield {
+            type: 'finish',
+            finishReason: 'stop',
+            usage: {
+              inputTokens: 10,
+              outputTokens: 15,
+              totalTokens: 25,
+              inputTokenDetails: {},
+              outputTokenDetails: {}
+            }
+          }
+        })(),
+        rawCall: { rawPrompt: null, rawSettings: {} },
+        rawResponse: { headers: {} },
+        warnings: []
+      })
+    }) as LanguageModelV3
+
+  const defaultImageModel = (modelId: string) =>
+    ({
+      specificationVersion: 'v3',
+      provider: overrides?.provider ?? 'mock-provider',
+      modelId,
+      maxImagesPerCall: undefined,
+      doGenerate: vi.fn().mockResolvedValue({
+        images: [
+          {
+            base64: 'mock-base64-image-data',
+            uint8Array: new Uint8Array([1, 2, 3, 4, 5]),
+            mimeType: 'image/png'
+          }
+        ],
+        warnings: []
+      })
+    }) as ImageModelV3
+
+  const defaultEmbeddingModel = (modelId: string) =>
+    ({
+      specificationVersion: 'v3',
+      provider: overrides?.provider ?? 'mock-provider',
+      modelId,
+      maxEmbeddingsPerCall: 100,
+      supportsParallelCalls: true,
+      doEmbed: vi.fn().mockResolvedValue({
+        embeddings: [
+          [0.1, 0.2, 0.3, 0.4, 0.5],
+          [0.6, 0.7, 0.8, 0.9, 1.0]
+        ],
+        usage: {
+          inputTokens: 10,
+          totalTokens: 10
+        },
+        rawResponse: { headers: {} }
+      })
+    }) as EmbeddingModelV3
+
   return {
     specificationVersion: 'v3',
     provider: overrides?.provider ?? 'mock-provider',
 
-    languageModel: overrides?.languageModel
-      ? overrides.languageModel
-      : (modelId: string) =>
-          ({
-            specificationVersion: 'v3',
-            provider: overrides?.provider ?? 'mock-provider',
-            modelId,
-            defaultObjectGenerationMode: 'tool',
-            supportedUrls: {},
-            doGenerate: vi.fn(),
-            doStream: vi.fn()
-          }) as LanguageModelV3,
-
-    imageModel: overrides?.imageModel
-      ? overrides.imageModel
-      : (modelId: string) =>
-          ({
-            specificationVersion: 'v3',
-            provider: overrides?.provider ?? 'mock-provider',
-            modelId,
-            maxImagesPerCall: undefined,
-            doGenerate: vi.fn()
-          }) as ImageModelV3,
-
-    embeddingModel: overrides?.embeddingModel
-      ? overrides.embeddingModel
-      : (modelId: string) =>
-          ({
-            specificationVersion: 'v3',
-            provider: overrides?.provider ?? 'mock-provider',
-            modelId,
-            maxEmbeddingsPerCall: 100,
-            supportsParallelCalls: true,
-            doEmbed: vi.fn()
-          }) as EmbeddingModelV3
+    languageModel: vi.fn(overrides?.languageModel ?? defaultLanguageModel),
+    imageModel: vi.fn(overrides?.imageModel ?? defaultImageModel),
+    embeddingModel: vi.fn(overrides?.embeddingModel ?? defaultEmbeddingModel)
   } as ProviderV3
 }
 

@@ -1,8 +1,8 @@
 /**
  * Hub Provider - 支持路由到多个底层provider
  *
- * 支持格式: hubId:providerId:modelId
- * 例如: aihubmix:anthropic:claude-3.5-sonnet
+ * 支持格式: hubId|providerId|modelId
+ * @example aihubmix|anthropic|claude-3.5-sonnet
  */
 
 import type {
@@ -14,10 +14,10 @@ import type {
   SpeechModelV3,
   TranscriptionModelV3
 } from '@ai-sdk/provider'
-import { customProvider, wrapProvider } from 'ai'
+import { customProvider } from 'ai'
 
-import { globalProviderStorage } from '../core/ProviderExtension'
-import type { AiSdkProvider } from '../types'
+import type { ExtensionRegistry } from '../core/ExtensionRegistry'
+import type { CoreProviderSettingsMap } from '../types'
 
 /** Model ID 分隔符 */
 export const DEFAULT_SEPARATOR = '|'
@@ -27,6 +27,10 @@ export interface HubProviderConfig {
   hubId?: string
   /** 是否启用调试日志 */
   debug?: boolean
+  /** ExtensionRegistry实例（用于获取provider extensions） */
+  registry: ExtensionRegistry
+  /** Provider配置映射 */
+  providerSettingsMap: Map<string, CoreProviderSettingsMap[keyof CoreProviderSettingsMap]>
 }
 
 export class HubProviderError extends Error {
@@ -46,8 +50,11 @@ export class HubProviderError extends Error {
  */
 function parseHubModelId(modelId: string): { provider: string; actualModelId: string } {
   const parts = modelId.split(DEFAULT_SEPARATOR)
-  if (parts.length !== 2) {
-    throw new HubProviderError(`Invalid hub model ID format. Expected "provider:modelId", got: ${modelId}`, 'unknown')
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    throw new HubProviderError(
+      `Invalid hub model ID format. Expected "provider${DEFAULT_SEPARATOR}modelId", got: ${modelId}`,
+      'unknown'
+    )
   }
   return {
     provider: parts[0],
@@ -56,37 +63,72 @@ function parseHubModelId(modelId: string): { provider: string; actualModelId: st
 }
 
 /**
- * 创建Hub Provider
+ * 异步创建Hub Provider
+ *
+ * 预创建所有provider实例以满足AI SDK的同步要求
+ * 通过ExtensionRegistry复用ProviderExtension的LRU缓存
  */
-export function createHubProvider(config?: HubProviderConfig): AiSdkProvider {
-  const hubId = config?.hubId ?? 'hub'
+export async function createHubProviderAsync(config: HubProviderConfig): Promise<ProviderV3> {
+  const { registry, providerSettingsMap, debug, hubId = 'hub' } = config
 
-  function getTargetProvider(providerId: string): ProviderV3 {
-    // 从全局 provider storage 获取已注册的provider实例
+  // 预创建所有 provider 实例
+  const providers = new Map<string, ProviderV3>()
+
+  for (const [providerId, settings] of providerSettingsMap.entries()) {
+    const extension = registry.get(providerId)
+    if (!extension) {
+      const availableExtensions = registry
+        .getAll()
+        .map((ext) => ext.config.name)
+        .join(', ')
+      throw new HubProviderError(
+        `Provider extension "${providerId}" not found in registry. Available: ${availableExtensions}`,
+        hubId,
+        providerId
+      )
+    }
+
     try {
-      const provider = globalProviderStorage.get(providerId)
-      if (!provider) {
-        throw new HubProviderError(
-          `Provider "${providerId}" is not registered. Please call extension.createProvider(settings, "${providerId}") first.`,
-          hubId,
-          providerId
-        )
-      }
-      // 使用 wrapProvider 确保返回的是 V3 provider
-      // 这样可以自动处理 V2 provider 到 V3 的转换
-      return wrapProvider({ provider, languageModelMiddleware: [] })
+      // 通过 extension 创建 provider（复用 LRU 缓存）
+      const provider = await extension.createProvider(settings)
+      providers.set(providerId, provider)
     } catch (error) {
       throw new HubProviderError(
-        `Failed to get provider "${providerId}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to create provider "${providerId}": ${error instanceof Error ? error.message : String(error)}`,
         hubId,
         providerId,
         error instanceof Error ? error : undefined
       )
     }
   }
+  return createHubProviderWithProviders(hubId, providers, debug)
+}
 
-  // 创建符合 ProviderV3 规范的 fallback provider
-  const hubFallbackProvider = {
+/**
+ * 内部函数：使用预创建的providers创建HubProvider
+ */
+function createHubProviderWithProviders(
+  hubId: string,
+  providers: Map<string, ProviderV3>,
+  debug?: boolean
+): ProviderV3 {
+  function getTargetProvider(providerId: string): ProviderV3 {
+    const provider = providers.get(providerId)
+    if (!provider) {
+      const availableProviders = Array.from(providers.keys()).join(', ')
+      throw new HubProviderError(
+        `Provider "${providerId}" not initialized. Available: ${availableProviders}`,
+        hubId,
+        providerId
+      )
+    }
+    if (debug) {
+      console.log(`[HubProvider:${hubId}] Routing to provider: ${providerId}`)
+    }
+    return provider
+  }
+
+  const hubFallbackProvider: ProviderV3 = {
     specificationVersion: 'v3' as const,
 
     languageModel: (modelId: string): LanguageModelV3 => {
@@ -128,6 +170,7 @@ export function createHubProvider(config?: HubProviderConfig): AiSdkProvider {
 
       return targetProvider.speechModel(actualModelId)
     },
+
     rerankingModel: (modelId: string): RerankingModelV3 => {
       const { provider, actualModelId } = parseHubModelId(modelId)
       const targetProvider = getTargetProvider(provider)

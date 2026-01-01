@@ -14,7 +14,7 @@ export type { RuntimeConfig } from './types'
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider'
 
 import { type AiPlugin } from '../plugins'
-import { extensionRegistry, globalProviderStorage } from '../providers'
+import { extensionRegistry } from '../providers'
 import { type CoreProviderSettingsMap, type RegisteredProviderId } from '../providers/types'
 import { RuntimeExecutor } from './executor'
 
@@ -26,31 +26,14 @@ export async function createExecutor<T extends RegisteredProviderId & keyof Core
   providerId: T,
   options: CoreProviderSettingsMap[T],
   plugins?: AiPlugin[]
-): Promise<RuntimeExecutor<T>>
-export async function createExecutor<T extends string>(
-  providerId: T,
-  options: any,
-  plugins?: AiPlugin[]
-): Promise<RuntimeExecutor<T>>
-export async function createExecutor(
-  providerId: string,
-  options: any,
-  plugins?: AiPlugin[]
-): Promise<RuntimeExecutor<string>> {
-  // 确保 provider 已初始化
-  if (!globalProviderStorage.has(providerId) && extensionRegistry.has(providerId)) {
-    try {
-      await extensionRegistry.createProvider(providerId, options || {}, providerId)
-    } catch (error) {
-      // 创建失败会在 ModelResolver 抛出更详细的错误
-      console.warn(`Failed to auto-initialize provider "${providerId}":`, error)
-    }
+): Promise<RuntimeExecutor<T>> {
+  if (!extensionRegistry.has(providerId)) {
+    throw new Error(`Provider extension "${providerId}" not registered`)
   }
 
-  return RuntimeExecutor.create(providerId as RegisteredProviderId, options, plugins)
+  const provider = await extensionRegistry.createProvider<T>(providerId, options || {})
+  return RuntimeExecutor.create<T, CoreProviderSettingsMap>(providerId, provider, options, plugins)
 }
-
-// === 直接调用API（无需创建executor实例）===
 
 /**
  * 直接流式文本生成 - 支持middlewares
@@ -96,11 +79,13 @@ export async function generateImage<T extends RegisteredProviderId & keyof CoreP
 /**
  * 创建 OpenAI Compatible 执行器
  */
-export function createOpenAICompatibleExecutor(
+export async function createOpenAICompatibleExecutor(
   options: CoreProviderSettingsMap['openai-compatible'],
   plugins?: AiPlugin[]
-): RuntimeExecutor<'openai-compatible'> {
-  return RuntimeExecutor.createOpenAICompatible(options, plugins)
+): Promise<RuntimeExecutor<'openai-compatible'>> {
+  const provider = await extensionRegistry.createProvider('openai-compatible', options)
+
+  return RuntimeExecutor.createOpenAICompatible(provider, options, plugins)
 }
 
 // === Agent 功能预留 ===

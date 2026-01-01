@@ -5,7 +5,7 @@
 
 import type { ProviderV3 } from '@ai-sdk/provider'
 
-import type { RegisteredProviderId } from '../index'
+import type { CoreProviderSettingsMap, RegisteredProviderId } from '../index'
 import { type ProviderExtension } from './ProviderExtension'
 import { ProviderCreationError } from './utils'
 
@@ -52,15 +52,12 @@ export class ExtensionRegistry {
   register(extension: ProviderExtension<any, any, any>): this {
     const { name, aliases, variants } = extension.config
 
-    // 检查主 ID 冲突
     if (this.extensions.has(name)) {
       throw new Error(`Provider extension "${name}" is already registered`)
     }
 
-    // 注册主 Extension
     this.extensions.set(name, extension)
 
-    // 注册别名
     if (aliases) {
       for (const alias of aliases) {
         if (this.aliasMap.has(alias)) {
@@ -70,7 +67,6 @@ export class ExtensionRegistry {
       }
     }
 
-    // 注册变体 ID
     if (variants) {
       for (const variant of variants) {
         const variantId = `${name}-${variant.suffix}`
@@ -106,10 +102,8 @@ export class ExtensionRegistry {
       return false
     }
 
-    // 删除主 Extension
     this.extensions.delete(name)
 
-    // 删除别名
     if (extension.config.aliases) {
       for (const alias of extension.config.aliases) {
         this.aliasMap.delete(alias)
@@ -123,12 +117,10 @@ export class ExtensionRegistry {
    * 获取 Extension（支持别名）
    */
   get(id: string): ProviderExtension<any, any, any> | undefined {
-    // 直接查找
     if (this.extensions.has(id)) {
       return this.extensions.get(id)
     }
 
-    // 通过别名查找
     const realName = this.aliasMap.get(id)
     if (realName) {
       return this.extensions.get(realName)
@@ -250,17 +242,7 @@ export class ExtensionRegistry {
    * ```
    */
   parseProviderId(providerId: string): { baseId: RegisteredProviderId; mode?: string; isVariant: boolean } | null {
-    // 先检查是否是已注册的 extension（直接或通过别名）
-    const extension = this.get(providerId)
-    if (extension) {
-      // 是基础 ID 或别名，不是变体
-      return {
-        baseId: extension.config.name as RegisteredProviderId,
-        isVariant: false
-      }
-    }
-
-    // 遍历所有 extensions，查找匹配的变体
+    // 先遍历所有 extensions，查找匹配的变体（优先于别名检查）
     for (const ext of this.extensions.values()) {
       if (!ext.config.variants) {
         continue
@@ -276,6 +258,16 @@ export class ExtensionRegistry {
             isVariant: true
           }
         }
+      }
+    }
+
+    // 再检查是否是已注册的 extension（直接或通过别名）
+    const extension = this.get(providerId)
+    if (extension) {
+      // 是基础 ID 或别名，不是变体
+      return {
+        baseId: extension.config.name as RegisteredProviderId,
+        isVariant: false
       }
     }
 
@@ -379,15 +371,21 @@ export class ExtensionRegistry {
 
   /**
    * 创建 provider 实例
-   * 委托给 ProviderExtension 处理（包括缓存、生命周期钩子等）
    *
-   * @param id - Provider ID（支持别名和变体）
-   * @param settings - Provider 配置选项
-   * @param explicitId - 可选的显式ID，用于AI SDK注册
+   * 支持两种调用方式:
+   * 1. 类型安全版本 - 使用已注册的 provider ID，获得完整的类型推导
+   * 2. 动态版本 - 使用任意字符串 ID，用于测试或动态注册的 provider
+   *
+   * @param id - Provider ID
+   * @param settings - Provider 配置
    * @returns Provider 实例
    */
-  async createProvider(id: string, settings?: any, explicitId?: string): Promise<ProviderV3> {
-    // 解析 provider ID，提取基础 ID 和变体后缀
+  async createProvider<T extends RegisteredProviderId & keyof CoreProviderSettingsMap>(
+    id: T,
+    settings: CoreProviderSettingsMap[T]
+  ): Promise<ProviderV3>
+  async createProvider(id: string, settings?: unknown): Promise<ProviderV3>
+  async createProvider(id: string, settings?: unknown): Promise<ProviderV3> {
     const parsed = this.parseProviderId(id)
     if (!parsed) {
       throw new Error(`Provider extension "${id}" not found. Did you forget to register it?`)
@@ -395,16 +393,13 @@ export class ExtensionRegistry {
 
     const { baseId, mode: variantSuffix } = parsed
 
-    // 获取基础 extension
     const extension = this.get(baseId)
     if (!extension) {
       throw new Error(`Provider extension "${baseId}" not found. Did you forget to register it?`)
     }
 
     try {
-      // 委托给 Extension 的 createProvider 方法
-      // Extension 负责缓存、生命周期钩子、AI SDK 注册、变体转换等
-      return await extension.createProvider(settings, explicitId, variantSuffix)
+      return await extension.createProvider(settings, variantSuffix)
     } catch (error) {
       throw new ProviderCreationError(
         `Failed to create provider "${id}"`,

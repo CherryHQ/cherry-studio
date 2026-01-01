@@ -2,9 +2,9 @@
  * ExtensionRegistry 单元测试
  */
 
+import { createMockProviderV3 } from '@test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createMockProviderV3 } from '../../../__tests__'
 import { ExtensionRegistry } from '../core/ExtensionRegistry'
 import { ProviderExtension } from '../core/ProviderExtension'
 import { ProviderCreationError } from '../core/utils'
@@ -297,23 +297,6 @@ describe('ExtensionRegistry', () => {
       })
     })
 
-    it.skip('should validate settings before creating', async () => {
-      const extension = new ProviderExtension<any>({
-        name: 'test-provider',
-        create: createMockProviderV3 as any
-      })
-
-      registry.register(extension)
-
-      try {
-        await registry.createProvider('test-provider', {})
-        expect.fail('Should have thrown')
-      } catch (error) {
-        expect(error).toBeInstanceOf(ProviderCreationError)
-        expect((error as ProviderCreationError).cause.message).toContain('API key required')
-      }
-    })
-
     it('should create provider using dynamic import', async () => {
       const mockProvider = createMockProviderV3()
 
@@ -502,46 +485,6 @@ describe('ExtensionRegistry', () => {
       )
 
       await expect(registry.createProvider('test-provider', { apiKey: 'key' })).rejects.toThrow(ProviderCreationError)
-    })
-
-    it.skip('should still execute validate hook for backward compatibility', async () => {
-      const validateSpy = vi.fn(() => ({ success: true }))
-
-      registry.register(
-        new ProviderExtension({
-          name: 'test-provider',
-          create: createMockProviderV3,
-          validate: validateSpy
-        })
-      )
-
-      await registry.createProvider('test-provider', { apiKey: 'key' })
-
-      expect(validateSpy).toHaveBeenCalledWith({ apiKey: 'key' })
-    })
-
-    it.skip('should execute both onBeforeCreate and validate', async () => {
-      const executionOrder: string[] = []
-
-      registry.register(
-        new ProviderExtension({
-          name: 'test-provider',
-          create: createMockProviderV3,
-          hooks: {
-            onBeforeCreate: () => {
-              executionOrder.push('hook')
-            }
-          },
-          validate: () => {
-            executionOrder.push('validate')
-            return { success: true }
-          }
-        })
-      )
-
-      await registry.createProvider('test-provider', { apiKey: 'key' })
-
-      expect(executionOrder).toEqual(['hook', 'validate'])
     })
   })
 

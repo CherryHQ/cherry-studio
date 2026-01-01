@@ -33,7 +33,7 @@ import type {
 } from '../types'
 import { extensionRegistry } from './ExtensionRegistry'
 import type { ProviderExtensionConfig } from './ProviderExtension'
-import { globalProviderStorage, ProviderExtension } from './ProviderExtension'
+import { ProviderExtension } from './ProviderExtension'
 
 // ==================== Core Extensions ====================
 
@@ -268,14 +268,6 @@ class ProviderInitializationError extends Error {
   }
 }
 
-// ==================== 全局 Provider Storage 导出 ====================
-
-/**
- * 全局 Provider Storage
- * Extension 创建的 provider 实例会注册到这里
- */
-export { globalProviderStorage }
-
 // ==================== 工具函数 ====================
 
 /**
@@ -293,68 +285,10 @@ export function getSupportedProviders(): Array<{
 }
 
 /**
- * 获取所有已初始化的 providers (explicit IDs)
- */
-export function getInitializedProviders(): string[] {
-  return Array.from(globalProviderStorage.keys())
-}
-
-/**
- * 检查是否有任何已初始化的 providers
- */
-export function hasInitializedProviders(): boolean {
-  return globalProviderStorage.size > 0
-}
-
-/**
- * 检查指定的 provider ID 是否已注册
- * 检查 Extension Registry (template) 或 Global Provider Storage (initialized instance)
- *
- * @param id - Provider ID to check (extension name or explicit ID)
- * @returns true if the provider is registered (either as extension or initialized instance)
- *
- * @example
- * ```typescript
- * if (isRegisteredProvider('openai')) {
- *   // Provider extension exists
- * }
- * if (isRegisteredProvider('my-openai-instance')) {
- *   // Initialized provider instance exists
- * }
- * ```
- */
-export function isRegisteredProvider(id: string): boolean {
-  return extensionRegistry.has(id) || globalProviderStorage.has(id)
-}
-
-/**
- * 创建 Provider - 使用 Extension Registry
- *
- * @param providerId - Provider ID (extension name)
- * @param options - Provider settings
- * @param explicitId - 可选的显式 ID，用于注册到 globalProviderStorage。如果不提供，Extension 会使用 `name:hash` 作为默认 ID
- * @returns Provider 实例
- */
-export async function createProvider(providerId: string, options: any, explicitId?: string): Promise<any> {
-  if (!extensionRegistry.has(providerId)) {
-    throw new Error(`Provider "${providerId}" not found in Extension Registry`)
-  }
-
-  return await extensionRegistry.createProvider(providerId, options, explicitId)
-}
-
-/**
  * 检查是否有对应的 Provider Extension
  */
 export function hasProviderConfig(providerId: string): boolean {
   return extensionRegistry.has(providerId)
-}
-
-/**
- * 清除所有已注册的 provider 实例
- */
-export function clearAllProviders(): void {
-  globalProviderStorage.clear()
 }
 
 // ==================== 导出错误类型 ====================

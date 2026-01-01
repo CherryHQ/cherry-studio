@@ -17,7 +17,7 @@ export interface ModelConfig<
 > {
   providerId: T
   modelId: string
-  providerSettings: T extends keyof TSettingsMap ? TSettingsMap[T] : never
+  providerSettings: TSettingsMap[T & keyof TSettingsMap]
   middlewares?: LanguageModelV3Middleware[]
   extraModelConfig?: JSONObject
 }

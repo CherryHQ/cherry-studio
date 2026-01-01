@@ -3,12 +3,17 @@
  * Tests streaming text generation across all providers with various parameters
  */
 
+import {
+  collectStreamChunks,
+  createMockLanguageModel,
+  createMockProviderV3,
+  mockProviderConfigs,
+  testMessages
+} from '@test-utils'
 import { streamText } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { collectStreamChunks, createMockLanguageModel, mockProviderConfigs, testMessages } from '../../../__tests__'
 import type { AiPlugin } from '../../plugins'
-import { globalProviderInstanceRegistry } from '../../providers/core/ProviderInstanceRegistry'
 import { RuntimeExecutor } from '../executor'
 
 // Mock AI SDK - use importOriginal to keep jsonSchema and other non-mocked exports
@@ -20,28 +25,25 @@ vi.mock('ai', async (importOriginal) => {
   }
 })
 
-vi.mock('../../providers/core/ProviderInstanceRegistry', () => ({
-  globalProviderInstanceRegistry: {
-    languageModel: vi.fn()
-  },
-  DEFAULT_SEPARATOR: '|'
-}))
-
 describe('RuntimeExecutor.streamText', () => {
   let executor: RuntimeExecutor<'openai'>
   let mockLanguageModel: any
+  let mockProvider: any
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    executor = RuntimeExecutor.create('openai', mockProviderConfigs.openai)
 
     mockLanguageModel = createMockLanguageModel({
       provider: 'openai',
       modelId: 'gpt-4'
     })
 
-    vi.mocked(globalProviderInstanceRegistry.languageModel).mockReturnValue(mockLanguageModel)
+    mockProvider = createMockProviderV3({
+      provider: 'openai',
+      languageModel: () => mockLanguageModel
+    })
+
+    executor = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai)
   })
 
   describe('Basic Functionality', () => {
@@ -416,7 +418,9 @@ describe('RuntimeExecutor.streamText', () => {
         })
       }
 
-      const executorWithPlugin = RuntimeExecutor.create('openai', mockProviderConfigs.openai, [testPlugin])
+      const executorWithPlugin = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai, [
+        testPlugin
+      ])
 
       const mockStream = {
         textStream: (async function* () {
@@ -509,7 +513,9 @@ describe('RuntimeExecutor.streamText', () => {
         onError: vi.fn()
       }
 
-      const executorWithPlugin = RuntimeExecutor.create('openai', mockProviderConfigs.openai, [errorPlugin])
+      const executorWithPlugin = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai, [
+        errorPlugin
+      ])
 
       await expect(
         executorWithPlugin.streamText({

@@ -3,18 +3,12 @@
  */
 
 // ==================== 核心管理器 ====================
-export { globalProviderStorage } from './core/ProviderExtension'
 
 // Provider 核心功能
 export {
-  clearAllProviders,
   coreExtensions,
-  createProvider,
-  getInitializedProviders,
   getSupportedProviders,
-  hasInitializedProviders,
   hasProviderConfig,
-  isRegisteredProvider,
   ProviderInitializationError,
   registeredProviderIds
 } from './core/initialization'
@@ -24,7 +18,7 @@ export {
 // 类型定义
 export type { AiSdkModel, ProviderError } from './types'
 
-// 类型提取工具（用于应用层 Merge Point 模式）
+// 类型提取工具
 export type {
   CoreProviderSettingsMap,
   ExtensionConfigToIdResolutionMap,
@@ -43,7 +37,11 @@ export { formatPrivateKey, ProviderCreationError } from './core/utils'
 // ==================== 扩展功能 ====================
 
 // Hub Provider 功能
-export { createHubProvider, type HubProviderConfig, HubProviderError } from './features/HubProvider'
+export {
+  createHubProviderAsync,
+  type HubProviderConfig,
+  HubProviderError
+} from './features/HubProvider'
 
 // ==================== Provider Extension 系统 ====================
 
