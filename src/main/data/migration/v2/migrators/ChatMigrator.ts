@@ -63,6 +63,7 @@ import { BaseMigrator } from './BaseMigrator'
 import {
   buildBlockLookup,
   buildMessageTree,
+  findActiveNodeId,
   type NewMessage,
   type NewTopic,
   type OldAssistant,
@@ -287,34 +288,52 @@ export class ChatMigrator extends BaseMigrator {
 
         // Insert topics in a transaction
         if (preparedData.length > 0) {
+          // Collect all messages and handle duplicates BEFORE transaction
+          // This ensures parentId references are updated correctly
+          const allMessages: NewMessage[] = []
+          const idRemapping = new Map<string, string>() // oldId → newId for duplicates
+          const batchMessageIds = new Set<string>() // IDs added in this batch (for transaction safety)
+
+          for (const data of preparedData) {
+            for (const msg of data.messages) {
+              if (this.seenMessageIds.has(msg.id) || batchMessageIds.has(msg.id)) {
+                const newId = uuidv4()
+                logger.warn(`Duplicate message ID found: ${msg.id}, assigning new ID: ${newId}`)
+                idRemapping.set(msg.id, newId)
+                msg.id = newId
+              }
+              batchMessageIds.add(msg.id)
+              allMessages.push(msg)
+            }
+          }
+
+          // Update parentId references for any remapped IDs
+          if (idRemapping.size > 0) {
+            for (const msg of allMessages) {
+              if (msg.parentId && idRemapping.has(msg.parentId)) {
+                msg.parentId = idRemapping.get(msg.parentId)!
+              }
+            }
+          }
+
+          // Execute transaction
           await db.transaction(async (tx) => {
             // Insert topics
             const topicValues = preparedData.map((d) => d.topic)
             await tx.insert(topicTable).values(topicValues)
-
-            // Collect all messages, handling duplicate IDs by generating new ones
-            const allMessages: NewMessage[] = []
-            for (const data of preparedData) {
-              for (const msg of data.messages) {
-                if (this.seenMessageIds.has(msg.id)) {
-                  const newId = uuidv4()
-                  logger.warn(`Duplicate message ID found: ${msg.id}, assigning new ID: ${newId}`)
-                  msg.id = newId
-                }
-                this.seenMessageIds.add(msg.id)
-                allMessages.push(msg)
-              }
-            }
 
             // Insert messages in batches (SQLite parameter limit)
             for (let i = 0; i < allMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
               const batch = allMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
               await tx.insert(messageTable).values(batch)
             }
-
-            processedMessages += allMessages.length
           })
 
+          // Update state ONLY after transaction succeeds (transaction safety)
+          for (const id of batchMessageIds) {
+            this.seenMessageIds.add(id)
+          }
+          processedMessages += allMessages.length
           processedTopics += preparedData.length
         }
 
@@ -389,9 +408,12 @@ export class ChatMigrator extends BaseMigrator {
       const expectedTopics = this.topicCount - this.skippedTopics
       if (targetTopicCount < expectedTopics) {
         errors.push({
-          key: 'topic_count',
-          message: `Topic count mismatch: expected ${expectedTopics}, got ${targetTopicCount}`
+          key: 'topic_count_low',
+          message: `Topic count too low: expected ${expectedTopics}, got ${targetTopicCount}`
         })
+      } else if (targetTopicCount > expectedTopics) {
+        // More topics than expected could indicate duplicate insertions or data corruption
+        logger.warn(`Topic count higher than expected: expected ${expectedTopics}, got ${targetTopicCount}`)
       }
 
       // Sample validation: check a few topics have messages
@@ -604,12 +626,26 @@ export class ChatMigrator extends BaseMigrator {
       }
     }
 
-    // Calculate activeNodeId based on migrated messages (not original messages)
-    // If no messages were migrated, set to null
+    // Calculate activeNodeId using smart selection logic
+    // Priority: 1) Original activeNode if migrated, 2) foldSelected if migrated, 3) last migrated
     let activeNodeId: string | null = null
     if (newMessages.length > 0) {
-      // Use the last migrated message as active node
-      activeNodeId = newMessages[newMessages.length - 1].id
+      const migratedIds = new Set(newMessages.map((m) => m.id))
+
+      // Try to use the original active node (handles foldSelected for multi-model)
+      const originalActiveId = findActiveNodeId(oldMessages)
+      if (originalActiveId && migratedIds.has(originalActiveId)) {
+        activeNodeId = originalActiveId
+      } else {
+        // Original active was skipped; find a foldSelected among migrated messages
+        const foldSelectedMsg = oldMessages.find((m) => m.foldSelected && migratedIds.has(m.id))
+        if (foldSelectedMsg) {
+          activeNodeId = foldSelectedMsg.id
+        } else {
+          // Fallback to last migrated message
+          activeNodeId = newMessages[newMessages.length - 1].id
+        }
+      }
     }
 
     // Transform topic with correct activeNodeId

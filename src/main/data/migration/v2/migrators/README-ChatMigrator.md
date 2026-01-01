@@ -51,7 +51,7 @@ The migrator handles potential data inconsistencies from the old system:
 
 | Issue | Detection | Handling |
 |-------|-----------|----------|
-| **Duplicate message ID** | Same ID appears in multiple topics | Generate new UUID, log warning |
+| **Duplicate message ID** | Same ID appears in multiple topics | Generate new UUID, update parentId refs, log warning |
 | **TopicId mismatch** | `message.topicId` ≠ parent `topic.id` | Use correct parent topic.id (silent fix) |
 | **Missing blocks** | Block ID not found in `message_blocks` | Skip missing block (silent) |
 | **Invalid topic** | Topic missing required `id` field | Skip entire topic |
@@ -75,7 +75,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | Redux: (parent assistant.id) | `assistantId` | From `topicAssistantLookup` mapping |
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
 | Redux: `prompt` | `prompt` | Merged from Redux |
-| (computed) | `activeNodeId` | Last message ID or foldSelected |
+| (computed) | `activeNodeId` | Smart selection: original active → foldSelected → last migrated |
 | (none) | `groupId` | null (new field) |
 | (none) | `sortOrder` | 0 (new field) |
 | Redux: `pinned` | `isPinned` | Merged from Redux, renamed |
