@@ -21,10 +21,8 @@ export {
 
 // ==================== 基础数据和类型 ====================
 
-// 类型定义和Schema
-export type { AiSdkModel, ProviderError, ProviderTypeRegistrar } from './types'
-export type { ProviderId } from './types/schemas'
-export { providerIdSchema } from './types/schemas'
+// 类型定义
+export type { AiSdkModel, ProviderError } from './types'
 
 // 类型提取工具（用于应用层 Merge Point 模式）
 export type {

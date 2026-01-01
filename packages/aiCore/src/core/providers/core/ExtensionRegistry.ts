@@ -6,7 +6,6 @@
 import type { ProviderV3 } from '@ai-sdk/provider'
 
 import type { RegisteredProviderId } from '../index'
-import type { ProviderId } from '../types'
 import { type ProviderExtension } from './ProviderExtension'
 import { ProviderCreationError } from './utils'
 
@@ -250,13 +249,13 @@ export class ExtensionRegistry {
    * parseProviderId('unknown')            // → null
    * ```
    */
-  parseProviderId(providerId: string): { baseId: ProviderId; mode?: string; isVariant: boolean } | null {
+  parseProviderId(providerId: string): { baseId: RegisteredProviderId; mode?: string; isVariant: boolean } | null {
     // 先检查是否是已注册的 extension（直接或通过别名）
     const extension = this.get(providerId)
     if (extension) {
       // 是基础 ID 或别名，不是变体
       return {
-        baseId: extension.config.name as ProviderId,
+        baseId: extension.config.name as RegisteredProviderId,
         isVariant: false
       }
     }
@@ -272,7 +271,7 @@ export class ExtensionRegistry {
         const variantId = `${ext.config.name}-${variant.suffix}`
         if (variantId === providerId) {
           return {
-            baseId: ext.config.name as ProviderId,
+            baseId: ext.config.name as RegisteredProviderId,
             mode: variant.suffix,
             isVariant: true
           }
@@ -322,7 +321,7 @@ export class ExtensionRegistry {
    * getBaseProviderId('unknown')          // → null
    * ```
    */
-  getBaseProviderId(id: string): ProviderId | null {
+  getBaseProviderId(id: string): RegisteredProviderId | null {
     const parsed = this.parseProviderId(id)
     return parsed?.baseId ?? null
   }

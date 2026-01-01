@@ -34,15 +34,7 @@ export { createContext, definePlugin, PluginManager } from './core/plugins'
 export { PluginEngine } from './core/runtime/pluginEngine'
 
 // ==================== 类型工具 ====================
-export type { ModelId, ProviderId, RequestId } from './core/types/branded'
-export { isModelId, isProviderId, isRequestId } from './core/types/branded'
-// Branded type constructors (values, not types)
 export type { AiSdkModel } from './core/providers'
-export {
-  ModelId as createModelId,
-  ProviderId as createProviderId,
-  RequestId as createRequestId
-} from './core/types/branded'
 
 // ==================== 选项 ====================
 export {

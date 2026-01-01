@@ -12,13 +12,14 @@ import type {
 
 import type { coreExtensions, CoreProviderId } from '../core/initialization'
 import type { ProviderExtension } from '../core/ProviderExtension'
-// 导入基于 Zod 的 ProviderId 类型
-import { type ProviderId as ZodProviderId } from './schemas'
 
 /**
- * 核心 Provider ID
+ * 已注册的 Provider ID
  * 从 coreExtensions 数组自动提取所有 Provider IDs
+ * 类型安全的 literal union
  *
+ * 如果需要支持动态/未注册的 provider，使用：
+ * RegisteredProviderId | (string & {})
  */
 export type RegisteredProviderId = CoreProviderId
 
@@ -33,14 +34,6 @@ export class ProviderError extends Error {
     super(message)
     this.name = 'ProviderError'
   }
-}
-
-// 动态ProviderId类型 - 基于 Zod Schema，支持运行时扩展和验证
-export type ProviderId = ZodProviderId
-
-export interface ProviderTypeRegistrar {
-  registerProviderType<T extends string, S>(providerId: T, settingsType: S): void
-  getProviderSettings<T extends string>(providerId: T): any
 }
 
 export type AiSdkModel = LanguageModel | ImageModel | EmbeddingModel | TranscriptionModel | SpeechModel

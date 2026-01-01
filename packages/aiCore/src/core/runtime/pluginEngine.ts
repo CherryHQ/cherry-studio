@@ -13,13 +13,13 @@ import {
   type StreamTextParams,
   type StreamTextResult
 } from '../plugins'
-import { type ProviderId } from '../providers/types'
+import { type RegisteredProviderId } from '../providers/types'
 
 /**
  * 插件增强的 AI 客户端
  * 专注于插件处理，不暴露用户API
  */
-export class PluginEngine<T extends ProviderId = ProviderId> {
+export class PluginEngine<T extends RegisteredProviderId | (string & {}) = RegisteredProviderId> {
   /**
    * Plugin storage with explicit any/any generics
    *

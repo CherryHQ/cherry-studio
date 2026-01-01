@@ -17,7 +17,7 @@ import { vi } from 'vitest'
 import * as z from 'zod'
 
 import type { StreamTextParams, StreamTextResult } from '../../core/plugins'
-import type { ProviderId } from '../../core/providers/types'
+import type { RegisteredProviderId } from '../../core/providers/types'
 import type { AiRequestContext } from '../../types'
 
 /**
@@ -47,7 +47,7 @@ export function createMockContext(overrides?: ContextOverrides): AiRequestContex
   })
 
   const base: AiRequestContext<StreamTextParams, StreamTextResult> = {
-    providerId: 'openai' as ProviderId,
+    providerId: 'openai' as RegisteredProviderId,
     model: mockModel,
     originalParams: {
       model: mockModel,
