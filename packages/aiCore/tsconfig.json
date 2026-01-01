@@ -18,7 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "@test-utils": ["./test_utils"],
-      "@test-utils/*": ["./test_utils/*"]
+      "@test-utils/*": ["./test_utils/*"],
+      "@cherrystudio/ai-sdk-provider": ["../ai-sdk-provider/dist/index.d.ts"]
     }
   },
   "exclude": ["node_modules", "dist"],
