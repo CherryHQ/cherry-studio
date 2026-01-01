@@ -33,6 +33,151 @@ export interface MessageData {
 //FIXME [v2] 注意，以下类型只是占位，接口未稳定，随时会变
 
 // ============================================================================
+// Content Reference Types
+// ============================================================================
+
+/**
+ * Reference category for content references
+ */
+export enum ReferenceCategory {
+  CITATION = 'citation',
+  MENTION = 'mention'
+}
+
+/**
+ * Citation source type
+ */
+export enum CitationType {
+  WEB = 'web',
+  KNOWLEDGE = 'knowledge',
+  MEMORY = 'memory'
+}
+
+/**
+ * Base reference structure for inline content references
+ */
+export interface BaseReference {
+  category: ReferenceCategory
+  /** Text marker in content, e.g., "[1]", "@user" */
+  marker?: string
+  /** Position range in content */
+  range?: { start: number; end: number }
+}
+
+/**
+ * Base citation reference
+ */
+interface BaseCitationReference extends BaseReference {
+  category: ReferenceCategory.CITATION
+  citationType: CitationType
+}
+
+/**
+ * Web search citation reference
+ * Data structure compatible with WebSearchResponse from renderer
+ */
+export interface WebCitationReference extends BaseCitationReference {
+  citationType: CitationType.WEB
+  content: {
+    results?: unknown // types needs to be migrated from renderer ( newMessage.ts )
+    source: unknown // types needs to be migrated from renderer ( newMessage.ts )
+  }
+}
+
+/**
+ * Knowledge base citation reference
+ * Data structure compatible with KnowledgeReference[] from renderer
+ */
+export interface KnowledgeCitationReference extends BaseCitationReference {
+  citationType: CitationType.KNOWLEDGE
+
+  // types needs to be migrated from renderer ( newMessage.ts )
+  content: {
+    id: number
+    content: string
+    sourceUrl: string
+    type: string
+    file?: unknown
+    metadata?: Record<string, unknown>
+  }[]
+}
+
+/**
+ * Memory citation reference
+ * Data structure compatible with MemoryItem[] from renderer
+ */
+export interface MemoryCitationReference extends BaseCitationReference {
+  citationType: CitationType.MEMORY
+  // types needs to be migrated from renderer ( newMessage.ts )
+  content: {
+    id: string
+    memory: string
+    hash?: string
+    createdAt?: string
+    updatedAt?: string
+    score?: number
+    metadata?: Record<string, unknown>
+  }[]
+}
+
+/**
+ * Union type of all citation references
+ */
+export type CitationReference = WebCitationReference | KnowledgeCitationReference | MemoryCitationReference
+
+/**
+ * Mention reference for @mentions in content
+ * References a Model entity
+ */
+export interface MentionReference extends BaseReference {
+  category: ReferenceCategory.MENTION
+  /** Model ID being mentioned */
+  modelId: string //FIXME 未定接口，model的数据结构还未确定，先占位
+  /** Display name for the mention */
+  displayName?: string
+}
+
+/**
+ * Union type of all content references
+ */
+export type ContentReference = CitationReference | MentionReference
+
+/**
+ * Type guard: check if reference is a citation
+ */
+export function isCitation(ref: ContentReference): ref is CitationReference {
+  return ref.category === ReferenceCategory.CITATION
+}
+
+/**
+ * Type guard: check if reference is a mention
+ */
+export function isMention(ref: ContentReference): ref is MentionReference {
+  return ref.category === ReferenceCategory.MENTION
+}
+
+/**
+ * Type guard: check if reference is a web citation
+ */
+export function isWebCitation(ref: ContentReference): ref is WebCitationReference {
+  return isCitation(ref) && ref.citationType === CitationType.WEB
+}
+
+/**
+ * Type guard: check if reference is a knowledge citation
+ */
+export function isKnowledgeCitation(ref: ContentReference): ref is KnowledgeCitationReference {
+  return isCitation(ref) && ref.citationType === CitationType.KNOWLEDGE
+}
+
+/**
+ * Type guard: check if reference is a memory citation
+ */
+export function isMemoryCitation(ref: ContentReference): ref is MemoryCitationReference {
+  return isCitation(ref) && ref.citationType === CitationType.MEMORY
+}
+
+// ============================================================================
 // Message Block
 // ============================================================================
 
@@ -81,14 +226,39 @@ export interface UnknownBlock extends BaseBlock {
   content?: string
 }
 
+/**
+ * Main text block containing the primary message content.
+ *
+ * ## Migration Notes (v2.0)
+ *
+ * ### Added
+ * - `references`: Unified inline references replacing the old citation system.
+ *   Supports multiple reference types (citations, mentions) with position tracking.
+ *
+ * ### Removed
+ * - `citationReferences`: Use `references` with `ReferenceCategory.CITATION` instead.
+ * - `CitationBlock`: Citation data is now embedded in `MainTextBlock.references`.
+ *   The standalone CitationBlock type is no longer used.
+ */
 export interface MainTextBlock extends BaseBlock {
   type: BlockType.MAIN_TEXT
   content: string
   //knowledgeBaseIds?: string[] // v1's dead code, will be removed in v2
-  citationReferences?: {
-    citationBlockId?: string
-    citationBlockSource?: string
-  }[]
+
+  /**
+   * Inline references embedded in the content (citations, mentions, etc.)
+   * Replaces the old CitationBlock + citationReferences pattern.
+   * @since v2.0
+   */
+  references?: ContentReference[]
+
+  /**
+   * @deprecated Use `references` with `ReferenceCategory.CITATION` instead.
+   */
+  // citationReferences?: {
+  //   citationBlockId?: string
+  //   citationBlockSource?: string
+  // }[]
 }
 
 export interface ThinkingBlock extends BaseBlock {
@@ -125,6 +295,10 @@ export interface ToolBlock extends BaseBlock {
   content?: string | object
 }
 
+/**
+ * @deprecated Citation data is now embedded in MainTextBlock.references.
+ * Use ContentReference types instead. Will be removed in v3.0.
+ */
 export interface CitationBlock extends BaseBlock {
   type: BlockType.CITATION
   responseData?: unknown
