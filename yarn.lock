@@ -1936,6 +1936,7 @@ __metadata:
     "@ai-sdk/provider": "npm:^3.0.0"
     "@ai-sdk/provider-utils": "npm:^4.0.0"
     "@ai-sdk/xai": "npm:^3.0.0"
+    "@cherrystudio/ai-sdk-provider": "workspace:*"
     biome: "npm:^0.3.3"
     lru-cache: "npm:^11.2.4"
     oxlint: "npm:^1.36.0"
@@ -1951,7 +1952,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@cherrystudio/ai-sdk-provider@workspace:packages/ai-sdk-provider":
+"@cherrystudio/ai-sdk-provider@workspace:*, @cherrystudio/ai-sdk-provider@workspace:packages/ai-sdk-provider":
   version: 0.0.0-use.local
   resolution: "@cherrystudio/ai-sdk-provider@workspace:packages/ai-sdk-provider"
   dependencies:

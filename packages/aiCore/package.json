@@ -55,6 +55,7 @@
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@cherrystudio/ai-sdk-provider": "workspace:*",
     "biome": "^0.3.3",
     "oxlint": "^1.36.0",
     "tsdown": "^0.12.9",
