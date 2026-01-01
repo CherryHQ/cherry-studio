@@ -4,23 +4,22 @@
 import type { ImageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { generateImage, generateText, streamText } from 'ai'
 
-import { type ModelConfig } from '../models/types'
 import { type AiPlugin } from '../plugins'
-import type { CoreProviderSettingsMap, RegisteredProviderId } from '../providers/types'
+import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 
 /**
  * 运行时执行器配置
  *
- * @typeParam T - Provider ID 类型
  * @typeParam TSettingsMap - Provider Settings Map（默认 CoreProviderSettingsMap）
+ * @typeParam T - Provider ID 类型（从 TSettingsMap 的键推断）
  */
 export interface RuntimeConfig<
-  T extends RegisteredProviderId | (string & {}) = RegisteredProviderId,
-  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
 > {
   providerId: T
   provider: ProviderV3
-  providerSettings: ModelConfig<T, TSettingsMap>['providerSettings']
+  providerSettings: TSettingsMap[T]
   plugins?: AiPlugin[]
 }
 

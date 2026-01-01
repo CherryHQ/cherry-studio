@@ -29,7 +29,7 @@ import {
   isModernSdkSupported,
   providerToAiSdkConfig
 } from './provider/providerConfig'
-import type { ProviderConfig } from './types'
+import type { AppProviderSettingsMap, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
 const logger = loggerService.withContext('ModernAiProvider')
@@ -286,21 +286,14 @@ export default class ModernAiProvider {
     params: StreamTextParams,
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
-    // const modelId = this.model!.id
-    // logger.info('Starting modernCompletions', {
-    //   modelId,
-    //   providerId: this.config!.providerId,
-    //   topicId: config.topicId,
-    //   hasOnChunk: !!config.onChunk,
-    //   hasTools: !!params.tools && Object.keys(params.tools).length > 0,
-    //   toolCount: params.tools ? Object.keys(params.tools).length : 0
-    // })
-
-    // 根据条件构建插件数组
     const plugins = buildPlugins(config)
 
     // 用构建好的插件数组创建executor
-    const executor = await createExecutor(this.config!.providerId, this.config!.providerSettings, plugins)
+    const executor = await createExecutor<AppProviderSettingsMap>(
+      this.config!.providerId,
+      this.config!.providerSettings,
+      plugins
+    )
 
     // 创建带有中间件的执行器
     if (config.onChunk) {
@@ -385,7 +378,7 @@ export default class ModernAiProvider {
       }
 
       // 调用新 AI SDK 的图像生成功能
-      const executor = await createExecutor(this.config!.providerId, this.config!.providerSettings, [])
+      const executor = await createExecutor<AppProviderSettingsMap>(this.config!.providerId, this.config!.providerSettings, [])
       const result = await executor.generateImage({
         model,
         ...imageParams
@@ -508,7 +501,7 @@ export default class ModernAiProvider {
       ...(signal && { abortSignal: signal })
     }
 
-    const executor = await createExecutor(this.config!.providerId, this.config!.providerSettings, [])
+    const executor = await createExecutor(this.config!.providerId as any, this.config!.providerSettings as any, [])
     const result = await executor.generateImage({
       model: model, // 直接使用 model ID 字符串，由 executor 内部解析
       ...aiSdkParams

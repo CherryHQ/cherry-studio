@@ -10,8 +10,18 @@ import type {
   TranscriptionModel
 } from 'ai'
 
-import type { coreExtensions, CoreProviderId } from '../core/initialization'
+import type { coreExtensions } from '../core/initialization'
 import type { ProviderExtension } from '../core/ProviderExtension'
+
+// ============================================================================
+// Type Utilities
+// ============================================================================
+
+/**
+ * 提取对象类型中的字符串键
+ * @example StringKeys<{ foo: 1, 0: 2 }> = 'foo'
+ */
+export type StringKeys<T> = Extract<keyof T, string>
 
 /**
  * 已注册的 Provider ID
@@ -21,7 +31,7 @@ import type { ProviderExtension } from '../core/ProviderExtension'
  * 如果需要支持动态/未注册的 provider，使用：
  * RegisteredProviderId | (string & {})
  */
-export type RegisteredProviderId = CoreProviderId
+export type RegisteredProviderId = keyof CoreProviderSettingsMap
 
 // 错误类型
 export class ProviderError extends Error {
@@ -255,16 +265,21 @@ export type ExtensionToSettingsMap<T> = T extends ProviderExtension<infer TSetti
  */
 export type CoreProviderSettingsMap = UnionToIntersection<ExtensionToSettingsMap<(typeof coreExtensions)[number]>>
 
+// 辅助类型：提取所有变体 ID
+type ExtractVariantIds<TConfig, TName extends string> = TConfig extends {
+  variants: readonly { suffix: infer TSuffix extends string }[]
+}
+  ? `${TName}-${TSuffix}`
+  : never
+
 export type ExtensionConfigToIdResolutionMap<TConfig> = TConfig extends { name: infer TName extends string }
   ? {
       readonly [K in
         | TName
         | (TConfig extends { aliases: readonly (infer TAlias extends string)[] } ? TAlias : never)
-        | (TConfig extends { variants: readonly (infer TVariant)[] }
-            ? TVariant extends { suffix: infer TSuffix extends string }
-              ? `${TName}-${TSuffix}`
-              : never
-            : never)]: TName
+        | ExtractVariantIds<TConfig, TName>]: K extends ExtractVariantIds<TConfig, TName>
+        ? K // 变体 → 自身
+        : TName // 基础名和别名 → TName
     }
   : never
 

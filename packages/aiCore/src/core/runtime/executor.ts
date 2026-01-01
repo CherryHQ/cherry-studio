@@ -12,23 +12,22 @@ import {
 } from 'ai'
 
 import { ModelResolver } from '../models'
-import { type ModelConfig } from '../models/types'
 import { isV3Model } from '../models/utils'
 import { type AiPlugin, type AiRequestContext, definePlugin } from '../plugins'
-import type { CoreProviderSettingsMap, RegisteredProviderId } from '../providers/types'
+import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
 import { PluginEngine } from './pluginEngine'
 import type { generateImageParams, generateTextParams, RuntimeConfig, streamTextParams } from './types'
 
 export class RuntimeExecutor<
-  T extends RegisteredProviderId | (string & {}) = RegisteredProviderId,
-  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
 > {
   public pluginEngine: PluginEngine<T>
-  private config: RuntimeConfig<T, TSettingsMap>
+  private config: RuntimeConfig<TSettingsMap, T>
   private modelResolver: ModelResolver
 
-  constructor(config: RuntimeConfig<T, TSettingsMap>) {
+  constructor(config: RuntimeConfig<TSettingsMap, T>) {
     this.config = config
     // 创建插件客户端
     this.pluginEngine = new PluginEngine(config.providerId, config.plugins || [])
@@ -226,17 +225,17 @@ export class RuntimeExecutor<
    * 创建执行器 - 支持已知provider的类型安全
    */
   static create<
-    T extends RegisteredProviderId | (string & {}) = RegisteredProviderId,
-    TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
+    TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+    T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
   >(
     providerId: T,
-    provider: ProviderV3, // ✅ Accept provider instance
-    options: ModelConfig<T, TSettingsMap>['providerSettings'],
+    provider: ProviderV3,
+    options: TSettingsMap[T],
     plugins?: AiPlugin[]
-  ): RuntimeExecutor<T, TSettingsMap> {
-    return new RuntimeExecutor({
+  ): RuntimeExecutor<TSettingsMap, T> {
+    return new RuntimeExecutor<TSettingsMap, T>({
       providerId,
-      provider, // ✅ Pass provider to config
+      provider,
       providerSettings: options,
       plugins
     })
@@ -248,10 +247,10 @@ export class RuntimeExecutor<
    */
   static createOpenAICompatible(
     provider: ProviderV3, // ✅ Accept provider instance
-    options: ModelConfig<'openai-compatible'>['providerSettings'],
+    options: CoreProviderSettingsMap['openai-compatible'],
     plugins: AiPlugin[] = []
-  ): RuntimeExecutor<'openai-compatible'> {
-    return new RuntimeExecutor({
+  ): RuntimeExecutor<CoreProviderSettingsMap, 'openai-compatible'> {
+    return new RuntimeExecutor<CoreProviderSettingsMap, 'openai-compatible'>({
       providerId: 'openai-compatible',
       provider, // ✅ Pass provider to config
       providerSettings: options,

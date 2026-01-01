@@ -13,9 +13,10 @@ import { appProviderIds } from '../merged'
 describe('Unified Provider Types', () => {
   describe('appProviderIds literal access', () => {
     it('should return canonical IDs with literal types', () => {
-      expectTypeOf(appProviderIds.az).toEqualTypeOf<'azure'>()
+      // 别名 → 基础名
       expectTypeOf(appProviderIds.vertexai).toEqualTypeOf<'google-vertex'>()
-      expectTypeOf(appProviderIds['openai-chat']).toEqualTypeOf<'openai'>()
+      // 变体 → 自身（自反映射）
+      expectTypeOf(appProviderIds['openai-chat']).toEqualTypeOf<'openai-chat'>()
     })
   })
 
@@ -60,7 +61,6 @@ describe('Unified Provider Types', () => {
 
     it('should include all aliases (core + project)', () => {
       // Core aliases
-      type Check1 = 'oai' extends AppProviderId ? true : false
       type Check2 = 'claude' extends AppProviderId ? true : false
 
       // Project aliases
@@ -72,7 +72,6 @@ describe('Unified Provider Types', () => {
       type Check8 = 'hugging-face' extends AppProviderId ? true : false
       type Check9 = 'ai-gateway' extends AppProviderId ? true : false
 
-      expectTypeOf<Check1>().toEqualTypeOf<true>()
       expectTypeOf<Check2>().toEqualTypeOf<true>()
       expectTypeOf<Check3>().toEqualTypeOf<true>()
       expectTypeOf<Check4>().toEqualTypeOf<true>()
@@ -142,48 +141,16 @@ describe('Unified Provider Types', () => {
     })
 
     it('should map aliases to same settings as main ID', () => {
-      // OpenAI aliases should have the same settings
-      type OpenAIByName = AppProviderSettingsMap['openai']
-      type OpenAIByAlias = AppProviderSettingsMap['oai']
+      type OpenRouterByName = AppProviderSettingsMap['openrouter']
+      type OpenRouterByAlias = AppProviderSettingsMap['tokenflux']
 
-      expectTypeOf<OpenAIByName>().toEqualTypeOf<OpenAIByAlias>()
+      expectTypeOf<OpenRouterByName>().toEqualTypeOf<OpenRouterByAlias>()
 
       // Vertex AI aliases should have the same settings
       type VertexByName = AppProviderSettingsMap['google-vertex']
       type VertexByAlias = AppProviderSettingsMap['vertexai']
 
       expectTypeOf<VertexByName>().toEqualTypeOf<VertexByAlias>()
-    })
-
-    it('should support dynamic provider IDs', () => {
-      // Dynamic string keys should return any
-      type DynamicSettings = AppProviderSettingsMap[string]
-      type CanBeAny = any extends DynamicSettings ? true : false
-
-      expectTypeOf<CanBeAny>().toEqualTypeOf<true>()
-    })
-  })
-
-  describe('Zero Maintenance Validation', () => {
-    it('should auto-update when adding new extensions to projectExtensions', () => {
-      // This test documents that adding a new extension to the projectExtensions array
-      // will automatically update ProjectProviderId and AppProviderId without any manual intervention
-      //
-      // Example: If we add a new extension:
-      // export const NewExtension = ProviderExtension.create({ name: 'new-provider', ... })
-      // And add it to projectExtensions array:
-      // export const projectExtensions = [..., NewExtension] as const
-      //
-      // Then 'new-provider' will automatically be included in ProjectProviderId
-      // No need to update any type declarations manually!
-
-      // Current count of project extensions
-      const extensionCount = 11 // Update this when adding new extensions
-
-      // Verify we have the expected number of extensions
-      // (This serves as documentation of the current state)
-      type VerifyCount = typeof extensionCount extends 11 ? true : false
-      expectTypeOf<VerifyCount>().toEqualTypeOf<true>()
     })
   })
 })

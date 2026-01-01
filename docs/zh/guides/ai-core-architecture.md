@@ -1,6 +1,6 @@
 # Cherry Studio AI Core 架构文档
 
-> **版本**: v2.1 (ModelResolver 简化 + HubProvider 类型安全)
+> **版本**: v2.2 (StringKeys 工具类型 + 变体自反映射)
 > **更新日期**: 2026-01-02
 > **适用范围**: Cherry Studio v1.7.7+
 
@@ -997,7 +997,7 @@ export class ExtensionRegistry {
   }
 
   // 2. 创建 provider（类型安全）
-  async createProvider<T extends RegisteredProviderId & keyof CoreProviderSettingsMap>(
+  async createProvider<T extends RegisteredProviderId>(
     id: T,
     settings: CoreProviderSettingsMap[T]
   ): Promise<ProviderV3>
@@ -1736,7 +1736,77 @@ export default class AiSdkToChunkAdapter {
 
 ## 7. 类型安全机制
 
-### 7.1 Provider Settings 类型映射
+### 7.1 类型工具
+
+**文件**: `packages/aiCore/src/core/providers/types/index.ts`
+
+#### StringKeys<T> - 提取字符串键
+
+```typescript
+/**
+ * 提取对象类型中的字符串键
+ * 使用 Extract 实现简洁的类型推断
+ * @example StringKeys<{ foo: 1, 0: 2 }> = 'foo'
+ */
+export type StringKeys<T> = Extract<keyof T, string>
+
+// 在泛型约束中使用：
+export interface RuntimeConfig<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+> {
+  providerId: T
+  providerSettings: TSettingsMap[T]
+}
+```
+
+### 7.2 Provider ID 解析映射
+
+`appProviderIds` 常量提供类型安全的 provider ID 解析，**别名**和**变体**有不同的行为：
+
+```typescript
+// 别名 → 基础名（规范化）
+appProviderIds['claude']           // → 'anthropic'
+appProviderIds['vertexai']         // → 'google-vertex'
+
+// 变体 → 自身（自反映射）
+appProviderIds['openai-chat']      // → 'openai-chat'
+appProviderIds['azure-responses']  // → 'azure-responses'
+```
+
+**设计原理**：
+
+| 类型 | 语义 | 映射行为 |
+|------|------|---------|
+| 别名 (Alias) | 同一事物的另一个名字 | 规范化到基础名 ✓ |
+| 变体 (Variant) | 同一 provider 的不同模式 | 自反映射 ✓ |
+
+**类型定义**：
+
+```typescript
+// 辅助类型：提取变体 ID
+type ExtractVariantIds<TConfig, TName extends string> = TConfig extends {
+  variants: readonly { suffix: infer TSuffix extends string }[]
+}
+  ? `${TName}-${TSuffix}`
+  : never
+
+// 带条件自反映射的类型映射
+export type ExtensionConfigToIdResolutionMap<TConfig> =
+  TConfig extends { name: infer TName extends string }
+    ? {
+        readonly [K in
+          | TName
+          | (TConfig extends { aliases: readonly (infer TAlias extends string)[] } ? TAlias : never)
+          | ExtractVariantIds<TConfig, TName>
+        ]: K extends ExtractVariantIds<TConfig, TName>
+          ? K      // 变体 → 自身
+          : TName  // 基础名和别名 → TName
+      }
+    : never
+```
+
+### 7.3 Provider Settings 类型映射
 
 **文件**: `packages/aiCore/src/core/providers/types/index.ts`
 
@@ -1761,7 +1831,7 @@ export type CoreProviderSettingsMap = UnionToIntersection<
  */
 ```
 
-### 7.2 类型安全的 createExecutor
+### 7.4 类型安全的 createExecutor
 
 ```typescript
 // 1. 已知 provider（类型安全）
@@ -1784,7 +1854,7 @@ export class ExtensionRegistry {
 
   // 类型安全的函数重载
   async createProvider<
-    T extends RegisteredProviderId & keyof CoreProviderSettingsMap
+    T extends RegisteredProviderId
   >(
     id: T,
     settings: CoreProviderSettingsMap[T]
@@ -2435,6 +2505,6 @@ describe('HubProvider Integration Tests', () => {
 
 ---
 
-**文档版本**: v1.0
-**最后更新**: 2025-01-02
+**文档版本**: v2.2
+**最后更新**: 2026-01-02
 **维护者**: Cherry Studio Team

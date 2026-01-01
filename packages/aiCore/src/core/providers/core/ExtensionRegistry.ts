@@ -380,10 +380,7 @@ export class ExtensionRegistry {
    * @param settings - Provider 配置
    * @returns Provider 实例
    */
-  async createProvider<T extends RegisteredProviderId & keyof CoreProviderSettingsMap>(
-    id: T,
-    settings: CoreProviderSettingsMap[T]
-  ): Promise<ProviderV3>
+  async createProvider<T extends RegisteredProviderId>(id: T, settings: CoreProviderSettingsMap[T]): Promise<ProviderV3>
   async createProvider(id: string, settings?: unknown): Promise<ProviderV3>
   async createProvider(id: string, settings?: unknown): Promise<ProviderV3> {
     const parsed = this.parseProviderId(id)

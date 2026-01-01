@@ -197,17 +197,6 @@ export const coreExtensions = [
  * 核心 Provider IDs 类型
  * 从 coreExtensions 数组自动提取所有 provider IDs（包括 aliases 和 variants）
  *
- * 这是类型系统的单一数据源 - 添加新 extension 到 coreExtensions 数组后，
- * 此类型会自动更新，无需手动维护
- *
- * @example
- * ```typescript
- * // CoreProviderId 自动包含：
- * // - 'openai' | 'oai' | 'openai-response' | 'openai-chat'
- * // - 'anthropic' | 'claude'
- * // - 'azure' | 'azure-openai' | 'azure-responses'
- * // ... 等所有核心 provider IDs
- * ```
  */
 export type CoreProviderId = ExtractExtensionIds<(typeof coreExtensions)[number]>
 

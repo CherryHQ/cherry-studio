@@ -1,5 +1,5 @@
-import { formatPrivateKey, hasProviderConfig } from '@cherrystudio/ai-core/provider'
-import type { AppProviderId } from '@renderer/aiCore/types'
+import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
+import type { AppProviderId, AppProviderSettingsMap } from '@renderer/aiCore/types'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockApiKey,
@@ -515,7 +515,7 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   const commonOptions = buildCommonOptions(ctx)
 
   return {
-    providerId: ctx.aiSdkProviderId,
+    providerId: ctx.aiSdkProviderId as StringKeys<AppProviderSettingsMap>,
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,

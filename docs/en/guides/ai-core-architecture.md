@@ -1,6 +1,6 @@
 # Cherry Studio AI Core Architecture Documentation
 
-> **Version**: v2.1 (ModelResolver Simplification + HubProvider Type Safety)
+> **Version**: v2.2 (StringKeys Utility + Variant Self-Mapping)
 > **Updated**: 2026-01-02
 > **Applicable to**: Cherry Studio v1.7.7+
 
@@ -868,7 +868,7 @@ export class ExtensionRegistry {
   }
 
   // 2. Create provider (type-safe)
-  async createProvider<T extends RegisteredProviderId & keyof CoreProviderSettingsMap>(
+  async createProvider<T extends RegisteredProviderId>(
     id: T,
     settings: CoreProviderSettingsMap[T]
   ): Promise<ProviderV3>
@@ -1291,7 +1291,77 @@ export default class AiSdkToChunkAdapter {
 
 ## 7. Type Safety Mechanisms
 
-### 7.1 Provider Settings Type Mapping
+### 7.1 Type Utilities
+
+**File**: `packages/aiCore/src/core/providers/types/index.ts`
+
+#### StringKeys<T> - Extract String Keys
+
+```typescript
+/**
+ * Extract only string keys from an object type
+ * Uses Extract for clean type inference
+ * @example StringKeys<{ foo: 1, 0: 2 }> = 'foo'
+ */
+export type StringKeys<T> = Extract<keyof T, string>
+
+// Usage in generic constraints:
+export interface RuntimeConfig<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+> {
+  providerId: T
+  providerSettings: TSettingsMap[T]
+}
+```
+
+### 7.2 Provider ID Resolution Map
+
+The `appProviderIds` constant provides type-safe provider ID resolution with different behavior for **aliases** vs **variants**:
+
+```typescript
+// Alias → Base Name (normalization)
+appProviderIds['claude']           // → 'anthropic'
+appProviderIds['vertexai']         // → 'google-vertex'
+
+// Variant → Self (reflexive mapping)
+appProviderIds['openai-chat']      // → 'openai-chat'
+appProviderIds['azure-responses']  // → 'azure-responses'
+```
+
+**Design Rationale**:
+
+| Type | Semantics | Mapping Behavior |
+|------|-----------|-----------------|
+| Alias | Another name for the same thing | Normalize to base name ✓ |
+| Variant | Different mode of the same provider | Self-mapping (reflexive) ✓ |
+
+**Type Definition**:
+
+```typescript
+// Helper type to extract variant IDs
+type ExtractVariantIds<TConfig, TName extends string> = TConfig extends {
+  variants: readonly { suffix: infer TSuffix extends string }[]
+}
+  ? `${TName}-${TSuffix}`
+  : never
+
+// Map type with conditional self-mapping for variants
+export type ExtensionConfigToIdResolutionMap<TConfig> =
+  TConfig extends { name: infer TName extends string }
+    ? {
+        readonly [K in
+          | TName
+          | (TConfig extends { aliases: readonly (infer TAlias extends string)[] } ? TAlias : never)
+          | ExtractVariantIds<TConfig, TName>
+        ]: K extends ExtractVariantIds<TConfig, TName>
+          ? K      // Variant → Self
+          : TName  // Base name and aliases → TName
+      }
+    : never
+```
+
+### 7.3 Provider Settings Type Mapping
 
 **File**: `packages/aiCore/src/core/providers/types/index.ts`
 
@@ -1316,7 +1386,7 @@ export type CoreProviderSettingsMap = UnionToIntersection<
  */
 ```
 
-### 7.2 Type-Safe createExecutor
+### 7.4 Type-Safe createExecutor
 
 ```typescript
 // 1. Known provider (type-safe)
@@ -1786,6 +1856,6 @@ Current test coverage:
 
 ---
 
-**Document Version**: v2.1
+**Document Version**: v2.2
 **Last Updated**: 2026-01-02
 **Maintainer**: Cherry Studio Team

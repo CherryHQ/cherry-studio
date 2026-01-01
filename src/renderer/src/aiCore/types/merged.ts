@@ -10,6 +10,7 @@ import type {
   ExtensionToSettingsMap,
   ExtractProviderIds,
   ProviderExtensionConfig,
+  StringKeys,
   UnionToIntersection
 } from '@cherrystudio/ai-core/provider'
 import { coreExtensions } from '@cherrystudio/ai-core/provider'
@@ -29,7 +30,7 @@ type AllExtensionConfigs = (typeof allExtensions)[number]['config']
  * Complete Application Provider ID Type
  */
 type KnownAppProviderId = ExtractProviderIds<AllExtensionConfigs>
-export type AppProviderId = KnownAppProviderId
+export type AppProviderId = KnownAppProviderId | (string & {})
 
 /**
  * Application Provider Settings Map
@@ -74,7 +75,9 @@ function buildAppProviderIds(): ProviderIdsMap {
 
     if ('variants' in config && config.variants) {
       config.variants.forEach((variant) => {
-        ;(map as Record<string, KnownAppProviderId>)[`${name}-${variant.suffix}`] = name
+        // 变体自反映射：'azure-responses' -> 'azure-responses'
+        const variantId = `${name}-${variant.suffix}` as KnownAppProviderId
+        ;(map as Record<string, KnownAppProviderId>)[variantId] = variantId
       })
     }
   })
@@ -84,14 +87,16 @@ function buildAppProviderIds(): ProviderIdsMap {
 
 export const appProviderIds = buildAppProviderIds()
 
-export type AppModelConfig<T extends AppProviderId = AppProviderId> = ModelConfig<T, AppProviderSettingsMap>
+export type AppModelConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> =
+  ModelConfig<T, AppProviderSettingsMap>
 
 /**
  * 应用层运行时配置 - 支持完整的 App provider IDs 和 settings
  */
-export type AppRuntimeConfig<T extends AppProviderId = AppProviderId> = RuntimeConfig<T, AppProviderSettingsMap>
+export type AppRuntimeConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> =
+  RuntimeConfig<AppProviderSettingsMap, T>
 
 /**
  * 应用层运行时执行器 - 支持完整的 App provider IDs 和 settings
  */
-export type AppRuntimeExecutor<T extends AppProviderId = AppProviderId> = RuntimeExecutor<T, AppProviderSettingsMap>
+export type AppRuntimeExecutor = RuntimeExecutor<AppProviderSettingsMap>

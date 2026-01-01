@@ -7,13 +7,18 @@
  * TODO: We should separate them clearly. Keep renderer only types in renderer, and main only types in main, and shared types in shared.
  */
 
-import type { AppProviderId, AppRuntimeConfig } from './merged'
+import type { StringKeys } from '@cherrystudio/ai-core/provider'
+
+import type { AppProviderSettingsMap, AppRuntimeConfig } from './merged'
 
 /**
  * Provider 配置
  * 基于 RuntimeConfig，用于构建 provider 实例的基础配置
  */
-export type ProviderConfig<T extends AppProviderId = AppProviderId> = Omit<AppRuntimeConfig<T>, 'plugins'> & {
+export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> = Omit<
+  AppRuntimeConfig<T>,
+  'plugins' | 'provider'
+> & {
   /**
    * API endpoint path extracted from baseURL
    * Used for identifying image generation endpoints and other special cases
@@ -22,5 +27,5 @@ export type ProviderConfig<T extends AppProviderId = AppProviderId> = Omit<AppRu
   endpoint?: string
 }
 
-export type { AppProviderId, AppProviderSettingsMap } from './merged'
+export type { AppProviderId, AppProviderSettingsMap, AppRuntimeConfig } from './merged'
 export { appProviderIds, getAllProviderIds, isRegisteredProviderId } from './merged'

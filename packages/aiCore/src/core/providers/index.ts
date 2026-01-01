@@ -26,6 +26,7 @@ export type {
   ExtractExtensionIds,
   ExtractExtensionSettings,
   ExtractProviderIds,
+  StringKeys,
   UnionToIntersection
 } from './types'
 

@@ -27,27 +27,18 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
 
   // 2. 尝试直接使用 provider.id（运行时验证）
   if (provider.id in appProviderIds) {
-    const resolvedId = appProviderIds[provider.id]
-    if (resolvedId) {
-      return resolvedId
-    }
+    return appProviderIds[provider.id]
   }
 
   // 3. 尝试从 provider.type 解析（非 openai 类型）
   // 会把所有类型为 openai 的自定义 provider 解析到 AI SDK 的 openai provider 上
   if (provider.type !== 'openai' && provider.type in appProviderIds) {
-    const resolvedId = appProviderIds[provider.type]
-    if (resolvedId) {
-      return resolvedId
-    }
+    return appProviderIds[provider.type]
   }
 
   // 4. OpenAI API 域名检测
   if (provider.apiHost.includes('api.openai.com')) {
-    const openaiChatId = appProviderIds['openai-chat']
-    if (openaiChatId) {
-      return openaiChatId
-    }
+    return appProviderIds['openai-chat']
   }
 
   // 5. Fallback：使用 provider 本身的 id（带警告）
@@ -56,5 +47,5 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
     providerType: provider.type,
     registeredIds: Object.keys(appProviderIds)
   })
-  return provider.id as AppProviderId
+  return provider.id
 }
