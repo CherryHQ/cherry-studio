@@ -130,16 +130,18 @@ interface DirectoryListOptions {
   includeDirectories?: boolean
   maxEntries?: number
   searchPattern?: string
+  fuzzy?: boolean
 }
 
 const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
   recursive: true,
-  maxDepth: 3,
+  maxDepth: 10,
   includeHidden: false,
   includeFiles: true,
   includeDirectories: true,
-  maxEntries: 10,
-  searchPattern: '.'
+  maxEntries: 20,
+  searchPattern: '.',
+  fuzzy: true
 }
 
 class FileStorage {
@@ -1046,10 +1048,226 @@ class FileStorage {
   }
 
   /**
-   * Search files by content pattern
+   * Fuzzy match: checks if all characters in query appear in text in order (case-insensitive)
+   * Example: "updater" matches "packages/update/src/node/updateController.ts"
    */
-  private async searchByContent(resolvedPath: string, options: Required<DirectoryListOptions>): Promise<string[]> {
-    const args: string[] = ['-l']
+  private isFuzzyMatch(text: string, query: string): boolean {
+    let i = 0 // text index
+    let j = 0 // query index
+    const textLower = text.toLowerCase()
+    const queryLower = query.toLowerCase()
+
+    while (i < textLower.length && j < queryLower.length) {
+      if (textLower[i] === queryLower[j]) {
+        j++
+      }
+      i++
+    }
+    return j === queryLower.length
+  }
+
+  /**
+   * Scoring constants for fuzzy match relevance ranking
+   * Higher values = higher priority in search results
+   */
+  private static readonly SCORE_SEGMENT_MATCH = 60 // Per path segment that matches query
+  private static readonly SCORE_FILENAME_CONTAINS = 80 // Filename contains exact query substring
+  private static readonly SCORE_FILENAME_STARTS = 100 // Filename starts with query (highest priority)
+  private static readonly SCORE_CONSECUTIVE_CHAR = 15 // Per consecutive character match
+  private static readonly SCORE_WORD_BOUNDARY = 20 // Query matches start of a word
+  private static readonly PATH_LENGTH_PENALTY_FACTOR = 4 // Logarithmic penalty multiplier for longer paths
+
+  /**
+   * Calculate fuzzy match score (higher is better)
+   * Scoring factors:
+   * - Consecutive character matches (bonus)
+   * - Match at word boundaries (bonus)
+   * - Shorter path length (bonus)
+   * - Match in filename vs directory (bonus)
+   */
+  private getFuzzyMatchScore(filePath: string, query: string): number {
+    const pathLower = filePath.toLowerCase()
+    const queryLower = query.toLowerCase()
+    const fileName = filePath.split('/').pop() || ''
+    const fileNameLower = fileName.toLowerCase()
+
+    let score = 0
+
+    // Count how many times query-related words appear in path segments
+    const pathSegments = pathLower.split(/[/\\]/)
+    let segmentMatchCount = 0
+    for (const segment of pathSegments) {
+      if (this.isFuzzyMatch(segment, queryLower)) {
+        segmentMatchCount++
+      }
+    }
+    score += segmentMatchCount * FileStorage.SCORE_SEGMENT_MATCH
+
+    // Bonus for filename starting with query (stronger than generic "contains")
+    if (fileNameLower.startsWith(queryLower)) {
+      score += FileStorage.SCORE_FILENAME_STARTS
+    } else if (fileNameLower.includes(queryLower)) {
+      // Bonus for exact substring match in filename (e.g., "updater" in "RCUpdater.js")
+      score += FileStorage.SCORE_FILENAME_CONTAINS
+    }
+
+    // Calculate consecutive match bonus
+    let i = 0
+    let j = 0
+    let consecutiveCount = 0
+    let maxConsecutive = 0
+
+    while (i < pathLower.length && j < queryLower.length) {
+      if (pathLower[i] === queryLower[j]) {
+        consecutiveCount++
+        maxConsecutive = Math.max(maxConsecutive, consecutiveCount)
+        j++
+      } else {
+        consecutiveCount = 0
+      }
+      i++
+    }
+    score += maxConsecutive * FileStorage.SCORE_CONSECUTIVE_CHAR
+
+    // Bonus for word boundary matches (e.g., "upd" matches start of "update")
+    // Only count once to avoid inflating scores for paths with repeated patterns
+    const boundaryPrefix = queryLower.slice(0, Math.min(3, queryLower.length))
+    const words = pathLower.split(/[/\\._-]/)
+    for (const word of words) {
+      if (word.startsWith(boundaryPrefix)) {
+        score += FileStorage.SCORE_WORD_BOUNDARY
+        break
+      }
+    }
+
+    // Penalty for longer paths (prefer shorter, more specific matches)
+    // Use logarithmic scaling to prevent long paths from dominating the score
+    // A 50-char path gets ~-16 penalty, 100-char gets ~-18, 200-char gets ~-21
+    score -= Math.log(filePath.length + 1) * FileStorage.PATH_LENGTH_PENALTY_FACTOR
+
+    return score
+  }
+
+  /**
+   * Convert query to glob pattern for ripgrep pre-filtering
+   * e.g., "updater" -> "*u*p*d*a*t*e*r*"
+   */
+  private queryToGlobPattern(query: string): string {
+    // Escape special glob characters (including ! for negation)
+    const escaped = query.replace(/[[\]{}()*+?.,\\^$|#!]/g, '\\$&')
+    // Convert to fuzzy glob: each char separated by *
+    return '*' + escaped.split('').join('*') + '*'
+  }
+
+  /**
+   * Greedy substring match: check if all characters in query can be matched
+   * by finding consecutive substrings in text (not necessarily single chars)
+   * e.g., "updatercontroller" matches "updateController" by:
+   *   "update" + "r" (from Controller) + "controller"
+   */
+  private isGreedySubstringMatch(text: string, query: string): boolean {
+    const textLower = text.toLowerCase()
+    const queryLower = query.toLowerCase()
+
+    let queryIndex = 0
+    let searchStart = 0
+
+    while (queryIndex < queryLower.length) {
+      // Try to find the longest matching substring starting at queryIndex
+      let bestMatchLen = 0
+      let bestMatchPos = -1
+
+      for (let len = queryLower.length - queryIndex; len >= 1; len--) {
+        const substr = queryLower.slice(queryIndex, queryIndex + len)
+        const foundAt = textLower.indexOf(substr, searchStart)
+        if (foundAt !== -1) {
+          bestMatchLen = len
+          bestMatchPos = foundAt
+          break // Found longest possible match
+        }
+      }
+
+      if (bestMatchLen === 0) {
+        // No substring match found, query cannot be matched
+        return false
+      }
+
+      queryIndex += bestMatchLen
+      searchStart = bestMatchPos + bestMatchLen
+    }
+
+    return true
+  }
+
+  /**
+   * Calculate greedy substring match score (higher is better)
+   * Rewards: fewer match fragments, shorter match span, matches in filename
+   */
+  private getGreedyMatchScore(filePath: string, query: string): number {
+    const textLower = filePath.toLowerCase()
+    const queryLower = query.toLowerCase()
+    const fileName = filePath.split('/').pop() || ''
+    const fileNameLower = fileName.toLowerCase()
+
+    let queryIndex = 0
+    let searchStart = 0
+    let fragmentCount = 0
+    let firstMatchPos = -1
+    let lastMatchEnd = 0
+
+    while (queryIndex < queryLower.length) {
+      let bestMatchLen = 0
+      let bestMatchPos = -1
+
+      for (let len = queryLower.length - queryIndex; len >= 1; len--) {
+        const substr = queryLower.slice(queryIndex, queryIndex + len)
+        const foundAt = textLower.indexOf(substr, searchStart)
+        if (foundAt !== -1) {
+          bestMatchLen = len
+          bestMatchPos = foundAt
+          break
+        }
+      }
+
+      if (bestMatchLen === 0) {
+        return -Infinity // No match
+      }
+
+      fragmentCount++
+      if (firstMatchPos === -1) firstMatchPos = bestMatchPos
+      lastMatchEnd = bestMatchPos + bestMatchLen
+      queryIndex += bestMatchLen
+      searchStart = lastMatchEnd
+    }
+
+    const matchSpan = lastMatchEnd - firstMatchPos
+    let score = 0
+
+    // Fewer fragments = better (single continuous match is best)
+    // Max bonus when fragmentCount=1, decreases as fragments increase
+    score += Math.max(0, 100 - (fragmentCount - 1) * 30)
+
+    // Shorter span relative to query length = better (tighter match)
+    // Perfect match: span equals query length
+    const spanRatio = queryLower.length / matchSpan
+    score += spanRatio * 50
+
+    // Bonus for match in filename
+    if (this.isGreedySubstringMatch(fileNameLower, queryLower)) {
+      score += 80
+    }
+
+    // Penalty for longer paths
+    score -= Math.log(filePath.length + 1) * 4
+
+    return score
+  }
+
+  /**
+   * Build common ripgrep arguments for file listing
+   */
+  private buildRipgrepBaseArgs(options: Required<DirectoryListOptions>, resolvedPath: string): string[] {
+    const args: string[] = ['--files']
 
     // Handle hidden files
     if (!options.includeHidden) {
@@ -1076,82 +1294,74 @@ class FileStorage {
       args.push('--max-depth', options.maxDepth.toString())
     }
 
-    // Handle max count
-    if (options.maxEntries > 0) {
-      args.push('--max-count', options.maxEntries.toString())
-    }
-
-    // Add search pattern (search in content)
-    args.push(options.searchPattern)
-
-    // Add the directory path
     args.push(resolvedPath)
 
-    const { exitCode, output } = await executeRipgrep(args)
-
-    // Exit code 0 means files found, 1 means no files found (still success), 2+ means error
-    if (exitCode >= 2) {
-      throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
-    }
-
-    // Parse ripgrep output (already sorted by relevance)
-    const results = output
-      .split('\n')
-      .filter((line) => line.trim())
-      .map((line) => line.replace(/\\/g, '/'))
-      .slice(0, options.maxEntries)
-
-    return results
+    return args
   }
 
   private async listDirectoryWithRipgrep(
     resolvedPath: string,
     options: Required<DirectoryListOptions>
   ): Promise<string[]> {
-    const maxEntries = options.maxEntries
+    // Fuzzy search mode: use ripgrep glob for pre-filtering, then score in JS
+    if (options.fuzzy && options.searchPattern && options.searchPattern !== '.') {
+      const args = this.buildRipgrepBaseArgs(options, resolvedPath)
 
-    // Step 1: Search by filename first
+      // Insert glob pattern before the path (last element)
+      const globPattern = this.queryToGlobPattern(options.searchPattern)
+      args.splice(args.length - 1, 0, '--iglob', globPattern)
+
+      const { exitCode, output } = await executeRipgrep(args)
+
+      if (exitCode >= 2) {
+        throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
+      }
+
+      const filteredFiles = output
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((line) => line.replace(/\\/g, '/'))
+
+      // If fuzzy glob found results, validate fuzzy match, sort and return
+      if (filteredFiles.length > 0) {
+        return filteredFiles
+          .filter((file) => this.isFuzzyMatch(file, options.searchPattern))
+          .map((file) => ({ file, score: this.getFuzzyMatchScore(file, options.searchPattern) }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, options.maxEntries)
+          .map((item) => item.file)
+      }
+
+      // Fallback: if no results, try greedy substring match on all files
+      logger.debug('Fuzzy glob returned no results, falling back to greedy substring match')
+      const fallbackArgs = this.buildRipgrepBaseArgs(options, resolvedPath)
+
+      const fallbackResult = await executeRipgrep(fallbackArgs)
+
+      if (fallbackResult.exitCode >= 2) {
+        return []
+      }
+
+      const allFiles = fallbackResult.output
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((line) => line.replace(/\\/g, '/'))
+
+      const greedyMatched = allFiles.filter((file) => this.isGreedySubstringMatch(file, options.searchPattern))
+
+      return greedyMatched
+        .map((file) => ({ file, score: this.getGreedyMatchScore(file, options.searchPattern) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, options.maxEntries)
+        .map((item) => item.file)
+    }
+
+    // Fallback: search by filename only (non-fuzzy mode)
     logger.debug('Searching by filename pattern', { pattern: options.searchPattern, path: resolvedPath })
     const filenameResults = await this.searchByFilename(resolvedPath, options)
 
     logger.debug('Found matches by filename', { count: filenameResults.length })
-
-    // If we have enough filename matches, return them
-    if (filenameResults.length >= maxEntries) {
-      return filenameResults.slice(0, maxEntries)
-    }
-
-    // Step 2: If filename matches are less than maxEntries, search by content to fill up
-    logger.debug('Filename matches insufficient, searching by content to fill up', {
-      filenameCount: filenameResults.length,
-      needed: maxEntries - filenameResults.length
-    })
-
-    // Adjust maxEntries for content search to get enough results
-    const contentOptions = {
-      ...options,
-      maxEntries: maxEntries - filenameResults.length + 20 // Request extra to account for duplicates
-    }
-
-    const contentResults = await this.searchByContent(resolvedPath, contentOptions)
-
-    logger.debug('Found matches by content', { count: contentResults.length })
-
-    // Combine results: filename matches first, then content matches (deduplicated)
-    const combined = [...filenameResults]
-    const filenameSet = new Set(filenameResults)
-
-    for (const filePath of contentResults) {
-      if (!filenameSet.has(filePath)) {
-        combined.push(filePath)
-        if (combined.length >= maxEntries) {
-          break
-        }
-      }
-    }
-
-    logger.debug('Combined results', { total: combined.length, filenameCount: filenameResults.length })
-    return combined.slice(0, maxEntries)
+    return filenameResults.slice(0, options.maxEntries)
   }
 
   public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {
