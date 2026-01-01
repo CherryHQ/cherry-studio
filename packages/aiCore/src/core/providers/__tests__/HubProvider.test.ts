@@ -22,7 +22,8 @@ vi.mock('../RegistryManagement', () => ({
 
 vi.mock('ai', () => ({
   customProvider: vi.fn((config) => config.fallbackProvider),
-  wrapProvider: vi.fn((config) => config.provider)
+  wrapProvider: vi.fn((config) => config.provider),
+  jsonSchema: vi.fn((schema) => schema)
 }))
 
 describe('HubProvider', () => {

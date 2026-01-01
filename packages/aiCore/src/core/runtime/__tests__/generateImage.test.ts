@@ -10,6 +10,8 @@ import { RuntimeExecutor } from '../executor'
 // Mock dependencies
 vi.mock('ai', () => ({
   experimental_generateImage: vi.fn(),
+  generateImage: vi.fn(),
+  jsonSchema: vi.fn((schema) => schema),
   NoImageGeneratedError: class NoImageGeneratedError extends Error {
     static isInstance = vi.fn()
     constructor() {

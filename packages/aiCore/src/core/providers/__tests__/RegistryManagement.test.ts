@@ -13,7 +13,8 @@ import { DEFAULT_SEPARATOR, RegistryManagement } from '../RegistryManagement'
 
 // Mock AI SDK
 vi.mock('ai', () => ({
-  createProviderRegistry: vi.fn()
+  createProviderRegistry: vi.fn(),
+  jsonSchema: vi.fn((schema) => schema)
 }))
 
 describe('RegistryManagement', () => {
