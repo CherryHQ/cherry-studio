@@ -78,7 +78,7 @@ describe('HubProvider Integration Tests', () => {
         providerSettingsMap: new Map([['openai', { apiKey: 'test-key' }]])
       })
 
-      const executor = RuntimeExecutor.create('test-hub', hubProvider, {} as never, [])
+      const executor = RuntimeExecutor.create<Record<string, any>>('test-hub', hubProvider, {}, [])
 
       // Access the private resolveModel method through streamText
       const result = await executor.streamText({
@@ -124,7 +124,7 @@ describe('HubProvider Integration Tests', () => {
         providerSettingsMap: new Map([['openai', { apiKey: 'test-key' }]])
       })
 
-      const executor = RuntimeExecutor.create('test-hub', hubProvider, {} as never, [])
+      const executor = RuntimeExecutor.create<Record<string, any>>('test-hub', hubProvider, {}, [])
 
       // Create a model instance directly
       const model = createMockLanguageModel({
@@ -303,7 +303,7 @@ describe('HubProvider Integration Tests', () => {
         providerSettingsMap: new Map([['openai', { apiKey: 'test-key' }]])
       })
 
-      const executor = RuntimeExecutor.create('test-hub', hub, {} as never, [])
+      const executor = RuntimeExecutor.create<Record<string, any>>('test-hub', hub, {}, [])
 
       const result = await executor.generateImage({
         model: 'openai|dall-e-3',
@@ -360,7 +360,7 @@ describe('HubProvider Integration Tests', () => {
         providerSettingsMap: new Map([['openai', { apiKey: 'test-key' }]])
       })
 
-      const executor = RuntimeExecutor.create('test-hub', hub, {} as never, [])
+      const executor = RuntimeExecutor.create<Record<string, any>>('test-hub', hub, {}, [])
 
       // Create a mock middleware
       const mockMiddleware = {
@@ -426,8 +426,8 @@ describe('HubProvider Integration Tests', () => {
       })
 
       // Create multiple executors from the same hub
-      const executor1 = RuntimeExecutor.create('shared-hub', hub, {} as never, [])
-      const executor2 = RuntimeExecutor.create('shared-hub', hub, {} as never, [])
+      const executor1 = RuntimeExecutor.create<Record<string, any>>('shared-hub', hub, {}, [])
+      const executor2 = RuntimeExecutor.create<Record<string, any>>('shared-hub', hub, {}, [])
 
       // Both executors should share the same hub and be able to resolve models
       const model1 = hub.languageModel('openai|gpt-4')

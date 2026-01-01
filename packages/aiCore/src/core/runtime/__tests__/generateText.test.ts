@@ -27,7 +27,7 @@ vi.mock('ai', async (importOriginal) => {
 })
 
 describe('RuntimeExecutor.generateText', () => {
-  let executor: RuntimeExecutor<'openai'>
+  let executor: RuntimeExecutor
   let mockLanguageModel: any
   let mockProvider: any
 
@@ -39,13 +39,11 @@ describe('RuntimeExecutor.generateText', () => {
       modelId: 'gpt-4'
     })
 
-    // ✅ Create mock provider with languageModel as a spy
     mockProvider = createMockProviderV3({
       provider: 'openai',
       languageModel: vi.fn(() => mockLanguageModel)
     })
 
-    // ✅ Pass provider instance to RuntimeExecutor.create()
     executor = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai)
 
     vi.mocked(generateText).mockResolvedValue(mockCompleteResponses.simple as any)

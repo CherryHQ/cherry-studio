@@ -26,7 +26,7 @@ vi.mock('ai', async (importOriginal) => {
 })
 
 describe('RuntimeExecutor.streamText', () => {
-  let executor: RuntimeExecutor<'openai'>
+  let executor: RuntimeExecutor
   let mockLanguageModel: any
   let mockProvider: any
 

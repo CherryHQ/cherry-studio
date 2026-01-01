@@ -31,7 +31,7 @@ export type StringKeys<T> = Extract<keyof T, string>
  * 如果需要支持动态/未注册的 provider，使用：
  * RegisteredProviderId | (string & {})
  */
-export type RegisteredProviderId = keyof CoreProviderSettingsMap
+export type RegisteredProviderId = StringKeys<CoreProviderSettingsMap>
 
 // 错误类型
 export class ProviderError extends Error {

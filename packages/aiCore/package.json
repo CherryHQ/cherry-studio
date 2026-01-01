@@ -10,6 +10,10 @@
     "build": "tsdown",
     "dev": "tsc -w",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint --fix && eslint . --fix --cache",
+    "lint:check": "oxlint && eslint . --cache",
+    "format": "biome format --write && biome lint --write",
+    "format:check": "biome format && biome lint",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -51,6 +55,8 @@
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "biome": "^0.3.3",
+    "oxlint": "^1.36.0",
     "tsdown": "^0.12.9",
     "typescript": "^5.0.0",
     "vitest": "^3.2.4"

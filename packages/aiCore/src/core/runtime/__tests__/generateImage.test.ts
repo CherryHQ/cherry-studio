@@ -22,7 +22,7 @@ vi.mock('ai', () => ({
 }))
 
 describe('RuntimeExecutor.generateImage', () => {
-  let executor: RuntimeExecutor<'openai'>
+  let executor: RuntimeExecutor
   let mockImageModel: ImageModelV3
   let mockProvider: any
   let mockGenerateImageResult: any
