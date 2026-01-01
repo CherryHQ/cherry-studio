@@ -10,7 +10,7 @@ import { useAppDispatch } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
 import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
-import { setAvatar, setFilesPath, setIsOvmsSupported, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
+import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import {
   type ToolPermissionRequestPayload,
   type ToolPermissionResultPayload,
@@ -274,17 +274,4 @@ export function useAppInit() {
   useEffect(() => {
     checkDataLimit()
   }, [])
-
-  useEffect(() => {
-    // Check once when initing
-    window.api.ovms
-      .isSupported()
-      .then((result) => {
-        dispatch(setIsOvmsSupported(result))
-      })
-      .catch((e) => {
-        logger.error('Failed to check isOvmsSupported. Fallback to false.', e as Error)
-        dispatch(setIsOvmsSupported(false))
-      })
-  }, [dispatch])
 }
