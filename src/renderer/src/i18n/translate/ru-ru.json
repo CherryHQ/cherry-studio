@@ -706,6 +706,10 @@
         "label": "Очистить {{Command}}",
         "title": "Очистить все сообщения?"
       },
+      "code_editor": {
+        "insert": "[to be translated]:Insert",
+        "title": "[to be translated]:Code Editor"
+      },
       "collapse": "Свернуть",
       "context_count": {
         "tip": "Контекст / Макс. контекст"

@@ -706,6 +706,10 @@
         "label": "Limpar mensagens {{Command}}",
         "title": "Limpar mensagens"
       },
+      "code_editor": {
+        "insert": "[to be translated]:Insert",
+        "title": "[to be translated]:Code Editor"
+      },
       "collapse": "Colapsar",
       "context_count": {
         "tip": "Número de contexto / Número máximo de contexto"
