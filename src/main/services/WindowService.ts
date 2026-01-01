@@ -28,10 +28,15 @@ export class WindowService {
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
-  //hacky-fix: store the focused status of mainWindow before miniWindow shows
-  //to restore the focus status when miniWindow hides
+  // hacky-fix: store the focused status of mainWindow before miniWindow shows
+  // to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
+
+  // 记录是否是 miniWindow 隐藏时调用了 app.hide()
+  private appHiddenByMiniWindow: boolean = false
+  // 记录当前主窗口 show 是否是为了“恢复 app 给 miniWindow 用”
+  private isRestoringAppForMiniWindow: boolean = false
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -93,13 +98,13 @@ export class WindowService {
 
     this.setupMainWindow(this.mainWindow, mainWindowState)
 
-    //preload miniWindow to resolve series of issues about miniWindow in Mac
+    // preload miniWindow to resolve series of issues about miniWindow in Mac
     const enableQuickAssistant = configManager.getEnableQuickAssistant()
     if (enableQuickAssistant && !this.miniWindow) {
       this.miniWindow = this.createMiniWindow(true)
     }
 
-    //init the MinApp webviews' useragent
+    // init the MinApp webviews' useragent
     initSessionUserAgent()
 
     return this.mainWindow
@@ -194,28 +199,15 @@ export class WindowService {
       mainWindow.webContents.send(IpcChannel.FullscreenStatusChanged, false)
     })
 
-    // set the zoom factor again when the window is going to resize
-    //
-    // this is a workaround for the known bug that
-    // the zoom factor is reset to cached value when window is resized after routing to other page
-    // see: https://github.com/electron/electron/issues/10572
-    //
-    // and resize ipc
-    //
     mainWindow.on('will-resize', () => {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
       mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
 
-    // set the zoom factor again when the window is going to restore
-    // minimize and restore will cause zoom reset
     mainWindow.on('restore', () => {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
     })
 
-    // ARCH: as `will-resize` is only for Win & Mac,
-    // linux has the same problem, use `resize` listener instead
-    // but `resize` will fliker the ui
     if (isLinux) {
       mainWindow.on('resize', () => {
         mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
@@ -231,27 +223,7 @@ export class WindowService {
       mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
 
-    // 添加Escape键退出全屏的支持
-    // mainWindow.webContents.on('before-input-event', (event, input) => {
-    //   // 当按下Escape键且窗口处于全屏状态时退出全屏
-    //   if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
-    //     if (mainWindow.isFullScreen()) {
-    //       // 获取 shortcuts 配置
-    //       const shortcuts = configManager.getShortcuts()
-    //       const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
-    //       if (exitFullscreenShortcut == undefined) {
-    //         mainWindow.setFullScreen(false)
-    //         return
-    //       }
-    //       if (exitFullscreenShortcut?.enabled) {
-    //         event.preventDefault()
-    //         mainWindow.setFullScreen(false)
-    //         return
-    //       }
-    //     }
-    //   }
-    //   return
-    // })
+    // Escape 处理全屏的逻辑已注释
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
@@ -294,7 +266,9 @@ export class WindowService {
         const fileName = url.replace('http://file/', '')
         const storageDir = getFilesDir()
         const filePath = storageDir + '/' + fileName
-        shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
+        shell
+          .openPath(filePath)
+          .catch((err) => logger.error('Failed to open file:', err))
       } else {
         shell.openExternal(details.url)
       }
@@ -356,8 +330,6 @@ export class WindowService {
 
       // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
       if (!isShowTray || (isShowTray && !isTrayOnClose)) {
-        // 如果是Windows或Linux，直接退出
-        // mac按照系统默认行为，不退出
         if (isWin || isLinux) {
           return app.quit()
         }
@@ -375,12 +347,12 @@ export class WindowService {
 
       mainWindow.hide()
 
-      //for mac users, should hide dock icon if close to tray
+      // for mac users, should hide dock icon if close to tray
       if (isMac && isTrayOnClose) {
         app.dock?.hide()
 
         mainWindow.once('show', () => {
-          //restore the window can hide by cmd+h when the window is shown again
+          // restore the window can hide by cmd+h when the window is shown again
           // https://github.com/electron/electron/pull/47970
           app.dock?.show()
         })
@@ -392,6 +364,18 @@ export class WindowService {
     })
 
     mainWindow.on('show', () => {
+      // 无论什么原因 show，说明 app 已经不再是“被 miniWindow 隐藏”的状态
+      this.appHiddenByMiniWindow = false
+
+      // 如果是为了从 app.hide() 恢复，仅仅为了 miniWindow，则不要让主窗口抢戏
+      if (isMac && this.isRestoringAppForMiniWindow) {
+        this.isRestoringAppForMiniWindow = false
+        // 保持 Spotlight 一样的体验：只显示 miniWindow，把主窗口继续隐藏
+        mainWindow.hide()
+        return
+      }
+
+      // 正常情况下：主窗口显示时隐藏 miniWindow
       if (this.miniWindow && !this.miniWindow.isDestroyed()) {
         this.miniWindow.hide()
       }
@@ -403,34 +387,20 @@ export class WindowService {
       this.miniWindow.hide()
     }
 
+    // 显式展示主窗口时，不再认为 app 是被 miniWindow 隐藏的
+    this.appHiddenByMiniWindow = false
+    this.isRestoringAppForMiniWindow = false
+
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore()
         return
       }
 
-      /**
-       * About setVisibleOnAllWorkspaces
-       *
-       * [macOS] Known Issue
-       *  setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
-       *  AppleScript may be a solution, but it's not worth
-       *
-       * [Linux] Known Issue
-       *  setVisibleOnAllWorkspaces 在 Linux 环境下（特别是 KDE Wayland）会导致窗口进入"假弹出"状态
-       *  因此在 Linux 环境下不执行这两行代码
-       */
       if (!isLinux) {
         this.mainWindow.setVisibleOnAllWorkspaces(true)
       }
 
-      /**
-       * [macOS] After being closed in fullscreen, the fullscreen behavior will become strange when window shows again
-       * So we need to set it to FALSE explicitly.
-       * althougle other platforms don't have the issue, but it's a good practice to do so
-       *
-       *  Check if window is visible to prevent interrupting fullscreen state when clicking dock icon
-       */
       if (this.mainWindow.isFullScreen() && !this.mainWindow.isVisible()) {
         this.mainWindow.setFullScreen(false)
       }
@@ -446,16 +416,12 @@ export class WindowService {
   }
 
   public toggleMainWindow() {
-    // should not toggle main window when in full screen
-    // but if the main window is close to tray when it's in full screen, we can show it again
-    // (it's a bug in macos, because we can close the window when it's in full screen, and the state will be remained)
     if (this.mainWindow?.isFullScreen() && this.mainWindow?.isVisible()) {
       return
     }
 
     if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
       if (this.mainWindow.isFocused()) {
-        // if tray is enabled, hide the main window, else do nothing
         if (configManager.getTray()) {
           this.mainWindow.hide()
           app.dock?.hide()
@@ -515,10 +481,10 @@ export class WindowService {
 
     miniWindowState.manage(this.miniWindow)
 
-    //miniWindow should show in current desktop
-    this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    //make miniWindow always on top of fullscreen apps with level set
-    //[mac] level higher than 'floating' will cover the pinyin input method
+    // miniWindow should show in current desktop
+    this.miniWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    // make miniWindow always on top of fullscreen apps with level set
+    // [mac] level higher than 'floating' will cover the pinyin input method
     this.miniWindow.setAlwaysOnTop(true, 'floating')
 
     this.miniWindow.on('ready-to-show', () => {
@@ -569,33 +535,35 @@ export class WindowService {
       this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
 
       // [Windows] hacky fix
-      // the window is minimized only when in Windows platform
-      // because it's a workaround for Windows, see `hideMiniWindow()`
-      if (this.miniWindow?.isMinimized()) {
-        // don't let the window being seen before we finish adjusting the position across screens
-        this.miniWindow?.setOpacity(0)
-        // DO NOT use `restore()` here, Electron has the bug with screens of different scale factor
-        // We have to use `show()` here, then set the position and bounds
-        this.miniWindow?.show()
+      const wasMinimized = this.miniWindow.isMinimized()
+      if (wasMinimized) {
+        this.miniWindow.setOpacity(0)
+        this.miniWindow.show()
+      }
+
+      // [macOS] 如果之前是 miniWindow 隐藏时调用的 app.hide()，
+      // 那么现在需要先把整个 app show 回来
+      if (isMac && !this.miniWindow.isVisible()) {
+        if (this.appHiddenByMiniWindow) {
+          this.isRestoringAppForMiniWindow = true
+          app.show()
+        } else {
+          this.isRestoringAppForMiniWindow = false
+        }
       }
 
       const miniWindowBounds = this.miniWindow.getBounds()
 
-      // Check if miniWindow is on the same screen as mouse cursor
       const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
       const miniWindowDisplay = screen.getDisplayNearestPoint(miniWindowBounds)
 
-      // Show the miniWindow on the cursor's screen center
-      // If miniWindow is not on the same screen as cursor, move it to cursor's screen center
       if (cursorDisplay.id !== miniWindowDisplay.id) {
         const workArea = cursorDisplay.bounds
 
-        // use current window size to avoid the bug of Electron with screens of different scale factor
         const currentBounds = this.miniWindow.getBounds()
         const miniWindowWidth = currentBounds.width
         const miniWindowHeight = currentBounds.height
 
-        // move to the center of the cursor's screen
         const miniWindowX = Math.round(workArea.x + (workArea.width - miniWindowWidth) / 2)
         const miniWindowY = Math.round(workArea.y + (workArea.height - miniWindowHeight) / 2)
 
@@ -608,8 +576,12 @@ export class WindowService {
         })
       }
 
-      this.miniWindow?.setOpacity(1)
-      this.miniWindow?.show()
+      if (wasMinimized || !this.miniWindow.isVisible()) {
+        this.miniWindow.setOpacity(1)
+        this.miniWindow.show()
+      } else {
+        this.miniWindow.focus()
+      }
 
       return
     }
@@ -626,16 +598,18 @@ export class WindowService {
       return
     }
 
-    //[macOs/Windows] hacky fix
-    // previous window(not self-app) should be focused again after miniWindow hide
-    // this workaround is to make previous window focused again after miniWindow hide
+    // 记录这次隐藏 miniWindow 时主窗口是否有焦点：
+    // - true: 从主窗口唤起的 quick assistant，关闭时只隐藏 miniWindow
+    // - false: 从其他 app 唤起，关闭时隐藏整个 app（mac 上通过 app.hide() 把焦点交回去）
+    this.appHiddenByMiniWindow = !this.wasMainWindowFocused
+
     if (isWin) {
-      this.miniWindow.setOpacity(0) // don't show the minimizing animation
+      this.miniWindow.setOpacity(0)
       this.miniWindow.minimize()
       return
     } else if (isMac) {
       this.miniWindow.hide()
-      if (!this.wasMainWindowFocused) {
+      if (this.appHiddenByMiniWindow) {
         app.hide()
       }
       return
@@ -657,7 +631,7 @@ export class WindowService {
     this.showMiniWindow()
   }
 
-  public setPinMiniWindow(isPinned) {
+  public setPinMiniWindow(isPinned: boolean) {
     this.isPinnedMiniWindow = isPinned
   }
 
