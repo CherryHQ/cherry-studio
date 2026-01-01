@@ -3,8 +3,21 @@
  * 用于支持运行时动态导入的 AI Providers
  */
 
-import type { ProviderV2 } from '@ai-sdk/provider'
-import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
+import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
+import { type AnthropicProviderSettings, createAnthropic } from '@ai-sdk/anthropic'
+import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
+import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
+import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
+import { createVertex, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
+import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
+import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
+import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
+import type { ProviderV2, ProviderV3 } from '@ai-sdk/provider'
+import { ExtensionStorage, ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
+import {
+  createGitHubCopilotOpenAICompatible,
+  type GitHubCopilotProviderSettings
+} from '@opeoginni/github-copilot-openai-compatible'
 import { wrapProvider } from 'ai'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
@@ -16,9 +29,13 @@ export const GoogleVertexExtension = ProviderExtension.create({
   name: 'google-vertex',
   aliases: ['vertexai'] as const,
   supportsImageGeneration: true,
-  import: () => import('@ai-sdk/google-vertex/edge'),
-  creatorFunctionName: 'createVertex'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'google-vertex'>)
+  create: createVertex
+} as const satisfies ProviderExtensionConfig<
+  GoogleVertexProviderSettings,
+  ExtensionStorage,
+  ProviderV3,
+  'google-vertex'
+>)
 
 /**
  * Google Vertex AI Anthropic Extension
@@ -27,9 +44,13 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   name: 'google-vertex-anthropic',
   aliases: ['vertexai-anthropic'] as const,
   supportsImageGeneration: true,
-  import: () => import('@ai-sdk/google-vertex/anthropic/edge'),
-  creatorFunctionName: 'createVertexAnthropic'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'google-vertex-anthropic'>)
+  create: createVertexAnthropic
+} as const satisfies ProviderExtensionConfig<
+  GoogleVertexProviderSettings,
+  ExtensionStorage,
+  ProviderV3,
+  'google-vertex-anthropic'
+>)
 
 /**
  * Azure AI Anthropic Extension
@@ -38,9 +59,13 @@ export const AzureAnthropicExtension = ProviderExtension.create({
   name: 'azure-anthropic',
   aliases: ['azure-anthropic'] as const,
   supportsImageGeneration: false,
-  import: () => import('@ai-sdk/anthropic'),
-  creatorFunctionName: 'createAnthropic'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'azure-anthropic'>)
+  create: createAnthropic
+} as const satisfies ProviderExtensionConfig<
+  AnthropicProviderSettings,
+  ExtensionStorage,
+  ProviderV3,
+  'azure-anthropic'
+>)
 
 /**
  * GitHub Copilot Extension
@@ -49,9 +74,16 @@ export const GitHubCopilotExtension = ProviderExtension.create({
   name: 'github-copilot-openai-compatible',
   aliases: ['copilot', 'github-copilot'] as const,
   supportsImageGeneration: false,
-  import: () => import('@opeoginni/github-copilot-openai-compatible'),
-  creatorFunctionName: 'createGitHubCopilotOpenAICompatible'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'github-copilot-openai-compatible'>)
+  create: (options?: GitHubCopilotProviderSettings) => {
+    const provider = createGitHubCopilotOpenAICompatible(options) as unknown as ProviderV2
+    return wrapProvider({ provider, languageModelMiddleware: [] })
+  }
+} as const satisfies ProviderExtensionConfig<
+  GitHubCopilotProviderSettings,
+  ExtensionStorage,
+  ProviderV3,
+  'github-copilot-openai-compatible'
+>)
 
 /**
  * Amazon Bedrock Extension
@@ -60,9 +92,8 @@ export const BedrockExtension = ProviderExtension.create({
   name: 'bedrock',
   aliases: ['aws-bedrock'] as const,
   supportsImageGeneration: true,
-  import: () => import('@ai-sdk/amazon-bedrock'),
-  creatorFunctionName: 'createAmazonBedrock'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'bedrock'>)
+  create: createAmazonBedrock
+} as const satisfies ProviderExtensionConfig<AmazonBedrockProviderSettings, ExtensionStorage, ProviderV3, 'bedrock'>)
 
 /**
  * Perplexity Extension
@@ -70,9 +101,8 @@ export const BedrockExtension = ProviderExtension.create({
 export const PerplexityExtension = ProviderExtension.create({
   name: 'perplexity',
   supportsImageGeneration: false,
-  import: () => import('@ai-sdk/perplexity'),
-  creatorFunctionName: 'createPerplexity'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'perplexity'>)
+  create: createPerplexity
+} as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ExtensionStorage, ProviderV3, 'perplexity'>)
 
 /**
  * Mistral Extension
@@ -81,9 +111,8 @@ export const MistralExtension = ProviderExtension.create({
   name: 'mistral',
   aliases: ['mistral'] as const,
   supportsImageGeneration: false,
-  import: () => import('@ai-sdk/mistral'),
-  creatorFunctionName: 'createMistral'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'mistral'>)
+  create: createMistral
+} as const satisfies ProviderExtensionConfig<MistralProviderSettings, ExtensionStorage, ProviderV3, 'mistral'>)
 
 /**
  * HuggingFace Extension
@@ -92,9 +121,8 @@ export const HuggingFaceExtension = ProviderExtension.create({
   name: 'huggingface',
   aliases: ['hf', 'hugging-face'] as const,
   supportsImageGeneration: true,
-  import: () => import('@ai-sdk/huggingface'),
-  creatorFunctionName: 'createHuggingFace'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'huggingface'>)
+  create: createHuggingFace
+} as const satisfies ProviderExtensionConfig<HuggingFaceProviderSettings, ExtensionStorage, ProviderV3, 'huggingface'>)
 
 /**
  * Vercel AI Gateway Extension
@@ -103,9 +131,8 @@ export const GatewayExtension = ProviderExtension.create({
   name: 'gateway',
   aliases: ['ai-gateway'] as const,
   supportsImageGeneration: true,
-  import: () => import('@ai-sdk/gateway'),
-  creatorFunctionName: 'createGateway'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'gateway'>)
+  create: createGateway
+} as const satisfies ProviderExtensionConfig<GatewayProviderSettings, ExtensionStorage, ProviderV3, 'gateway'>)
 
 /**
  * Cerebras Extension
@@ -113,9 +140,8 @@ export const GatewayExtension = ProviderExtension.create({
 export const CerebrasExtension = ProviderExtension.create({
   name: 'cerebras',
   supportsImageGeneration: false,
-  import: () => import('@ai-sdk/cerebras'),
-  creatorFunctionName: 'createCerebras'
-} as const satisfies ProviderExtensionConfig<any, any, any, 'cerebras'>)
+  create: createCerebras
+} as const satisfies ProviderExtensionConfig<CerebrasProviderSettings, ExtensionStorage, ProviderV3, 'cerebras'>)
 
 /**
  * Ollama Extension
@@ -127,7 +153,7 @@ export const OllamaExtension = ProviderExtension.create({
     const provider = createOllama(options) as ProviderV2
     return wrapProvider({ provider, languageModelMiddleware: [] })
   }
-} as const satisfies ProviderExtensionConfig<OllamaProviderSettings, any, any, 'ollama'>)
+} as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ExtensionStorage, ProviderV3, 'ollama'>)
 
 /**
  * 所有项目特定的 Extensions

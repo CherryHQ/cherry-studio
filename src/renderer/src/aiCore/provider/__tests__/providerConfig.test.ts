@@ -174,9 +174,11 @@ describe('Copilot responses routing', () => {
     const config = providerToAiSdkConfig(provider, createModel('gpt-5-codex', 'GPT-5-CODEX'))
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
-    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_EDITOR_VERSION)
-    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
-    expect(config.options.headers?.['copilot-vision-request']).toBe('true')
+    expect(config.providerSettings.headers?.['Editor-Version']).toBe(COPILOT_EDITOR_VERSION)
+    expect(config.providerSettings.headers?.['Copilot-Integration-Id']).toBe(
+      COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id']
+    )
+    expect(config.providerSettings.headers?.['copilot-vision-request']).toBe('true')
   })
 
   it('uses the Copilot provider for other models and keeps headers', () => {
@@ -184,8 +186,10 @@ describe('Copilot responses routing', () => {
     const config = providerToAiSdkConfig(provider, createModel('gpt-4'))
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
-    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
-    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
+    expect(config.providerSettings.headers?.['Editor-Version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
+    expect(config.providerSettings.headers?.['Copilot-Integration-Id']).toBe(
+      COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id']
+    )
   })
 })
 
@@ -388,7 +392,7 @@ describe('Stream options includeUsage configuration', () => {
     const provider = createOpenAIProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'openai'))
 
-    expect(config.options.includeUsage).toBeUndefined()
+    expect(config.providerSettings.includeUsage).toBeUndefined()
   })
 
   it('uses includeUsage from settings when set to true', () => {
@@ -406,7 +410,7 @@ describe('Stream options includeUsage configuration', () => {
     const provider = createOpenAIProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'openai'))
 
-    expect(config.options.includeUsage).toBe(true)
+    expect(config.providerSettings.includeUsage).toBe(true)
   })
 
   it('uses includeUsage from settings when set to false', () => {
@@ -424,7 +428,7 @@ describe('Stream options includeUsage configuration', () => {
     const provider = createOpenAIProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'openai'))
 
-    expect(config.options.includeUsage).toBe(false)
+    expect(config.providerSettings.includeUsage).toBe(false)
   })
 
   it('respects includeUsage setting for non-supporting providers', () => {
@@ -455,7 +459,7 @@ describe('Stream options includeUsage configuration', () => {
     const config = providerToAiSdkConfig(testProvider, createModel('gpt-4', 'GPT-4', 'test'))
 
     // Even though setting is true, provider doesn't support it, so includeUsage should be undefined
-    expect(config.options.includeUsage).toBeUndefined()
+    expect(config.providerSettings.includeUsage).toBeUndefined()
   })
 
   it('uses includeUsage from settings for Copilot provider when set to false', () => {
@@ -473,7 +477,7 @@ describe('Stream options includeUsage configuration', () => {
     const provider = createCopilotProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
 
-    expect(config.options.includeUsage).toBe(false)
+    expect(config.providerSettings.includeUsage).toBe(false)
     expect(config.providerId).toBe('github-copilot-openai-compatible')
   })
 
@@ -492,7 +496,7 @@ describe('Stream options includeUsage configuration', () => {
     const provider = createCopilotProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
 
-    expect(config.options.includeUsage).toBe(true)
+    expect(config.providerSettings.includeUsage).toBe(true)
     expect(config.providerId).toBe('github-copilot-openai-compatible')
   })
 
@@ -511,7 +515,7 @@ describe('Stream options includeUsage configuration', () => {
     const provider = createCopilotProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
 
-    expect(config.options.includeUsage).toBeUndefined()
+    expect(config.providerSettings.includeUsage).toBeUndefined()
     expect(config.providerId).toBe('github-copilot-openai-compatible')
   })
 })
@@ -540,21 +544,21 @@ describe('Azure OpenAI traditional API routing', () => {
     const config = providerToAiSdkConfig(provider, createModel('gpt-4o', 'GPT-4o', provider.id))
 
     expect(config.providerId).toBe('azure')
-    expect(config.options.apiVersion).toBe('2024-02-15-preview')
-    expect(config.options.useDeploymentBasedUrls).toBe(true)
+    expect(config.providerSettings.apiVersion).toBe('2024-02-15-preview')
+    expect(config.providerSettings.useDeploymentBasedUrls).toBe(true)
   })
 
   it('does not force deployment-based URLs for apiVersion v1/preview', () => {
     const v1Provider = createAzureProvider('v1')
     const v1Config = providerToAiSdkConfig(v1Provider, createModel('gpt-4o', 'GPT-4o', v1Provider.id))
     expect(v1Config.providerId).toBe('azure-responses')
-    expect(v1Config.options.apiVersion).toBe('v1')
-    expect(v1Config.options.useDeploymentBasedUrls).toBeUndefined()
+    expect(v1Config.providerSettings.apiVersion).toBe('v1')
+    expect(v1Config.providerSettings.useDeploymentBasedUrls).toBeUndefined()
 
     const previewProvider = createAzureProvider('preview')
     const previewConfig = providerToAiSdkConfig(previewProvider, createModel('gpt-4o', 'GPT-4o', previewProvider.id))
     expect(previewConfig.providerId).toBe('azure-responses')
-    expect(previewConfig.options.apiVersion).toBe('preview')
-    expect(previewConfig.options.useDeploymentBasedUrls).toBeUndefined()
+    expect(previewConfig.providerSettings.apiVersion).toBe('preview')
+    expect(previewConfig.providerSettings.useDeploymentBasedUrls).toBeUndefined()
   })
 })

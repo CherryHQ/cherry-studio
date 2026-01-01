@@ -51,7 +51,7 @@ export class ExtensionRegistry {
    * 支持链式调用
    */
   register(extension: ProviderExtension<any, any, any>): this {
-    const { name, aliases } = extension.config
+    const { name, aliases, variants } = extension.config
 
     // 检查主 ID 冲突
     if (this.extensions.has(name)) {
@@ -68,6 +68,19 @@ export class ExtensionRegistry {
           throw new Error(`Provider alias "${alias}" is already registered for "${this.aliasMap.get(alias)}"`)
         }
         this.aliasMap.set(alias, name)
+      }
+    }
+
+    // 注册变体 ID
+    if (variants) {
+      for (const variant of variants) {
+        const variantId = `${name}-${variant.suffix}`
+        if (this.aliasMap.has(variantId)) {
+          throw new Error(
+            `Provider variant ID "${variantId}" is already registered for "${this.aliasMap.get(variantId)}"`
+          )
+        }
+        this.aliasMap.set(variantId, name)
       }
     }
 
@@ -375,15 +388,24 @@ export class ExtensionRegistry {
    * @returns Provider 实例
    */
   async createProvider(id: string, settings?: any, explicitId?: string): Promise<ProviderV3> {
-    const extension = this.get(id)
-    if (!extension) {
+    // 解析 provider ID，提取基础 ID 和变体后缀
+    const parsed = this.parseProviderId(id)
+    if (!parsed) {
       throw new Error(`Provider extension "${id}" not found. Did you forget to register it?`)
     }
 
+    const { baseId, mode: variantSuffix } = parsed
+
+    // 获取基础 extension
+    const extension = this.get(baseId)
+    if (!extension) {
+      throw new Error(`Provider extension "${baseId}" not found. Did you forget to register it?`)
+    }
+
     try {
-      // 直接委托给 Extension 的 createProvider 方法
-      // Extension 负责缓存、生命周期钩子、AI SDK 注册等
-      return await extension.createProvider(settings, explicitId)
+      // 委托给 Extension 的 createProvider 方法
+      // Extension 负责缓存、生命周期钩子、AI SDK 注册、变体转换等
+      return await extension.createProvider(settings, explicitId, variantSuffix)
     } catch (error) {
       throw new ProviderCreationError(
         `Failed to create provider "${id}"`,

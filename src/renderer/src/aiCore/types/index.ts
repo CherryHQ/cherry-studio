@@ -7,85 +7,38 @@
  * TODO: We should separate them clearly. Keep renderer only types in renderer, and main only types in main, and shared types in shared.
  */
 
-import type { AppProviderId, AppProviderSettingsMap } from './merged'
+import type { AppProviderId, AppRuntimeConfig } from './merged'
 
 /**
- * Generic AI SDK configuration with compile-time type safety
+ * Provider 配置（不含 plugins）
+ * 基于 RuntimeConfig，用于构建 provider 实例的基础配置
  *
  * 🎯 Zero maintenance! Auto-extracts types from core and project extensions.
  *
- * @typeParam T - The specific provider ID type for type-safe options
+ * @typeParam T - The specific provider ID type for type-safe settings
  *
  * @example
  * ```ts
  * // Type-safe config for core provider
- * const config1: AiSdkConfig<'openai'> = {
+ * const config1: ProviderConfig<'openai'> = {
  *   providerId: 'openai',
- *   options: { apiKey: '...', baseURL: '...' } // ✅ Typed as OpenAIProviderSettings
+ *   providerSettings: { apiKey: '...', baseURL: '...' } // ✅ Typed as OpenAIProviderSettings
  * }
  *
  * // Type-safe config for project provider
- * const config2: AiSdkConfig<'google-vertex'> = {
+ * const config2: ProviderConfig<'google-vertex'> = {
  *   providerId: 'google-vertex',
- *   options: { ... } // ✅ Typed as GoogleVertexProviderSettings
+ *   providerSettings: { ... } // ✅ Typed as GoogleVertexProviderSettings
  * }
  *
  * // Type-safe config with alias
- * const config3: AiSdkConfig<'oai'> = {
+ * const config3: ProviderConfig<'oai'> = {
  *   providerId: 'oai',
- *   options: { apiKey: '...' } // ✅ Same type as 'openai'
+ *   providerSettings: { apiKey: '...' } // ✅ Same type as 'openai'
  * }
  * ```
  */
-export type AiSdkConfig<T extends AppProviderId = AppProviderId> = {
-  providerId: T
-  options: AppProviderSettingsMap[T]
-}
-
-/**
- * Runtime-safe AI SDK configuration for gradual migration
- * Use this when provider ID is not known at compile time
- *
- * 使用联合类型而不是 any，提供更好的类型安全性
- *
- * @example
- * ```ts
- * function createConfig(providerId: AppProviderId): AiSdkConfigRuntime {
- *   return {
- *     providerId,
- *     options: buildOptions(providerId) // ✅ 类型安全：options 必须是某个 provider 的 settings
- *   }
- * }
- * ```
- */
-export type AiSdkConfigRuntime = {
-  providerId: AppProviderId
-  options: AppProviderSettingsMap[AppProviderId]
-}
-
-/**
- * Type guard for runtime validation of AiSdkConfig
- *
- * @param config - Unknown value to validate
- * @returns true if config is a valid AiSdkConfigRuntime
- *
- * @example
- * ```ts
- * if (isValidAiSdkConfig(someConfig)) {
- *   // someConfig is now typed as AiSdkConfigRuntime
- *   await createAiSdkProvider(someConfig)
- * }
- * ```
- */
-export function isValidAiSdkConfig(config: unknown): config is AiSdkConfigRuntime {
-  if (!config || typeof config !== 'object') return false
-
-  const c = config as Record<string, unknown>
-
-  return (
-    typeof c.providerId === 'string' && c.providerId.length > 0 && typeof c.options === 'object' && c.options !== null
-  )
-}
+export type ProviderConfig<T extends AppProviderId = AppProviderId> = Omit<AppRuntimeConfig<T>, 'plugins'>
 
 export type { AppProviderId, AppProviderSettingsMap } from './merged'
 export { appProviderIds, getAllProviderIds, isRegisteredProviderId } from './merged'

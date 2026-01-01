@@ -281,35 +281,43 @@ export class ProviderExtension<
   /**
    * 计算 settings 的稳定 hash
    * 用于缓存 key，确保相同配置复用实例
+   *
+   * @param settings - Provider 配置
+   * @param variantSuffix - 可选的变体后缀，用于区分不同变体的缓存
    */
-  private computeHash(settings?: TSettings): string {
-    if (settings === undefined || settings === null) {
-      return 'default'
-    }
+  private computeHash(settings?: TSettings, variantSuffix?: string): string {
+    const baseHash = (() => {
+      if (settings === undefined || settings === null) {
+        return 'default'
+      }
 
-    // 使用 JSON.stringify 进行稳定序列化
-    // 对于对象按键排序以确保一致性
-    const stableStringify = (obj: any): string => {
-      if (obj === null || obj === undefined) return 'null'
-      if (typeof obj !== 'object') return JSON.stringify(obj)
-      if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`
+      // 使用 JSON.stringify 进行稳定序列化
+      // 对于对象按键排序以确保一致性
+      const stableStringify = (obj: any): string => {
+        if (obj === null || obj === undefined) return 'null'
+        if (typeof obj !== 'object') return JSON.stringify(obj)
+        if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`
 
-      const keys = Object.keys(obj).sort()
-      const pairs = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`)
-      return `{${pairs.join(',')}}`
-    }
+        const keys = Object.keys(obj).sort()
+        const pairs = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`)
+        return `{${pairs.join(',')}}`
+      }
 
-    const serialized = stableStringify(settings)
+      const serialized = stableStringify(settings)
 
-    // 使用简单的哈希函数（不需要加密级别的安全性）
-    let hash = 0
-    for (let i = 0; i < serialized.length; i++) {
-      const char = serialized.charCodeAt(i)
-      hash = (hash << 5) - hash + char
-      hash = hash & hash // Convert to 32bit integer
-    }
+      // 使用简单的哈希函数（不需要加密级别的安全性）
+      let hash = 0
+      for (let i = 0; i < serialized.length; i++) {
+        const char = serialized.charCodeAt(i)
+        hash = (hash << 5) - hash + char
+        hash = hash & hash // Convert to 32bit integer
+      }
 
-    return `${Math.abs(hash).toString(36)}`
+      return `${Math.abs(hash).toString(36)}`
+    })()
+
+    // 如果有变体后缀，将其附加到 hash 中
+    return variantSuffix ? `${baseHash}:${variantSuffix}` : baseHash
   }
 
   /**
@@ -329,17 +337,29 @@ export class ProviderExtension<
    *
    * @param settings - Provider 配置
    * @param explicitId - 可选的显式 ID，用于 AI SDK 注册
+   * @param variantSuffix - 可选的变体后缀，用于应用变体转换
    * @returns Provider 实例
    */
-  async createProvider(settings?: TSettings, explicitId?: string): Promise<TProvider> {
+  async createProvider(settings?: TSettings, explicitId?: string, variantSuffix?: string): Promise<TProvider> {
+    // 验证变体后缀（如果提供）
+    if (variantSuffix) {
+      const variant = this.getVariant(variantSuffix)
+      if (!variant) {
+        throw new Error(
+          `ProviderExtension "${this.config.name}": variant "${variantSuffix}" not found. ` +
+            `Available variants: ${this.config.variants?.map((v) => v.suffix).join(', ') || 'none'}`
+        )
+      }
+    }
+
     // 合并 default options
     const mergedSettings = deepMergeObjects(
       (this.config.defaultOptions || {}) as any,
       (settings || {}) as any
     ) as TSettings
 
-    // 计算 hash
-    const hash = this.computeHash(mergedSettings)
+    // 计算 hash（包含变体后缀）
+    const hash = this.computeHash(mergedSettings, variantSuffix)
 
     // 检查缓存
     const cachedInstance = this.instances.get(hash)
@@ -350,12 +370,12 @@ export class ProviderExtension<
     // 执行 onBeforeCreate 钩子
     await this.executeHook('onBeforeCreate', mergedSettings)
 
-    // 创建新实例
-    let provider: ProviderV3
+    // 创建基础 provider 实例
+    let baseProvider: ProviderV3
 
     if (this.config.create) {
       // 使用直接创建函数
-      provider = await Promise.resolve(this.config.create(mergedSettings))
+      baseProvider = await Promise.resolve(this.config.create(mergedSettings))
     } else if (this.config.import && this.config.creatorFunctionName) {
       // 动态导入
       const module = await this.config.import()
@@ -367,29 +387,45 @@ export class ProviderExtension<
         )
       }
 
-      provider = await Promise.resolve(creatorFn(mergedSettings))
+      baseProvider = await Promise.resolve(creatorFn(mergedSettings))
     } else {
       throw new Error(`ProviderExtension "${this.config.name}": cannot create provider, invalid configuration`)
     }
 
-    const typedProvider = provider as TProvider
-
-    // 执行 onAfterCreate 钩子
-    await this.executeHook('onAfterCreate', mergedSettings, typedProvider)
-
-    // 缓存实例
-    this.instances.set(hash, typedProvider)
-    this.settingsHashes.set(hash, mergedSettings)
-
-    // 注册到 AI SDK（如果提供了 explicitId）
-    if (explicitId) {
-      this.registerToAiSdk(typedProvider, explicitId)
+    // 应用变体转换（如果提供了变体后缀）
+    let finalProvider: TProvider
+    if (variantSuffix) {
+      const variant = this.getVariant(variantSuffix)!
+      // 应用变体的 transform 函数
+      finalProvider = (await Promise.resolve(variant.transform(baseProvider as TProvider, mergedSettings))) as TProvider
     } else {
-      // 使用默认 ID: name:hash
-      this.registerToAiSdk(typedProvider, `${this.config.name}:${hash}`)
+      finalProvider = baseProvider as TProvider
     }
 
-    return typedProvider
+    // 执行 onAfterCreate 钩子
+    await this.executeHook('onAfterCreate', mergedSettings, finalProvider)
+
+    // 缓存实例
+    this.instances.set(hash, finalProvider)
+    this.settingsHashes.set(hash, mergedSettings)
+
+    // 确定注册 ID
+    const registrationId = (() => {
+      if (explicitId) {
+        return explicitId
+      }
+      // 如果是变体，使用 name-suffix:hash 格式
+      if (variantSuffix) {
+        return `${this.config.name}-${variantSuffix}:${hash}`
+      }
+      // 否则使用 name:hash
+      return `${this.config.name}:${hash}`
+    })()
+
+    // 注册到 AI SDK
+    this.registerToAiSdk(finalProvider, registrationId)
+
+    return finalProvider
   }
 
   /**

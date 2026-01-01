@@ -24,7 +24,6 @@ import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import LegacyAiProvider from './legacy/index'
 import type { CompletionsParams, CompletionsResult } from './legacy/middleware/schemas'
 import { buildPlugins } from './plugins/PluginBuilder'
-import { createAiSdkProvider } from './provider/factory'
 import {
   adaptProvider,
   getActualProvider,
@@ -32,7 +31,7 @@ import {
   prepareSpecialProviderConfig,
   providerToAiSdkConfig
 } from './provider/providerConfig'
-import type { AiSdkConfig } from './types'
+import type { ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
 const logger = loggerService.withContext('ModernAiProvider')
@@ -46,7 +45,7 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
 
 export default class ModernAiProvider {
   private legacyProvider: LegacyAiProvider
-  private config?: AiSdkConfig
+  private config?: ProviderConfig
   private actualProvider: Provider
   private model?: Model
   private localProvider: Awaited<AiSdkProvider> | null = null
@@ -133,7 +132,7 @@ export default class ModernAiProvider {
     if (!this.config) {
       throw new Error('Provider config is undefined; cannot proceed with completions')
     }
-    if (SUPPORTED_IMAGE_ENDPOINT_LIST.includes(this.config.options.endpoint)) {
+    if (SUPPORTED_IMAGE_ENDPOINT_LIST.includes(this.config.providerSettings.endpoint)) {
       providerConfig.isImageGenerationEndpoint = true
     }
     // 准备特殊配置
@@ -141,7 +140,7 @@ export default class ModernAiProvider {
 
     // 提前创建本地 provider 实例
     if (!this.localProvider) {
-      this.localProvider = await createAiSdkProvider(this.config)
+      // this.localProvider = await createAiSdkProvider(this.config) // TODO: Update provider creation
     }
 
     if (!this.localProvider) {
@@ -321,7 +320,7 @@ export default class ModernAiProvider {
     const plugins = buildPlugins(config)
 
     // 用构建好的插件数组创建executor
-    const executor = createExecutor(this.config!.providerId, this.config!.options, plugins)
+    const executor = createExecutor(this.config!.providerId, this.config!.providerSettings, plugins)
 
     // 创建带有中间件的执行器
     if (config.onChunk) {
@@ -406,7 +405,7 @@ export default class ModernAiProvider {
       }
 
       // 调用新 AI SDK 的图像生成功能
-      const executor = createExecutor(this.config!.providerId, this.config!.options, [])
+      const executor = createExecutor(this.config!.providerId, this.config!.providerSettings, [])
       const result = await executor.generateImage({
         model,
         ...imageParams
@@ -504,7 +503,7 @@ export default class ModernAiProvider {
 
         // 确保本地provider已创建
         if (!this.localProvider && this.config) {
-          this.localProvider = await createAiSdkProvider(this.config)
+          // this.localProvider = await createAiSdkProvider(this.config) // TODO: Update provider creation
           if (!this.localProvider) {
             throw new Error('Local provider not created')
           }
@@ -537,7 +536,7 @@ export default class ModernAiProvider {
       ...(signal && { abortSignal: signal })
     }
 
-    const executor = createExecutor(this.config!.providerId, this.config!.options, [])
+    const executor = createExecutor(this.config!.providerId, this.config!.providerSettings, [])
     const result = await executor.generateImage({
       model: model, // 直接使用 model ID 字符串，由 executor 内部解析
       ...aiSdkParams
