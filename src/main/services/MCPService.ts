@@ -785,7 +785,7 @@ class McpService {
           ...tool,
           inputSchema: z.parse(MCPToolInputSchema, tool.inputSchema),
           outputSchema: tool.outputSchema ? z.parse(MCPToolOutputSchema, tool.outputSchema) : undefined,
-          id: buildFunctionCallToolName(server.name, tool.name, server.id),
+          id: buildFunctionCallToolName(server.name, tool.name),
           serverId: server.id,
           serverName: server.name,
           type: 'mcp'

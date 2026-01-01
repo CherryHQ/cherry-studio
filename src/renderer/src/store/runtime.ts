@@ -72,6 +72,7 @@ export interface RuntimeState {
   // chat: ChatState
   // websearch: WebSearchState
   placeHolder: string
+  isOvmsSupported: boolean | undefined
 }
 
 // export interface ExportState {
@@ -115,7 +116,8 @@ const initialState: RuntimeState = {
   // websearch: {
   //   activeSearches: {}
   // },
-  placeHolder: ''
+  placeHolder: '',
+  isOvmsSupported: undefined
 }
 
 const runtimeSlice = createSlice({
@@ -161,6 +163,9 @@ const runtimeSlice = createSlice({
     // setExportState: (state, action: PayloadAction<Partial<ExportState>>) => {
     //   state.export = { ...state.export, ...action.payload }
     // },
+    setIsOvmsSupported: (state, action: PayloadAction<boolean>) => {
+      state.isOvmsSupported = action.payload
+    },
     // // Chat related actions
     // toggleMultiSelectMode: (state, action: PayloadAction<boolean>) => {
     //   state.chat.isMultiSelectMode = action.payload
@@ -227,6 +232,7 @@ export const {
   // setResourcesPath,
   // setUpdateState,
   // setExportState,
+  setIsOvmsSupported,
   // // Chat related actions
   // toggleMultiSelectMode,
   // setSelectedMessageIds,
