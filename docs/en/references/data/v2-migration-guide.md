@@ -31,9 +31,10 @@ src/main/data/migration/v2/
   - `execute(ctx)`: perform inserts/updates; manage your own transactions; report progress via `reportProgress`
   - `validate(ctx)`: verify counts and integrity; return `ValidateResult` with stats (`sourceCount`, `targetCount`, `skippedCount`) and any `errors`
 - Registration: list migrators (in order) in `migrators/index.ts` so the engine can sort and run them.
-- Current migrators:
+- Current migrators (see `migrators/README-<name>.md` for detailed documentation):
   - `PreferencesMigrator` (implemented): maps ElectronStore + Redux settings to the `preference` table using `mappings/PreferencesMappings.ts`.
-  - `AssistantMigrator`, `KnowledgeMigrator`, `ChatMigrator` (placeholders): scaffolding and TODO notes for future tables.
+  - `ChatMigrator` (implemented): migrates topics and messages from Dexie to SQLite. See [`README-ChatMigrator.md`](../../../src/main/data/migration/v2/migrators/README-ChatMigrator.md).
+  - `AssistantMigrator`, `KnowledgeMigrator` (placeholders): scaffolding and TODO notes for future tables.
 - Conventions:
   - All logging goes through `loggerService` with a migrator-specific context.
   - Use `MigrationContext.sources` instead of accessing raw files/stores directly.
@@ -62,3 +63,10 @@ src/main/data/migration/v2/
 - [ ] Wire progress updates through `reportProgress` so UI shows per-migrator progress.
 - [ ] Register the migrator in `migrators/index.ts` with the correct `order`.
 - [ ] Add any new target tables to `MigrationEngine.verifyAndClearNewTables` once those tables exist.
+- [ ] Include detailed comments for maintainability (file-level, function-level, logic blocks).
+- [ ] **Create/update `migrators/README-<MigratorName>.md`** with detailed documentation including:
+  - Data sources and target tables
+  - Key transformations
+  - Field mappings (source → target)
+  - Dropped fields and rationale
+  - Code quality notes
