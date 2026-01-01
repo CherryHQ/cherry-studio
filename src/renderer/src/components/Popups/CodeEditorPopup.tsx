@@ -3,7 +3,6 @@ import type { ModalProps } from 'antd'
 import { Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { TopView } from '../TopView'
 
@@ -54,7 +53,7 @@ const PopupContainer: React.FC<Props> = ({ content = '', language = 'plaintext',
       maskClosable={false}
       keyboard={false}
       centered>
-      <EditorContainer>
+      <div className="overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-background)] focus-within:border-[var(--color-primary)] focus-within:shadow-[0_0_0_2px_var(--color-primary-alpha)]">
         <CodeEditor
           value={code}
           language={language}
@@ -64,24 +63,12 @@ const PopupContainer: React.FC<Props> = ({ content = '', language = 'plaintext',
           maxHeight="60vh"
           minHeight="240px"
         />
-      </EditorContainer>
+      </div>
     </Modal>
   )
 }
 
 const TopViewKey = 'CodeEditorPopup'
-
-const EditorContainer = styled.div`
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-background);
-  overflow: hidden;
-
-  &:focus-within {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px var(--color-primary-alpha);
-  }
-`
 
 export default class CodeEditorPopup {
   static topviewId = 0
