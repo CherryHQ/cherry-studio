@@ -92,7 +92,7 @@ export function convertClaudeCodeUsage(usage: ClaudeCodeUsage): LanguageModelUsa
   return {
     inputTokens,
     outputTokens,
-    totalTokens: inputTokens + cacheWrite + cacheRead,
+    totalTokens: inputTokens + outputTokens,
     inputTokenDetails: {
       noCacheTokens: inputTokens,
       cacheReadTokens: cacheRead,

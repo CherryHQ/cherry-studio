@@ -21,16 +21,11 @@ vi.mock('../core/ProviderInstanceRegistry', () => ({
   DEFAULT_SEPARATOR: '|'
 }))
 
-vi.mock('ai', async (importOriginal) => {
-  // biome-ignore lint/style/consistent-type-imports: Mock setup requires typeof import
-
-  const actual = await importOriginal<typeof AiModule>()
-  return {
-    jsonSchema: actual.jsonSchema, // Keep real jsonSchema for test utilities
-    customProvider: vi.fn((config) => config.fallbackProvider),
-    wrapProvider: vi.fn((config) => config.provider)
-  }
-})
+vi.mock('ai', () => ({
+  customProvider: vi.fn((config) => config.fallbackProvider),
+  wrapProvider: vi.fn((config) => config.provider),
+  jsonSchema: vi.fn((schema) => schema)
+}))
 
 describe('HubProvider', () => {
   let mockOpenAIProvider: ProviderV3
