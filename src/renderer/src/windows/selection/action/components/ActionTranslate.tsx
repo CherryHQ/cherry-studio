@@ -34,8 +34,17 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const { translateModelPrompt, language } = useSettings()
 
-  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(LanguagesEnum.enUS)
-  const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(LanguagesEnum.zhCN)
+  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
+    const lang = getLanguageByLangcode(language)
+    if (lang !== UNKNOWN) {
+      return lang
+    } else {
+      logger.warn('Fallback to zh-CN')
+      return LanguagesEnum.zhCN
+    }
+  })
+
+  const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(LanguagesEnum.enUS)
 
   const [error, setError] = useState('')
   const [showOriginal, setShowOriginal] = useState(false)
@@ -54,25 +63,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     runAsyncFunction(async () => {
       const biDirectionLangPair = await db.settings.get({ id: 'translate:bidirectional:pair' })
 
-      let targetLang: TranslateLanguage
-      let alterLang: TranslateLanguage
-
-      if (!biDirectionLangPair || !biDirectionLangPair.value[0]) {
-        const lang = getLanguageByLangcode(language)
-        if (lang !== UNKNOWN) {
-          targetLang = lang
-        } else {
-          logger.warn('Fallback to zh-CN')
-          targetLang = LanguagesEnum.zhCN
-        }
-      } else {
-        targetLang = getLanguageByLangcode(biDirectionLangPair.value[0])
+      if (biDirectionLangPair && biDirectionLangPair.value[0]) {
+        const targetLang = getLanguageByLangcode(biDirectionLangPair.value[0])
+        setTargetLanguage(targetLang)
       }
 
-      if (!biDirectionLangPair || !biDirectionLangPair.value[1]) {
-        alterLang = LanguagesEnum.enUS
-      } else {
-        alterLang = getLanguageByLangcode(biDirectionLangPair.value[1])
+      if (biDirectionLangPair && biDirectionLangPair.value[1]) {
+        const alterLang = getLanguageByLangcode(biDirectionLangPair.value[1])
+        setAlterLanguage(alterLang)
       }
 
       setTargetLanguage(targetLang)
