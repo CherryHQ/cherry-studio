@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { initializeSharedProviders, SHARED_PROVIDER_CONFIGS } from '@shared/provider'
+import { initializeSharedProviders, SHARED_PROVIDER_CONFIGS } from '@shared/aiCore'
 
 const logger = loggerService.withContext('ProviderConfigs')
 

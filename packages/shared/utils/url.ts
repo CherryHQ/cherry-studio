@@ -5,7 +5,7 @@
  * Used by both main process (API Server) and renderer.
  */
 
-import type { MinimalProvider } from '@shared/provider'
+import type { MinimalProvider } from '@shared/types'
 import { trim } from 'lodash'
 
 // Supported endpoints for routing

@@ -18,24 +18,21 @@ import anthropicService from '@main/services/AnthropicService'
 import copilotService from '@main/services/CopilotService'
 import { reduxService } from '@main/services/ReduxService'
 import type { OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
-import { isGemini3ModelId } from '@shared/ai-sdk-middlewares'
 import {
   type AiSdkConfig,
   type AiSdkConfigContext,
   formatProviderApiHost,
   initializeSharedProviders,
-  isAnthropicProvider,
-  isGeminiProvider,
-  isOpenAIProvider,
-  type MinimalProvider,
   type ProviderFormatContext,
   providerToAiSdkConfig as sharedProviderToAiSdkConfig,
-  resolveActualProvider,
-  SystemProviderIds
-} from '@shared/provider'
-import { COPILOT_DEFAULT_HEADERS } from '@shared/provider/constant'
+  resolveActualProvider
+} from '@shared/aiCore'
+import { COPILOT_DEFAULT_HEADERS } from '@shared/aiCore/constant'
+import { isGemini3ModelId } from '@shared/aiCore/middlewares'
+import type { MinimalProvider } from '@shared/types'
 import { defaultAppHeaders } from '@shared/utils'
-import type { Provider } from '@types'
+import { isAnthropicProvider, isGeminiProvider, isOpenAIProvider } from '@shared/utils/provider'
+import { Provider, SystemProviderIds } from '@types'
 import type { ImagePart, JSONValue, ModelMessage, Provider as AiSdkProvider, TextPart, Tool as AiSdkTool } from 'ai'
 import { simulateStreamingMiddleware, stepCountIs, tool, wrapLanguageModel, zodSchema } from 'ai'
 import { net } from 'electron'

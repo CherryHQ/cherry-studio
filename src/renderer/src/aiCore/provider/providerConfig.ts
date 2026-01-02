@@ -18,7 +18,7 @@ import {
   type ProviderFormatContext,
   providerToAiSdkConfig as sharedProviderToAiSdkConfig,
   resolveActualProvider
-} from '@shared/provider'
+} from '@shared/aiCore'
 import { cloneDeep } from 'lodash'
 
 import type { AiSdkConfig } from '../types'

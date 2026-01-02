@@ -1,7 +1,7 @@
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import type { Provider } from '@renderer/types'
-import { getAiSdkProviderId as sharedGetAiSdkProviderId } from '@shared/provider'
+import { getAiSdkProviderId as sharedGetAiSdkProviderId } from '@shared/aiCore'
 import type { Provider as AiSdkProvider } from 'ai'
 
 import type { AiSdkConfig } from '../types'

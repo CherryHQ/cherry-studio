@@ -6,6 +6,18 @@
  * and how AI SDK expects them.
  */
 
+import type { MinimalProvider } from '@shared/types'
+import { SystemProviderIds } from '@shared/types'
+import {
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isCherryAIProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  isPerplexityProvider,
+  isVertexProvider
+} from '@shared/utils/provider'
+
 import {
   formatApiHost,
   formatAzureOpenAIApiHost,
@@ -15,17 +27,6 @@ import {
   routeToEndpoint,
   withoutTrailingSlash
 } from '../utils/url'
-import {
-  isAnthropicProvider,
-  isAzureOpenAIProvider,
-  isCherryAIProvider,
-  isGeminiProvider,
-  isOllamaProvider,
-  isPerplexityProvider,
-  isVertexProvider
-} from './detection'
-import type { MinimalProvider } from './types'
-import { SystemProviderIds } from './types'
 
 /**
  * Interface for environment-specific implementations

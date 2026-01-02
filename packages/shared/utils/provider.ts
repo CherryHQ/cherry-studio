@@ -7,7 +7,8 @@
  * NOTE: These functions should match the logic in @renderer/utils/provider.ts
  */
 
-import type { MinimalProvider } from './types'
+import type { MinimalModel, MinimalProvider } from '../types'
+import { getLowerBaseModelName } from './naming'
 
 /**
  * Check if provider is Anthropic type
@@ -98,4 +99,12 @@ export function isNewApiProvider<P extends MinimalProvider>(provider: P): boolea
  */
 export function isOpenAICompatibleProvider<P extends MinimalProvider>(provider: P): boolean {
   return ['openai', 'new-api', 'mistral'].includes(provider.type)
+}
+
+// Models that require the OpenAI Responses endpoint when routed through GitHub Copilot (#10560)
+const COPILOT_RESPONSES_MODEL_IDS = ['gpt-5-codex', 'gpt-5.1-codex', 'gpt-5.1-codex-mini']
+
+export function isCopilotResponsesModel<M extends MinimalModel>(model: M): boolean {
+  const normalizedId = getLowerBaseModelName(model.id)
+  return COPILOT_RESPONSES_MODEL_IDS.some((target) => normalizedId === target)
 }

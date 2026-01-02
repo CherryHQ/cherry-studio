@@ -6,14 +6,13 @@
  */
 
 import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
+import { MinimalProvider, SystemProviderIds } from '@shared/types'
 import { defaultAppHeaders } from '@shared/utils'
+import { isAzureOpenAIProvider, isOllamaProvider } from '@shared/utils/provider'
 import { isEmpty } from 'lodash'
 
 import { routeToEndpoint } from '../utils/url'
-import { isAzureOpenAIProvider, isOllamaProvider } from './detection'
-import { getAiSdkProviderId } from './mapping'
-import type { MinimalProvider } from './types'
-import { SystemProviderIds } from './types'
+import { getAiSdkProviderId } from './utils'
 
 /**
  * AI SDK configuration result

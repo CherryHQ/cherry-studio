@@ -4,4 +4,4 @@ export {
   azureAnthropicProviderCreator,
   newApiResolverCreator,
   vertexAnthropicProviderCreator
-} from '@shared/provider/config'
+} from '@shared/aiCore/config'

@@ -1,4 +1,4 @@
-import type { MinimalModel, MinimalProvider } from '../types'
+import type { MinimalModel, MinimalProvider } from '@shared/types'
 
 export interface RuleSet<M extends MinimalModel = MinimalModel, P extends MinimalProvider = MinimalProvider> {
   rules: Array<{

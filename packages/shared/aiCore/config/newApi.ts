@@ -1,7 +1,8 @@
 /**
  * NewAPI规则集
  */
-import type { MinimalModel, MinimalProvider, ProviderType } from '../types'
+import type { MinimalModel, MinimalProvider } from '@shared/types'
+
 import { endpointIs, provider2Provider } from './helper'
 import type { RuleSet } from './types'
 
@@ -12,7 +13,7 @@ const NEWAPI_RULES: RuleSet = {
       provider: (provider) => {
         return {
           ...provider,
-          type: 'anthropic' as ProviderType
+          type: 'anthropic'
         }
       }
     },
@@ -21,7 +22,7 @@ const NEWAPI_RULES: RuleSet = {
       provider: (provider) => {
         return {
           ...provider,
-          type: 'gemini' as ProviderType
+          type: 'gemini'
         }
       }
     },
@@ -30,7 +31,7 @@ const NEWAPI_RULES: RuleSet = {
       provider: (provider) => {
         return {
           ...provider,
-          type: 'openai-response' as ProviderType
+          type: 'openai-response'
         }
       }
     },
@@ -39,7 +40,7 @@ const NEWAPI_RULES: RuleSet = {
       provider: (provider) => {
         return {
           ...provider,
-          type: 'openai' as ProviderType
+          type: 'openai'
         }
       }
     }

@@ -15,7 +15,7 @@ export {
   isOpenAIProvider,
   isPerplexityProvider,
   isVertexProvider
-} from '@shared/provider'
+} from '@shared/utils/provider'
 
 export const getClaudeSupportedProviders = (providers: Provider[]) => {
   return providers.filter(

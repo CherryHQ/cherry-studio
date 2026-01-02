@@ -1,14 +1,15 @@
 import type OpenAI from '@cherrystudio/openai'
-import type { MinimalProvider } from '@shared/provider'
-import type { ProviderType, SystemProviderId, SystemProviderIdTypeMap } from '@shared/provider/types'
-import { isSystemProviderId, SystemProviderIds } from '@shared/provider/types'
+import {
+  isSystemProviderId,
+  MinimalProvider,
+  ProviderType,
+  SystemProviderId,
+  SystemProviderIds,
+  SystemProviderIdTypeMap
+} from '@shared/types'
 import type { Model } from '@types'
 
 import type { OpenAIVerbosity } from './aiCoreTypes'
-
-export type { ProviderType } from '@shared/provider'
-export type { SystemProviderId, SystemProviderIdTypeMap } from '@shared/provider/types'
-export { isSystemProviderId, ProviderTypeSchema, SystemProviderIds } from '@shared/provider/types'
 
 // undefined is treated as supported, enabled by default
 export type ProviderApiOptions = {
@@ -159,3 +160,5 @@ export type NotGroqProvider = Provider & {
 export const isGroqSystemProvider = (provider: Provider): provider is GroqSystemProvider => {
   return provider.id === SystemProviderIds.groq
 }
+
+export * from '@shared/types/provider'

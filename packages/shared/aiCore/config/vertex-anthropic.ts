@@ -1,4 +1,5 @@
-import type { MinimalModel, MinimalProvider } from '../types'
+import type { MinimalModel, MinimalProvider } from '@shared/types'
+
 import { provider2Provider, startsWith } from './helper'
 import type { RuleSet } from './types'
 
