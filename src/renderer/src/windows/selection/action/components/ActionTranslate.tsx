@@ -11,7 +11,6 @@ import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import type { ActionItem } from '@renderer/types/selectionTypes'
-import { runAsyncFunction } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
 import { Tooltip } from 'antd'
@@ -33,6 +32,7 @@ const logger = loggerService.withContext('ActionTranslate')
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const { translateModelPrompt, language } = useSettings()
+  const { getLanguageByLangcode } = useTranslate()
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
     const lang = getLanguageByLangcode(language)
@@ -51,7 +51,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [isContented, setIsContented] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [contentToCopy, setContentToCopy] = useState('')
-  const { getLanguageByLangcode } = useTranslate()
 
   // Use useRef for values that shouldn't trigger re-renders
   const initialized = useRef(false)
@@ -59,29 +58,23 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const topicRef = useRef<Topic | null>(null)
   const askId = useRef('')
 
-  useEffect(() => {
-    runAsyncFunction(async () => {
-      const biDirectionLangPair = await db.settings.get({ id: 'translate:bidirectional:pair' })
+  const updateLanguagePair = useCallback(async () => {
+    const biDirectionLangPair = await db.settings.get({ id: 'translate:bidirectional:pair' })
 
-      if (biDirectionLangPair && biDirectionLangPair.value[0]) {
-        const targetLang = getLanguageByLangcode(biDirectionLangPair.value[0])
-        setTargetLanguage(targetLang)
-      }
-
-      if (biDirectionLangPair && biDirectionLangPair.value[1]) {
-        const alterLang = getLanguageByLangcode(biDirectionLangPair.value[1])
-        setAlterLanguage(alterLang)
-      }
-
+    if (biDirectionLangPair && biDirectionLangPair.value[0]) {
+      const targetLang = getLanguageByLangcode(biDirectionLangPair.value[0])
       setTargetLanguage(targetLang)
+    }
+
+    if (biDirectionLangPair && biDirectionLangPair.value[1]) {
+      const alterLang = getLanguageByLangcode(biDirectionLangPair.value[1])
       setAlterLanguage(alterLang)
-    })
-  }, [getLanguageByLangcode, language])
+    }
+  }, [getLanguageByLangcode])
 
   // Initialize values only once when action changes
   useEffect(() => {
     if (initialized.current || !action.selectedText) return
-    initialized.current = true
 
     // Initialize assistant
     const currentAssistant = getDefaultTranslateAssistant(targetLanguage, action.selectedText)
@@ -90,10 +83,15 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     // Initialize topic
     topicRef.current = getDefaultTopic(currentAssistant.id)
-  }, [action, targetLanguage, translateModelPrompt])
+
+    // Initialize language pair
+    updateLanguagePair().then(() => {
+      initialized.current = true
+    })
+  }, [action, targetLanguage, translateModelPrompt, updateLanguagePair])
 
   const fetchResult = useCallback(async () => {
-    if (!assistantRef.current || !topicRef.current || !action.selectedText) return
+    if (!assistantRef.current || !topicRef.current || !action.selectedText || !initialized.current) return
 
     const setAskId = (id: string) => {
       askId.current = id
@@ -139,6 +137,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     const assistant = getDefaultTranslateAssistant(translateLang, action.selectedText)
     assistantRef.current = assistant
+
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
   }, [action, targetLanguage, alterLanguage, scrollToBottom])
 
