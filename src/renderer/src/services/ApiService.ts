@@ -21,7 +21,11 @@ import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
+import {
+  isNativeImageGenerationProvider,
+  NOT_SUPPORT_API_KEY_PROVIDER_TYPES,
+  NOT_SUPPORT_API_KEY_PROVIDERS
+} from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
 import type { ModernAiProviderConfig } from '../aiCore/index_new'
@@ -114,8 +118,10 @@ export async function transformMessagesAndFetch(
     // replace prompt variables
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
 
-    // 专用图像生成模型直接走 fetchImageGeneration
-    if (isDedicatedImageGenerationModel(assistant.model || getDefaultModel())) {
+    // 专用图像生成模型直接走 fetchImageGeneration (仅限支持原生图像生成 API 的 provider)
+    const model = assistant.model || getDefaultModel()
+    const provider = getProviderByModel(model)
+    if (isDedicatedImageGenerationModel(model) && isNativeImageGenerationProvider(provider)) {
       await fetchImageGeneration({
         messages: uiMessages,
         assistant,
@@ -216,7 +222,6 @@ export async function fetchChatCompletion({
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),
-    isImageGenerationEndpoint: false, // 专用图像生成模型已在调用方分流
     webSearchPluginConfig: webSearchPluginConfig,
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
@@ -429,7 +434,6 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     enableReasoning: false,
     isPromptToolUse: false,
     isSupportedToolUse: false,
-    isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
     enableUrlContext: false,
@@ -508,7 +512,6 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
     enableReasoning: false,
     isPromptToolUse: false,
     isSupportedToolUse: false,
-    isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
     enableUrlContext: false,
@@ -595,7 +598,6 @@ export async function fetchGenerate({
     enableReasoning: false,
     isPromptToolUse: false,
     isSupportedToolUse: false,
-    isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
     enableUrlContext: false
@@ -753,7 +755,6 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
       streamOutput: true,
       enableReasoning: false,
       isSupportedToolUse: false,
-      isImageGenerationEndpoint: false,
       enableWebSearch: false,
       enableGenerateImage: false,
       isPromptToolUse: false,

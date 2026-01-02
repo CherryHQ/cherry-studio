@@ -22,7 +22,6 @@ import {
   SystemProviderIds
 } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
-import { SUPPORTED_IMAGE_ENDPOINT_LIST } from '@renderer/utils'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { gateway } from 'ai'
 
@@ -124,10 +123,6 @@ export default class ModernAiProvider {
     }
     logger.debug('Using provider config for completions', this.config)
 
-    if (this.config.endpoint && (SUPPORTED_IMAGE_ENDPOINT_LIST as readonly string[]).includes(this.config.endpoint)) {
-      middlewareConfig.isImageGenerationEndpoint = true
-    }
-
     // 注意：模型对象将由 createExecutor 内部处理，不再需要预先创建
 
     if (this.actualProvider.id === 'anthropic' && this.actualProvider.authType === 'oauth') {
@@ -193,8 +188,7 @@ export default class ModernAiProvider {
       topicId: middlewareConfig.topicId,
       modelId,
       hasTools: !!params.tools && Object.keys(params.tools).length > 0,
-      toolNames: params.tools ? Object.keys(params.tools) : [],
-      isImageGeneration: middlewareConfig.isImageGenerationEndpoint
+      toolNames: params.tools ? Object.keys(params.tools) : []
     })
 
     const span = addSpan(traceParams)
@@ -351,16 +345,32 @@ export default class ModernAiProvider {
   }
 
   /**
+   * 懒加载初始化 config
+   * 当 constructor 只传入 provider 时，config 不会被初始化
+   * 此方法根据 modelId 从 provider 的 models 中查找真实 Model 并生成 config
+   */
+  private async ensureConfig(modelId: string): Promise<void> {
+    if (this.config) {
+      return
+    }
+
+    // 从 provider 的 models 中查找真实的 model
+    const model = this.actualProvider.models.find((m) => m.id === modelId)
+    if (!model) {
+      throw new Error(`Model "${modelId}" not found in provider "${this.actualProvider.id}"`)
+    }
+
+    this.actualProvider = adaptProvider({ provider: this.actualProvider, model })
+    this.config = await Promise.resolve(providerToAiSdkConfig(this.actualProvider, model))
+  }
+
+  /**
    * 生成图像
    * 使用现代化 AI SDK 实现，不再 fallback 到 legacy
    */
   public async generateImage(params: GenerateImageParams): Promise<string[]> {
-    // 确保 config 已定义
-    if (!this.config) {
-      throw new Error('Provider config is undefined; cannot proceed with generateImage')
-    }
-
-    return await this.modernGenerateImage(params, this.config)
+    await this.ensureConfig(params.model)
+    return await this.modernGenerateImage(params, this.config!)
   }
 
   /**
@@ -368,12 +378,8 @@ export default class ModernAiProvider {
    * 内部使用 AI SDK 的 generateImage，通过 prompt.images 参数实现编辑功能
    */
   public async editImage(params: EditImageParams): Promise<string[]> {
-    // 确保 config 已定义
-    if (!this.config) {
-      throw new Error('Provider config is undefined; cannot proceed with editImage')
-    }
-
-    return await this.modernEditImage(params, this.config)
+    await this.ensureConfig(params.model)
+    return await this.modernEditImage(params, this.config!)
   }
 
   /**

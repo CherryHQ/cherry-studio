@@ -503,7 +503,6 @@ export async function fetchChatCompletion({
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),
-    isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model),
     webSearchPluginConfig,
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,

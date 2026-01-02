@@ -15,7 +15,6 @@ export interface AiSdkMiddlewareConfig {
   enableReasoning: boolean
   isPromptToolUse: boolean
   isSupportedToolUse: boolean
-  isImageGenerationEndpoint: boolean
   enableWebSearch: boolean
   enableGenerateImage: boolean
   enableUrlContext: boolean
