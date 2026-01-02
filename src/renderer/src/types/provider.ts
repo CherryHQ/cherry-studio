@@ -1,12 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
-import {
-  isSystemProviderId,
-  MinimalProvider,
-  ProviderType,
-  SystemProviderId,
-  SystemProviderIds,
-  SystemProviderIdTypeMap
-} from '@shared/types'
+import type { MinimalProvider, ProviderType, SystemProviderId, SystemProviderIdTypeMap } from '@shared/types'
+import { isSystemProviderId, SystemProviderIds } from '@shared/types'
 import type { Model } from '@types'
 
 import type { OpenAIVerbosity } from './aiCoreTypes'

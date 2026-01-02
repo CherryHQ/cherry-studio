@@ -6,7 +6,7 @@
  */
 
 import { hasProviderConfigByAlias, type ProviderId, resolveProviderConfigId } from '@cherrystudio/ai-core/provider'
-import { MinimalModel, MinimalProvider } from '@shared/types'
+import type { MinimalModel, MinimalProvider } from '@shared/types'
 import { isAzureOpenAIProvider, isAzureResponsesEndpoint, isNewApiProvider } from '@shared/utils/provider'
 
 import {

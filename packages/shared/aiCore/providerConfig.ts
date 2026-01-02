@@ -6,7 +6,7 @@
  */
 
 import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
-import { MinimalProvider, SystemProviderIds } from '@shared/types'
+import { type MinimalProvider, SystemProviderIds } from '@shared/types'
 import { defaultAppHeaders } from '@shared/utils'
 import {
   isAnthropicProvider,
