@@ -672,11 +672,15 @@ class FileStorage {
         throw new Error('Base64 data is required')
       }
 
+      const header = base64Data.slice(0, 100)
+      const mimeMatch = header.match(/^data:([^;]+);base64,/)
+      const mimeType = mimeMatch ? mimeMatch[1] : null
+      const ext = mimeType ? this.getExtensionFromMimeType(mimeType) : '.png'
+
       // 移除 base64 头部信息（如果存在）
       const base64String = base64Data.replace(/^data:.*;base64,/, '')
       const buffer = Buffer.from(base64String, 'base64')
       const uuid = uuidv4()
-      const ext = '.png'
       const destPath = path.join(this.storageDir, uuid + ext)
 
       logger.debug('Saving base64 image:', {
@@ -1561,6 +1565,8 @@ class FileStorage {
       'image/jpeg': '.jpg',
       'image/png': '.png',
       'image/gif': '.gif',
+      'image/webp': '.webp',
+      'image/bmp': '.bmp',
       'application/pdf': '.pdf',
       'text/plain': '.txt',
       'application/msword': '.doc',

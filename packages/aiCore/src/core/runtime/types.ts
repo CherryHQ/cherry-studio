@@ -26,6 +26,7 @@ export interface RuntimeConfig<
 export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'model'> & {
   model: string | ImageModelV3
 }
+export type generateImageResult = Awaited<ReturnType<typeof generateImage>>
 export type generateTextParams = Parameters<typeof generateText>[0]
 export type streamTextParams = Parameters<typeof streamText>[0]
 

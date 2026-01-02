@@ -8,6 +8,7 @@
  */
 
 import { createExecutor } from '@cherrystudio/ai-core'
+import { generateImageResult } from '@cherrystudio/ai-core/core/runtime/types'
 import { loggerService } from '@logger'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { normalizeGatewayModels } from '@renderer/services/models/ModelAdapter'
@@ -22,6 +23,7 @@ import {
   SystemProviderIds
 } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
+import { getLowerBaseModelName } from '@renderer/utils'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { gateway } from 'ai'
 
@@ -355,7 +357,7 @@ export default class ModernAiProvider {
     }
 
     // 从 provider 的 models 中查找真实的 model
-    const model = this.actualProvider.models.find((m) => m.id === modelId)
+    const model = this.actualProvider.models.find((m) => getLowerBaseModelName(m.id) === getLowerBaseModelName(modelId))
     if (!model) {
       throw new Error(`Model "${modelId}" not found in provider "${this.actualProvider.id}"`)
     }
@@ -440,14 +442,12 @@ export default class ModernAiProvider {
   /**
    * 转换图像生成结果格式
    */
-  private convertImageResult(result: any): string[] {
+  private convertImageResult(result: generateImageResult): string[] {
     const images: string[] = []
     if (result.images) {
       for (const image of result.images) {
-        if ('base64' in image && image.base64) {
+        if (image.base64) {
           images.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
-        } else if ('url' in image && image.url) {
-          images.push(image.url)
         }
       }
     }

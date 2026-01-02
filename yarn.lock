@@ -217,18 +217,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai-compatible@npm:1.0.28":
-  version: 1.0.28
-  resolution: "@ai-sdk/openai-compatible@npm:1.0.28"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.18"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/f484774e0094a12674f392d925038a296191723b4c76bd833eabf1b334cf3c84fe77a2e2c5fbac974ec5e18340e113c6a81c86d957c9529a7a60e87cd390ada8
-  languageName: node
-  linkType: hard
-
 "@ai-sdk/openai-compatible@npm:2.0.0":
   version: 2.0.0
   resolution: "@ai-sdk/openai-compatible@npm:2.0.0"
@@ -241,27 +229,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.28#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch":
-  version: 1.0.28
-  resolution: "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.28#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch::version=1.0.28&hash=f2cb20"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.18"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/0b1d99fe8ce506e5c0a3703ae0511ac2017781584074d41faa2df82923c64eb1229ffe9f036de150d0248923613c761a463fe89d5923493983e0463a1101e792
-  languageName: node
-  linkType: hard
-
 "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A2.0.0#~/.yarn/patches/@ai-sdk-openai-compatible-npm-2.0.0-d8d5f27c45.patch":
   version: 2.0.0
-  resolution: "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A2.0.0#~/.yarn/patches/@ai-sdk-openai-compatible-npm-2.0.0-d8d5f27c45.patch::version=2.0.0&hash=0d8c46"
+  resolution: "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A2.0.0#~/.yarn/patches/@ai-sdk-openai-compatible-npm-2.0.0-d8d5f27c45.patch::version=2.0.0&hash=bfe81d"
   dependencies:
     "@ai-sdk/provider": "npm:3.0.0"
     "@ai-sdk/provider-utils": "npm:4.0.0"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/754c647f70aef954b1258f8978ec7c13bcfa6c52062ed0685cb09793bfb1650ee65394868c2ec3974ef0d8950c1a19c857de968be5d1cccefd04d94997275cd9
+  checksum: 10c0/d7dccb8946499c371fe3fdd0d70a6d822e9bb8fd5c5574d82bb45a77ea01e30b60dd3bc11d07e8ea884a9ab605b48d317d1ad2d8a0d9ababbe20a60b29e9be9a
   languageName: node
   linkType: hard
 
@@ -279,13 +255,13 @@ __metadata:
 
 "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A3.0.0#~/.yarn/patches/@ai-sdk-openai-npm-3.0.0-0b1bba0aab.patch":
   version: 3.0.0
-  resolution: "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A3.0.0#~/.yarn/patches/@ai-sdk-openai-npm-3.0.0-0b1bba0aab.patch::version=3.0.0&hash=f40a70"
+  resolution: "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A3.0.0#~/.yarn/patches/@ai-sdk-openai-npm-3.0.0-0b1bba0aab.patch::version=3.0.0&hash=ceffd1"
   dependencies:
     "@ai-sdk/provider": "npm:3.0.0"
     "@ai-sdk/provider-utils": "npm:4.0.0"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/70cd0d032a54f2a3312c91cb9a87c68e61a9e903b875827bfc4332a552017a5c0a6af2cd5b6cac63f96c89638235cb2496667c7d7397e42d8d04b4d38ba5f0d4
+  checksum: 10c0/c93e5b9df883b903f2745fa34fef8bc6a5aa0a2a72f6d54086b0e874a4726c7ab4505a551d478317cba2cc0c05259dfe68ae1d4093b70392baf44a43844d9494
   languageName: node
   linkType: hard
 
@@ -298,19 +274,6 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/826b678a261198838e3c95fbf2c91fbe3577e9aa79641681e524cd929b5620ca4c3e9c3ace51a34046110f19af39d536d059a9ce408a3948ebfb18cc0a8b6170
-  languageName: node
-  linkType: hard
-
-"@ai-sdk/provider-utils@npm:3.0.18":
-  version: 3.0.18
-  resolution: "@ai-sdk/provider-utils@npm:3.0.18"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@standard-schema/spec": "npm:^1.0.0"
-    eventsource-parser: "npm:^3.0.6"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/209c15b0dceef0ba95a7d3de544be0a417ad4a0bd5143496b3966a35fedf144156d93a42ff8c3d7db56781b9836bafc8c132c98978c49240e55bc1a36e18a67f
   languageName: node
   linkType: hard
 
@@ -10328,7 +10291,7 @@ __metadata:
     "@viz-js/lang-dot": "npm:^1.0.5"
     "@viz-js/viz": "npm:^3.14.0"
     "@xyflow/react": "npm:^12.4.4"
-    ai: "npm:^6.0.1"
+    ai: "patch:ai@npm%3A6.0.1#~/.yarn/patches/ai-npm-6.0.1-b73221ad63.patch"
     antd: "patch:antd@npm%3A5.27.0#~/.yarn/patches/antd-npm-5.27.0-aa91c36546.patch"
     archiver: "npm:^7.0.1"
     async-mutex: "npm:^0.5.0"
@@ -10565,7 +10528,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ai@npm:^6.0.1":
+"ai@npm:6.0.1":
   version: 6.0.1
   resolution: "ai@npm:6.0.1"
   dependencies:
@@ -10576,6 +10539,20 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/67547e08c64ad9dcbd25eee414a1aaf90bcd8899858214ac688e28f45920a74719603b03ddbc45861845e1f22c08327a7f3fae892905b383dc28cb6e141f8004
+  languageName: node
+  linkType: hard
+
+"ai@patch:ai@npm%3A6.0.1#~/.yarn/patches/ai-npm-6.0.1-b73221ad63.patch":
+  version: 6.0.1
+  resolution: "ai@patch:ai@npm%3A6.0.1#~/.yarn/patches/ai-npm-6.0.1-b73221ad63.patch::version=6.0.1&hash=409d30"
+  dependencies:
+    "@ai-sdk/gateway": "npm:3.0.0"
+    "@ai-sdk/provider": "npm:3.0.0"
+    "@ai-sdk/provider-utils": "npm:4.0.0"
+    "@opentelemetry/api": "npm:1.9.0"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/931d222328745a190ed81096c06a92a850c695bede6f3435453a2f28a1a81c6b5f027b87b29c2c5ce1467e6706d19e7cfb12d37098e125491fbd2d9367efc95e
   languageName: node
   linkType: hard
 

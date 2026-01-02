@@ -670,6 +670,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'zhipu',
       name: 'Embedding-3',
       group: 'Embedding'
+    },
+    {
+      id: 'cogView-4-250304',
+      provider: 'zhipu',
+      name: 'cogView-4',
+      group: 'cogView'
     }
   ],
   moonshot: [

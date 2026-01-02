@@ -22,6 +22,7 @@ import type {
   EmbedManyParams,
   EmbedManyResult,
   generateImageParams,
+  generateImageResult,
   generateTextParams,
   RuntimeConfig,
   streamTextParams
@@ -146,7 +147,7 @@ export class RuntimeExecutor<
   /**
    * 生成图像
    */
-  async generateImage(params: generateImageParams): Promise<ReturnType<typeof _generateImage>> {
+  async generateImage(params: generateImageParams): Promise<generateImageResult> {
     try {
       const { model } = params
 
@@ -176,7 +177,6 @@ export class RuntimeExecutor<
 
   /**
    * 批量嵌入文本
-   * AI SDK v6 只有 embedMany，没有 embed
    */
   async embedMany(params: EmbedManyParams): Promise<EmbedManyResult> {
     const { model: modelOrId, ...options } = params
