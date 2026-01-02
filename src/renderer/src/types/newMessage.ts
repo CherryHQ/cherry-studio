@@ -193,7 +193,7 @@ export type Message = {
   // 消息元数据
   modelId?: string
   model?: Model
-  type?: 'clear'
+  type?: 'clear' | 'committee'
   useful?: boolean
   askId?: string // 关联的问题消息ID
   mentions?: Model[]

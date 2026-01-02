@@ -35,7 +35,8 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
     'knowledge_base',
     'mcp_tools',
     'generate_image',
-    'mention_models'
+    'mention_models',
+    'llm_committee'
   ],
   hidden: ['quick_phrases', 'clear_topic', 'toggle_expand', 'new_context']
 }
@@ -50,7 +51,7 @@ export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<InputbarScope, ToolOrder> = {
     hidden: []
   },
   'mini-window': {
-    visible: ['attachment', 'mention_models', 'quick_phrases'],
+    visible: ['attachment', 'mention_models', 'llm_committee', 'quick_phrases'],
     hidden: []
   }
 }
