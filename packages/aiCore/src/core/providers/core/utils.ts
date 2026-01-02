@@ -1,4 +1,11 @@
 /**
+ * Provider 工具函数和错误类
+ * 合并自 utils.ts 和 errors.ts
+ */
+
+// ==================== 私钥格式化工具 ====================
+
+/**
  * 格式化私钥，确保它包含正确的PEM头部和尾部
  */
 export function formatPrivateKey(privateKey: string): string {
@@ -83,4 +90,21 @@ function reconstructPemKey(key: string): string {
   const formattedKey = cleanKey.match(/.{1,64}/g)?.join('\n') || cleanKey
 
   return `-----BEGIN PRIVATE KEY-----\n${formattedKey}\n-----END PRIVATE KEY-----`
+}
+
+// ==================== 错误类 ====================
+
+/**
+ * Provider 创建错误
+ * 当创建 provider 实例失败时抛出
+ */
+export class ProviderCreationError extends Error {
+  constructor(
+    message: string,
+    public providerId: string,
+    public cause: Error
+  ) {
+    super(message)
+    this.name = 'ProviderCreationError'
+  }
 }

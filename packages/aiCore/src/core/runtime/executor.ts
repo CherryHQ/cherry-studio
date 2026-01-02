@@ -2,7 +2,7 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import type { ImageModelV3, LanguageModelV3, LanguageModelV3Middleware } from '@ai-sdk/provider'
+import type { ImageModelV3, LanguageModelV3, LanguageModelV3Middleware, ProviderV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 import {
   generateImage as _generateImage,
@@ -11,30 +11,27 @@ import {
   wrapLanguageModel
 } from 'ai'
 
-import { globalModelResolver } from '../models'
-import { type ModelConfig } from '../models/types'
+import { ModelResolver } from '../models'
 import { isV3Model } from '../models/utils'
 import { type AiPlugin, type AiRequestContext, definePlugin } from '../plugins'
-import { type ProviderId } from '../providers'
+import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
 import { PluginEngine } from './pluginEngine'
 import type { generateImageParams, generateTextParams, RuntimeConfig, streamTextParams } from './types'
 
-export class RuntimeExecutor<T extends ProviderId = ProviderId> {
+export class RuntimeExecutor<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+> {
   public pluginEngine: PluginEngine<T>
-  // private options: ProviderSettingsMap[T]
-  private config: RuntimeConfig<T>
+  private config: RuntimeConfig<TSettingsMap, T>
+  private modelResolver: ModelResolver
 
-  constructor(config: RuntimeConfig<T>) {
-    // if (!isProviderSupported(config.providerId)) {
-    //   throw new Error(`Unsupported provider: ${config.providerId}`)
-    // }
-
-    // 存储options供后续使用
-    // this.options = config.options
+  constructor(config: RuntimeConfig<TSettingsMap, T>) {
     this.config = config
     // 创建插件客户端
     this.pluginEngine = new PluginEngine(config.providerId, config.plugins || [])
+    this.modelResolver = new ModelResolver(config.provider)
   }
 
   private createResolveModelPlugin(middlewares?: LanguageModelV3Middleware[]) {
@@ -141,7 +138,7 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
   /**
    * 生成图像
    */
-  generateImage(params: generateImageParams): Promise<ReturnType<typeof _generateImage>> {
+  async generateImage(params: generateImageParams): Promise<ReturnType<typeof _generateImage>> {
     try {
       const { model } = params
 
@@ -179,13 +176,9 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
     middlewares?: LanguageModelV3Middleware[]
   ): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
-      // 🎯 字符串modelId，使用新的ModelResolver解析，传递完整参数
-      return await globalModelResolver.resolveLanguageModel(
-        modelOrId, // 支持 'gpt-4' 和 'aihubmix:anthropic:claude-3.5-sonnet'
-        this.config.providerId, // fallback provider
-        this.config.providerSettings, // provider options
-        middlewares // 中间件数组
-      )
+      // 字符串modelId，使用 ModelResolver 解析
+      // Provider会处理命名空间格式路由（如果是HubProvider）
+      return await this.modelResolver.resolveLanguageModel(modelOrId, middlewares)
     } else {
       // 已经是模型对象
       // 所有 provider 都应该返回 V3 模型（通过 wrapProvider 确保）
@@ -210,11 +203,9 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
   private async resolveImageModel(modelOrId: ImageModelV3 | string): Promise<ImageModelV3> {
     try {
       if (typeof modelOrId === 'string') {
-        // 字符串modelId，使用新的ModelResolver解析
-        return await globalModelResolver.resolveImageModel(
-          modelOrId, // 支持 'dall-e-3' 和 'aihubmix:openai:dall-e-3'
-          this.config.providerId // fallback provider
-        )
+        // 字符串modelId，使用 ModelResolver 解析
+        // Provider会处理命名空间格式路由（如果是HubProvider）
+        return await this.modelResolver.resolveImageModel(modelOrId)
       } else {
         // 已经是模型，直接返回
         return modelOrId
@@ -233,13 +224,18 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
   /**
    * 创建执行器 - 支持已知provider的类型安全
    */
-  static create<T extends ProviderId>(
+  static create<
+    TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+    T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+  >(
     providerId: T,
-    options: ModelConfig<T>['providerSettings'],
+    provider: ProviderV3,
+    options: TSettingsMap[T],
     plugins?: AiPlugin[]
-  ): RuntimeExecutor<T> {
-    return new RuntimeExecutor({
+  ): RuntimeExecutor<TSettingsMap, T> {
+    return new RuntimeExecutor<TSettingsMap, T>({
       providerId,
+      provider,
       providerSettings: options,
       plugins
     })
@@ -247,13 +243,16 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
 
   /**
    * 创建OpenAI Compatible执行器
+   * ✅ Now accepts provider instance directly
    */
   static createOpenAICompatible(
-    options: ModelConfig<'openai-compatible'>['providerSettings'],
+    provider: ProviderV3, // ✅ Accept provider instance
+    options: CoreProviderSettingsMap['openai-compatible'],
     plugins: AiPlugin[] = []
-  ): RuntimeExecutor<'openai-compatible'> {
-    return new RuntimeExecutor({
+  ): RuntimeExecutor<CoreProviderSettingsMap, 'openai-compatible'> {
+    return new RuntimeExecutor<CoreProviderSettingsMap, 'openai-compatible'>({
       providerId: 'openai-compatible',
+      provider, // ✅ Pass provider to config
       providerSettings: options,
       plugins
     })
