@@ -200,7 +200,8 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'TokenFlux',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://tokenflux.ai',
+    apiHost: 'https://api.tokenflux.ai/openai/v1',
+    anthropicApiHost: 'https://api.tokenflux.ai/anthropic',
     models: SYSTEM_MODELS.tokenflux,
     isSystem: true,
     enabled: false
@@ -1088,7 +1089,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     websites: {
       official: 'https://platform.minimaxi.com/',
       apiKey: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
-      docs: 'https://platform.minimaxi.com/document/Announcement',
+      docs: 'https://platform.minimaxi.com/docs/api-reference/text-openai-api',
       models: 'https://platform.minimaxi.com/document/Models'
     }
   },
