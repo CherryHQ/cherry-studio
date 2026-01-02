@@ -79,7 +79,7 @@ const VISION_REGEX = new RegExp(
 // These models need:
 // 1. Route to dedicated image generation API
 // 2. Exclude from reasoning/websearch/tooluse selection
-const DEDICATED_IMAGE_MODEL_PATTERNS = [
+const DEDICATED_IMAGE_MODELS = [
   // OpenAI series
   'dall-e(?:-[\\w-]+)?',
   'gpt-image(?:-[\\w-]+)?',
@@ -103,12 +103,10 @@ const DEDICATED_IMAGE_MODEL_PATTERNS = [
   'mj-[\\w-]+',
   'z-image(?:-[\\w-]+)?',
   'longcat-image(?:-[\\w-]+)?',
+  'hunyuanimage(?:-[\\w-]+)?',
   'seedream(?:-[\\w-]+)?',
   'kandinsky(?:-[\\w-]+)?'
 ]
-
-// Legacy alias for backward compatibility with GENERATE_IMAGE_MODELS
-const DEDICATED_IMAGE_MODELS = DEDICATED_IMAGE_MODEL_PATTERNS
 
 const IMAGE_ENHANCEMENT_MODELS = [
   'grok-2-image(?:-[\\w-]+)?',
@@ -121,7 +119,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
 
-const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODEL_PATTERNS.join('|'), 'i')
+const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
 
 // Models that should auto-enable image generation button when selected
 const AUTO_ENABLE_IMAGE_MODELS = [
