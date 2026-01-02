@@ -1,14 +1,19 @@
 import { loggerService } from '@logger'
+import { getModel } from '@renderer/hooks/useModel'
 import store from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import type {
   AddMemoryOptions,
   AssistantMessage,
+  KnowledgeBase,
   MemoryHistoryItem,
   MemoryListOptions,
   MemorySearchOptions,
   MemorySearchResult
 } from '@types'
+import { now } from 'lodash'
+
+import { getKnowledgeBaseParams } from './KnowledgeService'
 
 const logger = loggerService.withContext('MemoryService')
 
@@ -203,16 +208,24 @@ class MemoryService {
       }
 
       const memoryConfig = selectMemoryConfig(store.getState())
-      const embedderApiClient = memoryConfig.embedderApiClient
-      const llmApiClient = memoryConfig.llmApiClient
+      const embeddingModel = memoryConfig.embeddingModel
 
-      const configWithProviders = {
+      // Get knowledge base params for memory
+      const { embedApiClient: embeddingApiClient } = getKnowledgeBaseParams({
+        id: 'memory',
+        name: 'Memory',
+        model: getModel(embeddingModel?.id, embeddingModel?.provider),
+        dimensions: memoryConfig.embeddingDimensions,
+        items: [],
+        created_at: now(),
+        updated_at: now(),
+        version: 1
+      } as KnowledgeBase)
+
+      return window.api.memory.setConfig({
         ...memoryConfig,
-        embedderApiClient,
-        llmApiClient
-      }
-
-      return window.api.memory.setConfig(configWithProviders)
+        embeddingApiClient
+      })
     } catch (error) {
       logger.warn('Failed to update memory config:', error as Error)
       return

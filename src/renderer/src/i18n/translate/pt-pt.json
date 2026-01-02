@@ -32,7 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Usando Git Bash detectado automaticamente",
-      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
+      "autoDiscoveredHint": "Auto-descoberto",
       "clear": {
         "button": "Limpar caminho personalizado"
       },
@@ -40,7 +40,7 @@
       "error": {
         "description": "O Git Bash é necessário para executar agentes no Windows. O agente não pode funcionar sem ele. Por favor, instale o Git para Windows a partir de",
         "recheck": "Reverificar a Instalação do Git Bash",
-        "required": "[to be translated]:Git Bash path is required on Windows",
+        "required": "O caminho do Git Bash é necessário no Windows",
         "title": "Git Bash Necessário"
       },
       "found": {
@@ -53,9 +53,9 @@
         "invalidPath": "O arquivo selecionado não é um executável válido do Git Bash (bash.exe).",
         "title": "Selecionar executável do Git Bash"
       },
-      "placeholder": "[to be translated]:Select bash.exe path",
+      "placeholder": "Selecione o caminho do bash.exe",
       "success": "Git Bash detectado com sucesso!",
-      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "O Git Bash é necessário para executar agentes no Windows. Instale-o a partir de git-scm.com, caso não esteja disponível."
     },
     "input": {
       "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando"
@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "Excluir o assistente removerá todos os tópicos e arquivos sob esse assistente. Tem certeza de que deseja continuar?",
+      "error": {
+        "remain_one": "Não é permitido apagar o último assistente."
+      },
       "title": "Excluir Assistente"
     },
     "edit": {
@@ -2198,7 +2201,7 @@
     "collapse": "[minimizar]",
     "content_placeholder": "Introduza o conteúdo da nota...",
     "copyContent": "copiar conteúdo",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
+    "crossPlatformRestoreWarning": "Configuração multiplataforma restaurada, mas o diretório de notas está vazio. Por favor, copie seus arquivos de nota para: {{path}}",
     "delete": "eliminar",
     "delete_confirm": "Tem a certeza de que deseja eliminar este {{type}}?",
     "delete_folder_confirm": "Tem a certeza de que deseja eliminar a pasta \"{{name}}\" e todos os seus conteúdos?",
@@ -2643,7 +2646,7 @@
     "lanyun": "Lanyun Tecnologia",
     "lmstudio": "Estúdio LM",
     "longcat": "Totoro",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "Xiaomi MiMo",
     "minimax": "Minimax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MôDá",
@@ -3232,24 +3235,43 @@
         },
         "content": "Exportar parte dos dados, incluindo registros de conversas e configurações. Observe que o processo de backup pode demorar um pouco; agradecemos sua paciência.",
         "lan": {
-          "auto_close_tip": "Fechando automaticamente em {{seconds}} segundos...",
-          "confirm_close_message": "Transferência de arquivo em andamento. Fechar irá interromper a transferência. Tem certeza de que deseja forçar o fechamento?",
-          "confirm_close_title": "Confirmar Fechamento",
           "connected": "Conectado",
           "connection_failed": "Falha na conexão",
           "content": "Certifique-se de que o computador e o telefone estejam na mesma rede para usar a transferência via LAN. Abra o aplicativo Cherry Studio e escaneie este código QR.",
+          "device_list_title": "Dispositivos de rede local",
+          "discovered_devices": "Dispositivos descobertos",
           "error": {
+            "file_too_large": "Arquivo muito grande, máximo de 500MB suportado",
             "init_failed": "Falha na inicialização",
+            "invalid_file_type": "Apenas arquivos ZIP são suportados",
             "no_file": "Nenhum arquivo selecionado",
             "no_ip": "Incapaz de obter endereço IP",
+            "not_connected": "Por favor, complete primeiro o handshake",
             "send_failed": "Falha ao enviar arquivo"
           },
-          "force_close": "Forçar Fechamento",
-          "generating_qr": "Gerando código QR...",
-          "noZipSelected": "Nenhum arquivo de compressão selecionado",
-          "scan_qr": "Por favor, escaneie o código QR com o seu telefone",
-          "selectZip": "Selecionar arquivo compactado",
-          "sendZip": "Iniciar recuperação de dados",
+          "file_transfer": {
+            "cancelled": "Transferência cancelada",
+            "failed": "Falha na transferência de arquivo: {{message}}",
+            "progress": "Enviando... {{progress}}%",
+            "success": "Arquivo enviado com sucesso"
+          },
+          "handshake": {
+            "button": "Aperto de mão",
+            "failed": "Falha no handshake: {{message}}",
+            "in_progress": "Aperto de mãos...",
+            "success": "Handshake concluído com {{device}}",
+            "test_message_received": "Recebido pong de {{device}}",
+            "test_message_sent": "Enviou payload de teste hello world"
+          },
+          "idle_hint": "Digitalização pausada. Inicie a digitalização para encontrar pares do Cherry Studio na sua rede local.",
+          "ip_addresses": "Endereços IP",
+          "last_seen": "Visto pela última vez às {{time}}",
+          "metadata": "Metadados",
+          "no_connection_warning": "Por favor, abra a Transferência LAN no Cherry Studio mobile",
+          "no_devices": "Ainda não foram encontrados pares de LAN.",
+          "scan_devices": "Escaneie dispositivos",
+          "scanning_hint": "Escaneando sua rede local por pares do Cherry Studio...",
+          "send_file": "Enviar Arquivo",
           "status": {
             "completed": "Transferência concluída",
             "connected": "Conectado",
@@ -3258,9 +3280,11 @@
             "error": "Erro de conexão",
             "initializing": "Inicializando conexão...",
             "preparing": "Preparando transferência...",
-            "sending": "Transferindo {{progress}}%",
-            "waiting_qr_scan": "Por favor, escaneie o código QR para conectar"
+            "sending": "Transferindo {{progress}}%"
           },
+          "status_badge_idle": "Ocioso",
+          "status_badge_scanning": "Digitalização",
+          "stop_scan": "Parar digitalização",
           "title": "transmissão de rede local",
           "transfer_progress": "Progresso da transferência"
         },
@@ -4735,6 +4759,12 @@
       },
       "title": "Configurações de Ferramentas",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} requer uma chave de API para funcionar. Você gostaria de configurá-la agora?",
+          "ok": "Configurar",
+          "title": "Chave de API Necessária"
+        },
+        "api_providers": "Provedores de API",
         "apikey": "Chave API",
         "blacklist": "Lista Negra",
         "blacklist_description": "Os resultados dos seguintes sites não aparecerão nos resultados de pesquisa",
@@ -4776,7 +4806,15 @@
         },
         "content_limit": "Limite de comprimento do conteúdo",
         "content_limit_tooltip": "Limita o comprimento do conteúdo dos resultados de pesquisa; o conteúdo excedente será truncado",
+        "default_provider": "Provedor Padrão",
         "free": "Grátis",
+        "is_default": "Padrão",
+        "local_provider": {
+          "hint": "Faça login no site para obter melhores resultados de pesquisa e personalizar suas configurações de busca.",
+          "open_settings": "Abrir Configurações do {{provider}}",
+          "settings": "Configurações de Pesquisa Local"
+        },
+        "local_providers": "Fornecedores Locais",
         "no_provider_selected": "Por favor, selecione um provedor de pesquisa antes de verificar",
         "overwrite": "Substituir busca do provedor",
         "overwrite_tooltip": "Força o uso do provedor de pesquisa em vez do modelo de linguagem grande",
@@ -4787,6 +4825,7 @@
         "search_provider": "Provedor de pesquisa",
         "search_provider_placeholder": "Selecione um provedor de pesquisa",
         "search_with_time": "Pesquisar com data",
+        "set_as_default": "Definir como Padrão",
         "subscribe": "Assinatura de lista negra",
         "subscribe_add": "Adicionar assinatura",
         "subscribe_add_failed": "Falha ao adicionar a fonte de subscrição",

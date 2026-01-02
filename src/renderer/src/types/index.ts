@@ -93,6 +93,7 @@ const ThinkModelTypes = [
   'gpt5_2',
   'gpt5pro',
   'gpt52pro',
+  'gpt_oss',
   'grok',
   'grok4_fast',
   'gemini2_flash',
@@ -396,6 +397,7 @@ export interface DmxapiPainting extends PaintingParams {
   autoCreate?: boolean
   generationMode?: generationModeType
   priceModel?: string
+  extend_params?: Record<string, unknown>
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -916,17 +918,11 @@ export * from './tool'
 // Memory Service Types
 // ========================================================================
 export interface MemoryConfig {
-  /**
-   * @deprecated use embedderApiClient instead
-   */
-  embedderModel?: Model
-  embedderDimensions?: number
-  /**
-   * @deprecated use llmApiClient instead
-   */
+  embeddingDimensions?: number
+  embeddingModel?: Model
   llmModel?: Model
-  embedderApiClient?: ApiClient
-  llmApiClient?: ApiClient
+  // Dynamically retrieved, not persistently stored
+  embeddingApiClient?: ApiClient
   customFactExtractionPrompt?: string
   customUpdateMemoryPrompt?: string
   /** Indicates whether embedding dimensions are automatically detected */

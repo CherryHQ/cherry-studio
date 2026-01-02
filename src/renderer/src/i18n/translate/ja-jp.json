@@ -32,7 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "自動検出されたGit Bashを使用中",
-      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
+      "autoDiscoveredHint": "自動検出",
       "clear": {
         "button": "カスタムパスをクリア"
       },
@@ -40,7 +40,7 @@
       "error": {
         "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
         "recheck": "Git Bashのインストールを再確認してください",
-        "required": "[to be translated]:Git Bash path is required on Windows",
+        "required": "WindowsではGit Bashのパスが必要です",
         "title": "Git Bashが必要です"
       },
       "found": {
@@ -53,9 +53,9 @@
         "invalidPath": "選択されたファイルは有効なGit Bash実行ファイル（bash.exe）ではありません。",
         "title": "Git Bash実行ファイルを選択"
       },
-      "placeholder": "[to be translated]:Select bash.exe path",
+      "placeholder": "bash.exeのパスを選択",
       "success": "Git Bashが正常に検出されました！",
-      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "Windowsでエージェントを実行するにはGit Bashが必要です。まだインストールされていない場合は、git-scm.comからインストールしてください。"
     },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "アシスタントを削除すると、そのアシスタントのすべてのトピックとファイルが削除されます。削除しますか？",
+      "error": {
+        "remain_one": "最後の1人のアシスタントは削除できません"
+      },
       "title": "アシスタントを削除"
     },
     "edit": {
@@ -2198,7 +2201,7 @@
     "collapse": "閉じる",
     "content_placeholder": "メモの内容を入力してください...",
     "copyContent": "コンテンツをコピーします",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
+    "crossPlatformRestoreWarning": "クロスプラットフォーム設定は復元されましたが、ノートディレクトリが空です。ノートファイルを次の場所にコピーしてください：{{path}}",
     "delete": "削除",
     "delete_confirm": "この{{type}}を本当に削除しますか？",
     "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
@@ -2643,7 +2646,7 @@
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
     "longcat": "トトロ",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "シャオミ・ミモ",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3232,24 +3235,43 @@
         },
         "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
         "lan": {
-          "auto_close_tip": "{{seconds}}秒後に自動的に閉じます...",
-          "confirm_close_message": "ファイル転送が進行中です。閉じると転送が中断されます。強制終了してもよろしいですか？",
-          "confirm_close_title": "閉じることを確認",
           "connected": "接続済み",
           "connection_failed": "接続に失敗しました",
           "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",
+          "device_list_title": "ローカルネットワークデバイス",
+          "discovered_devices": "発見されたデバイス",
           "error": {
+            "file_too_large": "ファイルが大きすぎます。最大500MBまでサポートされています。",
             "init_failed": "初期化に失敗しました",
+            "invalid_file_type": "ZIPファイルのみがサポートされています",
             "no_file": "ファイルが選択されていません",
             "no_ip": "IPアドレスを取得できません",
+            "not_connected": "まずハンドシェイクを完了してください",
             "send_failed": "ファイルの送信に失敗しました"
           },
-          "force_close": "強制終了",
-          "generating_qr": "QRコードを生成中...",
-          "noZipSelected": "圧縮ファイルが選択されていません",
-          "scan_qr": "携帯電話でQRコードをスキャンしてください",
-          "selectZip": "圧縮ファイルを選択",
-          "sendZip": "データの復元を開始します",
+          "file_transfer": {
+            "cancelled": "転送がキャンセルされました",
+            "failed": "ファイル転送に失敗しました: {{message}}",
+            "progress": "送信中... {{progress}}%",
+            "success": "ファイルは正常に送信されました"
+          },
+          "handshake": {
+            "button": "握手",
+            "failed": "ハンドシェイクに失敗しました: {{message}}",
+            "in_progress": "ハンドシェイク中...",
+            "success": "{{device}}とのハンドシェイクが完了しました",
+            "test_message_received": "{{device}}からpongを受信しました",
+            "test_message_sent": "hello world テストペイロードを送信しました"
+          },
+          "idle_hint": "スキャンが一時停止されました。スキャンを開始して、LAN上のCherry Studioピアを検索してください。",
+          "ip_addresses": "IPアドレス",
+          "last_seen": "最後に見たのは{{time}}",
+          "metadata": "メタデータ",
+          "no_connection_warning": "Cherry StudioモバイルでLAN転送を開いてください",
+          "no_devices": "まだLANピアが見つかっていません",
+          "scan_devices": "デバイスをスキャン",
+          "scanning_hint": "ローカルネットワークでCherry Studioのピアをスキャンしています...",
+          "send_file": "ファイルを送信",
           "status": {
             "completed": "転送完了",
             "connected": "接続済み",
@@ -3258,9 +3280,11 @@
             "error": "接続エラー",
             "initializing": "接続を初期化中...",
             "preparing": "転送準備中...",
-            "sending": "転送中 {{progress}}%",
-            "waiting_qr_scan": "QRコードをスキャンして接続してください"
+            "sending": "転送中 {{progress}}%"
           },
+          "status_badge_idle": "アイドル",
+          "status_badge_scanning": "スキャン",
+          "stop_scan": "スキャンを停止",
           "title": "LAN転送",
           "transfer_progress": "転送進行"
         },
@@ -4735,6 +4759,12 @@
       },
       "title": "その他の設定",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}}はAPIキーが必要です。今すぐ設定しますか？",
+          "ok": "設定",
+          "title": "APIキーが必要"
+        },
+        "api_providers": "APIプロバイダー",
         "apikey": "APIキー",
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
@@ -4776,7 +4806,15 @@
         },
         "content_limit": "コンテンツ制限",
         "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
+        "default_provider": "デフォルトプロバイダー",
         "free": "無料",
+        "is_default": "デフォルト",
+        "local_provider": {
+          "hint": "ウェブサイトにログインして、より良い検索結果を得て、検索設定をパーソナライズしてください。",
+          "open_settings": "{{provider}}設定を開く",
+          "settings": "ローカル検索設定"
+        },
+        "local_providers": "地元のプロバイダー",
         "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
         "overwrite": "検索サービスを上書き",
         "overwrite_tooltip": "LLMの代わりに検索サービスを強制的に使用する",
@@ -4787,6 +4825,7 @@
         "search_provider": "検索サービスプロバイダー",
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
         "search_with_time": "日付を含む検索",
+        "set_as_default": "既定として設定",
         "subscribe": "ブラックリスト購読",
         "subscribe_add": "購読を追加",
         "subscribe_add_failed": "購読ソースの追加に失敗しました",

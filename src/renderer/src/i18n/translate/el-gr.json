@@ -32,7 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Χρησιμοποιείται αυτόματα εντοπισμένο Git Bash",
-      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
+      "autoDiscoveredHint": "Αυτόματα ανακαλυφθέντα",
       "clear": {
         "button": "Διαγραφή προσαρμοσμένης διαδρομής"
       },
@@ -40,7 +40,7 @@
       "error": {
         "description": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Ο πράκτορας δεν μπορεί να λειτουργήσει χωρίς αυτό. Παρακαλούμε εγκαταστήστε το Git για Windows από",
         "recheck": "Επανέλεγχος Εγκατάστασης του Git Bash",
-        "required": "[to be translated]:Git Bash path is required on Windows",
+        "required": "Απαιτείται διαδρομή του Git Bash στα Windows",
         "title": "Απαιτείται Git Bash"
       },
       "found": {
@@ -53,9 +53,9 @@
         "invalidPath": "Το επιλεγμένο αρχείο δεν είναι έγκυρο εκτελέσιμο Git Bash (bash.exe).",
         "title": "Επιλογή εκτελέσιμου Git Bash"
       },
-      "placeholder": "[to be translated]:Select bash.exe path",
+      "placeholder": "Επιλέξτε τη διαδρομή του bash.exe",
       "success": "Το Git Bash εντοπίστηκε με επιτυχία!",
-      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Εγκαταστήστε το από το git-scm.com εάν δεν είναι διαθέσιμο."
     },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "Η διαγραφή του βοηθού θα διαγράψει όλα τα θέματα και τα αρχεία που είναι συνδεδεμένα με αυτόν. Είστε σίγουροι πως θέλετε να συνεχίσετε;",
+      "error": {
+        "remain_one": "Δεν επιτρέπεται η διαγραφή του τελευταίου βοηθού"
+      },
       "title": "Διαγραφή βοηθού"
     },
     "edit": {
@@ -2198,7 +2201,7 @@
     "collapse": "σύμπτυξη",
     "content_placeholder": "Παρακαλώ εισαγάγετε το περιεχόμενο των σημειώσεων...",
     "copyContent": "αντιγραφή περιεχομένου",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
+    "crossPlatformRestoreWarning": "Η διαμόρφωση πολλαπλών πλατφορμών έχει επαναφερθεί, αλλά ο κατάλογος σημειώσεων είναι κενός. Παρακαλώ αντιγράψτε τα αρχεία σημειώσεών σας στο: {{path}}",
     "delete": "διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτό το {{type}};",
     "delete_folder_confirm": "Θέλετε να διαγράψετε τον φάκελο «{{name}}» και όλο το περιεχόμενό του;",
@@ -2643,7 +2646,7 @@
     "lanyun": "Λανιούν Τεχνολογία",
     "lmstudio": "LM Studio",
     "longcat": "Τσίρο",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope Magpie",
@@ -3232,24 +3235,43 @@
         },
         "content": "Εξαγωγή μέρους των δεδομένων, συμπεριλαμβανομένων των ιστορικών συνομιλιών και των ρυθμίσεων. Σημειώστε ότι η διαδικασία δημιουργίας αντιγράφων ασφαλείας ενδέχεται να διαρκέσει κάποιο χρονικό διάστημα, ευχαριστούμε για την υπομονή σας.",
         "lan": {
-          "auto_close_tip": "Αυτόματο κλείσιμο σε {{seconds}} δευτερόλεπτα...",
-          "confirm_close_message": "Η μεταφορά αρχείων είναι σε εξέλιξη. Το κλείσιμο θα διακόψει τη μεταφορά. Είστε σίγουροι ότι θέλετε να κλείσετε βίαια;",
-          "confirm_close_title": "Επιβεβαίωση Κλεισίματος",
           "connected": "Συνδεδεμένος",
           "connection_failed": "Η σύνδεση απέτυχε",
           "content": "Βεβαιωθείτε ότι ο υπολογιστής και το κινητό βρίσκονται στο ίδιο δίκτυο για να χρησιμοποιήσετε τη μεταφορά LAN. Ανοίξτε την εφαρμογή Cherry Studio και σαρώστε αυτόν τον κωδικό QR.",
+          "device_list_title": "Τοπικές συσκευές δικτύου",
+          "discovered_devices": "Ανακαλυφθείσες συσκευές",
           "error": {
+            "file_too_large": "Το αρχείο είναι πολύ μεγάλο, υποστηρίζεται μέγιστο μέγεθος 500 MB",
             "init_failed": "Η αρχικοποίηση απέτυχε",
+            "invalid_file_type": "Μόνο αρχεία ZIP υποστηρίζονται",
             "no_file": "Κανένα αρχείο δεν επιλέχθηκε",
             "no_ip": "Αδυναμία λήψης διεύθυνσης IP",
+            "not_connected": "Παρακαλώ ολοκληρώστε πρώτα τη χειραψία",
             "send_failed": "Αποτυχία αποστολής αρχείου"
           },
-          "force_close": "Κλείσιμο με βία",
-          "generating_qr": "Δημιουργία κώδικα QR...",
-          "noZipSelected": "Δεν επιλέχθηκε συμπιεσμένο αρχείο",
-          "scan_qr": "Παρακαλώ σαρώστε τον κωδικό QR με το τηλέφωνό σας",
-          "selectZip": "Επιλέξτε συμπιεσμένο αρχείο",
-          "sendZip": "Έναρξη ανάκτησης δεδομένων",
+          "file_transfer": {
+            "cancelled": "Η μεταφορά ακυρώθηκε",
+            "failed": "Η μεταφορά αρχείου απέτυχε: {{message}}",
+            "progress": "Αποστολή... {{progress}}%",
+            "success": "Το αρχείο εστάλη με επιτυχία"
+          },
+          "handshake": {
+            "button": "Χειραψία",
+            "failed": "Η χειραψία απέτυχε: {{message}}",
+            "in_progress": "Χειραψία...",
+            "success": "Η χειραψία ολοκληρώθηκε με τη συσκευή {{device}}",
+            "test_message_received": "Λήφθηκε pong από {{device}}",
+            "test_message_sent": "Στάλθηκε δοκιμαστικό φορτίο hello world"
+          },
+          "idle_hint": "Η σάρωση διακόπηκε. Ξεκινήστε τη σάρωση για να βρείτε ομότιμους του Cherry Studio στο τοπικό σας δίκτυο.",
+          "ip_addresses": "Διευθύνσεις IP",
+          "last_seen": "Τελευταία φορά εθεάθηκε στις {{time}}",
+          "metadata": "Μεταδεδομένα",
+          "no_connection_warning": "Παρακαλώ ανοίξτε τη μεταφορά LAN στο Cherry Studio mobile",
+          "no_devices": "Δεν βρέθηκαν ακόμα συσκευές LAN",
+          "scan_devices": "Σάρωση συσκευών",
+          "scanning_hint": "Σάρωση του τοπικού σας δικτύου για ομότιμους του Cherry Studio...",
+          "send_file": "Αποστολή Αρχείου",
           "status": {
             "completed": "Η μεταφορά ολοκληρώθηκε",
             "connected": "Συνδεδεμένος",
@@ -3258,9 +3280,11 @@
             "error": "Σφάλμα σύνδεσης",
             "initializing": "Αρχικοποίηση σύνδεσης...",
             "preparing": "Προετοιμασία μεταφοράς...",
-            "sending": "Μεταφορά {{progress}}%",
-            "waiting_qr_scan": "Παρακαλώ σαρώστε τον κωδικό QR για σύνδεση"
+            "sending": "Μεταφορά {{progress}}%"
           },
+          "status_badge_idle": "Αδρανής",
+          "status_badge_scanning": "Σάρωση",
+          "stop_scan": "Διακοπή σάρωσης",
           "title": "Μεταφορά τοπικού δικτύου",
           "transfer_progress": "Πρόοδος μεταφοράς"
         },
@@ -3940,7 +3964,7 @@
         "mcp_auto_install": "Αυτόματη εγκατάσταση υπηρεσίας MCP (προβολή)",
         "memory": "Βασική υλοποίηση μόνιμης μνήμης με βάση τοπικό γράφημα γνώσης. Αυτό επιτρέπει στο μοντέλο να θυμάται πληροφορίες σχετικές με τον χρήστη ανάμεσα σε διαφορετικές συνομιλίες. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος MEMORY_FILE_PATH.",
         "no": "Χωρίς περιγραφή",
-        "nowledge_mem": "[to be translated]:Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
+        "nowledge_mem": "Απαιτεί την εφαρμογή Nowledge Mem να εκτελείται τοπικά. Διατηρεί συνομιλίες με AI, εργαλεία, σημειώσεις, πράκτορες και αρχεία σε ιδιωτική μνήμη στον υπολογιστή σας. Κάντε λήψη από https://mem.nowledge.co/",
         "python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",
         "sequentialthinking": "ένας εξυπηρετητής MCP που υλοποιείται, παρέχοντας εργαλεία για δυναμική και αναστοχαστική επίλυση προβλημάτων μέσω δομημένων διαδικασιών σκέψης"
       },
@@ -4735,6 +4759,12 @@
       },
       "title": "Ρυθμίσεις Εργαλείων",
       "websearch": {
+        "api_key_required": {
+          "content": "Ο {{provider}} απαιτεί κλειδί API για να λειτουργήσει. Θα θέλατε να το διαμορφώσετε τώρα;",
+          "ok": "Ρυθμίστε",
+          "title": "Απαιτείται κλειδί API"
+        },
+        "api_providers": "Πάροχοι API",
         "apikey": "Κλειδί API",
         "blacklist": "Μαύρη Λίστα",
         "blacklist_description": "Τα αποτελέσματα από τους παρακάτω ιστότοπους δεν θα εμφανίζονται στα αποτελέσματα αναζήτησης",
@@ -4776,7 +4806,15 @@
         },
         "content_limit": "Όριο μήκους περιεχομένου",
         "content_limit_tooltip": "Περιορίζει το μήκος του περιεχομένου των αποτελεσμάτων αναζήτησης, το περιεχόμενο πέραν του ορίου θα περικοπεί",
+        "default_provider": "Προεπιλεγμένος Πάροχος",
         "free": "Δωρεάν",
+        "is_default": "Προεπιλογή",
+        "local_provider": {
+          "hint": "Συνδεθείτε στην ιστοσελίδα για να λάβετε καλύτερα αποτελέσματα αναζήτησης και να εξατομικεύσετε τις ρυθμίσεις αναζήτησής σας.",
+          "open_settings": "Άνοιγμα Ρυθμίσεων {{provider}}",
+          "settings": "Ρυθμίσεις τοπικής αναζήτησης"
+        },
+        "local_providers": "Τοπικοί Πάροχοι",
         "no_provider_selected": "Παρακαλώ επιλέξτε πάροχο αναζήτησης πριν τον έλεγχο",
         "overwrite": "Αντικατάσταση αναζήτησης παρόχου",
         "overwrite_tooltip": "Εξαναγκάζει τη χρήση του παρόχου αναζήτησης αντί για μοντέλο μεγάλης γλώσσας για αναζήτηση",
@@ -4787,6 +4825,7 @@
         "search_provider": "Πάροχος αναζήτησης",
         "search_provider_placeholder": "Επιλέξτε έναν πάροχο αναζήτησης",
         "search_with_time": "Αναζήτηση με ημερομηνία",
+        "set_as_default": "Ορισμός ως προεπιλογή",
         "subscribe": "Εγγραφή σε μαύρη λίστα",
         "subscribe_add": "Προσθήκη εγγραφής",
         "subscribe_add_failed": "Η προσθήκη της ροής συνδρομής απέτυχε",
