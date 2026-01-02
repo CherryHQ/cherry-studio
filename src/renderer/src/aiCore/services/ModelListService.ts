@@ -1,15 +1,22 @@
 /**
  * ModelListService - Unified model listing service
- * Fetches model lists from various providers using getFromApi
+ * Fetches model lists from various providers using AI SDK's getFromApi
  */
+
+import {
+  createJsonErrorResponseHandler,
+  createJsonResponseHandler,
+  getFromApi as aiSdkGetFromApi,
+  zodSchema
+} from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
-import type { Model, Provider } from '@renderer/types'
+import type { EndpointType, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { formatApiHost, withoutTrailingSlash } from '@renderer/utils'
 import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider } from '@renderer/utils/provider'
 import { defaultAppHeaders } from '@shared/utils'
+import * as z from 'zod'
 
-import { APICallError, getJsonFromApi } from './get-from-api'
 import {
   type GeminiModelsResponse,
   GeminiModelsResponseSchema,
@@ -28,6 +35,47 @@ import {
 } from './schemas'
 
 const logger = loggerService.withContext('ModelListService')
+
+// Error schema for API error responses
+const ApiErrorSchema = z.object({
+  error: z
+    .object({
+      message: z.string().optional(),
+      code: z.string().optional()
+    })
+    .optional(),
+  message: z.string().optional()
+})
+
+type ApiError = z.infer<typeof ApiErrorSchema>
+
+/**
+ * Type-safe fetch wrapper using AI SDK's getFromApi with Zod schema validation
+ */
+async function getFromApi<T>({
+  url,
+  headers,
+  responseSchema,
+  abortSignal
+}: {
+  url: string
+  headers?: Record<string, string>
+  responseSchema: z.ZodType<T>
+  abortSignal?: AbortSignal
+}): Promise<T> {
+  const { value } = await aiSdkGetFromApi({
+    url,
+    headers,
+    successfulResponseHandler: createJsonResponseHandler(zodSchema(responseSchema)),
+    failedResponseHandler: createJsonErrorResponseHandler({
+      errorSchema: zodSchema(ApiErrorSchema),
+      errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
+    }),
+    abortSignal
+  })
+
+  return value
+}
 
 // === Helper Functions ===
 
@@ -237,7 +285,8 @@ function convertNewApiModelsToModels(provider: Provider, response: NewApiModelsR
       provider: provider.id,
       group: getDefaultGroupName(id, provider.id),
       owned_by: model.owned_by,
-      supported_endpoint_types: model.supported_endpoint_types as any
+      // The Zod schema type is a subset of EndpointType, safe to cast
+      supported_endpoint_types: model.supported_endpoint_types as EndpointType[] | undefined
     })
   }
 
@@ -320,7 +369,7 @@ export class ModelListService {
     const baseUrl = formatApiHost(provider.apiHost)
     const url = `${baseUrl}/models`
 
-    const response = await getJsonFromApi({
+    const response = await getFromApi({
       url,
       headers: getDefaultHeaders(provider),
       responseSchema: OpenAIModelsResponseSchema,
@@ -336,7 +385,7 @@ export class ModelListService {
       .replace(/\/api$/, '')
     const url = `${baseUrl}/api/tags`
 
-    const response = await getJsonFromApi({
+    const response = await getFromApi({
       url,
       headers: getDefaultHeaders(provider),
       responseSchema: OllamaTagsResponseSchema,
@@ -354,7 +403,7 @@ export class ModelListService {
     const apiVersion = provider.apiVersion || 'v1beta'
     const url = `${baseUrl}/${apiVersion}/models?key=${getApiKey(provider)}`
 
-    const response = await getJsonFromApi({
+    const response = await getFromApi({
       url,
       headers: {
         ...defaultAppHeaders(),
@@ -370,7 +419,7 @@ export class ModelListService {
   private static async fetchGitHubModels(provider: Provider, abortSignal?: AbortSignal): Promise<Model[]> {
     const url = 'https://models.github.ai/catalog/'
 
-    const response = await getJsonFromApi({
+    const response = await getFromApi({
       url,
       headers: getDefaultHeaders(provider),
       responseSchema: GitHubModelsResponseSchema,
@@ -384,7 +433,7 @@ export class ModelListService {
     const baseUrl = formatApiHost(withoutTrailingSlash(provider.apiHost).replace(/\/v1$/, ''), true, 'v1')
     const url = `${baseUrl}/config`
 
-    const response = await getJsonFromApi({
+    const response = await getFromApi({
       url,
       headers: getDefaultHeaders(provider),
       responseSchema: OVMSConfigResponseSchema,
@@ -398,7 +447,7 @@ export class ModelListService {
     const baseUrl = formatApiHost(provider.apiHost)
     const url = `${baseUrl}/models`
 
-    const response = await getJsonFromApi({
+    const response = await getFromApi({
       url,
       headers: getDefaultHeaders(provider),
       responseSchema: TogetherModelsResponseSchema,
@@ -412,7 +461,7 @@ export class ModelListService {
     const baseUrl = formatApiHost(provider.apiHost)
     const url = `${baseUrl}/models`
 
-    const response = await getJsonFromApi({
+    const response = await getFromApi({
       url,
       headers: getDefaultHeaders(provider),
       responseSchema: NewApiModelsResponseSchema,
@@ -428,13 +477,13 @@ export class ModelListService {
     const embedBaseUrl = 'https://openrouter.ai/api/v1/embeddings'
 
     const [modelsResponse, embedModelsResponse] = await Promise.all([
-      getJsonFromApi({
+      getFromApi({
         url: `${baseUrl}/models`,
         headers: getDefaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal
       }),
-      getJsonFromApi({
+      getFromApi({
         url: `${embedBaseUrl}/models`,
         headers: getDefaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
@@ -454,19 +503,19 @@ export class ModelListService {
 
     // PPIO requires three separate requests to get all model types
     const [chatModelsResponse, embeddingModelsResponse, rerankerModelsResponse] = await Promise.all([
-      getJsonFromApi({
+      getFromApi({
         url: `${baseUrl}/models`,
         headers: getDefaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal
       }),
-      getJsonFromApi({
+      getFromApi({
         url: `${baseUrl}/models?model_type=embedding`,
         headers: getDefaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal
       }).catch(() => ({ data: [] })),
-      getJsonFromApi({
+      getFromApi({
         url: `${baseUrl}/models?model_type=reranker`,
         headers: getDefaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
@@ -480,5 +529,3 @@ export class ModelListService {
     return convertOpenAIModelsToModels(provider, { data: allModels })
   }
 }
-
-export { APICallError }
