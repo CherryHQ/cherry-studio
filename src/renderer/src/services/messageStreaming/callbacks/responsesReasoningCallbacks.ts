@@ -2,8 +2,9 @@ import { loggerService } from '@logger'
 import type { AppDispatch, RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Message } from '@renderer/types'
+import type { ResponsesReasoningRawPayload } from '@renderer/utils/responsesReasoning'
+import { parseResponsesReasoningRawPayload } from '@renderer/utils/responsesReasoning'
 import type { ProviderMetadata } from 'ai'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('ResponsesReasoningCallbacks')
 
@@ -18,24 +19,6 @@ interface ResponsesReasoningCallbacksDependencies {
     messageUpdates: Partial<Message>,
     blocksToUpdate: any[]
   ) => Promise<void>
-}
-
-type ResponsesReasoningRawPayload = {
-  type: 'responses_reasoning'
-  itemId: string
-  encryptedContent: string
-}
-
-const ResponsesReasoningRawPayloadSchema = z.object({
-  type: z.literal('responses_reasoning'),
-  itemId: z.string().min(1),
-  encryptedContent: z.string().min(1)
-})
-
-function parseResponsesReasoningRawPayload(value: unknown): ResponsesReasoningRawPayload | undefined {
-  const parsed = ResponsesReasoningRawPayloadSchema.safeParse(value)
-  if (!parsed.success) return undefined
-  return parsed.data
 }
 
 export const createResponsesReasoningCallbacks = (deps: ResponsesReasoningCallbacksDependencies) => {

@@ -3,8 +3,7 @@
  * 将 Cherry Studio 消息格式转换为 AI SDK 消息格式
  */
 
-import type { JSONValue } from '@ai-sdk/provider'
-import type { ReasoningPart } from '@ai-sdk/provider-utils'
+import { type ReasoningPart, safeParseJSON } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
@@ -17,6 +16,7 @@ import {
   findToolBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
+import { parseResponsesReasoningRawPayload } from '@renderer/utils/responsesReasoning'
 import type {
   AssistantModelMessage,
   FilePart,
@@ -47,35 +47,7 @@ export async function convertMessageToSdkParam(
   if (message.role === 'user' || message.role === 'system') {
     return convertMessageToUserModelMessage(content, fileBlocks, imageBlocks, isVisionModel, model)
   } else {
-    const toolBlocks = findToolBlocks(message)
-    const toolHistoryMessages = buildToolHistoryMessages(toolBlocks)
-
-    const assistantMessage = await convertMessageToAssistantModelMessage(
-      message,
-      content,
-      fileBlocks,
-      reasoningBlocks,
-      model
-    )
-
-    const hasAssistantContent =
-      typeof assistantMessage.content === 'string'
-        ? assistantMessage.content.trim().length > 0
-        : Array.isArray(assistantMessage.content) && assistantMessage.content.length > 0
-
-    if (toolHistoryMessages.length === 0) {
-      return assistantMessage
-    }
-
-    return hasAssistantContent ? [...toolHistoryMessages, assistantMessage] : toolHistoryMessages
-  }
-}
-
-function safeParseJSON(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return value
+    return convertMessageToAssistantModelMessage(message, content, fileBlocks, reasoningBlocks, model)
   }
 }
 
@@ -89,7 +61,7 @@ function stringifyToolOutput(value: unknown): string {
   }
 }
 
-function buildToolHistoryMessages(toolBlocks: any[]): ModelMessage[] {
+async function buildToolHistoryMessages(toolBlocks: any[]): Promise<ModelMessage[]> {
   const toolResponses = toolBlocks.map((block) => (block as any)?.metadata?.rawMcpToolResponse).filter(Boolean)
 
   // Only replay client-side tools (function_call/function_call_output).
@@ -98,12 +70,21 @@ function buildToolHistoryMessages(toolBlocks: any[]): ModelMessage[] {
 
   if (replayable.length === 0) return []
 
-  const toolCallParts = replayable.map((tr: any) => ({
-    type: 'tool-call' as const,
-    toolCallId: tr.toolCallId ?? tr.id,
-    toolName: tr.tool?.name ?? tr.toolName,
-    input: typeof tr.arguments === 'string' ? safeParseJSON(tr.arguments) : tr.arguments
-  }))
+  const parseToolCallInput = async (value: unknown): Promise<unknown> => {
+    if (typeof value !== 'string') return value
+
+    const parsed = await safeParseJSON({ text: value })
+    return parsed.success ? parsed.value : value
+  }
+
+  const toolCallParts = await Promise.all(
+    replayable.map(async (tr: any) => ({
+      type: 'tool-call' as const,
+      toolCallId: tr.toolCallId ?? tr.id,
+      toolName: tr.tool?.name ?? tr.toolName,
+      input: await parseToolCallInput(tr.arguments)
+    }))
+  )
 
   const toolResultParts = replayable
     .filter((tr: any) => tr.status === 'done' || tr.status === 'error' || tr.status === 'cancelled')
@@ -254,7 +235,10 @@ async function convertMessageToAssistantModelMessage(
   fileBlocks: FileMessageBlock[],
   thinkingBlocks: ThinkingMessageBlock[],
   model?: Model
-): Promise<AssistantModelMessage> {
+): Promise<ModelMessage | ModelMessage[]> {
+  const toolBlocks = findToolBlocks(message)
+  const toolHistoryMessages = await buildToolHistoryMessages(toolBlocks)
+
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
 
   const replayEncryptedReasoningPart = buildOpenAIResponsesReasoningReplayPart(message)
@@ -292,10 +276,21 @@ async function convertMessageToAssistantModelMessage(
     }
   }
 
-  return {
+  const assistantMessage: AssistantModelMessage = {
     role: 'assistant',
     content: parts
   }
+
+  const hasAssistantContent =
+    typeof assistantMessage.content === 'string'
+      ? assistantMessage.content.trim().length > 0
+      : Array.isArray(assistantMessage.content) && assistantMessage.content.length > 0
+
+  if (toolHistoryMessages.length === 0) {
+    return assistantMessage
+  }
+
+  return hasAssistantContent ? [...toolHistoryMessages, assistantMessage] : toolHistoryMessages
 }
 
 function buildOpenAIResponsesReasoningReplayPart(message: Message): ReasoningPart | undefined {
@@ -303,21 +298,16 @@ function buildOpenAIResponsesReasoningReplayPart(message: Message): ReasoningPar
   // This data arrives via AI SDK providerMetadata as:
   // providerMetadata.openai.{ itemId, reasoningEncryptedContent }
   const openaiProviderMetadata = message.providerMetadata?.openai
-  if (!openaiProviderMetadata || typeof openaiProviderMetadata !== 'object') return undefined
-
-  const itemId = (openaiProviderMetadata as Record<string, JSONValue>).itemId
-  const reasoningEncryptedContent = (openaiProviderMetadata as Record<string, JSONValue>).reasoningEncryptedContent
-
-  if (typeof itemId !== 'string' || itemId.length === 0) return undefined
-  if (typeof reasoningEncryptedContent !== 'string' || reasoningEncryptedContent.length === 0) return undefined
+  const parsed = parseResponsesReasoningRawPayload(openaiProviderMetadata)
+  if (!parsed) return undefined
 
   return {
     type: 'reasoning',
     text: '',
     providerOptions: {
       openai: {
-        itemId,
-        reasoningEncryptedContent
+        itemId: parsed.itemId,
+        reasoningEncryptedContent: parsed.encryptedContent
       }
     }
   }
