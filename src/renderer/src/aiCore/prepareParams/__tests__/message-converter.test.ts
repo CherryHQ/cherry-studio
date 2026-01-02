@@ -509,7 +509,8 @@ describe('messageConverter', () => {
       user1.__mockContent = 'Help me design a futuristic robot with blue lights'
 
       const assistant1 = createMessage('assistant')
-      assistant1.__mockContent = 'Great idea! The robot could have a sleek metallic body with glowing blue LED strips...'
+      assistant1.__mockContent =
+        'Great idea! The robot could have a sleek metallic body with glowing blue LED strips...'
       assistant1.__mockImageBlocks = [] // LLM response, no images
 
       const user2 = createMessage('user')
@@ -534,7 +535,12 @@ describe('messageConverter', () => {
         },
         {
           role: 'assistant',
-          content: [{ type: 'text', text: 'Great idea! The robot could have a sleek metallic body with glowing blue LED strips...' }]
+          content: [
+            {
+              type: 'text',
+              text: 'Great idea! The robot could have a sleek metallic body with glowing blue LED strips...'
+            }
+          ]
         },
         {
           role: 'user',
