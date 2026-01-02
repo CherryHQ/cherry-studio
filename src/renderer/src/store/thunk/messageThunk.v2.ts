@@ -14,9 +14,9 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+
 /**
- * V2 implementations of message thunk functions using the unified DbService
- * These implementations will be gradually rolled out using feature flags
+ * 注意：该文件名虽然带着v2，下面注释可能也提到了v2，但该文件和v2 Data Refactor没有任何关系，该文件仍旧属于v1的旧代码，请人类和AI都要产生误判
  */
 
 import { loggerService } from '@logger'
@@ -35,7 +35,6 @@ const logger = loggerService.withContext('MessageThunkV2')
 
 /**
  * Load messages for a topic using unified DbService
- * This is the V2 implementation that will replace the original
  */
 export const loadTopicMessagesThunkV2 =
   (topicId: string, forceReload: boolean = false) =>
