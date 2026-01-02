@@ -4,19 +4,14 @@
  * This module exports utilities for working with AI providers
  * that can be shared between main process and renderer process.
  */
-
-// API host formatting
-export type { ApiKeyRotator, ProviderFormatContext } from './format'
+export type { AiSdkConfig, AiSdkConfigContext, ApiKeyRotator, ProviderFormatContext } from './providerConfig'
 export {
   defaultFormatAzureOpenAIApiHost,
   formatProviderApiHost,
   getBaseUrlForAiSdk,
+  providerToAiSdkConfig,
   simpleKeyRotator
-} from './format'
-
-// AI SDK configuration
-export type { AiSdkConfig, AiSdkConfigContext } from './providerConfig'
-export { providerToAiSdkConfig } from './providerConfig'
+} from './providerConfig'
 
 // Provider initialization
 export { initializeSharedProviders, SHARED_PROVIDER_CONFIGS } from './initialization'
