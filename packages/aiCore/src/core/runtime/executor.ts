@@ -5,6 +5,7 @@
 import type { ImageModelV3, LanguageModelV3, LanguageModelV3Middleware, ProviderV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 import {
+  embedMany as _embedMany,
   generateImage as _generateImage,
   generateText as _generateText,
   streamText as _streamText,
@@ -17,7 +18,14 @@ import { type AiPlugin, type AiRequestContext, definePlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
 import { PluginEngine } from './pluginEngine'
-import type { generateImageParams, generateTextParams, RuntimeConfig, streamTextParams } from './types'
+import type {
+  EmbedManyParams,
+  EmbedManyResult,
+  generateImageParams,
+  generateTextParams,
+  RuntimeConfig,
+  streamTextParams
+} from './types'
 
 export class RuntimeExecutor<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
@@ -164,6 +172,23 @@ export class RuntimeExecutor<
       }
       throw error
     }
+  }
+
+  /**
+   * 批量嵌入文本
+   * AI SDK v6 只有 embedMany，没有 embed
+   */
+  async embedMany(params: EmbedManyParams): Promise<EmbedManyResult> {
+    const { model: modelOrId, ...options } = params
+
+    // 解析 embedding 模型
+    const embeddingModel =
+      typeof modelOrId === 'string' ? await this.modelResolver.resolveEmbeddingModel(modelOrId) : modelOrId
+
+    return _embedMany({
+      model: embeddingModel,
+      ...options
+    })
   }
 
   // === 辅助方法 ===

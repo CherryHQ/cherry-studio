@@ -9,10 +9,14 @@
 export {
   createExecutor,
   createOpenAICompatibleExecutor,
+  embedMany,
   generateImage,
   generateText,
   streamText
 } from './core/runtime'
+
+// ==================== Embedding 类型 ====================
+export type { EmbedManyParams, EmbedManyResult } from './core/runtime'
 
 // ==================== 高级API ====================
 export { isV2Model, isV3Model } from './core/models'

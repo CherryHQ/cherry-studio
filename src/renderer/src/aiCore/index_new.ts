@@ -27,12 +27,10 @@ import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { gateway } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
-import LegacyAiProvider from './legacy/index'
-import type { CompletionsParams, CompletionsResult } from './legacy/middleware/schemas'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { adaptProvider, getActualProvider, providerToAiSdkConfig } from './provider/providerConfig'
 import { ModelListService } from './services/ModelListService'
-import type { AppProviderSettingsMap, ProviderConfig } from './types'
+import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
 const logger = loggerService.withContext('ModernAiProvider')
@@ -45,7 +43,6 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
 }
 
 export default class ModernAiProvider {
-  private legacyProvider: LegacyAiProvider
   private config?: ProviderConfig
   private actualProvider: Provider
   private model?: Model
@@ -101,8 +98,6 @@ export default class ModernAiProvider {
       this.actualProvider = adaptProvider({ provider: modelOrProvider })
       // model为可选，某些操作（如fetchModels）不需要model
     }
-
-    this.legacyProvider = new LegacyAiProvider(this.actualProvider)
   }
 
   /**
@@ -169,28 +164,8 @@ export default class ModernAiProvider {
     middlewareConfig: ModernAiProviderConfig,
     providerConfig: ProviderConfig
   ): Promise<CompletionsResult> {
-    // ai-gateway不是image/generation 端点，所以就先不走legacy了
-    if (middlewareConfig.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds.gateway) {
-      // 使用 legacy 实现处理图像生成（支持图片编辑等高级功能）
-      if (!middlewareConfig.uiMessages) {
-        throw new Error('uiMessages is required for image generation endpoint')
-      }
-
-      const legacyParams: CompletionsParams = {
-        callType: 'chat',
-        messages: middlewareConfig.uiMessages, // 使用原始的 UI 消息格式
-        assistant: middlewareConfig.assistant,
-        streamOutput: middlewareConfig.streamOutput ?? true,
-        onChunk: middlewareConfig.onChunk,
-        topicId: middlewareConfig.topicId,
-        mcpTools: middlewareConfig.mcpTools,
-        enableWebSearch: middlewareConfig.enableWebSearch
-      }
-
-      // 调用 legacy 的 completions，会自动使用 ImageGenerationMiddleware
-      return await this.legacyProvider.completions(legacyParams)
-    }
-
+    // 专用图像生成模型已在 ApiService 层分流到 fetchImageGeneration
+    // 这里只处理普通的 completions
     return await this.modernCompletions(modelId, params, middlewareConfig, providerConfig)
   }
 
@@ -350,8 +325,29 @@ export default class ModernAiProvider {
     return await ModelListService.listModels(this.actualProvider)
   }
 
+  /**
+   * 获取嵌入模型的维度
+   * 使用 AI SDK embedMany 测试获取维度
+   */
   public async getEmbeddingDimensions(model: Model): Promise<number> {
-    return this.legacyProvider.getEmbeddingDimensions(model)
+    // 确保 config 已定义
+    if (!this.config) {
+      this.config = await Promise.resolve(providerToAiSdkConfig(this.actualProvider, model))
+    }
+
+    const executor = await createExecutor<AppProviderSettingsMap>(
+      this.config.providerId,
+      this.config.providerSettings,
+      []
+    )
+
+    // 使用 AI SDK embedMany 测试获取维度
+    const result = await executor.embedMany({
+      model: model.id,
+      values: ['test']
+    })
+
+    return result.embeddings[0].length
   }
 
   /**
@@ -453,10 +449,42 @@ export default class ModernAiProvider {
   }
 
   public getBaseURL(): string {
-    return this.legacyProvider.getBaseURL()
+    return this.actualProvider.apiHost || ''
   }
 
   public getApiKey(): string {
-    return this.legacyProvider.getApiKey()
+    const apiKey = this.actualProvider.apiKey
+    if (!apiKey || apiKey.trim() === '') {
+      return ''
+    }
+
+    const keys = apiKey
+      .split(',')
+      .map((key) => key.trim())
+      .filter(Boolean)
+
+    if (keys.length === 0) {
+      return ''
+    }
+
+    if (keys.length === 1) {
+      return keys[0]
+    }
+
+    // Multi-key rotation
+    const keyName = `provider:${this.actualProvider.id}:last_used_key`
+    const lastUsedKey = window.keyv.get(keyName)
+
+    if (!lastUsedKey) {
+      window.keyv.set(keyName, keys[0])
+      return keys[0]
+    }
+
+    const currentIndex = keys.indexOf(lastUsedKey)
+    const nextIndex = (currentIndex + 1) % keys.length
+    const nextKey = keys[nextIndex]
+    window.keyv.set(keyName, nextKey)
+
+    return nextKey
   }
 }
