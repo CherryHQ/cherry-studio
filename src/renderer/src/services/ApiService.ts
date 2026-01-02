@@ -114,6 +114,16 @@ export async function transformMessagesAndFetch(
     // replace prompt variables
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
 
+    // 专用图像生成模型直接走 fetchImageGeneration
+    if (isDedicatedImageGenerationModel(assistant.model || getDefaultModel())) {
+      await fetchImageGeneration({
+        messages: uiMessages,
+        assistant,
+        onChunkReceived
+      })
+      return
+    }
+
     // inject knowledge search prompt into model messages
     await injectUserMessageWithKnowledgeSearchPrompt({
       modelMessages,
@@ -168,20 +178,6 @@ export async function fetchChatCompletion({
   const AI = new AiProviderNew(assistant.model || getDefaultModel(), providerWithRotatedKey)
   const provider = AI.getActualProvider()
 
-  // 专用图像生成模型走 generateImage 路径
-  if (isDedicatedImageGenerationModel(assistant.model || getDefaultModel())) {
-    if (!uiMessages || uiMessages.length === 0) {
-      throw new Error('uiMessages is required for dedicated image generation models')
-    }
-    await fetchImageGeneration({
-      messages: uiMessages,
-      assistant,
-      onChunkReceived,
-      aiProvider: AI
-    })
-    return
-  }
-
   const mcpTools: MCPTool[] = []
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
 
@@ -220,7 +216,7 @@ export async function fetchChatCompletion({
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),
-    isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
+    isImageGenerationEndpoint: false, // 专用图像生成模型已在调用方分流
     webSearchPluginConfig: webSearchPluginConfig,
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
@@ -274,17 +270,23 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
  * 独立的图像生成函数
  * 专用于 DALL-E、GPT-Image-1 等专用图像生成模型
  */
-async function fetchImageGeneration({
+export async function fetchImageGeneration({
   messages,
   assistant,
-  onChunkReceived,
-  aiProvider
+  onChunkReceived
 }: {
   messages: Message[]
   assistant: Assistant
   onChunkReceived: (chunk: Chunk) => void
-  aiProvider: AiProviderNew
 }) {
+  // 创建 AI provider
+  const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
+  const providerWithRotatedKey = {
+    ...baseProvider,
+    apiKey: getRotatedApiKey(baseProvider)
+  }
+  const aiProvider = new AiProviderNew(assistant.model || getDefaultModel(), providerWithRotatedKey)
+
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   onChunkReceived({ type: ChunkType.IMAGE_CREATED })
 
