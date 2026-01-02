@@ -83,9 +83,7 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
   const assistant: Assistant = getDefaultAssistant()
 
   assistant.model = model
-  assistant.settings = {
-    temperature: 0.7
-  }
+  assistant.settings = {}
   assistant.prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
   const onChunk: (chunk: Chunk) => void = (chunk: Chunk) => {
