@@ -2,10 +2,11 @@ import CodeEditor from '@renderer/components/CodeEditor'
 import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
-import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
+import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useAppDispatch } from '@renderer/store'
 import type { AssistantIconType } from '@renderer/store/settings'
@@ -68,12 +69,15 @@ const DisplaySettings: FC = () => {
     sidebarIcons,
     setTheme,
     assistantIconType,
-    userTheme
+    userTheme,
+    useSystemTitleBar,
+    setUseSystemTitleBar
   } = useSettings()
   const { navbarPosition, setNavbarPosition } = useNavbarPosition()
   const { theme, settedTheme } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const { setTimeoutTimer } = useTimer()
   const [currentZoom, setCurrentZoom] = useState(1.0)
   const { setUserTheme } = useUserTheme()
 
@@ -87,6 +91,26 @@ const DisplaySettings: FC = () => {
     },
     [setWindowStyle]
   )
+
+  const handleUseSystemTitleBarChange = (checked: boolean) => {
+    window.modal.confirm({
+      title: t('settings.use_system_title_bar.confirm.title'),
+      content: t('settings.use_system_title_bar.confirm.content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk() {
+        setUseSystemTitleBar(checked)
+        setTimeoutTimer(
+          'handleUseSystemTitleBarChange',
+          () => {
+            window.api.relaunchApp()
+          },
+          500
+        )
+      }
+    })
+  }
 
   const handleColorPrimaryChange = useCallback(
     (colorHex: string) => {
@@ -257,6 +281,15 @@ const DisplaySettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
               <Switch checked={windowStyle === 'transparent'} onChange={handleWindowStyleChange} />
+            </SettingRow>
+          </>
+        )}
+        {isLinux && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.use_system_title_bar.title')}</SettingRowTitle>
+              <Switch checked={useSystemTitleBar} onChange={handleUseSystemTitleBarChange} />
             </SettingRow>
           </>
         )}
