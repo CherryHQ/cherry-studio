@@ -1089,7 +1089,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     websites: {
       official: 'https://platform.minimaxi.com/',
       apiKey: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
-      docs: 'https://platform.minimaxi.com/document/Announcement',
+      docs: 'https://platform.minimaxi.com/docs/api-reference/text-openai-api',
       models: 'https://platform.minimaxi.com/document/Models'
     }
   },
