@@ -93,8 +93,9 @@ const DEDICATED_IMAGE_MODEL_PATTERNS = [
   'stabilityai(?:-[\\w-]+)?',
   'sd-[\\w-]+',
   'sdxl(?:-[\\w-]+)?',
-  // Alibaba
+  // zhipu
   'cogview(?:-[\\w-]+)?',
+  // Alibaba
   'qwen-image(?:-[\\w-]+)?',
   // Others
   'janus(?:-[\\w-]+)?',
