@@ -75,13 +75,39 @@ const VISION_REGEX = new RegExp(
   'i'
 )
 
-// For middleware to identify models that must use the dedicated Image API
-const DEDICATED_IMAGE_MODELS = [
-  'grok-2-image(?:-[\\w-]+)?',
+// All dedicated image generation models (only generate images, no text chat capability)
+// These models need:
+// 1. Route to dedicated image generation API
+// 2. Exclude from reasoning/websearch/tooluse selection
+const DEDICATED_IMAGE_MODEL_PATTERNS = [
+  // OpenAI series
   'dall-e(?:-[\\w-]+)?',
-  'gpt-image-1(?:-[\\w-]+)?',
-  'imagen(?:-[\\w-]+)?'
+  'gpt-image(?:-[\\w-]+)?',
+  // xAI
+  'grok-2-image(?:-[\\w-]+)?',
+  // Google
+  'imagen(?:-[\\w-]+)?',
+  // Stable Diffusion series
+  'flux(?:-[\\w-]+)?',
+  'stable-?diffusion(?:-[\\w-]+)?',
+  'stabilityai(?:-[\\w-]+)?',
+  'sd-[\\w-]+',
+  'sdxl(?:-[\\w-]+)?',
+  // Alibaba
+  'cogview(?:-[\\w-]+)?',
+  'qwen-image(?:-[\\w-]+)?',
+  // Others
+  'janus(?:-[\\w-]+)?',
+  'midjourney(?:-[\\w-]+)?',
+  'mj-[\\w-]+',
+  'z-image(?:-[\\w-]+)?',
+  'longcat-image(?:-[\\w-]+)?',
+  'seedream(?:-[\\w-]+)?',
+  'kandinsky(?:-[\\w-]+)?'
 ]
+
+// Legacy alias for backward compatibility with GENERATE_IMAGE_MODELS
+const DEDICATED_IMAGE_MODELS = DEDICATED_IMAGE_MODEL_PATTERNS
 
 const IMAGE_ENHANCEMENT_MODELS = [
   'grok-2-image(?:-[\\w-]+)?',
@@ -94,7 +120,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
 
-const DEDICATED_IMAGE_MODELS_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
+const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODEL_PATTERNS.join('|'), 'i')
 
 // Models that should auto-enable image generation button when selected
 const AUTO_ENABLE_IMAGE_MODELS = [
@@ -133,12 +159,22 @@ const GENERATE_IMAGE_MODELS_REGEX = new RegExp(GENERATE_IMAGE_MODELS.join('|'), 
 
 const MODERN_GENERATE_IMAGE_MODELS_REGEX = new RegExp(MODERN_IMAGE_MODELS.join('|'), 'i')
 
-export const isDedicatedImageGenerationModel = (model: Model): boolean => {
+/**
+ * Check if the model is a dedicated image generation model
+ * Dedicated image generation models can only generate images, no text chat capability
+ *
+ * These models need:
+ * 1. Route to dedicated image generation API
+ * 2. Exclude from reasoning/websearch/tooluse selection
+ */
+export function isDedicatedImageModel(model: Model): boolean {
   if (!model) return false
-
   const modelId = getLowerBaseModelName(model.id)
-  return DEDICATED_IMAGE_MODELS_REGEX.test(modelId)
+  return DEDICATED_IMAGE_MODEL_REGEX.test(modelId)
 }
+
+// Backward compatible aliases
+export const isDedicatedImageGenerationModel = isDedicatedImageModel
 
 export const isAutoEnableImageGenerationModel = (model: Model): boolean => {
   if (!model) return false
@@ -195,14 +231,8 @@ export function isPureGenerateImageModel(model: Model): boolean {
   return !OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS.some((m) => modelId.includes(m))
 }
 
-// TODO: refine the regex
-// Text to image models
-const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|imagen|gpt-image/i
-
-export function isTextToImageModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return TEXT_TO_IMAGE_REGEX.test(modelId)
-}
+// Backward compatible alias - now uses unified dedicated image model detection
+export const isTextToImageModel = isDedicatedImageModel
 
 /**
  * 判断模型是否支持图片增强（包括编辑、增强、修复等）
