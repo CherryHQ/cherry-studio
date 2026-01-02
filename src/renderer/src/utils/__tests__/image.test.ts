@@ -7,8 +7,7 @@ import {
   captureScrollableAsDataURL,
   compressImage,
   convertToBase64,
-  makeSvgSizeAdaptive,
-  parseDataUrlMediaType
+  makeSvgSizeAdaptive
 } from '../image'
 
 // mock 依赖
@@ -200,38 +199,6 @@ describe('utils/image', () => {
       const result = makeSvgSizeAdaptive(divElement)
 
       expect(result.outerHTML).toBe(originalOuterHTML)
-    })
-  })
-
-  describe('parseDataUrlMediaType', () => {
-    it('extracts media type and base64 flag from standard data url', () => {
-      const r = parseDataUrlMediaType('data:image/png;base64,AAA')
-      expect(r.mediaType).toBe('image/png')
-      expect(r.isBase64).toBe(true)
-    })
-
-    it('handles additional parameters in header', () => {
-      const r = parseDataUrlMediaType('data:image/jpeg;name=foo;base64,AAA')
-      expect(r.mediaType).toBe('image/jpeg')
-      expect(r.isBase64).toBe(true)
-    })
-
-    it('returns undefined media type when missing and detects non-base64', () => {
-      const r = parseDataUrlMediaType('data:text/plain,hello')
-      expect(r.mediaType).toBe('text/plain')
-      expect(r.isBase64).toBe(false)
-    })
-
-    it('handles empty mediatype header', () => {
-      const r = parseDataUrlMediaType('data:;base64,AAA')
-      expect(r.mediaType).toBeUndefined()
-      expect(r.isBase64).toBe(true)
-    })
-
-    it('gracefully handles non data urls', () => {
-      const r = parseDataUrlMediaType('https://example.com/x.png')
-      expect(r.mediaType).toBeUndefined()
-      expect(r.isBase64).toBe(false)
     })
   })
 })

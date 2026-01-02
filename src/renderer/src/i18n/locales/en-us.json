@@ -1297,6 +1297,7 @@
     "backup": {
       "file_format": "Backup file format error"
     },
+    "base64DataTruncated": "Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Open debug panel",
@@ -1377,6 +1378,8 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
+    "truncated": "Data truncated, original size",
+    "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
     "usage": "Usage",
     "user_message_not_found": "Cannot find original user message to resend",
