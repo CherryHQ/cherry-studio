@@ -717,42 +717,53 @@ class CodeToolsService {
           fs.mkdirSync(tempDir, { recursive: true })
         }
 
+        // Escape special characters in paths for Windows batch scripting
+        // Using double quotes for compatibility with CMD
+
+        /**
+         * Escape text for display in batch echo statements
+         * Used for: echo statements, command display, logging
+         * Note: Don't wrap in quotes - echo will display them literally
+         */
+        const escapeBatchText = (text: string) => {
+          // Just escape % characters, no quotes needed for display
+          return text.replace(/%/g, '%%')
+        }
+
         // Build bat file content, including debug information
+        // Note: Avoid parentheses in if/for statements to handle paths with ()
         const batContent = [
           '@echo off',
           'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
-          `title ${cliTool} - Cherry Studio`, // Set window title in bat file
+          `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${cliTool}`,
-          `echo Directory: ${directory}`,
+          `echo Tool: ${escapeBatchText(cliTool)}`,
+          `echo Directory: ${escapeBatchText(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
-          ':: Change to target directory',
-          `cd /d "${directory}" || (`,
-          '  echo ERROR: Failed to change directory',
-          `  echo Target directory: ${directory}`,
-          '  pause',
-          '  exit /b 1',
-          ')',
+          ':: Verify directory exists (using single-line format to avoid () parsing issues)',
+          `if not exist "${directory.replace(/%/g, '%%')}" echo ERROR: Directory does not exist & echo Target: ${escapeBatchText(directory)} & pause & exit /b 1`,
           '',
-          ':: Clear screen',
+          ':: Change to target directory',
+          `pushd "${directory.replace(/%/g, '%%')}"`,
+          'if %ERRORLEVEL% neq 0 echo ERROR: Failed to change directory & pause & exit /b 1',
+          '',
+          ':: Clear screen before running CLI',
           'cls',
           '',
-          ':: Execute command (without displaying environment variable settings)',
+          ':: Execute command',
           command,
           '',
-          ':: Command execution completed',
-          'echo.',
-          'echo Command execution completed.',
-          'echo Press any key to close this window...',
-          'pause >nul'
+          'pause'
         ].join('\r\n')
 
         // Write to bat file
         try {
           fs.writeFileSync(batFilePath, batContent, 'utf8')
+          // Set restrictive permissions for bat file
+          fs.chmodSync(batFilePath, 0o600)
           logger.info(`Created temp bat file: ${batFilePath}`)
         } catch (error) {
           logger.error(`Failed to create bat file: ${error}`)
@@ -777,14 +788,25 @@ class CodeToolsService {
           terminalArgs = args
         }
 
-        // Set cleanup task (delete temp file after 5 minutes)
-        setTimeout(() => {
+        // Set cleanup task (delete temp bat file after 30 seconds)
+        // This allows time for the terminal to start and execute the script
+        const cleanup = () => {
           try {
-            fs.existsSync(batFilePath) && fs.unlinkSync(batFilePath)
+            // Clean up bat file
+            if (fs.existsSync(batFilePath)) {
+              fs.unlinkSync(batFilePath)
+              logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
+            }
           } catch (error) {
             logger.warn(`Failed to cleanup temp bat file: ${error}`)
           }
-        }, 10 * 1000) // Delete temp file after 10 seconds
+        }
+
+        // Set timeout for cleanup
+        setTimeout(cleanup, 30 * 1000) // Delete temp bat file after 30 seconds
+
+        // Ensure cleanup on process exit
+        process.on('exit', cleanup)
 
         break
       }
