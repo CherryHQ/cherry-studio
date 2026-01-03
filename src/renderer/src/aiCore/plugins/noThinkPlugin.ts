@@ -1,7 +1,8 @@
+import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import type { LanguageModelMiddleware } from 'ai'
 
-const logger = loggerService.withContext('noThinkMiddleware')
+const logger = loggerService.withContext('noThinkPlugin')
 
 /**
  * No Think Middleware
@@ -9,9 +10,9 @@ const logger = loggerService.withContext('noThinkMiddleware')
  * This prevents the model from generating unnecessary thinking process and returns results directly
  * @returns LanguageModelMiddleware
  */
-export function noThinkMiddleware(): LanguageModelMiddleware {
+function createNoThinkMiddleware(): LanguageModelMiddleware {
   return {
-    middlewareVersion: 'v2',
+    specificationVersion: 'v3',
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }
@@ -50,3 +51,14 @@ export function noThinkMiddleware(): LanguageModelMiddleware {
     }
   }
 }
+
+export const createNoThinkPlugin = () =>
+  definePlugin({
+    name: 'noThink',
+    enforce: 'pre',
+
+    configureContext: (context) => {
+      context.middlewares = context.middlewares || []
+      context.middlewares.push(createNoThinkMiddleware())
+    }
+  })
