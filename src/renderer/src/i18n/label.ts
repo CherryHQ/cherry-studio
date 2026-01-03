@@ -89,7 +89,8 @@ const providerKeyMap = {
   sophnet: 'provider.sophnet',
   gateway: 'provider.ai-gateway',
   cerebras: 'provider.cerebras',
-  mimo: 'provider.mimo'
+  mimo: 'provider.mimo',
+  zenmux: 'provider.zenmux'
 } as const
 
 /**

@@ -58,6 +58,7 @@ import VertexAIProviderLogo from '@renderer/assets/images/providers/vertexai.svg
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
+import ZenMuxProviderLogo from '@renderer/assets/images/providers/zenmux.svg'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
@@ -708,6 +709,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.mimo,
     isSystem: true,
     enabled: false
+  },
+  zenmux: {
+    id: 'zenmux',
+    name: 'ZenMux',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://zenmux.ai/api/v1',
+    anthropicApiHost: 'https://zenmux.ai/api/anthropic',
+    models: SYSTEM_MODELS.zenmux,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -777,7 +789,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   sophnet: SophnetProviderLogo,
   gateway: AIGatewayProviderLogo,
   cerebras: CerebrasProviderLogo,
-  mimo: MiMoProviderLogo
+  mimo: MiMoProviderLogo,
+  zenmux: ZenMuxProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1458,6 +1471,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
+    }
+  },
+  zenmux: {
+    api: {
+      url: 'https://zenmux.ai/api/v1/'
+    },
+    websites: {
+      official: 'https://zenmux.ai/',
+      apiKey: 'https://zenmux.ai/settings/keys',
+      docs: 'https://docs.zenmux.ai/guide/quickstart.html',
+      models: 'https://zenmux.ai/models'
     }
   }
 }
