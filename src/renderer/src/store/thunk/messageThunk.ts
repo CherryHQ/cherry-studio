@@ -978,8 +978,18 @@ export const sendMessage =
         userMessage.agentSessionId = activeAgentSession.agentSessionId
       }
 
-      await saveMessageAndBlocksToDB(topicId, userMessage, userMessageBlocks)
-      dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
+      let finalUserMessage: Message
+
+      if (activeAgentSession) {
+        // Agent session: keep existing Dexie logic
+        await saveMessageAndBlocksToDB(topicId, userMessage, userMessageBlocks)
+        finalUserMessage = userMessage
+      } else {
+        // Normal topic: use Data API, get server-generated message ID
+        finalUserMessage = await streamingService.createUserMessage(topicId, userMessage, userMessageBlocks)
+      }
+
+      dispatch(newMessagesActions.addMessage({ topicId, message: finalUserMessage }))
       if (userMessageBlocks.length > 0) {
         dispatch(upsertManyBlocks(userMessageBlocks))
       }
@@ -989,7 +999,7 @@ export const sendMessage =
 
       if (activeAgentSession) {
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-          askId: userMessage.id,
+          askId: finalUserMessage.id,
           model: assistant.model,
           traceId: userMessage.traceId
         })
@@ -1005,25 +1015,25 @@ export const sendMessage =
             assistant,
             assistantMessage,
             agentSession: activeAgentSession,
-            userMessageId: userMessage.id
+            userMessageId: finalUserMessage.id
           })
         })
       } else {
-        const mentionedModels = userMessage.mentions
+        const mentionedModels = finalUserMessage.mentions
 
         if (mentionedModels && mentionedModels.length > 0) {
-          await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
+          await dispatchMultiModelResponses(dispatch, getState, topicId, finalUserMessage, assistant, mentionedModels)
         } else {
           // Create message via Data API for normal topics
           const createDto: CreateMessageDto = {
-            parentId: userMessage.id,
+            parentId: finalUserMessage.id,
             role: 'assistant',
             data: { blocks: [] },
             status: 'pending',
             siblingsGroupId: 0,
             assistantId: assistant.id,
             modelId: assistant.model?.id,
-            traceId: userMessage.traceId ?? undefined
+            traceId: finalUserMessage.traceId ?? undefined
           }
 
           const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
