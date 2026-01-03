@@ -558,6 +558,8 @@ export class MessageService {
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       if (dto.status !== undefined) updates.status = dto.status
+      if (dto.traceId !== undefined) updates.traceId = dto.traceId
+      if (dto.stats !== undefined) updates.stats = dto.stats
 
       const [row] = await tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning()
 

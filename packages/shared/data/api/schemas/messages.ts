@@ -62,6 +62,10 @@ export interface UpdateMessageDto {
   siblingsGroupId?: number
   /** Update status */
   status?: MessageStatus
+  /** Update trace ID */
+  traceId?: string | null
+  /** Update statistics */
+  stats?: MessageStats | null
 }
 
 /**
