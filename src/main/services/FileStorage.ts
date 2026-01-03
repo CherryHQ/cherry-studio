@@ -10,6 +10,7 @@ import {
   scanDir
 } from '@main/utils/file'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
+import { parseDataUrl } from '@shared/utils'
 import type { FileMetadata, NotesTreeNode } from '@types'
 import { FileTypes } from '@types'
 import chardet from 'chardet'
@@ -672,8 +673,8 @@ class FileStorage {
         throw new Error('Base64 data is required')
       }
 
-      // 移除 base64 头部信息（如果存在）
-      const base64String = base64Data.replace(/^data:.*;base64,/, '')
+      const parseResult = parseDataUrl(base64Data)
+      const base64String = parseResult?.data ?? base64Data
       const buffer = Buffer.from(base64String, 'base64')
       const uuid = uuidv4()
       const ext = '.png'
@@ -1464,8 +1465,8 @@ class FileStorage {
       })
 
       if (filePath) {
-        const base64Data = data.replace(/^data:image\/png;base64,/, '')
-        fs.writeFileSync(filePath, base64Data, 'base64')
+        const parseResult = parseDataUrl(data)
+        fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
       }
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)

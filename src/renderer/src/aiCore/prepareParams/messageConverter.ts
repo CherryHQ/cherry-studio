@@ -8,13 +8,13 @@ import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
 import type { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { parseDataUrlMediaType } from '@renderer/utils/image'
 import {
   findFileBlocks,
   findImageBlocks,
   findThinkingBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
+import { parseDataUrl } from '@shared/utils'
 import type {
   AssistantModelMessage,
   FilePart,
@@ -69,18 +69,16 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
       }
     } else if (imageBlock.url) {
       const url = imageBlock.url
-      const isDataUrl = url.startsWith('data:')
-      if (isDataUrl) {
-        const { mediaType } = parseDataUrlMediaType(url)
-        const commaIndex = url.indexOf(',')
-        if (commaIndex === -1) {
-          logger.error('Malformed data URL detected (missing comma separator), image will be excluded:', {
-            urlPrefix: url.slice(0, 50) + '...'
-          })
-          continue
-        }
-        const base64Data = url.slice(commaIndex + 1)
-        parts.push({ type: 'image', image: base64Data, ...(mediaType ? { mediaType } : {}) })
+      const parseResult = parseDataUrl(url)
+      if (parseResult?.isBase64) {
+        const { mediaType, data } = parseResult
+        parts.push({ type: 'image', image: data, ...(mediaType ? { mediaType } : {}) })
+      } else if (url.startsWith('data:')) {
+        // Malformed data URL or non-base64 data URL
+        logger.error('Malformed or non-base64 data URL detected, image will be excluded:', {
+          urlPrefix: url.slice(0, 50) + '...'
+        })
+        continue
       } else {
         // For remote URLs we keep payload minimal to match existing expectations.
         parts.push({ type: 'image', image: url })

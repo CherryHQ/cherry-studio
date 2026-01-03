@@ -56,6 +56,18 @@ export default defineConfig({
             'packages/aiCore/**/__tests__/**/*.{test,spec}.{ts,tsx}'
           ]
         }
+      },
+      // shared 包单元测试配置
+      {
+        extends: true,
+        test: {
+          name: 'shared',
+          environment: 'node',
+          include: [
+            'packages/shared/**/*.{test,spec}.{ts,tsx}',
+            'packages/shared/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
+        }
       }
     ],
     // 全局共享配置
