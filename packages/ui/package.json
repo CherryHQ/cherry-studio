@@ -17,7 +17,8 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "icons:generate": "tsx scripts/generate-icons.ts --type=icons",
-    "logos:generate": "tsx scripts/generate-icons.ts --type=logos"
+    "logos:generate": "tsx scripts/generate-icons.ts --type=logos",
+    "tokens:build": "tsx scripts/build-theme.ts"
   },
   "keywords": [
     "ui",
