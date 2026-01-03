@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { LONG_POLL_TIMEOUT_MS } from './config/timeouts'
 import { authMiddleware } from './middleware/auth'
 import { errorHandler } from './middleware/error'
+import { gatewayMiddleware } from './middleware/gateway'
 import { setupOpenAPIDocumentation } from './middleware/openapi'
 import { agentsRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
@@ -131,14 +132,23 @@ setupOpenAPIDocumentation(app)
 // Provider-specific messages route requires authentication
 app.use('/:provider/v1/messages', authMiddleware, extendMessagesTimeout, messagesProviderRoutes)
 
-// API v1 routes with auth
+// Model group routes: /{groupId}/v1/... - uses the group's configured model
+const groupRouter = express.Router({ mergeParams: true })
+groupRouter.use(authMiddleware)
+groupRouter.use(gatewayMiddleware)
+groupRouter.use('/v1/chat', chatRoutes)
+groupRouter.use('/v1/messages', extendMessagesTimeout, messagesRoutes)
+app.use('/:groupId', groupRouter)
+
+// API v1 routes with auth and gateway
 const apiRouter = express.Router()
 apiRouter.use(authMiddleware)
+apiRouter.use(gatewayMiddleware)
 // Mount routes
 apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
-apiRouter.use('/models', modelsRoutes)
+apiRouter.use('/models', modelsRoutes) // Always enabled
 apiRouter.use('/agents', agentsRoutes)
 app.use('/v1', apiRouter)
 

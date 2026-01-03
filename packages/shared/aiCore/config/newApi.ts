@@ -1,7 +1,7 @@
 /**
  * NewAPI规则集
  */
-import type { Provider } from '@renderer/types'
+import type { MinimalModel, MinimalProvider } from '@shared/types'
 
 import { endpointIs, provider2Provider } from './helper'
 import type { RuleSet } from './types'
@@ -10,7 +10,7 @@ const NEWAPI_RULES: RuleSet = {
   rules: [
     {
       match: endpointIs('anthropic'),
-      provider: (provider: Provider) => {
+      provider: (provider) => {
         return {
           ...provider,
           type: 'anthropic'
@@ -19,7 +19,7 @@ const NEWAPI_RULES: RuleSet = {
     },
     {
       match: endpointIs('gemini'),
-      provider: (provider: Provider) => {
+      provider: (provider) => {
         return {
           ...provider,
           type: 'gemini'
@@ -28,7 +28,7 @@ const NEWAPI_RULES: RuleSet = {
     },
     {
       match: endpointIs('openai-response'),
-      provider: (provider: Provider) => {
+      provider: (provider) => {
         return {
           ...provider,
           type: 'openai-response'
@@ -37,7 +37,7 @@ const NEWAPI_RULES: RuleSet = {
     },
     {
       match: (model) => endpointIs('openai')(model) || endpointIs('image-generation')(model),
-      provider: (provider: Provider) => {
+      provider: (provider) => {
         return {
           ...provider,
           type: 'openai'
@@ -45,7 +45,8 @@ const NEWAPI_RULES: RuleSet = {
       }
     }
   ],
-  fallbackRule: (provider: Provider) => provider
+  fallbackRule: (provider) => provider
 }
 
-export const newApiResolverCreator = provider2Provider.bind(null, NEWAPI_RULES)
+export const newApiResolverCreator = <P extends MinimalProvider>(model: MinimalModel, provider: P): P =>
+  provider2Provider<MinimalModel, MinimalProvider, P>(NEWAPI_RULES, model, provider)

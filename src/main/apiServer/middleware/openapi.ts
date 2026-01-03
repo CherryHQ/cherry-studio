@@ -10,9 +10,18 @@ const swaggerOptions: swaggerJSDoc.Options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Cherry Studio API',
+      title: 'Cherry Studio API Gateway',
       version: '1.0.0',
-      description: 'OpenAI-compatible API for Cherry Studio with additional Cherry-specific endpoints',
+      description:
+        'API Gateway for Cherry Studio. Provides OpenAI and Anthropic compatible endpoints.\n\n' +
+        '## Model Groups\n' +
+        'Configure model groups in Settings to get simplified endpoints:\n' +
+        '- `/{groupId}/v1/chat/completions` - OpenAI format with pre-configured model\n' +
+        '- `/{groupId}/v1/messages` - Anthropic format with pre-configured model\n\n' +
+        '## Direct Access\n' +
+        'Use `provider_id:model_id` format for model parameter to access any model directly.\n\n' +
+        '## MCP Servers\n' +
+        'Access configured MCP servers via HTTP transport at `/v1/mcps/{server_id}/mcp`.',
       contact: {
         name: 'Cherry Studio',
         url: 'https://github.com/CherryHQ/cherry-studio'
@@ -171,7 +180,14 @@ const swaggerOptions: swaggerJSDoc.Options = {
       }
     ]
   },
-  apis: ['./src/main/apiServer/routes/**/*.ts', './src/main/apiServer/app.ts']
+  // Only include gateway/external API routes (exclude internal APIs like agents)
+  apis: [
+    './src/main/apiServer/routes/chat.ts',
+    './src/main/apiServer/routes/messages.ts',
+    './src/main/apiServer/routes/models.ts',
+    './src/main/apiServer/routes/mcp.ts',
+    './src/main/apiServer/app.ts'
+  ]
 }
 
 export function setupOpenAPIDocumentation(app: Express) {

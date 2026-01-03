@@ -15,6 +15,7 @@ import {
   isSupportVerbosityModel
 } from '../openai'
 import { isQwenMTModel } from '../qwen'
+import { isFunctionCallingModel } from '../tooluse'
 import {
   agentModelFilter,
   getModelSupportedVerbosity,
@@ -71,6 +72,29 @@ vi.mock('@renderer/store/settings', () => {
   )
 })
 
+vi.mock('@renderer/i18n', () => ({
+  __esModule: true,
+  default: {
+    t: vi.fn((key: string) => key)
+  }
+}))
+
+vi.mock('@renderer/services/AssistantService', () => ({
+  getProviderByModel: vi.fn().mockReturnValue({
+    id: 'openai',
+    type: 'openai',
+    name: 'OpenAI',
+    models: []
+  }),
+  getAssistantSettings: vi.fn(),
+  getDefaultAssistant: vi.fn().mockReturnValue({
+    id: 'default',
+    name: 'Default Assistant',
+    prompt: '',
+    settings: {}
+  })
+}))
+
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: vi.fn(() => ({})),
   useNavbarPosition: vi.fn(() => ({ navbarPosition: 'left' })),
@@ -101,6 +125,10 @@ vi.mock('../websearch', () => ({
   isOpenAIWebSearchChatCompletionOnlyModel: vi.fn()
 }))
 
+vi.mock('../tooluse', () => ({
+  isFunctionCallingModel: vi.fn()
+}))
+
 const createModel = (overrides: Partial<Model> = {}): Model => ({
   id: 'gpt-4o',
   name: 'gpt-4o',
@@ -116,6 +144,7 @@ const textToImageMock = vi.mocked(isTextToImageModel)
 const generateImageMock = vi.mocked(isGenerateImageModel)
 const reasoningMock = vi.mocked(isOpenAIReasoningModel)
 const openAIWebSearchOnlyMock = vi.mocked(isOpenAIWebSearchChatCompletionOnlyModel)
+const isFunctionCallingModelMock = vi.mocked(isFunctionCallingModel)
 
 describe('model utils', () => {
   beforeEach(() => {
@@ -124,9 +153,10 @@ describe('model utils', () => {
     rerankMock.mockReturnValue(false)
     visionMock.mockReturnValue(true)
     textToImageMock.mockReturnValue(false)
-    generateImageMock.mockReturnValue(true)
+    generateImageMock.mockReturnValue(false)
     reasoningMock.mockReturnValue(false)
     openAIWebSearchOnlyMock.mockReturnValue(false)
+    isFunctionCallingModelMock.mockReturnValue(true)
   })
 
   describe('OpenAI model detection', () => {
@@ -598,6 +628,7 @@ describe('model utils', () => {
     describe('isGenerateImageModels', () => {
       it('returns true when all models support image generation', () => {
         const models = [createModel({ id: 'gpt-4o' }), createModel({ id: 'gpt-4o-mini' })]
+        generateImageMock.mockReturnValue(true)
         expect(isGenerateImageModels(models)).toBe(true)
       })
 
@@ -636,12 +667,22 @@ describe('model utils', () => {
         expect(agentModelFilter(createModel({ id: 'rerank' }))).toBe(false)
       })
 
+      it('filters out non-function-call models', () => {
+        rerankMock.mockReturnValue(false)
+        isFunctionCallingModelMock.mockReturnValueOnce(false)
+        expect(agentModelFilter(createModel({ id: 'DeepSeek R1' }))).toBe(false)
+      })
+
       it('filters out text-to-image models', () => {
         rerankMock.mockReturnValue(false)
         textToImageMock.mockReturnValueOnce(true)
         expect(agentModelFilter(createModel({ id: 'gpt-image-1' }))).toBe(false)
       })
     })
+
+    textToImageMock.mockReturnValue(false)
+    generateImageMock.mockReturnValueOnce(true)
+    expect(agentModelFilter(createModel({ id: 'dall-e-3' }))).toBe(false)
   })
 
   describe('Temperature limits', () => {

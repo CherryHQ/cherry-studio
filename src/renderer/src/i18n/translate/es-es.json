@@ -317,6 +317,58 @@
       "enable_server": "Habilitar el servidor API para usar agentes."
     }
   },
+  "apiGateway": {
+    "actions": {
+      "addGroup": "[to be translated]:Add Group",
+      "copyEnvVars": "[to be translated]:Copy as Environment Variables"
+    },
+    "description": "[to be translated]:Expose Cherry Studio's AI capabilities through a unified API Gateway",
+    "endpoints": {
+      "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
+      "messages": "[to be translated]:Anthropic-compatible messages API"
+    },
+    "fields": {
+      "baseUrl": {
+        "copyTooltip": "[to be translated]:Copy Base URL",
+        "description": "[to be translated]:Use this URL as your API base URL in external applications",
+        "label": "[to be translated]:Base URL"
+      },
+      "copyAsEnv": {
+        "description": "[to be translated]:Copy configuration as environment variables for easy integration",
+        "format": "[to be translated]:Format",
+        "label": "[to be translated]:Environment Variables"
+      },
+      "defaultModel": {
+        "description": "[to be translated]:Select the default provider and model for external applications",
+        "label": "[to be translated]:Default Model",
+        "modelPlaceholder": "[to be translated]:Select model",
+        "providerPlaceholder": "[to be translated]:Select provider"
+      },
+      "enabledEndpoints": {
+        "description": "[to be translated]:Choose which API endpoints to expose",
+        "label": "[to be translated]:Enabled Endpoints"
+      },
+      "modelGroups": {
+        "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
+        "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
+        "label": "[to be translated]:Model Groups",
+        "namePlaceholder": "[to be translated]:Group name"
+      },
+      "networkAccess": {
+        "description": "[to be translated]:Allow connections from other devices on your network",
+        "label": "[to be translated]:Expose to Network",
+        "warning": "[to be translated]:Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
+      }
+    },
+    "messages": {
+      "baseUrlCopied": "[to be translated]:Base URL copied to clipboard",
+      "envVarsCopied": "[to be translated]:Environment variables copied to clipboard",
+      "nameDuplicate": "[to be translated]:A group with the same URL path already exists",
+      "nameRequired": "[to be translated]:Group name cannot be empty",
+      "nameUpdated": "[to be translated]:Group name updated"
+    },
+    "title": "[to be translated]:API Gateway"
+  },
   "apiServer": {
     "actions": {
       "copy": "Copiar",
