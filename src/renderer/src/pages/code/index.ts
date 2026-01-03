@@ -43,6 +43,7 @@ export const CLAUDE_SUPPORTED_PROVIDERS = [
   'dmxapi',
   'new-api',
   'cherryin',
+  '302ai',
   ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS
 ]
 export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
@@ -95,6 +96,11 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
     minimax: {
       anthropic: {
         api_base_url: 'https://api.minimaxi.com/anthropic'
+      }
+    },
+    '302ai': {
+      anthropic: {
+        api_base_url: 'https://api.302.ai'
       }
     }
   }
