@@ -136,6 +136,10 @@ export async function transformMessagesAndFetch(
   }
 }
 
+/**
+ * Note: This path always uses AI SDK streaming under the hood via `streamText`.
+ * There is no `generateText` (non-stream) branch inside this function.
+ */
 export async function fetchChatCompletion({
   messages,
   prompt,
