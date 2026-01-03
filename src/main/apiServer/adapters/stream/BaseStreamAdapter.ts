@@ -61,12 +61,12 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
         // Note: emitMessageStart is called lazily in transform or finalize
         // to allow configuration changes (like setInputTokens) after construction
       },
-      transform: (chunk, _controller) => {
+      transform: (chunk) => {
         // Ensure message_start is emitted before processing chunks
         this.emitMessageStart()
         this.processChunk(chunk)
       },
-      flush: (_controller) => {
+      flush: () => {
         // Ensure message_start is emitted even for empty streams
         this.emitMessageStart()
         this.finalize()
