@@ -60,6 +60,6 @@ export const messageTable = sqliteTable(
     index('message_trace_id_idx').on(t.traceId),
     // Check constraints for enum fields
     check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system')`),
-    check('message_status_check', sql`${t.status} IN ('success', 'error', 'paused')`)
+    check('message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`)
   ]
 )
