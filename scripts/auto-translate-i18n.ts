@@ -152,7 +152,8 @@ const languageMap = {
   'es-es': 'Spanish',
   'fr-fr': 'French',
   'pt-pt': 'Portuguese',
-  'de-de': 'German'
+  'de-de': 'German',
+  'ro-ro': 'Romanian'
 }
 
 const PROMPT = `

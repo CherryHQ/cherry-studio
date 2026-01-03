@@ -8,6 +8,7 @@ import esES from 'antd/locale/es_ES'
 import frFR from 'antd/locale/fr_FR'
 import jaJP from 'antd/locale/ja_JP'
 import ptPT from 'antd/locale/pt_PT'
+import roRO from 'antd/locale/ro_RO'
 import ruRU from 'antd/locale/ru_RU'
 import zhCN from 'antd/locale/zh_CN'
 import zhTW from 'antd/locale/zh_TW'
@@ -141,6 +142,8 @@ function getAntdLocale(language: LanguageVarious) {
       return frFR
     case 'pt-PT':
       return ptPT
+    case 'ro-RO':
+      return roRO
     default:
       return zhCN
   }
