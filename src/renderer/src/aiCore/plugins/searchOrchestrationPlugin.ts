@@ -7,19 +7,20 @@
  * 3. onRequestEnd: 自动记忆存储
  */
 import { type AiRequestContext, definePlugin } from '@cherrystudio/ai-core'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
+import store from '@renderer/store'
+import { selectMemoryConfig } from '@renderer/store/memory'
+import type { Assistant } from '@renderer/types'
+import type { ExtractResults } from '@renderer/utils/extract'
+import { extractInfoFromXML } from '@renderer/utils/extract'
 // import { generateObject } from '@cherrystudio/ai-core'
 import {
   SEARCH_SUMMARY_PROMPT,
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
-} from '@renderer/config/prompts'
-import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
-import store from '@renderer/store'
-import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
-import type { Assistant } from '@renderer/types'
-import type { ExtractResults } from '@renderer/utils/extract'
-import { extractInfoFromXML } from '@renderer/utils/extract'
+} from '@shared/config/prompts'
 import type { LanguageModel, ModelMessage } from 'ai'
 import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
@@ -176,7 +177,7 @@ async function storeConversationMemory(
   assistant: Assistant,
   context: AiRequestContext
 ): Promise<void> {
-  const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
+  const globalMemoryEnabled = await preferenceService.get('feature.memory.enabled')
 
   if (!globalMemoryEnabled || !assistant.enableMemory) {
     return
@@ -199,7 +200,7 @@ async function storeConversationMemory(
       return
     }
 
-    const currentUserId = selectCurrentUserId(store.getState())
+    const currentUserId = await preferenceService.get('feature.memory.current_user_id')
     // const lastUserMessage = messages.findLast((m) => m.role === 'user')
 
     const processorConfig = MemoryProcessor.getProcessorConfig(
@@ -267,7 +268,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
         const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
-        const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
+        const globalMemoryEnabled = await preferenceService.get('feature.memory.enabled')
         const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
         const shouldMemorySearch = globalMemoryEnabled && assistant.enableMemory
@@ -353,7 +354,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         }
 
         // 🧠 记忆搜索工具配置
-        const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
+        const globalMemoryEnabled = await preferenceService.get('feature.memory.enabled')
         if (globalMemoryEnabled && assistant.enableMemory) {
           // logger.info('🧠 Adding memory search tool')
           params.tools['builtin_memory_search'] = memorySearchTool()

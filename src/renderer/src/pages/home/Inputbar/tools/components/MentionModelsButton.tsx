@@ -49,9 +49,8 @@ const MentionModelsButton: FC<Props> = ({
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={mentionedModels.length > 0}
-        aria-label={t('assistants.presets.edit.model.select.title')}>
-        <AtSign size={18} />
-      </ActionIconButton>
+        aria-label={t('assistants.presets.edit.model.select.title')}
+        icon={<AtSign size={18} />}></ActionIconButton>
     </Tooltip>
   )
 }

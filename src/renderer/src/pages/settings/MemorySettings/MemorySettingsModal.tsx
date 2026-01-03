@@ -1,14 +1,15 @@
+import { Flex } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { selectMemoryConfig, updateMemoryConfig } from '@renderer/store/memory'
 import type { Model } from '@renderer/types'
-import { Flex, Form, Modal } from 'antd'
+import { Form, Modal } from 'antd'
 import { t } from 'i18next'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -151,9 +152,9 @@ const MemorySettingsModal: FC<MemorySettingsModalProps> = ({ visible, onSubmit, 
             return (
               <Form.Item
                 label={
-                  <Flex align="center" gap={4}>
+                  <Flex className="items-center gap-1">
                     {t('memory.embedding_dimensions')}
-                    <InfoTooltip title={t('knowledge.dimensions_size_tooltip')} />
+                    <InfoTooltip content={t('knowledge.dimensions_size_tooltip')} />
                   </Flex>
                 }
                 name="embeddingDimensions"

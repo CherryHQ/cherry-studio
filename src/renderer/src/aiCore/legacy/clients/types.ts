@@ -1,7 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import type OpenAI from '@cherrystudio/openai'
-import type { Assistant, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
-import type { Provider } from '@renderer/types'
+import type { Assistant, MCPTool, MCPToolResponse, Model, Provider, ToolCallResponse } from '@renderer/types'
 import type {
   AnthropicSdkRawChunk,
   OpenAIResponseSdkRawChunk,

@@ -1,6 +1,6 @@
+import { Button } from '@cherrystudio/ui'
 import type { DraggableProvided } from '@hello-pangea/dnd'
-import type { ActionItem as ActionItemType } from '@renderer/types/selectionTypes'
-import { Button } from 'antd'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Pencil, Settings2, Trash } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import { memo } from 'react'
@@ -8,11 +8,11 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface ActionItemProps {
-  item: ActionItemType
+  item: SelectionActionItem
   provided: DraggableProvided
   listType: 'enabled' | 'disabled'
   isLastEnabledItem: boolean
-  onEdit: (item: ActionItemType) => void
+  onEdit: (item: SelectionActionItem) => void
   onDelete: (id: string) => void
   getSearchEngineInfo: (engine: string) => { icon: any; name: string } | null
 }
@@ -49,8 +49,8 @@ const ActionsListItem = memo(
 )
 
 interface ActionOperationsProps {
-  item: ActionItemType
-  onEdit: (item: ActionItemType) => void
+  item: SelectionActionItem
+  onEdit: (item: SelectionActionItem) => void
   onDelete: (id: string) => void
 }
 
@@ -58,10 +58,10 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
   if (!item.isBuiltIn) {
     return (
       <UserActionOpSection>
-        <Button type="link" size="small" onClick={() => onEdit(item)}>
+        <Button variant="ghost" size="icon-sm" onClick={() => onEdit(item)}>
           <Pencil size={16} className="btn-icon-edit" />
         </Button>
-        <Button type="link" size="small" danger onClick={() => onDelete(item.id)}>
+        <Button variant="ghost" size="icon-sm" onClick={() => onDelete(item.id)}>
           <Trash size={16} className="btn-icon-delete" />
         </Button>
       </UserActionOpSection>
@@ -71,7 +71,7 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
   if (item.isBuiltIn && item.id === 'search') {
     return (
       <UserActionOpSection>
-        <Button type="link" size="small" onClick={() => onEdit(item)}>
+        <Button variant="ghost" size="icon-sm" onClick={() => onEdit(item)}>
           <Settings2 size={16} className="btn-icon-edit" />
         </Button>
       </UserActionOpSection>

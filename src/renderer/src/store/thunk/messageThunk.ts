@@ -14,6 +14,7 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
@@ -1115,8 +1116,8 @@ export const resendMessageThunk =
       // Clear cached search results for the user message being resent
       // This ensures that the regenerated responses will not use stale search results
       try {
-        window.keyv.remove(`web-search-${userMessageToResend.id}`)
-        window.keyv.remove(`knowledge-search-${userMessageToResend.id}`)
+        cacheService.deleteCasual(`web-search-${userMessageToResend.id}`)
+        cacheService.deleteCasual(`knowledge-search-${userMessageToResend.id}`)
       } catch (error) {
         logger.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error as Error)
       }

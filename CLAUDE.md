@@ -7,6 +7,7 @@ This file provides guidance to AI coding assistants when working with code in th
 - **Keep it clear**: Write code that is easy to read, maintain, and explain.
 - **Match the house style**: Reuse existing patterns, naming, and conventions.
 - **Search smart**: Prefer `ast-grep` for semantic queries; fall back to `rg`/`grep` when needed.
+- **Build with Tailwind CSS & Shadcn UI**: Use components from `@packages/ui` (Shadcn UI + Tailwind CSS) for every new UI component; never add `antd` or `styled-components`.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
 - **Always propose before executing**: Before making any changes, clearly explain your planned approach and wait for explicit user approval to ensure alignment and prevent unwanted modifications.
@@ -45,14 +46,53 @@ When creating a Pull Request, you MUST:
 - **Renderer Process** (`src/renderer/`): React UI with Redux state management
 - **Preload Scripts** (`src/preload/`): Secure IPC bridge
 
-### Key Components
+### Key Architectural Components
 
-- **AI Core** (`src/renderer/src/aiCore/`): Middleware pipeline for multiple AI providers.
-- **Services** (`src/main/services/`): MCPService, KnowledgeService, WindowService, etc.
-- **Build System**: Electron-Vite with experimental rolldown-vite, yarn workspaces.
-- **State Management**: Redux Toolkit (`src/renderer/src/store/`) for predictable state.
+#### Data Management
 
-### Logging
+**MUST READ**: [docs/en/references/data/README.md](docs/en/references/data/README.md) for system selection, architecture, and patterns.
+
+| System | Use Case | APIs |
+|--------|----------|------|
+| Cache | Temp data (can lose) | `useCache`, `useSharedCache`, `usePersistCache` |
+| Preference | User settings | `usePreference` |
+| DataApi | Business data (**critical**) | `useQuery`, `useMutation` |
+
+Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `yarn db:migrations:generate`
+
+### Build System
+
+- **Electron-Vite**: Development and build tooling (v4.0.0)
+- **Rolldown-Vite**: Using experimental rolldown-vite instead of standard vite
+- **Workspaces**: Monorepo structure with `packages/` directory
+- **Multiple Entry Points**: Main app, mini window, selection toolbar
+- **Styled Components**: CSS-in-JS styling with SWC optimization
+
+### Testing Strategy
+
+- **Vitest**: Unit and integration testing
+- **Playwright**: End-to-end testing
+- **Component Testing**: React Testing Library
+- **Coverage**: Available via `yarn test:coverage`
+
+### Key Patterns
+
+- **IPC Communication**: Secure main-renderer communication via preload scripts
+- **Service Layer**: Clear separation between UI and business logic
+- **Plugin Architecture**: Extensible via MCP servers and middleware
+- **Multi-language Support**: i18n with dynamic loading
+- **Theme System**: Light/dark themes with custom CSS variables
+
+### UI Design
+
+The project is in the process of migrating from antd & styled-components to Tailwind CSS and Shadcn UI. Please use components from `@packages/ui` to build UI components. The use of antd and styled-components is prohibited.
+
+UI Library: `@packages/ui`
+
+## Logging Standards
+
+### Usage
+
 
 ```typescript
 import { loggerService } from "@logger";

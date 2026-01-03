@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MinApp/WebviewContainer'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
 import React, { useEffect, useRef } from 'react'
@@ -21,7 +21,7 @@ import styled from 'styled-components'
 const logger = loggerService.withContext('MinAppTabsPool')
 
 const MinAppTabsPool: React.FC = () => {
-  const { openedKeepAliveMinapps, currentMinappId } = useRuntime()
+  const { openedKeepAliveMinapps, currentMinappId } = useMinapps()
   const { isTopNavbar } = useNavbarPosition()
   const location = useLocation()
 

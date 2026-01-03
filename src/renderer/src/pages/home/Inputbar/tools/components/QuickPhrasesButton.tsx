@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import {
   type QuickPanelListItem,
@@ -11,7 +12,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import type { QuickPhrase } from '@renderer/types'
-import { Input, Modal, Radio, Space, Tooltip } from 'antd'
+import { Input, Modal, Radio, Space } from 'antd'
 import { BotMessageSquare, Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -249,10 +250,12 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
 
   return (
     <>
-      <Tooltip placement="top" title={t('settings.quickPhrase.title')} mouseLeaveDelay={0} arrow>
-        <ActionIconButton onClick={handleOpenQuickPanel} aria-label={t('settings.quickPhrase.title')}>
-          <Zap size={18} />
-        </ActionIconButton>
+      <Tooltip content={t('settings.quickPhrase.title')} closeDelay={0}>
+        <ActionIconButton
+          onClick={handleOpenQuickPanel}
+          aria-label={t('settings.quickPhrase.title')}
+          icon={<Zap size={18} />}
+        />
       </Tooltip>
 
       <Modal
