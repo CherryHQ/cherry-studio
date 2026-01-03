@@ -1,8 +1,9 @@
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'
 import type { FinishReason, LanguageModelUsage, TextStreamPart, ToolSet } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { AiSdkToAnthropicSSE, formatSSEDone, formatSSEEvent } from '../AiSdkToAnthropicSSE'
+import { AnthropicSSEFormatter } from '../formatters/AnthropicSSEFormatter'
+import { AiSdkToAnthropicSSE } from '../stream/AiSdkToAnthropicSSE'
 
 const createTextDelta = (text: string, id = 'text_0'): TextStreamPart<ToolSet> => ({
   type: 'text-delta',
@@ -24,17 +25,17 @@ const createFinish = (
   finishReason: FinishReason | undefined = 'stop',
   totalUsage?: Partial<LanguageModelUsage>
 ): TextStreamPart<ToolSet> => {
-  const defaultUsage: LanguageModelUsage = {
+  const defaultUsage = {
     inputTokens: 0,
     outputTokens: 0,
     totalTokens: 0
   }
-  const event: TextStreamPart<ToolSet> = {
+  // Cast to TextStreamPart to avoid strict type checking on optional fields
+  return {
     type: 'finish',
     finishReason: finishReason || 'stop',
     totalUsage: { ...defaultUsage, ...totalUsage }
-  }
-  return event
+  } as TextStreamPart<ToolSet>
 }
 
 // Helper to create stream
@@ -49,19 +50,32 @@ function createMockStream(events: readonly TextStreamPart<ToolSet>[]) {
   })
 }
 
+// Helper to collect all events from output stream
+async function collectEvents(stream: ReadableStream<RawMessageStreamEvent>): Promise<RawMessageStreamEvent[]> {
+  const events: RawMessageStreamEvent[] = []
+  const reader = stream.getReader()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      events.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  return events
+}
+
 describe('AiSdkToAnthropicSSE', () => {
   describe('Text Processing', () => {
     it('should emit message_start and process text-delta events', async () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       // Create a mock stream with text events
       const stream = createMockStream([createTextDelta('Hello'), createTextDelta(' world'), createFinish('stop')])
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       // Verify message_start
       expect(events[0]).toMatchObject({
@@ -106,11 +120,7 @@ describe('AiSdkToAnthropicSSE', () => {
     })
 
     it('should handle text-start and text-end events', async () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const stream = createMockStream([
         createTextStart(),
@@ -119,7 +129,8 @@ describe('AiSdkToAnthropicSSE', () => {
         createFinish('stop')
       ])
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       // Should have content_block_start, delta, and content_block_stop
       const blockEvents = events.filter((e) => e.type.startsWith('content_block'))
@@ -127,15 +138,12 @@ describe('AiSdkToAnthropicSSE', () => {
     })
 
     it('should auto-start text block if not explicitly started', async () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const stream = createMockStream([createTextDelta('Auto-started'), createFinish('stop')])
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       // Should automatically emit content_block_start
       expect(events.some((e) => e.type === 'content_block_start')).toBe(true)
@@ -144,11 +152,7 @@ describe('AiSdkToAnthropicSSE', () => {
 
   describe('Tool Call Processing', () => {
     it('should emit tool_use block for tool-call events', async () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const stream = createMockStream([
         {
@@ -160,7 +164,8 @@ describe('AiSdkToAnthropicSSE', () => {
         createFinish('tool-calls')
       ])
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       // Find tool_use block events
       const blockStart = events.find((e) => {
@@ -195,11 +200,7 @@ describe('AiSdkToAnthropicSSE', () => {
     })
 
     it('should not create duplicate tool blocks', async () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const toolCallEvent: TextStreamPart<ToolSet> = {
         type: 'tool-call',
@@ -209,7 +210,8 @@ describe('AiSdkToAnthropicSSE', () => {
       }
       const stream = createMockStream([toolCallEvent, toolCallEvent, createFinish()])
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       // Should only have one tool_use block
       const toolBlocks = events.filter((e) => {
@@ -224,11 +226,7 @@ describe('AiSdkToAnthropicSSE', () => {
 
   describe('Reasoning/Thinking Processing', () => {
     it('should emit thinking block for reasoning events', async () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const stream = createMockStream([
         { type: 'reasoning-start', id: 'reason_1' },
@@ -237,7 +235,8 @@ describe('AiSdkToAnthropicSSE', () => {
         createFinish()
       ])
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       // Find thinking block events
       const blockStart = events.find((e) => {
@@ -262,11 +261,7 @@ describe('AiSdkToAnthropicSSE', () => {
     })
 
     it('should handle multiple thinking blocks', async () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const stream = createMockStream([
         { type: 'reasoning-start', id: 'reason_1' },
@@ -278,7 +273,8 @@ describe('AiSdkToAnthropicSSE', () => {
         createFinish()
       ])
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       // Should have two thinking blocks
       const thinkingBlocks = events.filter((e) => {
@@ -304,15 +300,12 @@ describe('AiSdkToAnthropicSSE', () => {
       ]
 
       for (const { aiSdkReason, expectedReason } of testCases) {
-        const events: RawMessageStreamEvent[] = []
-        const adapter = new AiSdkToAnthropicSSE({
-          model: 'test:model',
-          onEvent: (event) => events.push(event)
-        })
+        const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
         const stream = createMockStream([createFinish(aiSdkReason)])
 
-        await adapter.processStream(stream)
+        const outputStream = adapter.transform(stream)
+        const events = await collectEvents(outputStream)
 
         const messageDelta = events.find((e) => e.type === 'message_delta')
         if (messageDelta && messageDelta.type === 'message_delta') {
@@ -324,11 +317,9 @@ describe('AiSdkToAnthropicSSE', () => {
 
   describe('Usage Tracking', () => {
     it('should track token usage', async () => {
-      const events: RawMessageStreamEvent[] = []
       const adapter = new AiSdkToAnthropicSSE({
         model: 'test:model',
-        inputTokens: 100,
-        onEvent: (event) => events.push(event)
+        inputTokens: 100
       })
 
       const stream = createMockStream([
@@ -340,7 +331,8 @@ describe('AiSdkToAnthropicSSE', () => {
         })
       ])
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       const messageDelta = events.find((e) => e.type === 'message_delta')
       if (messageDelta && messageDelta.type === 'message_delta') {
@@ -355,10 +347,7 @@ describe('AiSdkToAnthropicSSE', () => {
 
   describe('Non-Streaming Response', () => {
     it('should build complete message for non-streaming', async () => {
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: vi.fn()
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const stream = createMockStream([
         createTextDelta('Hello world'),
@@ -371,7 +360,14 @@ describe('AiSdkToAnthropicSSE', () => {
         createFinish('tool-calls', { inputTokens: 10, outputTokens: 20 })
       ])
 
-      await adapter.processStream(stream)
+      // Consume the stream to populate adapter state
+      const outputStream = adapter.transform(stream)
+      const reader = outputStream.getReader()
+      while (true) {
+        const { done } = await reader.read()
+        if (done) break
+      }
+      reader.releaseLock()
 
       const response = adapter.buildNonStreamingResponse()
 
@@ -403,25 +399,20 @@ describe('AiSdkToAnthropicSSE', () => {
 
   describe('Error Handling', () => {
     it('should throw on error events', async () => {
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: vi.fn()
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const testError = new Error('Test error')
       const stream = createMockStream([{ type: 'error', error: testError }])
 
-      await expect(adapter.processStream(stream)).rejects.toThrow('Test error')
+      const outputStream = adapter.transform(stream)
+
+      await expect(collectEvents(outputStream)).rejects.toThrow('Test error')
     })
   })
 
   describe('Edge Cases', () => {
     it('should handle empty stream', async () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const stream = new ReadableStream<TextStreamPart<ToolSet>>({
         start(controller) {
@@ -429,7 +420,8 @@ describe('AiSdkToAnthropicSSE', () => {
         }
       })
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       // Should still emit message_start, message_delta, and message_stop
       expect(events.some((e) => e.type === 'message_start')).toBe(true)
@@ -438,15 +430,12 @@ describe('AiSdkToAnthropicSSE', () => {
     })
 
     it('should handle empty text deltas', async () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const stream = createMockStream([createTextDelta(''), createTextDelta(''), createFinish()])
 
-      await adapter.processStream(stream)
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
 
       // Should not emit deltas for empty text
       const deltas = events.filter((e) => e.type === 'content_block_delta')
@@ -454,8 +443,9 @@ describe('AiSdkToAnthropicSSE', () => {
     })
   })
 
-  describe('Utility Functions', () => {
+  describe('AnthropicSSEFormatter', () => {
     it('should format SSE events correctly', () => {
+      const formatter = new AnthropicSSEFormatter()
       const event: RawMessageStreamEvent = {
         type: 'message_start',
         message: {
@@ -476,7 +466,7 @@ describe('AiSdkToAnthropicSSE', () => {
         }
       }
 
-      const formatted = formatSSEEvent(event)
+      const formatted = formatter.formatEvent(event)
 
       expect(formatted).toContain('event: message_start')
       expect(formatted).toContain('data: ')
@@ -485,7 +475,8 @@ describe('AiSdkToAnthropicSSE', () => {
     })
 
     it('should format SSE done marker correctly', () => {
-      const done = formatSSEDone()
+      const formatter = new AnthropicSSEFormatter()
+      const done = formatter.formatDone()
 
       expect(done).toBe('data: [DONE]\n\n')
     })
@@ -495,18 +486,14 @@ describe('AiSdkToAnthropicSSE', () => {
     it('should use provided message ID', () => {
       const adapter = new AiSdkToAnthropicSSE({
         model: 'test:model',
-        messageId: 'custom_msg_123',
-        onEvent: vi.fn()
+        messageId: 'custom_msg_123'
       })
 
       expect(adapter.getMessageId()).toBe('custom_msg_123')
     })
 
     it('should generate message ID if not provided', () => {
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: vi.fn()
-      })
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       const messageId = adapter.getMessageId()
       expect(messageId).toMatch(/^msg_/)
@@ -514,23 +501,20 @@ describe('AiSdkToAnthropicSSE', () => {
   })
 
   describe('Input Tokens', () => {
-    it('should allow setting input tokens', () => {
-      const events: RawMessageStreamEvent[] = []
-      const adapter = new AiSdkToAnthropicSSE({
-        model: 'test:model',
-        onEvent: (event) => events.push(event)
-      })
+    it('should allow setting input tokens', async () => {
+      const adapter = new AiSdkToAnthropicSSE({ model: 'test:model' })
 
       adapter.setInputTokens(500)
 
       const stream = createMockStream([createFinish()])
 
-      return adapter.processStream(stream).then(() => {
-        const messageStart = events.find((e) => e.type === 'message_start')
-        if (messageStart && messageStart.type === 'message_start') {
-          expect(messageStart.message.usage.input_tokens).toBe(500)
-        }
-      })
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
+
+      const messageStart = events.find((e) => e.type === 'message_start')
+      if (messageStart && messageStart.type === 'message_start') {
+        expect(messageStart.message.usage.input_tokens).toBe(500)
+      }
     })
   })
 })

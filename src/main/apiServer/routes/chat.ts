@@ -1,13 +1,10 @@
-import type { ChatCompletionCreateParams } from '@cherrystudio/openai/resources'
 import type { Request, Response } from 'express'
 import express from 'express'
 
 import { loggerService } from '../../services/LoggerService'
-import {
-  ChatCompletionModelError,
-  chatCompletionService,
-  ChatCompletionValidationError
-} from '../services/chat-completion'
+import type { ExtendedChatCompletionCreateParams } from '../adapters'
+import { generateMessage, streamToResponse } from '../services/ProxyStreamService'
+import { validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ApiServerChatRoutes')
 
@@ -22,44 +19,17 @@ interface ErrorResponseBody {
 }
 
 const mapChatCompletionError = (error: unknown): { status: number; body: ErrorResponseBody } => {
-  if (error instanceof ChatCompletionValidationError) {
-    logger.warn('Chat completion validation error', {
-      errors: error.errors
-    })
-
-    return {
-      status: 400,
-      body: {
-        error: {
-          message: error.errors.join('; '),
-          type: 'invalid_request_error',
-          code: 'validation_failed'
-        }
-      }
-    }
-  }
-
-  if (error instanceof ChatCompletionModelError) {
-    logger.warn('Chat completion model error', error.error)
-
-    return {
-      status: 400,
-      body: {
-        error: {
-          message: error.error.message,
-          type: 'invalid_request_error',
-          code: error.error.code
-        }
-      }
-    }
-  }
-
   if (error instanceof Error) {
     let statusCode = 500
     let errorType = 'server_error'
     let errorCode = 'internal_error'
 
-    if (error.message.includes('API key') || error.message.includes('authentication')) {
+    // Model validation errors
+    if (error.message.includes('Model') && error.message.includes('not found')) {
+      statusCode = 400
+      errorType = 'invalid_request_error'
+      errorCode = 'model_not_found'
+    } else if (error.message.includes('API key') || error.message.includes('authentication')) {
       statusCode = 401
       errorType = 'authentication_error'
       errorCode = 'invalid_api_key'
@@ -182,7 +152,7 @@ const mapChatCompletionError = (error: unknown): { status: number; body: ErrorRe
  */
 router.post('/completions', async (req: Request, res: Response) => {
   try {
-    const request: ChatCompletionCreateParams = req.body
+    const request = req.body as ExtendedChatCompletionCreateParams
 
     if (!request) {
       return res.status(400).json({
@@ -194,6 +164,26 @@ router.post('/completions', async (req: Request, res: Response) => {
       })
     }
 
+    if (!request.model) {
+      return res.status(400).json({
+        error: {
+          message: 'Model is required',
+          type: 'invalid_request_error',
+          code: 'missing_model'
+        }
+      })
+    }
+
+    if (!request.messages || request.messages.length === 0) {
+      return res.status(400).json({
+        error: {
+          message: 'Messages are required',
+          type: 'invalid_request_error',
+          code: 'missing_messages'
+        }
+      })
+    }
+
     logger.debug('Chat completion request', {
       model: request.model,
       messageCount: request.messages?.length || 0,
@@ -201,40 +191,51 @@ router.post('/completions', async (req: Request, res: Response) => {
       temperature: request.temperature
     })
 
+    // Validate model and get provider
+    const modelValidation = await validateModelId(request.model)
+    if (!modelValidation.valid) {
+      return res.status(400).json({
+        error: {
+          message: modelValidation.error?.message || 'Model not found',
+          type: 'invalid_request_error',
+          code: modelValidation.error?.code || 'model_not_found'
+        }
+      })
+    }
+
+    const provider = modelValidation.provider!
+    const modelId = modelValidation.modelId!
     const isStreaming = !!request.stream
 
     if (isStreaming) {
-      const { stream } = await chatCompletionService.processStreamingCompletion(request)
-
-      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
-      res.setHeader('Cache-Control', 'no-cache, no-transform')
-      res.setHeader('Connection', 'keep-alive')
-      res.setHeader('X-Accel-Buffering', 'no')
-      res.flushHeaders()
-
       try {
-        for await (const chunk of stream) {
-          res.write(`data: ${JSON.stringify(chunk)}\n\n`)
-        }
-        res.write('data: [DONE]\n\n')
-      } catch (streamError: any) {
+        await streamToResponse({
+          response: res,
+          provider,
+          modelId,
+          params: request,
+          inputFormat: 'openai',
+          outputFormat: 'openai'
+        })
+      } catch (streamError) {
         logger.error('Stream error', { error: streamError })
-        res.write(
-          `data: ${JSON.stringify({
-            error: {
-              message: 'Stream processing error',
-              type: 'server_error',
-              code: 'stream_error'
-            }
-          })}\n\n`
-        )
-      } finally {
-        res.end()
+        // If headers weren't sent yet, return JSON error
+        if (!res.headersSent) {
+          const { status, body } = mapChatCompletionError(streamError)
+          return res.status(status).json(body)
+        }
+        // Otherwise the error is already handled by streamToResponse
       }
       return
     }
 
-    const { response } = await chatCompletionService.processCompletion(request)
+    const response = await generateMessage({
+      provider,
+      modelId,
+      params: request,
+      inputFormat: 'openai',
+      outputFormat: 'openai'
+    })
     return res.json(response)
   } catch (error: unknown) {
     const { status, body } = mapChatCompletionError(error)

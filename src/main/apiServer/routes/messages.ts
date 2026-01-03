@@ -8,7 +8,7 @@ import express from 'express'
 import { approximateTokenSize } from 'tokenx'
 
 import { messagesService } from '../services/messages'
-import { generateUnifiedMessage, streamUnifiedMessages } from '../services/unified-messages'
+import { generateMessage, streamToResponse } from '../services/ProxyStreamService'
 import { getProviderById, isModelAnthropicCompatible, validateModelId } from '../utils'
 
 /**
@@ -322,7 +322,7 @@ async function handleUnifiedProcessing({
     })
 
     if (request.stream) {
-      await streamUnifiedMessages({
+      await streamToResponse({
         response: res,
         provider,
         modelId: actualModelId,
@@ -336,7 +336,7 @@ async function handleUnifiedProcessing({
         }
       })
     } else {
-      const response = await generateUnifiedMessage({
+      const response = await generateMessage({
         provider,
         modelId: actualModelId,
         params: request,

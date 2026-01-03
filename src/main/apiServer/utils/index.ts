@@ -29,7 +29,7 @@ export async function getAvailableProviders(): Promise<Provider[]> {
     }
 
     // Support all provider types that AI SDK can handle
-    // The unified-messages service uses AI SDK which supports many providers
+    // The ProxyStreamService uses AI SDK which supports many providers
     const supportedProviders = providers.filter((p: Provider) => p.enabled)
 
     // Cache the filtered results

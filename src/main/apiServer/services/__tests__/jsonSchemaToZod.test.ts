@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
-import { type JsonSchemaLike, jsonSchemaToZod } from '../unified-messages'
+import { type JsonSchemaLike, jsonSchemaToZod } from '../../adapters/converters/json-schema-to-zod'
 
 describe('jsonSchemaToZod', () => {
   describe('Basic Types', () => {

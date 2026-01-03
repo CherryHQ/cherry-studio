@@ -1,10 +1,18 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { describe, expect, it } from 'vitest'
 
-import { convertAnthropicToAiMessages, convertAnthropicToolsToAiSdk } from '../unified-messages'
+import { AnthropicMessageConverter } from '../../adapters/converters/AnthropicMessageConverter'
 
-describe('unified-messages', () => {
-  describe('convertAnthropicToolsToAiSdk', () => {
+// Create a converter instance for testing
+const converter = new AnthropicMessageConverter()
+
+// Helper functions that wrap the converter methods
+const convertAnthropicToAiMessages = (params: MessageCreateParams) => converter.toAiSdkMessages(params)
+const convertAnthropicToolsToAiSdk = (tools: MessageCreateParams['tools']) =>
+  converter.toAiSdkTools({ model: 'test', max_tokens: 100, messages: [], tools })
+
+describe('AnthropicMessageConverter', () => {
+  describe('toAiSdkTools', () => {
     it('should return undefined for empty tools array', () => {
       const result = convertAnthropicToolsToAiSdk([])
       expect(result).toBeUndefined()
@@ -135,7 +143,7 @@ describe('unified-messages', () => {
     })
   })
 
-  describe('convertAnthropicToAiMessages', () => {
+  describe('toAiSdkMessages', () => {
     describe('System Messages', () => {
       it('should convert string system message', () => {
         const params: MessageCreateParams = {
