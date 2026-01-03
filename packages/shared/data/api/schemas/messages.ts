@@ -24,8 +24,20 @@ import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
  * DTO for creating a new message
  */
 export interface CreateMessageDto {
-  /** Parent message ID (null for root) */
-  parentId: string | null
+  /**
+   * Parent message ID for positioning this message in the conversation tree.
+   *
+   * Behavior:
+   * - `undefined` (omitted): Auto-resolve parent based on topic state:
+   *   - If topic has no messages: create as root (parentId = null)
+   *   - If topic has messages and activeNodeId is set: attach to activeNodeId
+   *   - If topic has messages but no activeNodeId: throw INVALID_OPERATION error
+   * - `null` (explicit): Create as root message. Throws INVALID_OPERATION if
+   *   topic already has a root message (only one root allowed per topic).
+   * - `string` (message ID): Attach to specified parent. Throws NOT_FOUND if
+   *   parent doesn't exist, or INVALID_OPERATION if parent belongs to different topic.
+   */
+  parentId?: string | null
   /** Message role */
   role: MessageRole
   /** Message content */

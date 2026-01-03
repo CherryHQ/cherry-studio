@@ -27,7 +27,7 @@ import type {
   TreeNode,
   TreeResponse
 } from '@shared/data/types/message'
-import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('MessageService')
 
@@ -468,27 +468,90 @@ export class MessageService {
     const db = dbService.getDb()
 
     return await db.transaction(async (tx) => {
-      // Verify topic exists
+      // Step 1: Verify topic exists and fetch its current state.
+      // We need the topic to check activeNodeId for parentId auto-resolution.
       const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1)
 
       if (!topic) {
         throw DataApiErrorFactory.notFound('Topic', topicId)
       }
 
-      // Verify parent exists if specified
-      if (dto.parentId) {
+      // Step 2: Resolve parentId based on the three possible input states:
+      // - undefined: auto-resolve based on topic state
+      // - null: explicitly create as root (must validate uniqueness)
+      // - string: use provided ID (must validate existence and ownership)
+      let resolvedParentId: string | null
+
+      if (dto.parentId === undefined) {
+        // Auto-resolution mode: Determine parentId based on topic's current state.
+        // This provides convenience for callers who want to "append" to the conversation
+        // without needing to know the tree structure.
+
+        // Check if topic has any existing messages by querying for at least one.
+        const [existingMessage] = await tx
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .where(eq(messageTable.topicId, topicId))
+          .limit(1)
+
+        if (!existingMessage) {
+          // Topic is empty: This will be the first message, so it becomes the root.
+          // Root messages have parentId = null.
+          resolvedParentId = null
+        } else if (topic.activeNodeId) {
+          // Topic has messages and an active node: Attach new message as child of activeNodeId.
+          // This is the typical case for continuing a conversation.
+          resolvedParentId = topic.activeNodeId
+        } else {
+          // Topic has messages but no activeNodeId: This is an ambiguous state.
+          // We cannot auto-resolve because we don't know where in the tree to attach.
+          // Require explicit parentId from caller to resolve the ambiguity.
+          throw DataApiErrorFactory.invalidOperation(
+            'create message',
+            'Topic has messages but no activeNodeId. Please specify parentId explicitly.'
+          )
+        }
+      } else if (dto.parentId === null) {
+        // Explicit root creation: Caller wants to create a root message.
+        // Each topic can only have one root message (parentId = null).
+        // Check if a root already exists to enforce this constraint.
+
+        const [existingRoot] = await tx
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId)))
+          .limit(1)
+
+        if (existingRoot) {
+          // Root already exists: Cannot create another root message.
+          // This enforces the single-root tree structure constraint.
+          throw DataApiErrorFactory.invalidOperation('create root message', 'Topic already has a root message')
+        }
+        resolvedParentId = null
+      } else {
+        // Explicit parent ID provided: Validate the parent exists and belongs to this topic.
+        // This ensures referential integrity within the message tree.
+
         const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
 
         if (!parent) {
+          // Parent message not found: Cannot attach to non-existent message.
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
         }
+        if (parent.topicId !== topicId) {
+          // Parent belongs to different topic: Cross-topic references are not allowed.
+          // Each topic's message tree must be self-contained.
+          throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
+        }
+        resolvedParentId = dto.parentId
       }
 
+      // Step 3: Insert the message using the resolved parentId.
       const [row] = await tx
         .insert(messageTable)
         .values({
           topicId,
-          parentId: dto.parentId,
+          parentId: resolvedParentId,
           role: dto.role,
           data: dto.data,
           status: dto.status ?? 'pending',
