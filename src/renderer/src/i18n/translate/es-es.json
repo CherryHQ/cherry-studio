@@ -1295,7 +1295,9 @@
     "availableProviders": "Proveedores disponibles",
     "availableTools": "Herramientas disponibles",
     "backup": {
-      "file_format": "Formato de archivo de copia de seguridad incorrecto"
+      "file_format": "Formato de archivo de copia de seguridad incorrecto",
+      "file_locked": "No se puede restaurar: Algunos archivos están en uso. Por favor cierre todas las bases de conocimiento o reinicie la aplicación e intente de nuevo.",
+      "file_not_found": "Archivo de respaldo no encontrado o está corrupto"
     },
     "boundary": {
       "default": {

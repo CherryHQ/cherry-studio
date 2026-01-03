@@ -1295,7 +1295,9 @@
     "availableProviders": "Fournisseurs disponibles",
     "availableTools": "Outils disponibles",
     "backup": {
-      "file_format": "Le format du fichier de sauvegarde est incorrect"
+      "file_format": "Le format du fichier de sauvegarde est incorrect",
+      "file_locked": "Impossible de restaurer : certains fichiers sont utilisés. Veuillez fermer toutes les bases de connaissances ou redémarrer l'application et réessayer.",
+      "file_not_found": "Fichier de sauvegarde introuvable ou corrompu"
     },
     "boundary": {
       "default": {
