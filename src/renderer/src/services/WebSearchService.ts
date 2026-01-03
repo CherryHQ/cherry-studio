@@ -15,6 +15,7 @@ import type {
   WebSearchProviderResult,
   WebSearchStatus
 } from '@renderer/types'
+import type { WebTraceContext } from '@renderer/types/trace'
 import { hasObjectKey, removeSpecialCharactersForFileName, uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -26,7 +27,6 @@ import { sliceByTokens } from 'tokenx'
 
 import { getKnowledgeBaseParams } from './KnowledgeService'
 import { getKnowledgeSourceUrl, searchKnowledgeBase } from './KnowledgeService'
-
 const logger = loggerService.withContext('WebSearchService')
 
 interface RequestState {
@@ -156,10 +156,11 @@ class WebSearchService {
     provider: WebSearchProvider,
     query: string,
     httpOptions?: RequestInit,
-    spanId?: string
+    spanId?: string,
+    traceContext?: WebTraceContext
   ): Promise<WebSearchProviderResponse> {
     const websearch = this.getWebSearchState()
-    const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
+    const webSearchEngine = new WebSearchEngineProvider(provider, spanId, traceContext)
 
     let formattedQuery = query
     // FIXME: 有待商榷，效果一般
@@ -412,7 +413,8 @@ class WebSearchService {
   public async processWebsearch(
     webSearchProvider: WebSearchProvider,
     extractResults: ExtractResults,
-    requestId: string
+    requestId: string,
+    traceContext?: WebTraceContext
   ): Promise<WebSearchProviderResponse> {
     // 重置状态
     await this.setWebSearchStatus(requestId, { phase: 'default' })
@@ -426,17 +428,18 @@ class WebSearchService {
     // 使用请求特定的signal，如果没有则回退到全局signal
     const signal = this.getRequestState(requestId).signal || this.signal
 
-    const span = webSearchProvider.topicId
+    const span = traceContext?.topicId
       ? addSpan({
-          topicId: webSearchProvider.topicId,
+          topicId: traceContext.topicId,
           name: `WebSearch`,
           inputs: {
             question: extractResults.websearch.question,
             provider: webSearchProvider.id
           },
           tag: `Web`,
-          parentSpanId: webSearchProvider.parentSpanId,
-          modelName: webSearchProvider.modelName
+          // parentSpanId: webSearchProvider.parentSpanId,
+          modelName: traceContext.modelName,
+          assistantMsgId: traceContext.assistantMsgId
         })
       : undefined
     const questions = extractResults.websearch.question
@@ -447,18 +450,19 @@ class WebSearchService {
       const contents = await fetchWebContents(links, undefined, undefined, {
         signal
       })
-      webSearchProvider.topicId &&
+      traceContext?.topicId &&
         endSpan({
-          topicId: webSearchProvider.topicId,
+          topicId: traceContext.topicId,
           outputs: contents,
-          modelName: webSearchProvider.modelName,
-          span
+          modelName: traceContext.modelName,
+          span,
+          assistantMsgId: traceContext.assistantMsgId
         })
       return { query: 'summaries', results: contents }
     }
 
     const searchPromises = questions.map((q) =>
-      this.search(webSearchProvider, q, { signal }, span?.spanContext().spanId)
+      this.search(webSearchProvider, q, { signal }, span?.spanContext().spanId, traceContext)
     )
     const searchResults = await Promise.allSettled(searchPromises)
 
@@ -497,12 +501,13 @@ class WebSearchService {
     // 如果没有搜索结果，直接返回空结果
     if (finalResults.length === 0) {
       await this.setWebSearchStatus(requestId, { phase: 'default' })
-      if (webSearchProvider.topicId) {
+      if (traceContext?.topicId) {
         endSpan({
-          topicId: webSearchProvider.topicId,
+          topicId: traceContext.topicId,
           outputs: finalResults,
-          modelName: webSearchProvider.modelName,
-          span
+          modelName: traceContext.modelName,
+          span,
+          assistantMsgId: traceContext.assistantMsgId
         })
       }
       return {
@@ -550,11 +555,12 @@ class WebSearchService {
     // 重置状态
     await this.setWebSearchStatus(requestId, { phase: 'default' })
 
-    if (webSearchProvider.topicId) {
+    if (traceContext?.topicId) {
       endSpan({
-        topicId: webSearchProvider.topicId,
+        topicId: traceContext.topicId,
         outputs: finalResults,
-        modelName: webSearchProvider.modelName,
+        modelName: traceContext.modelName,
+        assistantMsgId: traceContext.assistantMsgId,
         span
       })
     }

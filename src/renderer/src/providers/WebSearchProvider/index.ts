@@ -1,6 +1,7 @@
 import { withSpanResult } from '@renderer/services/SpanManagerService'
 import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebTraceContext } from '@renderer/types/trace'
 import { filterResultWithBlacklist } from '@renderer/utils/blacklistMatchPattern'
 
 import type BaseWebSearchProvider from './BaseWebSearchProvider'
@@ -12,13 +13,15 @@ export default class WebSearchEngineProvider {
   private topicId: string | undefined
   private parentSpanId: string | undefined
   private modelName: string | undefined
+  private assistantMsgId?: string
 
-  constructor(provider: WebSearchProvider, parentSpanId?: string) {
+  constructor(provider: WebSearchProvider, parentSpanId?: string, traceContext?: WebTraceContext) {
     this.sdk = WebSearchProviderFactory.create(provider)
     this.providerName = provider.name
-    this.topicId = provider.topicId
+    this.topicId = traceContext?.topicId
     this.parentSpanId = parentSpanId
-    this.modelName = provider.modelName
+    this.modelName = traceContext?.modelName
+    this.assistantMsgId = traceContext?.assistantMsgId
   }
 
   public async search(
@@ -35,7 +38,8 @@ export default class WebSearchEngineProvider {
       tag: 'Web',
       topicId: this.topicId || '',
       parentSpanId: this.parentSpanId,
-      modelName: this.modelName
+      modelName: this.modelName,
+      assistantMsgId: this.assistantMsgId
     }
 
     const result = await withSpanResult(callSearch, traceParams, { query, websearch })

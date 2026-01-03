@@ -15,6 +15,15 @@ vi.mock('@logger', () => ({
   }
 }))
 
+// Mock window.api.trace.tokenUsage
+global.window = {
+  api: {
+    trace: {
+      tokenUsage: vi.fn()
+    }
+  }
+} as any
+
 describe('AiSdkSpanAdapter', () => {
   const createMockSpan = (attributes: Record<string, unknown>): Span => {
     const span = {
@@ -43,11 +52,17 @@ describe('AiSdkSpanAdapter', () => {
     }
 
     const span = createMockSpan(attributes)
-    const result = AiSdkSpanAdapter.convertToSpanEntity({ span })
+    const mockTokenUsage = vi.fn()
+    ;(global.window.api.trace.tokenUsage as any) = mockTokenUsage
 
-    expect(result.usage).toBeDefined()
-    expect(result.usage?.prompt_tokens).toBe(321)
-    expect(result.usage?.completion_tokens).toBe(654)
-    expect(result.usage?.total_tokens).toBe(975)
+    AiSdkSpanAdapter.convertToSpanEntity({ span })
+
+    // 验证 tokenUsage 被正确调用
+    expect(mockTokenUsage).toHaveBeenCalledTimes(1)
+    expect(mockTokenUsage).toHaveBeenCalledWith('span-id', {
+      prompt_tokens: 321,
+      completion_tokens: 654,
+      total_tokens: 975
+    })
   })
 })

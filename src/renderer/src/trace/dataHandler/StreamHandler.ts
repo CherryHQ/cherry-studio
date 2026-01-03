@@ -3,11 +3,13 @@ import type { Stream } from '@cherrystudio/openai/streaming'
 import type { TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
+import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 
 export class StreamHandler {
   private topicId: string
   private span: Span
   private modelName?: string
+  private assistantMsgId?: string
   private usage: TokenUsage = {
     prompt_tokens: 0,
     completion_tokens: 0,
@@ -19,12 +21,14 @@ export class StreamHandler {
     topicId: string,
     span: Span,
     stream: Stream<OpenAI.Chat.Completions.ChatCompletionChunk | OpenAI.Responses.ResponseStreamEvent>,
-    modelName?: string
+    modelName?: string,
+    assistantMsgId?: string
   ) {
     this.topicId = topicId
     this.span = span
     this.modelName = modelName
     this.stream = stream
+    this.assistantMsgId = assistantMsgId
   }
 
   async *createStreamAdapter(): AsyncIterable<
@@ -84,26 +88,37 @@ export class StreamHandler {
       }
       this.finish()
     } catch (err) {
-      endSpan({ topicId: this.topicId, error: err as Error, span: this.span, modelName: this.modelName })
+      endSpan({
+        topicId: this.topicId,
+        error: err as Error,
+        span: this.span,
+        modelName: this.modelName,
+        assistantMsgId: this.assistantMsgId
+      })
       throw err
     }
   }
 
   async finish() {
     window.api.trace.tokenUsage(this.span.spanContext().spanId, this.usage)
-    endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName })
+    endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName, assistantMsgId: this.assistantMsgId })
   }
 
   static handleStream(
     stream: Stream<OpenAI.Chat.Completions.ChatCompletionChunk | OpenAI.Responses.ResponseStreamEvent>,
     span?: Span,
-    topicId?: string,
-    modelName?: string
+    params?: StartSpanParams
   ) {
-    if (!span || !topicId) {
+    if (!span || !params || !params.topicId) {
       return stream
     }
-    return new StreamHandler(topicId, span, stream, modelName).createStreamAdapter()
+    return new StreamHandler(
+      params.topicId,
+      span,
+      stream,
+      params.modelName,
+      params.assistantMsgId
+    ).createStreamAdapter()
   }
 }
 
