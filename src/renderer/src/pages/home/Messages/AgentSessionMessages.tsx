@@ -81,9 +81,7 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
 
   // Listen for send message events to auto-scroll to bottom
   useEffect(() => {
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom)
-    ]
+    const unsubscribes = [EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom)]
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [scrollToBottom])
 
