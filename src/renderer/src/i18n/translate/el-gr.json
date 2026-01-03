@@ -706,6 +706,10 @@
         "label": "Καθαρισμός μηνυμάτων {{Command}}",
         "title": "Καθαρισμός μηνυμάτων"
       },
+      "code_editor": {
+        "insert": "[to be translated]:Insert",
+        "title": "[to be translated]:Code Editor"
+      },
       "collapse": "Συμπιέζω",
       "context_count": {
         "tip": "Πλήθος ενδιάμεσων/Μέγιστο πλήθος ενδιάμεσων"

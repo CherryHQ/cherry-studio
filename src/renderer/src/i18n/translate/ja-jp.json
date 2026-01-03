@@ -706,6 +706,10 @@
         "label": "クリア {{Command}}",
         "title": "すべてのメッセージをクリアしますか？"
       },
+      "code_editor": {
+        "insert": "[to be translated]:Insert",
+        "title": "[to be translated]:Code Editor"
+      },
       "collapse": "折りたたむ",
       "context_count": {
         "tip": "コンテキスト数 / 最大コンテキスト数"
