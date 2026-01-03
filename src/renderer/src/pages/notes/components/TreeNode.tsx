@@ -10,7 +10,7 @@ import {
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { SearchMatch, SearchResult } from '@renderer/services/NotesSearchService'
 import type { NotesTreeNode } from '@renderer/types/note'
-import { Dropdown } from 'antd'
+import { Dropdown, Tooltip } from 'antd'
 import { ChevronDown, ChevronRight, File, FilePlus, Folder, FolderOpen } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,7 +36,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const { getMenuItems, onSelectNode, onToggleExpanded, onDropdownOpenChange } = useNotesActions()
 
   const [showAllMatches, setShowAllMatches] = useState(false)
-  const { isEditing: isInputEditing, inputProps } = inPlaceEdit
+  const { isEditing: isInputEditing, inputProps, validationError } = inPlaceEdit
 
   // 检查是否是 hint 节点
   const isHintNode = node.type === 'hint'
@@ -172,7 +172,14 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
               </NodeIcon>
 
               {isEditing ? (
-                <EditInput {...inputProps} onClick={(e) => e.stopPropagation()} autoFocus />
+                <Tooltip title={validationError} open={!!validationError} color="var(--color-error)">
+                  <EditInput
+                    {...inputProps}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                    className={validationError ? 'error' : ''}
+                  />
+                </Tooltip>
               ) : (
                 <NodeNameContainer>
                   <NodeName className={getNodeNameClassName()}>
@@ -487,6 +494,14 @@ export const MoreMatches = styled.div<{ depth: number }>`
 const EditInput = styled.input`
   flex: 1;
   font-size: 13px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+
+  &.error {
+    border-color: var(--color-error);
+  }
 `
 
 const DropHintText = styled.div`

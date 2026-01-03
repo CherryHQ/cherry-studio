@@ -91,7 +91,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const manageState = useTopicManageMode()
   const { isManageMode, selectedIds, searchText, enterManageMode, exitManageMode, toggleSelectTopic } = manageState
 
-  const { startEdit, isEditing, inputProps } = useInPlaceEdit({
+  const { startEdit, isEditing, inputProps, validationError } = useInPlaceEdit({
     onSave: (name: string) => {
       const topic = assistant.topics.find((t) => t.id === editingTopicId)
       if (topic && name !== topic.name) {
@@ -608,7 +608,13 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                     </SelectIcon>
                   )}
                   {editingTopicId === topic.id && isEditing ? (
-                    <TopicEditInput {...inputProps} onClick={(e) => e.stopPropagation()} />
+                    <Tooltip title={validationError} open={!!validationError} color="var(--color-error)">
+                      <TopicEditInput
+                        {...inputProps}
+                        onClick={(e) => e.stopPropagation()}
+                        className={validationError ? 'error' : ''}
+                      />
+                    </Tooltip>
                   ) : (
                     <TopicName
                       className={getTopicNameClassName()}
@@ -803,14 +809,18 @@ const TopicName = styled.div`
 
 const TopicEditInput = styled.input`
   background: var(--color-background);
-  border: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
   color: var(--color-text-1);
   font-size: 13px;
   font-family: inherit;
-  padding: 2px 6px;
+  padding: 1px 5px;
   width: 100%;
   outline: none;
-  padding: 0;
+
+  &.error {
+    border-color: var(--color-error);
+  }
 `
 
 const PendingIndicator = styled.div.attrs({
