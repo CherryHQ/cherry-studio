@@ -39,12 +39,12 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
 
       if (src.startsWith('data:')) {
         // 处理 base64 格式的图片 - 使用 parseDataUrl 避免正则匹配大字符串导致OOM
-        const { mediaType, isBase64, data } = parseDataUrl(src)
-        if (!mediaType || !isBase64 || !data) {
+        const parseResult = parseDataUrl(src)
+        if (!parseResult || !parseResult.mediaType || !parseResult.isBase64) {
           throw new Error('Invalid base64 image format')
         }
-        const byteArray = Base64.toUint8Array(data)
-        blob = new Blob([byteArray], { type: mediaType })
+        const byteArray = Base64.toUint8Array(parseResult.data)
+        blob = new Blob([byteArray], { type: parseResult.mediaType })
       } else if (src.startsWith('file://')) {
         // 处理本地文件路径
         const bytes = await window.api.fs.read(src)

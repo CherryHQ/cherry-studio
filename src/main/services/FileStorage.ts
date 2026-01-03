@@ -673,8 +673,8 @@ class FileStorage {
         throw new Error('Base64 data is required')
       }
 
-      const { data: extractedData } = parseDataUrl(base64Data)
-      const base64String = extractedData || base64Data
+      const parseResult = parseDataUrl(base64Data)
+      const base64String = parseResult?.data ?? base64Data
       const buffer = Buffer.from(base64String, 'base64')
       const uuid = uuidv4()
       const ext = '.png'
@@ -1465,8 +1465,8 @@ class FileStorage {
       })
 
       if (filePath) {
-        const { data: extractedData } = parseDataUrl(data)
-        fs.writeFileSync(filePath, extractedData || data, 'base64')
+        const parseResult = parseDataUrl(data)
+        fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
       }
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)

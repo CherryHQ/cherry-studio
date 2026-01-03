@@ -69,12 +69,13 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
       }
     } else if (imageBlock.url) {
       const url = imageBlock.url
-      const { mediaType, isBase64, data } = parseDataUrl(url)
-      if (isBase64 && data) {
+      const parseResult = parseDataUrl(url)
+      if (parseResult?.isBase64) {
+        const { mediaType, data } = parseResult
         parts.push({ type: 'image', image: data, ...(mediaType ? { mediaType } : {}) })
       } else if (url.startsWith('data:')) {
-        // Malformed data URL
-        logger.error('Malformed data URL detected, image will be excluded:', {
+        // Malformed data URL or non-base64 data URL
+        logger.error('Malformed or non-base64 data URL detected, image will be excluded:', {
           urlPrefix: url.slice(0, 50) + '...'
         })
         continue

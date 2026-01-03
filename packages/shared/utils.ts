@@ -95,7 +95,7 @@ export interface DataUrlParts {
   /** Whether the data is base64 encoded */
   isBase64: boolean
   /** The data portion (everything after the comma). This is the raw string, not decoded. */
-  data?: string
+  data: string
 }
 
 /**
@@ -105,7 +105,7 @@ export interface DataUrlParts {
  * Data URL format: data:[<mediatype>][;base64],<data>
  *
  * @param url - The data URL string to parse
- * @returns Parsed parts of the data URL
+ * @returns DataUrlParts if valid, null if invalid
  *
  * @example
  * parseDataUrl('data:image/png;base64,iVBORw0KGgo...')
@@ -113,15 +113,18 @@ export interface DataUrlParts {
  *
  * parseDataUrl('data:text/plain,Hello')
  * // { mediaType: 'text/plain', isBase64: false, data: 'Hello' }
+ *
+ * parseDataUrl('invalid-url')
+ * // null
  */
-export function parseDataUrl(url: string): DataUrlParts {
+export function parseDataUrl(url: string): DataUrlParts | null {
   if (!url.startsWith('data:')) {
-    return { isBase64: false }
+    return null
   }
 
   const commaIndex = url.indexOf(',')
   if (commaIndex === -1) {
-    return { isBase64: false }
+    return null
   }
 
   const header = url.slice(5, commaIndex)

@@ -39,19 +39,19 @@ describe('parseDataUrl', () => {
     })
   })
 
-  it('returns isBase64: false for non-data URLs', () => {
+  it('returns null for non-data URLs', () => {
     const result = parseDataUrl('https://example.com/image.png')
-    expect(result).toEqual({ isBase64: false })
+    expect(result).toBeNull()
   })
 
-  it('returns isBase64: false for malformed data URL without comma', () => {
+  it('returns null for malformed data URL without comma', () => {
     const result = parseDataUrl('data:image/png;base64')
-    expect(result).toEqual({ isBase64: false })
+    expect(result).toBeNull()
   })
 
   it('handles empty string', () => {
     const result = parseDataUrl('')
-    expect(result).toEqual({ isBase64: false })
+    expect(result).toBeNull()
   })
 
   it('handles large base64 data without performance issues', () => {
@@ -63,9 +63,10 @@ describe('parseDataUrl', () => {
     const result = parseDataUrl(dataUrl)
     const duration = performance.now() - start
 
-    expect(result.mediaType).toBe('image/png')
-    expect(result.isBase64).toBe(true)
-    expect(result.data).toBe(largeData)
+    expect(result).not.toBeNull()
+    expect(result?.mediaType).toBe('image/png')
+    expect(result?.isBase64).toBe(true)
+    expect(result?.data).toBe(largeData)
     // Should complete in under 10ms (string operations are fast)
     expect(duration).toBeLessThan(10)
   })
