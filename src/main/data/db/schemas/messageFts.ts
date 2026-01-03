@@ -24,58 +24,50 @@ export const SEARCHABLE_TEXT_EXPRESSION = `
 `
 
 /**
- * Migration SQL - Copy these statements to migration file
+ * Custom SQL statements that Drizzle cannot manage
+ * These are executed after every migration via DbService.runCustomMigrations()
+ *
+ * All statements should use IF NOT EXISTS to be idempotent.
  */
-export const MESSAGE_FTS_MIGRATION_SQL = `
---> statement-breakpoint
--- ============================================================
--- FTS5 Virtual Table and Triggers for Message Full-Text Search
--- ============================================================
+export const MESSAGE_FTS_STATEMENTS: string[] = [
+  // FTS5 virtual table, Links to message table's searchable_text column
+  `CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(
+    searchable_text,
+    content='message',
+    content_rowid='rowid',
+    tokenize='trigram'
+  )`,
 
--- 1. Create FTS5 virtual table with external content
---    Links to message table's searchable_text column
-CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(
-  searchable_text,
-  content='message',
-  content_rowid='rowid',
-  tokenize='trigram'
-);--> statement-breakpoint
+  // Trigger: populate searchable_text and sync FTS on INSERT
+  `CREATE TRIGGER IF NOT EXISTS message_ai AFTER INSERT ON message BEGIN
+    UPDATE message SET searchable_text = (
+      SELECT group_concat(json_extract(value, '$.content'), ' ')
+      FROM json_each(json_extract(NEW.data, '$.blocks'))
+      WHERE json_extract(value, '$.type') = 'main_text'
+    ) WHERE id = NEW.id;
+    INSERT INTO message_fts(rowid, searchable_text)
+    SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
+  END`,
 
--- 2. Trigger: populate searchable_text and sync FTS on INSERT
-CREATE TRIGGER IF NOT EXISTS message_ai AFTER INSERT ON message BEGIN
-  -- Extract searchable text from data.blocks
-  UPDATE message SET searchable_text = (
-    SELECT group_concat(json_extract(value, '$.content'), ' ')
-    FROM json_each(json_extract(NEW.data, '$.blocks'))
-    WHERE json_extract(value, '$.type') = 'main_text'
-  ) WHERE id = NEW.id;
-  -- Sync to FTS5
-  INSERT INTO message_fts(rowid, searchable_text)
-  SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
-END;--> statement-breakpoint
+  // Trigger: sync FTS on DELETE
+  `CREATE TRIGGER IF NOT EXISTS message_ad AFTER DELETE ON message BEGIN
+    INSERT INTO message_fts(message_fts, rowid, searchable_text)
+    VALUES ('delete', OLD.rowid, OLD.searchable_text);
+  END`,
 
--- 3. Trigger: sync FTS on DELETE
-CREATE TRIGGER IF NOT EXISTS message_ad AFTER DELETE ON message BEGIN
-  INSERT INTO message_fts(message_fts, rowid, searchable_text)
-  VALUES ('delete', OLD.rowid, OLD.searchable_text);
-END;--> statement-breakpoint
-
--- 4. Trigger: update searchable_text and sync FTS on UPDATE OF data
-CREATE TRIGGER IF NOT EXISTS message_au AFTER UPDATE OF data ON message BEGIN
-  -- Remove old FTS entry
-  INSERT INTO message_fts(message_fts, rowid, searchable_text)
-  VALUES ('delete', OLD.rowid, OLD.searchable_text);
-  -- Update searchable_text
-  UPDATE message SET searchable_text = (
-    SELECT group_concat(json_extract(value, '$.content'), ' ')
-    FROM json_each(json_extract(NEW.data, '$.blocks'))
-    WHERE json_extract(value, '$.type') = 'main_text'
-  ) WHERE id = NEW.id;
-  -- Add new FTS entry
-  INSERT INTO message_fts(rowid, searchable_text)
-  SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
-END;
-`
+  // Trigger: update searchable_text and sync FTS on UPDATE OF data
+  `CREATE TRIGGER IF NOT EXISTS message_au AFTER UPDATE OF data ON message BEGIN
+    INSERT INTO message_fts(message_fts, rowid, searchable_text)
+    VALUES ('delete', OLD.rowid, OLD.searchable_text);
+    UPDATE message SET searchable_text = (
+      SELECT group_concat(json_extract(value, '$.content'), ' ')
+      FROM json_each(json_extract(NEW.data, '$.blocks'))
+      WHERE json_extract(value, '$.type') = 'main_text'
+    ) WHERE id = NEW.id;
+    INSERT INTO message_fts(rowid, searchable_text)
+    SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
+  END`
+]
 
 /**
  * Rebuild FTS index (run manually if needed)

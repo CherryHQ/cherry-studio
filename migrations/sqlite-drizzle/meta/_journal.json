@@ -9,11 +9,11 @@
       "when": 1767272575118
     },
     {
+      "breakpoints": true,
       "idx": 1,
-      "version": "6",
-      "when": 1767455592181,
       "tag": "0001_futuristic_human_fly",
-      "breakpoints": true
+      "version": "6",
+      "when": 1767455592181
     }
   ],
   "version": "7"

@@ -14,8 +14,10 @@ src/main/data/db/
 │   ├── columnHelpers.ts  # Reusable column definitions
 │   ├── topic.ts          # Topic table
 │   ├── message.ts        # Message table
+│   ├── messageFts.ts     # FTS5 virtual table & triggers
 │   └── ...               # Other tables
 ├── seeding/              # Database initialization
+├── customSql.ts          # Custom SQL (triggers, virtual tables, etc.)
 └── DbService.ts          # Database connection management
 ```
 
@@ -32,6 +34,10 @@ src/main/data/db/
 # Generate migrations after schema changes
 yarn db:migrations:generate
 ```
+
+### Custom SQL (Triggers, Virtual Tables)
+
+Drizzle cannot manage triggers and virtual tables. See `customSql.ts` for how these are handled.
 
 ### Column Helpers
 

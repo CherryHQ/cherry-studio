@@ -197,3 +197,11 @@ return this.getById(id)
 
 The schema supports soft delete via `deletedAt` field (see `createUpdateDeleteTimestamps`).
 Business logic can choose to use soft delete or hard delete based on requirements.
+
+## Custom SQL
+
+Drizzle cannot manage triggers and virtual tables (e.g., FTS5). These are defined in `customSql.ts` and run automatically after every migration.
+
+**Why**: SQLite's `DROP TABLE` removes associated triggers. When Drizzle modifies a table schema, it drops and recreates the table, losing triggers in the process.
+
+**Adding new custom SQL**: Define statements as `string[]` in the relevant schema file, then spread into `CUSTOM_SQL_STATEMENTS` in `customSql.ts`. All statements must use `IF NOT EXISTS` to be idempotent.
