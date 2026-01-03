@@ -317,6 +317,58 @@
       "enable_server": "Enable API Server to use agents."
     }
   },
+  "apiGateway": {
+    "actions": {
+      "addGroup": "Add Group",
+      "copyEnvVars": "Copy as Environment Variables"
+    },
+    "description": "Expose Cherry Studio's AI capabilities through a unified API Gateway",
+    "endpoints": {
+      "chatCompletions": "OpenAI-compatible chat completions",
+      "messages": "Anthropic-compatible messages API"
+    },
+    "fields": {
+      "baseUrl": {
+        "copyTooltip": "Copy Base URL",
+        "description": "Use this URL as your API base URL in external applications",
+        "label": "Base URL"
+      },
+      "copyAsEnv": {
+        "description": "Copy configuration as environment variables for easy integration",
+        "format": "Format",
+        "label": "Environment Variables"
+      },
+      "defaultModel": {
+        "description": "Select the default provider and model for external applications",
+        "label": "Default Model",
+        "modelPlaceholder": "Select model",
+        "providerPlaceholder": "Select provider"
+      },
+      "enabledEndpoints": {
+        "description": "Choose which API endpoints to expose for each model group",
+        "label": "Enabled Endpoints"
+      },
+      "modelGroups": {
+        "description": "Create model groups with unique URLs for different provider/model combinations",
+        "empty": "No model groups configured. Click 'Add Group' to create one.",
+        "label": "Model Groups",
+        "namePlaceholder": "Group name"
+      },
+      "networkAccess": {
+        "description": "Allow connections from other devices on your network",
+        "label": "Expose to Network",
+        "warning": "Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
+      }
+    },
+    "messages": {
+      "baseUrlCopied": "Base URL copied to clipboard",
+      "envVarsCopied": "Environment variables copied to clipboard",
+      "nameDuplicate": "A group with the same URL path already exists",
+      "nameRequired": "Group name cannot be empty",
+      "nameUpdated": "Group name updated"
+    },
+    "title": "API Gateway"
+  },
   "apiServer": {
     "actions": {
       "copy": "Copy",

@@ -20,11 +20,13 @@ import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/co
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import type {
-  ApiServerConfig,
+  ApiGatewayConfig,
   AssistantsSortType,
   CodeStyleVarious,
+  GatewayEndpoint,
   LanguageVarious,
   MathEngine,
+  ModelGroup,
   OpenAIServiceTier,
   PaintingProvider,
   S3Config,
@@ -240,8 +242,8 @@ export interface SettingsState {
   enableDeveloperMode: boolean
   // UI
   navbarPosition: 'left' | 'top'
-  // API Server
-  apiServer: ApiServerConfig
+  // API Gateway
+  apiServer: ApiGatewayConfig
   showMessageOutline: boolean
 }
 
@@ -434,12 +436,15 @@ export const initialState: SettingsState = {
   enableDeveloperMode: false,
   // UI
   navbarPosition: 'top',
-  // API Server
+  // API Gateway
   apiServer: {
     enabled: false,
     host: API_SERVER_DEFAULTS.HOST,
     port: API_SERVER_DEFAULTS.PORT,
-    apiKey: `cs-sk-${uuid()}`
+    apiKey: `cs-sk-${uuid()}`,
+    modelGroups: [],
+    enabledEndpoints: ['/v1/chat/completions', '/v1/messages'],
+    exposeToNetwork: false
   },
   showMessageOutline: false
 }
@@ -864,7 +869,7 @@ const settingsSlice = createSlice({
     setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
       state.navbarPosition = action.payload
     },
-    // API Server actions
+    // API Gateway actions
     setApiServerEnabled: (state, action: PayloadAction<boolean>) => {
       state.apiServer = {
         ...state.apiServer,
@@ -881,6 +886,39 @@ const settingsSlice = createSlice({
       state.apiServer = {
         ...state.apiServer,
         apiKey: action.payload
+      }
+    },
+    addApiGatewayModelGroup: (state, action: PayloadAction<ModelGroup>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        modelGroups: [...state.apiServer.modelGroups, action.payload]
+      }
+    },
+    updateApiGatewayModelGroup: (state, action: PayloadAction<ModelGroup>) => {
+      // Use createdAt as stable identifier since id can be changed by user
+      state.apiServer = {
+        ...state.apiServer,
+        modelGroups: state.apiServer.modelGroups.map((g) =>
+          g.createdAt === action.payload.createdAt ? action.payload : g
+        )
+      }
+    },
+    removeApiGatewayModelGroup: (state, action: PayloadAction<string>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        modelGroups: state.apiServer.modelGroups.filter((g) => g.id !== action.payload)
+      }
+    },
+    setApiGatewayEnabledEndpoints: (state, action: PayloadAction<GatewayEndpoint[]>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        enabledEndpoints: action.payload
+      }
+    },
+    setApiGatewayExposeToNetwork: (state, action: PayloadAction<boolean>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        exposeToNetwork: action.payload
       }
     },
     setShowMessageOutline: (state, action: PayloadAction<boolean>) => {
@@ -1014,10 +1052,15 @@ export const {
   setEnableDeveloperMode,
   setNavbarPosition,
   setShowMessageOutline,
-  // API Server actions
+  // API Gateway actions
   setApiServerEnabled,
   setApiServerPort,
-  setApiServerApiKey
+  setApiServerApiKey,
+  addApiGatewayModelGroup,
+  updateApiGatewayModelGroup,
+  removeApiGatewayModelGroup,
+  setApiGatewayEnabledEndpoints,
+  setApiGatewayExposeToNetwork
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

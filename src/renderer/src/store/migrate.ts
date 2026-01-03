@@ -2057,7 +2057,10 @@ const migrateConfig = {
           enabled: false,
           host: API_SERVER_DEFAULTS.HOST,
           port: API_SERVER_DEFAULTS.PORT,
-          apiKey: `cs-sk-${uuid()}`
+          apiKey: `cs-sk-${uuid()}`,
+          modelGroups: [],
+          enabledEndpoints: ['/v1/chat/completions', '/v1/messages'],
+          exposeToNetwork: false
         }
       }
       return state
@@ -3147,6 +3150,36 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 191 error', error as Error)
+      return state
+    }
+  },
+  '192': (state: RootState) => {
+    try {
+      // Add API Gateway fields to existing apiServer config
+      if (state.settings.apiServer) {
+        const apiServer = state.settings.apiServer as any
+        // Initialize modelGroups array
+        if (!Array.isArray(apiServer.modelGroups)) {
+          apiServer.modelGroups = []
+        }
+        // Add enabledEndpoints (exclude /v1/models as it's always enabled)
+        if (!Array.isArray(apiServer.enabledEndpoints)) {
+          apiServer.enabledEndpoints = ['/v1/chat/completions', '/v1/messages']
+        } else {
+          apiServer.enabledEndpoints = apiServer.enabledEndpoints.filter((e: string) => e !== '/v1/models')
+        }
+        // Add exposeToNetwork
+        if (apiServer.exposeToNetwork === undefined) {
+          apiServer.exposeToNetwork = false
+        }
+        // Clean up deprecated fields
+        delete apiServer.defaultProviderId
+        delete apiServer.defaultModelId
+      }
+      logger.info('migrate 192 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 192 error', error as Error)
       return state
     }
   }

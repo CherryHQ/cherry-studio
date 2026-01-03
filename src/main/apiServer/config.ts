@@ -1,20 +1,22 @@
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
-import type { ApiServerConfig } from '@types'
+import type { ApiGatewayConfig, GatewayEndpoint } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { loggerService } from '../services/LoggerService'
 import { reduxService } from '../services/ReduxService'
 
-const logger = loggerService.withContext('ApiServerConfig')
+const logger = loggerService.withContext('ApiGatewayConfig')
+
+const DEFAULT_ENABLED_ENDPOINTS: GatewayEndpoint[] = ['/v1/chat/completions', '/v1/messages']
 
 class ConfigManager {
-  private _config: ApiServerConfig | null = null
+  private _config: ApiGatewayConfig | null = null
 
   private generateApiKey(): string {
     return `cs-sk-${uuidv4()}`
   }
 
-  async load(): Promise<ApiServerConfig> {
+  async load(): Promise<ApiGatewayConfig> {
     try {
       const settings = await reduxService.select('state.settings')
       const serverSettings = settings?.apiServer
@@ -30,7 +32,10 @@ class ConfigManager {
         enabled: serverSettings?.enabled ?? false,
         port: serverSettings?.port ?? API_SERVER_DEFAULTS.PORT,
         host: serverSettings?.host ?? API_SERVER_DEFAULTS.HOST,
-        apiKey: apiKey
+        apiKey: apiKey,
+        modelGroups: serverSettings?.modelGroups ?? [],
+        enabledEndpoints: serverSettings?.enabledEndpoints ?? DEFAULT_ENABLED_ENDPOINTS,
+        exposeToNetwork: serverSettings?.exposeToNetwork ?? false
       }
       return this._config
     } catch (error: any) {
@@ -39,23 +44,22 @@ class ConfigManager {
         enabled: false,
         port: API_SERVER_DEFAULTS.PORT,
         host: API_SERVER_DEFAULTS.HOST,
-        apiKey: this.generateApiKey()
+        apiKey: this.generateApiKey(),
+        modelGroups: [],
+        enabledEndpoints: DEFAULT_ENABLED_ENDPOINTS,
+        exposeToNetwork: false
       }
       return this._config
     }
   }
 
-  async get(): Promise<ApiServerConfig> {
-    if (!this._config) {
-      await this.load()
-    }
-    if (!this._config) {
-      throw new Error('Failed to load API server configuration')
-    }
-    return this._config
+  async get(): Promise<ApiGatewayConfig> {
+    // Always reload to get fresh config from Redux
+    // This ensures UI changes (like group ID updates) are reflected immediately
+    return await this.load()
   }
 
-  async reload(): Promise<ApiServerConfig> {
+  async reload(): Promise<ApiGatewayConfig> {
     return await this.load()
   }
 }

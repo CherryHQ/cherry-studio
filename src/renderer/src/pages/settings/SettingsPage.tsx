@@ -105,7 +105,7 @@ const SettingsPage: FC = () => {
           <MenuItemLink to="/settings/api-server">
             <MenuItem className={isRoute('/settings/api-server')}>
               <Server size={18} />
-              {t('apiServer.title')}
+              {t('apiGateway.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/docprocess">
