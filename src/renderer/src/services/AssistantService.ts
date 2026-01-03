@@ -116,7 +116,6 @@ export function getDefaultTranslateAssistant(
   // disable reasoning if it could be disabled, otherwise no configuration
   const reasoningEffort = supportedOptions?.includes('none') ? 'none' : 'default'
   const settings = {
-    temperature: 0.7,
     reasoning_effort: reasoningEffort,
     ..._settings
   } satisfies Partial<AssistantSettings>
