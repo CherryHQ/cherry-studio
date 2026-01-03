@@ -61,6 +61,7 @@ export default function useTranslate() {
     prompt,
     settings,
     translateLanguages,
+    isLoaded,
     getLanguageByLangcode,
     updateSettings: handleUpdateSettings
   }

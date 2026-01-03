@@ -31,15 +31,15 @@ const logger = loggerService.withContext('ActionTranslate')
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
-  const { translateModelPrompt, language } = useSettings()
-  const { getLanguageByLangcode } = useTranslate()
+  const { language } = useSettings()
+  const { getLanguageByLangcode, isLoaded: isLanguagesLoaded } = useTranslate()
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
     const lang = getLanguageByLangcode(language)
     if (lang !== UNKNOWN) {
       return lang
     } else {
-      logger.warn('Fallback to zh-CN')
+      logger.warn('[initialize targetLanguage] Unexpected UNKNOWN. Fallback to zh-CN')
       return LanguagesEnum.zhCN
     }
   })
@@ -57,38 +57,71 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const assistantRef = useRef<Assistant | null>(null)
   const topicRef = useRef<Topic | null>(null)
   const askId = useRef('')
+  const targetLangRef = useRef(targetLanguage)
 
+  // It's called only in initialization.
+  // It will change target/alter language, so fetchResult will be triggered. Be careful!
   const updateLanguagePair = useCallback(async () => {
+    // Only called is when languages loaded.
+    // It ensure we could get right language from getLanguageByLangcode.
+    if (!isLanguagesLoaded) {
+      logger.silly('[updateLanguagePair] Languages are not loaded. Skip.')
+      return
+    }
+
     const biDirectionLangPair = await db.settings.get({ id: 'translate:bidirectional:pair' })
 
     if (biDirectionLangPair && biDirectionLangPair.value[0]) {
       const targetLang = getLanguageByLangcode(biDirectionLangPair.value[0])
       setTargetLanguage(targetLang)
+      targetLangRef.current = targetLang
     }
 
     if (biDirectionLangPair && biDirectionLangPair.value[1]) {
       const alterLang = getLanguageByLangcode(biDirectionLangPair.value[1])
       setAlterLanguage(alterLang)
     }
-  }, [getLanguageByLangcode])
+  }, [getLanguageByLangcode, isLanguagesLoaded])
 
-  // Initialize values only once when action changes
-  useEffect(() => {
-    if (initialized.current || !action.selectedText) return
+  // Initialize values only once
+  const initialize = useCallback(async () => {
+    if (initialized.current) {
+      logger.silly('[initialize] Already initialized.')
+      return
+    }
+
+    // Only try to initialize when languages loaded, so updateLanguagePair would not fail.
+    if (!isLanguagesLoaded) {
+      logger.silly('[initialize] Languages not loaded. Skip initialization.')
+      return
+    }
+
+    // Edge case
+    if (action.selectedText === undefined) {
+      logger.error('[initialize] No selected text.')
+      return
+    }
+
+    // Initialize language pair.
+    // It will update targetLangRef, so we could get latest target language in the following code
+    await updateLanguagePair()
 
     // Initialize assistant
-    const currentAssistant = getDefaultTranslateAssistant(targetLanguage, action.selectedText)
+    const currentAssistant = getDefaultTranslateAssistant(targetLangRef.current, action.selectedText)
 
     assistantRef.current = currentAssistant
 
     // Initialize topic
     topicRef.current = getDefaultTopic(currentAssistant.id)
+  }, [action.selectedText, isLanguagesLoaded, updateLanguagePair])
 
-    // Initialize language pair
-    updateLanguagePair().then(() => {
-      initialized.current = true
-    })
-  }, [action, targetLanguage, translateModelPrompt, updateLanguagePair])
+  // Try to initialize when:
+  // 1. action.selectedText change (generally will not)
+  // 2. isLanguagesLoaded change (only initialize when languages loaded)
+  // 3. updateLanguagePair change (depend on translateLanguages and isLanguagesLoaded)
+  useEffect(() => {
+    initialize()
+  }, [initialize])
 
   const fetchResult = useCallback(async () => {
     if (!assistantRef.current || !topicRef.current || !action.selectedText || !initialized.current) return
@@ -154,7 +187,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   }, [allMessages])
 
   const handleChangeLanguage = (targetLanguage: TranslateLanguage, alterLanguage: TranslateLanguage) => {
+    if (!initialized.current) {
+      return
+    }
     setTargetLanguage(targetLanguage)
+    targetLangRef.current = targetLanguage
     setAlterLanguage(alterLanguage)
 
     db.settings.put({ id: 'translate:bidirectional:pair', value: [targetLanguage.langCode, alterLanguage.langCode] })

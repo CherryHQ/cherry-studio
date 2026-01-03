@@ -255,6 +255,7 @@ export const getTranslateOptions = async () => {
     }))
     return [...builtinLanguages, ...transformedCustomLangs]
   } catch (e) {
+    logger.error('[getTranslateOptions] Failed to get custom languages. Fallback to builtinLanguages', e as Error)
     return builtinLanguages
   }
 }
