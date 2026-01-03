@@ -18,7 +18,6 @@ import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
-import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -88,18 +87,14 @@ class ClaudeCodeService implements AgentServiceInterface {
       })
       return aiStream
     }
-    if (
-      (modelInfo.provider?.type !== 'anthropic' &&
-        (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')) ||
-      modelInfo.provider.apiKey === ''
-    ) {
-      logger.error('Anthropic provider configuration is missing', {
-        modelInfo
-      })
-
+    // Validate provider has required configuration
+    // Note: We no longer restrict to anthropic type only - the API Server's unified adapter
+    // handles format conversion for any provider type (OpenAI, Gemini, etc.)
+    if (!modelInfo.provider?.apiKey) {
+      logger.error('Provider API key is missing', { modelInfo })
       aiStream.emit('data', {
         type: 'error',
-        error: new Error(`Invalid provider type '${modelInfo.provider?.type}'. Expected 'anthropic' provider type.`)
+        error: new Error(`Provider '${modelInfo.provider?.id}' is missing API key configuration.`)
       })
       return aiStream
     }
@@ -113,22 +108,14 @@ class ClaudeCodeService implements AgentServiceInterface {
     // Auto-discover Git Bash path on Windows (already logs internally)
     const customGitBashPath = isWin ? autoDiscoverGitBash() : null
 
-    // Claude Agent SDK builds the final endpoint as `${ANTHROPIC_BASE_URL}/v1/messages`.
-    // To avoid malformed URLs like `/v1/v1/messages`, we normalize the provider host
-    // by stripping any trailing API version (e.g. `/v1`).
-    const anthropicBaseUrl = withoutTrailingApiVersion(
-      modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost
-    )
-
+    // Route through local API Server which handles format conversion via unified adapter
+    // This enables Claude Code Agent to work with any provider (OpenAI, Gemini, etc.)
+    // The API Server converts AI SDK responses to Anthropic SSE format transparently
     const env = {
       ...loginShellEnvWithoutProxies,
-      // TODO: fix the proxy api server
-      // ANTHROPIC_API_KEY: apiConfig.apiKey,
-      // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
-      // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
-      ANTHROPIC_API_KEY: modelInfo.provider.apiKey,
-      ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
-      ANTHROPIC_BASE_URL: anthropicBaseUrl,
+      ANTHROPIC_API_KEY: apiConfig.apiKey,
+      ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
+      ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
       ANTHROPIC_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_OPUS_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_SONNET_MODEL: modelInfo.modelId,
@@ -549,6 +536,19 @@ class ClaudeCodeService implements AgentServiceInterface {
         stream.emit('data', {
           type: 'cancelled',
           error: new Error('Request aborted by client')
+        })
+        return
+      }
+
+      // Skip emitting error if stream already finished (error was handled via result message)
+      if (streamState.isFinished()) {
+        logger.debug('SDK process exited after stream finished, skipping duplicate error event', {
+          duration,
+          error: errorObj instanceof Error ? { name: errorObj.name, message: errorObj.message } : String(errorObj)
+        })
+        // Still emit complete to signal stream end
+        stream.emit('data', {
+          type: 'complete'
         })
         return
       }

@@ -1,5 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Assistant } from '@renderer/types'
 import { type Model, SystemProviderIds } from '@renderer/types'
 import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
@@ -17,6 +18,7 @@ import {
 } from './openai'
 import { isQwenMTModel } from './qwen'
 import { isClaude45ReasoningModel } from './reasoning'
+import { isFunctionCallingModel } from './tooluse'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
@@ -247,8 +249,21 @@ export const isGrokModel = (model: Model) => {
 // zhipu 视觉推理模型用这组 special token 标记推理结果
 export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const
 
+// TODO: 支持提示词模式的工具调用
 export const agentModelFilter = (model: Model): boolean => {
-  return !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
+  const provider = getProviderByModel(model)
+
+  // 需要适配，且容易超出限额
+  if (provider.id === SystemProviderIds.copilot) {
+    return false
+  }
+  return (
+    !isEmbeddingModel(model) &&
+    !isRerankModel(model) &&
+    !isTextToImageModel(model) &&
+    !isGenerateImageModel(model) &&
+    isFunctionCallingModel(model)
+  )
 }
 
 export const isMaxTemperatureOneModel = (model: Model): boolean => {

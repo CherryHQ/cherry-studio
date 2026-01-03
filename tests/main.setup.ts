@@ -61,7 +61,19 @@ vi.mock('electron', () => ({
     getPrimaryDisplay: vi.fn(),
     getAllDisplays: vi.fn()
   },
-  Notification: vi.fn()
+  Notification: vi.fn(),
+  net: {
+    fetch: vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: vi.fn(() => Promise.resolve({})),
+        text: vi.fn(() => Promise.resolve('')),
+        headers: new Headers()
+      })
+    )
+  }
 }))
 
 // Mock Winston for LoggerService dependencies
@@ -97,14 +109,39 @@ vi.mock('winston-daily-rotate-file', () => {
   }))
 })
 
-// Mock Node.js modules
-vi.mock('node:os', () => ({
-  platform: vi.fn(() => 'darwin'),
-  arch: vi.fn(() => 'x64'),
-  version: vi.fn(() => '20.0.0'),
-  cpus: vi.fn(() => [{ model: 'Mock CPU' }]),
-  totalmem: vi.fn(() => 8 * 1024 * 1024 * 1024) // 8GB
+// Mock main process services
+vi.mock('@main/services/AnthropicService', () => ({
+  default: {}
 }))
+
+vi.mock('@main/services/CopilotService', () => ({
+  default: {}
+}))
+
+vi.mock('@main/services/ReduxService', () => ({
+  reduxService: {
+    selectSync: vi.fn()
+  }
+}))
+
+vi.mock('@main/integration/cherryai', () => ({
+  generateSignature: vi.fn()
+}))
+
+// Mock Node.js modules
+vi.mock('node:os', async () => {
+  const actual = await vi.importActual<typeof import('node:os')>('node:os')
+  return {
+    ...actual,
+    default: actual,
+    platform: vi.fn(() => 'darwin'),
+    arch: vi.fn(() => 'x64'),
+    version: vi.fn(() => '20.0.0'),
+    cpus: vi.fn(() => [{ model: 'Mock CPU' }]),
+    totalmem: vi.fn(() => 8 * 1024 * 1024 * 1024), // 8GB
+    homedir: vi.fn(() => '/tmp')
+  }
+})
 
 vi.mock('node:path', async () => {
   const actual = await vi.importActual('node:path')

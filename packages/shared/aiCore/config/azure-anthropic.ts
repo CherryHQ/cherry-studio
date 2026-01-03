@@ -1,4 +1,4 @@
-import type { Provider } from '@renderer/types'
+import type { MinimalModel, MinimalProvider } from '@shared/types'
 
 import { provider2Provider, startsWith } from './helper'
 import type { RuleSet } from './types'
@@ -8,7 +8,7 @@ const AZURE_ANTHROPIC_RULES: RuleSet = {
   rules: [
     {
       match: startsWith('claude'),
-      provider: (provider: Provider) => ({
+      provider: (provider: MinimalProvider) => ({
         ...provider,
         type: 'anthropic',
         apiHost: provider.apiHost + 'anthropic/v1',
@@ -16,7 +16,8 @@ const AZURE_ANTHROPIC_RULES: RuleSet = {
       })
     }
   ],
-  fallbackRule: (provider: Provider) => provider
+  fallbackRule: (provider: MinimalProvider) => provider
 }
 
-export const azureAnthropicProviderCreator = provider2Provider.bind(null, AZURE_ANTHROPIC_RULES)
+export const azureAnthropicProviderCreator = <P extends MinimalProvider>(model: MinimalModel, provider: P): P =>
+  provider2Provider<MinimalModel, MinimalProvider, P>(AZURE_ANTHROPIC_RULES, model, provider)

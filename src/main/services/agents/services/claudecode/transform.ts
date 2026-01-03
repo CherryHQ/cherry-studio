@@ -121,7 +121,7 @@ export function transformSDKMessageToStreamParts(sdkMessage: SDKMessage, state: 
     case 'system':
       return handleSystemMessage(sdkMessage)
     case 'result':
-      return handleResultMessage(sdkMessage)
+      return handleResultMessage(sdkMessage, state)
     default:
       logger.warn('Unknown SDKMessage type', { type: (sdkMessage as any).type })
       return []
@@ -190,6 +190,30 @@ function handleAssistantMessage(
         const sanitizedText = stripLocalCommandTags(block.text)
         if (sanitizedText) {
           textBlocks.push(sanitizedText)
+        }
+        break
+      }
+      case 'thinking':
+      case 'redacted_thinking': {
+        const thinkingText = block.type === 'thinking' ? block.thinking : block.data
+        if (thinkingText) {
+          const id = generateMessageId()
+          chunks.push({
+            type: 'reasoning-start',
+            id,
+            providerMetadata
+          })
+          chunks.push({
+            type: 'reasoning-delta',
+            id,
+            text: thinkingText,
+            providerMetadata
+          })
+          chunks.push({
+            type: 'reasoning-end',
+            id,
+            providerMetadata
+          })
         }
         break
       }
@@ -445,7 +469,11 @@ function handleStreamEvent(
     case 'content_block_stop': {
       const block = state.closeBlock(event.index)
       if (!block) {
-        logger.warn('Received content_block_stop for unknown index', { index: event.index })
+        // Some providers (e.g., Gemini) send content via assistant message before stream events,
+        // so the block may not exist in state. This is expected behavior, not an error.
+        logger.debug('Received content_block_stop for unknown index (may be from non-streaming content)', {
+          index: event.index
+        })
         break
       }
 
@@ -679,7 +707,13 @@ function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): 
  * Successful runs yield a `finish` frame with aggregated usage metrics, while
  * failures are surfaced as `error` frames.
  */
-function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): AgentStreamPart[] {
+function handleResultMessage(
+  message: Extract<SDKMessage, { type: 'result' }>,
+  state: ClaudeStreamState
+): AgentStreamPart[] {
+  // Mark stream as finished to prevent duplicate error events when SDK process exits
+  state.markFinished()
+
   const chunks: AgentStreamPart[] = []
 
   let usage: LanguageModelUsage | undefined
@@ -691,26 +725,33 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
     }
   }
 
-  if (message.subtype === 'success') {
-    chunks.push({
-      type: 'finish',
-      totalUsage: usage ?? emptyUsage,
-      finishReason: mapClaudeCodeFinishReason(message.subtype),
-      providerMetadata: {
-        ...sdkMessageToProviderMetadata(message),
-        usage: message.usage,
-        durationMs: message.duration_ms,
-        costUsd: message.total_cost_usd,
-        raw: message
-      }
-    } as AgentStreamPart)
-  } else {
+  chunks.push({
+    type: 'finish',
+    totalUsage: usage ?? emptyUsage,
+    finishReason: mapClaudeCodeFinishReason(message.subtype),
+    providerMetadata: {
+      ...sdkMessageToProviderMetadata(message),
+      usage: message.usage,
+      durationMs: message.duration_ms,
+      costUsd: message.total_cost_usd,
+      raw: message
+    }
+  } as AgentStreamPart)
+  if (message.subtype !== 'success') {
     chunks.push({
       type: 'error',
       error: {
         message: `${message.subtype}: Process failed after ${message.num_turns} turns`
       }
     } as AgentStreamPart)
+  } else {
+    if (message.is_error) {
+      const errorMatch = message.result.match(/\{.*\}/)
+      if (errorMatch) {
+        const errorDetail = JSON.parse(errorMatch[0])
+        chunks.push(errorDetail)
+      }
+    }
   }
   return chunks
 }

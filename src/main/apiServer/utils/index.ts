@@ -1,7 +1,7 @@
 import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
-import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { isPpioAnthropicCompatibleModel, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
@@ -28,10 +28,9 @@ export async function getAvailableProviders(): Promise<Provider[]> {
       return []
     }
 
-    // Support OpenAI and Anthropic type providers for API server
-    const supportedProviders = providers.filter(
-      (p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic')
-    )
+    // Support all provider types that AI SDK can handle
+    // The ProxyStreamService uses AI SDK which supports many providers
+    const supportedProviders = providers.filter((p: Provider) => p.enabled)
 
     // Cache the filtered results
     CacheService.set(PROVIDERS_CACHE_KEY, supportedProviders, PROVIDERS_CACHE_TTL)
@@ -160,7 +159,7 @@ export async function validateModelId(model: string): Promise<{
         valid: false,
         error: {
           type: 'provider_not_found',
-          message: `Provider '${providerId}' not found, not enabled, or not supported. Only OpenAI providers are currently supported.`,
+          message: `Provider '${providerId}' not found or not enabled.`,
           code: 'provider_not_found'
         }
       }
@@ -262,14 +261,8 @@ export function validateProvider(provider: Provider): boolean {
       return false
     }
 
-    // Support OpenAI and Anthropic type providers
-    if (provider.type !== 'openai' && provider.type !== 'anthropic') {
-      logger.debug('Provider type not supported', {
-        providerId: provider.id,
-        providerType: provider.type
-      })
-      return false
-    }
+    // AI SDK supports many provider types, no longer need to filter by type
+    // The unified-messages service handles all supported types
 
     return true
   } catch (error: any) {
@@ -290,8 +283,41 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
       return (m: Model) => m.id.includes('claude')
     case 'silicon':
       return (m: Model) => isSiliconAnthropicCompatibleModel(m.id)
+    case 'ppio':
+      return (m: Model) => isPpioAnthropicCompatibleModel(m.id)
+    case 'openrouter':
+      return (m: Model) => !m.id.includes('gemini-3') // gemini-3 需要客户端自己维护thinkingSignature
     default:
       // allow all models when checker not configured
       return () => true
   }
+}
+
+/**
+ * Check if a specific model is compatible with Anthropic API for a given provider.
+ *
+ * This is used for fine-grained routing decisions at the model level.
+ * For aggregated providers (like Silicon), only certain models support the Anthropic API endpoint.
+ *
+ * @param provider - The provider to check
+ * @param modelId - The model ID to check (without provider prefix)
+ * @returns true if the model supports Anthropic API endpoint
+ */
+export function isModelAnthropicCompatible(provider: Provider, modelId: string): boolean {
+  const checker = getProviderAnthropicModelChecker(provider.id)
+
+  const model = provider.models?.find((m) => m.id === modelId)
+
+  if (model) {
+    return checker(model)
+  }
+
+  const minimalModel: Model = {
+    id: modelId,
+    name: modelId,
+    provider: provider.id,
+    group: ''
+  }
+
+  return checker(minimalModel)
 }

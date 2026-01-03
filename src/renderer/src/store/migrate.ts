@@ -2962,6 +2962,11 @@ const migrateConfig = {
           includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE
         }
       }
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ppio) {
+          provider.anthropicApiHost = 'https://api.ppinfra.com/anthropic'
+        }
+      })
       logger.info('migrate 182 success')
       return state
     } catch (error) {
