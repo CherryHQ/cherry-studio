@@ -4,6 +4,7 @@
  */
 
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n'
 import type { AISDKWebSearchResult, MCPTool, WebSearchResults } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
@@ -32,6 +33,10 @@ export class AiSdkToChunkAdapter {
   private firstTokenTimestamp: number | null = null
   private hasTextContent = false
   private getSessionWasCleared?: () => boolean
+  private idleTimeoutMs?: number
+  private idleAbortController?: AbortController
+  private idleTimeoutTimer: ReturnType<typeof setTimeout> | null = null
+  private idleTimeoutTriggered = false
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -39,13 +44,19 @@ export class AiSdkToChunkAdapter {
     accumulate?: boolean,
     enableWebSearch?: boolean,
     onSessionUpdate?: (sessionId: string) => void,
-    getSessionWasCleared?: () => boolean
+    getSessionWasCleared?: () => boolean,
+    streamingConfig?: {
+      idleTimeoutMs: number
+      idleAbortController: AbortController
+    }
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
     this.enableWebSearch = enableWebSearch || false
     this.onSessionUpdate = onSessionUpdate
     this.getSessionWasCleared = getSessionWasCleared
+    this.idleTimeoutMs = streamingConfig?.idleTimeoutMs
+    this.idleAbortController = streamingConfig?.idleAbortController
   }
 
   private markFirstTokenIfNeeded() {
@@ -57,6 +68,27 @@ export class AiSdkToChunkAdapter {
   private resetTimingState() {
     this.responseStartTimestamp = null
     this.firstTokenTimestamp = null
+  }
+
+  private clearIdleTimeoutTimer() {
+    if (this.idleTimeoutTimer) {
+      clearTimeout(this.idleTimeoutTimer)
+      this.idleTimeoutTimer = null
+    }
+  }
+
+  private resetIdleTimeoutTimer() {
+    if (!this.idleTimeoutMs || this.idleTimeoutMs <= 0 || !this.idleAbortController) {
+      return
+    }
+
+    this.clearIdleTimeoutTimer()
+
+    this.idleTimeoutTimer = setTimeout(() => {
+      this.idleTimeoutTriggered = true
+      logger.warn('SSE idle timeout reached; aborting request', { idleTimeoutMs: this.idleTimeoutMs })
+      this.idleAbortController?.abort()
+    }, this.idleTimeoutMs)
   }
 
   /**
@@ -88,6 +120,8 @@ export class AiSdkToChunkAdapter {
     }
     this.resetTimingState()
     this.responseStartTimestamp = Date.now()
+    this.idleTimeoutTriggered = false
+    this.resetIdleTimeoutTimer()
     // Reset state at the start of stream
     this.isFirstChunk = true
     this.hasTextContent = false
@@ -111,10 +145,12 @@ export class AiSdkToChunkAdapter {
           break
         }
 
+        this.resetIdleTimeoutTimer()
         // 转换并发送 chunk
         this.convertAndEmitChunk(value, final)
       }
     } finally {
+      this.clearIdleTimeoutTimer()
       reader.releaseLock()
       this.resetTimingState()
     }
@@ -378,10 +414,18 @@ export class AiSdkToChunkAdapter {
         })
         break
       case 'abort':
-        this.onChunk({
-          type: ChunkType.ERROR,
-          error: new DOMException('Request was aborted', 'AbortError')
-        })
+        if (this.idleTimeoutTriggered) {
+          const minutes = Math.round((this.idleTimeoutMs ?? 0) / 60000)
+          this.onChunk({
+            type: ChunkType.ERROR,
+            error: new DOMException(i18n.t('message.error.sse_idle_timeout', { minutes }), 'TimeoutError')
+          })
+        } else {
+          this.onChunk({
+            type: ChunkType.ERROR,
+            error: new DOMException('Request was aborted', 'AbortError')
+          })
+        }
         break
       case 'error':
         this.onChunk({
