@@ -163,7 +163,9 @@ export class CdpBrowserController {
     }
 
     const script = `window.updateTabs(${JSON.stringify(tabs)}, ${JSON.stringify(activeUrl)}, ${canGoBack}, ${canGoForward})`
-    windowInfo.tabBarView.webContents.executeJavaScript(script).catch(() => {})
+    windowInfo.tabBarView.webContents.executeJavaScript(script).catch((error) => {
+      logger.debug('Tab bar update failed', { error, windowKey: windowInfo.windowKey })
+    })
   }
 
   private handleNavigateAction(windowInfo: WindowInfo, url: string) {
@@ -180,7 +182,9 @@ export class CdpBrowserController {
       }
     }
 
-    activeTab.view.webContents.loadURL(finalUrl).catch(() => {})
+    activeTab.view.webContents.loadURL(finalUrl).catch((error) => {
+      logger.warn('Navigation failed in tab bar', { error, url: finalUrl, tabId: windowInfo.activeTabId })
+    })
   }
 
   private handleBackAction(windowInfo: WindowInfo) {
@@ -235,18 +239,26 @@ export class CdpBrowserController {
         });
       })();
     `)
-      .catch(() => {})
+      .catch((error) => {
+        logger.debug('Tab bar message handler setup failed', { error, windowKey: windowInfo.windowKey })
+      })
   }
 
   private handleTabBarAction(windowInfo: WindowInfo, action: { type: string; tabId?: string; url?: string }) {
     if (action.type === 'switch' && action.tabId) {
-      this.switchTab(windowInfo.privateMode, action.tabId).catch(() => {})
+      this.switchTab(windowInfo.privateMode, action.tabId).catch((error) => {
+        logger.warn('Tab switch failed', { error, tabId: action.tabId, windowKey: windowInfo.windowKey })
+      })
     } else if (action.type === 'close' && action.tabId) {
-      this.closeTab(windowInfo.privateMode, action.tabId).catch(() => {})
+      this.closeTab(windowInfo.privateMode, action.tabId).catch((error) => {
+        logger.warn('Tab close failed', { error, tabId: action.tabId, windowKey: windowInfo.windowKey })
+      })
     } else if (action.type === 'new') {
       this.createTab(windowInfo.privateMode, true)
         .then(({ tabId }) => this.switchTab(windowInfo.privateMode, tabId))
-        .catch(() => {})
+        .catch((error) => {
+          logger.warn('New tab creation failed', { error, windowKey: windowInfo.windowKey })
+        })
     } else if (action.type === 'navigate' && action.url) {
       this.handleNavigateAction(windowInfo, action.url)
     } else if (action.type === 'back') {

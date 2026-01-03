@@ -64,17 +64,11 @@ export async function handleOpen(controller: CdpBrowserController, args: unknown
         timeout ?? 10000,
         privateMode ?? false,
         newTab ?? false,
-        showWindow ?? false
+        showWindow
       )
       return successResponse(JSON.stringify({ tabId, content }))
     } else {
-      const res = await controller.open(
-        url,
-        timeout ?? 10000,
-        privateMode ?? false,
-        newTab ?? false,
-        showWindow ?? false
-      )
+      const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, newTab ?? false, showWindow)
       return successResponse(JSON.stringify(res))
     }
   } catch (error) {
