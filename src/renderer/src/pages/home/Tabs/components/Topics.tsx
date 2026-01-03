@@ -31,6 +31,7 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
+import { validators } from '@shared/utils/validators'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
@@ -102,7 +103,8 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     },
     onCancel: () => {
       setEditingTopicId(null)
-    }
+    },
+    validator: validators.maxLength(100)
   })
 
   const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])

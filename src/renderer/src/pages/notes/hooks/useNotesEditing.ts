@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { fetchNoteSummary } from '@renderer/services/ApiService'
 import type { NotesTreeNode } from '@renderer/types/note'
+import { validators } from '@shared/utils/validators'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,7 +29,8 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
     },
     onCancel: () => {
       setEditingNodeId(null)
-    }
+    },
+    validator: validators.fileName(100)
   })
 
   const handleStartEdit = useCallback(
