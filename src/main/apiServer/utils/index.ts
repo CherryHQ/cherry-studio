@@ -285,6 +285,8 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
       return (m: Model) => isSiliconAnthropicCompatibleModel(m.id)
     case 'ppio':
       return (m: Model) => isPpioAnthropicCompatibleModel(m.id)
+    case 'openrouter':
+      return (m: Model) => !m.id.includes('gemini-3') // gemini-3 需要客户端自己维护thinkingSignature
     default:
       // allow all models when checker not configured
       return () => true
