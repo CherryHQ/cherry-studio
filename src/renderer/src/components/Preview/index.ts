@@ -1,4 +1,5 @@
 export { default as GraphvizPreview } from './GraphvizPreview'
+export { default as InfographicPreview } from './InfographicPreview'
 export { default as MermaidPreview } from './MermaidPreview'
 export { default as PlantUmlPreview } from './PlantUmlPreview'
 export { default as SvgPreview } from './SvgPreview'

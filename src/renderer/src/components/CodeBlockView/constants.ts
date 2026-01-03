@@ -1,9 +1,15 @@
-import { GraphvizPreview, MermaidPreview, PlantUmlPreview, SvgPreview } from '@renderer/components/Preview'
+import {
+  GraphvizPreview,
+  InfographicPreview,
+  MermaidPreview,
+  PlantUmlPreview,
+  SvgPreview
+} from '@renderer/components/Preview'
 
 /**
  * 特殊视图语言列表
  */
-export const SPECIAL_VIEWS = ['mermaid', 'plantuml', 'svg', 'dot', 'graphviz']
+export const SPECIAL_VIEWS = ['mermaid', 'plantuml', 'svg', 'dot', 'graphviz', 'infographic']
 
 /**
  * 特殊视图组件映射表
@@ -13,5 +19,6 @@ export const SPECIAL_VIEW_COMPONENTS = {
   plantuml: PlantUmlPreview,
   svg: SvgPreview,
   dot: GraphvizPreview,
-  graphviz: GraphvizPreview
+  graphviz: GraphvizPreview,
+  infographic: InfographicPreview
 } as const
