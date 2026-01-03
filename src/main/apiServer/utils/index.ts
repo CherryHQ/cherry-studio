@@ -82,14 +82,22 @@ export async function getProviderByModel(model: string): Promise<Provider | unde
     }
 
     const providerId = modelInfo[0]
-    const provider = providers.find((p: Provider) => p.id === providerId)
+    const matchingProviders = providers.filter((p: Provider) => p.id === providerId || p.apiIdentifier === providerId)
+    const provider = matchingProviders.find((p) => p.id === providerId) ?? matchingProviders[0]
 
     if (!provider) {
       logger.warn('Provider not found for model', {
         providerId,
-        available: providers.map((p) => p.id)
+        available: providers.map((p) => ({ id: p.id, apiIdentifier: p.apiIdentifier }))
       })
       return undefined
+    }
+
+    if (matchingProviders.length > 1) {
+      logger.warn('Multiple providers matched for model prefix', {
+        providerId,
+        matches: matchingProviders.map((p) => ({ id: p.id, apiIdentifier: p.apiIdentifier }))
+      })
     }
 
     logger.debug('Provider resolved for model', { providerId, model })
@@ -200,8 +208,9 @@ export async function validateModelId(model: string): Promise<{
 
 export function transformModelToOpenAI(model: Model, provider?: Provider): ApiModel {
   const providerDisplayName = provider?.name
+  const providerModelPrefix = provider?.apiIdentifier?.trim() || provider?.id || model.provider
   return {
-    id: `${model.provider}:${model.id}`,
+    id: `${providerModelPrefix}:${model.id}`,
     object: 'model',
     name: model.name,
     created: Math.floor(Date.now() / 1000),
