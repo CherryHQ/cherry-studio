@@ -157,8 +157,6 @@ jobs:
       - name: Install pnpm
         if: steps.check.outputs.should_run == 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Install dependencies
         if: steps.check.outputs.should_run == 'true'

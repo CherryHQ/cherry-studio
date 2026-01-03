@@ -50,8 +50,6 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Clean node_modules
         if: ${{ github.event.inputs.clean == 'true' }}
