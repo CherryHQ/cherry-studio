@@ -608,7 +608,10 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                     </SelectIcon>
                   )}
                   {editingTopicId === topic.id && isEditing ? (
-                    <Tooltip title={validationError} open={!!validationError} color="var(--color-error)">
+                    <Tooltip
+                      title={validationError ? t(validationError) : undefined}
+                      open={!!validationError}
+                      color="var(--color-error)">
                       <TopicEditInput
                         {...inputProps}
                         onClick={(e) => e.stopPropagation()}

@@ -5089,6 +5089,11 @@
     "saveDataError": "儲存資料失敗，請重試",
     "title": "更新提示"
   },
+  "validation": {
+    "field_required": "[to be translated]:This field is required",
+    "file_name_required": "[to be translated]:File name is required",
+    "name_required": "[to be translated]:Name is required"
+  },
   "warning": {
     "missing_provider": "供應商不存在，已改用預設供應商 {{provider}}。這可能導致問題。"
   },

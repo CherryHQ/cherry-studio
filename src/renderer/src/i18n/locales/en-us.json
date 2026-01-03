@@ -5089,6 +5089,11 @@
     "saveDataError": "Failed to save data, please try again.",
     "title": "Update"
   },
+  "validation": {
+    "field_required": "This field is required",
+    "file_name_required": "File name is required",
+    "name_required": "Name is required"
+  },
   "warning": {
     "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
   },

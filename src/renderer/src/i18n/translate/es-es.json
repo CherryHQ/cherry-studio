@@ -5089,6 +5089,11 @@
     "saveDataError": "Error al guardar los datos, inténtalo de nuevo",
     "title": "Actualización"
   },
+  "validation": {
+    "field_required": "[to be translated]:This field is required",
+    "file_name_required": "[to be translated]:File name is required",
+    "name_required": "[to be translated]:Name is required"
+  },
   "warning": {
     "missing_provider": "El proveedor no existe, se ha revertido al proveedor predeterminado {{provider}}. Esto podría causar problemas."
   },

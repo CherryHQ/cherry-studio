@@ -50,7 +50,18 @@ export function composeValidators(...configs: ValidatorConfig[]): ValidatorConfi
 }
 
 /**
+ * Validation error i18n keys
+ * These keys should be translated in the UI layer using t() function
+ */
+export const ValidationErrorKeys = {
+  NAME_REQUIRED: 'validation.name_required',
+  FIELD_REQUIRED: 'validation.field_required',
+  FILE_NAME_REQUIRED: 'validation.file_name_required'
+} as const
+
+/**
  * Preset validators for common use cases
+ * Note: Validators return i18n keys, UI layer should translate them
  */
 export const validators = {
   /**
@@ -65,7 +76,7 @@ export const validators = {
         .toLowerCase()
         .replace(/[^a-z0-9-]/g, '')
         .slice(0, maxLength),
-    validate: (v) => (!v ? 'Name is required' : null),
+    validate: (v) => (!v ? ValidationErrorKeys.NAME_REQUIRED : null),
     debounceMs: 300
   }),
 
@@ -73,15 +84,15 @@ export const validators = {
    * Required field validator (non-empty after trim)
    */
   required: (): ValidatorConfig => ({
-    validate: (v) => (!v.trim() ? 'This field is required' : null)
+    validate: (v) => (!v.trim() ? ValidationErrorKeys.FIELD_REQUIRED : null)
   }),
 
   /**
    * Max length validator
+   * Note: Since transform already limits length, validate won't trigger
    */
   maxLength: (max: number): ValidatorConfig => ({
-    transform: (v) => v.slice(0, max),
-    validate: (v) => (v.length > max ? `Maximum ${max} characters` : null)
+    transform: (v) => v.slice(0, max)
   }),
 
   /**
@@ -97,7 +108,7 @@ export const validators = {
         .replace(/[<>:"/\\|?*\x00-\x1f]/g, '') // Invalid on Windows + null/control chars
         .replace(/[\s.]+$/, '') // Remove trailing spaces and dots
         .slice(0, maxLength),
-    validate: (v) => (!v.trim() ? 'File name is required' : null),
+    validate: (v) => (!v.trim() ? ValidationErrorKeys.FILE_NAME_REQUIRED : null),
     debounceMs: 300
   })
 }

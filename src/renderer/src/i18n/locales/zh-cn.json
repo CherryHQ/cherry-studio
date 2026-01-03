@@ -5089,6 +5089,11 @@
     "saveDataError": "保存数据失败，请重试",
     "title": "更新提示"
   },
+  "validation": {
+    "field_required": "此字段为必填项",
+    "file_name_required": "文件名为必填项",
+    "name_required": "名称为必填项"
+  },
   "warning": {
     "missing_provider": "供应商不存在，已回退到默认供应商 {{provider}}。这可能导致问题。"
   },

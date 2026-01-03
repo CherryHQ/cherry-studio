@@ -172,7 +172,10 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
               </NodeIcon>
 
               {isEditing ? (
-                <Tooltip title={validationError} open={!!validationError} color="var(--color-error)">
+                <Tooltip
+                  title={validationError ? t(validationError) : undefined}
+                  open={!!validationError}
+                  color="var(--color-error)">
                   <EditInput
                     {...inputProps}
                     onClick={(e) => e.stopPropagation()}
