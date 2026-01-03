@@ -544,6 +544,20 @@
         "description": "默认启用的 MCP 服务器",
         "enableFirst": "请先在 MCP 设置中启用此服务器",
         "label": "MCP 服务器",
+        "mode": {
+          "auto": {
+            "description": "AI 自动发现和使用工具",
+            "label": "自动"
+          },
+          "disabled": {
+            "description": "不使用 MCP 工具",
+            "label": "禁用"
+          },
+          "manual": {
+            "description": "选择特定的 MCP 服务器",
+            "label": "手动"
+          }
+        },
         "noServersAvailable": "无可用 MCP 服务器。请在设置中添加服务器",
         "title": "MCP 服务器"
       },
