@@ -19,7 +19,7 @@ import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import { ReasoningEffort } from '@cherrystudio/openai/resources'
+import type { ReasoningEffort } from '@cherrystudio/openai/resources'
 import type { OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
 import { SystemProviderIds } from '@shared/types'
 import { isAnthropicProvider, isAwsBedrockProvider, isGeminiProvider, isOpenAIProvider } from '@shared/utils/provider'
@@ -103,7 +103,8 @@ export function mapAnthropicThinkingToProviderOptions(
     }
   }
 
-  // For other providers, thinking options are not automatically mapped
+  // TODO: For other providers, pass through in OpenAI-compatible format
+  // instead of returning undefined. All requests should transparently forward reasoning config.
   return undefined
 }
 
@@ -189,6 +190,7 @@ export function mapReasoningEffortToProviderOptions(
     }
   }
 
-  // For other providers, reasoning effort is not automatically mapped
+  // TODO: For other providers, pass through in OpenAI-compatible format
+  // instead of returning undefined. All requests should transparently forward reasoning config.
   return undefined
 }
