@@ -98,6 +98,11 @@ export type Provider = {
   id: string
   type: ProviderType
   name: string
+  /**
+   * Optional short identifier used by the built-in API relay.
+   * When set, models can be referenced as `${apiIdentifier}:${modelId}` instead of `${id}:${modelId}`.
+   */
+  apiIdentifier?: string
   apiKey: string
   apiHost: string
   anthropicApiHost?: string
