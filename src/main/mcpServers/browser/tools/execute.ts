@@ -1,36 +1,39 @@
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
+import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
 export const ExecuteSchema = z.object({
-  code: z
-    .string()
-    .describe(
-      'JavaScript evaluated via Chrome DevTools Runtime.evaluate. Keep it short; prefer one-line with semicolons for multiple statements.'
-    ),
-  timeout: z.number().default(5000).describe('Timeout in milliseconds for code execution (default: 5000ms)'),
-  sessionId: z.string().optional().describe('Session identifier to target a specific page (default: default)')
+  code: z.string().describe('JavaScript code to run in page context'),
+  timeout: z.number().default(5000).describe('Execution timeout in ms (default: 5000)'),
+  privateMode: z.boolean().optional().describe('Target private session (default: false)'),
+  tabId: z.string().optional().describe('Target specific tab by ID')
 })
 
 export const executeToolDefinition = {
   name: 'execute',
   description:
-    'Run JavaScript in the current page via Runtime.evaluate. Prefer short, single-line snippets; use semicolons for multiple statements.',
+    'Run JavaScript in the currently open page. Use after open to: click elements, fill forms, extract content (document.body.innerText), or interact with the page. The page must be opened first with open or fetch.',
   inputSchema: {
     type: 'object',
     properties: {
       code: {
         type: 'string',
-        description: 'One-line JS to evaluate in page context'
+        description:
+          'JavaScript to evaluate. Examples: document.body.innerText (get text), document.querySelector("button").click() (click), document.title (get title)'
       },
       timeout: {
         type: 'number',
-        description: 'Timeout in milliseconds (default 5000)'
+        description: 'Execution timeout in ms (default: 5000)'
       },
-      sessionId: {
+      privateMode: {
+        type: 'boolean',
+        description: 'Target private session (default: false)'
+      },
+      tabId: {
         type: 'string',
-        description: 'Session identifier; targets a specific page (default: default)'
+        description: 'Target specific tab by ID (from open response)'
       }
     },
     required: ['code']
@@ -38,11 +41,12 @@ export const executeToolDefinition = {
 }
 
 export async function handleExecute(controller: CdpBrowserController, args: unknown) {
-  const { code, timeout, sessionId } = ExecuteSchema.parse(args)
+  const { code, timeout, privateMode, tabId } = ExecuteSchema.parse(args)
   try {
-    const value = await controller.execute(code, timeout, sessionId ?? 'default')
+    const value = await controller.execute(code, timeout, privateMode ?? false, tabId)
     return successResponse(typeof value === 'string' ? value : JSON.stringify(value))
   } catch (error) {
+    logger.error('Execute failed', { error, code: code.slice(0, 100), privateMode, tabId })
     return errorResponse(error as Error)
   }
 }
