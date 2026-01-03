@@ -42,6 +42,10 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
   // topicId for tracing
   topicId?: string
   callType: string
+  streamingConfig?: {
+    idleTimeoutMs: number
+    idleAbortController: AbortController
+  }
 }
 
 export default class ModernAiProvider {
@@ -330,7 +334,15 @@ export default class ModernAiProvider {
     // 创建带有中间件的执行器
     if (config.onChunk) {
       const accumulate = this.model!.supported_text_delta !== false // true and undefined
-      const adapter = new AiSdkToChunkAdapter(config.onChunk, config.mcpTools, accumulate, config.enableWebSearch)
+      const adapter = new AiSdkToChunkAdapter(
+        config.onChunk,
+        config.mcpTools ?? [],
+        accumulate,
+        config.enableWebSearch,
+        undefined,
+        undefined,
+        config.streamingConfig
+      )
 
       const streamResult = await executor.streamText({
         ...params,
