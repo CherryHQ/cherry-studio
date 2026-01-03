@@ -1,8 +1,8 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
+import { streamingService } from '@renderer/services/messageStreaming/StreamingService'
 import { createStreamProcessor } from '@renderer/services/StreamProcessingService'
-import type { AppDispatch } from '@renderer/store'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
 import { messagesSlice } from '@renderer/store/newMessage'
 import type { Assistant, ExternalToolResult, MCPTool, Model } from '@renderer/types'
@@ -12,33 +12,41 @@ import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { RootState } from '../../index'
-
+/**
+ * Create mock callbacks for testing.
+ *
+ * NOTE: Updated to use simplified dependencies after StreamingService refactoring.
+ * Now we need to initialize StreamingService session before creating callbacks.
+ */
 const createMockCallbacks = (
   mockAssistantMsgId: string,
   mockTopicId: string,
-  mockAssistant: Assistant,
-  dispatch: AppDispatch,
-  getState: () => ReturnType<typeof reducer> & RootState
-) =>
-  createCallbacks({
+  mockAssistant: Assistant
+  // dispatch and getState are no longer needed after StreamingService refactoring
+) => {
+  // Initialize streaming session for tests
+  streamingService.startSession(mockTopicId, mockAssistantMsgId, {
+    parentId: 'test-user-msg-id',
+    role: 'assistant',
+    assistantId: mockAssistant.id,
+    model: mockAssistant.model
+  })
+
+  return createCallbacks({
     blockManager: new BlockManager({
-      dispatch,
-      getState,
-      saveUpdatedBlockToDB: vi.fn(),
-      saveUpdatesToDB: vi.fn(),
       assistantMsgId: mockAssistantMsgId,
       topicId: mockTopicId,
-      throttledBlockUpdate: vi.fn(),
+      throttledBlockUpdate: vi.fn((blockId, changes) => {
+        // In tests, immediately update the block
+        streamingService.updateBlock(blockId, changes)
+      }),
       cancelThrottledBlockUpdate: vi.fn()
     }),
-    dispatch,
-    getState,
     topicId: mockTopicId,
     assistantMsgId: mockAssistantMsgId,
-    saveUpdatesToDB: vi.fn(),
     assistant: mockAssistant
   })
+}
 
 // Mock external dependencies
 vi.mock('@renderer/config/models', () => ({
@@ -311,8 +319,7 @@ const processChunks = async (chunks: Chunk[], callbacks: ReturnType<typeof creat
 
 describe('streamCallback Integration Tests', () => {
   let store: ReturnType<typeof createMockStore>
-  let dispatch: AppDispatch
-  let getState: () => ReturnType<typeof reducer> & RootState
+  // dispatch and getState are no longer needed after StreamingService refactoring
 
   const mockTopicId = 'test-topic-id'
   const mockAssistantMsgId = 'test-assistant-msg-id'
@@ -334,10 +341,8 @@ describe('streamCallback Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     store = createMockStore()
-    dispatch = store.dispatch
-    getState = store.getState as () => ReturnType<typeof reducer> & RootState
 
-    // 为测试消息添加初始状态
+    // Add initial message state for tests
     store.dispatch(
       messagesSlice.actions.addMessage({
         topicId: mockTopicId,
@@ -360,7 +365,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle complete text streaming flow', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const chunks: Chunk[] = [
       { type: ChunkType.LLM_RESPONSE_CREATED },
@@ -387,7 +392,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
     expect(blocks.length).toBeGreaterThan(0)
 
@@ -403,7 +408,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle thinking flow', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const chunks: Chunk[] = [
       { type: ChunkType.LLM_RESPONSE_CREATED },
@@ -418,7 +423,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
 
     const thinkingBlock = blocks.find((block) => block.type === MessageBlockType.THINKING)
@@ -432,7 +437,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle tool call flow', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const mockTool: MCPTool = {
       id: 'tool-1',
@@ -492,7 +497,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
 
     const toolBlock = blocks.find((block) => block.type === MessageBlockType.TOOL)
@@ -503,7 +508,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle image generation flow', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const chunks: Chunk[] = [
       { type: ChunkType.LLM_RESPONSE_CREATED },
@@ -532,7 +537,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
     const imageBlock = blocks.find((block) => block.type === MessageBlockType.IMAGE)
     expect(imageBlock).toBeDefined()
@@ -543,7 +548,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle web search flow', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const mockWebSearchResult = {
       source: WebSearchSource.WEBSEARCH,
@@ -560,7 +565,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
     const citationBlock = blocks.find((block) => block.type === MessageBlockType.CITATION)
     expect(citationBlock).toBeDefined()
@@ -569,7 +574,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle mixed content flow (thinking + tool + text)', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const mockCalculatorTool: MCPTool = {
       id: 'tool-1',
@@ -652,7 +657,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
 
     expect(blocks.length).toBeGreaterThan(2) // 至少有思考块、工具块、文本块
@@ -671,7 +676,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle error flow', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const mockError = new Error('Test error')
 
@@ -685,7 +690,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
 
     expect(blocks.length).toBeGreaterThan(0)
@@ -701,7 +706,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle external tool flow', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const mockExternalToolResult: ExternalToolResult = {
       webSearch: {
@@ -728,7 +733,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
 
     const citationBlock = blocks.find((block) => block.type === MessageBlockType.CITATION)
@@ -739,7 +744,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle abort error correctly', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     // 创建一个模拟的 abort 错误
     const abortError = new Error('Request aborted')
@@ -755,7 +760,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
 
     expect(blocks.length).toBeGreaterThan(0)
@@ -770,7 +775,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should maintain block reference integrity during streaming', async () => {
-    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const chunks: Chunk[] = [
       { type: ChunkType.LLM_RESPONSE_CREATED },
@@ -784,7 +789,7 @@ describe('streamCallback Integration Tests', () => {
     await processChunks(chunks, callbacks)
 
     // 验证 Redux 状态
-    const state = getState()
+    const state = store.getState()
     const blocks = Object.values(state.messageBlocks.entities)
     const message = state.messages.entities[mockAssistantMsgId]
 

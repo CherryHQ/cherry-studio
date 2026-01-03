@@ -15,6 +15,7 @@
  * --------------------------------------------------------------------------
  */
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
@@ -25,6 +26,7 @@ import { DbService } from '@renderer/services/db/DbService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
+import { streamingService } from '@renderer/services/messageStreaming/StreamingService'
 import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
@@ -48,6 +50,8 @@ import {
 } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
+import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import type { Message as SharedMessage } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
 import type { TextStreamPart } from 'ai'
@@ -73,6 +77,35 @@ import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 // } from './messageThunk.v2'
 
 const logger = loggerService.withContext('MessageThunk')
+
+/**
+ * Convert shared Message format (from Data API) to renderer Message format
+ *
+ * The Data API returns messages with `data: { blocks: MessageDataBlock[] }` format,
+ * but the renderer expects `blocks: string[]` format.
+ *
+ * For newly created pending messages, blocks are empty, so conversion is straightforward.
+ * For messages with content, this would need to store blocks separately and return IDs.
+ *
+ * @param shared - Message from Data API response
+ * @param model - Optional Model object to include
+ * @returns Renderer-format Message
+ */
+const convertSharedToRendererMessage = (shared: SharedMessage, assistantId: string, model?: Model): Message => {
+  return {
+    id: shared.id,
+    topicId: shared.topicId,
+    role: shared.role,
+    assistantId,
+    status: shared.status as AssistantMessageStatus,
+    blocks: [], // For new pending messages, blocks are empty
+    createdAt: shared.createdAt,
+    askId: shared.parentId ?? undefined,
+    modelId: shared.modelId ?? undefined,
+    traceId: shared.traceId ?? undefined,
+    model
+  }
+}
 
 const finishTopicLoading = async (topicId: string) => {
   await waitForTopicQueue(topicId)
@@ -418,23 +451,34 @@ const blockUpdateRafs = new LRUCache<string, number>({
 })
 
 /**
- * 获取或创建消息块专用的节流函数。
+ * Get or create a dedicated throttle function for a message block.
+ *
+ * ARCHITECTURE NOTE:
+ * Updated to use StreamingService.updateBlock instead of Redux dispatch.
+ * This is part of the v2 data refactoring to use CacheService + Data API.
+ *
+ * The throttler now:
+ * 1. Uses RAF for visual consistency
+ * 2. Updates StreamingService (memory cache) for immediate reactivity
+ * 3. Removes the DB update (moved to finalize)
  */
 const getBlockThrottler = (id: string) => {
   if (!blockUpdateThrottlers.has(id)) {
-    const throttler = throttle(async (blockUpdate: any) => {
+    const throttler = throttle((blockUpdate: any) => {
       const existingRAF = blockUpdateRafs.get(id)
       if (existingRAF) {
         cancelAnimationFrame(existingRAF)
       }
 
       const rafId = requestAnimationFrame(() => {
-        store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
+        // Update StreamingService instead of Redux store
+        streamingService.updateBlock(id, blockUpdate)
         blockUpdateRafs.delete(id)
       })
 
       blockUpdateRafs.set(id, rafId)
-      await updateSingleBlock(id, blockUpdate)
+      // NOTE: DB update removed - persistence happens during finalize()
+      // await updateSingleBlock(id, blockUpdate)
     }, 150)
 
     blockUpdateThrottlers.set(id, throttler)
@@ -516,25 +560,26 @@ const saveUpdatesToDB = async (
   }
 }
 
-// 新增: 辅助函数，用于获取并保存单个更新后的 Block 到数据库
-const saveUpdatedBlockToDB = async (
-  blockId: string | null,
-  messageId: string,
-  topicId: string,
-  getState: () => RootState
-) => {
-  if (!blockId) {
-    logger.warn('[DB Save Single Block] Received null/undefined blockId. Skipping save.')
-    return
-  }
-  const state = getState()
-  const blockToSave = state.messageBlocks.entities[blockId]
-  if (blockToSave) {
-    await saveUpdatesToDB(messageId, topicId, {}, [blockToSave]) // Pass messageId, topicId, empty message updates, and the block
-  } else {
-    logger.warn(`[DB Save Single Block] Block ${blockId} not found in state. Cannot save.`)
-  }
-}
+// NOTE: saveUpdatedBlockToDB was removed as part of StreamingService refactoring.
+// Block persistence is now handled by StreamingService.finalize().
+// const saveUpdatedBlockToDB = async (
+//   blockId: string | null,
+//   messageId: string,
+//   topicId: string,
+//   getState: () => RootState
+// ) => {
+//   if (!blockId) {
+//     logger.warn('[DB Save Single Block] Received null/undefined blockId. Skipping save.')
+//     return
+//   }
+//   const state = getState()
+//   const blockToSave = state.messageBlocks.entities[blockId]
+//   if (blockToSave) {
+//     await saveUpdatesToDB(messageId, topicId, {}, [blockToSave]) // Pass messageId, topicId, empty message updates, and the block
+//   } else {
+//     logger.warn(`[DB Save Single Block] Block ${blockId} not found in state. Cannot save.`)
+//   }
+// }
 
 interface AgentStreamParams {
   topicId: string
@@ -553,24 +598,32 @@ const fetchAndProcessAgentResponseImpl = async (
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
+    // Initialize streaming session in StreamingService
+    streamingService.startSession(topicId, assistantMessage.id, {
+      parentId: userMessageId,
+      siblingsGroupId: 0,
+      role: 'assistant',
+      model: assistant.model,
+      modelId: assistant.model?.id,
+      assistantId: assistant.id,
+      askId: userMessageId,
+      traceId: assistantMessage.traceId,
+      agentSessionId: agentSession.agentSessionId
+    })
+
+    // Create BlockManager with simplified dependencies (no dispatch/getState/saveUpdatesToDB)
     const blockManager = new BlockManager({
-      dispatch,
-      getState,
-      saveUpdatedBlockToDB,
-      saveUpdatesToDB,
       assistantMsgId: assistantMessage.id,
       topicId,
       throttledBlockUpdate,
       cancelThrottledBlockUpdate
     })
 
+    // Create callbacks with simplified dependencies
     callbacks = createCallbacks({
       blockManager,
-      dispatch,
-      getState,
       topicId,
       assistantMsgId: assistantMessage.id,
-      saveUpdatesToDB,
       assistant
     })
 
@@ -718,74 +771,85 @@ const dispatchMultiModelResponses = async (
   mentionedModels: Model[]
 ) => {
   const assistantMessageStubs: Message[] = []
-  const tasksToQueue: { assistantConfig: Assistant; messageStub: Message }[] = []
+  const tasksToQueue: { assistantConfig: Assistant; messageStub: Message; siblingsGroupId: number }[] = []
+
+  // Generate siblingsGroupId for multi-model responses (all share the same group ID)
+  const siblingsGroupId = mentionedModels.length > 1 ? streamingService.generateNextGroupId(topicId) : 0
 
   for (const mentionedModel of mentionedModels) {
     const assistantForThisMention = { ...assistant, model: mentionedModel }
-    const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-      askId: triggeringMessage.id,
-      model: mentionedModel,
+
+    // Create message via Data API instead of local creation
+    const createDto: CreateMessageDto = {
+      parentId: triggeringMessage.id,
+      role: 'assistant',
+      data: { blocks: [] },
+      status: 'pending',
+      siblingsGroupId,
+      assistantId: assistant.id,
       modelId: mentionedModel.id,
-      traceId: triggeringMessage.traceId
-    })
+      traceId: triggeringMessage.traceId ?? undefined
+    }
+
+    const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
+    const assistantMessage = convertSharedToRendererMessage(sharedMessage, assistant.id, mentionedModel)
+
     dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
     assistantMessageStubs.push(assistantMessage)
-    tasksToQueue.push({ assistantConfig: assistantForThisMention, messageStub: assistantMessage })
+    tasksToQueue.push({ assistantConfig: assistantForThisMention, messageStub: assistantMessage, siblingsGroupId })
   }
 
-  const topicFromDB = await db.topics.get(topicId)
-  if (topicFromDB) {
-    const currentTopicMessageIds = getState().messages.messageIdsByTopic[topicId] || []
-    const currentEntities = getState().messages.entities
-    const messagesToSaveInDB = currentTopicMessageIds.map((id) => currentEntities[id]).filter((m): m is Message => !!m)
-    await db.topics.update(topicId, { messages: messagesToSaveInDB })
-  } else {
-    logger.error(`[dispatchMultiModelResponses] Topic ${topicId} not found in DB during multi-model save.`)
-    throw new Error(`Topic ${topicId} not found in DB.`)
-  }
+  // Note: Dexie save removed - messages are now persisted via Data API POST above
+  // const topicFromDB = await db.topics.get(topicId)
+  // if (topicFromDB) {
+  //   const currentTopicMessageIds = getState().messages.messageIdsByTopic[topicId] || []
+  //   const currentEntities = getState().messages.entities
+  //   const messagesToSaveInDB = currentTopicMessageIds.map((id) => currentEntities[id]).filter((m): m is Message => !!m)
+  //   await db.topics.update(topicId, { messages: messagesToSaveInDB })
+  // } else {
+  //   logger.error(`[dispatchMultiModelResponses] Topic ${topicId} not found in DB during multi-model save.`)
+  //   throw new Error(`Topic ${topicId} not found in DB.`)
+  // }
 
   const queue = getTopicQueue(topicId)
   for (const task of tasksToQueue) {
     queue.add(async () => {
-      await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, task.assistantConfig, task.messageStub)
+      await fetchAndProcessAssistantResponseImpl(
+        dispatch,
+        getState,
+        topicId,
+        task.assistantConfig,
+        task.messageStub,
+        task.siblingsGroupId
+      )
     })
   }
 }
 
 // --- End Helper Function ---
-// 发送和处理助手响应的实现函数，话题提示词在此拼接
+// Send and process assistant response implementation - topic prompts are concatenated here
 const fetchAndProcessAssistantResponseImpl = async (
   dispatch: AppDispatch,
   getState: () => RootState,
   topicId: string,
   origAssistant: Assistant,
-  assistantMessage: Message // Pass the prepared assistant message (new or reset)
+  assistantMessage: Message, // Pass the prepared assistant message (new or reset)
+  siblingsGroupId: number = 0 // Multi-model group ID (0=normal, >0=multi-model response)
 ) => {
   const topic = origAssistant.topics.find((t) => t.id === topicId)
   const assistant = topic?.prompt
     ? { ...origAssistant, prompt: `${origAssistant.prompt}\n${topic.prompt}` }
     : origAssistant
   const assistantMsgId = assistantMessage.id
+  const userMessageId = assistantMessage.askId
   let callbacks: StreamProcessorCallbacks = {}
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
-    // 创建 BlockManager 实例
-    const blockManager = new BlockManager({
-      dispatch,
-      getState,
-      saveUpdatedBlockToDB,
-      saveUpdatesToDB,
-      assistantMsgId,
-      topicId,
-      throttledBlockUpdate,
-      cancelThrottledBlockUpdate
-    })
-
+    // Build context messages first (needed for startSession)
     const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
 
     let messagesForContext: Message[] = []
-    const userMessageId = assistantMessage.askId
     const userMessageIndex = allMessagesForTopic.findIndex((m) => m?.id === userMessageId)
 
     if (userMessageIndex === -1) {
@@ -812,13 +876,32 @@ const fetchAndProcessAssistantResponseImpl = async (
       }
     }
 
+    // Initialize streaming session in StreamingService (includes context for usage estimation)
+    streamingService.startSession(topicId, assistantMsgId, {
+      parentId: userMessageId!,
+      siblingsGroupId,
+      role: 'assistant',
+      model: assistant.model,
+      modelId: assistant.model?.id,
+      assistantId: assistant.id,
+      askId: userMessageId,
+      traceId: assistantMessage.traceId,
+      contextMessages: messagesForContext
+    })
+
+    // Create BlockManager with simplified dependencies (no dispatch/getState/saveUpdatesToDB)
+    const blockManager = new BlockManager({
+      assistantMsgId,
+      topicId,
+      throttledBlockUpdate,
+      cancelThrottledBlockUpdate
+    })
+
+    // Create callbacks with simplified dependencies
     callbacks = createCallbacks({
       blockManager,
-      dispatch,
-      getState,
       topicId,
       assistantMsgId,
-      saveUpdatesToDB,
       assistant
     })
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
@@ -931,12 +1014,21 @@ export const sendMessage =
         if (mentionedModels && mentionedModels.length > 0) {
           await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
         } else {
-          const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-            askId: userMessage.id,
-            model: assistant.model,
-            traceId: userMessage.traceId
-          })
-          await saveMessageAndBlocksToDB(topicId, assistantMessage, [])
+          // Create message via Data API for normal topics
+          const createDto: CreateMessageDto = {
+            parentId: userMessage.id,
+            role: 'assistant',
+            data: { blocks: [] },
+            status: 'pending',
+            siblingsGroupId: 0,
+            assistantId: assistant.id,
+            modelId: assistant.model?.id,
+            traceId: userMessage.traceId ?? undefined
+          }
+
+          const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
+          const assistantMessage = convertSharedToRendererMessage(sharedMessage, assistant.id, assistant.model)
+
           dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
           queue.add(async () => {
@@ -1126,12 +1218,21 @@ export const resendMessageThunk =
 
       if (assistantMessagesToReset.length === 0 && !userMessageToResend?.mentions?.length) {
         // 没有相关的助手消息且没有提及模型时，使用助手模型创建一条消息
+        // Create message via Data API
+        const createDto: CreateMessageDto = {
+          parentId: userMessageToResend.id,
+          role: 'assistant',
+          data: { blocks: [] },
+          status: 'pending',
+          siblingsGroupId: 0,
+          assistantId: assistant.id,
+          modelId: assistant.model?.id,
+          traceId: userMessageToResend.traceId ?? undefined
+        }
 
-        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-          askId: userMessageToResend.id,
-          model: assistant.model
-        })
-        assistantMessage.traceId = userMessageToResend.traceId
+        const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
+        const assistantMessage = convertSharedToRendererMessage(sharedMessage, assistant.id, assistant.model)
+
         resetDataList.push(assistantMessage)
 
         resetDataList.forEach((message) => {
@@ -1166,11 +1267,21 @@ export const resendMessageThunk =
       const mentionedModelSet = new Set(userMessageToResend.mentions ?? [])
       const newModelSet = new Set([...mentionedModelSet].filter((m) => !originModelSet.has(m)))
       for (const model of newModelSet) {
-        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-          askId: userMessageToResend.id,
-          model: model,
-          modelId: model.id
-        })
+        // Create message via Data API for new mentioned models
+        const createDto: CreateMessageDto = {
+          parentId: userMessageToResend.id,
+          role: 'assistant',
+          data: { blocks: [] },
+          status: 'pending',
+          siblingsGroupId: 0,
+          assistantId: assistant.id,
+          modelId: model.id,
+          traceId: userMessageToResend.traceId ?? undefined
+        }
+
+        const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
+        const assistantMessage = convertSharedToRendererMessage(sharedMessage, assistant.id, model)
+
         resetDataList.push(assistantMessage)
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
       }
@@ -1178,10 +1289,14 @@ export const resendMessageThunk =
       messagesToUpdateInRedux.forEach((update) => dispatch(newMessagesActions.updateMessage(update)))
       cleanupMultipleBlocks(dispatch, allBlockIdsToDelete)
 
+      // Note: Block deletion still uses Dexie for now
+      // TODO: Migrate block deletion to Data API when block endpoints are available
       try {
         if (allBlockIdsToDelete.length > 0) {
           await db.message_blocks.bulkDelete(allBlockIdsToDelete)
         }
+        // Note: Dexie topic update removed for new messages - they are created via Data API
+        // However, existing message updates still need Dexie sync for now
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
         await db.topics.update(topicId, { messages: finalMessagesToSave })
       } catch (dbError) {
@@ -1467,21 +1582,28 @@ export const appendAssistantResponseThunk =
         return
       }
 
-      // 2. Create the new assistant message stub
-      const newAssistantMessageStub = createAssistantMessage(assistant.id, topicId, {
-        askId: askId, // Crucial: Use the original askId
-        model: newModel,
+      // 2. Create the new assistant message via Data API
+      const createDto: CreateMessageDto = {
+        parentId: askId, // Crucial: Use the original askId
+        role: 'assistant',
+        data: { blocks: [] },
+        status: 'pending',
+        siblingsGroupId: 0,
+        assistantId: assistant.id,
         modelId: newModel.id,
-        traceId: traceId
-      })
+        traceId: traceId ?? undefined
+      }
+
+      const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
+      const newAssistantMessageStub = convertSharedToRendererMessage(sharedMessage, assistant.id, newModel)
 
       // 3. Update Redux Store
       const currentTopicMessageIds = getState().messages.messageIdsByTopic[topicId] || []
       const existingMessageIndex = currentTopicMessageIds.findIndex((id) => id === existingAssistantMessageId)
       const insertAtIndex = existingMessageIndex !== -1 ? existingMessageIndex + 1 : currentTopicMessageIds.length
 
-      // 4. Update Database (Save the stub to the topic's message list)
-      await saveMessageAndBlocksToDB(topicId, newAssistantMessageStub, [], insertAtIndex)
+      // 4. Message already saved via Data API POST above
+      // await saveMessageAndBlocksToDB(topicId, newAssistantMessageStub, [], insertAtIndex)
 
       dispatch(
         newMessagesActions.insertMessageAtIndex({ topicId, message: newAssistantMessageStub, index: insertAtIndex })

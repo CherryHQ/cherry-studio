@@ -1,0 +1,572 @@
+/**
+ * @fileoverview StreamingService - Manages message streaming lifecycle and state
+ *
+ * This service encapsulates the streaming state management during message generation.
+ * It uses CacheService (memoryCache) for temporary storage during streaming,
+ * and persists final data to the database via Data API or dbService.
+ *
+ * Key Design Decisions:
+ * - Uses messageId as primary key for sessions (supports multi-model concurrent streaming)
+ * - Streaming data is stored in memory only (not Redux, not Dexie during streaming)
+ * - On finalize, data is converted to new format and persisted via appropriate data source
+ * - Throttling is handled externally by messageThunk.ts (preserves existing throttle logic)
+ *
+ * Cache Key Strategy:
+ * - Session key: `streaming:session:${messageId}` - Internal session lifecycle management
+ * - Topic sessions index: `streaming:topic:${topicId}:sessions` - Track active sessions per topic
+ * - Message key: `streaming:message:${messageId}` - UI subscription for message-level changes
+ * - Block key: `streaming:block:${blockId}` - UI subscription for block content updates
+ */
+
+import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { UpdateMessageDto } from '@shared/data/api/schemas/messages'
+import type { MessageDataBlock, MessageStats } from '@shared/data/types/message'
+
+import { dbService } from '../db'
+
+const logger = loggerService.withContext('StreamingService')
+
+// Cache key generators
+const getSessionKey = (messageId: string) => `streaming:session:${messageId}`
+const getTopicSessionsKey = (topicId: string) => `streaming:topic:${topicId}:sessions`
+const getMessageKey = (messageId: string) => `streaming:message:${messageId}`
+const getBlockKey = (blockId: string) => `streaming:block:${blockId}`
+const getSiblingsGroupCounterKey = (topicId: string) => `streaming:topic:${topicId}:siblings-counter`
+
+// Session TTL for auto-cleanup (prevents memory leaks from crashed processes)
+const SESSION_TTL = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Streaming session data structure (stored in memory)
+ */
+interface StreamingSession {
+  topicId: string
+  messageId: string
+
+  // Message data (legacy format, compatible with existing logic)
+  message: Message
+  blocks: Record<string, MessageBlock>
+
+  // Tree structure information (v2 new fields)
+  parentId: string // Parent message ID (user message)
+  siblingsGroupId: number // Multi-model group ID (0=normal, >0=multi-model response)
+
+  // Context for usage estimation (messages up to and including user message)
+  contextMessages?: Message[]
+
+  // Metadata
+  startedAt: number
+}
+
+/**
+ * Options for starting a streaming session
+ */
+interface StartSessionOptions {
+  parentId: string
+  siblingsGroupId?: number // Defaults to 0
+  role: 'assistant'
+  model?: Message['model']
+  modelId?: string
+  assistantId: string
+  askId?: string
+  traceId?: string
+  agentSessionId?: string
+  // Context messages for usage estimation (messages up to and including user message)
+  contextMessages?: Message[]
+}
+
+/**
+ * StreamingService - Manages streaming message state during generation
+ *
+ * Responsibilities:
+ * - Session lifecycle management (start, update, finalize, clear)
+ * - Block operations (add, update, get)
+ * - Message operations (update, get)
+ * - Cache-based state management with automatic TTL cleanup
+ */
+class StreamingService {
+  // Internal mapping: blockId -> messageId (for efficient block updates)
+  private blockToMessageMap = new Map<string, string>()
+
+  // ============ Session Lifecycle ============
+
+  /**
+   * Start a streaming session for a message
+   *
+   * IMPORTANT: The message must be created via Data API POST before calling this.
+   * This method initializes the in-memory streaming state.
+   *
+   * @param topicId - Topic ID (used for topic sessions index)
+   * @param messageId - Message ID returned from Data API POST
+   * @param options - Session options including parentId and siblingsGroupId
+   */
+  startSession(topicId: string, messageId: string, options: StartSessionOptions): void {
+    const {
+      parentId,
+      siblingsGroupId = 0,
+      role,
+      model,
+      modelId,
+      assistantId,
+      askId,
+      traceId,
+      agentSessionId,
+      contextMessages
+    } = options
+
+    // Initialize message structure
+    const message: Message = {
+      id: messageId,
+      topicId,
+      role,
+      assistantId,
+      status: AssistantMessageStatus.PENDING,
+      createdAt: new Date().toISOString(),
+      blocks: [],
+      model,
+      modelId,
+      askId,
+      traceId,
+      agentSessionId
+    }
+
+    // Create session
+    const session: StreamingSession = {
+      topicId,
+      messageId,
+      message,
+      blocks: {},
+      parentId,
+      siblingsGroupId,
+      contextMessages,
+      startedAt: Date.now()
+    }
+
+    // Store session with TTL
+    cacheService.setCasual(getSessionKey(messageId), session, SESSION_TTL)
+
+    // Store message data for UI subscription
+    cacheService.setCasual(getMessageKey(messageId), message, SESSION_TTL)
+
+    // Add to topic sessions index
+    const topicSessions = cacheService.getCasual<string[]>(getTopicSessionsKey(topicId)) || []
+    if (!topicSessions.includes(messageId)) {
+      topicSessions.push(messageId)
+      cacheService.setCasual(getTopicSessionsKey(topicId), topicSessions, SESSION_TTL)
+    }
+
+    logger.debug('Started streaming session', { topicId, messageId, parentId, siblingsGroupId })
+  }
+
+  /**
+   * Finalize a streaming session by persisting data to database
+   *
+   * This method:
+   * 1. Converts streaming data to the appropriate format
+   * 2. Routes to Data API (normal topics) or dbService (agent topics)
+   * 3. Cleans up all related cache keys
+   *
+   * @param messageId - Session message ID
+   * @param status - Final message status
+   */
+  async finalize(messageId: string, status: AssistantMessageStatus): Promise<void> {
+    const session = this.getSession(messageId)
+    if (!session) {
+      logger.warn(`finalize called for non-existent session: ${messageId}`)
+      return
+    }
+
+    const maxRetries = 3
+    let lastError: Error | null = null
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const updatePayload = this.convertToUpdatePayload(session, status)
+
+        // TRADEOFF: Using dbService for agent messages instead of Data API
+        // because agent message storage refactoring is planned for later phase.
+        // TODO: Unify to Data API when agent message migration is complete.
+        if (isAgentSessionTopicId(session.topicId)) {
+          await dbService.updateMessageAndBlocks(session.topicId, updatePayload.messageUpdates, updatePayload.blocks)
+        } else {
+          // Normal topic → Use Data API for persistence
+          const dataApiPayload = this.convertToDataApiFormat(session, status)
+          await dataApiService.patch(`/messages/${session.messageId}`, { body: dataApiPayload })
+        }
+
+        // Success - cleanup session
+        this.clearSession(messageId)
+        logger.debug('Finalized streaming session', { messageId, status })
+        return
+      } catch (error) {
+        lastError = error as Error
+        logger.warn(`finalize attempt ${attempt}/${maxRetries} failed:`, error as Error)
+
+        if (attempt < maxRetries) {
+          // Exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+        }
+      }
+    }
+
+    // All retries failed
+    logger.error(`finalize failed after ${maxRetries} attempts:`, lastError)
+    // TRADEOFF: Don't clear session to allow manual retry
+    // TTL will auto-clean to prevent permanent memory leak
+    throw lastError
+  }
+
+  /**
+   * Clear a streaming session and all related cache keys
+   *
+   * @param messageId - Session message ID
+   */
+  clearSession(messageId: string): void {
+    const session = this.getSession(messageId)
+    if (!session) {
+      return
+    }
+
+    // Remove block mappings
+    Object.keys(session.blocks).forEach((blockId) => {
+      this.blockToMessageMap.delete(blockId)
+      cacheService.deleteCasual(getBlockKey(blockId))
+    })
+
+    // Remove message cache
+    cacheService.deleteCasual(getMessageKey(messageId))
+
+    // Remove from topic sessions index
+    const topicSessions = cacheService.getCasual<string[]>(getTopicSessionsKey(session.topicId)) || []
+    const updatedTopicSessions = topicSessions.filter((id) => id !== messageId)
+    if (updatedTopicSessions.length > 0) {
+      cacheService.setCasual(getTopicSessionsKey(session.topicId), updatedTopicSessions, SESSION_TTL)
+    } else {
+      cacheService.deleteCasual(getTopicSessionsKey(session.topicId))
+    }
+
+    // Remove session
+    cacheService.deleteCasual(getSessionKey(messageId))
+
+    logger.debug('Cleared streaming session', { messageId, topicId: session.topicId })
+  }
+
+  // ============ Block Operations ============
+
+  /**
+   * Add a new block to a streaming session
+   * (Replaces dispatch(upsertOneBlock))
+   *
+   * @param messageId - Parent message ID
+   * @param block - Block to add
+   */
+  addBlock(messageId: string, block: MessageBlock): void {
+    const session = this.getSession(messageId)
+    if (!session) {
+      logger.warn(`addBlock called for non-existent session: ${messageId}`)
+      return
+    }
+
+    // Register block mapping
+    this.blockToMessageMap.set(block.id, messageId)
+
+    // Add to session
+    session.blocks[block.id] = block
+
+    // Update message block references
+    if (!session.message.blocks.includes(block.id)) {
+      session.message.blocks = [...session.message.blocks, block.id]
+    }
+
+    // Update caches
+    cacheService.setCasual(getSessionKey(messageId), session, SESSION_TTL)
+    cacheService.setCasual(getBlockKey(block.id), block, SESSION_TTL)
+    cacheService.setCasual(getMessageKey(messageId), session.message, SESSION_TTL)
+
+    logger.debug('Added block to session', { messageId, blockId: block.id, blockType: block.type })
+  }
+
+  /**
+   * Update a block in a streaming session
+   * (Replaces dispatch(updateOneBlock))
+   *
+   * NOTE: This method does NOT include throttling. Throttling is controlled
+   * by the existing throttler in messageThunk.ts.
+   *
+   * @param blockId - Block ID to update
+   * @param changes - Partial block changes
+   */
+  updateBlock(blockId: string, changes: Partial<MessageBlock>): void {
+    const messageId = this.blockToMessageMap.get(blockId)
+    if (!messageId) {
+      logger.warn(`updateBlock: Block ${blockId} not found in blockToMessageMap`)
+      return
+    }
+
+    const session = this.getSession(messageId)
+    if (!session) {
+      logger.warn(`updateBlock: Session not found for message ${messageId}`)
+      return
+    }
+
+    const existingBlock = session.blocks[blockId]
+    if (!existingBlock) {
+      logger.warn(`updateBlock: Block ${blockId} not found in session`)
+      return
+    }
+
+    // Merge changes - use type assertion since we're updating the same block type
+    const updatedBlock = { ...existingBlock, ...changes } as MessageBlock
+    session.blocks[blockId] = updatedBlock
+
+    // Update caches
+    cacheService.setCasual(getSessionKey(messageId), session, SESSION_TTL)
+    cacheService.setCasual(getBlockKey(blockId), updatedBlock, SESSION_TTL)
+  }
+
+  /**
+   * Get a block from the streaming session
+   *
+   * @param blockId - Block ID
+   * @returns Block or null if not found
+   */
+  getBlock(blockId: string): MessageBlock | null {
+    return cacheService.getCasual<MessageBlock>(getBlockKey(blockId)) || null
+  }
+
+  // ============ Message Operations ============
+
+  /**
+   * Update message properties in the streaming session
+   * (Replaces dispatch(newMessagesActions.updateMessage))
+   *
+   * @param messageId - Message ID
+   * @param updates - Partial message updates
+   */
+  updateMessage(messageId: string, updates: Partial<Message>): void {
+    const session = this.getSession(messageId)
+    if (!session) {
+      logger.warn(`updateMessage called for non-existent session: ${messageId}`)
+      return
+    }
+
+    // Merge updates
+    session.message = { ...session.message, ...updates }
+
+    // Update caches
+    cacheService.setCasual(getSessionKey(messageId), session, SESSION_TTL)
+    cacheService.setCasual(getMessageKey(messageId), session.message, SESSION_TTL)
+  }
+
+  /**
+   * Add a block reference to the message
+   * (Replaces dispatch(newMessagesActions.upsertBlockReference))
+   *
+   * Note: In the streaming context, we just need to track the block ID in message.blocks
+   * The block reference details are maintained in the block itself
+   *
+   * @param messageId - Message ID
+   * @param blockId - Block ID to reference
+   */
+  addBlockReference(messageId: string, blockId: string): void {
+    const session = this.getSession(messageId)
+    if (!session) {
+      logger.warn(`addBlockReference called for non-existent session: ${messageId}`)
+      return
+    }
+
+    if (!session.message.blocks.includes(blockId)) {
+      session.message.blocks = [...session.message.blocks, blockId]
+      cacheService.setCasual(getSessionKey(messageId), session, SESSION_TTL)
+      cacheService.setCasual(getMessageKey(messageId), session.message, SESSION_TTL)
+    }
+  }
+
+  /**
+   * Get a message from the streaming session
+   *
+   * @param messageId - Message ID
+   * @returns Message or null if not found
+   */
+  getMessage(messageId: string): Message | null {
+    return cacheService.getCasual<Message>(getMessageKey(messageId)) || null
+  }
+
+  // ============ Query Methods ============
+
+  /**
+   * Check if a topic has any active streaming sessions
+   *
+   * @param topicId - Topic ID
+   * @returns True if streaming is active
+   */
+  isStreaming(topicId: string): boolean {
+    const topicSessions = cacheService.getCasual<string[]>(getTopicSessionsKey(topicId)) || []
+    return topicSessions.length > 0
+  }
+
+  /**
+   * Check if a specific message is currently streaming
+   *
+   * @param messageId - Message ID
+   * @returns True if message is streaming
+   */
+  isMessageStreaming(messageId: string): boolean {
+    return cacheService.hasCasual(getSessionKey(messageId))
+  }
+
+  /**
+   * Get the streaming session for a message
+   *
+   * @param messageId - Message ID
+   * @returns Session or null if not found
+   */
+  getSession(messageId: string): StreamingSession | null {
+    return cacheService.getCasual<StreamingSession>(getSessionKey(messageId)) || null
+  }
+
+  /**
+   * Get all active streaming message IDs for a topic
+   *
+   * @param topicId - Topic ID
+   * @returns Array of message IDs
+   */
+  getActiveMessageIds(topicId: string): string[] {
+    return cacheService.getCasual<string[]>(getTopicSessionsKey(topicId)) || []
+  }
+
+  // ============ siblingsGroupId Generation ============
+
+  /**
+   * Generate the next siblingsGroupId for a topic.
+   *
+   * Used for multi-model responses where multiple assistant messages
+   * share the same parentId and siblingsGroupId (>0).
+   *
+   * The counter is stored in CacheService and auto-increments.
+   * Single-model responses should use siblingsGroupId=0 (not generated here).
+   *
+   * @param topicId - Topic ID
+   * @returns Next siblingsGroupId (always > 0)
+   */
+  //FIXME [v2] 现在获取 siblingsGroupId 的方式是不正确，后续再做修改调整
+  generateNextGroupId(topicId: string): number {
+    const counterKey = getSiblingsGroupCounterKey(topicId)
+    const currentCounter = cacheService.getCasual<number>(counterKey) || 0
+    const nextGroupId = currentCounter + 1
+    // Store with no TTL (persistent within session, cleared on app restart)
+    cacheService.setCasual(counterKey, nextGroupId)
+    logger.debug('Generated siblingsGroupId', { topicId, siblingsGroupId: nextGroupId })
+    return nextGroupId
+  }
+
+  // ============ Internal Methods ============
+
+  /**
+   * Convert session data to database update payload
+   *
+   * @param session - Streaming session
+   * @param status - Final message status
+   * @returns Update payload for database
+   */
+  private convertToUpdatePayload(
+    session: StreamingSession,
+    status: AssistantMessageStatus
+  ): {
+    messageUpdates: Partial<Message> & Pick<Message, 'id'>
+    blocks: MessageBlock[]
+  } {
+    const blocks = Object.values(session.blocks)
+
+    // Ensure all blocks have final status
+    // Use type assertion since we're only updating the status field
+    const finalizedBlocks: MessageBlock[] = blocks.map((block) => {
+      if (block.status === MessageBlockStatus.STREAMING || block.status === MessageBlockStatus.PROCESSING) {
+        const finalizedBlock = {
+          ...block,
+          status: status === AssistantMessageStatus.SUCCESS ? MessageBlockStatus.SUCCESS : MessageBlockStatus.ERROR
+        }
+        return finalizedBlock as typeof block
+      }
+      return block
+    })
+
+    const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+      id: session.messageId,
+      status,
+      blocks: session.message.blocks,
+      updatedAt: new Date().toISOString(),
+      // Include usage and metrics if available
+      ...(session.message.usage && { usage: session.message.usage }),
+      ...(session.message.metrics && { metrics: session.message.metrics })
+    }
+
+    return {
+      messageUpdates,
+      blocks: finalizedBlocks
+    }
+  }
+
+  /**
+   * Convert session data to Data API UpdateMessageDto format
+   *
+   * Converts from renderer format (MessageBlock with id/status) to
+   * shared format (MessageDataBlock without id/status) for Data API persistence.
+   *
+   * @param session - Streaming session
+   * @param status - Final message status
+   * @returns UpdateMessageDto for Data API PATCH request
+   */
+  private convertToDataApiFormat(session: StreamingSession, status: AssistantMessageStatus): UpdateMessageDto {
+    const blocks = Object.values(session.blocks)
+
+    // Convert MessageBlock[] to MessageDataBlock[]
+    // Remove id, status, messageId fields as they are renderer-specific, not part of MessageDataBlock
+    // TRADEOFF: Using 'as unknown as' because renderer's MessageBlockType and shared's BlockType
+    // are structurally identical but TypeScript treats them as incompatible enums.
+    const dataBlocks: MessageDataBlock[] = blocks.map((block) => {
+      // Extract only the fields that belong to MessageDataBlock
+      const {
+        id: _id,
+        status: _blockStatus,
+        messageId: _messageId,
+        ...blockData
+      } = block as MessageBlock & {
+        messageId?: string
+      }
+
+      return blockData as unknown as MessageDataBlock
+    })
+
+    // Build MessageStats from usage and metrics
+    // Note: Renderer uses 'time_first_token_millsec' while shared uses 'timeFirstTokenMs'
+    const stats: MessageStats | undefined =
+      session.message.usage || session.message.metrics
+        ? {
+            promptTokens: session.message.usage?.prompt_tokens,
+            completionTokens: session.message.usage?.completion_tokens,
+            totalTokens: session.message.usage?.total_tokens,
+            timeFirstTokenMs: session.message.metrics?.time_first_token_millsec,
+            timeCompletionMs: session.message.metrics?.time_completion_millsec
+          }
+        : undefined
+
+    return {
+      data: { blocks: dataBlocks },
+      status: status as 'pending' | 'success' | 'error' | 'paused',
+      ...(stats && { stats })
+    }
+  }
+}
+
+// Export singleton instance
+export const streamingService = new StreamingService()
+
+// Also export class for testing
+export { StreamingService }
+export type { StartSessionOptions, StreamingSession }
