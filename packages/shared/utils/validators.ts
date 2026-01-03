@@ -104,8 +104,7 @@ export const validators = {
   fileName: (maxLength = 255): ValidatorConfig => ({
     transform: (v) =>
       v
-
-        .replace(/[<>:"/\\|?*\x00-\x1f]/g, '') // Invalid on Windows + null/control chars
+        .replace(/[<>:"/\\|?*]|\p{Cc}/gu, '') // Invalid on Windows + control chars
         .replace(/[\s.]+$/, '') // Remove trailing spaces and dots
         .slice(0, maxLength),
     validate: (v) => (!v.trim() ? ValidationErrorKeys.FILE_NAME_REQUIRED : null),
