@@ -4,80 +4,66 @@
 
 // ==================== 核心管理器 ====================
 
-// Provider 注册表管理器
-export { globalRegistryManagement, RegistryManagement } from './RegistryManagement'
-
 // Provider 核心功能
 export {
-  // 状态管理
-  cleanup,
-  clearAllProviders,
-  createAndRegisterProvider,
-  createProvider,
-  getAllProviderConfigAliases,
-  getAllProviderConfigs,
-  getImageModel,
-  // 工具函数
-  getInitializedProviders,
-  getLanguageModel,
-  getProviderConfig,
-  getProviderConfigByAlias,
+  coreExtensions,
   getSupportedProviders,
-  getTextEmbeddingModel,
-  hasInitializedProviders,
-  // 工具函数
   hasProviderConfig,
-  // 别名支持
-  hasProviderConfigByAlias,
-  isProviderConfigAlias,
-  // 错误类型
   ProviderInitializationError,
-  // 全局访问
-  providerRegistry,
-  registerMultipleProviderConfigs,
-  registerProvider,
-  // 统一Provider系统
-  registerProviderConfig,
-  resolveProviderConfigId
-} from './registry'
+  registeredProviderIds
+} from './core/initialization'
 
 // ==================== 基础数据和类型 ====================
 
-// 基础Provider数据源
-export { baseProviderIds, baseProviders, isBaseProvider } from './schemas'
+// 类型定义
+export type { AiSdkModel, ProviderError } from './types'
 
-// 类型定义和Schema
+// 类型提取工具
 export type {
-  BaseProviderId,
-  CustomProviderId,
-  DynamicProviderRegistration,
-  ProviderConfig,
-  ProviderId
-} from './schemas' // 从 schemas 导出的类型
-export { baseProviderIdSchema, customProviderIdSchema, providerConfigSchema, providerIdSchema } from './schemas' // Schema 导出
-export type {
-  DynamicProviderRegistry,
-  ExtensibleProviderSettingsMap,
-  ProviderError,
-  ProviderSettingsMap,
-  ProviderTypeRegistrar
+  CoreProviderSettingsMap,
+  ExtensionConfigToIdResolutionMap,
+  ExtensionToSettingsMap,
+  ExtractExtensionIds,
+  ExtractExtensionSettings,
+  ExtractProviderIds,
+  StringKeys,
+  UnionToIntersection
 } from './types'
 
 // ==================== 工具函数 ====================
 
-// Provider配置工厂
-export {
-  type BaseProviderConfig,
-  createProviderConfig,
-  ProviderConfigBuilder,
-  providerConfigBuilder,
-  ProviderConfigFactory
-} from './factory'
-
-// 工具函数
-export { formatPrivateKey } from './utils'
+// 工具函数和错误类
+export { formatPrivateKey, ProviderCreationError } from './core/utils'
 
 // ==================== 扩展功能 ====================
 
 // Hub Provider 功能
-export { createHubProvider, type HubProviderConfig, HubProviderError } from './HubProvider'
+export {
+  createHubProviderAsync,
+  type HubProviderConfig,
+  HubProviderError
+} from './features/HubProvider'
+
+// ==================== Provider Extension 系统 ====================
+
+// Extension 核心类和类型
+export {
+  createProviderExtension,
+  type ProviderCreatorFunction,
+  ProviderExtension,
+  ProviderExtensionBuilder,
+  type ProviderExtensionConfig,
+  type ProviderModule
+} from './core/ProviderExtension'
+
+// Extension Registry
+export { ExtensionRegistry, extensionRegistry } from './core/ExtensionRegistry'
+export type {
+  ExtensionContext,
+  ExtensionHook,
+  ExtensionStorage,
+  LifecycleHooks,
+  ProviderVariant,
+  StorageAccessor
+} from './types'
+export type { RegisteredProviderId } from './types'

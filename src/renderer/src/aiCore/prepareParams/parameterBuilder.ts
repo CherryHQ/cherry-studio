@@ -10,9 +10,9 @@ import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
 import { combineHeaders } from '@ai-sdk/provider-utils'
 import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
-import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
-import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
+import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import type { AppProviderId } from '@renderer/aiCore/types'
 import {
   isAnthropicModel,
   isFixedReasoningModel,
@@ -47,9 +47,9 @@ import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
 
-type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider-defined' }>
+type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider' }>
 
-function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | undefined {
+function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
   if (isAnthropicModel(model)) {
     return 'anthropic'
   }
@@ -62,9 +62,7 @@ function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | und
   if (isOpenAIModel(model)) {
     return 'openai'
   }
-  logger.warn(
-    `[mapVertexAIGatewayModelToProviderId] Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`
-  )
+  logger.warn(`Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`)
   return undefined
 }
 
@@ -146,7 +144,7 @@ export async function buildStreamTextParams(
 
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
-    if (isBaseProvider(aiSdkProviderId)) {
+    if (extensionRegistry.has(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
     } else if (isAIGatewayProvider(provider) || SystemProviderIds.gateway === provider.id) {
       const aiSdkProviderId = mapVertexAIGatewayModelToProviderId(model)

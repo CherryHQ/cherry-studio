@@ -11,11 +11,16 @@
     "noEmitOnError": false,
     "outDir": "./dist",
     "resolveJsonModule": true,
-    "rootDir": "./src",
+    "rootDir": ".",
     "skipLibCheck": true,
     "strict": true,
-    "target": "ES2020"
+    "target": "ES2020",
+    "baseUrl": ".",
+    "paths": {
+      "@test-utils": ["./test_utils"],
+      "@test-utils/*": ["./test_utils/*"]
+    }
   },
   "exclude": ["node_modules", "dist"],
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "test_utils/**/*"]
 }
