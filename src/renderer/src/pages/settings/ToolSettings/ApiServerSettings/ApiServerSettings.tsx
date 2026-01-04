@@ -21,7 +21,7 @@ import { validators } from '@shared/utils'
 import { Alert, Button, Checkbox, Input, InputNumber, Segmented, Select, Switch, Tooltip, Typography } from 'antd'
 import { AlertTriangle, Copy, ExternalLink, Play, Plus, RotateCcw, Square, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -299,11 +299,31 @@ interface ModelGroupCardProps {
   onDelete: (groupId: string) => void
 }
 
+const ENV_FORMAT_TO_ENDPOINT: Record<EnvFormat, GatewayEndpoint> = {
+  openai: '/v1/chat/completions',
+  anthropic: '/v1/messages',
+  responses: '/v1/responses'
+}
+
 const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
   const [envFormat, setEnvFormat] = useState<EnvFormat>('openai')
+
+  // Reset envFormat when selected endpoint is disabled
+  useEffect(() => {
+    const isCurrentFormatEnabled = apiServerConfig.enabledEndpoints.includes(ENV_FORMAT_TO_ENDPOINT[envFormat])
+    if (!isCurrentFormatEnabled) {
+      // Find first enabled format
+      const firstEnabledFormat = (['openai', 'anthropic', 'responses'] as EnvFormat[]).find((fmt) =>
+        apiServerConfig.enabledEndpoints.includes(ENV_FORMAT_TO_ENDPOINT[fmt])
+      )
+      if (firstEnabledFormat) {
+        setEnvFormat(firstEnabledFormat)
+      }
+    }
+  }, [apiServerConfig.enabledEndpoints, envFormat])
 
   // In-place edit for group name (which is also the URL path)
   const { isEditing, startEdit, inputProps, validationError } = useInPlaceEdit({
@@ -343,13 +363,7 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) 
 
   // Get full endpoint URL based on selected format
   const getFullEndpointUrl = () => {
-    const baseUrl = getGroupUrl()
-    const endpointMap: Record<EnvFormat, string> = {
-      openai: '/v1/chat/completions',
-      anthropic: '/v1/messages',
-      responses: '/v1/responses'
-    }
-    return `${baseUrl}${endpointMap[envFormat]}`
+    return `${getGroupUrl()}${ENV_FORMAT_TO_ENDPOINT[envFormat]}`
   }
 
   const copyBaseUrl = () => {
@@ -454,7 +468,9 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) 
                   { label: 'OpenAI', value: 'openai' },
                   { label: 'Anthropic', value: 'anthropic' },
                   { label: 'Responses', value: 'responses' }
-                ]}
+                ].filter((opt) =>
+                  apiServerConfig.enabledEndpoints.includes(ENV_FORMAT_TO_ENDPOINT[opt.value as EnvFormat])
+                )}
               />
             </ButtonGroup>
             <EndpointUrlRow>
