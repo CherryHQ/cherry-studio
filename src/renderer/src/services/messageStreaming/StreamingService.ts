@@ -206,43 +206,25 @@ class StreamingService {
       return
     }
 
-    const maxRetries = 3
-    let lastError: Error | null = null
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
+    try {
+      // Route to appropriate data source based on topic type
+      // TEMPORARY: Agent sessions use dbService until migration to Data API is complete
+      if (isAgentSessionTopicId(session.topicId)) {
         const updatePayload = this.convertToUpdatePayload(session, status)
-
-        // Route to appropriate data source based on topic type
-        // TEMPORARY: Agent sessions use dbService until migration to Data API is complete
-        if (isAgentSessionTopicId(session.topicId)) {
-          await dbService.updateMessageAndBlocks(session.topicId, updatePayload.messageUpdates, updatePayload.blocks)
-        } else {
-          // Normal topic → Use Data API for persistence (v2 target architecture)
-          const dataApiPayload = this.convertToDataApiFormat(session, status)
-          await dataApiService.patch(`/messages/${session.messageId}`, { body: dataApiPayload })
-        }
-
-        // Success - cleanup session
-        this.clearSession(messageId)
-        logger.debug('Finalized streaming session', { messageId, status })
-        return
-      } catch (error) {
-        lastError = error as Error
-        logger.warn(`finalize attempt ${attempt}/${maxRetries} failed:`, error as Error)
-
-        if (attempt < maxRetries) {
-          // Exponential backoff
-          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
-        }
+        await dbService.updateMessageAndBlocks(session.topicId, updatePayload.messageUpdates, updatePayload.blocks)
+      } else {
+        // Normal topic → Use Data API for persistence (has built-in retry)
+        const dataApiPayload = this.convertToDataApiFormat(session, status)
+        await dataApiService.patch(`/messages/${session.messageId}`, { body: dataApiPayload })
       }
-    }
 
-    // All retries failed
-    logger.error(`finalize failed after ${maxRetries} attempts:`, lastError)
-    // TRADEOFF: Don't clear session to allow manual retry
-    // TTL will auto-clean to prevent permanent memory leak
-    throw lastError
+      this.clearSession(messageId)
+      logger.debug('Finalized streaming session', { messageId, status })
+    } catch (error) {
+      logger.error('finalize failed:', error as Error)
+      // Don't clear session on error - TTL will auto-clean to prevent memory leak
+      throw error
+    }
   }
 
   /**
