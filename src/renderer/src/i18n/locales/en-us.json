@@ -3165,6 +3165,7 @@
         "label": "App Data",
         "migration_title": "Data Migration",
         "new_path": "New Path",
+        "open": "Open Directory",
         "original_path": "Original Path",
         "path_change_failed": "Failed to change data directory",
         "path_changed_without_copy": "Path changed successfully",

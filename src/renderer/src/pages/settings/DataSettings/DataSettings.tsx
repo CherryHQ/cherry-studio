@@ -23,8 +23,8 @@ import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/setting
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Button, Progress, Switch, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
+import { Button, Progress, Switch, Tooltip, Typography } from 'antd'
+import { FileText, FolderCog, FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -646,9 +646,13 @@ const DataSettings: FC = () => {
                     onClick={() => handleOpenPath(appInfo?.appDataPath)}>
                     {appInfo?.appDataPath}
                   </PathText>
-                  <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
+                  <Tooltip title={t('settings.data.app_data.select')}>
+                    <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
+                  </Tooltip>
                   <HStack gap="5px" style={{ marginLeft: '8px' }}>
-                    <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
+                    <Button onClick={() => handleOpenPath(appInfo?.appDataPath)}>
+                      {t('settings.data.app_data.open')}
+                    </Button>
                   </HStack>
                 </PathRow>
               </SettingRow>
@@ -659,7 +663,6 @@ const DataSettings: FC = () => {
                   <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
                     {appInfo?.logsPath}
                   </PathText>
-                  <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
                   <HStack gap="5px" style={{ marginLeft: '8px' }}>
                     <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>
                       {t('settings.data.app_logs.button')}
