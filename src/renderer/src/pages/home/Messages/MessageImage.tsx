@@ -50,7 +50,7 @@ const MessageImage: FC<Props> = ({ block }) => {
             const mimeType = parts[0].replace('data:', '')
             const base64Data = parts[1]
             const byteCharacters = atob(base64Data)
-            const byteArrays: Uint8Array[] = []
+            const byteArrays: BlobPart[] = []
 
             for (let offset = 0; offset < byteCharacters.length; offset += 512) {
               const slice = byteCharacters.slice(offset, offset + 512)

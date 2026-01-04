@@ -81,7 +81,10 @@ vi.mock('electron-updater', () => ({
   },
   Logger: vi.fn(),
   NsisUpdater: vi.fn(),
-  AppUpdater: vi.fn()
+  AppUpdater: vi.fn(),
+  CancellationToken: vi.fn(() => ({
+    cancel: vi.fn()
+  }))
 }))
 
 // Import after mocks

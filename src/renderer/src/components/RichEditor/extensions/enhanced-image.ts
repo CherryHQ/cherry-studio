@@ -15,10 +15,15 @@ declare module '@tiptap/core' {
 // Enhanced Image extension that emits events for image upload
 export const EnhancedImage = Image.extend({
   addOptions() {
+    const parentOptions = this.parent?.() ?? { resize: false, HTMLAttributes: {} }
+
     return {
-      ...this.parent?.(),
+      ...parentOptions,
+      resize: parentOptions.resize ?? false,
+      inline: false,
       allowBase64: true,
       HTMLAttributes: {
+        ...parentOptions.HTMLAttributes,
         class: 'rich-editor-image'
       }
     }

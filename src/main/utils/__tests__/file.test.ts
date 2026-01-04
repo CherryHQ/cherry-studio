@@ -258,13 +258,18 @@ describe('file', () => {
 
   describe('readTextFileWithAutoEncoding', () => {
     const mockFilePath = '/path/to/mock/file.txt'
+    const toNonSharedBuffer = (input: Buffer) => {
+      const arrayBuffer = new ArrayBuffer(input.byteLength)
+      new Uint8Array(arrayBuffer).set(input)
+      return Buffer.from(arrayBuffer)
+    }
 
     it('should read file with auto encoding', async () => {
       const content = '这是一段GB18030编码的测试内容'
       const buffer = iconv.encode(content, 'GB18030')
 
       // 模拟文件读取和编码检测
-      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(toNonSharedBuffer(buffer))
       vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
@@ -276,7 +281,7 @@ describe('file', () => {
       const buffer = iconv.encode(content, 'UTF-8')
 
       // 模拟文件读取
-      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(toNonSharedBuffer(buffer))
       vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
