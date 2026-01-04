@@ -643,6 +643,11 @@ export class WindowService {
       return
     } else if (isMac) {
       this.miniWindow.hide()
+      const majorVersion = parseInt(process.getSystemVersion().split('.')[0], 10)
+      if (majorVersion >= 26) {
+        // on macOS 26+, the popup of the mimiWindow would not change the focus to previous application.
+        return
+      }
       if (!this.wasMainWindowFocused) {
         app.hide()
       }

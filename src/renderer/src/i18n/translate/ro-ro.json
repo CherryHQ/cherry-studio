@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "Ștergerea unui asistent va șterge toate subiectele și fișierele din cadrul asistentului. Ești sigur că vrei să-l ștergi?",
+      "error": {
+        "remain_one": "Nu este permisă ștergerea ultimului"
+      },
       "title": "Șterge asistentul"
     },
     "edit": {
