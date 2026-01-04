@@ -13,11 +13,79 @@ import useSWRMutation from 'swr/mutation'
 
 import { dataApiService } from '../DataApiService'
 
-// buildPath function removed - users now pass concrete paths directly
+// ============================================================================
+// Hook Result Types
+// ============================================================================
+
+/** Infer item type from paginated response path */
+type InferPaginatedItem<TPath extends ConcreteApiPaths> = ResponseForPath<TPath, 'GET'> extends PaginatedResponse<
+  infer T
+>
+  ? T
+  : unknown
+
+/** useQuery result type */
+export interface UseQueryResult<TPath extends ConcreteApiPaths> {
+  data?: ResponseForPath<TPath, 'GET'>
+  isLoading: boolean
+  isRefreshing: boolean
+  error?: Error
+  refetch: () => void
+  mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>>
+}
+
+/** useMutation result type */
+export interface UseMutationResult<
+  TPath extends ConcreteApiPaths,
+  TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+> {
+  mutate: (data?: {
+    body?: BodyForPath<TPath, TMethod>
+    query?: QueryParamsForPath<TPath>
+  }) => Promise<ResponseForPath<TPath, TMethod>>
+  isLoading: boolean
+  error: Error | undefined
+}
+
+/** useInfiniteQuery result type */
+export interface UseInfiniteQueryResult<T> {
+  items: T[]
+  pages: PaginatedResponse<T>[]
+  total: number
+  size: number
+  isLoading: boolean
+  isRefreshing: boolean
+  error?: Error
+  hasNext: boolean
+  loadNext: () => void
+  setSize: (size: number | ((size: number) => number)) => void
+  refresh: () => void
+  reset: () => void
+  mutate: KeyedMutator<PaginatedResponse<T>[]>
+}
+
+/** usePaginatedQuery result type */
+export interface UsePaginatedQueryResult<T> {
+  items: T[]
+  total: number
+  page: number
+  isLoading: boolean
+  isRefreshing: boolean
+  error?: Error
+  hasNext: boolean
+  hasPrev: boolean
+  prevPage: () => void
+  nextPage: () => void
+  refresh: () => void
+  reset: () => void
+}
+
+// ============================================================================
+// Utilities
+// ============================================================================
 
 /**
- * Unified fetcher utility for API requests
- * Provides type-safe method dispatching to reduce code duplication
+ * Unified API fetcher with type-safe method dispatching
  */
 function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
   method: TMethod
@@ -47,18 +115,7 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
 }
 
 /**
- * Build SWR cache key for request identification and caching
- * Creates a unique key based on path and query parameters
- *
- * @param path - The concrete API path
- * @param query - Query parameters
- * @returns SWR key tuple or null if disabled
- *
- * @example
- * ```typescript
- * buildSWRKey('/topics', { page: 1 }) // Returns ['/topics', { page: 1 }]
- * buildSWRKey('/topics/123') // Returns ['/topics/123']
- * ```
+ * Build SWR cache key from path and query
  */
 function buildSWRKey<TPath extends ConcreteApiPaths>(
   path: TPath,
@@ -73,8 +130,6 @@ function buildSWRKey<TPath extends ConcreteApiPaths>(
 
 /**
  * GET request fetcher for SWR
- * @param args - Tuple containing [path, query] parameters
- * @returns Promise resolving to the fetched data
  */
 function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Record<string, any>?]): Promise<
   ResponseForPath<TPath, 'GET'>
@@ -84,59 +139,10 @@ function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Recor
 }
 
 /**
- * React hook for data fetching with SWR
- * Provides type-safe API calls with caching, revalidation, and error handling
- *
- * @template TPath - The concrete API path type
- * @param path - The concrete API endpoint path (e.g., '/test/items/123')
- * @param options - Configuration options
- * @param options.query - Query parameters for filtering, pagination, etc.
- * @param options.enabled - Whether the request should be executed (default: true)
- * @param options.swrOptions - Additional SWR configuration options
- * @returns Object containing data, loading state, error state, and control functions
+ * Data fetching hook with SWR caching and revalidation
  *
  * @example
- * ```typescript
- * // Basic usage with type-safe concrete path
- * const { data, loading, error } = useQuery('/test/items')
- * // data is automatically typed as PaginatedResponse<any>
- *
- * // With dynamic ID - full type safety
- * const { data, loading, error } = useQuery(`/test/items/${itemId}`, {
- *   enabled: !!itemId
- * })
- * // data is automatically typed as the specific item type
- *
- * // With type-safe query parameters
- * const { data, loading, error } = useQuery('/test/items', {
- *   query: {
- *     page: 1,
- *     limit: 20,
- *     search: 'hello',  // TypeScript validates these fields
- *     status: 'active'
- *   }
- * })
- *
- * // With custom SWR options
- * const { data, loading, error, refetch } = useQuery('/test/items', {
- *   swrOptions: {
- *     refreshInterval: 5000,  // Auto-refresh every 5 seconds
- *     revalidateOnFocus: true
- *   }
- * })
- *
- * // Optimistic updates with mutate (bound to current key, no key needed)
- * const { data, mutate } = useQuery(`/topics/${id}`)
- *
- * // Update cache immediately without revalidation
- * await mutate({ ...data, title: 'New Title' }, false)
- *
- * // Update cache with function and revalidate
- * await mutate(prev => ({ ...prev, count: prev.count + 1 }))
- *
- * // Just revalidate (refetch from server)
- * await mutate()
- * ```
+ * const { data, isLoading, error } = useQuery('/items', { query: { page: 1 } })
  */
 export function useQuery<TPath extends ConcreteApiPaths>(
   path: TPath,
@@ -148,20 +154,7 @@ export function useQuery<TPath extends ConcreteApiPaths>(
     /** Custom SWR options */
     swrOptions?: Parameters<typeof useSWR>[2]
   }
-): {
-  /** The fetched data */
-  data?: ResponseForPath<TPath, 'GET'>
-  /** True during initial load (no data yet) */
-  isLoading: boolean
-  /** True during any request (including background refresh) */
-  isRefreshing: boolean
-  /** Error if request failed */
-  error?: Error
-  /** Function to manually refetch data */
-  refetch: () => void
-  /** SWR mutate function for optimistic updates */
-  mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>>
-} {
+): UseQueryResult<TPath> {
   // Internal type conversion for SWR compatibility
   const key = options?.enabled !== false ? buildSWRKey(path, options?.query as Record<string, any>) : null
 
@@ -189,78 +182,15 @@ export function useQuery<TPath extends ConcreteApiPaths>(
 }
 
 /**
- * React hook for mutation operations (POST, PUT, DELETE, PATCH)
- * Provides optimized handling of side-effect operations with automatic cache invalidation
- *
- * @template TPath - The concrete API path type
- * @param method - HTTP method for the mutation
- * @param path - The concrete API endpoint path (e.g., '/test/items/123')
- * @param options - Configuration options
- * @param options.onSuccess - Callback executed on successful mutation
- * @param options.onError - Callback executed on mutation error
- * @param options.revalidate - Cache invalidation strategy (true = invalidate all, string[] = specific paths)
- * @returns Object containing mutate function, loading state, and error state
+ * Mutation hook for POST, PUT, DELETE, PATCH operations
  *
  * @example
- * ```typescript
- * // Create a new item with full type safety
- * const createItem = useMutation('POST', '/test/items', {
- *   onSuccess: (data) => {
- *     console.log('Item created:', data) // data is properly typed
- *   },
- *   onError: (error) => {
- *     console.error('Failed to create item:', error)
- *   },
- *   revalidate: ['/test/items']  // Refresh items list after creation
+ * const { mutate, isLoading } = useMutation('POST', '/items', {
+ *   onSuccess: (data) => console.log(data),
+ *   revalidate: ['/items']
  * })
- *
- * // Update existing item with optimistic updates
- * const updateItem = useMutation('PUT', `/test/items/${itemId}`, {
- *   optimistic: true,
- *   optimisticData: { id: itemId, title: 'Updated Item' }, // Type-safe
- *   revalidate: true  // Refresh all cached data
- * })
- *
- * // Delete item
- * const deleteItem = useMutation('DELETE', `/test/items/${itemId}`)
- *
- * // Usage in component with type-safe parameters
- * const handleCreate = async () => {
- *   try {
- *     const result = await createItem.mutate({
- *       body: {
- *         title: 'New Item',
- *         description: 'Item description',
- *         // TypeScript validates all fields against ApiSchemas
- *         tags: ['tag1', 'tag2']
- *       }
- *     })
- *     console.log('Created:', result)
- *   } catch (error) {
- *     console.error('Creation failed:', error)
- *   }
- * }
- *
- * const handleUpdate = async () => {
- *   try {
- *     const result = await updateItem.mutate({
- *       body: { title: 'Updated Item' } // Type-safe, only valid fields allowed
- *     })
- *   } catch (error) {
- *     console.error('Update failed:', error)
- *   }
- * }
- *
- * const handleDelete = async () => {
- *   try {
- *     await deleteItem.mutate()
- *   } catch (error) {
- *     console.error('Delete failed:', error)
- *   }
- * }
- * ```
+ * await mutate({ body: { title: 'New Item' } })
  */
-
 export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
   method: TMethod,
   path: TPath,
@@ -276,17 +206,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     /** Optimistic data to use for updates */
     optimisticData?: ResponseForPath<TPath, TMethod>
   }
-): {
-  /** Function to execute the mutation */
-  mutate: (data?: {
-    body?: BodyForPath<TPath, TMethod>
-    query?: QueryParamsForPath<TPath>
-  }) => Promise<ResponseForPath<TPath, TMethod>>
-  /** True while the mutation is in progress */
-  isLoading: boolean
-  /** Error object if the mutation failed */
-  error: Error | undefined
-} {
+): UseMutationResult<TPath, TMethod> {
   const { mutate: globalMutate } = useSWRConfig()
 
   const apiFetcher = createApiFetcher(method)
@@ -327,29 +247,20 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     query?: QueryParamsForPath<TPath>
   }): Promise<ResponseForPath<TPath, TMethod>> => {
     if (options?.optimistic && options?.optimisticData) {
-      // Apply optimistic update
       await globalMutate(path, options.optimisticData, false)
     }
 
     try {
-      // Convert user's strongly-typed query to Record<string, any> for internal use
-      const convertedData = data
-        ? {
-            body: data.body,
-            query: data.query as Record<string, any>
-          }
-        : undefined
+      const convertedData = data ? { body: data.body, query: data.query as Record<string, any> } : undefined
 
       const result = await trigger(convertedData)
 
-      // Revalidate with real data after successful mutation
       if (options?.optimistic) {
         await globalMutate(path)
       }
 
       return result
     } catch (err) {
-      // Revert optimistic update on error
       if (options?.optimistic && options?.optimisticData) {
         await globalMutate(path)
       }
@@ -357,18 +268,11 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     }
   }
 
-  // Wrapper for non-optimistic mutations to handle type conversion
   const normalMutate = async (data?: {
     body?: BodyForPath<TPath, TMethod>
     query?: QueryParamsForPath<TPath>
   }): Promise<ResponseForPath<TPath, TMethod>> => {
-    // Convert user's strongly-typed query to Record<string, any> for internal use
-    const convertedData = data
-      ? {
-          body: data.body,
-          query: data.query as Record<string, any>
-        }
-      : undefined
+    const convertedData = data ? { body: data.body, query: data.query as Record<string, any> } : undefined
 
     return trigger(convertedData)
   }
@@ -381,30 +285,13 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 }
 
 /**
- * Hook for invalidating SWR cache entries
- * Must be used inside a React component or hook
- *
- * @returns Function to invalidate cache entries
+ * Hook to invalidate SWR cache entries
  *
  * @example
- * ```typescript
- * function MyComponent() {
- *   const invalidate = useInvalidateCache()
- *
- *   const handleInvalidate = async () => {
- *     // Invalidate specific cache key
- *     await invalidate('/test/items')
- *
- *     // Invalidate multiple keys
- *     await invalidate(['/test/items', '/test/stats'])
- *
- *     // Invalidate all cache entries
- *     await invalidate(true)
- *   }
- *
- *   return <button onClick={handleInvalidate}>Refresh Data</button>
- * }
- * ```
+ * const invalidate = useInvalidateCache()
+ * await invalidate('/items')        // specific key
+ * await invalidate(['/a', '/b'])    // multiple keys
+ * await invalidate(true)            // all keys
  */
 export function useInvalidateCache() {
   const { mutate } = useSWRConfig()
@@ -424,40 +311,10 @@ export function useInvalidateCache() {
 }
 
 /**
- * Prefetch data for a given path without caching
- * Useful for warming up data before user interactions or pre-loading critical resources
- *
- * @template TPath - The concrete API path type
- * @param path - The concrete API endpoint path (e.g., '/test/items/123')
- * @param options - Configuration options for the prefetch request
- * @param options.query - Query parameters for filtering, pagination, etc.
- * @returns Promise resolving to the prefetched data
+ * Prefetch data for warming up before user interactions
  *
  * @example
- * ```typescript
- * // Prefetch items list on component mount
- * useEffect(() => {
- *   prefetch('/test/items', {
- *     query: { page: 1, limit: 20 }
- *   })
- * }, [])
- *
- * // Prefetch specific item on hover
- * const handleItemHover = (itemId: string) => {
- *   prefetch(`/test/items/${itemId}`)
- * }
- *
- * // Prefetch with search parameters
- * const preloadSearchResults = async (searchTerm: string) => {
- *   const results = await prefetch('/test/search', {
- *     query: {
- *       query: searchTerm,
- *       limit: 10
- *     }
- *   })
- *   console.log('Preloaded:', results)
- * }
- * ```
+ * prefetch('/items', { query: { page: 1 } })
  */
 export function prefetch<TPath extends ConcreteApiPaths>(
   path: TPath,
@@ -474,117 +331,44 @@ export function prefetch<TPath extends ConcreteApiPaths>(
 // ============================================================================
 
 /**
- * Options for useInfiniteQuery hook
- * SWR-related options are consolidated in swrOptions
- */
-export interface UseInfiniteQueryOptions<TPath extends ConcreteApiPaths> {
-  /** Additional query parameters (excluding pagination params) */
-  query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit' | 'cursor'>
-  /** Items per page (default: 10) */
-  limit?: number
-  /** Pagination mode (default: 'cursor') */
-  mode?: PaginationMode
-  /** Whether to enable the query (default: true) */
-  enabled?: boolean
-  /** SWR options (including initialSize, revalidateAll, etc.) */
-  swrOptions?: Parameters<typeof useSWRInfinite>[2]
-}
-
-/**
- * React hook for infinite scrolling data fetching
- * Uses useSWRInfinite internally for efficient page management
- *
- * @template TPath - The concrete API path type
- * @param path - API endpoint path that returns paginated data
- * @param options - Configuration options for infinite query
- * @returns Object containing accumulated items, loading states, and controls
+ * Infinite scrolling hook with cursor/offset pagination
  *
  * @example
- * ```typescript
- * // Basic usage with cursor mode (default)
- * const { items, hasNext, loadMore, isLoadingMore } = useInfiniteQuery('/test/items', {
+ * const { items, hasNext, loadNext, isLoading } = useInfiniteQuery('/items', {
  *   limit: 20,
- *   query: { search: 'hello' }
+ *   mode: 'cursor'  // or 'offset'
  * })
- *
- * // Offset mode
- * const { items, hasNext, loadMore } = useInfiniteQuery('/test/items', {
- *   mode: 'offset',
- *   limit: 20
- * })
- *
- * // Custom SWR options
- * const { items, hasNext, loadMore } = useInfiniteQuery('/test/items', {
- *   limit: 20,
- *   swrOptions: {
- *     initialSize: 2,           // Load 2 pages initially
- *     revalidateFirstPage: false // Don't auto-refresh first page
- *   }
- * })
- *
- * // With InfiniteScroll component
- * <InfiniteScroll
- *   dataLength={items.length}
- *   next={loadMore}
- *   hasMore={hasNext}
- *   loader={<Spinner />}
- * >
- *   {items.map(item => <ItemCard key={item.id} item={item} />)}
- * </InfiniteScroll>
- * ```
  */
 export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   path: TPath,
-  options?: UseInfiniteQueryOptions<TPath>
-): ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
-  ? {
-      /** Accumulated items from all loaded pages */
-      items: T[]
-      /** Raw page data array */
-      pages: PaginatedResponse<T>[]
-      /** Total number of items */
-      total: number
-      /** Number of pages loaded */
-      size: number
-      /** True during initial load (no data yet) */
-      isLoading: boolean
-      /** True during any request (including background refresh) */
-      isRefreshing: boolean
-      /** Error if request failed */
-      error?: Error
-      /** Whether there are more pages to load */
-      hasNext: boolean
-      /** Load the next page */
-      loadNext: () => void
-      /** Set number of pages to load */
-      setSize: (size: number | ((size: number) => number)) => void
-      /** Refresh all loaded pages */
-      refresh: () => void
-      /** Reset to first page only */
-      reset: () => void
-      /** SWR mutate function */
-      mutate: KeyedMutator<PaginatedResponse<T>[]>
-    }
-  : never {
+  options?: {
+    /** Additional query parameters (excluding pagination params) */
+    query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit' | 'cursor'>
+    /** Items per page (default: 10) */
+    limit?: number
+    /** Pagination mode (default: 'cursor') */
+    mode?: PaginationMode
+    /** Whether to enable the query (default: true) */
+    enabled?: boolean
+    /** SWR options (including initialSize, revalidateAll, etc.) */
+    swrOptions?: Parameters<typeof useSWRInfinite>[2]
+  }
+): UseInfiniteQueryResult<InferPaginatedItem<TPath>> {
   const limit = options?.limit ?? 10
   const mode = options?.mode ?? 'cursor' // Default: cursor mode
   const enabled = options?.enabled !== false
 
-  // getKey: Generate SWR key for each page
   const getKey = useCallback(
     (pageIndex: number, previousPageData: PaginatedResponse<any> | null) => {
       if (!enabled) return null
 
-      // Check if we've reached the end
       if (previousPageData) {
         if (mode === 'cursor') {
           if (!isCursorPaginatedResponse(previousPageData) || !previousPageData.nextCursor) {
             return null
           }
         } else {
-          // offset mode
           if (isCursorPaginatedResponse(previousPageData)) {
-            // Response doesn't match expected mode
             return null
           }
           if (!previousPageData.hasNext) {
@@ -593,7 +377,6 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
         }
       }
 
-      // Build pagination query
       const paginationQuery: Record<string, any> = {
         ...(options?.query as Record<string, any>),
         limit
@@ -610,13 +393,11 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
     [path, options?.query, limit, mode, enabled]
   )
 
-  // Fetcher for infinite query - wraps getFetcher with proper types
   const infiniteFetcher = (key: [ConcreteApiPaths, Record<string, any>?]) => {
     return getFetcher(key) as Promise<PaginatedResponse<any>>
   }
 
   const swrResult = useSWRInfinite(getKey, infiniteFetcher, {
-    // Default configuration
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
     dedupingInterval: 5000,
@@ -626,14 +407,12 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
     revalidateAll: false,
     revalidateFirstPage: true,
     parallel: false,
-    // User overrides
     ...options?.swrOptions
   })
 
   const { error, isLoading, isValidating, mutate, size, setSize } = swrResult
   const data = swrResult.data as PaginatedResponse<any>[] | undefined
 
-  // Compute derived state
   const items = useMemo(() => data?.flatMap((p) => p.items) ?? [], [data])
 
   const hasNext = useMemo(() => {
@@ -645,7 +424,6 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
     return !isCursorPaginatedResponse(last) && (last as OffsetPaginatedResponse<any>).hasNext
   }, [data, mode])
 
-  // Action methods
   const loadNext = useCallback(() => {
     if (!hasNext || isValidating) return
     setSize((s) => s + 1)
@@ -668,23 +446,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
     refresh,
     reset,
     mutate
-  } as unknown as ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
-    ? {
-        items: T[]
-        pages: PaginatedResponse<T>[]
-        total: number
-        size: number
-        isLoading: boolean
-        isRefreshing: boolean
-        error?: Error
-        hasNext: boolean
-        loadNext: () => void
-        setSize: (size: number | ((size: number) => number)) => void
-        refresh: () => void
-        reset: () => void
-        mutate: KeyedMutator<PaginatedResponse<T>[]>
-      }
-    : never
+  } as UseInfiniteQueryResult<InferPaginatedItem<TPath>>
 }
 
 // ============================================================================
@@ -692,119 +454,28 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
 // ============================================================================
 
 /**
- * Options for usePaginatedQuery hook
- */
-export interface UsePaginatedQueryOptions<TPath extends ConcreteApiPaths> {
-  /** Additional query parameters (excluding pagination params) */
-  query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit'>
-  /** Items per page (default: 10) */
-  limit?: number
-  /** Whether to enable the query (default: true) */
-  enabled?: boolean
-  /** SWR options */
-  swrOptions?: Parameters<typeof useSWR>[2]
-}
-
-/**
- * React hook for paginated data fetching with type safety
- * Automatically manages pagination state and provides navigation controls
- * Works with API endpoints that return PaginatedResponse<T>
- *
- * @template TPath - The concrete API path type
- * @param path - API endpoint path that returns paginated data (e.g., '/test/items')
- * @param options - Configuration options for pagination and filtering
- * @param options.query - Additional query parameters (excluding page/limit)
- * @param options.limit - Items per page (default: 10)
- * @param options.swrOptions - Additional SWR configuration options
- * @returns Object containing paginated data, navigation controls, and state
+ * Paginated data fetching hook with navigation controls
  *
  * @example
- * ```typescript
- * // Basic paginated list
- * const {
- *   items,
- *   loading,
- *   total,
- *   page,
- *   hasNext,
- *   nextPage,
- *   prevPage
- * } = usePaginatedQuery('/test/items', {
- *   limit: 20
+ * const { items, page, hasNext, nextPage, prevPage } = usePaginatedQuery('/items', {
+ *   limit: 20,
+ *   query: { search: 'hello' }
  * })
- *
- * // With search and filtering
- * const paginatedItems = usePaginatedQuery('/test/items', {
- *   query: {
- *     search: searchTerm,
- *     status: 'active',
- *     type: 'premium'
- *   },
- *   limit: 25,
- *   swrOptions: {
- *     refreshInterval: 30000  // Refresh every 30 seconds
- *   }
- * })
- *
- * // Navigation controls usage
- * <div>
- *   <button onClick={prevPage} disabled={!hasPrev}>
- *     Previous
- *   </button>
- *   <span>Page {page} of {Math.ceil(total / 20)}</span>
- *   <button onClick={nextPage} disabled={!hasNext}>
- *     Next
- *   </button>
- * </div>
- *
- * // Reset pagination when search changes
- * useEffect(() => {
- *   reset()  // Go back to first page
- * }, [searchTerm])
- * ```
  */
 export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
   path: TPath,
   options?: {
-    /** Additional query parameters (excluding pagination) */
+    /** Additional query parameters (excluding pagination params) */
     query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit'>
     /** Items per page (default: 10) */
     limit?: number
-    /** Custom SWR options */
+    /** SWR options */
     swrOptions?: Parameters<typeof useSWR>[2]
   }
-): ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
-  ? {
-      /** Array of items for current page */
-      items: T[]
-      /** Total number of items across all pages */
-      total: number
-      /** Current page number (1-based) */
-      page: number
-      /** True during initial load (no data yet) */
-      isLoading: boolean
-      /** True during any request (including background refresh) */
-      isRefreshing: boolean
-      /** Error if request failed */
-      error?: Error
-      /** Whether there are more pages available */
-      hasNext: boolean
-      /** Whether there are previous pages available */
-      hasPrev: boolean
-      /** Navigate to previous page */
-      prevPage: () => void
-      /** Navigate to next page */
-      nextPage: () => void
-      /** Refresh current page data */
-      refresh: () => void
-      /** Reset to first page */
-      reset: () => void
-    }
-  : never {
+): UsePaginatedQueryResult<InferPaginatedItem<TPath>> {
   const [currentPage, setCurrentPage] = useState(1)
   const limit = options?.limit || 10
 
-  // Convert user's strongly-typed query with pagination for internal use
   const queryWithPagination = {
     ...options?.query,
     page: currentPage,
@@ -816,7 +487,6 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
     swrOptions: options?.swrOptions
   })
 
-  // Extract paginated response data with type safety
   const paginatedData = data as PaginatedResponse<any>
   const items = paginatedData?.items || []
   const total = paginatedData?.total || 0
@@ -854,20 +524,5 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
     nextPage,
     refresh: refetch,
     reset
-  } as ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
-    ? {
-        items: T[]
-        total: number
-        page: number
-        isLoading: boolean
-        isRefreshing: boolean
-        error?: Error
-        hasNext: boolean
-        hasPrev: boolean
-        prevPage: () => void
-        nextPage: () => void
-        refresh: () => void
-        reset: () => void
-      }
-    : never
+  } as UsePaginatedQueryResult<InferPaginatedItem<TPath>>
 }
