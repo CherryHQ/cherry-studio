@@ -411,9 +411,25 @@
       "libsql@0.4.7": "patches/libsql-npm-0.4.7-444e260fb1.patch",
       "pdf-parse@1.1.1": "patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
       "@ai-sdk/openai-compatible@1.0.28": "patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@kangfenmao/keyv-storage",
+      "@paymoapp/electron-shutdown-handler",
+      "@scarf/scarf",
+      "@swc/core",
+      "electron",
+      "electron-winstaller",
+      "esbuild",
+      "msw",
+      "protobufjs",
+      "registry-js",
+      "selection-hook",
+      "sharp",
+      "tesseract.js",
+      "zipfile"
+    ]
   },
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "pnpm@10.27.0",
   "lint-staged": {
     "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
       "biome format --write --no-errors-on-unmatched",

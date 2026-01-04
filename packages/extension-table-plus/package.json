@@ -89,5 +89,5 @@
     "build": "tsdown",
     "lint": "biome format ./src/ --write && eslint --fix ./src/"
   },
-  "packageManager": "pnpm@9.15.4"
+  "packageManager": "pnpm@10.27.0"
 }
