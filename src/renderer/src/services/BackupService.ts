@@ -77,6 +77,25 @@ function classifyBackupError(error: any): 'file_locked' | 'file_not_found' | 'fo
   return 'unknown'
 }
 
+// Helper function to show backup error toast messages
+function showBackupError(error: any): void {
+  const errorType = classifyBackupError(error)
+
+  switch (errorType) {
+    case 'file_locked':
+      window.toast.error(i18n.t('error.backup.file_locked'))
+      break
+    case 'file_not_found':
+      window.toast.error(i18n.t('error.backup.file_not_found'))
+      break
+    case 'format':
+      window.toast.error(i18n.t('error.backup.file_format'))
+      break
+    default:
+      window.toast.error(i18n.t('error.backup.file_format') + ': ' + error.message)
+  }
+}
+
 export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const fileContnet = await getBackupData()
@@ -117,23 +136,7 @@ export async function restore() {
       })
     } catch (error: any) {
       logger.error('restore: Error restoring backup file:', error as Error)
-
-      // Use helper function for consistent error classification
-      const errorType = classifyBackupError(error)
-
-      switch (errorType) {
-        case 'file_locked':
-          window.toast.error(i18n.t('error.backup.file_locked'))
-          break
-        case 'file_not_found':
-          window.toast.error(i18n.t('error.backup.file_not_found'))
-          break
-        case 'format':
-          window.toast.error(i18n.t('error.backup.file_format'))
-          break
-        default:
-          window.toast.error(i18n.t('error.backup.file_format') + ': ' + error.message)
-      }
+      showBackupError(error)
     }
   }
 }
@@ -347,23 +350,7 @@ export async function restoreFromWebdav(fileName?: string) {
     await handleData(JSON.parse(data))
   } catch (error: any) {
     logger.error('[Backup] Error downloading file from WebDAV:', error as Error)
-
-    // Use helper function for consistent error classification
-    const errorType = classifyBackupError(error)
-
-    switch (errorType) {
-      case 'file_locked':
-        window.toast.error(i18n.t('error.backup.file_locked'))
-        break
-      case 'file_not_found':
-        window.toast.error(i18n.t('error.backup.file_not_found'))
-        break
-      case 'format':
-        window.toast.error(i18n.t('error.backup.file_format'))
-        break
-      default:
-        window.toast.error(i18n.t('error.backup.file_format') + ': ' + error.message)
-    }
+    showBackupError(error)
   }
 }
 
@@ -1120,24 +1107,7 @@ export async function restoreFromLocal(fileName: string) {
     return true
   } catch (error: any) {
     logger.error('[LocalBackup] Restore failed:', error as Error)
-
-    // Use helper function for consistent error classification
-    const errorType = classifyBackupError(error)
-
-    switch (errorType) {
-      case 'file_locked':
-        window.toast.error(i18n.t('error.backup.file_locked'))
-        break
-      case 'file_not_found':
-        window.toast.error(i18n.t('error.backup.file_not_found'))
-        break
-      case 'format':
-        window.toast.error(i18n.t('error.backup.file_format'))
-        break
-      default:
-        window.toast.error(i18n.t('error.backup.file_format') + ': ' + error.message)
-    }
-
+    showBackupError(error)
     throw error
   }
 }
