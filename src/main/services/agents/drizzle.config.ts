@@ -18,17 +18,30 @@
  * Drizzle Kit configuration for agents database
  */
 
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { DATA_PATH } from '@main/config'
+import { isDev } from '@main/constant'
+import { makeSureDirExists } from '@main/utils'
 import { defineConfig } from 'drizzle-kit'
 import { app } from 'electron'
 
 function getDbPath() {
-  if (process.env.NODE_ENV === 'development') {
-    return path.join(os.homedir(), '.cherrystudio', 'data', 'agents.db')
+  const oldAgentsDbPath = isDev
+    ? path.join(os.homedir(), '.cherrystudio', 'data', 'agents.db')
+    : path.join(app.getPath('userData'), 'agents.db')
+
+  const agentsDbPath = path.join(DATA_PATH, 'Agents', 'agents.db')
+
+  makeSureDirExists(path.dirname(agentsDbPath))
+
+  if (fs.existsSync(oldAgentsDbPath)) {
+    fs.renameSync(oldAgentsDbPath, agentsDbPath)
   }
-  return path.join(app.getPath('userData'), 'agents.db')
+
+  return agentsDbPath
 }
 
 const resolvedDbPath = getDbPath()
