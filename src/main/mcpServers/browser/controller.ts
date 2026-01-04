@@ -1,5 +1,7 @@
+import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
+import { isMac } from '@main/constant'
 import { randomUUID } from 'crypto'
-import { app, BrowserView, BrowserWindow } from 'electron'
+import { app, BrowserView, BrowserWindow, nativeTheme } from 'electron'
 import TurndownService from 'turndown'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
@@ -22,6 +24,18 @@ export class CdpBrowserController {
     this.maxWindows = options?.maxWindows ?? 5
     this.idleTimeoutMs = options?.idleTimeoutMs ?? 5 * 60 * 1000
     this.turndownService = new TurndownService()
+
+    // Listen for theme changes and update all tab bars
+    nativeTheme.on('updated', () => {
+      const isDark = nativeTheme.shouldUseDarkColors
+      for (const windowInfo of this.windows.values()) {
+        if (windowInfo.tabBarView && !windowInfo.tabBarView.webContents.isDestroyed()) {
+          windowInfo.tabBarView.webContents.executeJavaScript(`window.setTheme(${isDark})`).catch(() => {
+            // Ignore errors if tab bar is not ready
+          })
+        }
+      }
+    })
   }
 
   private getWindowKey(privateMode: boolean): string {
@@ -267,6 +281,22 @@ export class CdpBrowserController {
       this.handleForwardAction(windowInfo)
     } else if (action.type === 'refresh') {
       this.handleRefreshAction(windowInfo)
+    } else if (action.type === 'window-minimize') {
+      if (!windowInfo.window.isDestroyed()) {
+        windowInfo.window.minimize()
+      }
+    } else if (action.type === 'window-maximize') {
+      if (!windowInfo.window.isDestroyed()) {
+        if (windowInfo.window.isMaximized()) {
+          windowInfo.window.unmaximize()
+        } else {
+          windowInfo.window.maximize()
+        }
+      }
+    } else if (action.type === 'window-close') {
+      if (!windowInfo.window.isDestroyed()) {
+        windowInfo.window.close()
+      }
     }
   }
 
@@ -286,6 +316,16 @@ export class CdpBrowserController {
     tabBarView.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(TAB_BAR_HTML)}`)
 
     tabBarView.webContents.on('did-finish-load', () => {
+      // Initialize platform for proper styling
+      const platform = isMac ? 'mac' : process.platform === 'win32' ? 'win' : 'linux'
+      tabBarView.webContents.executeJavaScript(`window.initPlatform('${platform}')`).catch((error) => {
+        logger.debug('Platform init failed', { error, windowKey: windowInfo.windowKey })
+      })
+      // Initialize theme
+      const isDark = nativeTheme.shouldUseDarkColors
+      tabBarView.webContents.executeJavaScript(`window.setTheme(${isDark})`).catch((error) => {
+        logger.debug('Theme init failed', { error, windowKey: windowInfo.windowKey })
+      })
       this.setupTabBarMessageHandler(windowInfo)
       this.sendTabBarUpdate(windowInfo)
     })
@@ -306,6 +346,15 @@ export class CdpBrowserController {
       show: showWindow,
       width: 1200,
       height: 800,
+      ...(isMac
+        ? {
+            titleBarStyle: 'hidden',
+            titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+            trafficLightPosition: { x: 8, y: 13 }
+          }
+        : {
+            frame: false // Frameless window for Windows and Linux
+          }),
       webPreferences: {
         contextIsolation: true,
         sandbox: true,
@@ -449,6 +498,24 @@ export class CdpBrowserController {
     view.webContents.on('did-navigate-in-page', (_event, url) => {
       tabInfo.url = url
       this.sendTabBarUpdate(windowInfo)
+    })
+
+    // Handle new window requests (e.g., target="_blank" links) - open in new tab instead
+    view.webContents.setWindowOpenHandler(({ url }) => {
+      // Create a new tab and navigate to the URL
+      this.createTab(privateMode, true)
+        .then(({ tabId: newTabId }) => {
+          return this.switchTab(privateMode, newTabId).then(() => {
+            const newTab = windowInfo.tabs.get(newTabId)
+            if (newTab && !newTab.view.webContents.isDestroyed()) {
+              newTab.view.webContents.loadURL(url)
+            }
+          })
+        })
+        .catch((error) => {
+          logger.warn('Failed to open link in new tab', { error, url })
+        })
+      return { action: 'deny' }
     })
 
     const tabInfo: TabInfo = {
@@ -652,6 +719,17 @@ export class CdpBrowserController {
       if (windowInfo) {
         this.closeTabInternal(windowInfo, tabId)
         windowInfo.tabs.delete(tabId)
+
+        // If no tabs left, close the window
+        if (windowInfo.tabs.size === 0) {
+          if (!windowInfo.window.isDestroyed()) {
+            windowInfo.window.close()
+          }
+          this.windows.delete(windowKey)
+          logger.info('Browser CDP window closed (last tab closed)', { windowKey, tabId })
+          return
+        }
+
         if (windowInfo.activeTabId === tabId) {
           windowInfo.activeTabId = windowInfo.tabs.keys().next().value ?? null
           if (windowInfo.activeTabId) {
