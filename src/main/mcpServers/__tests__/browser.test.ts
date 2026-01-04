@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('node:fs', () => ({
+  default: {
+    existsSync: vi.fn(() => false),
+    mkdirSync: vi.fn()
+  },
+  existsSync: vi.fn(() => false),
+  mkdirSync: vi.fn()
+}))
+
 vi.mock('electron', () => {
   const sendCommand = vi.fn(async (command: string, params?: { expression?: string }) => {
     if (command === 'Runtime.evaluate') {
@@ -36,7 +45,8 @@ vi.mock('electron', () => {
     goBack: vi.fn(),
     goForward: vi.fn(),
     reload: vi.fn(),
-    executeJavaScript: vi.fn(async () => null)
+    executeJavaScript: vi.fn(async () => null),
+    setWindowOpenHandler: vi.fn()
   })
 
   const windows: any[] = []
@@ -78,13 +88,26 @@ vi.mock('electron', () => {
   const app = {
     isReady: vi.fn(() => true),
     whenReady: vi.fn(async () => {}),
-    on: vi.fn()
+    on: vi.fn(),
+    getPath: vi.fn((key: string) => {
+      if (key === 'userData') return '/mock/userData'
+      if (key === 'temp') return '/tmp'
+      return '/mock/unknown'
+    }),
+    getAppPath: vi.fn(() => '/mock/app'),
+    setPath: vi.fn()
+  }
+
+  const nativeTheme = {
+    on: vi.fn(),
+    shouldUseDarkColors: false
   }
 
   return {
     BrowserWindow: MockBrowserWindow as any,
     BrowserView: MockBrowserView as any,
     app,
+    nativeTheme,
     __mockDebugger: debuggerObj,
     __mockSendCommand: sendCommand,
     __mockWindows: windows,
