@@ -474,6 +474,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'ja-JP'
   | 'pt-PT'
+  | 'ro-RO'
   | 'ru-RU'
 
 export type CodeStyleVarious = 'auto' | string

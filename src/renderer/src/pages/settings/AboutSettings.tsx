@@ -170,7 +170,7 @@ const AboutSettings: FC = () => {
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
     window.api.openWebsite(
-      isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us'
+      isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us'
     )
   }
 

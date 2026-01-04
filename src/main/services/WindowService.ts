@@ -255,6 +255,12 @@ export class WindowService {
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
+    // Fix for Electron bug where zoom resets during in-page navigation (route changes)
+    // This complements the resize-based workaround by catching navigation events
+    mainWindow.webContents.on('did-navigate-in-page', () => {
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+    })
+
     mainWindow.webContents.on('will-navigate', (event, url) => {
       if (url.includes('localhost:517')) {
         return
@@ -516,7 +522,9 @@ export class WindowService {
     miniWindowState.manage(this.miniWindow)
 
     //miniWindow should show in current desktop
-    this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    this.miniWindow?.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true
+    })
     //make miniWindow always on top of fullscreen apps with level set
     //[mac] level higher than 'floating' will cover the pinyin input method
     this.miniWindow.setAlwaysOnTop(true, 'floating')
@@ -635,6 +643,11 @@ export class WindowService {
       return
     } else if (isMac) {
       this.miniWindow.hide()
+      const majorVersion = parseInt(process.getSystemVersion().split('.')[0], 10)
+      if (majorVersion >= 26) {
+        // on macOS 26+, the popup of the mimiWindow would not change the focus to previous application.
+        return
+      }
       if (!this.wasMainWindowFocused) {
         app.hide()
       }
