@@ -29,7 +29,7 @@ import type {
 } from '@shared/data/types/message'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
-const logger = loggerService.withContext('MessageService')
+const logger = loggerService.withContext('DataApi:MessageService')
 
 /**
  * Preview length for tree nodes

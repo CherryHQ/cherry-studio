@@ -9,7 +9,7 @@ import { MiddlewareEngine } from './MiddlewareEngine'
 // Handler function type
 type HandlerFunction = (params: { params?: Record<string, string>; query?: any; body?: any }) => Promise<any>
 
-const logger = loggerService.withContext('DataApiServer')
+const logger = loggerService.withContext('DataApi:Server')
 
 /**
  * Core API Server - Transport agnostic request processor

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { toDataApiError } from '@shared/data/api/apiErrors'
 import type { DataRequest, DataResponse, Middleware, RequestContext } from '@shared/data/api/apiTypes'
 
-const logger = loggerService.withContext('MiddlewareEngine')
+const logger = loggerService.withContext('DataApi:MiddlewareEngine')
 
 /**
  * Middleware engine for executing middleware chains

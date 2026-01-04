@@ -18,7 +18,7 @@ import { eq } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
 
-const logger = loggerService.withContext('TopicService')
+const logger = loggerService.withContext('DataApi:TopicService')
 
 /**
  * Convert database row to Topic entity

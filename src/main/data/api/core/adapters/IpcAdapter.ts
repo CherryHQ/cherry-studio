@@ -6,7 +6,7 @@ import { ipcMain } from 'electron'
 
 import type { ApiServer } from '../ApiServer'
 
-const logger = loggerService.withContext('DataApiIpcAdapter')
+const logger = loggerService.withContext('DataApi:IpcAdapter')
 
 /**
  * IPC Adapter for Electron environment
