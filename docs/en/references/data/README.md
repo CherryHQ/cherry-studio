@@ -21,6 +21,9 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [API Types](./api-types.md) - API type system, schemas, error handling
 - [V2 Migration Guide](./v2-migration-guide.md) - Migration system
 
+### Testing
+- [Test Mocks](../../../../tests/__mocks__/README.md) - Unified mocks for Cache, Preference, and DataApi
+
 ---
 
 ## Choosing the Right System
@@ -191,3 +194,4 @@ const { data: files } = useQuery('/files')
 - `src/renderer/src/data/CacheService.ts` - Cache service
 - `src/renderer/src/data/PreferenceService.ts` - Preference service
 - `src/renderer/src/data/hooks/` - React hooks
+
