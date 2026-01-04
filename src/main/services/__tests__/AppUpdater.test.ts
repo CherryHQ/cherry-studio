@@ -84,9 +84,9 @@ vi.mock('electron-updater', () => ({
 // Import after mocks
 import { preferenceService } from '@data/PreferenceService'
 import { UpdateMirror } from '@shared/config/constant'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app, net } from 'electron'
 
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import AppUpdater from '../AppUpdater'
 
 // Mock clientId for ConfigManager since it's not migrated yet
