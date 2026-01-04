@@ -8,8 +8,8 @@ const allArm64 = {
   '@img/sharp-win32-arm64': '0.34.3',
   '@img/sharp-linux-arm64': '0.34.3',
 
-  '@img/sharp-libvips-darwin-arm64': '1.2.0',
-  '@img/sharp-libvips-linux-arm64': '1.2.0',
+  '@img/sharp-libvips-darwin-arm64': '1.2.4',
+  '@img/sharp-libvips-linux-arm64': '1.2.4',
 
   '@libsql/darwin-arm64': '0.4.7',
   '@libsql/linux-arm64-gnu': '0.4.7',
@@ -24,8 +24,8 @@ const allX64 = {
   '@img/sharp-linux-x64': '0.34.3',
   '@img/sharp-win32-x64': '0.34.3',
 
-  '@img/sharp-libvips-darwin-x64': '1.2.0',
-  '@img/sharp-libvips-linux-x64': '1.2.0',
+  '@img/sharp-libvips-darwin-x64': '1.2.4',
+  '@img/sharp-libvips-linux-x64': '1.2.4',
 
   '@libsql/darwin-x64': '0.4.7',
   '@libsql/linux-x64-gnu': '0.4.7',
