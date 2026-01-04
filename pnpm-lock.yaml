@@ -123,6 +123,9 @@ importers:
       font-list:
         specifier: 2.0.0
         version: 2.0.0
+      form-data:
+        specifier: 4.0.4
+        version: 4.0.4
       graceful-fs:
         specifier: 4.2.11
         version: 4.2.11
@@ -7400,6 +7403,10 @@ packages:
   form-data-encoder@2.1.4:
     resolution: {integrity: sha512-yDYSgNMraqvnxiEXO4hi88+YZxaHC6QKzb5N84iRCTDeRO7ZALpir/lVmf/uXUhnwUr2O4HU8s/n6x+yNjQkHw==}
     engines: {node: '>= 14.17'}
+
+  form-data@4.0.4:
+    resolution: {integrity: sha512-KrGhL9Q4zjj0kiUt5OO4Mr/A/jlI2jDYs5eHBpYHPcBEVSiipAvn2Ko2HnPe20rmcuuvMHNdZFp+4IlGTMF0Ow==}
+    engines: {node: '>= 6'}
 
   form-data@4.0.5:
     resolution: {integrity: sha512-8RipRLol37bNs2bhoV67fiTEvdTrbMUYcFTiy3+wuuOnUog2QBHCZWXDRijWQfAkhBj2Uf5UnVaiWwA5vdd82w==}
@@ -16632,7 +16639,7 @@ snapshots:
   '@types/node-fetch@2.6.13':
     dependencies:
       '@types/node': 22.19.3
-      form-data: 4.0.5
+      form-data: 4.0.4
 
   '@types/node@18.19.130':
     dependencies:
@@ -17846,7 +17853,7 @@ snapshots:
   axios@1.13.2(debug@4.4.3):
     dependencies:
       follow-redirects: 1.15.11(debug@4.4.3)
-      form-data: 4.0.5
+      form-data: 4.0.4
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
       - debug
@@ -19034,7 +19041,7 @@ snapshots:
       builder-util: 26.1.0
       builder-util-runtime: 9.5.0
       chalk: 4.1.2
-      form-data: 4.0.5
+      form-data: 4.0.4
       fs-extra: 10.1.0
       lazy-val: 1.0.5
       mime: 2.6.0
@@ -19745,6 +19752,14 @@ snapshots:
   form-data-encoder@1.7.2: {}
 
   form-data-encoder@2.1.4: {}
+
+  form-data@4.0.4:
+    dependencies:
+      asynckit: 0.4.0
+      combined-stream: 1.0.8
+      es-set-tostringtag: 2.1.0
+      hasown: 2.0.2
+      mime-types: 2.1.35
 
   form-data@4.0.5:
     dependencies:
