@@ -50,6 +50,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       background: var(--bg-tabrow);
       display: flex;
       flex-direction: column;
+      position: relative;
     }
     body.platform-mac { --traffic-light-width: 70px; --window-controls-width: 0px; }
     body.platform-win, body.platform-linux { --traffic-light-width: 0px; --window-controls-width: 138px; }
@@ -65,6 +66,8 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       flex-shrink: 0;
       -webkit-app-region: drag;
       background: var(--bg-tabrow);
+      position: relative;
+      z-index: 1;
     }
 
     #tabs-container {
