@@ -265,12 +265,13 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       border: none;
       cursor: pointer;
       transition: background 0.1s;
+      pointer-events: auto;
     }
     .window-control-btn:hover { background: var(--bg-btn-hover); }
     .window-control-btn.close:hover { background: var(--window-close-hover); }
-    .window-control-btn svg { width: 10px; height: 10px; fill: var(--color-text); }
-    .window-control-btn:hover svg { fill: var(--color-text-active); }
-    .window-control-btn.close:hover svg { fill: #fff; }
+    .window-control-btn svg { width: 10px; height: 10px; color: var(--color-text); fill: var(--color-text); stroke: var(--color-text); }
+    .window-control-btn:hover svg { color: var(--color-text-active); fill: var(--color-text-active); stroke: var(--color-text-active); }
+    .window-control-btn.close:hover svg { color: #fff; fill: #fff; stroke: #fff; }
   </style>
 </head>
 <body>
