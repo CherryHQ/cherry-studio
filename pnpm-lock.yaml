@@ -11,9 +11,7 @@ overrides:
   '@codemirror/view': 6.38.1
   esbuild: ^0.25.0
   node-abi: 4.24.0
-  openai@^4.77.0: npm:@cherrystudio/openai@6.5.0
-  openai@^4.87.3: npm:@cherrystudio/openai@6.5.0
-  openai@5.12.2: npm:@cherrystudio/openai@6.5.0
+  openai: npm:@cherrystudio/openai@6.15.0
   tar-fs: ^2.1.4
   undici: 6.21.2
   vite: npm:rolldown-vite@7.3.0
@@ -263,8 +261,8 @@ importers:
         specifier: workspace:^
         version: link:packages/extension-table-plus
       '@cherrystudio/openai':
-        specifier: ^6.12.0
-        version: 6.12.0(ws@8.18.3)(zod@4.3.4)
+        specifier: 6.15.0
+        version: 6.15.0(ws@8.18.3)(zod@4.3.4)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1766,20 +1764,8 @@ packages:
   '@cherrystudio/embedjs@0.1.33':
     resolution: {integrity: sha512-LwPlz2SUcJFkBK229mHxTou6/aIXzTEsof3Rn399v6rnVrScpFetrEhCproqsWujABI2pAIU1pZfEIBybHkhZw==}
 
-  '@cherrystudio/openai@6.12.0':
-    resolution: {integrity: sha512-SkcHYh+0onU8GJmr/LxxC8TEgmNVc8gHiGvShFKsbWXZH4yIrhPjYdwKh7R2QogE4k+8LIHQYXdUouM1USsfQQ==}
-    hasBin: true
-    peerDependencies:
-      ws: ^8.18.0
-      zod: ^3.25 || ^4.0
-    peerDependenciesMeta:
-      ws:
-        optional: true
-      zod:
-        optional: true
-
-  '@cherrystudio/openai@6.5.0':
-    resolution: {integrity: sha512-Kucqm+nGADMX/2XujxHQmQED0BZaII409H6x6/aBurRTg6k18SRtm7s/LJSm8gt3+riM3MjkTB/F2vP+wJmxTg==}
+  '@cherrystudio/openai@6.15.0':
+    resolution: {integrity: sha512-w7JNWd73u9dr1DiA7+lmpGj+Cms4IEiwMp9ibCxMpGnGuiFaVvqrPky+MeOur2CWNMZLmnGAjZhX2mDBOMvPCg==}
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
@@ -11771,7 +11757,7 @@ packages:
         optional: true
 
   xlsx@https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz:
-    resolution: {integrity: sha512-+nKZ39+nvK7Qq6i0PvWWRA4j/EkfWOtkP/YhMtupm+lJIiHxUrgTr1CcKv1nBk1rHtkRRQ3O2+Ih/q/sA+FXZA==, tarball: https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz}
+    resolution: {tarball: https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz}
     version: 0.20.2
     engines: {node: '>=0.8'}
     hasBin: true
@@ -13327,15 +13313,15 @@ snapshots:
       - typeorm
       - ws
 
-  '@cherrystudio/openai@6.12.0(ws@8.18.3)(zod@4.3.4)':
-    optionalDependencies:
-      ws: 8.18.3
-      zod: 4.3.4
-
-  '@cherrystudio/openai@6.5.0(ws@8.18.3)(zod@3.25.76)':
+  '@cherrystudio/openai@6.15.0(ws@8.18.3)(zod@3.25.76)':
     optionalDependencies:
       ws: 8.18.3
       zod: 3.25.76
+
+  '@cherrystudio/openai@6.15.0(ws@8.18.3)(zod@4.3.4)':
+    optionalDependencies:
+      ws: 8.18.3
+      zod: 4.3.4
 
   '@chevrotain/cst-dts-gen@11.0.3':
     dependencies:
@@ -14472,7 +14458,7 @@ snapshots:
     dependencies:
       '@langchain/core': 0.3.80(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))
       js-tiktoken: 1.0.21
-      openai: '@cherrystudio/openai@6.5.0(ws@8.18.3)(zod@3.25.76)'
+      openai: '@cherrystudio/openai@6.15.0(ws@8.18.3)(zod@3.25.76)'
       zod: 3.25.76
       zod-to-json-schema: 3.25.1(zod@3.25.76)
     transitivePeerDependencies:
@@ -14482,7 +14468,7 @@ snapshots:
     dependencies:
       '@langchain/core': 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))
       js-tiktoken: 1.0.21
-      openai: '@cherrystudio/openai@6.5.0(ws@8.18.3)(zod@3.25.76)'
+      openai: '@cherrystudio/openai@6.15.0(ws@8.18.3)(zod@3.25.76)'
       zod: 3.25.76
     transitivePeerDependencies:
       - ws
@@ -14491,7 +14477,7 @@ snapshots:
     dependencies:
       '@langchain/core': 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))
       js-tiktoken: 1.0.21
-      openai: 6.15.0(ws@8.18.3)(zod@4.3.4)
+      openai: '@cherrystudio/openai@6.15.0(ws@8.18.3)(zod@4.3.4)'
       zod: 4.3.4
     transitivePeerDependencies:
       - ws
@@ -14500,7 +14486,7 @@ snapshots:
     dependencies:
       '@langchain/core': 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))
       js-tiktoken: 1.0.21
-      openai: 6.15.0(ws@8.18.3)(zod@4.3.4)
+      openai: '@cherrystudio/openai@6.15.0(ws@8.18.3)(zod@4.3.4)'
       zod: 4.3.4
     transitivePeerDependencies:
       - ws
