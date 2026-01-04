@@ -1,9 +1,14 @@
 import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type { PaginatedResponse } from '@shared/data/api/apiTypes'
-import { useState } from 'react'
+import type { ConcreteApiPaths, PaginationMode } from '@shared/data/api/apiTypes'
+import {
+  isCursorPaginatedResponse,
+  type OffsetPaginatedResponse,
+  type PaginatedResponse
+} from '@shared/data/api/apiTypes'
+import { useCallback, useMemo, useState } from 'react'
 import type { KeyedMutator } from 'swr'
 import useSWR, { useSWRConfig } from 'swr'
+import useSWRInfinite from 'swr/infinite'
 import useSWRMutation from 'swr/mutation'
 
 import { dataApiService } from '../DataApiService'
@@ -146,8 +151,10 @@ export function useQuery<TPath extends ConcreteApiPaths>(
 ): {
   /** The fetched data */
   data?: ResponseForPath<TPath, 'GET'>
-  /** Loading state */
-  loading: boolean
+  /** True during initial load (no data yet) */
+  isLoading: boolean
+  /** True during any request (including background refresh) */
+  isRefreshing: boolean
   /** Error if request failed */
   error?: Error
   /** Function to manually refetch data */
@@ -173,7 +180,8 @@ export function useQuery<TPath extends ConcreteApiPaths>(
 
   return {
     data,
-    loading: isLoading || isValidating,
+    isLoading,
+    isRefreshing: isValidating,
     error: error as Error | undefined,
     refetch,
     mutate
@@ -275,7 +283,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     query?: QueryParamsForPath<TPath>
   }) => Promise<ResponseForPath<TPath, TMethod>>
   /** True while the mutation is in progress */
-  loading: boolean
+  isLoading: boolean
   /** Error object if the mutation failed */
   error: Error | undefined
 } {
@@ -367,7 +375,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 
   return {
     mutate: options?.optimistic ? optimisticMutate : normalMutate,
-    loading: isMutating,
+    isLoading: isMutating,
     error
   }
 }
@@ -461,6 +469,242 @@ export function prefetch<TPath extends ConcreteApiPaths>(
   return apiFetcher(path, { query: options?.query as Record<string, any> })
 }
 
+// ============================================================================
+// Infinite Query Hook
+// ============================================================================
+
+/**
+ * Options for useInfiniteQuery hook
+ * SWR-related options are consolidated in swrOptions
+ */
+export interface UseInfiniteQueryOptions<TPath extends ConcreteApiPaths> {
+  /** Additional query parameters (excluding pagination params) */
+  query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit' | 'cursor'>
+  /** Items per page (default: 10) */
+  limit?: number
+  /** Pagination mode (default: 'cursor') */
+  mode?: PaginationMode
+  /** Whether to enable the query (default: true) */
+  enabled?: boolean
+  /** SWR options (including initialSize, revalidateAll, etc.) */
+  swrOptions?: Parameters<typeof useSWRInfinite>[2]
+}
+
+/**
+ * React hook for infinite scrolling data fetching
+ * Uses useSWRInfinite internally for efficient page management
+ *
+ * @template TPath - The concrete API path type
+ * @param path - API endpoint path that returns paginated data
+ * @param options - Configuration options for infinite query
+ * @returns Object containing accumulated items, loading states, and controls
+ *
+ * @example
+ * ```typescript
+ * // Basic usage with cursor mode (default)
+ * const { items, hasNext, loadMore, isLoadingMore } = useInfiniteQuery('/test/items', {
+ *   limit: 20,
+ *   query: { search: 'hello' }
+ * })
+ *
+ * // Offset mode
+ * const { items, hasNext, loadMore } = useInfiniteQuery('/test/items', {
+ *   mode: 'offset',
+ *   limit: 20
+ * })
+ *
+ * // Custom SWR options
+ * const { items, hasNext, loadMore } = useInfiniteQuery('/test/items', {
+ *   limit: 20,
+ *   swrOptions: {
+ *     initialSize: 2,           // Load 2 pages initially
+ *     revalidateFirstPage: false // Don't auto-refresh first page
+ *   }
+ * })
+ *
+ * // With InfiniteScroll component
+ * <InfiniteScroll
+ *   dataLength={items.length}
+ *   next={loadMore}
+ *   hasMore={hasNext}
+ *   loader={<Spinner />}
+ * >
+ *   {items.map(item => <ItemCard key={item.id} item={item} />)}
+ * </InfiniteScroll>
+ * ```
+ */
+export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
+  path: TPath,
+  options?: UseInfiniteQueryOptions<TPath>
+): ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
+  ? {
+      /** Accumulated items from all loaded pages */
+      items: T[]
+      /** Raw page data array */
+      pages: PaginatedResponse<T>[]
+      /** Total number of items */
+      total: number
+      /** Number of pages loaded */
+      size: number
+      /** True during initial load (no data yet) */
+      isLoading: boolean
+      /** True during any request (including background refresh) */
+      isRefreshing: boolean
+      /** Error if request failed */
+      error?: Error
+      /** Whether there are more pages to load */
+      hasNext: boolean
+      /** Load the next page */
+      loadNext: () => void
+      /** Set number of pages to load */
+      setSize: (size: number | ((size: number) => number)) => void
+      /** Refresh all loaded pages */
+      refresh: () => void
+      /** Reset to first page only */
+      reset: () => void
+      /** SWR mutate function */
+      mutate: KeyedMutator<PaginatedResponse<T>[]>
+    }
+  : never {
+  const limit = options?.limit ?? 10
+  const mode = options?.mode ?? 'cursor' // Default: cursor mode
+  const enabled = options?.enabled !== false
+
+  // getKey: Generate SWR key for each page
+  const getKey = useCallback(
+    (pageIndex: number, previousPageData: PaginatedResponse<any> | null) => {
+      if (!enabled) return null
+
+      // Check if we've reached the end
+      if (previousPageData) {
+        if (mode === 'cursor') {
+          if (!isCursorPaginatedResponse(previousPageData) || !previousPageData.nextCursor) {
+            return null
+          }
+        } else {
+          // offset mode
+          if (isCursorPaginatedResponse(previousPageData)) {
+            // Response doesn't match expected mode
+            return null
+          }
+          if (!previousPageData.hasNext) {
+            return null
+          }
+        }
+      }
+
+      // Build pagination query
+      const paginationQuery: Record<string, any> = {
+        ...(options?.query as Record<string, any>),
+        limit
+      }
+
+      if (mode === 'cursor' && previousPageData && isCursorPaginatedResponse(previousPageData)) {
+        paginationQuery.cursor = previousPageData.nextCursor
+      } else if (mode === 'offset') {
+        paginationQuery.page = pageIndex + 1
+      }
+
+      return [path, paginationQuery] as [TPath, Record<string, any>]
+    },
+    [path, options?.query, limit, mode, enabled]
+  )
+
+  // Fetcher for infinite query - wraps getFetcher with proper types
+  const infiniteFetcher = (key: [ConcreteApiPaths, Record<string, any>?]) => {
+    return getFetcher(key) as Promise<PaginatedResponse<any>>
+  }
+
+  const swrResult = useSWRInfinite(getKey, infiniteFetcher, {
+    // Default configuration
+    revalidateOnFocus: false,
+    revalidateOnReconnect: true,
+    dedupingInterval: 5000,
+    errorRetryCount: 3,
+    errorRetryInterval: 1000,
+    initialSize: 1,
+    revalidateAll: false,
+    revalidateFirstPage: true,
+    parallel: false,
+    // User overrides
+    ...options?.swrOptions
+  })
+
+  const { error, isLoading, isValidating, mutate, size, setSize } = swrResult
+  const data = swrResult.data as PaginatedResponse<any>[] | undefined
+
+  // Compute derived state
+  const items = useMemo(() => data?.flatMap((p) => p.items) ?? [], [data])
+
+  const hasNext = useMemo(() => {
+    if (!data?.length) return false
+    const last = data[data.length - 1]
+    if (mode === 'cursor') {
+      return isCursorPaginatedResponse(last) && !!last.nextCursor
+    }
+    return !isCursorPaginatedResponse(last) && (last as OffsetPaginatedResponse<any>).hasNext
+  }, [data, mode])
+
+  // Action methods
+  const loadNext = useCallback(() => {
+    if (!hasNext || isValidating) return
+    setSize((s) => s + 1)
+  }, [hasNext, isValidating, setSize])
+
+  const refresh = useCallback(() => mutate(), [mutate])
+  const reset = useCallback(() => setSize(1), [setSize])
+
+  return {
+    items,
+    pages: data ?? [],
+    total: data?.[0]?.total ?? 0,
+    size,
+    isLoading,
+    isRefreshing: isValidating,
+    error: error as Error | undefined,
+    hasNext,
+    loadNext,
+    setSize,
+    refresh,
+    reset,
+    mutate
+  } as unknown as ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
+    ? {
+        items: T[]
+        pages: PaginatedResponse<T>[]
+        total: number
+        size: number
+        isLoading: boolean
+        isRefreshing: boolean
+        error?: Error
+        hasNext: boolean
+        loadNext: () => void
+        setSize: (size: number | ((size: number) => number)) => void
+        refresh: () => void
+        reset: () => void
+        mutate: KeyedMutator<PaginatedResponse<T>[]>
+      }
+    : never
+}
+
+// ============================================================================
+// Paginated Query Hook
+// ============================================================================
+
+/**
+ * Options for usePaginatedQuery hook
+ */
+export interface UsePaginatedQueryOptions<TPath extends ConcreteApiPaths> {
+  /** Additional query parameters (excluding pagination params) */
+  query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit'>
+  /** Items per page (default: 10) */
+  limit?: number
+  /** Whether to enable the query (default: true) */
+  enabled?: boolean
+  /** SWR options */
+  swrOptions?: Parameters<typeof useSWR>[2]
+}
+
 /**
  * React hook for paginated data fetching with type safety
  * Automatically manages pagination state and provides navigation controls
@@ -482,7 +726,7 @@ export function prefetch<TPath extends ConcreteApiPaths>(
  *   loading,
  *   total,
  *   page,
- *   hasMore,
+ *   hasNext,
  *   nextPage,
  *   prevPage
  * } = usePaginatedQuery('/test/items', {
@@ -508,7 +752,7 @@ export function prefetch<TPath extends ConcreteApiPaths>(
  *     Previous
  *   </button>
  *   <span>Page {page} of {Math.ceil(total / 20)}</span>
- *   <button onClick={nextPage} disabled={!hasMore}>
+ *   <button onClick={nextPage} disabled={!hasNext}>
  *     Next
  *   </button>
  * </div>
@@ -537,12 +781,14 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
       total: number
       /** Current page number (1-based) */
       page: number
-      /** Loading state */
-      loading: boolean
+      /** True during initial load (no data yet) */
+      isLoading: boolean
+      /** True during any request (including background refresh) */
+      isRefreshing: boolean
       /** Error if request failed */
       error?: Error
       /** Whether there are more pages available */
-      hasMore: boolean
+      hasNext: boolean
       /** Whether there are previous pages available */
       hasPrev: boolean
       /** Navigate to previous page */
@@ -565,7 +811,7 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
     limit
   } as Record<string, any>
 
-  const { data, loading, error, refetch } = useQuery(path, {
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery(path, {
     query: queryWithPagination as QueryParamsForPath<TPath>,
     swrOptions: options?.swrOptions
   })
@@ -576,11 +822,11 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
   const total = paginatedData?.total || 0
   const totalPages = Math.ceil(total / limit)
 
-  const hasMore = currentPage < totalPages
+  const hasNext = currentPage < totalPages
   const hasPrev = currentPage > 1
 
   const nextPage = () => {
-    if (hasMore) {
+    if (hasNext) {
       setCurrentPage((prev) => prev + 1)
     }
   }
@@ -599,9 +845,10 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
     items,
     total,
     page: currentPage,
-    loading,
+    isLoading,
+    isRefreshing,
     error,
-    hasMore,
+    hasNext,
     hasPrev,
     prevPage,
     nextPage,
@@ -612,9 +859,10 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
         items: T[]
         total: number
         page: number
-        loading: boolean
+        isLoading: boolean
+        isRefreshing: boolean
         error?: Error
-        hasMore: boolean
+        hasNext: boolean
         hasPrev: boolean
         prevPage: () => void
         nextPage: () => void

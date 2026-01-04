@@ -134,15 +134,24 @@ import type { SerializedDataApiError } from './apiErrors'
 // Re-export for backwards compatibility in DataResponse
 export type { SerializedDataApiError } from './apiErrors'
 
+// ============================================================================
+// Pagination Types
+// ============================================================================
+
+/**
+ * Pagination mode
+ */
+export type PaginationMode = 'offset' | 'cursor'
+
 /**
  * Pagination parameters for list operations
  */
 export interface PaginationParams {
-  /** Page number (1-based) */
-  page?: number
   /** Items per page */
   limit?: number
-  /** Cursor for cursor-based pagination */
+  /** Page number (offset mode, 1-based) */
+  page?: number
+  /** Cursor (cursor mode) */
   cursor?: string
   /** Sort field and direction */
   sort?: {
@@ -152,14 +161,20 @@ export interface PaginationParams {
 }
 
 /**
- * Paginated response wrapper
+ * Base paginated response (shared fields)
  */
-export interface PaginatedResponse<T> {
+export interface BasePaginatedResponse<T> {
   /** Items for current page */
   items: T[]
   /** Total number of items */
   total: number
-  /** Current page number */
+}
+
+/**
+ * Offset-based paginated response
+ */
+export interface OffsetPaginatedResponse<T> extends BasePaginatedResponse<T> {
+  /** Current page number (1-based) */
   page: number
   /** Total number of pages */
   pageCount: number
@@ -167,10 +182,35 @@ export interface PaginatedResponse<T> {
   hasNext: boolean
   /** Whether there are previous pages */
   hasPrev: boolean
-  /** Next cursor for cursor-based pagination */
+}
+
+/**
+ * Cursor-based paginated response
+ */
+export interface CursorPaginatedResponse<T> extends BasePaginatedResponse<T> {
+  /** Next cursor (undefined means no more data) */
   nextCursor?: string
-  /** Previous cursor for cursor-based pagination */
+  /** Previous cursor */
   prevCursor?: string
+}
+
+/**
+ * Unified paginated response (union type)
+ */
+export type PaginatedResponse<T> = OffsetPaginatedResponse<T> | CursorPaginatedResponse<T>
+
+/**
+ * Type guard: check if response is offset-based
+ */
+export function isOffsetPaginatedResponse<T>(response: PaginatedResponse<T>): response is OffsetPaginatedResponse<T> {
+  return 'page' in response && 'pageCount' in response
+}
+
+/**
+ * Type guard: check if response is cursor-based
+ */
+export function isCursorPaginatedResponse<T>(response: PaginatedResponse<T>): response is CursorPaginatedResponse<T> {
+  return 'nextCursor' in response || !('page' in response)
 }
 
 /**
