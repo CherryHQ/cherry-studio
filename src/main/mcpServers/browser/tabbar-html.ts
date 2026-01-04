@@ -251,7 +251,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       right: 0;
       height: 42px;
       z-index: 1000;
-      -webkit-app-region: no-drag;
+      -webkit-app-region: no-drag !important;
     }
     body.platform-win #window-controls,
     body.platform-linux #window-controls { display: flex; }
@@ -265,7 +265,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       border: none;
       cursor: pointer;
       transition: background 0.1s;
-      pointer-events: auto;
+      -webkit-app-region: no-drag !important;
     }
     .window-control-btn:hover { background: var(--bg-btn-hover); }
     .window-control-btn.close:hover { background: var(--window-close-hover); }
@@ -281,7 +281,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       <svg viewBox="0 0 10 1"><rect width="10" height="1"/></svg>
     </button>
     <button class="window-control-btn" id="maximize-btn" title="Maximize">
-      <svg viewBox="0 0 10 10"><rect x="0" y="0" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+      <svg viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
     </button>
     <button class="window-control-btn close" id="close-btn" title="Close">
       <svg viewBox="0 0 10 10"><path d="M0 0L10 10M10 0L0 10" stroke="currentColor" stroke-width="1.2"/></svg>
