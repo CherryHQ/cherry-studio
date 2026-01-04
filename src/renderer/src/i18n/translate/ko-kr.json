@@ -3101,363 +3101,363 @@
     "title": "설정",
     "about": {
       "checkUpdate": {
-        "available": "Update",
-        "label": "Check Update"
+        "available": "업데이트",
+        "label": "업데이트 확인"
       },
-      "checkingUpdate": "Checking for updates...",
+      "checkingUpdate": "업데이트 확인 중...",
       "contact": {
-        "button": "Email",
-        "title": "Contact"
+        "button": "이메일",
+        "title": "연락처"
       },
       "debug": {
-        "open": "Open",
-        "title": "Debug"
+        "open": "열기",
+        "title": "디버그"
       },
-      "description": "A powerful AI assistant for producer",
-      "downloading": "Downloading...",
+      "description": "프로듀서를 위한 강력한 AI 어시스턴트",
+      "downloading": "다운로드 중...",
       "enterprise": {
-        "title": "Enterprise"
+        "title": "기업용"
       },
       "feedback": {
-        "button": "Feedback",
-        "title": "Feedback"
+        "button": "피드백",
+        "title": "피드백"
       },
-      "label": "About & Feedback",
+      "label": "정보 및 피드백",
       "releases": {
-        "button": "Releases",
-        "title": "Release Notes"
+        "button": "릴리스",
+        "title": "릴리스 노트"
       },
       "social": {
-        "title": "Social Accounts"
+        "title": "소셜 계정"
       },
-      "title": "About",
-      "updateAvailable": "Found new version {{version}}",
-      "updateError": "Update error",
-      "updateNotAvailable": "You are using the latest version",
+      "title": "정보",
+      "updateAvailable": "새 버전 {{version}}을(를) 찾았습니다",
+      "updateError": "업데이트 오류",
+      "updateNotAvailable": "최신 버전을 사용 중입니다",
       "website": {
-        "button": "Website",
-        "title": "Official Website"
+        "button": "웹사이트",
+        "title": "공식 웹사이트"
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Auto switch to topic",
-      "title": "Advanced Settings"
+      "auto_switch_to_topics": "주제로 자동 전환",
+      "title": "고급 설정"
     },
     "assistant": {
       "icon": {
         "type": {
-          "emoji": "Emoji Icon",
-          "label": "Model Icon Type",
-          "model": "Model Icon",
-          "none": "Hide"
+          "emoji": "이모지 아이콘",
+          "label": "모델 아이콘 유형",
+          "model": "모델 아이콘",
+          "none": "숨기기"
         }
       },
-      "label": "Default Assistant",
-      "model_params": "Model Parameters",
-      "title": "Default Assistant"
+      "label": "기본 어시스턴트",
+      "model_params": "모델 매개변수",
+      "title": "기본 어시스턴트"
     },
     "data": {
       "app_data": {
-        "copy_data_option": "Copy data, will automatically restart after copying the original directory data to the new directory",
-        "copy_failed": "Failed to copy data",
-        "copy_success": "Successfully copied data to new location",
-        "copy_time_notice": "Copying data may take a while, do not force quit app",
-        "copying": "Copying data to new location...",
-        "copying_warning": "Data copying, do not force quit app, the app will restart after copied",
-        "label": "App Data",
-        "migration_title": "Data Migration",
-        "new_path": "New Path",
-        "original_path": "Original Path",
-        "path_change_failed": "Failed to change data directory",
-        "path_changed_without_copy": "Path changed successfully",
-        "restart_notice": "The app may need to restart multiple times to apply the changes",
-        "select": "Modify Directory",
-        "select_error": "Failed to change data directory",
-        "select_error_in_app_path": "New path is the same as the application installation path, please select another path",
-        "select_error_root_path": "New path cannot be the root path",
-        "select_error_same_path": "New path is the same as the old path, please select another path",
-        "select_error_write_permission": "New path does not have write permission",
-        "select_not_empty_dir": "New path is not empty",
-        "select_not_empty_dir_content": "New path is not empty, it will overwrite the data in the new path, there is a risk of data loss and copy failure, continue?",
-        "select_success": "Data directory changed, the app will restart to apply changes",
-        "select_title": "Change App Data Directory",
-        "stop_quit_app_reason": "The app is currently migrating data and cannot be exited"
+        "copy_data_option": "데이터 복사, 원본 디렉터리 데이터를 새 디렉터리로 복사한 후 자동으로 재시작됩니다",
+        "copy_failed": "데이터 복사 실패",
+        "copy_success": "새 위치로 데이터를 성공적으로 복사했습니다",
+        "copy_time_notice": "데이터 복사에 시간이 걸릴 수 있으니 앱을 강제 종료하지 마세요",
+        "copying": "새 위치로 데이터 복사 중...",
+        "copying_warning": "데이터 복사 중, 앱을 강제 종료하지 마세요. 복사가 완료되면 앱이 재시작됩니다",
+        "label": "앱 데이터",
+        "migration_title": "데이터 마이그레이션",
+        "new_path": "새 경로",
+        "original_path": "원본 경로",
+        "path_change_failed": "데이터 디렉터리 변경 실패",
+        "path_changed_without_copy": "경로가 성공적으로 변경되었습니다",
+        "restart_notice": "변경 사항을 적용하려면 앱을 여러 번 재시작해야 할 수 있습니다",
+        "select": "디렉터리 수정",
+        "select_error": "데이터 디렉터리 변경 실패",
+        "select_error_in_app_path": "새 경로가 앱 설치 경로와 동일합니다. 다른 경로를 선택하세요",
+        "select_error_root_path": "새 경로는 루트 경로일 수 없습니다",
+        "select_error_same_path": "새 경로가 이전 경로와 동일합니다. 다른 경로를 선택하세요",
+        "select_error_write_permission": "새 경로에 쓰기 권한이 없습니다",
+        "select_not_empty_dir": "새 경로가 비어 있지 않습니다",
+        "select_not_empty_dir_content": "새 경로가 비어 있지 않습니다. 새 경로의 데이터를 덮어쓰게 되며 데이터 손실 및 복사 실패의 위험이 있습니다. 계속하시겠습니까?",
+        "select_success": "데이터 디렉터리가 변경되었습니다. 앱이 재시작되어 변경 사항이 적용됩니다",
+        "select_title": "앱 데이터 디렉터리 변경",
+        "stop_quit_app_reason": "앱이 현재 데이터를 마이그레이션 중이므로 종료할 수 없습니다"
       },
       "app_knowledge": {
         "button": {
-          "delete": "Delete File"
+          "delete": "파일 삭제"
         },
-        "label": "Knowledge Base Files",
-        "remove_all": "Remove Knowledge Base Files",
-        "remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
-        "remove_all_success": "Files removed successfully"
+        "label": "지식베이스 파일",
+        "remove_all": "지식베이스 파일 제거",
+        "remove_all_confirm": "지식베이스 파일을 삭제하면 저장 공간이 줄어들지만 지식베이스 벡터 데이터는 삭제되지 않습니다. 삭제 후 원본 파일을 더 이상 열 수 없습니다. 계속하시겠습니까?",
+        "remove_all_success": "파일이 성공적으로 제거되었습니다"
       },
       "app_logs": {
-        "button": "Open Logs",
-        "label": "App Logs"
+        "button": "로그 열기",
+        "label": "앱 로그"
       },
       "backup": {
-        "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
-        "skip_file_data_title": "Slim Backup"
+        "skip_file_data_help": "백업 중 이미지 및 지식베이스와 같은 데이터 파일을 건너뛰고 채팅 기록과 설정만 백업합니다. 공간 점유를 줄이고 백업 속도를 높입니다.",
+        "skip_file_data_title": "슬림 백업"
       },
       "clear_cache": {
-        "button": "Clear Cache",
-        "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
-        "error": "Error clearing cache",
-        "success": "Cache cleared",
-        "title": "Clear Cache"
+        "button": "캐시 지우기",
+        "confirm": "캐시를 지우면 미니앱 데이터를 포함한 애플리케이션 캐시 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?",
+        "error": "캐시 지우기 오류",
+        "success": "캐시가 지워졌습니다",
+        "title": "캐시 지우기"
       },
       "data": {
-        "title": "Data Directory"
+        "title": "데이터 디렉터리"
       },
       "divider": {
-        "basic": "Basic Data Settings",
-        "cloud_storage": "Cloud Backup Settings",
-        "export_settings": "Export Settings",
-        "import_settings": "Import Settings",
-        "third_party": "Third-party Connections"
+        "basic": "기본 데이터 설정",
+        "cloud_storage": "클라우드 백업 설정",
+        "export_settings": "내보내기 설정",
+        "import_settings": "가져오기 설정",
+        "third_party": "서드파티 연결"
       },
       "export_menu": {
-        "docx": "Export as Word",
-        "image": "Export as Image",
-        "joplin": "Export to Joplin",
-        "markdown": "Export as Markdown",
-        "markdown_reason": "Export as Markdown (with reasoning)",
-        "notes": "Export to Notes",
-        "notion": "Export to Notion",
-        "obsidian": "Export to Obsidian",
-        "plain_text": "Copy as Plain Text",
-        "siyuan": "Export to SiYuan Note",
-        "title": "Export Menu Settings",
-        "yuque": "Export to Yuque"
+        "docx": "Word로 내보내기",
+        "image": "이미지로 내보내기",
+        "joplin": "Joplin으로 내보내기",
+        "markdown": "Markdown으로 내보내기",
+        "markdown_reason": "Markdown으로 내보내기 (추론 포함)",
+        "notes": "메모로 내보내기",
+        "notion": "Notion으로 내보내기",
+        "obsidian": "Obsidian으로 내보내기",
+        "plain_text": "일반 텍스트로 복사",
+        "siyuan": "Siyuan Note로 내보내기",
+        "title": "내보내기 메뉴 설정",
+        "yuque": "Yuque로 내보내기"
       },
       "export_to_phone": {
         "confirm": {
-          "button": "Select backup file"
+          "button": "백업 파일 선택"
         },
-        "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
+        "content": "채팅 기록 및 설정을 포함한 일부 데이터를 내보냅니다. 백업 프로세스에 시간이 걸릴 수 있으니 양해해 주셔서 감사합니다.",
         "lan": {
-          "connected": "Connected",
-          "connection_failed": "Connection failed",
-          "content": "Please ensure your computer and phone are on the same network for LAN transfer.",
-          "device_list_title": "Local network devices",
-          "discovered_devices": "Discovered devices",
+          "connected": "연결됨",
+          "connection_failed": "연결 실패",
+          "content": "LAN 전송을 위해 컴퓨터와 휴대폰이 동일한 네트워크에 있는지 확인하세요.",
+          "device_list_title": "로컬 네트워크 장치",
+          "discovered_devices": "검색된 장치",
           "error": {
-            "file_too_large": "File too large, maximum 500MB supported",
-            "init_failed": "Initialization failed",
-            "invalid_file_type": "Only ZIP files are supported",
-            "no_file": "No file selected",
-            "no_ip": "Unable to get IP address",
-            "not_connected": "Please complete handshake first",
-            "send_failed": "Failed to send file"
+            "file_too_large": "파일이 너무 큽니다. 최대 500MB 지원",
+            "init_failed": "초기화 실패",
+            "invalid_file_type": "ZIP 파일만 지원됩니다",
+            "no_file": "선택된 파일이 없습니다",
+            "no_ip": "IP 주소를 가져올 수 없습니다",
+            "not_connected": "먼저 핸드셰이크를 완료하세요",
+            "send_failed": "파일 전송 실패"
           },
           "file_transfer": {
-            "cancelled": "Transfer cancelled",
-            "failed": "File transfer failed: {{message}}",
-            "progress": "Sending... {{progress}}%",
-            "success": "File sent successfully"
+            "cancelled": "전송 취소됨",
+            "failed": "파일 전송 실패: {{message}}",
+            "progress": "전송 중... {{progress}}%",
+            "success": "파일이 성공적으로 전송됨"
           },
           "handshake": {
-            "button": "Handshake",
-            "failed": "Handshake failed: {{message}}",
-            "in_progress": "Handshaking...",
-            "success": "Handshake completed with {{device}}",
-            "test_message_received": "Received pong from {{device}}",
-            "test_message_sent": "Sent hello world test payload"
+            "button": "핸드셰이크",
+            "failed": "핸드셰이크 실패: {{message}}",
+            "in_progress": "핸드셰이크 중...",
+            "success": "{{device}}와(과) 핸드셰이크 완료",
+            "test_message_received": "{{device}}로부터 pong 수신",
+            "test_message_sent": "hello world 테스트 페이로드 전송"
           },
-          "idle_hint": "Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
-          "ip_addresses": "IP addresses",
-          "last_seen": "Last seen at {{time}}",
-          "metadata": "Metadata",
-          "no_connection_warning": "Please open LAN Transfer on Cherry Studio mobile",
-          "no_devices": "No LAN peers found yet",
-          "scan_devices": "Scan devices",
-          "scanning_hint": "Scanning your local network for Cherry Studio peers...",
-          "send_file": "Send File",
+          "idle_hint": "스캔이 일시 중지되었습니다. LAN에서 Cherry Studio 피어를 찾기 위해 스캔을 시작하세요.",
+          "ip_addresses": "IP 주소",
+          "last_seen": "마지막 확인 {{time}}",
+          "metadata": "메타데이터",
+          "no_connection_warning": "Cherry Studio 모바일에서 LAN 전송을 열어주세요",
+          "no_devices": "아직 LAN 피어를 찾지 못했습니다",
+          "scan_devices": "장치 스캔",
+          "scanning_hint": "로컬 네트워크에서 Cherry Studio 피어를 스캔하는 중...",
+          "send_file": "파일 보내기",
           "status": {
-            "completed": "Transfer completed",
-            "connected": "Connected",
-            "connecting": "Connecting...",
-            "disconnected": "Disconnected",
-            "error": "Connection error",
-            "initializing": "Initializing connection...",
-            "preparing": "Preparing transfer...",
-            "sending": "Transferring {{progress}}%"
+            "completed": "전송 완료",
+            "connected": "연결됨",
+            "connecting": "연결 중...",
+            "disconnected": "연결 끊김",
+            "error": "연결 오류",
+            "initializing": "연결 초기화 중...",
+            "preparing": "전송 준비 중...",
+            "sending": "전송 중 {{progress}}%"
           },
-          "status_badge_idle": "Idle",
-          "status_badge_scanning": "Scanning",
-          "stop_scan": "Stop scan",
-          "title": "LAN transmission",
-          "transfer_progress": "Transfer progress"
+          "status_badge_idle": "유휴",
+          "status_badge_scanning": "스캔 중",
+          "stop_scan": "스캔 중지",
+          "title": "LAN 전송",
+          "transfer_progress": "전송 진행률"
         },
-        "title": "Export to phone"
+        "title": "휴대폰으로 내보내기"
       },
-      "hour_interval_one": "{{count}} hour",
-      "hour_interval_other": "{{count}} hours",
+      "hour_interval_one": "{{count}}시간",
+      "hour_interval_other": "{{count}}시간",
       "import_settings": {
-        "button": "Import Json File",
-        "chatgpt": "Import from ChatGPT",
-        "title": "Import Outside Application Data"
+        "button": "JSON 파일 가져오기",
+        "chatgpt": "ChatGPT에서 가져오기",
+        "title": "외부 애플리케이션 데이터 가져오기"
       },
       "joplin": {
         "check": {
-          "button": "Check",
-          "empty_token": "Please enter Joplin Authorization Token",
-          "empty_url": "Please enter Joplin Clipper Service URL",
-          "fail": "Joplin connection verification failed",
-          "success": "Joplin connection verification successful"
+          "button": "확인",
+          "empty_token": "Joplin 인증 토큰을 입력하세요",
+          "empty_url": "Joplin Clipper 서비스 URL을 입력하세요",
+          "fail": "Joplin 연결 확인 실패",
+          "success": "Joplin 연결 확인 성공"
         },
         "export_reasoning": {
-          "help": "When enabled, the exported content will include the reasoning chain (thought process) generated by the assistant.",
-          "title": "Include Reasoning Chain in Export"
+          "help": "활성화하면 내보낸 콘텐츠에 어시스턴트가 생성한 추론 체인(사고 과정)이 포함됩니다.",
+          "title": "내보내기에 추론 체인 포함"
         },
-        "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
-        "title": "Joplin Configuration",
-        "token": "Joplin Authorization Token",
-        "token_placeholder": "Joplin Authorization Token",
-        "url": "Joplin Web Clipper Service URL",
+        "help": "Joplin 옵션에서 웹 클리퍼(브라우저 확장 프로그램 불필요)를 활성화하고 포트를 확인한 후 여기에 인증 토큰을 복사하세요.",
+        "title": "Joplin 구성",
+        "token": "Joplin 인증 토큰",
+        "token_placeholder": "Joplin 인증 토큰",
+        "url": "Joplin Web Clipper 서비스 URL",
         "url_placeholder": "http://127.0.0.1:41184/"
       },
       "limit": {
-        "appDataDiskQuota": "Disk Space Warning",
-        "appDataDiskQuotaDescription": "Data directory space is almost full, please clear disk space, otherwise data will be lost"
+        "appDataDiskQuota": "디스크 공간 경고",
+        "appDataDiskQuotaDescription": "데이터 디렉터리 공간이 거의 가득 찼습니다. 디스크 공간을 정리하세요. 그렇지 않으면 데이터가 손실됩니다"
       },
       "local": {
         "autoSync": {
-          "label": "Auto Backup",
-          "off": "Off"
+          "label": "자동 백업",
+          "off": "끔"
         },
         "backup": {
-          "button": "Backup to Local",
+          "button": "로컬에 백업",
           "manager": {
             "columns": {
-              "actions": "Actions",
-              "fileName": "Filename",
-              "modifiedTime": "Modified Time",
-              "size": "Size"
+              "actions": "작업",
+              "fileName": "파일 이름",
+              "modifiedTime": "수정된 시간",
+              "size": "크기"
             },
             "delete": {
               "confirm": {
-                "multiple": "Are you sure you want to delete {{count}} selected backup files? This action cannot be undone.",
-                "single": "Are you sure you want to delete backup file \"{{fileName}}\"? This action cannot be undone.",
-                "title": "Confirm Delete"
+                "multiple": "{{count}}개의 선택된 백업 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+                "single": "백업 파일 \"{{fileName}}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+                "title": "삭제 확인"
               },
-              "error": "Delete failed",
-              "selected": "Delete Selected",
+              "error": "삭제 실패",
+              "selected": "선택 항목 삭제",
               "success": {
                 "multiple": "{{count}}개의 백업 파일을 성공적으로 삭제함",
                 "single": "성공적으로 삭제됨"
               },
-              "text": "Delete"
+              "text": "삭제"
             },
             "fetch": {
-              "error": "Failed to get backup files"
+              "error": "백업 파일을 가져오지 못했습니다"
             },
-            "refresh": "Refresh",
+            "refresh": "새로고침",
             "restore": {
-              "error": "Restore failed",
-              "success": "Restore successful, application will refresh shortly",
-              "text": "Restore"
+              "error": "복원 실패",
+              "success": "복원 성공, 애플리케이션이 곧 새로고침됩니다",
+              "text": "복원"
             },
             "select": {
               "files": {
-                "delete": "Please select backup files to delete"
+                "delete": "삭제할 백업 파일을 선택하세요"
               }
             },
-            "title": "Local Backup Manager"
+            "title": "로컬 백업 관리자"
           },
           "modal": {
             "filename": {
-              "placeholder": "Please enter backup filename"
+              "placeholder": "백업 파일 이름을 입력하세요"
             },
-            "title": "Backup to Local Directory"
+            "title": "로컬 디렉터리에 백업"
           }
         },
         "directory": {
-          "label": "Local Backup Directory",
-          "placeholder": "Select a directory for local backups",
-          "select_error_app_data_path": "New path cannot be the same as the application data path",
-          "select_error_in_app_install_path": "New path cannot be the same as the application installation path",
-          "select_error_write_permission": "New path does not have write permission",
-          "select_title": "Select Backup Directory"
+          "label": "로컬 백업 디렉터리",
+          "placeholder": "로컬 백업을 위한 디렉터리 선택",
+          "select_error_app_data_path": "새 경로는 애플리케이션 데이터 경로와 동일할 수 없습니다",
+          "select_error_in_app_install_path": "새 경로는 애플리케이션 설치 경로와 동일할 수 없습니다",
+          "select_error_write_permission": "새 경로에 쓰기 권한이 없습니다",
+          "select_title": "백업 디렉터리 선택"
         },
-        "hour_interval_one": "{{count}} hour",
-        "hour_interval_other": "{{count}} hours",
-        "lastSync": "Last Backup",
+        "hour_interval_one": "{{count}}시간",
+        "hour_interval_other": "{{count}}시간",
+        "lastSync": "마지막 백업",
         "maxBackups": {
-          "label": "Maximum backups",
-          "unlimited": "Unlimited"
+          "label": "최대 백업 수",
+          "unlimited": "무제한"
         },
-        "minute_interval_one": "{{count}} minute",
-        "minute_interval_other": "{{count}} minutes",
-        "noSync": "Waiting for next backup",
+        "minute_interval_one": "{{count}}분",
+        "minute_interval_other": "{{count}}분",
+        "noSync": "다음 백업 대기 중",
         "restore": {
-          "button": "Restore from Local",
+          "button": "로컬에서 복원",
           "confirm": {
-            "content": "Restoring from local backup will replace current data. Do you want to continue?",
-            "title": "Confirm Restore"
+            "content": "로컬 백업에서 복원하면 현재 데이터가 대체됩니다. 계속하시겠습니까?",
+            "title": "복원 확인"
           }
         },
-        "syncError": "Backup Error",
-        "syncStatus": "Backup Status",
-        "title": "Local Backup"
+        "syncError": "백업 오류",
+        "syncStatus": "백업 상태",
+        "title": "로컬 백업"
       },
       "markdown_export": {
         "exclude_citations": {
-          "help": "Exclude citations and references when exporting to Markdown, keeping only the main content",
-          "title": "Exclude Citations"
+          "help": "Markdown으로 내보낼 때 인용 및 참고문헌을 제외하고 본문만 유지합니다",
+          "title": "인용 제외"
         },
         "force_dollar_math": {
-          "help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
-          "title": "Force $$ for LaTeX formulas"
+          "help": "활성화하면 Markdown으로 내보낼 때 LaTeX 수식을 표시하기 위해 $$가 강제로 사용됩니다. 참고: 이 옵션은 Notion, Yuque 등 Markdown을 통한 모든 내보내기 방법에도 영향을 미칩니다.",
+          "title": "LaTeX 수식에 $$ 사용"
         },
-        "help": "If provided, exports will be automatically saved to this path; otherwise, a save dialog will appear.",
-        "path": "Default Export Path",
-        "path_placeholder": "Export Path",
-        "select": "Select",
+        "help": "제공되면 내보내기가 이 경로에 자동으로 저장됩니다. 그렇지 않으면 저장 대화상자가 나타납니다.",
+        "path": "기본 내보내기 경로",
+        "path_placeholder": "내보내기 경로",
+        "select": "선택",
         "show_model_name": {
-          "help": "When enabled, the model name will be displayed when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
-          "title": "Use Model Name on Export"
+          "help": "활성화하면 Markdown으로 내보낼 때 모델 이름이 표시됩니다. 참고: 이 옵션은 Notion, Yuque 등 Markdown을 통한 모든 내보내기 방법에도 영향을 미칩니다.",
+          "title": "내보내기에 모델 이름 사용"
         },
         "show_model_provider": {
-          "help": "Display the model provider (e.g., OpenAI, Gemini) when exporting to Markdown",
-          "title": "Show Model Provider"
+          "help": "Markdown으로 내보낼 때 모델 제공자(예: OpenAI, Gemini)를 표시합니다",
+          "title": "모델 제공자 표시"
         },
         "standardize_citations": {
-          "help": "When enabled, citation markers will be converted to standard Markdown footnote format [^1] and citation lists will be formatted.",
-          "title": "Standardize Citation Format"
+          "help": "활성화하면 인용 마커가 표준 Markdown 각주 형식 [^1]로 변환되고 인용 목록이 형식화됩니다.",
+          "title": "인용 형식 표준화"
         },
-        "title": "Markdown Export"
+        "title": "Markdown 내보내기"
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "When enabled, use the quick model to name the title for exported messages. This setting also affects all export methods through Markdown.",
-          "title": "Use the quick model to name the title for the exported message"
+          "help": "활성화하면 빠른 모델을 사용하여 내보낸 메시지의 제목 이름을 지정합니다. 이 설정은 Markdown을 통한 모든 내보내기 방법에도 영향을 미칩니다.",
+          "title": "내보낸 메시지의 제목 이름을 지정하기 위해 빠른 모델 사용"
         }
       },
-      "minute_interval_one": "{{count}} minute",
-      "minute_interval_other": "{{count}} minutes",
+      "minute_interval_one": "{{count}}분",
+      "minute_interval_other": "{{count}}분",
       "notion": {
-        "api_key": "Notion API Key",
-        "api_key_placeholder": "Enter Notion API Key",
+        "api_key": "Notion API 키",
+        "api_key_placeholder": "Notion API 키 입력",
         "check": {
-          "button": "Check",
-          "empty_api_key": "API key is not configured",
-          "empty_database_id": "Database ID is not configured",
-          "error": "Connection error, please check network configuration and API key and Database ID",
-          "fail": "Connection failed, please check network and API key and Database ID",
-          "success": "Connection successful"
+          "button": "확인",
+          "empty_api_key": "API 키가 구성되지 않았습니다",
+          "empty_database_id": "데이터베이스 ID가 구성되지 않았습니다",
+          "error": "연결 오류, 네트워크 구성과 API 키 및 데이터베이스 ID를 확인하세요",
+          "fail": "연결 실패, 네트워크와 API 키 및 데이터베이스 ID를 확인하세요",
+          "success": "연결 성공"
         },
-        "database_id": "Notion Database ID",
-        "database_id_placeholder": "Enter Notion Database ID",
+        "database_id": "Notion 데이터베이스 ID",
+        "database_id_placeholder": "Notion 데이터베이스 ID 입력",
         "export_reasoning": {
-          "help": "When enabled, exported content will include reasoning chain (thought process).",
-          "title": "Include Reasoning Chain in Export"
+          "help": "활성화하면 내보낸 콘텐츠에 추론 체인(사고 과정)이 포함됩니다.",
+          "title": "내보내기에 추론 체인 포함"
         },
-        "help": "Notion Configuration Documentation",
-        "page_name_key": "Page Title Field Name",
-        "page_name_key_placeholder": "Enter page title field name, default is Name",
-        "title": "Notion Settings"
+        "help": "Notion 구성 문서",
+        "page_name_key": "페이지 제목 필드 이름",
+        "page_name_key_placeholder": "페이지 제목 필드 이름을 입력하세요, 기본값은 이름입니다",
+        "title": "Notion 설정"
       },
       "nutstore": {
         "backup": {
@@ -3600,122 +3600,122 @@
         },
         "restore": {
           "config": {
-            "incomplete": "Please fill in complete S3 configuration"
+            "incomplete": "완전한 S3 구성을 입력하세요"
           },
           "confirm": {
-            "cancel": "Cancel",
-            "content": "Restoring data will overwrite all current data. This action cannot be undone. Are you sure you want to continue?",
-            "ok": "Confirm Restore",
-            "title": "Confirm Restore Data"
+            "cancel": "취소",
+            "content": "데이터를 복원하면 모든 현재 데이터가 덮어씌워집니다. 이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?",
+            "ok": "복원 확인",
+            "title": "데이터 복원 확인"
           },
-          "error": "Data restore failed: {{message}}",
+          "error": "데이터 복원 실패: {{message}}",
           "file": {
-            "required": "Please select backup file to restore"
+            "required": "복원할 백업 파일을 선택하세요"
           },
           "modal": {
             "select": {
-              "placeholder": "Please select backup file to restore"
+              "placeholder": "복원할 백업 파일을 선택하세요"
             },
-            "title": "S3 Data Restore"
+            "title": "S3 데이터 복원"
           },
-          "success": "Data restore successful"
+          "success": "데이터 복원 성공"
         },
         "root": {
-          "label": "Backup Directory (Optional)",
-          "placeholder": "e.g: /cherry-studio"
+          "label": "백업 디렉터리 (선택 사항)",
+          "placeholder": "예: /cherry-studio"
         },
         "secretAccessKey": {
-          "label": "Secret Access Key",
-          "placeholder": "Secret Access Key"
+          "label": "비밀 액세스 키",
+          "placeholder": "비밀 액세스 키"
         },
         "skipBackupFile": {
-          "help": "When enabled, file data will be skipped during backup, only configuration information will be backed up, significantly reducing backup file size",
-          "label": "Lightweight Backup"
+          "help": "활성화하면 백업 중 파일 데이터가 건너뛰고 구성 정보만 백업되어 백업 파일 크기가 크게 줄어듭니다",
+          "label": "경량 백업"
         },
         "syncStatus": {
-          "error": "Sync error: {{message}}",
-          "label": "Sync Status",
-          "lastSync": "Last sync: {{time}}",
-          "noSync": "Not synced"
+          "error": "동기화 오류: {{message}}",
+          "label": "동기화 상태",
+          "lastSync": "마지막 동기화: {{time}}",
+          "noSync": "동기화되지 않음"
         },
         "title": {
-          "help": "S3 compatible object storage services, such as AWS S3, Cloudflare R2, Aliyun OSS, Tencent COS, etc.",
-          "label": "S3 Compatible Storage",
-          "tooltip": "S3 Compatible Storage Configuration Document"
+          "help": "AWS S3, Cloudflare R2, Aliyun OSS, Tencent COS 등 S3 호환 객체 스토리지 서비스.",
+          "label": "S3 호환 스토리지",
+          "tooltip": "S3 호환 스토리지 구성 문서"
         }
       },
       "siyuan": {
         "api_url": "Siyuan Note API URL",
-        "api_url_placeholder": "e.g.: http://127.0.0.1:6806",
-        "box_id": "Siyuan Note Box ID",
-        "box_id_placeholder": "Please enter Siyuan Note Box ID",
+        "api_url_placeholder": "예: http://127.0.0.1:6806",
+        "box_id": "Siyuan Note 박스 ID",
+        "box_id_placeholder": "Siyuan Note 박스 ID를 입력하세요",
         "check": {
-          "button": "Check",
-          "empty_config": "Please fill in the API address and token",
-          "error": "Connection error, please check network connection",
-          "fail": "Connection failed, please check API address and token",
-          "success": "Connection successful",
-          "title": "Connection Check"
+          "button": "확인",
+          "empty_config": "API 주소와 토큰을 입력하세요",
+          "error": "연결 오류, 네트워크 연결을 확인하세요",
+          "fail": "연결 실패, API 주소와 토큰을 확인하세요",
+          "success": "연결 성공",
+          "title": "연결 확인"
         },
-        "root_path": "Siyuan Note Root Path",
-        "root_path_placeholder": "e.g.: /CherryStudio",
-        "title": "Siyuan Note Configuration",
+        "root_path": "Siyuan Note 루트 경로",
+        "root_path_placeholder": "예: /CherryStudio",
+        "title": "Siyuan Note 구성",
         "token": {
-          "help": "Get Siyuan Note Token",
-          "label": "Siyuan Note Token"
+          "help": "Siyuan Note 토큰 가져오기",
+          "label": "Siyuan Note 토큰"
         },
-        "token_placeholder": "Please enter Siyuan Note Token"
+        "token_placeholder": "Siyuan Note 토큰을 입력하세요"
       },
-      "title": "Data Settings",
+      "title": "데이터 설정",
       "webdav": {
         "autoSync": {
-          "label": "Auto Backup",
-          "off": "Off"
+          "label": "자동 백업",
+          "off": "끔"
         },
         "backup": {
-          "button": "Backup to WebDAV",
+          "button": "WebDAV에 백업",
           "manager": {
             "columns": {
-              "actions": "Actions",
-              "fileName": "Filename",
-              "modifiedTime": "Modified Time",
-              "size": "Size"
+              "actions": "작업",
+              "fileName": "파일 이름",
+              "modifiedTime": "수정된 시간",
+              "size": "크기"
             },
             "delete": {
               "confirm": {
-                "multiple": "Are you sure you want to delete {{count}} selected backup files? This action cannot be undone.",
-                "single": "Are you sure you want to delete backup file \"{{fileName}}\"? This action cannot be undone.",
-                "title": "Confirm Delete"
+                "multiple": "{{count}}개의 선택된 백업 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+                "single": "백업 파일 \"{{fileName}}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+                "title": "삭제 확인"
               },
-              "error": "Delete failed",
-              "selected": "Delete Selected",
+              "error": "삭제 실패",
+              "selected": "선택 항목 삭제",
               "success": {
                 "multiple": "{{count}}개의 백업 파일을 성공적으로 삭제함",
                 "single": "성공적으로 삭제됨"
               },
-              "text": "Delete"
+              "text": "삭제"
             },
             "fetch": {
-              "error": "Failed to get backup files"
+              "error": "백업 파일을 가져오지 못했습니다"
             },
-            "refresh": "Refresh",
+            "refresh": "새로고침",
             "restore": {
-              "error": "Restore failed",
-              "success": "Restore successful, application will refresh shortly",
-              "text": "Restore"
+              "error": "복원 실패",
+              "success": "복원 성공, 애플리케이션이 곧 새로고침됩니다",
+              "text": "복원"
             },
             "select": {
               "files": {
-                "delete": "Please select backup files to delete"
+                "delete": "삭제할 백업 파일을 선택하세요"
               }
             },
-            "title": "Backup Data Management"
+            "title": "백업 데이터 관리"
           },
           "modal": {
             "filename": {
-              "placeholder": "Please enter backup filename"
+              "placeholder": "백업 파일 이름을 입력하세요"
             },
-            "title": "Backup to WebDAV"
+            "title": "WebDAV에 백업"
           }
         },
         "disableStream": {
