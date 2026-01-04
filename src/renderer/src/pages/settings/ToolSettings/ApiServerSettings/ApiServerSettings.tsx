@@ -347,8 +347,8 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) 
     return `${baseUrl}${endpoint}`
   }
 
-  const copyFullUrl = () => {
-    navigator.clipboard.writeText(getFullEndpointUrl())
+  const copyBaseUrl = () => {
+    navigator.clipboard.writeText(getGroupUrl())
     window.toast.success(t('apiGateway.messages.baseUrlCopied'))
   }
 
@@ -455,7 +455,7 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) 
                 <code>{getFullEndpointUrl()}</code>
               </UrlDisplay>
               <Tooltip title={t('apiGateway.fields.baseUrl.copyTooltip')}>
-                <Button size="small" type="text" icon={<Copy size={12} />} onClick={copyFullUrl} />
+                <Button size="small" type="text" icon={<Copy size={12} />} onClick={copyBaseUrl} />
               </Tooltip>
             </EndpointUrlRow>
             <Tooltip title={t('apiGateway.actions.copyEnvVars')}>
