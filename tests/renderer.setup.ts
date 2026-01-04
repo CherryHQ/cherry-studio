@@ -2,22 +2,14 @@ import '@testing-library/jest-dom/vitest'
 
 import { createRequire } from 'node:module'
 import { styleSheetSerializer } from 'jest-styled-components/serializer'
-import { createRequire } from 'node:module'
 import { expect, vi } from 'vitest'
 import * as bufferModule from 'buffer'
 
 const require = createRequire(import.meta.url)
 
-const require = createRequire(import.meta.url)
-const bufferModule = require('buffer')
-if (!bufferModule.SlowBuffer) {
-  bufferModule.SlowBuffer = bufferModule.Buffer
-}
-
 expect.addSnapshotSerializer(styleSheetSerializer)
 
-// Provide SlowBuffer compatibility for dependencies expecting it
-// (Node 20+ deprecates/removed SlowBuffer)
+// 为依赖提供 SlowBuffer/Buffer 兼容（Node 20+ 中 SlowBuffer 行为变化）
 if (!(bufferModule as any).SlowBuffer) {
   ;(bufferModule as any).SlowBuffer = Buffer
 }
@@ -29,7 +21,7 @@ if (!(Buffer as any).prototype.equal) {
 }
 ;(globalThis as any).SlowBuffer = (bufferModule as any).SlowBuffer
 
-// Hard mock buffer-equal-constant-time before any require() usage (fixes Node 20+ removal of SlowBuffer)
+// 在任何 require() 发生前硬注入 mock，避免某些 CJS 依赖在加载时访问 SlowBuffer 造成崩溃
 try {
   const bectPath = require.resolve('buffer-equal-constant-time')
   const mockFn = (a: any, b: any) => {
@@ -43,7 +35,7 @@ try {
     exports: mockFn
   }
 } catch (err) {
-  // ignore if not resolvable in context
+  // 测试上下文中不可解析时忽略
 }
 
 // Mock LoggerService globally for renderer tests
