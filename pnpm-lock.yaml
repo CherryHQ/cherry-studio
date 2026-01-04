@@ -96,6 +96,12 @@ importers:
       '@cherrystudio/embedjs-interfaces':
         specifier: ^0.1.33
         version: 0.1.33(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))
+      '@cherrystudio/embedjs-utils':
+        specifier: ^0.1.31
+        version: 0.1.31(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))
+      '@langchain/textsplitters':
+        specifier: ^1.0.1
+        version: 1.0.1(@langchain/core@1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4)))
       '@libsql/client':
         specifier: 0.14.0
         version: 0.14.0
@@ -108,6 +114,9 @@ importers:
       '@paymoapp/electron-shutdown-handler':
         specifier: 1.1.2
         version: 1.1.2
+      adm-zip:
+        specifier: ^0.4.16
+        version: 0.4.16
       express:
         specifier: 5.1.0
         version: 5.1.0
@@ -126,6 +135,9 @@ importers:
       officeparser:
         specifier: 4.2.0
         version: 4.2.0
+      open:
+        specifier: ^8.4.2
+        version: 8.4.2
       os-proxy-config:
         specifier: 1.1.2
         version: 1.1.2
@@ -530,8 +542,8 @@ importers:
         specifier: ^1
         version: 1.0.6
       '@typescript/native-preview':
-        specifier: latest
-        version: 7.0.0-dev.20260104.1
+        specifier: 7.0.0-dev.20250915.1
+        version: 7.0.0-dev.20250915.1
       '@uiw/codemirror-extensions-langs':
         specifier: ^4.25.1
         version: 4.25.4(@codemirror/autocomplete@6.20.0)(@codemirror/lang-css@6.3.1)(@codemirror/lang-html@6.4.11)(@codemirror/lang-javascript@6.2.4)(@codemirror/language-data@6.5.2)(@codemirror/language@6.11.3)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)(@lezer/common@1.5.0)(@lezer/highlight@1.2.3)(@lezer/javascript@1.5.4)(@lezer/lr@1.4.5)
@@ -953,7 +965,7 @@ importers:
         specifier: ^1.3.8
         version: 1.4.0
       typescript:
-        specifier: ~5.8.2
+        specifier: ~5.8.3
         version: 5.8.3
       undici:
         specifier: 6.21.2
@@ -1106,10 +1118,10 @@ importers:
         version: 12.1.1(eslint@9.39.2(jiti@2.6.1))
       eslint-plugin-unused-imports:
         specifier: ^4.1.4
-        version: 4.3.0(@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3))(eslint@9.39.2(jiti@2.6.1))
+        version: 4.3.0(@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.2(jiti@2.6.1))
       tsdown:
         specifier: ^0.13.3
-        version: 0.13.5(@typescript/native-preview@7.0.0-dev.20260104.1)(typescript@5.8.3)
+        version: 0.13.5(@typescript/native-preview@7.0.0-dev.20260104.1)(typescript@5.9.2)
 
 packages:
 
@@ -1730,6 +1742,9 @@ packages:
       '@ai-sdk/openai': ^2.0.64
       ai: ^5.0.26
 
+  '@cherrystudio/embedjs-interfaces@0.1.31':
+    resolution: {integrity: sha512-JGlRoxU09ycemhcGvimE3oy2GkpTGBDFdfV3HA3Zwaaqw36QytP9oY+kmowS26YrB6xWuulBBuKwn9o6j4J+sw==}
+
   '@cherrystudio/embedjs-interfaces@0.1.33':
     resolution: {integrity: sha512-Tbb3jIrCYrizB5V311BrwyDny39K8GFXK2egSf0hnupzmBUHL1uSP0vTgLjse1srfqdiFD9v0BAdTz7jrjGgQA==}
 
@@ -1765,6 +1780,9 @@ packages:
 
   '@cherrystudio/embedjs-openai@0.1.33':
     resolution: {integrity: sha512-CzmBBJtP5zcKSMUcouCDywnTS9lyQ7ca/JuFEWQj/P/3PRJrqfHbP/OpLy/wsOJVgRqUFglC7AHMYAkubVNERg==}
+
+  '@cherrystudio/embedjs-utils@0.1.31':
+    resolution: {integrity: sha512-lZMV6e5OldQ4bdjycAz+POjhfx6VHfFllIbmZjIa9lqOqbu653a/qlowONVfuFPbMxeMXgMnEh63hQOm8X5ruw==}
 
   '@cherrystudio/embedjs-utils@0.1.33':
     resolution: {integrity: sha512-7pKhHSlpK9P81lKIeUc9hivVuqo0hTkkGE+zYMAsIT3HinStbIHv7H4hc5xvfqHy+jxvnhlkPClAG/pBWUs3uQ==}
@@ -5122,9 +5140,19 @@ packages:
     resolution: {integrity: sha512-mM/JRQOzhVN1ykejrvwnBRV3+7yTKK8tVANVN3o1O0t0v7o+jqdVu9crPy5Y9dov15TJk/FTIgoUGHrTOVL3Zg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20250915.1':
+    resolution: {integrity: sha512-N+nkeXCMGfjJzACSzMd156S6pmjZDyca7L3ENbt5u4EtUBkX6UPXW7YH67htyNQZs2kUJ2HRvQsf69jRMF1kaQ==}
+    cpu: [arm64]
+    os: [darwin]
+
   '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260104.1':
     resolution: {integrity: sha512-tVPVpozQmSVTpn97Uu+ZDdC5G9YkHt6YPgv/wtzDVLc8CRCpCwIZZF8MvWMar8f4WiA+3uJIMeX+RAsSQknu5w==}
     cpu: [arm64]
+    os: [darwin]
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20250915.1':
+    resolution: {integrity: sha512-ZGbsO8YqCVYkPtcagmqoiwjYlvVTwoEWniLLFDuO0RHvDVHXp+cmFlX0+AuVnvcQakPswYNrdZkU0+EjMqhutQ==}
+    cpu: [x64]
     os: [darwin]
 
   '@typescript/native-preview-darwin-x64@7.0.0-dev.20260104.1':
@@ -5132,9 +5160,19 @@ packages:
     cpu: [x64]
     os: [darwin]
 
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20250915.1':
+    resolution: {integrity: sha512-+L0wP0gFFGONaI6PsfaV84RMtR7S8+sSBVKo7nrCY99Je1dtlTkeD0Y/rqu+WkDZwdP5krZZPc9xIrGUIk30+w==}
+    cpu: [arm64]
+    os: [linux]
+
   '@typescript/native-preview-linux-arm64@7.0.0-dev.20260104.1':
     resolution: {integrity: sha512-M7vUDJGXDUfIKO7X+DlBIoKaE3uA6dKx8wVky39FHcvjiTJIR+tphPU3uLY7xLpuj3y9PtGQQ2WoGY2wcft4Ug==}
     cpu: [arm64]
+    os: [linux]
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20250915.1':
+    resolution: {integrity: sha512-omh3LvG8Cs8EcA0dVkzGojzHIshWFnNA3fEfSDzwZOHt/KqHAVdGgOCmuqPdQMRsYF3ssO8SMhTAwEZRZNaHmg==}
+    cpu: [arm]
     os: [linux]
 
   '@typescript/native-preview-linux-arm@7.0.0-dev.20260104.1':
@@ -5142,20 +5180,39 @@ packages:
     cpu: [arm]
     os: [linux]
 
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20250915.1':
+    resolution: {integrity: sha512-Ih6D7FIHdIsC1UnkugE6xmCcdiDN4oMV4F56OuCrwN89VyCu+MM4nqLlgsjb50J0lgsgTUi30AhtgTOEhudikg==}
+    cpu: [x64]
+    os: [linux]
+
   '@typescript/native-preview-linux-x64@7.0.0-dev.20260104.1':
     resolution: {integrity: sha512-58eQFmQLCFHmPxyaLT7p3lJNHjcxqLwxO5IFAujrMp+VPHCUuL9QfxcKWnCJlkjgoKd8c95pT0ZNzBhsq00Hyg==}
     cpu: [x64]
     os: [linux]
+
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20250915.1':
+    resolution: {integrity: sha512-vZHGMbO6smEh3zj7jO5bPrcZQoRYusnA1CxVNvFr3b6iovFXWICpS8kqzHzEH99UEP+8TvfAmPGspf8x1UZsIQ==}
+    cpu: [arm64]
+    os: [win32]
 
   '@typescript/native-preview-win32-arm64@7.0.0-dev.20260104.1':
     resolution: {integrity: sha512-g5pE6oveg7lDsBP8nYnjhikMzoZbMWEVYG1JkVZcNUG9equw1Fg4cZdBa/HbZENj1Afy9xrzrRywpvhAYF0lDw==}
     cpu: [arm64]
     os: [win32]
 
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20250915.1':
+    resolution: {integrity: sha512-Q0+IrpfXoM61bZSAIBQZxWj9II8rOuZfwpp1E34TNhvnu7AOV2aKq3J67KAkTortiBmNZnAhnhRIQ2W3jayWUQ==}
+    cpu: [x64]
+    os: [win32]
+
   '@typescript/native-preview-win32-x64@7.0.0-dev.20260104.1':
     resolution: {integrity: sha512-kdufkNpH5DNIeJ5ZHsfcxTC30IfTkvW+ITc0IHHv4plgKiTJ71i/BZDavkTNmpd1zODe4P8PVGrRrGYpdVF06A==}
     cpu: [x64]
     os: [win32]
+
+  '@typescript/native-preview@7.0.0-dev.20250915.1':
+    resolution: {integrity: sha512-uc64rFuzwQZu+tNhGAaDMGpd/Jtp31K/o4kRWNxMwztgHjvUcV9Bbr4C6mTiUsiZ6pERiLEorwFQDSOajPBGGg==}
+    hasBin: true
 
   '@typescript/native-preview@7.0.0-dev.20260104.1':
     resolution: {integrity: sha512-uUf3nybwgHpDpzPFjreMb6aDnyp1vcVdWqp7Ac4bmiOAtE0TlmvoSI7KTJeTZ8xozFVyHyCoFch5bNyDQr3uHQ==}
@@ -11291,6 +11348,11 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  typescript@5.9.2:
+    resolution: {integrity: sha512-CWBzXQrc/qOkhidw1OzBTQuYRbfyxDXJMVJ1XNwUHGROVmuaeiEm3OslpZ1RV96d7SKKjZKrSJu3+t/xlw3R9A==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   ua-parser-js@1.0.41:
     resolution: {integrity: sha512-LbBDqdIC5s8iROCUjMbW1f5dJQTEFB1+KO9ogbvlb3nm9n4YHa5p4KTvFPWvh2Hs8gZMBuiB1/8+pdfe/tDPug==}
     hasBin: true
@@ -13117,6 +13179,19 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
+  '@cherrystudio/embedjs-interfaces@0.1.31(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))':
+    dependencies:
+      '@langchain/core': 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))
+      debug: 4.4.3
+      md5: 2.3.0
+      uuid: 11.1.0
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - '@opentelemetry/exporter-trace-otlp-proto'
+      - '@opentelemetry/sdk-trace-base'
+      - openai
+      - supports-color
+
   '@cherrystudio/embedjs-interfaces@0.1.33(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))':
     dependencies:
       '@langchain/core': 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))
@@ -13293,6 +13368,16 @@ snapshots:
       - openai
       - supports-color
       - ws
+
+  '@cherrystudio/embedjs-utils@0.1.31(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))':
+    dependencies:
+      '@cherrystudio/embedjs-interfaces': 0.1.31(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - '@opentelemetry/exporter-trace-otlp-proto'
+      - '@opentelemetry/sdk-trace-base'
+      - openai
+      - supports-color
 
   '@cherrystudio/embedjs-utils@0.1.33(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.18.3)(zod@4.3.4))':
     dependencies:
@@ -16672,6 +16757,23 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)':
+    dependencies:
+      '@eslint-community/regexpp': 4.12.2
+      '@typescript-eslint/parser': 8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/scope-manager': 8.51.0
+      '@typescript-eslint/type-utils': 8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/utils': 8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/visitor-keys': 8.51.0
+      eslint: 9.39.2(jiti@2.6.1)
+      ignore: 7.0.5
+      natural-compare: 1.4.0
+      ts-api-utils: 2.4.0(typescript@5.9.2)
+      typescript: 5.9.2
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
+
   '@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)':
     dependencies:
       '@typescript-eslint/scope-manager': 8.51.0
@@ -16684,6 +16786,19 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)':
+    dependencies:
+      '@typescript-eslint/scope-manager': 8.51.0
+      '@typescript-eslint/types': 8.51.0
+      '@typescript-eslint/typescript-estree': 8.51.0(typescript@5.9.2)
+      '@typescript-eslint/visitor-keys': 8.51.0
+      debug: 4.4.3
+      eslint: 9.39.2(jiti@2.6.1)
+      typescript: 5.9.2
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
+
   '@typescript-eslint/project-service@8.51.0(typescript@5.8.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.51.0(typescript@5.8.3)
@@ -16693,6 +16808,16 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@typescript-eslint/project-service@8.51.0(typescript@5.9.2)':
+    dependencies:
+      '@typescript-eslint/tsconfig-utils': 8.51.0(typescript@5.9.2)
+      '@typescript-eslint/types': 8.51.0
+      debug: 4.4.3
+      typescript: 5.9.2
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
+
   '@typescript-eslint/scope-manager@8.51.0':
     dependencies:
       '@typescript-eslint/types': 8.51.0
@@ -16701,6 +16826,11 @@ snapshots:
   '@typescript-eslint/tsconfig-utils@8.51.0(typescript@5.8.3)':
     dependencies:
       typescript: 5.8.3
+
+  '@typescript-eslint/tsconfig-utils@8.51.0(typescript@5.9.2)':
+    dependencies:
+      typescript: 5.9.2
+    optional: true
 
   '@typescript-eslint/type-utils@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)':
     dependencies:
@@ -16713,6 +16843,19 @@ snapshots:
       typescript: 5.8.3
     transitivePeerDependencies:
       - supports-color
+
+  '@typescript-eslint/type-utils@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)':
+    dependencies:
+      '@typescript-eslint/types': 8.51.0
+      '@typescript-eslint/typescript-estree': 8.51.0(typescript@5.9.2)
+      '@typescript-eslint/utils': 8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)
+      debug: 4.4.3
+      eslint: 9.39.2(jiti@2.6.1)
+      ts-api-utils: 2.4.0(typescript@5.9.2)
+      typescript: 5.9.2
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
 
   '@typescript-eslint/types@8.51.0': {}
 
@@ -16731,6 +16874,22 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@typescript-eslint/typescript-estree@8.51.0(typescript@5.9.2)':
+    dependencies:
+      '@typescript-eslint/project-service': 8.51.0(typescript@5.9.2)
+      '@typescript-eslint/tsconfig-utils': 8.51.0(typescript@5.9.2)
+      '@typescript-eslint/types': 8.51.0
+      '@typescript-eslint/visitor-keys': 8.51.0
+      debug: 4.4.3
+      minimatch: 9.0.5
+      semver: 7.7.3
+      tinyglobby: 0.2.15
+      ts-api-utils: 2.4.0(typescript@5.9.2)
+      typescript: 5.9.2
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
+
   '@typescript-eslint/utils@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)':
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@2.6.1))
@@ -16742,31 +16901,74 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@typescript-eslint/utils@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)':
+    dependencies:
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@2.6.1))
+      '@typescript-eslint/scope-manager': 8.51.0
+      '@typescript-eslint/types': 8.51.0
+      '@typescript-eslint/typescript-estree': 8.51.0(typescript@5.9.2)
+      eslint: 9.39.2(jiti@2.6.1)
+      typescript: 5.9.2
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
+
   '@typescript-eslint/visitor-keys@8.51.0':
     dependencies:
       '@typescript-eslint/types': 8.51.0
       eslint-visitor-keys: 4.2.1
 
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20250915.1':
+    optional: true
+
   '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260104.1':
+    optional: true
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20250915.1':
     optional: true
 
   '@typescript/native-preview-darwin-x64@7.0.0-dev.20260104.1':
     optional: true
 
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20250915.1':
+    optional: true
+
   '@typescript/native-preview-linux-arm64@7.0.0-dev.20260104.1':
+    optional: true
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20250915.1':
     optional: true
 
   '@typescript/native-preview-linux-arm@7.0.0-dev.20260104.1':
     optional: true
 
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20250915.1':
+    optional: true
+
   '@typescript/native-preview-linux-x64@7.0.0-dev.20260104.1':
+    optional: true
+
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20250915.1':
     optional: true
 
   '@typescript/native-preview-win32-arm64@7.0.0-dev.20260104.1':
     optional: true
 
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20250915.1':
+    optional: true
+
   '@typescript/native-preview-win32-x64@7.0.0-dev.20260104.1':
     optional: true
+
+  '@typescript/native-preview@7.0.0-dev.20250915.1':
+    optionalDependencies:
+      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20250915.1
+      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20250915.1
+      '@typescript/native-preview-linux-arm': 7.0.0-dev.20250915.1
+      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20250915.1
+      '@typescript/native-preview-linux-x64': 7.0.0-dev.20250915.1
+      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20250915.1
+      '@typescript/native-preview-win32-x64': 7.0.0-dev.20250915.1
 
   '@typescript/native-preview@7.0.0-dev.20260104.1':
     optionalDependencies:
@@ -16777,6 +16979,7 @@ snapshots:
       '@typescript/native-preview-linux-x64': 7.0.0-dev.20260104.1
       '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260104.1
       '@typescript/native-preview-win32-x64': 7.0.0-dev.20260104.1
+    optional: true
 
   '@uiw/codemirror-extensions-basic-setup@4.25.4(@codemirror/autocomplete@6.20.0)(@codemirror/commands@6.10.1)(@codemirror/language@6.11.3)(@codemirror/lint@6.8.5)(@codemirror/search@6.5.11)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)':
     dependencies:
@@ -19181,6 +19384,12 @@ snapshots:
       eslint: 9.39.2(jiti@2.6.1)
     optionalDependencies:
       '@typescript-eslint/eslint-plugin': 8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
+
+  eslint-plugin-unused-imports@4.3.0(@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.2(jiti@2.6.1)):
+    dependencies:
+      eslint: 9.39.2(jiti@2.6.1)
+    optionalDependencies:
+      '@typescript-eslint/eslint-plugin': 8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)
 
   eslint-scope@8.4.0:
     dependencies:
@@ -23354,6 +23563,24 @@ snapshots:
       - oxc-resolver
       - supports-color
 
+  rolldown-plugin-dts@0.15.10(@typescript/native-preview@7.0.0-dev.20260104.1)(rolldown@1.0.0-beta.58)(typescript@5.9.2):
+    dependencies:
+      '@babel/generator': 7.28.5
+      '@babel/parser': 7.28.5
+      '@babel/types': 7.28.5
+      ast-kit: 2.2.0
+      birpc: 2.9.0
+      debug: 4.4.3
+      dts-resolver: 2.1.3
+      get-tsconfig: 4.13.0
+      rolldown: 1.0.0-beta.58
+    optionalDependencies:
+      '@typescript/native-preview': 7.0.0-dev.20260104.1
+      typescript: 5.9.2
+    transitivePeerDependencies:
+      - oxc-resolver
+      - supports-color
+
   rolldown-vite@7.3.0(@types/node@22.19.3)(esbuild@0.25.12)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2):
     dependencies:
       '@oxc-project/runtime': 0.101.0
@@ -24194,6 +24421,11 @@ snapshots:
     dependencies:
       typescript: 5.8.3
 
+  ts-api-utils@2.4.0(typescript@5.9.2):
+    dependencies:
+      typescript: 5.9.2
+    optional: true
+
   ts-declaration-location@1.0.7(typescript@5.8.3):
     dependencies:
       picomatch: 4.0.3
@@ -24244,6 +24476,30 @@ snapshots:
       unconfig: 7.4.2
     optionalDependencies:
       typescript: 5.8.3
+    transitivePeerDependencies:
+      - '@typescript/native-preview'
+      - oxc-resolver
+      - supports-color
+      - vue-tsc
+
+  tsdown@0.13.5(@typescript/native-preview@7.0.0-dev.20260104.1)(typescript@5.9.2):
+    dependencies:
+      ansis: 4.2.0
+      cac: 6.7.14
+      chokidar: 4.0.3
+      debug: 4.4.3
+      diff: 8.0.2
+      empathic: 2.0.0
+      hookable: 5.5.3
+      rolldown: 1.0.0-beta.58
+      rolldown-plugin-dts: 0.15.10(@typescript/native-preview@7.0.0-dev.20260104.1)(rolldown@1.0.0-beta.58)(typescript@5.9.2)
+      semver: 7.7.3
+      tinyexec: 1.0.2
+      tinyglobby: 0.2.15
+      tree-kill: 1.2.2
+      unconfig: 7.4.2
+    optionalDependencies:
+      typescript: 5.9.2
     transitivePeerDependencies:
       - '@typescript/native-preview'
       - oxc-resolver
@@ -24316,6 +24572,9 @@ snapshots:
       - supports-color
 
   typescript@5.8.3: {}
+
+  typescript@5.9.2:
+    optional: true
 
   ua-parser-js@1.0.41: {}
 
