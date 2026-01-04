@@ -8,6 +8,7 @@ import { MB } from '@shared/config/constant'
 import type { FileMetadata, PreprocessProvider } from '@types'
 import { net } from 'electron'
 import { t } from 'i18next'
+import { z } from 'zod'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 
@@ -22,17 +23,66 @@ enum FileType {
   Image = 1
 }
 
-type ApiResponse = {
-  result: {
-    layoutParsingResults: Array<{
-      markdown: {
-        text: string
+// Zod schemas for validation
+const FileValidationSchema = z.object({
+  path: z.string(),
+  ext: z.string().refine((ext) => ext.toLowerCase() === '.pdf', {
+    message: 'File must be a PDF'
+  }),
+  size: z.number().max(PDF_SIZE_LIMIT_BYTES, {
+    message: `PDF file size exceeds the limit of ${PDF_SIZE_LIMIT_MB}MB`
+  }),
+  pages: z.number().max(PDF_PAGE_LIMIT, {
+    message: `PDF page count exceeds the limit of ${PDF_PAGE_LIMIT} pages`
+  })
+})
+
+const ApiResponseSchema = z
+  .object({
+    result: z.object({
+      layoutParsingResults: z
+        .array(
+          z.object({
+            markdown: z.object({
+              text: z.string().min(1, 'Markdown text cannot be empty')
+            })
+          })
+        )
+        .min(1, 'At least one layout parsing result required')
+    }),
+    errorCode: z.number().optional(),
+    errorMsg: z.string().optional()
+  })
+  .refine(
+    (data) => {
+      // Check for actual errors: errorCode should be non-zero, or errorMsg should indicate failure (not "Success")
+      if (data.errorCode && data.errorCode !== 0) {
+        return false
       }
-    }>
-  }
-  errorCode?: number
-  errorMsg?: string
-}
+      if (data.errorMsg && !/success/i.test(data.errorMsg)) {
+        return false
+      }
+      return true
+    },
+    {
+      message: 'PaddleOCR API returned an error',
+      path: ['errorCode', 'errorMsg']
+    }
+  )
+
+const ProcessingResultSchema = z.object({
+  layoutParsingResults: z
+    .array(
+      z.object({
+        markdown: z.object({
+          text: z.string().min(1, 'Markdown text cannot be empty')
+        })
+      })
+    )
+    .min(1, 'At least one layout parsing result required')
+})
+
+type ApiResponse = z.infer<typeof ApiResponseSchema>
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -100,40 +150,19 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
   }
 
   private async validateFile(filePath: string): Promise<void> {
-    // Phase 1: check file size (without loading into memory)
     logger.info(`Validating PDF file: ${filePath}`)
-    const ext = path.extname(filePath).toLowerCase()
-    if (ext !== '.pdf') {
-      throw new Error(`File ${filePath} is not a PDF (extension: ${ext.slice(1)})`)
-    }
 
+    const ext = path.extname(filePath).toLowerCase()
     const stats = await fs.promises.stat(filePath)
     const fileSizeBytes = stats.size
 
-    // Ensure file size is no more than PDF_SIZE_LIMIT_MB MB
-    if (fileSizeBytes > PDF_SIZE_LIMIT_BYTES) {
-      const fileSizeMB = Math.round(fileSizeBytes / MB)
-      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of ${PDF_SIZE_LIMIT_MB}MB`)
-    }
-
-    // Phase 2: check page count (requires reading file with error handling)
-    const pdfBuffer = await fs.promises.readFile(filePath)
-
+    // Try to get page count, but don't fail validation if PDF parsing fails
+    let pageCount = 0
     try {
+      const pdfBuffer = await fs.promises.readFile(filePath)
       const doc = await this.readPdf(pdfBuffer)
-
-      // Ensure page count is no more than PDF_PAGE_LIMIT pages
-      if (doc.numPages > PDF_PAGE_LIMIT) {
-        throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of ${PDF_PAGE_LIMIT} pages`)
-      }
-
-      logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / MB)}MB`)
+      pageCount = doc.numPages
     } catch (error: unknown) {
-      // If the page limit is exceeded, rethrow immediately
-      if (getErrorMessage(error).includes('exceeds the limit')) {
-        throw error
-      }
-
       // If PDF parsing fails, log a detailed warning but continue processing
       logger.warn(
         `Failed to parse PDF structure (file may be corrupted or use non-standard format). ` +
@@ -141,7 +170,30 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
           `Error details: ${getErrorMessage(error)}. ` +
           `Suggestion: If processing fails, try repairing the PDF using tools like Adobe Acrobat or online PDF repair services.`
       )
-      // Do not throw; continue processing
+    }
+
+    // Validate using zod schema
+    const validationData = {
+      path: filePath,
+      ext: ext,
+      size: fileSizeBytes,
+      pages: pageCount
+    }
+
+    try {
+      FileValidationSchema.parse(validationData)
+      logger.info(`PDF validation passed: ${pageCount} pages, ${Math.round(fileSizeBytes / MB)}MB`)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        // For size and page limit errors, throw immediately
+        const errorMessages = error.issues.map((e) => e.message)
+        if (errorMessages.some((msg) => msg.includes('exceeds the limit'))) {
+          throw new Error(errorMessages.find((msg) => msg.includes('exceeds the limit')) || errorMessages[0])
+        }
+        // For other validation errors (like non-PDF files), throw
+        throw new Error(errorMessages[0])
+      }
+      throw error
     }
   }
 
@@ -227,24 +279,13 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      const data: ApiResponse = await response.json()
+      const rawData = await response.json()
 
       // Log the response for debugging
-      logger.debug('PaddleOCR API response', { data })
+      logger.debug('PaddleOCR API response', { data: rawData })
 
-      // Check for actual errors: errorCode should be non-zero, or errorMsg should indicate failure (not "Success")
-      if (data.errorCode && data.errorCode !== 0) {
-        throw new Error(`PaddleOCR API error: ${data.errorMsg || `Error code: ${data.errorCode}`}`)
-      }
-
-      // If errorMsg exists and is not a success message, treat as error
-      if (data.errorMsg && !/success/i.test(data.errorMsg)) {
-        throw new Error(`PaddleOCR API error: ${data.errorMsg}`)
-      }
-
-      if (!data.result || !data.result.layoutParsingResults || data.result.layoutParsingResults.length === 0) {
-        throw new Error('PaddleOCR API returned empty results')
-      }
+      // Validate response using zod schema
+      const data = ApiResponseSchema.parse(rawData)
 
       return data.result
     } catch (error: unknown) {
@@ -261,9 +302,8 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       fs.mkdirSync(outputDir, { recursive: true })
     }
 
-    if (!result.layoutParsingResults || result.layoutParsingResults.length === 0) {
-      throw new Error('No layout parsing result found')
-    }
+    // Validate result using zod schema
+    ProcessingResultSchema.parse(result)
 
     const markdownText = result.layoutParsingResults
       .filter((layoutResult) => layoutResult?.markdown?.text)
