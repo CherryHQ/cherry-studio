@@ -161,7 +161,7 @@
     "@langchain/openai": "1.0.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
     "@mistralai/mistralai": "^1.7.5",
-    "@modelcontextprotocol/sdk": "^1.23.0",
+    "@modelcontextprotocol/sdk": "1.23.0",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
     "@openrouter/ai-sdk-provider": "^1.2.8",
