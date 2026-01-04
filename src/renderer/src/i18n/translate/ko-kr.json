@@ -4762,133 +4762,133 @@
       "title": "기타 설정",
       "websearch": {
         "api_key_required": {
-          "content": "{{provider}} requires an API key to work. Would you like to configure it now?",
-          "ok": "Configure",
-          "title": "API Key Required"
+          "content": "{{provider}} 작동을 위해 API 키가 필요합니다. 지금 구성하시겠습니까?",
+          "ok": "구성",
+          "title": "API 키 필요"
         },
-        "api_providers": "API Providers",
-        "apikey": "API key",
-        "blacklist": "Blacklist",
-        "blacklist_description": "Results from the following websites will not appear in search results",
-        "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
-        "check": "Check",
-        "check_failed": "Verification failed",
-        "check_success": "Verification successful",
+        "api_providers": "API 공급자",
+        "apikey": "API 키",
+        "blacklist": "블랙리스트",
+        "blacklist_description": "다음 웹사이트의 검색 결과는 검색 결과에 표시되지 않습니다",
+        "blacklist_tooltip": "다음 형식을 사용하세요 (줄바꿈으로 구분)\n패턴 일치: *://*.example.com/*\n정규식: /example\\.(net|org)/",
+        "check": "확인",
+        "check_failed": "검증 실패",
+        "check_success": "검증 성공",
         "compression": {
           "cutoff": {
             "limit": {
-              "label": "Cutoff Limit",
-              "placeholder": "Enter length",
-              "tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)"
+              "label": "자르기 제한",
+              "placeholder": "길이 입력",
+              "tooltip": "검색 결과의 콘텐츠 길이를 제한합니다. 제한을 초과하는 콘텐츠는 잘립니다(예: 2000자)"
             },
             "unit": {
-              "char": "Char",
-              "token": "Token"
+              "char": "문자",
+              "token": "토큰"
             }
           },
           "error": {
-            "rag_failed": "RAG failed"
+            "rag_failed": "RAG 실패"
           },
           "info": {
-            "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
+            "dimensions_auto_success": "차원을 자동으로 성공적으로 가져왔습니다. 차원: {{dimensions}}"
           },
           "method": {
-            "cutoff": "Cutoff",
-            "label": "Compression Method",
-            "none": "None",
+            "cutoff": "자르기",
+            "label": "압축 방법",
+            "none": "없음",
             "rag": "RAG"
           },
           "rag": {
             "document_count": {
-              "label": "Document Chunks Count",
-              "tooltip": "Expected number of document chunks to extract from each search result, the actual total number of extracted document chunks is this value multiplied by the number of search results."
+              "label": "문서 청크 수",
+              "tooltip": "각 검색 결과에서 추출할 예상 문서 청크 수입니다. 실제 추출된 문서 청크의 총 수는 이 값에 검색 결과 수를 곱한 값입니다."
             }
           },
-          "title": "Search Result Compression"
+          "title": "검색 결과 압축"
         },
-        "content_limit": "Content length limit",
-        "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
-        "default_provider": "Default Provider",
-        "free": "Free",
-        "is_default": "Default",
+        "content_limit": "콘텐츠 길이 제한",
+        "content_limit_tooltip": "검색 결과의 콘텐츠 길이를 제한합니다. 제한을 초과하는 콘텐츠는 잘립니다.",
+        "default_provider": "기본 공급자",
+        "free": "무료",
+        "is_default": "기본값",
         "local_provider": {
-          "hint": "Log in to the website to get better search results and personalize your search settings.",
-          "open_settings": "Open {{provider}} Settings",
-          "settings": "Local Search Settings"
+          "hint": "더 나은 검색 결과를 얻고 검색 설정을 개인화하려면 웹사이트에 로그인하세요.",
+          "open_settings": "{{provider}} 설정 열기",
+          "settings": "로컬 검색 설정"
         },
-        "local_providers": "Local Providers",
-        "no_provider_selected": "Please select a search service provider before checking.",
-        "overwrite": "Override search service",
-        "overwrite_tooltip": "Force use search service instead of LLM",
+        "local_providers": "로컬 공급자",
+        "no_provider_selected": "확인하기 전에 검색 서비스 공급자를 선택하세요.",
+        "overwrite": "검색 서비스 재정의",
+        "overwrite_tooltip": "LLM 대신 검색 서비스를 강제로 사용합니다",
         "search_max_result": {
-          "label": "Number of search results",
-          "tooltip": "When search result compression is disabled, the number of results may be too large, which may lead to insufficient tokens"
+          "label": "검색 결과 수",
+          "tooltip": "검색 결과 압축이 비활성화되면 결과 수가 너무 많아져 토큰이 부족할 수 있습니다"
         },
-        "search_provider": "Search service provider",
-        "search_provider_placeholder": "Choose a search service provider.",
-        "search_with_time": "Search with dates included",
-        "set_as_default": "Set as Default",
-        "subscribe": "Blacklist Subscription",
-        "subscribe_add": "Add Subscription",
-        "subscribe_add_failed": "Failed to add feed source",
-        "subscribe_add_success": "Subscription feed added successfully!",
-        "subscribe_delete": "Delete",
+        "search_provider": "검색 서비스 공급자",
+        "search_provider_placeholder": "검색 서비스 공급자를 선택하세요.",
+        "search_with_time": "날짜 포함 검색",
+        "set_as_default": "기본값으로 설정",
+        "subscribe": "블랙리스트 구독",
+        "subscribe_add": "구독 추가",
+        "subscribe_add_failed": "피드 원본 추가 실패",
+        "subscribe_add_success": "구독 피드가 성공적으로 추가되었습니다!",
+        "subscribe_delete": "삭제",
         "subscribe_name": {
-          "label": "Alternative name",
-          "placeholder": "Alternative name used when the downloaded subscription feed has no name."
+          "label": "대체 이름",
+          "placeholder": "다운로드한 구독 피드에 이름이 없을 때 사용되는 대체 이름입니다."
         },
-        "subscribe_update": "Update",
-        "subscribe_update_failed": "Subscription source update failed",
-        "subscribe_update_success": "Subscription source updated successfully",
-        "subscribe_url": "Subscription Url",
+        "subscribe_update": "업데이트",
+        "subscribe_update_failed": "구독 원본 업데이트 실패",
+        "subscribe_update_success": "구독 원본이 성공적으로 업데이트되었습니다",
+        "subscribe_url": "구독 URL",
         "tavily": {
           "api_key": {
-            "label": "Tavily API Key",
-            "placeholder": "Enter Tavily API Key"
+            "label": "Tavily API 키",
+            "placeholder": "Tavily API 키 입력"
           },
-          "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+          "description": "Tavily는 AI 에이전트를 위해 맞춤화된 검색 엔진으로, 실시간 정확한 결과, 지능형 쿼리 제안, 심층 연구 기능을 제공합니다.",
           "title": "Tavily"
         },
-        "title": "Web Search",
-        "url_invalid": "Entered an invalid URL",
-        "url_required": "Please enter a URL"
+        "title": "웹 검색",
+        "url_invalid": "잘못된 URL을 입력했습니다",
+        "url_required": "URL을 입력하세요"
       }
     },
     "topic": {
-      "pin_to_top": "Pin Topics to Top",
+      "pin_to_top": "토픽을 상단에 고정",
       "position": {
-        "label": "Topic position",
-        "left": "Left",
-        "right": "Right"
+        "label": "토픽 위치",
+        "left": "왼쪽",
+        "right": "오른쪽"
       },
       "show": {
-        "time": "Show topic time"
+        "time": "토픽 시간 표시"
       }
     },
     "translate": {
       "custom": {
         "delete": {
-          "description": "Are you sure you want to delete?",
-          "title": "Delete custom language"
+          "description": "정말 삭제하시겠습니까?",
+          "title": "사용자 지정 언어 삭제"
         },
         "error": {
-          "add": "Failed to add",
-          "delete": "Deletion failed",
+          "add": "추가 실패",
+          "delete": "삭제 실패",
           "langCode": {
-            "builtin": "The language has built-in support",
-            "empty": "Language code is empty",
-            "exists": "The language already exists",
-            "invalid": "Invalid language code"
+            "builtin": "이 언어는 내장 지원입니다",
+            "empty": "언어 코드가 비어 있습니다",
+            "exists": "이 언어가 이미 존재합니다",
+            "invalid": "잘못된 언어 코드"
           },
-          "update": "Update failed",
+          "update": "업데이트 실패",
           "value": {
-            "empty": "Language name cannot be empty",
-            "too_long": "Language name is too long"
+            "empty": "언어 이름은 비어 있을 수 없습니다",
+            "too_long": "언어 이름이 너무 깁니다"
           }
         },
         "langCode": {
-          "help": "[language+region] format, [2-3 lowercase letters]-[2-3 lowercase letters]",
-          "label": "Language code",
+          "help": "[언어+지역] 형식, [2-3개 소문자]-[2-3개 소문자]",
+          "label": "언어 코드",
           "placeholder": "en-us"
         },
         "success": {
@@ -4911,171 +4911,171 @@
       "title": "번역 설정"
     },
     "tray": {
-      "onclose": "Minimize to Tray on Close",
-      "show": "Show Tray Icon",
-      "title": "Tray"
+      "onclose": "닫을 때 트레이로 최소화",
+      "show": "트레이 아이콘 표시",
+      "title": "트레이"
     },
     "zoom": {
-      "reset": "Reset",
-      "title": "Page Zoom"
+      "reset": "재설정",
+      "title": "페이지 확대/축소"
     }
   },
   "title": {
-    "apps": "Apps",
-    "code": "Code",
-    "files": "Files",
-    "home": "Home",
-    "knowledge": "Knowledge Base",
-    "launchpad": "Launchpad",
-    "mcp-servers": "MCP Servers",
-    "memories": "Memories",
-    "notes": "Notes",
-    "paintings": "Paintings",
-    "settings": "Settings",
-    "store": "Assistant Library",
-    "translate": "Translate"
+    "apps": "앱",
+    "code": "코드",
+    "files": "파일",
+    "home": "홈",
+    "knowledge": "지식 베이스",
+    "launchpad": "런치패드",
+    "mcp-servers": "MCP 서버",
+    "memories": "기억",
+    "notes": "메모",
+    "paintings": "그림",
+    "settings": "설정",
+    "store": "어시스턴트 라이브러리",
+    "translate": "번역"
   },
   "trace": {
-    "backList": "Back To List",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "End Time",
-    "inputs": "Inputs",
-    "label": "Call Chain",
-    "name": "Node Name",
-    "noTraceList": "No trace information found",
-    "outputs": "Outputs",
-    "parentId": "Parent Id",
-    "spanDetail": "Span Details",
-    "spendTime": "Spend Time",
-    "startTime": "Start Time",
-    "tag": "Tag",
-    "tokenUsage": "Token Usage",
-    "traceWindow": "Call Chain Window"
+    "backList": "목록으로 돌아가기",
+    "edasSupport": "Alibaba Cloud EDAS 기반",
+    "endTime": "종료 시간",
+    "inputs": "입력",
+    "label": "호출 체인",
+    "name": "노드 이름",
+    "noTraceList": "추적 정보를 찾을 수 없습니다",
+    "outputs": "출력",
+    "parentId": "상위 ID",
+    "spanDetail": "범위 세부정보",
+    "spendTime": "소요 시간",
+    "startTime": "시작 시간",
+    "tag": "태그",
+    "tokenUsage": "토큰 사용량",
+    "traceWindow": "호출 체인 창"
   },
   "translate": {
-    "alter_language": "Alternative Language",
+    "alter_language": "대체 언어",
     "any": {
-      "language": "Any language"
+      "language": "모든 언어"
     },
     "button": {
-      "translate": "Translate"
+      "translate": "번역"
     },
-    "close": "Close",
-    "closed": "Translation closed",
-    "complete": "Translation completed",
+    "close": "닫기",
+    "closed": "번역이 닫혔습니다",
+    "complete": "번역 완료",
     "confirm": {
-      "content": "Translation will replace the original text, continue?",
-      "title": "Translation Confirmation"
+      "content": "번역이 원본 텍스트를 대체합니다. 계속하시겠습니까?",
+      "title": "번역 확인"
     },
-    "copied": "Translation content copied",
+    "copied": "번역 콘텐츠가 복사되었습니다",
     "custom": {
-      "label": "Custom language"
+      "label": "사용자 지정 언어"
     },
     "detect": {
       "method": {
         "algo": {
-          "label": "algorithm",
-          "tip": "Using the franc library for language detection"
+          "label": "알고리즘",
+          "tip": "franc 라이브러리를 사용하여 언어 감지"
         },
         "auto": {
-          "label": "Automatic",
-          "tip": "Automatically select the appropriate detection method"
+          "label": "자동",
+          "tip": "적절한 감지 방법을 자동으로 선택"
         },
-        "label": "Automatic detection method",
+        "label": "자동 감지 방법",
         "llm": {
-          "tip": "Using the quick model for language detection consumes fewer tokens."
+          "tip": "빠른 모델을 사용하여 언어 감지를 수행하면 더 적은 토큰을 소비합니다."
         },
-        "placeholder": "Select automatic detection method",
-        "tip": "Method used when automatically detecting the input language"
+        "placeholder": "자동 감지 방법 선택",
+        "tip": "입력 언어를 자동으로 감지할 때 사용하는 방법"
       }
     },
     "detected": {
-      "language": "Auto Detect"
+      "language": "자동 감지"
     },
-    "empty": "Translation content is empty",
+    "empty": "번역 콘텐츠가 비어 있습니다",
     "error": {
-      "chat_qwen_mt": "Qwen MT model cannot be used in chat. Please go to the translation page.",
+      "chat_qwen_mt": "Qwen MT 모델은 채팅에서 사용할 수 없습니다. 번역 페이지로 이동하세요.",
       "detect": {
-        "qwen_mt": "QwenMT model cannot be used for language detection",
-        "unknown": "Unknown language detected",
-        "update_setting": "Setting failed"
+        "qwen_mt": "QwenMT 모델은 언어 감지에 사용할 수 없습니다",
+        "unknown": "알 수 없는 언어가 감지되었습니다",
+        "update_setting": "설정 실패"
       },
-      "empty": "The translation result is empty content",
-      "failed": "Translation failed",
-      "invalid_source": "Invalid source language",
-      "not_configured": "Translation model is not configured",
-      "not_supported": "Unsupported language {{language}}",
-      "unknown": "An unknown error occurred during translation"
+      "empty": "번역 결과가 비어 있는 콘텐츠입니다",
+      "failed": "번역 실패",
+      "invalid_source": "잘못된 원본 언어",
+      "not_configured": "번역 모델이 구성되지 않았습니다",
+      "not_supported": "지원되지 않는 언어 {{language}}",
+      "unknown": "번역 중 알 수 없는 오류가 발생했습니다"
     },
     "exchange": {
-      "label": "Swap the source and target languages"
+      "label": "원본 언어와 대상 언어 바꾸기"
     },
     "files": {
-      "drag_text": "Drop here",
+      "drag_text": "여기에 놓으세요",
       "error": {
-        "check_type": "An error occurred while checking the file type",
-        "multiple": "Multiple file uploads are not allowed",
-        "too_large": "File too large",
-        "unknown": "Failed to read file content"
+        "check_type": "파일 유형을 확인하는 중 오류가 발생했습니다",
+        "multiple": "여러 파일 업로드는 허용되지 않습니다",
+        "too_large": "파일이 너무 큽니다",
+        "unknown": "파일 콘텐츠 읽기 실패"
       },
-      "reading": "Reading file content..."
+      "reading": "파일 콘텐츠 읽는 중..."
     },
     "history": {
-      "clear": "Clear History",
-      "clear_description": "Clear history will delete all translation history, continue?",
-      "delete": "Delete translation history",
-      "empty": "No translation history",
+      "clear": "기록 지우기",
+      "clear_description": "기록을 지우면 모든 번역 기록이 삭제됩니다. 계속하시겠습니까?",
+      "delete": "번역 기록 삭제",
+      "empty": "번역 기록이 없습니다",
       "error": {
-        "delete": "Deletion failed",
-        "save": "Failed to save translation history"
+        "delete": "삭제 실패",
+        "save": "번역 기록 저장 실패"
       },
       "search": {
-        "placeholder": "Search translation history"
+        "placeholder": "번역 기록 검색"
       },
-      "title": "Translation History"
+      "title": "번역 기록"
     },
     "info": {
-      "aborted": "Translation aborted"
+      "aborted": "번역이 중단되었습니다"
     },
     "input": {
-      "placeholder": "Text, text files, or images (with OCR support) can be pasted or dragged in"
+      "placeholder": "텍스트, 텍스트 파일 또는 이미지(OCR 지원)를 붙여넣거나 끌어다 놓을 수 있습니다"
     },
     "language": {
-      "not_pair": "Source language is different from the set language",
-      "same": "Source and target languages are the same"
+      "not_pair": "원본 언어가 설정된 언어와 다릅니다",
+      "same": "원본 언어와 대상 언어가 같습니다"
     },
     "menu": {
-      "description": "Translate the content of the current input box"
+      "description": "현재 입력란의 콘텐츠 번역"
     },
     "not": {
-      "found": "Translation content not found"
+      "found": "번역 콘텐츠를 찾을 수 없습니다"
     },
     "output": {
-      "placeholder": "Translation"
+      "placeholder": "번역"
     },
-    "processing": "Translation in progress...",
+    "processing": "번역 진행 중...",
     "settings": {
-      "autoCopy": "Copy after translation ",
-      "bidirectional": "Bidirectional Translation Settings",
-      "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
-      "model": "Model Settings",
-      "model_desc": "Model used for translation service",
-      "model_placeholder": "Select translation model",
-      "no_model_warning": "No translation model selected",
-      "preview": "Markdown Preview",
-      "scroll_sync": "Scroll Sync Settings",
-      "title": "Translation Settings"
+      "autoCopy": "번역 후 복사",
+      "bidirectional": "양방향 번역 설정",
+      "bidirectional_tip": "활성화하면 원본 언어와 대상 언어 간의 양방향 번역만 지원됩니다",
+      "model": "모델 설정",
+      "model_desc": "번역 서비스에 사용되는 모델",
+      "model_placeholder": "번역 모델 선택",
+      "no_model_warning": "선택된 번역 모델이 없습니다",
+      "preview": "미리보기",
+      "scroll_sync": "스크롤 동기화 설정",
+      "title": "번역 설정"
     },
     "success": {
       "custom": {
-        "delete": "Deleted successfully",
-        "update": "Update successful"
+        "delete": "성공적으로 삭제됨",
+        "update": "업데이트 성공"
       }
     },
-    "target_language": "Target Language",
-    "title": "Translation",
+    "target_language": "대상 언어",
+    "title": "번역",
     "tooltip": {
-      "newline": "Newline"
+      "newline": "줄바꿈"
     }
   },
   "tray": {
