@@ -42,7 +42,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         if (!match) throw new Error('Invalid base64 image format')
         const mimeType = match[1]
         const byteArray = Base64.toUint8Array(match[2])
-        blob = new Blob([new Uint8Array(byteArray)], { type: mimeType })
+        blob = new Blob([byteArray], { type: mimeType })
       } else if (src.startsWith('file://')) {
         // 处理本地文件路径
         const bytes = await window.api.fs.read(src)

@@ -18,7 +18,7 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import type { MinAppType, Topic, WebSearchStatus } from '@renderer/types'
-import type { UpdateInfo } from 'electron-updater'
+import type { UpdateInfo } from 'builder-util-runtime'
 
 export interface ChatState {
   isMultiSelectMode: boolean

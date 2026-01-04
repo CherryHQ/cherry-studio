@@ -629,7 +629,7 @@ class McpService {
       // Set up logging message notification handler
       client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
         logger.debug(`Message from server ${server.name}:`, notification.params)
-        const msg = notification.params?.data as string
+        const msg = notification.params?.message
         if (msg) {
           this.emitServerLog(server, {
             timestamp: Date.now(),

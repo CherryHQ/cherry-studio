@@ -8,7 +8,7 @@ import type {
   OAuthClientInformationFull,
   OAuthTokens
 } from '@modelcontextprotocol/sdk/shared/auth'
-import { shell } from 'electron'
+import open from 'open'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { JsonFileStorage } from './storage'
@@ -67,7 +67,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
     try {
       // Open the browser to the authorization URL
-      await shell.openExternal(sanitizeUrl(authorizationUrl.toString()))
+      await open(sanitizeUrl(authorizationUrl.toString()))
       logger.debug('Browser opened automatically.')
     } catch (error) {
       logger.error('Could not open browser automatically.')
