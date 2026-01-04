@@ -15,7 +15,6 @@
  * --------------------------------------------------------------------------
  */
 import { cacheService } from '@data/CacheService'
-import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import { AgentApiClient } from '@renderer/api/agent'
@@ -50,8 +49,6 @@ import {
 } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
-import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
-import type { Message as SharedMessage } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
 import type { TextStreamPart } from 'ai'
@@ -77,35 +74,6 @@ import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 // } from './messageThunk.v2'
 
 const logger = loggerService.withContext('MessageThunk')
-
-/**
- * Convert shared Message format (from Data API) to renderer Message format
- *
- * The Data API returns messages with `data: { blocks: MessageDataBlock[] }` format,
- * but the renderer expects `blocks: string[]` format.
- *
- * For newly created pending messages, blocks are empty, so conversion is straightforward.
- * For messages with content, this would need to store blocks separately and return IDs.
- *
- * @param shared - Message from Data API response
- * @param model - Optional Model object to include
- * @returns Renderer-format Message
- */
-const convertSharedToRendererMessage = (shared: SharedMessage, assistantId: string, model?: Model): Message => {
-  return {
-    id: shared.id,
-    topicId: shared.topicId,
-    role: shared.role,
-    assistantId,
-    status: shared.status as AssistantMessageStatus,
-    blocks: [], // For new pending messages, blocks are empty
-    createdAt: shared.createdAt,
-    askId: shared.parentId ?? undefined,
-    modelId: shared.modelId ?? undefined,
-    traceId: shared.traceId ?? undefined,
-    model
-  }
-}
 
 const finishTopicLoading = async (topicId: string) => {
   await waitForTopicQueue(topicId)
@@ -779,20 +747,15 @@ const dispatchMultiModelResponses = async (
   for (const mentionedModel of mentionedModels) {
     const assistantForThisMention = { ...assistant, model: mentionedModel }
 
-    // Create message via Data API instead of local creation
-    const createDto: CreateMessageDto = {
+    // Create message via StreamingService
+    const assistantMessage = await streamingService.createAssistantMessage(topicId, {
       parentId: triggeringMessage.id,
-      role: 'assistant',
-      data: { blocks: [] },
-      status: 'pending',
-      siblingsGroupId,
       assistantId: assistant.id,
       modelId: mentionedModel.id,
+      model: mentionedModel,
+      siblingsGroupId,
       traceId: triggeringMessage.traceId ?? undefined
-    }
-
-    const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
-    const assistantMessage = convertSharedToRendererMessage(sharedMessage, assistant.id, mentionedModel)
+    })
 
     dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
     assistantMessageStubs.push(assistantMessage)
@@ -1024,20 +987,15 @@ export const sendMessage =
         if (mentionedModels && mentionedModels.length > 0) {
           await dispatchMultiModelResponses(dispatch, getState, topicId, finalUserMessage, assistant, mentionedModels)
         } else {
-          // Create message via Data API for normal topics
-          const createDto: CreateMessageDto = {
+          // Create message via StreamingService for normal topics
+          const assistantMessage = await streamingService.createAssistantMessage(topicId, {
             parentId: finalUserMessage.id,
-            role: 'assistant',
-            data: { blocks: [] },
-            status: 'pending',
-            siblingsGroupId: 0,
             assistantId: assistant.id,
             modelId: assistant.model?.id,
+            model: assistant.model,
+            siblingsGroupId: 0,
             traceId: finalUserMessage.traceId ?? undefined
-          }
-
-          const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
-          const assistantMessage = convertSharedToRendererMessage(sharedMessage, assistant.id, assistant.model)
+          })
 
           dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
@@ -1228,20 +1186,15 @@ export const resendMessageThunk =
 
       if (assistantMessagesToReset.length === 0 && !userMessageToResend?.mentions?.length) {
         // 没有相关的助手消息且没有提及模型时，使用助手模型创建一条消息
-        // Create message via Data API
-        const createDto: CreateMessageDto = {
+        // Create message via StreamingService
+        const assistantMessage = await streamingService.createAssistantMessage(topicId, {
           parentId: userMessageToResend.id,
-          role: 'assistant',
-          data: { blocks: [] },
-          status: 'pending',
-          siblingsGroupId: 0,
           assistantId: assistant.id,
           modelId: assistant.model?.id,
+          model: assistant.model,
+          siblingsGroupId: 0,
           traceId: userMessageToResend.traceId ?? undefined
-        }
-
-        const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
-        const assistantMessage = convertSharedToRendererMessage(sharedMessage, assistant.id, assistant.model)
+        })
 
         resetDataList.push(assistantMessage)
 
@@ -1277,20 +1230,15 @@ export const resendMessageThunk =
       const mentionedModelSet = new Set(userMessageToResend.mentions ?? [])
       const newModelSet = new Set([...mentionedModelSet].filter((m) => !originModelSet.has(m)))
       for (const model of newModelSet) {
-        // Create message via Data API for new mentioned models
-        const createDto: CreateMessageDto = {
+        // Create message via StreamingService for new mentioned models
+        const assistantMessage = await streamingService.createAssistantMessage(topicId, {
           parentId: userMessageToResend.id,
-          role: 'assistant',
-          data: { blocks: [] },
-          status: 'pending',
-          siblingsGroupId: 0,
           assistantId: assistant.id,
           modelId: model.id,
+          model,
+          siblingsGroupId: 0,
           traceId: userMessageToResend.traceId ?? undefined
-        }
-
-        const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
-        const assistantMessage = convertSharedToRendererMessage(sharedMessage, assistant.id, model)
+        })
 
         resetDataList.push(assistantMessage)
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
@@ -1592,20 +1540,15 @@ export const appendAssistantResponseThunk =
         return
       }
 
-      // 2. Create the new assistant message via Data API
-      const createDto: CreateMessageDto = {
+      // 2. Create the new assistant message via StreamingService
+      const newAssistantMessageStub = await streamingService.createAssistantMessage(topicId, {
         parentId: askId, // Crucial: Use the original askId
-        role: 'assistant',
-        data: { blocks: [] },
-        status: 'pending',
-        siblingsGroupId: 0,
         assistantId: assistant.id,
         modelId: newModel.id,
+        model: newModel,
+        siblingsGroupId: 0,
         traceId: traceId ?? undefined
-      }
-
-      const sharedMessage = await dataApiService.post(`/topics/${topicId}/messages`, { body: createDto })
-      const newAssistantMessageStub = convertSharedToRendererMessage(sharedMessage, assistant.id, newModel)
+      })
 
       // 3. Update Redux Store
       const currentTopicMessageIds = getState().messages.messageIdsByTopic[topicId] || []
