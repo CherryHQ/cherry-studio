@@ -246,15 +246,14 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     #url-input::placeholder { color: var(--color-text); }
     #url-input::-webkit-input-placeholder { color: var(--color-text); }
 
-    /* Window controls for Windows/Linux */
+    /* Window controls for Windows/Linux - use inline-flex inside tab-row instead of fixed position */
     #window-controls {
       display: none;
-      position: fixed;
-      top: 0;
-      right: 0;
       height: 42px;
-      z-index: 1000;
-      -webkit-app-region: no-drag !important;
+      margin-left: auto;
+      margin-right: calc(-8px - var(--window-controls-width, 0px));
+      margin-top: -8px;
+      -webkit-app-region: no-drag;
     }
     body.platform-win #window-controls,
     body.platform-linux #window-controls { display: flex; }
@@ -268,7 +267,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       border: none;
       cursor: pointer;
       transition: background 0.1s;
-      -webkit-app-region: no-drag !important;
+      -webkit-app-region: no-drag;
     }
     .window-control-btn:hover { background: var(--bg-btn-hover); }
     .window-control-btn.close:hover { background: var(--window-close-hover); }
@@ -278,23 +277,23 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <!-- Window controls for Windows/Linux -->
-  <div id="window-controls">
-    <button class="window-control-btn" id="minimize-btn" title="Minimize">
-      <svg viewBox="0 0 10 1"><rect width="10" height="1"/></svg>
-    </button>
-    <button class="window-control-btn" id="maximize-btn" title="Maximize">
-      <svg viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
-    </button>
-    <button class="window-control-btn close" id="close-btn" title="Close">
-      <svg viewBox="0 0 10 10"><path d="M0 0L10 10M10 0L0 10" stroke="currentColor" stroke-width="1.2"/></svg>
-    </button>
-  </div>
   <div id="tab-row">
     <div id="tabs-container">
       <div id="new-tab-btn" title="New tab">
         <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
       </div>
+    </div>
+    <!-- Window controls for Windows/Linux - inside tab-row to avoid drag region issues -->
+    <div id="window-controls">
+      <button class="window-control-btn" id="minimize-btn" title="Minimize">
+        <svg viewBox="0 0 10 1"><rect width="10" height="1"/></svg>
+      </button>
+      <button class="window-control-btn" id="maximize-btn" title="Maximize">
+        <svg viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+      <button class="window-control-btn close" id="close-btn" title="Close">
+        <svg viewBox="0 0 10 10"><path d="M0 0L10 10M10 0L0 10" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
     </div>
   </div>
   <div id="address-bar">
