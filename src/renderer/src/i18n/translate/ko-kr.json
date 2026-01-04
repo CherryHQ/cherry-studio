@@ -3511,92 +3511,92 @@
         "username": "Nutstore 사용자 이름"
       },
       "obsidian": {
-        "default_vault": "Default Obsidian Vault",
-        "default_vault_export_failed": "Export failed",
-        "default_vault_fetch_error": "Failed to fetch Obsidian vault",
-        "default_vault_loading": "Loading Obsidian vault...",
-        "default_vault_no_vaults": "No Obsidian vaults found",
-        "default_vault_placeholder": "Please select the default Obsidian vault",
-        "title": "Obsidian Configuration"
+        "default_vault": "기본 Obsidian Vault",
+        "default_vault_export_failed": "내보내기 실패",
+        "default_vault_fetch_error": "Obsidian vault 가져오기 실패",
+        "default_vault_loading": "Obsidian vault 로드 중...",
+        "default_vault_no_vaults": "Obsidian vault를 찾을 수 없습니다",
+        "default_vault_placeholder": "기본 Obsidian vault를 선택하세요",
+        "title": "Obsidian 설정"
       },
       "s3": {
         "accessKeyId": {
-          "label": "Access Key ID",
-          "placeholder": "Access Key ID"
+          "label": "액세스 키 ID",
+          "placeholder": "액세스 키 ID"
         },
         "autoSync": {
-          "hour": "Every {{count}} hour",
-          "label": "Auto Sync",
-          "minute": "Every {{count}} minute",
-          "off": "Off"
+          "hour": "{{count}}시간마다",
+          "label": "자동 동기화",
+          "minute": "{{count}}분마다",
+          "off": "끔"
         },
         "backup": {
-          "button": "Backup Now",
-          "error": "S3 backup failed: {{message}}",
+          "button": "지금 백업",
+          "error": "S3 백업 실패: {{message}}",
           "manager": {
-            "button": "Manage Backups"
+            "button": "백업 관리"
           },
           "modal": {
             "filename": {
-              "placeholder": "Please enter backup filename"
+              "placeholder": "백업 파일 이름을 입력하세요"
             },
-            "title": "S3 Backup"
+            "title": "S3 백업"
           },
-          "operation": "Backup Operation",
-          "success": "S3 backup successful"
+          "operation": "백업 작업",
+          "success": "S3 백업 성공"
         },
         "bucket": {
-          "label": "Bucket",
-          "placeholder": "Bucket, e.g: example"
+          "label": "버킷",
+          "placeholder": "버킷, 예: example"
         },
         "endpoint": {
-          "label": "API Endpoint",
+          "label": "API 엔드포인트",
           "placeholder": "https://s3.example.com"
         },
         "manager": {
-          "close": "Close",
+          "close": "닫기",
           "columns": {
-            "actions": "Actions",
-            "fileName": "File Name",
-            "modifiedTime": "Modified Time",
-            "size": "File Size"
+            "actions": "작업",
+            "fileName": "파일 이름",
+            "modifiedTime": "수정된 시간",
+            "size": "파일 크기"
           },
           "config": {
-            "incomplete": "Please fill in complete S3 configuration"
+            "incomplete": "완전한 S3 구성을 입력하세요"
           },
           "delete": {
             "confirm": {
-              "multiple": "Are you sure you want to delete {{count}} selected backup files? This action cannot be undone.",
-              "single": "Are you sure you want to delete backup file \"{{fileName}}\"? This action cannot be undone.",
-              "title": "Confirm Delete"
+              "multiple": "선택한 {{count}}개의 백업 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+              "single": "백업 파일 \"{{fileName}}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+              "title": "삭제 확인"
             },
-            "error": "Failed to delete backup file: {{message}}",
-            "label": "Delete",
-            "selected": "Delete Selected ({{count}})",
+            "error": "백업 파일 삭제 실패: {{message}}",
+            "label": "삭제",
+            "selected": "선택 항목 삭제 ({{count}})",
             "success": {
-              "multiple": "Successfully deleted {{count}} backup files",
-              "single": "Backup file deleted successfully"
+              "multiple": "{{count}}개의 백업 파일을 성공적으로 삭제함",
+              "single": "백업 파일이 성공적으로 삭제됨"
             }
           },
           "files": {
             "fetch": {
-              "error": "Failed to fetch backup file list: {{message}}"
+              "error": "백업 파일 목록 가져오기 실패: {{message}}"
             }
           },
-          "refresh": "Refresh",
-          "restore": "Restore",
+          "refresh": "새로고침",
+          "restore": "복원",
           "select": {
-            "warning": "Please select backup files to delete"
+            "warning": "삭제할 백업 파일을 선택하세요"
           },
-          "title": "S3 Backup File Manager"
+          "title": "S3 백업 파일 관리자"
         },
         "maxBackups": {
-          "label": "Maximum Backups",
-          "unlimited": "Unlimited"
+          "label": "최대 백업 수",
+          "unlimited": "무제한"
         },
         "region": {
-          "label": "Region",
-          "placeholder": "Region, e.g: us-east-1"
+          "label": "리전",
+          "placeholder": "리전, 예: us-east-1"
         },
         "restore": {
           "config": {
