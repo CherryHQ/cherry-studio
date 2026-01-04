@@ -3165,6 +3165,7 @@
         "label": "Данные приложения",
         "migration_title": "Миграция данных",
         "new_path": "Новый путь",
+        "open": "Открыть каталог",
         "original_path": "Исходный путь",
         "path_change_failed": "Сбой изменения каталога данных",
         "path_changed_without_copy": "Путь изменен успешно",

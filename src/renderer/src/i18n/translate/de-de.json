@@ -3165,6 +3165,7 @@
         "label": "Anwendungsdaten",
         "migration_title": "Datenmigration",
         "new_path": "Neuer Pfad",
+        "open": "Offenes Verzeichnis",
         "original_path": "Ursprünglicher Pfad",
         "path_change_failed": "Datenverzeichnisänderung fehlgeschlagen",
         "path_changed_without_copy": "Pfad erfolgreich geändert",

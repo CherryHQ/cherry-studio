@@ -3165,6 +3165,7 @@
         "label": "Datos de la aplicación",
         "migration_title": "Migración de datos",
         "new_path": "Nueva ruta",
+        "open": "Directorio abierto",
         "original_path": "Ruta original",
         "path_change_failed": "Error al cambiar el directorio de datos",
         "path_changed_without_copy": "La ruta se ha cambiado correctamente",

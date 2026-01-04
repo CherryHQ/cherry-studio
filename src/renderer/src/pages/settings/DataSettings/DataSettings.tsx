@@ -1,11 +1,4 @@
-import {
-  CloudServerOutlined,
-  CloudSyncOutlined,
-  FileSearchOutlined,
-  LoadingOutlined,
-  WifiOutlined,
-  YuqueOutlined
-} from '@ant-design/icons'
+import { CloudServerOutlined, CloudSyncOutlined, LoadingOutlined, WifiOutlined, YuqueOutlined } from '@ant-design/icons'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { HStack } from '@renderer/components/Layout'
@@ -23,8 +16,8 @@ import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/setting
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Button, Progress, Switch, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
+import { Button, Progress, Switch, Tooltip, Typography } from 'antd'
+import { FileText, FolderCog, FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -646,9 +639,13 @@ const DataSettings: FC = () => {
                     onClick={() => handleOpenPath(appInfo?.appDataPath)}>
                     {appInfo?.appDataPath}
                   </PathText>
-                  <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
+                  <Tooltip title={t('settings.data.app_data.select')}>
+                    <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
+                  </Tooltip>
                   <HStack gap="5px" style={{ marginLeft: '8px' }}>
-                    <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
+                    <Button onClick={() => handleOpenPath(appInfo?.appDataPath)}>
+                      {t('settings.data.app_data.open')}
+                    </Button>
                   </HStack>
                 </PathRow>
               </SettingRow>
@@ -659,7 +656,6 @@ const DataSettings: FC = () => {
                   <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
                     {appInfo?.logsPath}
                   </PathText>
-                  <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
                   <HStack gap="5px" style={{ marginLeft: '8px' }}>
                     <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>
                       {t('settings.data.app_logs.button')}
@@ -715,16 +711,6 @@ const DataSettings: FC = () => {
 
 const Container = styled(HStack)`
   flex: 1;
-`
-
-const StyledIcon = styled(FileSearchOutlined)`
-  color: var(--color-text-2);
-  cursor: pointer;
-  transition: color 0.3s;
-
-  &:hover {
-    color: var(--color-text-1);
-  }
 `
 
 const MenuList = styled.div`
