@@ -3461,54 +3461,54 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Backup to Nutstore",
+          "button": "Nutstore에 백업",
           "modal": {
             "filename": {
-              "placeholder": "Enter backup filename"
+              "placeholder": "백업 파일 이름 입력"
             },
-            "title": "Backup to Nutstore"
+            "title": "Nutstore에 백업"
           }
         },
         "checkConnection": {
-          "fail": "Nutstore connection failed",
-          "name": "Check Connection",
-          "success": "Connected to Nutstore"
+          "fail": "Nutstore 연결 실패",
+          "name": "연결 확인",
+          "success": "Nutstore에 연결됨"
         },
-        "isLogin": "Logged in",
+        "isLogin": "로그인됨",
         "login": {
-          "button": "Login"
+          "button": "로그인"
         },
         "logout": {
-          "button": "Logout",
-          "content": "After logout, you will not be able to backup to Nutstore or restore from Nutstore.",
-          "title": "Are you sure you want to logout from Nutstore?"
+          "button": "로그아웃",
+          "content": "로그아웃 후에는 Nutstore에 백업하거나 Nutstore에서 복원할 수 없습니다.",
+          "title": "Nutstore에서 로그아웃하시겠습니까?"
         },
         "new_folder": {
           "button": {
-            "cancel": "Cancel",
-            "confirm": "Confirm",
-            "label": "New Folder"
+            "cancel": "취소",
+            "confirm": "확인",
+            "label": "새 폴더"
           }
         },
-        "notLogin": "Not logged in",
+        "notLogin": "로그인되지 않음",
         "path": {
-          "label": "Nutstore Storage Path",
-          "placeholder": "Enter Nutstore storage path"
+          "label": "Nutstore 저장 경로",
+          "placeholder": "Nutstore 저장 경로 입력"
         },
         "pathSelector": {
-          "currentPath": "Current Path",
-          "return": "Return",
-          "title": "Nutstore Storage Path"
+          "currentPath": "현재 경로",
+          "return": "돌아가기",
+          "title": "Nutstore 저장 경로"
         },
         "restore": {
-          "button": "Restore from Nutstore",
+          "button": "Nutstore에서 복원",
           "confirm": {
-            "content": "Restoring from Nutstore will overwrite current data. Do you want to continue?",
-            "title": "Restore from Nutstore"
+            "content": "Nutstore에서 복원하면 현재 데이터가 덮어씌워집니다. 계속하시겠습니까?",
+            "title": "Nutstore에서 복원"
           }
         },
-        "title": "Nutstore Configuration",
-        "username": "Nutstore Username"
+        "title": "Nutstore 설정",
+        "username": "Nutstore 사용자 이름"
       },
       "obsidian": {
         "default_vault": "Default Obsidian Vault",
