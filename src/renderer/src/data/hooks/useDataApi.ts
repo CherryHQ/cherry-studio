@@ -5,7 +5,7 @@ import {
   type OffsetPaginatedResponse,
   type PaginatedResponse
 } from '@shared/data/api/apiTypes'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyedMutator } from 'swr'
 import useSWR, { useSWRConfig } from 'swr'
 import useSWRInfinite from 'swr/infinite'
@@ -139,6 +139,17 @@ function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Recor
 }
 
 /**
+ * Default SWR configuration options shared across hooks
+ */
+const DEFAULT_SWR_OPTIONS = {
+  revalidateOnFocus: false,
+  revalidateOnReconnect: true,
+  dedupingInterval: 5000,
+  errorRetryCount: 3,
+  errorRetryInterval: 1000
+} as const
+
+/**
  * Data fetching hook with SWR caching and revalidation
  *
  * @example
@@ -159,17 +170,11 @@ export function useQuery<TPath extends ConcreteApiPaths>(
   const key = options?.enabled !== false ? buildSWRKey(path, options?.query as Record<string, any>) : null
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(key, getFetcher, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: true,
-    dedupingInterval: 5000,
-    errorRetryCount: 3,
-    errorRetryInterval: 1000,
+    ...DEFAULT_SWR_OPTIONS,
     ...options?.swrOptions
   })
 
-  const refetch = () => {
-    mutate()
-  }
+  const refetch = useCallback(() => mutate(), [mutate])
 
   return {
     data,
@@ -209,6 +214,12 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 ): UseMutationResult<TPath, TMethod> {
   const { mutate: globalMutate } = useSWRConfig()
 
+  // Use ref to avoid stale closure issues with callbacks
+  const optionsRef = useRef(options)
+  useEffect(() => {
+    optionsRef.current = options
+  }, [options])
+
   const apiFetcher = createApiFetcher(method)
 
   const fetcher = async (
@@ -229,25 +240,24 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     populateCache: false,
     revalidate: false,
     onSuccess: async (data) => {
-      options?.onSuccess?.(data)
+      optionsRef.current?.onSuccess?.(data)
 
-      if (options?.revalidate === true) {
+      if (optionsRef.current?.revalidate === true) {
         await globalMutate(() => true)
-      } else if (Array.isArray(options?.revalidate)) {
-        for (const path of options.revalidate) {
-          await globalMutate(path)
-        }
+      } else if (Array.isArray(optionsRef.current?.revalidate)) {
+        await Promise.all(optionsRef.current.revalidate.map((key) => globalMutate(key)))
       }
     },
-    onError: options?.onError
+    onError: (error) => optionsRef.current?.onError?.(error)
   })
 
   const optimisticMutate = async (data?: {
     body?: BodyForPath<TPath, TMethod>
     query?: QueryParamsForPath<TPath>
   }): Promise<ResponseForPath<TPath, TMethod>> => {
-    if (options?.optimistic && options?.optimisticData) {
-      await globalMutate(path, options.optimisticData, false)
+    const opts = optionsRef.current
+    if (opts?.optimistic && opts?.optimisticData) {
+      await globalMutate(path, opts.optimisticData, false)
     }
 
     try {
@@ -255,13 +265,13 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 
       const result = await trigger(convertedData)
 
-      if (options?.optimistic) {
+      if (opts?.optimistic) {
         await globalMutate(path)
       }
 
       return result
     } catch (err) {
-      if (options?.optimistic && options?.optimisticData) {
+      if (opts?.optimistic && opts?.optimisticData) {
         await globalMutate(path)
       }
       throw err
@@ -278,7 +288,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
   }
 
   return {
-    mutate: options?.optimistic ? optimisticMutate : normalMutate,
+    mutate: optionsRef.current?.optimistic ? optimisticMutate : normalMutate,
     isLoading: isMutating,
     error
   }
@@ -296,15 +306,14 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 export function useInvalidateCache() {
   const { mutate } = useSWRConfig()
 
-  const invalidate = (keys?: string | string[] | boolean): Promise<any> => {
+  const invalidate = async (keys?: string | string[] | boolean): Promise<void> => {
     if (keys === true || keys === undefined) {
-      return mutate(() => true)
+      await mutate(() => true)
     } else if (typeof keys === 'string') {
-      return mutate(keys)
+      await mutate(keys)
     } else if (Array.isArray(keys)) {
-      return Promise.all(keys.map((key) => mutate(key)))
+      await Promise.all(keys.map((key) => mutate(key)))
     }
-    return Promise.resolve()
   }
 
   return invalidate
@@ -398,11 +407,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   }
 
   const swrResult = useSWRInfinite(getKey, infiniteFetcher, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: true,
-    dedupingInterval: 5000,
-    errorRetryCount: 3,
-    errorRetryInterval: 1000,
+    ...DEFAULT_SWR_OPTIONS,
     initialSize: 1,
     revalidateAll: false,
     revalidateFirstPage: true,
@@ -469,12 +474,20 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
     query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit'>
     /** Items per page (default: 10) */
     limit?: number
+    /** Whether to enable the query (default: true) */
+    enabled?: boolean
     /** SWR options */
     swrOptions?: Parameters<typeof useSWR>[2]
   }
 ): UsePaginatedQueryResult<InferPaginatedItem<TPath>> {
   const [currentPage, setCurrentPage] = useState(1)
   const limit = options?.limit || 10
+
+  // Reset page to 1 when query parameters change
+  const queryKey = JSON.stringify(options?.query)
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [queryKey])
 
   const queryWithPagination = {
     ...options?.query,
@@ -484,6 +497,7 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
 
   const { data, isLoading, isRefreshing, error, refetch } = useQuery(path, {
     query: queryWithPagination as QueryParamsForPath<TPath>,
+    enabled: options?.enabled,
     swrOptions: options?.swrOptions
   })
 
