@@ -12,7 +12,7 @@ Fetch data with automatic caching and revalidation via SWR.
 import { useQuery } from '@data/hooks/useDataApi'
 
 // Basic usage
-const { data, loading, error } = useQuery('/topics')
+const { data, isLoading, error } = useQuery('/topics')
 
 // With query parameters
 const { data: messages } = useQuery('/messages', {
@@ -23,12 +23,12 @@ const { data: messages } = useQuery('/messages', {
 const { data: topic } = useQuery('/topics/abc123')
 
 // Conditional fetching
-const { data } = useQuery(topicId ? `/topics/${topicId}` : null)
+const { data } = useQuery('/topics', { enabled: !!topicId })
 
 // With refresh callback
-const { data, mutate } = useQuery('/topics')
+const { data, mutate, refetch } = useQuery('/topics')
 // Refresh data
-await mutate()
+refetch() // or await mutate()
 ```
 
 ### useMutation (POST/PUT/PATCH/DELETE)
@@ -39,21 +39,67 @@ Perform data modifications with loading states.
 import { useMutation } from '@data/hooks/useDataApi'
 
 // Create (POST)
-const { trigger: createTopic, isMutating } = useMutation('/topics', 'POST')
+const { trigger: createTopic, isLoading } = useMutation('POST', '/topics')
 const newTopic = await createTopic({ body: { name: 'New Topic' } })
 
 // Update (PUT - full replacement)
-const { trigger: replaceTopic } = useMutation('/topics/abc123', 'PUT')
+const { trigger: replaceTopic } = useMutation('PUT', '/topics/abc123')
 await replaceTopic({ body: { name: 'Updated Name', description: '...' } })
 
 // Partial Update (PATCH)
-const { trigger: updateTopic } = useMutation('/topics/abc123', 'PATCH')
+const { trigger: updateTopic } = useMutation('PATCH', '/topics/abc123')
 await updateTopic({ body: { name: 'New Name' } })
 
 // Delete
-const { trigger: deleteTopic } = useMutation('/topics/abc123', 'DELETE')
+const { trigger: deleteTopic } = useMutation('DELETE', '/topics/abc123')
 await deleteTopic()
+
+// With auto-refresh of other queries
+const { trigger } = useMutation('POST', '/topics', {
+  refresh: ['/topics'],  // Refresh these keys on success
+  onSuccess: (data) => console.log('Created:', data)
+})
 ```
+
+### useInfiniteQuery (Cursor-based Infinite Scroll)
+
+For infinite scroll UIs with "Load More" pattern.
+
+```typescript
+import { useInfiniteQuery } from '@data/hooks/useDataApi'
+
+const { items, isLoading, hasNext, loadNext } = useInfiniteQuery('/messages', {
+  query: { topicId: 'abc123' },
+  limit: 20
+})
+
+// items: all loaded items flattened
+// loadNext(): load next page
+// hasNext: true if more pages available
+```
+
+### usePaginatedQuery (Offset-based Pagination)
+
+For page-by-page navigation with previous/next controls.
+
+```typescript
+import { usePaginatedQuery } from '@data/hooks/useDataApi'
+
+const { items, page, total, hasNext, hasPrev, nextPage, prevPage } =
+  usePaginatedQuery('/topics', { limit: 10 })
+
+// items: current page items
+// page/total: current page number and total count
+// nextPage()/prevPage(): navigate between pages
+```
+
+### Choosing Pagination Hooks
+
+| Use Case | Hook |
+|----------|------|
+| Infinite scroll, chat, feeds | `useInfiniteQuery` |
+| Page navigation, tables | `usePaginatedQuery` |
+| Manual control | `useQuery` |
 
 ## DataApiService Direct Usage
 
@@ -94,9 +140,9 @@ await dataApiService.delete('/topics/abc123')
 
 ```typescript
 function TopicList() {
-  const { data, loading, error } = useQuery('/topics')
+  const { data, isLoading, error } = useQuery('/topics')
 
-  if (loading) return <Loading />
+  if (isLoading) return <Loading />
   if (error) {
     if (error.code === ErrorCode.NOT_FOUND) {
       return <NotFound />
@@ -146,39 +192,18 @@ if (error instanceof DataApiError && error.isRetryable) {
 
 ## Common Patterns
 
-### List with Pagination
-
-```typescript
-function TopicListWithPagination() {
-  const [page, setPage] = useState(1)
-  const { data, loading } = useQuery('/topics', {
-    query: { page, limit: 20 }
-  })
-
-  return (
-    <>
-      <List items={data?.items ?? []} />
-      <Pagination
-        current={page}
-        total={data?.total ?? 0}
-        onChange={setPage}
-      />
-    </>
-  )
-}
-```
-
 ### Create Form
 
 ```typescript
 function CreateTopicForm() {
-  const { trigger: createTopic, isMutating } = useMutation('/topics', 'POST')
-  const { mutate } = useQuery('/topics') // For revalidation
+  // Use refresh option to auto-refresh /topics after creation
+  const { trigger: createTopic, isLoading } = useMutation('POST', '/topics', {
+    refresh: ['/topics']
+  })
 
   const handleSubmit = async (data: CreateTopicDto) => {
     try {
       await createTopic({ body: data })
-      await mutate() // Refresh list
       toast.success('Topic created')
     } catch (error) {
       toast.error('Failed to create topic')
@@ -188,8 +213,8 @@ function CreateTopicForm() {
   return (
     <form onSubmit={handleSubmit}>
       {/* form fields */}
-      <button disabled={isMutating}>
-        {isMutating ? 'Creating...' : 'Create'}
+      <button disabled={isLoading}>
+        {isLoading ? 'Creating...' : 'Create'}
       </button>
     </form>
   )
@@ -200,26 +225,16 @@ function CreateTopicForm() {
 
 ```typescript
 function TopicItem({ topic }: { topic: Topic }) {
-  const { trigger: updateTopic } = useMutation(`/topics/${topic.id}`, 'PATCH')
-  const { mutate } = useQuery('/topics')
+  // Use optimisticData for automatic optimistic updates with rollback
+  const { trigger: updateTopic } = useMutation('PATCH', `/topics/${topic.id}`, {
+    optimisticData: { ...topic, starred: !topic.starred }
+  })
 
   const handleToggleStar = async () => {
-    // Optimistically update the cache
-    await mutate(
-      current => ({
-        ...current,
-        items: current.items.map(t =>
-          t.id === topic.id ? { ...t, starred: !t.starred } : t
-        )
-      }),
-      { revalidate: false }
-    )
-
     try {
       await updateTopic({ body: { starred: !topic.starred } })
     } catch (error) {
-      // Revert on failure
-      await mutate()
+      // Rollback happens automatically when optimisticData is set
       toast.error('Failed to update')
     }
   }
@@ -279,7 +294,7 @@ The API is fully typed based on schema definitions:
 const { data } = useQuery('/topics')
 // data is typed as PaginatedResponse<Topic>
 
-const { trigger } = useMutation('/topics', 'POST')
+const { trigger } = useMutation('POST', '/topics')
 // trigger expects { body: CreateTopicDto }
 // returns Topic
 
@@ -291,8 +306,9 @@ const { data: topic } = useQuery('/topics/abc123')
 ## Best Practices
 
 1. **Use hooks for components**: `useQuery` and `useMutation` handle loading/error states
-2. **Handle loading states**: Always show feedback while data is loading
-3. **Handle errors gracefully**: Provide meaningful error messages to users
-4. **Revalidate after mutations**: Keep the UI in sync with the database
-5. **Use conditional fetching**: Pass `null` to skip queries when dependencies aren't ready
-6. **Batch related operations**: Consider using transactions for multiple updates
+2. **Choose the right pagination hook**: Use `useInfiniteQuery` for infinite scroll, `usePaginatedQuery` for page navigation
+3. **Handle loading states**: Always show feedback while data is loading
+4. **Handle errors gracefully**: Provide meaningful error messages to users
+5. **Revalidate after mutations**: Use `refresh` option to keep the UI in sync
+6. **Use conditional fetching**: Set `enabled: false` to skip queries when dependencies aren't ready
+7. **Batch related operations**: Consider using transactions for multiple updates

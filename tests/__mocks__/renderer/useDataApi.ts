@@ -46,7 +46,7 @@ function createMockDataForPath(path: ConcreteApiPaths): any {
 
 /**
  * Mock useQuery hook
- * Matches actual signature: useQuery(path, options?) => { data, loading, error, refetch, mutate }
+ * Matches actual signature: useQuery(path, options?) => { data, isLoading, isRefreshing, error, refetch, mutate }
  */
 export const mockUseQuery = vi.fn(
   <TPath extends ConcreteApiPaths>(
@@ -58,7 +58,8 @@ export const mockUseQuery = vi.fn(
     }
   ): {
     data?: ResponseForPath<TPath, 'GET'>
-    loading: boolean
+    isLoading: boolean
+    isRefreshing: boolean
     error?: Error
     refetch: () => void
     mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>>
@@ -67,7 +68,8 @@ export const mockUseQuery = vi.fn(
     if (options?.enabled === false) {
       return {
         data: undefined,
-        loading: false,
+        isLoading: false,
+        isRefreshing: false,
         error: undefined,
         refetch: vi.fn(),
         mutate: vi.fn().mockResolvedValue(undefined) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>>
@@ -78,7 +80,8 @@ export const mockUseQuery = vi.fn(
 
     return {
       data: mockData as ResponseForPath<TPath, 'GET'>,
-      loading: false,
+      isLoading: false,
+      isRefreshing: false,
       error: undefined,
       refetch: vi.fn(),
       mutate: vi.fn().mockResolvedValue(mockData) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>>
@@ -88,7 +91,7 @@ export const mockUseQuery = vi.fn(
 
 /**
  * Mock useMutation hook
- * Matches actual signature: useMutation(method, path, options?) => { mutate, loading, error }
+ * Matches actual signature: useMutation(method, path, options?) => { trigger, isLoading, error }
  */
 export const mockUseMutation = vi.fn(
   <TPath extends ConcreteApiPaths, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
@@ -97,19 +100,19 @@ export const mockUseMutation = vi.fn(
     _options?: {
       onSuccess?: (data: ResponseForPath<TPath, TMethod>) => void
       onError?: (error: Error) => void
-      revalidate?: boolean | string[]
-      optimistic?: boolean
+      refresh?: ConcreteApiPaths[]
       optimisticData?: ResponseForPath<TPath, TMethod>
+      swrOptions?: any
     }
   ): {
-    mutate: (data?: {
+    trigger: (data?: {
       body?: BodyForPath<TPath, TMethod>
       query?: QueryParamsForPath<TPath>
     }) => Promise<ResponseForPath<TPath, TMethod>>
-    loading: boolean
+    isLoading: boolean
     error: Error | undefined
   } => {
-    const mockMutate = vi.fn(
+    const mockTrigger = vi.fn(
       async (_data?: { body?: BodyForPath<TPath, TMethod>; query?: QueryParamsForPath<TPath> }) => {
         // Simulate different responses based on method
         switch (method) {
@@ -127,8 +130,8 @@ export const mockUseMutation = vi.fn(
     )
 
     return {
-      mutate: mockMutate,
-      loading: false,
+      trigger: mockTrigger,
+      isLoading: false,
       error: undefined
     }
   }
@@ -136,7 +139,7 @@ export const mockUseMutation = vi.fn(
 
 /**
  * Mock usePaginatedQuery hook
- * Matches actual signature: usePaginatedQuery(path, options?) => { items, total, page, loading, error, hasMore, hasPrev, prevPage, nextPage, refresh, reset }
+ * Matches actual signature: usePaginatedQuery(path, options?) => { items, total, page, isLoading, isRefreshing, error, hasNext, hasPrev, prevPage, nextPage, refresh, reset }
  */
 export const mockUsePaginatedQuery = vi.fn(
   <TPath extends ConcreteApiPaths>(
@@ -151,9 +154,10 @@ export const mockUsePaginatedQuery = vi.fn(
         items: T[]
         total: number
         page: number
-        loading: boolean
+        isLoading: boolean
+        isRefreshing: boolean
         error?: Error
-        hasMore: boolean
+        hasNext: boolean
         hasPrev: boolean
         prevPage: () => void
         nextPage: () => void
@@ -173,9 +177,10 @@ export const mockUsePaginatedQuery = vi.fn(
       items: mockItems,
       total: mockItems.length,
       page: 1,
-      loading: false,
+      isLoading: false,
+      isRefreshing: false,
       error: undefined,
-      hasMore: false,
+      hasNext: false,
       hasPrev: false,
       prevPage: vi.fn(),
       nextPage: vi.fn(),
@@ -186,9 +191,10 @@ export const mockUsePaginatedQuery = vi.fn(
           items: T[]
           total: number
           page: number
-          loading: boolean
+          isLoading: boolean
+          isRefreshing: boolean
           error?: Error
-          hasMore: boolean
+          hasNext: boolean
           hasPrev: boolean
           prevPage: () => void
           nextPage: () => void
@@ -259,7 +265,8 @@ export const MockUseDataApiUtils = {
       if (queryPath === path) {
         return {
           data,
-          loading: false,
+          isLoading: false,
+          isRefreshing: false,
           error: undefined,
           refetch: vi.fn(),
           mutate: vi.fn().mockResolvedValue(data)
@@ -269,7 +276,8 @@ export const MockUseDataApiUtils = {
       const defaultData = createMockDataForPath(queryPath)
       return {
         data: defaultData,
-        loading: false,
+        isLoading: false,
+        isRefreshing: false,
         error: undefined,
         refetch: vi.fn(),
         mutate: vi.fn().mockResolvedValue(defaultData)
@@ -285,7 +293,8 @@ export const MockUseDataApiUtils = {
       if (queryPath === path) {
         return {
           data: undefined,
-          loading: true,
+          isLoading: true,
+          isRefreshing: false,
           error: undefined,
           refetch: vi.fn(),
           mutate: vi.fn().mockResolvedValue(undefined)
@@ -294,7 +303,8 @@ export const MockUseDataApiUtils = {
       const defaultData = createMockDataForPath(queryPath)
       return {
         data: defaultData,
-        loading: false,
+        isLoading: false,
+        isRefreshing: false,
         error: undefined,
         refetch: vi.fn(),
         mutate: vi.fn().mockResolvedValue(defaultData)
@@ -310,7 +320,8 @@ export const MockUseDataApiUtils = {
       if (queryPath === path) {
         return {
           data: undefined,
-          loading: false,
+          isLoading: false,
+          isRefreshing: false,
           error,
           refetch: vi.fn(),
           mutate: vi.fn().mockResolvedValue(undefined)
@@ -319,7 +330,8 @@ export const MockUseDataApiUtils = {
       const defaultData = createMockDataForPath(queryPath)
       return {
         data: defaultData,
-        loading: false,
+        isLoading: false,
+        isRefreshing: false,
         error: undefined,
         refetch: vi.fn(),
         mutate: vi.fn().mockResolvedValue(defaultData)
@@ -338,15 +350,15 @@ export const MockUseDataApiUtils = {
     mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
       if (mutationPath === path && mutationMethod === method) {
         return {
-          mutate: vi.fn().mockResolvedValue(result),
-          loading: false,
+          trigger: vi.fn().mockResolvedValue(result),
+          isLoading: false,
           error: undefined
         }
       }
       // Default behavior
       return {
-        mutate: vi.fn().mockResolvedValue({ success: true }),
-        loading: false,
+        trigger: vi.fn().mockResolvedValue({ success: true }),
+        isLoading: false,
         error: undefined
       }
     })
@@ -363,15 +375,15 @@ export const MockUseDataApiUtils = {
     mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
       if (mutationPath === path && mutationMethod === method) {
         return {
-          mutate: vi.fn().mockRejectedValue(error),
-          loading: false,
+          trigger: vi.fn().mockRejectedValue(error),
+          isLoading: false,
           error: undefined
         }
       }
       // Default behavior
       return {
-        mutate: vi.fn().mockResolvedValue({ success: true }),
-        loading: false,
+        trigger: vi.fn().mockResolvedValue({ success: true }),
+        isLoading: false,
         error: undefined
       }
     })
@@ -387,15 +399,15 @@ export const MockUseDataApiUtils = {
     mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
       if (mutationPath === path && mutationMethod === method) {
         return {
-          mutate: vi.fn().mockImplementation(() => new Promise(() => {})), // Never resolves
-          loading: true,
+          trigger: vi.fn().mockImplementation(() => new Promise(() => {})), // Never resolves
+          isLoading: true,
           error: undefined
         }
       }
       // Default behavior
       return {
-        mutate: vi.fn().mockResolvedValue({ success: true }),
-        loading: false,
+        trigger: vi.fn().mockResolvedValue({ success: true }),
+        isLoading: false,
         error: undefined
       }
     })
@@ -407,7 +419,7 @@ export const MockUseDataApiUtils = {
   mockPaginatedData: <TPath extends ConcreteApiPaths>(
     path: TPath,
     items: any[],
-    options?: { total?: number; page?: number; hasMore?: boolean; hasPrev?: boolean }
+    options?: { total?: number; page?: number; hasNext?: boolean; hasPrev?: boolean }
   ) => {
     mockUsePaginatedQuery.mockImplementation((queryPath, _queryOptions) => {
       if (queryPath === path) {
@@ -415,9 +427,10 @@ export const MockUseDataApiUtils = {
           items,
           total: options?.total ?? items.length,
           page: options?.page ?? 1,
-          loading: false,
+          isLoading: false,
+          isRefreshing: false,
           error: undefined,
-          hasMore: options?.hasMore ?? false,
+          hasNext: options?.hasNext ?? false,
           hasPrev: options?.hasPrev ?? false,
           prevPage: vi.fn(),
           nextPage: vi.fn(),
@@ -430,9 +443,10 @@ export const MockUseDataApiUtils = {
         items: [],
         total: 0,
         page: 1,
-        loading: false,
+        isLoading: false,
+        isRefreshing: false,
         error: undefined,
-        hasMore: false,
+        hasNext: false,
         hasPrev: false,
         prevPage: vi.fn(),
         nextPage: vi.fn(),
