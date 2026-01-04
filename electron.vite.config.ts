@@ -50,8 +50,7 @@ export default defineConfig({
   preload: {
     plugins: [
       react({
-        tsDecorators: true,
-        disableOxcRecommendation: true
+        tsDecorators: true
       })
     ],
     resolve: {
@@ -68,8 +67,7 @@ export default defineConfig({
     plugins: [
       (async () => (await import('@tailwindcss/vite')).default())(),
       react({
-        tsDecorators: true,
-        disableOxcRecommendation: true
+        tsDecorators: true
       }),
       ...(isDev ? [CodeInspectorPlugin({ bundler: 'vite' })] : []), // 只在开发环境下启用 CodeInspectorPlugin
       ...visualizerPlugin('renderer')
