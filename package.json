@@ -77,6 +77,7 @@
     "@opentelemetry/context-async-hooks": "^2.2.0",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
     "adm-zip": "^0.4.16",
+    "chalk": "4.1.2",
     "express": "5.1.0",
     "font-list": "2.0.0",
     "form-data": "4.0.4",

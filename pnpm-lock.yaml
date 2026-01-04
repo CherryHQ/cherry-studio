@@ -117,6 +117,9 @@ importers:
       adm-zip:
         specifier: ^0.4.16
         version: 0.4.16
+      chalk:
+        specifier: 4.1.2
+        version: 4.1.2
       express:
         specifier: 5.1.0
         version: 5.1.0
@@ -7408,10 +7411,6 @@ packages:
     resolution: {integrity: sha512-KrGhL9Q4zjj0kiUt5OO4Mr/A/jlI2jDYs5eHBpYHPcBEVSiipAvn2Ko2HnPe20rmcuuvMHNdZFp+4IlGTMF0Ow==}
     engines: {node: '>= 6'}
 
-  form-data@4.0.5:
-    resolution: {integrity: sha512-8RipRLol37bNs2bhoV67fiTEvdTrbMUYcFTiy3+wuuOnUog2QBHCZWXDRijWQfAkhBj2Uf5UnVaiWwA5vdd82w==}
-    engines: {node: '>= 6'}
-
   formdata-node@4.4.1:
     resolution: {integrity: sha512-0iirZp3uVDjVGt9p49aTaqjk84TrglENEDuqfdlZQ1roC9CWlPk6Avf8EEnZNcAqPonwkG35x4n3ww/1THYAeQ==}
     engines: {node: '>= 12.20'}
@@ -14212,7 +14211,7 @@ snapshots:
     dependencies:
       '@types/node': 18.19.130
       extend: 3.0.2
-      form-data: 4.0.5
+      form-data: 4.0.4
       ibm-cloud-sdk-core: 5.4.5
     transitivePeerDependencies:
       - supports-color
@@ -18262,7 +18261,7 @@ snapshots:
   code-inspector-core@0.20.17:
     dependencies:
       '@vue/compiler-dom': 3.5.26
-      chalk: 4.1.1
+      chalk: 4.1.2
       dotenv: 16.6.1
       launch-ide: 1.0.8
       portfinder: 1.0.38
@@ -19761,14 +19760,6 @@ snapshots:
       hasown: 2.0.2
       mime-types: 2.1.35
 
-  form-data@4.0.5:
-    dependencies:
-      asynckit: 0.4.0
-      combined-stream: 1.0.8
-      es-set-tostringtag: 2.1.0
-      hasown: 2.0.2
-      mime-types: 2.1.35
-
   formdata-node@4.4.1:
     dependencies:
       node-domexception: 1.0.0
@@ -20367,7 +20358,7 @@ snapshots:
       dotenv: 16.6.1
       extend: 3.0.2
       file-type: 16.5.4
-      form-data: 4.0.5
+      form-data: 4.0.4
       isstream: 0.1.2
       jsonwebtoken: 9.0.3
       mime-types: 2.1.35
@@ -20828,7 +20819,7 @@ snapshots:
 
   launch-ide@1.0.8:
     dependencies:
-      chalk: 4.1.1
+      chalk: 4.1.2
       dotenv: 16.6.1
 
   layerr@3.0.0: {}
