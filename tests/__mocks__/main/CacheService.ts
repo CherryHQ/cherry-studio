@@ -1,3 +1,4 @@
+import type { SharedCacheKey, SharedCacheSchema } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { vi } from 'vitest'
 
@@ -8,6 +9,9 @@ import { vi } from 'vitest'
 
 // Mock cache storage
 const mockMainCache = new Map<string, CacheEntry>()
+
+// Mock shared cache storage
+const mockSharedCache = new Map<string, CacheEntry>()
 
 // Mock broadcast tracking
 const mockBroadcastCalls: Array<{ message: CacheSyncMessage; senderWindowId?: number }> = []
@@ -72,9 +76,75 @@ export class MockMainCacheService {
     return mockMainCache.delete(key)
   })
 
+  // ============ Shared Cache Methods ============
+
+  public getShared = vi.fn(<K extends SharedCacheKey>(key: K): SharedCacheSchema[K] | undefined => {
+    const entry = mockSharedCache.get(key)
+    if (!entry) return undefined
+
+    // Check TTL (lazy cleanup)
+    if (entry.expireAt && Date.now() > entry.expireAt) {
+      mockSharedCache.delete(key)
+      return undefined
+    }
+
+    return entry.value as SharedCacheSchema[K]
+  })
+
+  public setShared = vi.fn(<K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K], ttl?: number): void => {
+    const entry: CacheEntry = {
+      value,
+      expireAt: ttl ? Date.now() + ttl : undefined
+    }
+    mockSharedCache.set(key, entry)
+
+    // Track broadcast for testing
+    mockBroadcastCalls.push({
+      message: {
+        type: 'shared',
+        key,
+        value,
+        expireAt: entry.expireAt
+      }
+    })
+  })
+
+  public hasShared = vi.fn(<K extends SharedCacheKey>(key: K): boolean => {
+    const entry = mockSharedCache.get(key)
+    if (!entry) return false
+
+    // Check TTL
+    if (entry.expireAt && Date.now() > entry.expireAt) {
+      mockSharedCache.delete(key)
+      return false
+    }
+
+    return true
+  })
+
+  public deleteShared = vi.fn(<K extends SharedCacheKey>(key: K): boolean => {
+    if (!mockSharedCache.has(key)) {
+      return true
+    }
+
+    mockSharedCache.delete(key)
+
+    // Track broadcast for testing
+    mockBroadcastCalls.push({
+      message: {
+        type: 'shared',
+        key,
+        value: undefined
+      }
+    })
+
+    return true
+  })
+
   // Mock cleanup
   public cleanup = vi.fn((): void => {
     mockMainCache.clear()
+    mockSharedCache.clear()
     mockBroadcastCalls.length = 0
   })
 
@@ -110,6 +180,7 @@ export const MockMainCacheServiceUtils = {
 
     // Reset cache state
     mockMainCache.clear()
+    mockSharedCache.clear()
     mockBroadcastCalls.length = 0
 
     // Reset initialized state
@@ -164,6 +235,52 @@ export const MockMainCacheServiceUtils = {
     return new Map(mockMainCache)
   },
 
+  // ============ Shared Cache Utilities ============
+
+  /**
+   * Set shared cache value for testing
+   */
+  setSharedCacheValue: <K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K], ttl?: number) => {
+    const entry: CacheEntry = {
+      value,
+      expireAt: ttl ? Date.now() + ttl : undefined
+    }
+    mockSharedCache.set(key, entry)
+  },
+
+  /**
+   * Get shared cache value for testing
+   */
+  getSharedCacheValue: <K extends SharedCacheKey>(key: K): SharedCacheSchema[K] | undefined => {
+    const entry = mockSharedCache.get(key)
+    if (!entry) return undefined
+
+    // Check TTL
+    if (entry.expireAt && Date.now() > entry.expireAt) {
+      mockSharedCache.delete(key)
+      return undefined
+    }
+
+    return entry.value as SharedCacheSchema[K]
+  },
+
+  /**
+   * Get all shared cache entries for testing
+   */
+  getAllSharedCacheEntries: (): Map<string, CacheEntry> => {
+    return new Map(mockSharedCache)
+  },
+
+  /**
+   * Simulate shared cache expiration for testing
+   */
+  simulateSharedCacheExpiration: (key: string) => {
+    const entry = mockSharedCache.get(key)
+    if (entry) {
+      entry.expireAt = Date.now() - 1000 // Set to expired
+    }
+  },
+
   /**
    * Get broadcast call history for testing
    */
@@ -206,8 +323,10 @@ export const MockMainCacheServiceUtils = {
    */
   getCacheStats: () => ({
     totalEntries: mockMainCache.size,
+    sharedEntries: mockSharedCache.size,
     broadcastCalls: mockBroadcastCalls.length,
-    keys: Array.from(mockMainCache.keys())
+    keys: Array.from(mockMainCache.keys()),
+    sharedKeys: Array.from(mockSharedCache.keys())
   }),
 
   /**
@@ -226,6 +345,10 @@ export const MockMainCacheServiceUtils = {
     set: mockInstance.set.mock.calls.length,
     has: mockInstance.has.mock.calls.length,
     delete: mockInstance.delete.mock.calls.length,
+    getShared: mockInstance.getShared.mock.calls.length,
+    setShared: mockInstance.setShared.mock.calls.length,
+    hasShared: mockInstance.hasShared.mock.calls.length,
+    deleteShared: mockInstance.deleteShared.mock.calls.length,
     cleanup: mockInstance.cleanup.mock.calls.length
   })
 }
