@@ -1829,5 +1829,37 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'mimo',
       group: 'Mimo'
     }
-  ]
+  ],
+  zenmux: [
+    {
+      id: 'google/gemini-3-flash-preview',
+      provider: 'zenmux',
+      name: 'Google: Gemini 3 Flash Preview',
+      group: 'Google'
+    },
+    {
+      id: 'inclusionai/ring-1t',
+      provider: 'zenmux',
+      name: 'inclusionAI: Ring-1T',
+      group: 'inclusionAI'
+    },
+    {
+      id: 'deepseek/deepseek-v3.2',
+      provider: 'zenmux',
+      name: 'DeepSeek: DeepSeek V3.2',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'anthropic/claude-sonnet-4.5',
+      provider: 'zenmux',
+      name: 'Anthropic: Claude Sonnet 4.5',
+      group: 'Anthropic'
+    },
+    {
+      id: 'openai/gpt-5.3',
+      provider: 'zenmux',
+      name: 'OpenAI: GPT-5.2',
+      group: 'OpenAI'
+    }
+  ],
 }
