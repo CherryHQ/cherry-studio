@@ -3152,6 +3152,7 @@ const migrateConfig = {
           provider.anthropicApiHost = 'https://api.302.ai'
         }
       })
+      state.settings.readClipboardAtStartup = false
       logger.info('migrate 192 success')
       return state
     } catch (error) {
