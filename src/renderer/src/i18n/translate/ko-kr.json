@@ -1768,314 +1768,314 @@
   "message": {
     "agents": {
       "import": {
-        "error": "Import failed"
+        "error": "가져오기 실패"
       },
-      "imported": "Successfully imported {{count}} assistant(s)"
+      "imported": "{{count}}개의 어시스턴트를 성공적으로 가져왔습니다"
     },
     "api": {
       "check": {
         "model": {
-          "title": "Select the model to use for detection"
+          "title": "감지에 사용할 모델 선택"
         }
       },
       "connection": {
-        "failed": "Connection failed",
-        "success": "Connection successful"
+        "failed": "연결 실패",
+        "success": "연결 성공"
       }
     },
     "assistant": {
       "added": {
-        "content": "Assistant added successfully"
+        "content": "어시스턴트가 성공적으로 추가되었습니다"
       }
     },
     "attachments": {
-      "pasted_image": "Pasted Image",
-      "pasted_text": "Pasted Text"
+      "pasted_image": "붙여넣은 이미지",
+      "pasted_text": "붙여넣은 텍스트"
     },
     "backup": {
-      "failed": "Backup failed",
+      "failed": "백업 실패",
       "start": {
-        "success": "Backup started"
+        "success": "백업 시작됨"
       },
-      "success": "Backup successful"
+      "success": "백업 성공"
     },
     "branch": {
-      "error": "Branch creation failed"
+      "error": "브랜치 생성 실패"
     },
     "chat": {
       "completion": {
-        "paused": "Chat completion paused"
+        "paused": "채팅 완료 일시 중지됨"
       }
     },
-    "citation": "{{count}} citations",
-    "citations": "References",
-    "copied": "Copied!",
+    "citation": "{{count}}개의 인용",
+    "citations": "참조",
+    "copied": "복사됨!",
     "copy": {
-      "failed": "Copy failed",
-      "success": "Copied!"
+      "failed": "복사 실패",
+      "success": "복사됨!"
     },
     "delete": {
       "confirm": {
-        "content": "Are you sure you want to delete the selected {{count}} message(s)?",
-        "title": "Delete Confirmation"
+        "content": "선택한 {{count}}개의 메시지를 삭제하시겠습니까?",
+        "title": "삭제 확인"
       },
-      "failed": "Delete Failed",
-      "success": "Delete Successful"
+      "failed": "삭제 실패",
+      "success": "삭제 성공"
     },
     "dialog": {
-      "failed": "Preview failed"
+      "failed": "미리보기 실패"
     },
     "download": {
-      "failed": "Download failed",
-      "success": "Download successfully"
+      "failed": "다운로드 실패",
+      "success": "다운로드 성공"
     },
-    "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
+    "empty_url": "이미지 다운로드 실패, 프롬프트에 민감한 내용이나 금지된 단어가 포함되어 있을 수 있습니다",
     "error": {
-      "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
-      "copy": "Copy failed",
-      "dimension_too_large": "Content size is too large",
+      "chunk_overlap_too_large": "청크 오버랩이 청크 크기보다 클 수 없습니다",
+      "copy": "복사 실패",
+      "dimension_too_large": "콘텐츠 크기가 너무 큽니다",
       "enter": {
         "api": {
-          "host": "Please enter your API host first",
-          "label": "Please enter your API key first"
+          "host": "먼저 API 호스트를 입력하세요",
+          "label": "먼저 API 키를 입력하세요"
         },
-        "model": "Please select a model first",
-        "name": "Please enter the name of the knowledge base"
+        "model": "먼저 모델을 선택하세요",
+        "name": "지식 베이스의 이름을 입력하세요"
       },
-      "fetchTopicName": "Failed to name the topic",
-      "get_embedding_dimensions": "Failed to get embedding dimensions",
+      "fetchTopicName": "주제 이름 가져오기 실패",
+      "get_embedding_dimensions": "임베딩 차원 가져오기 실패",
       "invalid": {
         "api": {
-          "host": "Invalid API Host",
-          "label": "Invalid API Key"
+          "host": "잘못된 API 호스트",
+          "label": "잘못된 API 키"
         },
         "enter": {
-          "model": "Please select a model"
+          "model": "모델을 선택하세요"
         },
-        "nutstore": "Invalid Nutstore settings",
-        "nutstore_token": "Invalid Nutstore Token",
+        "nutstore": "잘못된 Nutstore 설정",
+        "nutstore_token": "잘못된 Nutstore 토큰",
         "proxy": {
-          "url": "Invalid proxy URL"
+          "url": "잘못된 프록시 URL"
         },
-        "webdav": "Invalid WebDAV settings"
+        "webdav": "잘못된 WebDAV 설정"
       },
       "joplin": {
-        "export": "Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
-        "no_config": "Joplin Authorization Token or URL is not configured"
+        "export": "Joplin으로 내보내기 실패. Joplin이 실행 중인지 확인하고 연결 상태 또는 구성을 확인하세요",
+        "no_config": "Joplin 인증 토큰 또는 URL이 구성되지 않았습니다"
       },
       "markdown": {
         "export": {
-          "preconf": "Failed to export the Markdown file to the preconfigured path",
-          "specified": "Failed to export the Markdown file"
+          "preconf": "미리 구성된 경로로 Markdown 파일 내보내기 실패",
+          "specified": "Markdown 파일 내보내기 실패"
         }
       },
       "notes": {
-        "export": "Failed to export notes"
+        "export": "메모 내보내기 실패"
       },
       "notion": {
-        "export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
-        "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
-        "no_content": "There is nothing to export to Notion."
+        "export": "Notion으로 내보내기 실패. 문서에 따라 연결 상태와 구성을 확인하세요",
+        "no_api_key": "Notion API 키 또는 Notion 데이터베이스 ID가 구성되지 않았습니다",
+        "no_content": "Notion으로 내보낼 내용이 없습니다."
       },
       "siyuan": {
-        "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
-        "no_config": "Siyuan Note API address or token is not configured"
+        "export": "Siyuan Note로 내보내기 실패. 문서에 따라 연결 상태와 구성을 확인하세요",
+        "no_config": "Siyuan Note API 주소 또는 토큰이 구성되지 않았습니다"
       },
-      "unknown": "Unknown error",
+      "unknown": "알 수 없는 오류",
       "yuque": {
-        "export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
-        "no_config": "Yuque Token or Yuque Url is not configured"
+        "export": "Yuque로 내보내기 실패. 문서에 따라 연결 상태와 구성을 확인하세요",
+        "no_config": "Yuque 토큰 또는 Yuque URL이 구성되지 않았습니다"
       }
     },
     "group": {
       "delete": {
-        "content": "Deleting a group message will delete the user's question and all assistant's answers",
-        "title": "Delete Group Message"
+        "content": "그룹 메시지를 삭제하면 사용자의 질문과 모든 어시스턴트의 답변이 삭제됩니다",
+        "title": "그룹 메시지 삭제"
       },
-      "retry_failed": "Retry failed messages"
+      "retry_failed": "실패한 메시지 다시 시도"
     },
     "ignore": {
       "knowledge": {
-        "base": "Web search mode is enabled, ignore knowledge base"
+        "base": "웹 검색 모드가 활성화되었습니다. 지식 베이스를 무시합니다"
       }
     },
     "loading": {
       "notion": {
-        "exporting_progress": "Exporting to Notion ...",
-        "preparing": "Preparing to export to Notion..."
+        "exporting_progress": "Notion으로 내보내는 중 ...",
+        "preparing": "Notion으로 내보낼 준비 중..."
       }
     },
     "mention": {
-      "title": "Switch model answer"
+      "title": "모델 답변 전환"
     },
     "message": {
-      "code_style": "Code style",
+      "code_style": "코드 스타일",
       "compact": {
-        "title": "Conversation Compacted"
+        "title": "대화 압축됨"
       },
       "delete": {
-        "content": "Are you sure you want to delete this message?",
-        "title": "Delete Message"
+        "content": "이 메시지를 삭제하시겠습니까?",
+        "title": "메시지 삭제"
       },
       "multi_model_style": {
         "fold": {
-          "compress": "Switch to compact layout",
-          "expand": "Switch to expanded layout",
-          "label": "Fold view"
+          "compress": "_compact 레이아웃으로 전환",
+          "expand": "확장 레이아웃으로 전환",
+          "label": "접기 보기"
         },
-        "grid": "Grid layout",
-        "horizontal": "Side by side",
-        "label": "Group style",
-        "vertical": "Stacked view"
+        "grid": "그리드 레이아웃",
+        "horizontal": "나란히",
+        "label": "그룹 스타일",
+        "vertical": "스택 보기"
       },
       "style": {
-        "bubble": "Bubble",
-        "label": "Message style",
-        "plain": "Plain"
+        "bubble": "버블",
+        "label": "메시지 스타일",
+        "plain": "일반"
       },
       "video": {
         "error": {
-          "local_file_missing": "Local video file path not found",
-          "unsupported_type": "Unsupported video type",
-          "youtube_url_missing": "YouTube video URL not found"
+          "local_file_missing": "로컬 비디오 파일 경로를 찾을 수 없습니다",
+          "unsupported_type": "지원되지 않는 비디오 유형",
+          "youtube_url_missing": "YouTube 비디오 URL을 찾을 수 없습니다"
         }
       }
     },
-    "processing": "Processing...",
+    "processing": "처리 중...",
     "regenerate": {
-      "confirm": "Regenerating will replace current message"
+      "confirm": "다시 생성하면 현재 메시지가 대체됩니다"
     },
     "reset": {
       "confirm": {
-        "content": "Are you sure you want to clear all data?"
+        "content": "모든 데이터를 삭제하시겠습니까?"
       },
       "double": {
         "confirm": {
-          "content": "All data will be lost, do you want to continue?",
-          "title": "DATA LOST !!!"
+          "content": "모든 데이터가 손실됩니다. 계속하시겠습니까?",
+          "title": "데이터 손실 !!!"
         }
       }
     },
     "restore": {
-      "failed": "Restore failed",
-      "success": "Restored successfully"
+      "failed": "복원 실패",
+      "success": "성공적으로 복원됨"
     },
     "save": {
       "success": {
-        "title": "Saved successfully"
+        "title": "성공적으로 저장됨"
       }
     },
-    "searching": "Searching...",
+    "searching": "검색 중...",
     "success": {
       "joplin": {
-        "export": "Successfully exported to Joplin"
+        "export": "Joplin으로 성공적으로 내보냄"
       },
       "markdown": {
         "export": {
-          "preconf": "Successfully exported the Markdown file to the preconfigured path",
-          "specified": "Successfully exported the Markdown file"
+          "preconf": "미리 구성된 경로로 Markdown 파일을 성공적으로 내보냄",
+          "specified": "Markdown 파일을 성공적으로 내보냄"
         }
       },
       "notes": {
-        "export": "Successfully exported to notes"
+        "export": "메모로 성공적으로 내보냄"
       },
       "notion": {
-        "export": "Successfully exported to Notion"
+        "export": "Notion으로 성공적으로 내보냄"
       },
       "siyuan": {
-        "export": "Successfully exported to Siyuan Note"
+        "export": "Siyuan Note로 성공적으로 내보냄"
       },
       "yuque": {
-        "export": "Successfully exported to Yuque"
+        "export": "Yuque로 성공적으로 내보냄"
       }
     },
     "switch": {
-      "disabled": "Please wait for the current reply to complete"
+      "disabled": "현재 응답이 완료될 때까지 기다려주세요"
     },
     "tools": {
-      "abort_failed": "Tool call abort failed",
-      "aborted": "Tool call aborted",
-      "autoApproveEnabled": "Auto-approve enabled for this tool",
-      "cancelled": "Cancelled",
-      "completed": "Completed",
-      "error": "Error occurred",
-      "invoking": "Invoking",
-      "pending": "Pending",
-      "preview": "Preview",
-      "raw": "Raw"
+      "abort_failed": "도구 호출 중단 실패",
+      "aborted": "도구 호출 중단됨",
+      "autoApproveEnabled": "이 도구에 대해 자동 승인 활성화됨",
+      "cancelled": "취소됨",
+      "completed": "완료됨",
+      "error": "오류 발생",
+      "invoking": "호출 중",
+      "pending": "보류 중",
+      "preview": "미리보기",
+      "raw": "원본"
     },
     "topic": {
-      "added": "New topic added"
+      "added": "새 주제 추가됨"
     },
     "upgrade": {
       "success": {
-        "button": "Restart",
-        "content": "Please restart the application to complete the upgrade",
-        "title": "Upgrade successfully"
+        "button": "재시작",
+        "content": "업그레이드를 완료하려면 애플리케이션을 재시작하세요",
+        "title": "업그레이드 성공"
       }
     },
     "warn": {
       "export": {
-        "exporting": "Another export is in progress. Please wait for the previous export to complete and then try again."
+        "exporting": "다른 내보내기가 진행 중입니다. 이전 내보내기가 완료될 때까지 기다린 후 다시 시도하세요."
       }
     },
     "warning": {
       "rate": {
-        "limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
+        "limit": "요청이 너무 많습니다. {{seconds}}초 후에 다시 시도하세요."
       }
     },
     "websearch": {
-      "cutoff": "Truncating search content...",
-      "fetch_complete": "{{count}} search result(s)",
-      "rag": "Executing RAG...",
-      "rag_complete": "Keeping {{countAfter}} out of {{countBefore}} results...",
-      "rag_failed": "RAG failed, returning empty results..."
+      "cutoff": "검색 콘텐츠 자르는 중...",
+      "fetch_complete": "{{count}}개의 검색 결과",
+      "rag": "RAG 실행 중...",
+      "rag_complete": "{{countBefore}}개의 결과 중 {{countAfter}}개 유지...",
+      "rag_failed": "RAG 실패, 빈 결과 반환..."
     }
   },
   "minapp": {
-    "add_to_launchpad": "Add to Launchpad",
-    "add_to_sidebar": "Add to Sidebar",
+    "add_to_launchpad": "런치패드에 추가",
+    "add_to_sidebar": "사이드바에 추가",
     "popup": {
-      "close": "Close MinApp",
-      "devtools": "Developer Tools",
-      "goBack": "Go Back",
-      "goForward": "Go Forward",
-      "minimize": "Minimize MinApp",
-      "openExternal": "Open in Browser",
-      "open_link_external_off": "Current: Open links in default window",
-      "open_link_external_on": "Current: Open links in browser",
-      "refresh": "Refresh",
-      "rightclick_copyurl": "Right-click to copy URL"
+      "close": "미니앱 닫기",
+      "devtools": "개발자 도구",
+      "goBack": "뒤로 가기",
+      "goForward": "앞으로 가기",
+      "minimize": "미니앱 최소화",
+      "openExternal": "브라우저에서 열기",
+      "open_link_external_off": "현재: 기본 창에서 링크 열기",
+      "open_link_external_on": "현재: 브라우저에서 링크 열기",
+      "refresh": "새로고침",
+      "rightclick_copyurl": "마우스 오른쪽 버튼으로 클릭하여 URL 복사"
     },
-    "remove_from_launchpad": "Remove from Launchpad",
-    "remove_from_sidebar": "Remove from Sidebar",
+    "remove_from_launchpad": "런치패드에서 제거",
+    "remove_from_sidebar": "사이드바에서 제거",
     "sidebar": {
       "close": {
-        "title": "Close"
+        "title": "닫기"
       },
       "closeall": {
-        "title": "Close All"
+        "title": "모두 닫기"
       },
       "hide": {
-        "title": "Hide"
+        "title": "숨기기"
       },
       "remove_custom": {
-        "title": "Delete Custom App"
+        "title": "사용자 정의 앱 삭제"
       }
     },
-    "title": "MinApp"
+    "title": "미니앱"
   },
   "minapps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
-    "baidu-ai-search": "Baidu AI Search",
+    "baidu-ai-search": "Baidu AI 검색",
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
     "hailuo": "MINIMAX",
     "metaso": "Metaso",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
+    "nami-ai-search": "Nami AI 검색",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -2089,532 +2089,532 @@
   },
   "miniwindow": {
     "alert": {
-      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+      "google_login": "팁: Google 로그인 시 '브라우저가 신뢰하지 않음' 메시지가 표시되면 먼저 미니앱 목록의 Google 미니앱을 통해 로그인한 다음 다른 미니앱에서 Google 로그인을 사용하세요"
     },
     "clipboard": {
-      "empty": "Clipboard is empty"
+      "empty": "클립보드가 비어있습니다"
     },
     "feature": {
-      "chat": "Answer this question",
-      "explanation": "Explanation",
-      "summary": "Content summary",
-      "translate": "Text translation"
+      "chat": "이 질문에 답변",
+      "explanation": "설명",
+      "summary": "콘텐츠 요약",
+      "translate": "텍스트 번역"
     },
     "footer": {
-      "backspace_clear": "Backspace to clear",
-      "copy_last_message": "Press C to copy",
-      "esc": "ESC to {{action}}",
-      "esc_back": "return",
-      "esc_close": "close",
-      "esc_pause": "pause"
+      "backspace_clear": "백스페이스로 지우기",
+      "copy_last_message": "C를 눌러 복사",
+      "esc": "{{action}}하려면 ESC",
+      "esc_back": "반환",
+      "esc_close": "닫기",
+      "esc_pause": "일시 중지"
     },
     "input": {
       "placeholder": {
-        "empty": "Ask {{model}} for help...",
-        "title": "What do you want to do with this text?"
+        "empty": "{{model}}에게 도움을 요청하세요...",
+        "title": "이 텍스트로 무엇을 하고 싶으신가요?"
       }
     },
     "tooltip": {
-      "pin": "Keep Window on Top"
+      "pin": "창을 항상 위에 유지"
     }
   },
   "models": {
-    "add_parameter": "Add Parameter",
-    "all": "All",
-    "custom_parameters": "Custom Parameters",
-    "dimensions": "Dimensions {{dimensions}}",
-    "edit": "Edit Model",
-    "embedding": "Embedding",
-    "embedding_dimensions": "Embedding Dimensions",
-    "embedding_model": "Embedding Model",
-    "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
-    "enable_tool_use": "Enable Tool Use",
+    "add_parameter": "매개변수 추가",
+    "all": "모두",
+    "custom_parameters": "사용자 정의 매개변수",
+    "dimensions": "차원 {{dimensions}}",
+    "edit": "모델 편집",
+    "embedding": "임베딩",
+    "embedding_dimensions": "임베딩 차원",
+    "embedding_model": "임베딩 모델",
+    "embedding_model_tooltip": "설정->모델 제공자->관리에서 추가",
+    "enable_tool_use": "도구 사용 활성화",
     "filter": {
-      "by_tag": "Filter by tag",
-      "selected": "Selected tags"
+      "by_tag": "태그로 필터",
+      "selected": "선택된 태그"
     },
-    "function_calling": "Function Calling",
-    "invalid_model": "Invalid Model",
-    "no_matches": "No models available",
-    "parameter_name": "Parameter Name",
+    "function_calling": "함수 호출",
+    "invalid_model": "잘못된 모델",
+    "no_matches": "사용 가능한 모델이 없습니다",
+    "parameter_name": "매개변수 이름",
     "parameter_type": {
-      "boolean": "Boolean",
+      "boolean": "부울",
       "json": "JSON",
-      "number": "Number",
-      "string": "Text"
+      "number": "숫자",
+      "string": "텍스트"
     },
-    "pinned": "Pinned",
+    "pinned": "고정됨",
     "price": {
-      "cost": "Cost",
-      "currency": "Currency",
-      "custom": "Custom",
-      "custom_currency": "Custom Currency",
-      "custom_currency_placeholder": "Enter Custom Currency",
-      "input": "Input Price",
-      "million_tokens": "M Tokens",
-      "output": "Output Price",
-      "price": "Price"
+      "cost": "비용",
+      "currency": "통화",
+      "custom": "사용자 정의",
+      "custom_currency": "사용자 정의 통화",
+      "custom_currency_placeholder": "사용자 정의 통화 입력",
+      "input": "입력 가격",
+      "million_tokens": "백만 토큰",
+      "output": "출력 가격",
+      "price": "가격"
     },
-    "reasoning": "Reasoning",
-    "rerank_model": "Reranker",
-    "rerank_model_not_support_provider": "Currently, the reranker model does not support this provider ({{provider}})",
-    "rerank_model_support_provider": "Currently, the reranker model only supports some providers ({{provider}})",
-    "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
+    "reasoning": "추론",
+    "rerank_model": "재순위 모델",
+    "rerank_model_not_support_provider": "현재 재순위 모델은 이 제공자({{provider}})를 지원하지 않습니다",
+    "rerank_model_support_provider": "현재 재순위 모델은 일부 제공자({{provider}})만 지원합니다",
+    "rerank_model_tooltip": "설정 -> 모델 서비스의 관리 버튼을 클릭하여 추가하세요",
     "search": {
-      "placeholder": "Search models...",
-      "tooltip": "Search models"
+      "placeholder": "모델 검색...",
+      "tooltip": "모델 검색"
     },
-    "stream_output": "Stream output",
+    "stream_output": "스트림 출력",
     "type": {
-      "embedding": "Embedding",
-      "free": "Free",
-      "function_calling": "Tool",
-      "reasoning": "Reasoning",
-      "rerank": "Reranker",
-      "select": "Model Types",
-      "text": "Text",
-      "vision": "Vision",
-      "websearch": "WebSearch"
+      "embedding": "임베딩",
+      "free": "무료",
+      "function_calling": "도구",
+      "reasoning": "추론",
+      "rerank": "재순위",
+      "select": "모델 유형",
+      "text": "텍스트",
+      "vision": "비전",
+      "websearch": "웹 검색"
     }
   },
   "navbar": {
-    "expand": "Expand Dialog",
-    "hide_sidebar": "Hide Sidebar",
-    "show_sidebar": "Show Sidebar",
+    "expand": "대화 확장",
+    "hide_sidebar": "사이드바 숨기기",
+    "show_sidebar": "사이드바 표시",
     "window": {
-      "close": "Close",
-      "maximize": "Maximize",
-      "minimize": "Minimize",
-      "restore": "Restore"
+      "close": "닫기",
+      "maximize": "최대화",
+      "minimize": "최소화",
+      "restore": "복원"
     }
   },
   "navigate": {
-    "provider_settings": "Go to provider settings"
+    "provider_settings": "제공자 설정으로 이동"
   },
   "notes": {
     "auto_rename": {
-      "empty_note": "Note is empty, cannot generate name",
-      "failed": "Failed to generate note name",
-      "label": "Generate Note Name",
-      "success": "Note name generated successfully"
+      "empty_note": "메모가 비어 있어 이름을 생성할 수 없습니다",
+      "failed": "메모 이름 생성 실패",
+      "label": "메모 이름 생성",
+      "success": "메모 이름이 성공적으로 생성되었습니다"
     },
-    "characters": "Characters",
-    "collapse": "Collapse",
-    "content_placeholder": "Please enter the note content...",
-    "copyContent": "Copy Content",
-    "crossPlatformRestoreWarning": "Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
-    "delete": "delete",
-    "delete_confirm": "Are you sure you want to delete this {{type}}?",
-    "delete_folder_confirm": "Are you sure you want to delete the folder \"{{name}}\" and all of its contents?",
-    "delete_note_confirm": "Are you sure you want to delete the note \"{{name}}\"?",
-    "drop_markdown_hint": "Drop .md files or folders here to import",
-    "empty": "No notes available yet",
-    "expand": "unfold",
-    "export_failed": "Failed to export to knowledge base",
-    "export_knowledge": "Export notes to knowledge base",
-    "export_success": "Successfully exported to the knowledge base",
-    "folder": "folder",
-    "new_folder": "New Folder",
-    "new_note": "Create a new note",
-    "no_content_to_copy": "No content to copy",
-    "no_file_selected": "Please select the file to upload",
-    "no_valid_files": "No valid file was uploaded",
-    "open_folder": "Open an external folder",
-    "open_outside": "Open from external",
-    "rename": "Rename",
-    "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
-    "save": "Save to Notes",
+    "characters": "문자",
+    "collapse": "접기",
+    "content_placeholder": "메모 내용을 입력하세요...",
+    "copyContent": "콘텐츠 복사",
+    "crossPlatformRestoreWarning": "크로스 플랫폼 구성이 복원되었지만 메모 디렉토리가 비어 있습니다. 메모 파일을 {{path}}(으)로 복사하세요",
+    "delete": "삭제",
+    "delete_confirm": "이 {{type}}을(를) 삭제하시겠습니까?",
+    "delete_folder_confirm": "\"{{name}}\" 폴더와 모든 내용을 삭제하시겠습니까?",
+    "delete_note_confirm": "\"{{name}}\" 메모를 삭제하시겠습니까?",
+    "drop_markdown_hint": ".md 파일 또는 폴더를 여기에 놓아 가져오기",
+    "empty": "아직 사용 가능한 메모가 없습니다",
+    "expand": "펼치기",
+    "export_failed": "지식 베이스로 내보내기 실패",
+    "export_knowledge": "메모를 지식 베이스로 내보내기",
+    "export_success": "지식 베이스로 성공적으로 내보냄",
+    "folder": "폴더",
+    "new_folder": "새 폴더",
+    "new_note": "새 메모 만들기",
+    "no_content_to_copy": "복사할 콘텐츠가 없습니다",
+    "no_file_selected": "업로드할 파일을 선택하세요",
+    "no_valid_files": "유효한 파일이 업로드되지 않았습니다",
+    "open_folder": "외부 폴더 열기",
+    "open_outside": "외부에서 열기",
+    "rename": "이름 바꾸기",
+    "rename_changed": "보안 정책으로 인해 파일 이름이 {{original}}에서 {{final}}(으)로 변경되었습니다",
+    "save": "메모에 저장",
     "search": {
-      "both": "Name+Content",
-      "content": "Content",
-      "found_results": "Found {{count}} results (Name: {{nameCount}}, Content: {{contentCount}})",
-      "more_matches": "more matches",
-      "searching": "Searching...",
-      "show_less": "Show less"
+      "both": "이름+콘텐츠",
+      "content": "콘텐츠",
+      "found_results": "{{count}}개의 결과를 찾았습니다 (이름: {{nameCount}}, 콘텐츠: {{contentCount}})",
+      "more_matches": "더 많은 일치 항목",
+      "searching": "검색 중...",
+      "show_less": "간단히 표시"
     },
     "settings": {
       "data": {
-        "apply": "Apply",
-        "apply_path_failed": "Failed to apply path",
-        "current_work_directory": "Current Work Directory",
-        "invalid_directory": "Selected directory is invalid or access denied",
-        "path_required": "Please select a work directory",
-        "path_updated": "Work directory updated successfully",
-        "reset_failed": "Reset failed",
-        "reset_to_default": "Reset to Default",
-        "select": "Select",
-        "select_directory_failed": "Failed to select directory",
-        "title": "Data Settings",
-        "work_directory_description": "Work directory is where all note files are stored. Changing the work directory won't move existing files, please migrate files manually.",
-        "work_directory_placeholder": "Select notes work directory"
+        "apply": "적용",
+        "apply_path_failed": "경로 적용 실패",
+        "current_work_directory": "현재 작업 디렉토리",
+        "invalid_directory": "선택한 디렉토리가 잘못되었거나 액세스가 거부되었습니다",
+        "path_required": "작업 디렉토리를 선택하세요",
+        "path_updated": "작업 디렉토리가 성공적으로 업데이트됨",
+        "reset_failed": "재설정 실패",
+        "reset_to_default": "기본값으로 재설정",
+        "select": "선택",
+        "select_directory_failed": "디렉토리 선택 실패",
+        "title": "데이터 설정",
+        "work_directory_description": "작업 디렉토리는 모든 메모 파일이 저장되는 곳입니다. 작업 디렉토리를 변경해도 기존 파일은 이동되지 않으므로 수동으로 마이그레이션하세요.",
+        "work_directory_placeholder": "메모 작업 디렉토리 선택"
       },
       "display": {
-        "compress_content": "Content Compression",
-        "compress_content_description": "When enabled, it will limit the number of characters per line, reducing the content displayed on the screen, but making longer paragraphs more readable.",
-        "default_font": "Default font",
-        "font_size": "Font Size",
-        "font_size_description": "Adjust the font size for better reading experience (10-30px)",
-        "font_size_large": "Large",
-        "font_size_medium": "Medium",
-        "font_size_small": "Small",
-        "font_title": "Font settings",
-        "serif_font": "Serif font",
-        "show_table_of_contents": "Show Table of Contents",
-        "show_table_of_contents_description": "Display a table of contents sidebar for easy navigation within documents",
-        "title": "Display Settings"
+        "compress_content": "콘텐츠 압축",
+        "compress_content_description": "활성화하면 줄당 문자 수를 제한하여 화면에 표시되는 콘텐츠를 줄이지만 더 긴 문단을 더 읽기 쉽게 만듭니다.",
+        "default_font": "기본 글꼴",
+        "font_size": "글꼴 크기",
+        "font_size_description": "더 나은 읽기 경험을 위해 글꼴 크기를 조정하세요 (10-30px)",
+        "font_size_large": "크게",
+        "font_size_medium": "중간",
+        "font_size_small": "작게",
+        "font_title": "글꼴 설정",
+        "serif_font": "세리프 글꼴",
+        "show_table_of_contents": "목차 표시",
+        "show_table_of_contents_description": "문서 내 쉬운 탐색을 위해 목차 사이드바 표시",
+        "title": "표시 설정"
       },
       "editor": {
         "edit_mode": {
-          "description": "In Edit View, the default editing mode for new notes",
-          "preview_mode": "Live preview",
-          "source_mode": "Source code mode",
-          "title": "Default edit view"
+          "description": "편집 보기에서 새 메모의 기본 편집 모드",
+          "preview_mode": "실시간 미리보기",
+          "source_mode": "소스 코드 모드",
+          "title": "기본 편집 보기"
         },
-        "title": "Editor Settings",
+        "title": "편집기 설정",
         "view_mode": {
-          "description": "New Notes Default View Mode",
-          "edit_mode": "Editing mode",
-          "read_mode": "Reading mode",
-          "title": "Default view"
+          "description": "새 메모의 기본 보기 모드",
+          "edit_mode": "편집 모드",
+          "read_mode": "읽기 모드",
+          "title": "기본 보기"
         },
-        "view_mode_description": "Sets the default view mode for the new tab page."
+        "view_mode_description": "새 탭 페이지의 기본 보기 모드를 설정합니다."
       },
-      "title": "Notes"
+      "title": "메모"
     },
-    "show_starred": "Show favorite notes",
-    "sort_a2z": "File name (A-Z)",
-    "sort_created_asc": "Creation time (oldest first)",
-    "sort_created_desc": "Creation time (newest first)",
-    "sort_updated_asc": "Update time (oldest first)",
-    "sort_updated_desc": "Update time (newest first)",
-    "sort_z2a": "File name (Z-A)",
-    "spell_check": "Spell Check",
-    "spell_check_tooltip": "Enable/Disable spell check",
-    "star": "Favorite note",
-    "starred_notes": "Collected notes",
-    "title": "Notes",
-    "unsaved_changes": "You have unsaved content, are you sure you want to leave?",
-    "unstar": "Unfavorite",
-    "untitled_folder": "New Folder",
-    "untitled_note": "Untitled Note",
-    "upload_failed": "Note upload failed",
-    "upload_files": "Upload Files",
-    "upload_folder": "Upload Folder",
-    "upload_success": "Note uploaded success",
-    "uploading_files": "Uploading {{count}} files..."
+    "show_starred": "즐겨찾기 메모 표시",
+    "sort_a2z": "파일 이름 (A-Z)",
+    "sort_created_asc": "생성 시간 (오래된 순)",
+    "sort_created_desc": "생성 시간 (최신 순)",
+    "sort_updated_asc": "업데이트 시간 (오래된 순)",
+    "sort_updated_desc": "업데이트 시간 (최신 순)",
+    "sort_z2a": "파일 이름 (Z-A)",
+    "spell_check": "맞춤법 검사",
+    "spell_check_tooltip": "맞춤법 검사 활성화/비활성화",
+    "star": "즐겨찾기 메모",
+    "starred_notes": "수집된 메모",
+    "title": "메모",
+    "unsaved_changes": "저장되지 않은 콘텐츠가 있습니다. 떠나시겠습니까?",
+    "unstar": "즐겨찬기 제거",
+    "untitled_folder": "새 폴더",
+    "untitled_note": "제목 없는 메모",
+    "upload_failed": "메모 업로드 실패",
+    "upload_files": "파일 업로드",
+    "upload_folder": "폴더 업로드",
+    "upload_success": "메모 업로드 성공",
+    "uploading_files": "{{count}}개 파일 업로드 중..."
   },
   "notification": {
-    "assistant": "Assistant Response",
+    "assistant": "어시스턴트 응답",
     "knowledge": {
       "error": "{{error}}",
-      "success": "Successfully added {{type}} to the knowledge base"
+      "success": "{{type}}을(를) 지식 베이스에 성공적으로 추가함"
     },
-    "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
+    "tip": "응답이 성공하면 30초를 초과하는 메시지만 알림을 트리거합니다"
   },
   "ocr": {
     "builtin": {
-      "system": "System OCR"
+      "system": "시스템 OCR"
     },
     "error": {
       "provider": {
-        "cannot_remove_builtin": "Cannot delete built-in provider",
-        "existing": "The provider already exists",
-        "get_providers": "Failed to get available providers",
-        "not_found": "OCR provider does not exist",
-        "update_failed": "Failed to update configuration"
+        "cannot_remove_builtin": "내장된 제공자를 삭제할 수 없습니다",
+        "existing": "제공자가 이미 존재합니다",
+        "get_providers": "사용 가능한 제공자를 가져오지 못했습니다",
+        "not_found": "OCR 제공자가 존재하지 않습니다",
+        "update_failed": "구성 업데이트 실패"
       },
-      "unknown": "An error occurred during the OCR process"
+      "unknown": "OCR 프로세스 중 오류가 발생했습니다"
     },
     "file": {
-      "not_supported": "Unsupported file type {{type}}"
+      "not_supported": "지원되지 않는 파일 유형 {{type}}"
     },
-    "processing": "OCR processing...",
+    "processing": "OCR 처리 중...",
     "warning": {
       "provider": {
-        "fallback": "Reverted to {{name}}, which may cause issues"
+        "fallback": "{{name}}(으)로 되돌려졌으며 문제가 발생할 수 있습니다"
       }
     }
   },
   "ollama": {
     "keep_alive_time": {
-      "description": "The time in minutes to keep the connection alive, default is 5 minutes.",
-      "placeholder": "Minutes",
-      "title": "Keep Alive Time"
+      "description": "연결을 유지할 시간(분)이며 기본값은 5분입니다.",
+      "placeholder": "분",
+      "title": "연결 유지 시간"
     },
     "title": "Ollama"
   },
   "ovms": {
     "action": {
-      "install": "Install",
-      "installing": "Installing",
-      "reinstall": "Re-Install",
-      "run": "Run OVMS",
-      "starting": "Starting",
-      "stop": "Stop OVMS",
-      "stopping": "Stopping"
+      "install": "설치",
+      "installing": "설치 중",
+      "reinstall": "재설치",
+      "run": "OVMS 실행",
+      "starting": "시작 중",
+      "stop": "OVMS 중지",
+      "stopping": "중지 중"
     },
-    "description": "<div><p>1. Download OV Models.</p><p>2. Add Models in 'Manager'.</p><p>Support Windows Only!</p><p>OVMS Install Path: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Please refer to <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS Guide</a></p></dev>",
+    "description": "<div><p>1. OV 모델 다운로드.</p><p>2. '관리자'에서 모델 추가.</p><p>Windows만 지원!</p><p>OVMS 설치 경로: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p><a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS 가이드</a>를 참조하세요</p></dev>",
     "download": {
-      "button": "Download",
-      "error": "Download Error",
+      "button": "다운로드",
+      "error": "다운로드 오류",
       "model_id": {
-        "label": "Model ID:",
-        "model_id_pattern": "Model ID must start with OpenVINO/",
-        "placeholder": "Required e.g. OpenVINO/Qwen3-8B-int4-ov",
-        "required": "Please enter the model ID"
+        "label": "모델 ID:",
+        "model_id_pattern": "모델 ID는 OpenVINO/로 시작해야 합니다",
+        "placeholder": "필수 예: OpenVINO/Qwen3-8B-int4-ov",
+        "required": "모델 ID를 입력하세요"
       },
       "model_name": {
-        "label": "Model Name:",
-        "placeholder": "Required e.g. Qwen3-8B-int4-ov",
-        "required": "Please enter the model name"
+        "label": "모델 이름:",
+        "placeholder": "필수 예: Qwen3-8B-int4-ov",
+        "required": "모델 이름을 입력하세요"
       },
-      "model_source": "Model Source:",
-      "model_task": "Model Task:",
-      "success": "Download successful",
-      "success_desc": "Model \"{{modelName}}\"-\"{{modelId}}\" downloaded successfully, please go to the OVMS management interface to add the model",
-      "tip": "The model is downloading, sometimes it takes hours. Please be patient...",
-      "title": "Download Intel OpenVINO Model"
+      "model_source": "모델 소스:",
+      "model_task": "모델 작업:",
+      "success": "다운로드 성공",
+      "success_desc": "모델 \"{{modelName}}\"-\"{{modelId}}\"이(가) 성공적으로 다운로드되었습니다. OVMS 관리 인터페이스로 이동하여 모델을 추가하세요",
+      "tip": "모델을 다운로드 중입니다. 몇 시간이 걸릴 수 있습니다. 기다려 주세요...",
+      "title": "Intel OpenVINO 모델 다운로드"
     },
     "failed": {
-      "install": "Install OVMS failed:",
-      "install_code_100": "Unknown Error",
-      "install_code_101": "Only supports Intel(R) CPU",
-      "install_code_102": "Only supports Windows",
-      "install_code_103": "Download OVMS runtime failed",
-      "install_code_104": "Failed to install OVMS runtime",
-      "install_code_105": "Failed to create ovdnd.exe",
-      "install_code_106": "Failed to create run.bat",
-      "install_code_110": "Failed to clean old OVMS runtime",
-      "run": "Run OVMS failed:",
-      "stop": "Stop OVMS failed:"
+      "install": "OVMS 설치 실패:",
+      "install_code_100": "알 수 없는 오류",
+      "install_code_101": "Intel(R) CPU만 지원",
+      "install_code_102": "Windows만 지원",
+      "install_code_103": "OVMS 런타임 다운로드 실패",
+      "install_code_104": "OVMS 런타임 설치 실패",
+      "install_code_105": "ovdnd.exe 생성 실패",
+      "install_code_106": "run.bat 생성 실패",
+      "install_code_110": "이전 OVMS 런타임 삭제 실패",
+      "run": "OVMS 실행 실패:",
+      "stop": "OVMS 중지 실패:"
     },
     "status": {
-      "not_installed": "OVMS is not installed",
-      "not_running": "OVMS is not running",
-      "running": "OVMS is running",
-      "unknown": "OVMS status unknown"
+      "not_installed": "OVMS가 설치되지 않았습니다",
+      "not_running": "OVMS가 실행 중이 아닙니다",
+      "running": "OVMS가 실행 중입니다",
+      "unknown": "OVMS 상태를 알 수 없습니다"
     },
     "title": "Intel OVMS"
   },
   "paintings": {
-    "aspect_ratio": "Aspect Ratio",
+    "aspect_ratio": "가로세로 비율",
     "aspect_ratios": {
-      "landscape": "Landscape",
-      "portrait": "Portrait",
-      "square": "Square"
+      "landscape": "가로",
+      "portrait": "세로",
+      "square": "정사각형"
     },
-    "auto_create_paint": "Auto-create image",
-    "auto_create_paint_tip": "After the image is generated, a new image will be created automatically.",
-    "background": "Background",
+    "auto_create_paint": "이미지 자동 생성",
+    "auto_create_paint_tip": "이미지가 생성된 후 자동으로 새 이미지가 생성됩니다.",
+    "background": "배경",
     "background_options": {
-      "auto": "Auto",
-      "opaque": "Opaque",
-      "transparent": "Transparent"
+      "auto": "자동",
+      "opaque": "불투명",
+      "transparent": "투명"
     },
     "button": {
       "delete": {
         "image": {
-          "confirm": "Are you sure you want to delete this image?",
-          "label": "Delete Image"
+          "confirm": "이 이미지를 삭제하시겠습니까?",
+          "label": "이미지 삭제"
         }
       },
       "new": {
-        "image": "New Image"
+        "image": "새 이미지"
       }
     },
-    "custom_size": "Custom Size",
+    "custom_size": "사용자 정의 크기",
     "edit": {
-      "image_file": "Edited Image",
-      "magic_prompt_option_tip": "Intelligently enhances editing prompts",
-      "model_tip": "V3 and V2 versions supported",
-      "number_images_tip": "Number of edited results to generate",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "seed_tip": "Controls editing randomness",
-      "style_type_tip": "Style for edited image, only for V_2 and above"
+      "image_file": "편집된 이미지",
+      "magic_prompt_option_tip": "편집 프롬프트를 지능적으로 향상",
+      "model_tip": "V3 및 V2 버전 지원",
+      "number_images_tip": "생성할 편집 결과 수",
+      "rendering_speed_tip": "렌더링 속도와 품질의 균형을 제어, V_3에서만 사용 가능",
+      "seed_tip": "편집 무작위성 제어",
+      "style_type_tip": "편집된 이미지의 스타일, V_2 이상에서만 사용 가능"
     },
     "generate": {
-      "height": "Height",
-      "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
-      "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
-      "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
-      "number_images_tip": "Number of images to generate",
-      "person_generation": "Generate person",
-      "person_generation_tip": "Allow model to generate person images",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "safety_tolerance": "Safety Tolerance",
-      "safety_tolerance_tip": "Controls safety tolerance for image generation, only available for FLUX.1-Kontext-pro",
-      "seed_tip": "Controls image generation randomness for reproducible results",
-      "style_type_tip": "Image generation style for V_2 and above",
-      "width": "Width"
+      "height": "높이",
+      "magic_prompt_option_tip": "더 나은 결과를 위해 프롬프트를 지능적으로 향상",
+      "model_tip": "모델 버전: V3는 최신 버전, V2는 이전 모델, V2A는 빠른 모델, V_1은 1세대 모델, _TURBO는 가속 버전",
+      "negative_prompt_tip": "원하지 않는 요소 설명, V_1, V_1_TURBO, V_2, V_2_TURBO에만 해당",
+      "number_images_tip": "생성할 이미지 수",
+      "person_generation": "사람 생성",
+      "person_generation_tip": "모델이 사람 이미지를 생성하도록 허용",
+      "rendering_speed_tip": "렌더링 속도와 품질의 균형을 제어, V_3에서만 사용 가능",
+      "safety_tolerance": "안전성 허용 오차",
+      "safety_tolerance_tip": "이미지 생성의 안전성 허용 오차를 제어, FLUX.1-Kontext-pro에서만 사용 가능",
+      "seed_tip": "재현 가능한 결과를 위한 이미지 생성 무작위성 제어",
+      "style_type_tip": "V_2 이상의 이미지 생성 스타일",
+      "width": "너비"
     },
-    "generated_image": "Generated Image",
-    "go_to_settings": "Go to Settings",
-    "guidance_scale": "Guidance Scale",
-    "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
+    "generated_image": "생성된 이미지",
+    "go_to_settings": "설정으로 이동",
+    "guidance_scale": "가이드 스케일",
+    "guidance_scale_tip": "분류기 없는 가이드. 관련 이미지를 찾을 때 모델이 프롬프트를 얼마나 충실히 따르는지 제어",
     "image": {
-      "size": "Image Size"
+      "size": "이미지 크기"
     },
-    "image_file_required": "Please upload an image first",
-    "image_file_retry": "Please re-upload an image first",
-    "image_handle_required": "Please upload an image first.",
-    "image_placeholder": "No image available",
-    "image_retry": "Retry",
+    "image_file_required": "먼저 이미지를 업로드하세요",
+    "image_file_retry": "먼저 이미지를 다시 업로드하세요",
+    "image_handle_required": "먼저 이미지를 업로드하세요.",
+    "image_placeholder": "사용 가능한 이미지가 없습니다",
+    "image_retry": "재시도",
     "image_size_options": {
-      "auto": "Auto"
+      "auto": "자동"
     },
-    "inference_steps": "Inference Steps",
-    "inference_steps_tip": "The number of inference steps to perform. More steps produce higher quality but take longer",
-    "input_image": "Input Image",
-    "input_parameters": "Input Parameters",
-    "learn_more": "Learn More",
-    "magic_prompt_option": "Magic Prompt",
+    "inference_steps": "추론 단계",
+    "inference_steps_tip": "수행할 추론 단계 수입니다. 단계가 많을수록 품질이 높아지지만 시간이 더 걸립니다",
+    "input_image": "입력 이미지",
+    "input_parameters": "입력 매개변수",
+    "learn_more": "자세히 알아보기",
+    "magic_prompt_option": "매직 프롬프트",
     "mode": {
-      "edit": "Edit",
-      "generate": "Draw",
-      "merge": "Merge",
-      "remix": "Remix",
-      "upscale": "Upscale"
+      "edit": "편집",
+      "generate": "그리기",
+      "merge": "병합",
+      "remix": "리믹스",
+      "upscale": "업스케일"
     },
-    "model": "Model",
-    "model_and_pricing": "Model & Pricing",
-    "moderation": "Moderation",
+    "model": "모델",
+    "model_and_pricing": "모델 및 가격",
+    "moderation": "중재",
     "moderation_options": {
-      "auto": "Auto",
-      "low": "Low"
+      "auto": "자동",
+      "low": "낮음"
     },
-    "negative_prompt": "Negative Prompt",
-    "negative_prompt_tip": "Describe what you don't want included in the image",
-    "no_image_generation_model": "No available image generation model, please add a model and set the endpoint type to {{endpoint_type}}",
-    "number_images": "Number Images",
-    "number_images_tip": "Number of images to generate (1-4)",
-    "paint_course": "tutorial",
-    "per_image": "per image",
-    "per_images": "per images",
+    "negative_prompt": "부정 프롬프트",
+    "negative_prompt_tip": "이미지에 포함하지 않을 항목 설명",
+    "no_image_generation_model": "사용 가능한 이미지 생성 모델이 없습니다. 모델을 추가하고 엔드포인트 유형을 {{endpoint_type}}(으)로 설정하세요",
+    "number_images": "이미지 수",
+    "number_images_tip": "생성할 이미지 수 (1-4)",
+    "paint_course": "튜토리얼",
+    "per_image": "이미지당",
+    "per_images": "이미지들당",
     "person_generation_options": {
-      "allow_adult": "Allow adult",
-      "allow_all": "Allow all",
-      "allow_none": "Not allowed"
+      "allow_adult": "성인 허용",
+      "allow_all": "모두 허용",
+      "allow_none": "허용 안 함"
     },
-    "pricing": "Pricing",
-    "prompt_enhancement": "Prompt Enhancement",
-    "prompt_enhancement_tip": "Rewrite prompts into detailed, model-friendly versions when switched on",
-    "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
-    "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
-    "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
-    "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
-    "quality": "Quality",
+    "pricing": "가격 책정",
+    "prompt_enhancement": "프롬프트 향상",
+    "prompt_enhancement_tip": "켜져 있을 때 프롬프트를 자세한 모델 친화적 버전으로 다시 작성",
+    "prompt_placeholder": "생성할 이미지를 설명하세요. 예: 일몽에 평화로운 호수와 배경의 산",
+    "prompt_placeholder_edit": "이미지 설명을 입력하세요, 텍스트 그리기는 \"큰따옴표\"로 감쌉니다",
+    "prompt_placeholder_en": "이미지 설명을 입력하세요, 현재 영어 프롬프트만 지원",
+    "proxy_required": "생성된 이미지를 보거나 브라우저에서 열기 위해 복사하려면 프록시를 열고 \"TUN 모드\"를 활성화하세요. 향후 국내 직접 연결이 지원될 것입니다",
+    "quality": "품질",
     "quality_options": {
-      "auto": "Auto",
-      "high": "High",
-      "low": "Low",
-      "medium": "Medium"
+      "auto": "자동",
+      "high": "높음",
+      "low": "낮음",
+      "medium": "중간"
     },
     "regenerate": {
-      "confirm": "This will replace your existing generated images. Do you want to continue?"
+      "confirm": "기존 생성된 이미지를 대체합니다. 계속하시겠습니까?"
     },
     "remix": {
-      "image_file": "Reference Image",
-      "image_weight": "Reference Image Weight",
-      "image_weight_tip": "Adjust reference image influence",
-      "magic_prompt_option_tip": "Intelligently enhances remix prompts",
-      "model_tip": "Select AI model version for remixing",
-      "negative_prompt_tip": "Describe unwanted elements in remix results",
-      "number_images_tip": "Number of remix results to generate",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "seed_tip": "Control the randomness of the mixed result",
-      "style_type_tip": "Style for remixed image, only for V_2 and above"
+      "image_file": "참조 이미지",
+      "image_weight": "참조 이미지 가중치",
+      "image_weight_tip": "참조 이미지 영향 조정",
+      "magic_prompt_option_tip": "리믹스 프롬프트를 지능적으로 향상",
+      "model_tip": "리믹스할 AI 모델 버전 선택",
+      "negative_prompt_tip": "리믹스 결과의 원하지 않는 요소 설명",
+      "number_images_tip": "생성할 리믹스 결과 수",
+      "rendering_speed_tip": "렌더링 속도와 품질의 균형을 제어, V_3에서만 사용 가능",
+      "seed_tip": "혼합 결과의 무작위성 제어",
+      "style_type_tip": "리믹스된 이미지의 스타일, V_2 이상에서만 사용 가능"
     },
-    "rendering_speed": "Rendering Speed",
+    "rendering_speed": "렌더링 속도",
     "rendering_speeds": {
-      "default": "Default",
-      "quality": "Quality",
-      "turbo": "Turbo"
+      "default": "기본",
+      "quality": "품질",
+      "turbo": "터보"
     },
-    "req_error_model": "Failed to fetch the model",
-    "req_error_no_balance": "Please check the validity of the token",
-    "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
-    "req_error_token": "Please check the validity of the token",
-    "required_field": "Required field",
-    "seed": "Seed",
-    "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
-    "seed_tip": "The same seed and prompt can produce similar images",
-    "select_model": "Select Model",
-    "style_type": "Style",
+    "req_error_model": "모델을 가져오지 못했습니다",
+    "req_error_no_balance": "토큰의 유효성을 확인하세요",
+    "req_error_text": "서버가 바쁘거나 프롬프트에 \"저작권\" 또는 \"민감한\" 용어가 포함되어 있습니다. 다시 시도하세요.",
+    "req_error_token": "토큰의 유효성을 확인하세요",
+    "required_field": "필수 필드",
+    "seed": "시드",
+    "seed_desc_tip": "동일한 시드와 프롬프트로 유사한 이미지를 생성할 수 있으며, -1로 설정하면 매번 다른 결과가 생성됩니다",
+    "seed_tip": "동일한 시드와 프롬프트로 유사한 이미지를 생성할 수 있습니다",
+    "select_model": "모델 선택",
+    "style_type": "스타일",
     "style_types": {
       "3d": "3D",
-      "anime": "Anime",
-      "auto": "Auto",
-      "design": "Design",
-      "general": "General",
-      "realistic": "Realistic"
+      "anime": "애니메이션",
+      "auto": "자동",
+      "design": "디자인",
+      "general": "일반",
+      "realistic": "사실적"
     },
-    "text_desc_required": "Please enter image description first",
-    "title": "Images",
-    "top_up": "Top up ",
-    "translating": "Translating...",
-    "uploaded_input": "Uploaded input",
+    "text_desc_required": "먼저 이미지 설명을 입력하세요",
+    "title": "이미지",
+    "top_up": "충전 ",
+    "translating": "번역 중...",
+    "uploaded_input": "업로드된 입력",
     "upscale": {
-      "detail": "Detail",
-      "detail_tip": "Controls detail enhancement level",
-      "image_file": "Image to upscale",
-      "magic_prompt_option_tip": "Intelligently enhances upscaling prompts",
-      "number_images_tip": "Number of upscaled results to generate",
-      "resemblance": "Similarity",
-      "resemblance_tip": "Controls similarity to original image",
-      "seed_tip": "Controls upscaling randomness"
+      "detail": "세부 정보",
+      "detail_tip": "세부 정보 향상 수준 제어",
+      "image_file": "업스케일할 이미지",
+      "magic_prompt_option_tip": "업스케일링 프롬프트를 지능적으로 향상",
+      "number_images_tip": "생성할 업스케일링 결과 수",
+      "resemblance": "유사성",
+      "resemblance_tip": "원본 이미지와의 유사성 제어",
+      "seed_tip": "업스케일링 무작위성 제어"
     }
   },
   "plugins": {
-    "actions": "Actions",
-    "agents": "Agents",
-    "all_categories": "All Categories",
-    "all_types": "All",
-    "category": "Category",
-    "commands": "Commands",
-    "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
-    "install": "Install",
-    "install_plugins_from_browser": "Browse available plugins to get started",
-    "installing": "Installing...",
-    "name": "Name",
-    "no_description": "No description available",
-    "no_installed_plugins": "No plugins installed yet",
-    "no_results": "No plugins found",
-    "search_placeholder": "Search plugins...",
-    "showing_results": "Showing {{count}} plugin",
-    "showing_results_one": "Showing {{count}} plugin",
-    "showing_results_other": "Showing {{count}} plugins",
-    "showing_results_plural": "Showing {{count}} plugins",
-    "skills": "Skills",
-    "try_different_search": "Try adjusting your search or category filters",
-    "type": "Type",
-    "uninstall": "Uninstall",
-    "uninstalling": "Uninstalling..."
+    "actions": "작업",
+    "agents": "에이전트",
+    "all_categories": "모든 카테고리",
+    "all_types": "모두",
+    "category": "카테고리",
+    "commands": "명령",
+    "confirm_uninstall": "{{name}}을(를) 삭제하시겠습니까?",
+    "install": "설치",
+    "install_plugins_from_browser": "사용 가능한 플러그인을 찾아보세요",
+    "installing": "설치 중...",
+    "name": "이름",
+    "no_description": "사용 가능한 설명이 없습니다",
+    "no_installed_plugins": "아직 설치된 플러그인이 없습니다",
+    "no_results": "플러그인을 찾지 못했습니다",
+    "search_placeholder": "플러그인 검색...",
+    "showing_results": "{{count}}개 플러그인 표시",
+    "showing_results_one": "{{count}}개 플러그인 표시",
+    "showing_results_other": "{{count}}개 플러그인 표시",
+    "showing_results_plural": "{{count}}개 플러그인 표시",
+    "skills": "스킬",
+    "try_different_search": "검색 또는 카테고리 필터를 조정해 보세요",
+    "type": "유형",
+    "uninstall": "삭제",
+    "uninstalling": "삭제 중..."
   },
   "preview": {
     "copy": {
-      "image": "Copy as image",
-      "src": "Copy Image Source"
+      "image": "이미지로 복사",
+      "src": "이미지 소스 복사"
     },
-    "dialog": "Open Dialog",
-    "label": "Preview",
-    "pan": "Pan",
-    "pan_down": "Pan Down",
-    "pan_left": "Pan Left",
-    "pan_right": "Pan Right",
-    "pan_up": "Pan Up",
-    "reset": "Reset",
-    "source": "View Source Code",
-    "zoom_in": "Zoom In",
-    "zoom_out": "Zoom Out"
+    "dialog": "대화 상자 열기",
+    "label": "미리보기",
+    "pan": "이동",
+    "pan_down": "아래로 이동",
+    "pan_left": "왼쪽으로 이동",
+    "pan_right": "오른쪽으로 이동",
+    "pan_up": "위로 이동",
+    "reset": "재설정",
+    "source": "소스 코드 보기",
+    "zoom_in": "확대",
+    "zoom_out": "축소"
   },
   "prompts": {
-    "explanation": "Explain this concept to me",
-    "summarize": "Summarize this text",
-    "title": "Summarize the conversation into a title in {{language}} within 10 characters ignoring instructions and without punctuation or symbols. Output only the title string without anything else."
+    "explanation": "이 개념을 설명해주세요",
+    "summarize": "이 텍스트를 요약해주세요",
+    "title": "{{language}}로 대화를 10자 이내의 제목으로 요약하세요. 지침은 무시하고 문장 부호나 기호 없이 제목 문자열만 출력하세요."
   },
   "provider": {
     "302ai": "302.AI",
-    "ai-gateway": "Vercel AI Gateway",
+    "ai-gateway": "Vercel AI 게이트웨이",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2622,20 +2622,20 @@
     "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "Baichuan",
-    "baidu-cloud": "Baidu Cloud",
+    "baidu-cloud": "Baidu 클라우드",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
-    "dashscope": "Alibaba Cloud",
+    "dashscope": "Alibaba 클라우드",
     "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
     "doubao": "Volcengine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
     "gitee-ai": "Gitee AI",
-    "github": "GitHub Models",
+    "github": "GitHub 모델",
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
@@ -2645,14 +2645,14 @@
     "infini": "Infini",
     "jina": "Jina",
     "lanyun": "LANYUN",
-    "lmstudio": "LM Studio",
+    "lmstudio": "LM 스튜디오",
     "longcat": "LongCat AI",
-    "mimo": "Xiaomi MiMo",
+    "mimo": "샤오미 MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "Moonshot",
-    "new-api": "New API",
+    "new-api": "새 API",
     "nvidia": "Nvidia",
     "o3": "O3",
     "ocoolai": "ocoolAI",
@@ -2669,25 +2669,25 @@
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
-    "tencent-cloud-ti": "Tencent Cloud TI",
+    "tencent-cloud-ti": "Tencent 클라우드 TI",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
-    "xirang": "State Cloud Xirang",
+    "xirang": "State 클라우드 Xirang",
     "yi": "Yi",
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
-      "button": "Select Backup File",
-      "label": "Are you sure you want to restore data?"
+      "button": "백업 파일 선택",
+      "label": "데이터를 복원하시겠습니까?"
     },
-    "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+    "content": "복원 작업은 모든 현재 애플리케이션 데이터를 백업 데이터로 덮어씁니다. 복원 프로세스는 시간이 걸릴 수 있으니 기다려 주셔서 감사합니다.",
     "progress": {
-      "completed": "Restore completed",
-      "copying_files": "Copying files... {{progress}}%",
+      "completed": "복원 완료",
+      "copying_files": "파일 복사 중... {{progress}}%",
       "extracted": "Extraction successful",
       "extracting": "Extracting backup...",
       "preparing": "Preparing restore...",
@@ -2914,186 +2914,186 @@
   "selection": {
     "action": {
       "builtin": {
-        "copy": "Copy",
-        "explain": "Explain",
-        "quote": "Quote",
-        "refine": "Refine",
-        "search": "Search",
-        "summary": "Summarize",
-        "translate": "Translate"
+        "copy": "복사",
+        "explain": "설명",
+        "quote": "인용",
+        "refine": "개선",
+        "search": "검색",
+        "summary": "요약",
+        "translate": "번역"
       },
       "translate": {
-        "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
+        "smart_translate_tips": "스마트 번역: 콘텐츠가 먼저 대상 언어로 번역됩니다. 대상 언어로 된 콘텐츠는 대체 언어로 번역됩니다"
       },
       "window": {
-        "c_copy": "C: Copy",
-        "esc_close": "Esc: Close",
-        "esc_stop": "Esc: Stop",
-        "opacity": "Window Opacity",
-        "original_copy": "Copy Original",
-        "original_hide": "Hide Original",
-        "original_show": "Show Original",
-        "pin": "Pin",
-        "pinned": "Pinned",
-        "r_regenerate": "R: Regenerate"
+        "c_copy": "C: 복사",
+        "esc_close": "Esc: 닫기",
+        "esc_stop": "Esc: 중지",
+        "opacity": "창 불투명도",
+        "original_copy": "원본 복사",
+        "original_hide": "원본 숨기기",
+        "original_show": "원본 표시",
+        "pin": "고정",
+        "pinned": "고정됨",
+        "r_regenerate": "R: 재생성"
       }
     },
-    "name": "Selection Assistant",
+    "name": "선택 도우미",
     "settings": {
       "actions": {
         "add_tooltip": {
-          "disabled": "Maximum number of custom actions reached ({{max}})",
-          "enabled": "Add Custom Action"
+          "disabled": "최대 사용자 정의 작업 수에 도달함 ({{max}})",
+          "enabled": "사용자 정의 작업 추가"
         },
-        "custom": "Custom Action",
-        "delete_confirm": "Are you sure you want to delete this custom action?",
-        "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})",
+        "custom": "사용자 정의 작업",
+        "delete_confirm": "이 사용자 정의 작업을 삭제하시겠습니까?",
+        "drag_hint": "순서를 변경하려면 드래그하세요. 위로 이동하여 작업 활성화 ({{enabled}}/{{max}})",
         "reset": {
-          "button": "Reset",
-          "confirm": "Are you sure you want to reset to default actions? Custom actions will not be deleted.",
-          "tooltip": "Reset to default actions. Custom actions will not be deleted."
+          "button": "재설정",
+          "confirm": "기본 작업으로 재설정하시겠습니까? 사용자 정의 작업은 삭제되지 않습니다.",
+          "tooltip": "기본 작업으로 재설정. 사용자 정의 작업은 삭제되지 않습니다."
         },
-        "title": "Actions"
+        "title": "작업"
       },
       "advanced": {
         "filter_list": {
-          "description": "Advanced feature, recommended for users with experience",
-          "title": "Filter List"
+          "description": "고급 기능, 경험이 있는 사용자에게 권장됨",
+          "title": "필터 목록"
         },
         "filter_mode": {
-          "blacklist": "Blacklist",
-          "default": "Off",
-          "description": "Can limit the selection assistant to only work in specific applications (whitelist) or not work (blacklist)",
-          "title": "Application Filter",
-          "whitelist": "Whitelist"
+          "blacklist": "블랙리스트",
+          "default": "끔",
+          "description": "선택 도우미가 특정 애플리케이션에서만 작동하도록 제한(화이트리스트)하거나 작동하지 않도록(블랙리스트) 제한할 수 있습니다",
+          "title": "애플리케이션 필터",
+          "whitelist": "화이트리스트"
         },
-        "title": "Advanced"
+        "title": "고급"
       },
       "enable": {
-        "description": "Currently only supported on Windows & macOS",
+        "description": "현재 Windows 및 macOS에서만 지원됨",
         "mac_process_trust_hint": {
           "button": {
-            "go_to_settings": "Go to Settings",
-            "open_accessibility_settings": "Open Accessibility Settings"
+            "go_to_settings": "설정으로 이동",
+            "open_accessibility_settings": "접근성 설정 열기"
           },
           "description": {
-            "0": "Selection Assistant requires <strong>Accessibility Permission</strong> to work properly.",
-            "1": "Please click \"<strong>Go to Settings</strong>\" and click the \"<strong>Open System Settings</strong>\" button in the permission request popup that appears later. Then find \"<strong>Cherry Studio</strong>\" in the application list that appears later and turn on the permission switch.",
-            "2": "After completing the settings, please reopen the selection assistant."
+            "0": "선택 도우미가 제대로 작동하려면 <strong>접근성 권한</strong>이 필요합니다.",
+            "1": "\"<strong>설정으로 이동</strong>\"을 클릭하고 나중에 표시되는 권한 요청 팝업에서 \"<strong>시스템 설정 열기</strong>\" 버튼을 클릭하세요. 그런 다음 나중에 표시되는 애플리케이션 목록에서 \"<strong>Cherry Studio</strong>\"를 찾아 권한 스위치를 켜세요.",
+            "2": "설정을 완료한 후 선택 도우미를 다시 열어주세요."
           },
-          "title": "Accessibility Permission"
+          "title": "접근성 권한"
         },
-        "title": "Enable"
+        "title": "활성화"
       },
-      "experimental": "Experimental Features",
+      "experimental": "실험적 기능",
       "filter_modal": {
-        "title": "Application Filter List",
+        "title": "애플리케이션 필터 목록",
         "user_tips": {
-          "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc.",
-          "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+          "mac": "애플리케이션의 Bundle ID를 입력하세요. 한 줄에 하나씩, 대소문자를 구분하지 않으며, 퍼지 일치가 가능합니다. 예: com.google.Chrome, com.apple.mail 등",
+          "windows": "애플리케이션의 실행 파일 이름을 입력하세요. 한 줄에 하나씩, 대소문자를 구분하지 않으며, 퍼지 일치가 가능합니다. 예: chrome.exe, weixin.exe, Cherry Studio.exe 등"
         }
       },
       "search_modal": {
         "custom": {
           "name": {
-            "hint": "Please enter search engine name",
-            "label": "Custom Name",
-            "max_length": "Name cannot exceed 16 characters"
+            "hint": "검색 엔진 이름을 입력하세요",
+            "label": "사용자 정의 이름",
+            "max_length": "이름은 16자를 초과할 수 없습니다"
           },
-          "test": "Test",
+          "test": "테스트",
           "url": {
-            "hint": "Use {{queryString}} to represent the search term",
-            "invalid_format": "Please enter a valid URL starting with http:// or https://",
-            "label": "Custom Search URL",
-            "missing_placeholder": "URL must contain {{queryString}} placeholder",
-            "required": "Please enter search URL"
+            "hint": "{{queryString}}을(를) 사용하여 검색어를 표현하세요",
+            "invalid_format": "http:// 또는 https://로 시작하는 유효한 URL을 입력하세요",
+            "label": "사용자 정의 검색 URL",
+            "missing_placeholder": "URL에 {{queryString}} 플레이스홀더가 포함되어야 합니다",
+            "required": "검색 URL을 입력하세요"
           }
         },
         "engine": {
-          "custom": "Custom",
-          "label": "Search Engine"
+          "custom": "사용자 정의",
+          "label": "검색 엔진"
         },
-        "title": "Set Search Engine"
+        "title": "검색 엔진 설정"
       },
       "toolbar": {
         "compact_mode": {
-          "description": "In compact mode, only icons are displayed without text",
-          "title": "Compact Mode"
+          "description": "컴팩트 모드에서는 아이콘만 표시되고 텍스트는 표시되지 않습니다",
+          "title": "컴팩트 모드"
         },
-        "title": "Toolbar",
+        "title": "도구 모음",
         "trigger_mode": {
-          "ctrlkey": "Ctrl Key",
-          "ctrlkey_note": "After selection, hold down the Ctrl key to show the toolbar",
-          "description": "The way to trigger the selection assistant and show the toolbar",
+          "ctrlkey": "Ctrl 키",
+          "ctrlkey_note": "선택 후 Ctrl 키를 누르고 있으면 도구 모음이 표시됩니다",
+          "description": "선택 도우미를 트리거하고 도구 모음을 표시하는 방법",
           "description_note": {
-            "mac": "If you have remapped the ⌘ key using shortcuts or keyboard mapping tools, it may cause some applications to fail to select text.",
-            "windows": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text."
+            "mac": "단축키나 키보드 매핑 도구를 사용하여 ⌘ 키를 재매핑한 경우 일부 애플리케이션에서 텍스트 선택에 실패할 수 있습니다.",
+            "windows": "일부 애플리케이션은 Ctrl 키로 텍스트 선택을 지원하지 않습니다. AHK와 같은 도구를 사용하여 Ctrl 키를 재매핑한 경우 일부 애플리케이션에서 텍스트 선택에 실패할 수 있습니다."
           },
-          "selected": "Selection",
-          "selected_note": "Show toolbar immediately when text is selected",
-          "shortcut": "Shortcut",
-          "shortcut_link": "Go to Shortcut Settings",
-          "shortcut_note": "After selection, use shortcut to show the toolbar. Please set the shortcut in the shortcut settings page and enable it. ",
-          "title": "Trigger Mode"
+          "selected": "선택",
+          "selected_note": "텍스트를 선택하면 즉시 도구 모음이 표시됩니다",
+          "shortcut": "단축키",
+          "shortcut_link": "단축키 설정으로 이동",
+          "shortcut_note": "선택 후 단축키를 사용하여 도구 모음을 표시합니다. 단축키 설정 페이지에서 단축키를 설정하고 활성화하세요.",
+          "title": "트리거 모드"
         }
       },
       "user_modal": {
         "assistant": {
-          "default": "Default",
-          "label": "Select Assistant"
+          "default": "기본값",
+          "label": "어시스턴트 선택"
         },
         "icon": {
-          "error": "Invalid icon name, please check your input",
-          "label": "Icon",
-          "placeholder": "Enter Lucide icon name",
-          "random": "Random Icon",
-          "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
-          "view_all": "View All Icons"
+          "error": "잘못된 아이콘 이름, 입력을 확인하세요",
+          "label": "아이콘",
+          "placeholder": "Lucide 아이콘 이름 입력",
+          "random": "임의의 아이콘",
+          "tooltip": "Lucide 아이콘 이름은 소문자입니다. 예: arrow-right",
+          "view_all": "모든 아이콘 보기"
         },
         "model": {
-          "assistant": "Use Assistant",
-          "default": "Default Model",
-          "label": "Model",
-          "tooltip": "Using Assistant: Will use both the assistant's system prompt and model parameters"
+          "assistant": "어시스턴트 사용",
+          "default": "기본 모델",
+          "label": "모델",
+          "tooltip": "어시스턴트 사용: 어시스턴트의 시스템 프롬프트와 모델 매개변수를 모두 사용합니다"
         },
         "name": {
-          "hint": "Please enter action name",
-          "label": "Name"
+          "hint": "작업 이름을 입력하세요",
+          "label": "이름"
         },
         "prompt": {
-          "copy_placeholder": "Copy Placeholder",
-          "label": "User Prompt",
-          "placeholder": "Use placeholder {{text}} to represent selected text. When empty, selected text will be appended to this prompt",
-          "placeholder_text": "Placeholder",
-          "tooltip": "User prompt serves as a supplement to user input and won't override the assistant's system prompt"
+          "copy_placeholder": "플레이스홀더 복사",
+          "label": "사용자 프롬프트",
+          "placeholder": "플레이스홀더 {{text}}을(를) 사용하여 선택된 텍스트를 나타냅니다. 비어 있으면 선택된 텍스트가 이 프롬프트에 추가됩니다",
+          "placeholder_text": "플레이스홀더",
+          "tooltip": "사용자 프롬프트는 사용자 입력의 보조 역할을 하며 어시스턴트의 시스템 프롬프트를 재정의하지 않습니다"
         },
         "title": {
-          "add": "Add Custom Action",
-          "edit": "Edit Custom Action"
+          "add": "사용자 정의 작업 추가",
+          "edit": "사용자 정의 작업 편집"
         }
       },
       "window": {
         "auto_close": {
-          "description": "Automatically close the window when it's not pinned and loses focus",
-          "title": "Auto Close"
+          "description": "고정되지 않고 포커스를 잃으면 창이 자동으로 닫힙니다",
+          "title": "자동 닫기"
         },
         "auto_pin": {
-          "description": "Pin the window by default",
-          "title": "Auto Pin"
+          "description": "기본적으로 창을 고정합니다",
+          "title": "자동 고정"
         },
         "follow_toolbar": {
-          "description": "Window position will follow the toolbar. When disabled, it will always be centered.",
-          "title": "Follow Toolbar"
+          "description": "창 위치가 도구 모음을 따라갑니다. 비활성화되면 항상 중앙에 표시됩니다.",
+          "title": "도구 모음 따라가기"
         },
         "opacity": {
-          "description": "Set the default opacity of the window, 100% is fully opaque",
-          "title": "Opacity"
+          "description": "창의 기본 불투명도를 설정합니다. 100%는 완전히 불투명합니다",
+          "title": "불투명도"
         },
         "remember_size": {
-          "description": "Window will display at the last adjusted size during the application running",
-          "title": "Remember Size"
+          "description": "애플리케이션 실행 중 마지막으로 조정된 크기로 창이 표시됩니다",
+          "title": "크기 기억"
         },
-        "title": "Action Window"
+        "title": "작업 창"
       }
     }
   },
@@ -3345,8 +3345,8 @@
               "error": "Delete failed",
               "selected": "Delete Selected",
               "success": {
-                "multiple": "Successfully deleted {{count}} backup files",
-                "single": "Deleted successfully"
+                "multiple": "{{count}}개의 백업 파일을 성공적으로 삭제함",
+                "single": "성공적으로 삭제됨"
               },
               "text": "Delete"
             },
@@ -3690,8 +3690,8 @@
               "error": "Delete failed",
               "selected": "Delete Selected",
               "success": {
-                "multiple": "Successfully deleted {{count}} backup files",
-                "single": "Deleted successfully"
+                "multiple": "{{count}}개의 백업 파일을 성공적으로 삭제함",
+                "single": "성공적으로 삭제됨"
               },
               "text": "Delete"
             },
@@ -3977,7 +3977,7 @@
       "deleteServer": "Delete Server",
       "deleteServerConfirm": "Are you sure you want to delete this server?",
       "deleteSuccess": "Server deleted successfully",
-      "dependenciesInstall": "Install Dependencies",
+      "dependenciesInstall": "종속성 설치",
       "dependenciesInstalling": "Installing dependencies...",
       "description": "Description",
       "disable": {
@@ -4002,11 +4002,11 @@
       "findMore": "Find More MCP",
       "headers": "Headers",
       "headersTooltip": "Custom headers for HTTP requests",
-      "inMemory": "Memory",
-      "install": "Install",
-      "installError": "Failed to install dependencies",
-      "installHelp": "Get Installation Help",
-      "installSuccess": "Dependencies installed successfully",
+      "inMemory": "메모리",
+      "install": "설치",
+      "installError": "종속성 설치 실패",
+      "installHelp": "설치 도움말 보기",
+      "installSuccess": "종속성이 성공적으로 설치됨",
       "jsonFormatError": "JSON formatting error",
       "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
       "jsonSaveError": "Failed to save JSON configuration.",
@@ -4336,7 +4336,7 @@
       "provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
       "provider_name": "Provider Name",
       "quick_assistant_default_tag": "Default",
-      "quick_assistant_model": "Quick Assistant Model",
+      "quick_assistant_model": "빠른 도우미 모델",
       "quick_assistant_selection": "Select Assistant",
       "quick_model": {
         "description": "Model used for simple tasks such as topic naming and keyword extraction",
@@ -4641,11 +4641,11 @@
       "tip": "Supports wildcard matching (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
-      "click_tray_to_show": "Click the tray icon to start",
-      "enable_quick_assistant": "Enable Quick Assistant",
-      "read_clipboard_at_startup": "Read clipboard at startup",
-      "title": "Quick Assistant",
-      "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+      "click_tray_to_show": "트레이 아이콘을 클릭하여 시작",
+      "enable_quick_assistant": "빠른 도우미 활성화",
+      "read_clipboard_at_startup": "시작 시 클립보드 읽기",
+      "title": "빠른 도우미",
+      "use_shortcut_to_show": "트레이 아이콘을 마우스 오른쪽 버튼으로 클릭하거나 단축키를 사용하여 시작"
     },
     "quickPanel": {
       "back": "Back",
@@ -4682,7 +4682,7 @@
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
-      "mini_window": "Quick Assistant",
+      "mini_window": "빠른 도우미",
       "new_topic": "New Topic",
       "press_shortcut": "Press Shortcut",
       "rename_topic": "Rename Topic",
@@ -4892,23 +4892,23 @@
           "placeholder": "en-us"
         },
         "success": {
-          "add": "Added successfully",
-          "delete": "Deleted successfully",
-          "update": "Update successful"
+          "add": "성공적으로 추가됨",
+          "delete": "성공적으로 삭제됨",
+          "update": "업데이트 성공"
         },
         "table": {
           "action": {
-            "title": "Operation"
+            "title": "작업"
           }
         },
         "value": {
-          "help": "1~32 characters",
-          "label": "Language name",
-          "placeholder": "English"
+          "help": "1~32자",
+          "label": "언어 이름",
+          "placeholder": "영어"
         }
       },
-      "prompt": "Translation prompt",
-      "title": "Translation settings"
+      "prompt": "번역 프롬프트",
+      "title": "번역 설정"
     },
     "tray": {
       "onclose": "Minimize to Tray on Close",
@@ -5079,25 +5079,25 @@
     }
   },
   "tray": {
-    "quit": "Quit",
-    "show_mini_window": "Quick Assistant",
-    "show_window": "Show Window"
+    "quit": "종료",
+    "show_mini_window": "빠른 도우미",
+    "show_window": "창 표시"
   },
   "update": {
-    "install": "Install",
-    "later": "Later",
-    "message": "New version {{version}} is ready, do you want to install it now?",
-    "noReleaseNotes": "No release notes",
-    "saveDataError": "Failed to save data, please try again.",
-    "title": "Update"
+    "install": "설치",
+    "later": "나중에",
+    "message": "새 버전 {{version}}이(가) 준비되었습니다. 지금 설치하시겠습니까?",
+    "noReleaseNotes": "릴리스 노트 없음",
+    "saveDataError": "데이터 저장 실패, 다시 시도해 주세요.",
+    "title": "업데이트"
   },
   "warning": {
-    "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
+    "missing_provider": "공급자가 존재하지 않습니다. 기본 공급자 {{provider}}(으)로 되돌림. 문제가 발생할 수 있습니다."
   },
   "words": {
-    "knowledgeGraph": "Knowledge Graph",
-    "quit": "Quit",
-    "show_window": "Show Window",
-    "visualization": "Visualization"
+    "knowledgeGraph": "지식 그래프",
+    "quit": "종료",
+    "show_window": "창 표시",
+    "visualization": "시각화"
   }
 }
