@@ -37,7 +37,9 @@ function getDbPath() {
 
   makeSureDirExists(path.dirname(agentsDbPath))
 
-  if (fs.existsSync(oldAgentsDbPath)) {
+  // Only migrate if old database exists and new database doesn't exist yet
+  // This prevents overwriting a newer database with stale data from old location
+  if (fs.existsSync(oldAgentsDbPath) && !fs.existsSync(agentsDbPath)) {
     fs.renameSync(oldAgentsDbPath, agentsDbPath)
   }
 
