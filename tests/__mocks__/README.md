@@ -43,6 +43,15 @@ Mocks are globally configured in setup files:
 - **Renderer**: `tests/renderer.setup.ts`
 - **Main**: `tests/main.setup.ts`
 
+### Import Path Alias
+
+Use `@test-mocks/*` to import mock utilities:
+
+```typescript
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+```
+
 ---
 
 ## Renderer Mocks
@@ -89,7 +98,7 @@ Three-tier cache system with type-safe and casual (dynamic key) methods.
 
 ```typescript
 import { cacheService } from '@data/CacheService'
-import { MockCacheUtils } from 'tests/__mocks__/renderer/CacheService'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 
 describe('Cache', () => {
   beforeEach(() => MockCacheUtils.resetMocks())
@@ -133,7 +142,7 @@ HTTP client with subscriptions and retry configuration.
 
 ```typescript
 import { dataApiService } from '@data/DataApiService'
-import { MockDataApiUtils } from 'tests/__mocks__/renderer/DataApiService'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 
 describe('API', () => {
   beforeEach(() => MockDataApiUtils.resetMocks())
@@ -175,7 +184,7 @@ React hooks for data operations.
 
 ```typescript
 import { useQuery, useMutation } from '@data/hooks/useDataApi'
-import { MockUseDataApiUtils } from 'tests/__mocks__/renderer/useDataApi'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 
 describe('Hooks', () => {
   beforeEach(() => MockUseDataApiUtils.resetMocks())
@@ -261,7 +270,7 @@ Internal cache and cross-window shared cache.
 | Shared | `deleteShared` | `<K>(key: K) => boolean` |
 
 ```typescript
-import { MockMainCacheServiceUtils } from 'tests/__mocks__/main/CacheService'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
 beforeEach(() => MockMainCacheServiceUtils.resetMocks())
 
@@ -283,7 +292,7 @@ API coordinator managing ApiServer and IpcAdapter.
 | `getApiServer` | `() => ApiServer` |
 
 ```typescript
-import { MockMainDataApiServiceUtils } from 'tests/__mocks__/main/DataApiService'
+import { MockMainDataApiServiceUtils } from '@test-mocks/main/DataApiService'
 
 beforeEach(() => MockMainDataApiServiceUtils.resetMocks())
 
