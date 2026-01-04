@@ -2688,227 +2688,227 @@
     "progress": {
       "completed": "복원 완료",
       "copying_files": "파일 복사 중... {{progress}}%",
-      "extracted": "Extraction successful",
-      "extracting": "Extracting backup...",
-      "preparing": "Preparing restore...",
-      "reading_data": "Reading data...",
-      "title": "Restore Progress"
+      "extracted": "추출 성공",
+      "extracting": "백업 추출 중...",
+      "preparing": "복구 준비 중...",
+      "reading_data": "데이터 읽기 중...",
+      "title": "복원 진행률"
     },
-    "title": "Data Restore"
+    "title": "데이터 복원"
   },
   "richEditor": {
     "action": {
       "table": {
-        "deleteColumn": "Delete columns",
-        "deleteRow": "Delete rows",
-        "insertColumnAfter": "Insert After",
-        "insertColumnBefore": "Insert Before",
-        "insertRowAfter": "Insert Below",
-        "insertRowBefore": "Insert Above"
+        "deleteColumn": "열 삭제",
+        "deleteRow": "행 삭제",
+        "insertColumnAfter": "뒤에 삽입",
+        "insertColumnBefore": "앞에 삽입",
+        "insertRowAfter": "아래에 삽입",
+        "insertRowBefore": "위에 삽입"
       }
     },
     "commands": {
       "blockMath": {
-        "description": "Insert mathematical formula",
-        "title": "Math Formula"
+        "description": "수학 공식 삽입",
+        "title": "수학 공식"
       },
       "blockquote": {
-        "description": "Capture a quote",
-        "title": "Quote"
+        "description": "인용문 캡처",
+        "title": "인용"
       },
       "bold": {
-        "description": "Marked in bold",
-        "title": "Bold"
+        "description": "굵게 표시",
+        "title": "굵게"
       },
       "bulletList": {
-        "description": "Create a simple bulleted list",
-        "title": "Bulleted list"
+        "description": "간단한 글머리 기호 목록 만들기",
+        "title": "글머리 기호 목록"
       },
       "calloutInfo": {
-        "description": "Add an info callout box",
-        "title": "Info Callout"
+        "description": "정보 호출 상자 추가",
+        "title": "정보 호출"
       },
       "calloutWarning": {
-        "description": "Add a warning callout box",
-        "title": "Warning Callout"
+        "description": "경고 호출 상자 추가",
+        "title": "경고 호출"
       },
       "code": {
-        "description": "Insert code snippet",
-        "title": "Code"
+        "description": "코드 스니펫 삽입",
+        "title": "코드"
       },
       "codeBlock": {
-        "description": "Capture a code snippet",
-        "title": "Code"
+        "description": "코드 스니펫 캡처",
+        "title": "코드"
       },
       "columns": {
-        "description": "Create column layout",
-        "title": "Columns"
+        "description": "열 레이아웃 만들기",
+        "title": "열"
       },
       "date": {
-        "description": "Insert current date",
-        "title": "Date"
+        "description": "현재 날짜 삽입",
+        "title": "날짜"
       },
       "divider": {
-        "description": "Add a horizontal line",
-        "title": "Divider"
+        "description": "가로선 추가",
+        "title": "구분선"
       },
       "hardBreak": {
-        "description": "Insert a line break",
-        "title": "Line Break"
+        "description": "줄 바꿈 삽입",
+        "title": "줄 바꿈"
       },
       "heading1": {
-        "description": "Big section heading",
-        "title": "Heading 1"
+        "description": "큰 섹션 제목",
+        "title": "제목 1"
       },
       "heading2": {
-        "description": "Medium section heading",
-        "title": "Heading 2"
+        "description": "중간 섹션 제목",
+        "title": "제목 2"
       },
       "heading3": {
-        "description": "Small section heading",
-        "title": "Heading 3"
+        "description": "작은 섹션 제목",
+        "title": "제목 3"
       },
       "heading4": {
-        "description": "Smaller section heading",
-        "title": "Heading 4"
+        "description": "더 작은 섹션 제목",
+        "title": "제목 4"
       },
       "heading5": {
-        "description": "Even smaller section heading",
-        "title": "Heading 5"
+        "description": "훨씬 작은 섹션 제목",
+        "title": "제목 5"
       },
       "heading6": {
-        "description": "Smallest section heading",
-        "title": "Heading 6"
+        "description": "가장 작은 섹션 제목",
+        "title": "제목 6"
       },
       "image": {
-        "description": "Insert an image",
-        "title": "Image"
+        "description": "이미지 삽입",
+        "title": "이미지"
       },
       "inlineCode": {
-        "description": "Add inline code",
-        "title": "Inline Code"
+        "description": "인라인 코드 추가",
+        "title": "인라인 코드"
       },
       "inlineMath": {
-        "description": "Insert inline mathematical formulas",
-        "title": "Inline Math"
+        "description": "인라인 수학 공식 삽입",
+        "title": "인라인 수학"
       },
       "italic": {
-        "description": "Marked as italic",
-        "title": "Italic"
+        "description": "기울임꼴로 표시",
+        "title": "기울임꼴"
       },
       "link": {
-        "description": "Add a link",
-        "title": "Link"
+        "description": "링크 추가",
+        "title": "링크"
       },
-      "noCommandsFound": "No commands found",
+      "noCommandsFound": "명령을 찾을 수 없음",
       "orderedList": {
-        "description": "Create a list with numbering",
-        "title": "Numbered list"
+        "description": "번호가 매겨진 목록 만들기",
+        "title": "번호 매기기 목록"
       },
       "paragraph": {
-        "description": "Start writing with plain text",
-        "title": "Text"
+        "description": "일반 텍스트로 작성 시작",
+        "title": "텍스트"
       },
       "redo": {
-        "description": "Redo the last action",
-        "title": "Redo"
+        "description": "마지막 작업 다시 실행",
+        "title": "다시 실행"
       },
       "strike": {
-        "description": "Mark as a delete line",
-        "title": "Delete line"
+        "description": "취소선으로 표시",
+        "title": "취소선"
       },
       "table": {
-        "description": "Insert a table",
-        "title": "Table"
+        "description": "테이블 삽입",
+        "title": "테이블"
       },
       "taskList": {
-        "description": "Create a checklist",
-        "title": "Task List"
+        "description": "체크리스트 만들기",
+        "title": "작업 목록"
       },
       "underline": {
-        "description": "Mark as underlined",
-        "title": "Underline"
+        "description": "밑줄로 표시",
+        "title": "밑줄"
       },
       "undo": {
-        "description": "Undo the last action",
-        "title": "Undo"
+        "description": "마지막 작업 실행 취소",
+        "title": "실행 취소"
       }
     },
-    "dragHandle": "Drag to move",
+    "dragHandle": "이동하려면 드래그",
     "frontMatter": {
-      "addProperty": "Add a property",
-      "addTag": "Add tag",
-      "changeToBoolean": "Checkbox",
-      "changeToDate": "Date",
-      "changeToNumber": "Number",
-      "changeToTags": "Tags",
-      "changeToText": "Text",
-      "changeType": "Change type",
-      "deleteProperty": "Delete property",
-      "editValue": "Edit value",
-      "empty": "Empty",
-      "moreActions": "More actions",
-      "propertyName": "Property name"
+      "addProperty": "속성 추가",
+      "addTag": "태그 추가",
+      "changeToBoolean": "체크박스",
+      "changeToDate": "날짜",
+      "changeToNumber": "숫자",
+      "changeToTags": "태그",
+      "changeToText": "텍스트",
+      "changeType": "유형 변경",
+      "deleteProperty": "속성 삭제",
+      "editValue": "값 편집",
+      "empty": "비어 있음",
+      "moreActions": "더 많은 작업",
+      "propertyName": "속성 이름"
     },
     "image": {
-      "placeholder": "Add a picture"
+      "placeholder": "사진 추가"
     },
     "imageUploader": {
-      "embedImage": "Embed image",
-      "embedLink": "Embed link",
-      "embedSuccess": "Image embedded successfully",
-      "invalidType": "Please select an image file",
-      "invalidUrl": "Invalid image URL",
-      "processing": "Processing image...",
-      "title": "Add an image",
-      "tooLarge": "Image size cannot exceed 10MB",
-      "upload": "Upload",
-      "uploadError": "Image upload failed",
-      "uploadFile": "Upload file",
-      "uploadHint": "Supports JPG, PNG, GIF and other formats, max 10MB",
-      "uploadSuccess": "Image uploaded successfully",
-      "uploadText": "Click or drag image here to upload",
-      "uploading": "Uploading image",
-      "urlPlaceholder": "Paste image link",
-      "urlRequired": "Please enter image URL"
+      "embedImage": "이미지 임베드",
+      "embedLink": "링크 임베드",
+      "embedSuccess": "이미지가 성공적으로 임베드됨",
+      "invalidType": "이미지 파일을 선택하세요",
+      "invalidUrl": "잘못된 이미지 URL",
+      "processing": "이미지 처리 중...",
+      "title": "이미지 추가",
+      "tooLarge": "이미지 크기는 10MB를 초과할 수 없습니다",
+      "upload": "업로드",
+      "uploadError": "이미지 업로드 실패",
+      "uploadFile": "파일 업로드",
+      "uploadHint": "JPG, PNG, GIF 및 기타 형식 지원, 최대 10MB",
+      "uploadSuccess": "이미지가 성공적으로 업로드됨",
+      "uploadText": "클릭하거나 이미지를 여기로 끌어서 업로드",
+      "uploading": "이미지 업로드 중",
+      "urlPlaceholder": "이미지 링크 붙여넣기",
+      "urlRequired": "이미지 URL을 입력하세요"
     },
     "link": {
-      "remove": "Remove link",
-      "text": "Link Title",
-      "textPlaceholder": "Please enter the link title",
-      "url": "Link URL"
+      "remove": "링크 제거",
+      "text": "링크 제목",
+      "textPlaceholder": "링크 제목을 입력하세요",
+      "url": "링크 URL"
     },
     "math": {
-      "placeholder": "Enter LaTeX formula"
+      "placeholder": "LaTeX 공식 입력"
     },
-    "placeholder": "Write '/' for commands",
-    "plusButton": "Click to add below",
+    "placeholder": "명령어를 위해 '/' 입력",
+    "plusButton": "아래에 추가하려면 클릭",
     "toolbar": {
-      "blockMath": "Block Math",
-      "blockquote": "Quote",
-      "bold": "Bold",
-      "bulletList": "Bullet List",
-      "clearMarks": "Clear Formatting",
-      "code": "Inline Code",
-      "codeBlock": "Code Block",
-      "heading1": "Heading 1",
-      "heading2": "Heading 2",
-      "heading3": "Heading 3",
-      "heading4": "Heading 4",
-      "heading5": "Heading 5",
-      "heading6": "Heading 6",
-      "image": "Image",
-      "inlineMath": "Inline Equation",
-      "italic": "Italic",
-      "link": "Link",
-      "orderedList": "Ordered List",
-      "paragraph": "Paragraph",
-      "redo": "Redo",
-      "strike": "Strikethrough",
-      "table": "Table",
-      "taskList": "Task List",
-      "underline": "Underline",
-      "undo": "Undo"
+      "blockMath": "블록 수학",
+      "blockquote": "인용",
+      "bold": "굵게",
+      "bulletList": "글머리 기호 목록",
+      "clearMarks": "서식 지우기",
+      "code": "인라인 코드",
+      "codeBlock": "코드 블록",
+      "heading1": "제목 1",
+      "heading2": "제목 2",
+      "heading3": "제목 3",
+      "heading4": "제목 4",
+      "heading5": "제목 5",
+      "heading6": "제목 6",
+      "image": "이미지",
+      "inlineMath": "인라인 수식",
+      "italic": "기울임꼴",
+      "link": "링크",
+      "orderedList": "번호 매기기 목록",
+      "paragraph": "단락",
+      "redo": "다시 실행",
+      "strike": "취소선",
+      "table": "테이블",
+      "taskList": "작업 목록",
+      "underline": "밑줄",
+      "undo": "실행 취소"
     }
   },
   "selection": {
