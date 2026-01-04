@@ -15,11 +15,6 @@ export class ModelsService {
 
       const providers = await getAvailableProviders()
 
-      // Note: When providerType === 'anthropic', we now return ALL available models
-      // because the API Server's unified adapter (AiSdkToAnthropicSSE) can convert
-      // any provider's response to Anthropic SSE format. This enables Claude Code Agent
-      // to work with OpenAI, Gemini, and other providers transparently.
-
       const models = await listAllAvailableModels(providers)
       // Use Map to deduplicate models by their full ID (provider:model_id)
       const uniqueModels = new Map<string, ApiModel>()

@@ -3,7 +3,7 @@ import express from 'express'
 
 import { loggerService } from '../../services/LoggerService'
 import type { ExtendedChatCompletionCreateParams } from '../adapters'
-import { generateMessage, streamToResponse } from '../services/ProxyStreamService'
+import { processMessage } from '../services/ProxyStreamService'
 import { validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ApiServerChatRoutes')
@@ -205,38 +205,15 @@ router.post('/completions', async (req: Request, res: Response) => {
 
     const provider = modelValidation.provider!
     const modelId = modelValidation.modelId!
-    const isStreaming = !!request.stream
 
-    if (isStreaming) {
-      try {
-        await streamToResponse({
-          response: res,
-          provider,
-          modelId,
-          params: request,
-          inputFormat: 'openai',
-          outputFormat: 'openai'
-        })
-      } catch (streamError) {
-        logger.error('Stream error', { error: streamError })
-        // If headers weren't sent yet, return JSON error
-        if (!res.headersSent) {
-          const { status, body } = mapChatCompletionError(streamError)
-          return res.status(status).json(body)
-        }
-        // Otherwise the error is already handled by streamToResponse
-      }
-      return
-    }
-
-    const response = await generateMessage({
+    return processMessage({
+      response: res,
       provider,
       modelId,
       params: request,
       inputFormat: 'openai',
       outputFormat: 'openai'
     })
-    return res.json(response)
   } catch (error: unknown) {
     const { status, body } = mapChatCompletionError(error)
     return res.status(status).json(body)

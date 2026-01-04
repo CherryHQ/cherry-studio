@@ -8,7 +8,7 @@ import express from 'express'
 import { approximateTokenSize } from 'tokenx'
 
 import { messagesService } from '../services/messages'
-import { generateMessage, streamToResponse } from '../services/ProxyStreamService'
+import { processMessage } from '../services/ProxyStreamService'
 import { getProviderById, isModelAnthropicCompatible, validateModelId } from '../utils'
 
 /**
@@ -321,29 +321,19 @@ async function handleUnifiedProcessing({
       providerId: provider.id
     })
 
-    if (request.stream) {
-      await streamToResponse({
-        response: res,
-        provider,
-        modelId: actualModelId,
-        params: request,
-        middlewares,
-        onError: (error) => {
-          logger.error('Stream error', error as Error)
-        },
-        onComplete: () => {
-          logger.debug('Stream completed')
-        }
-      })
-    } else {
-      const response = await generateMessage({
-        provider,
-        modelId: actualModelId,
-        params: request,
-        middlewares
-      })
-      res.json(response)
-    }
+    await processMessage({
+      response: res,
+      provider,
+      modelId: actualModelId,
+      params: request,
+      middlewares,
+      onError: (error) => {
+        logger.error('Message error', error as Error)
+      },
+      onComplete: () => {
+        logger.debug('Message completed')
+      }
+    })
   } catch (error: any) {
     const { statusCode, errorResponse } = messagesService.transformError(error)
     res.status(statusCode).json(errorResponse)
