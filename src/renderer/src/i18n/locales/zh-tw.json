@@ -325,7 +325,8 @@
     "description": "[to be translated]:Expose Cherry Studio's AI capabilities through a unified API Gateway",
     "endpoints": {
       "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
-      "messages": "[to be translated]:Anthropic-compatible messages API"
+      "messages": "[to be translated]:Anthropic-compatible messages API",
+      "responses": "[to be translated]:OpenAI Responses API (new format)"
     },
     "fields": {
       "baseUrl": {

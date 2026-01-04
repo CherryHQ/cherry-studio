@@ -33,10 +33,11 @@ const { Text, Title } = Typography
 
 const GATEWAY_ENDPOINTS: { value: GatewayEndpoint; labelKey: string }[] = [
   { value: '/v1/chat/completions', labelKey: 'apiGateway.endpoints.chatCompletions' },
-  { value: '/v1/messages', labelKey: 'apiGateway.endpoints.messages' }
+  { value: '/v1/messages', labelKey: 'apiGateway.endpoints.messages' },
+  { value: '/v1/responses', labelKey: 'apiGateway.endpoints.responses' }
 ]
 
-type EnvFormat = 'openai' | 'anthropic'
+type EnvFormat = 'openai' | 'anthropic' | 'responses'
 
 const ApiServerSettings: FC = () => {
   const { theme } = useTheme()
@@ -343,8 +344,12 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) 
   // Get full endpoint URL based on selected format
   const getFullEndpointUrl = () => {
     const baseUrl = getGroupUrl()
-    const endpoint = envFormat === 'openai' ? '/v1/chat/completions' : '/v1/messages'
-    return `${baseUrl}${endpoint}`
+    const endpointMap: Record<EnvFormat, string> = {
+      openai: '/v1/chat/completions',
+      anthropic: '/v1/messages',
+      responses: '/v1/responses'
+    }
+    return `${baseUrl}${endpointMap[envFormat]}`
   }
 
   const copyBaseUrl = () => {
@@ -355,9 +360,10 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) 
   const copyGroupEnvVars = () => {
     const baseUrl = getGroupUrl()
     const apiKey = apiServerConfig.apiKey
+    // Responses API uses OpenAI SDK format
     const prefix = envFormat === 'anthropic' ? 'ANTHROPIC' : 'OPENAI'
     // OpenAI SDK expects /v1 in the base URL, Anthropic doesn't
-    const urlSuffix = envFormat === 'openai' ? '/v1' : ''
+    const urlSuffix = envFormat === 'openai' || envFormat === 'responses' ? '/v1' : ''
     const envVars = `export ${prefix}_BASE_URL=${baseUrl}${urlSuffix}\nexport ${prefix}_API_KEY=${apiKey}`
     navigator.clipboard.writeText(envVars)
     window.toast.success(t('apiGateway.messages.envVarsCopied'))
@@ -446,7 +452,8 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) 
                 onChange={(value) => setEnvFormat(value as EnvFormat)}
                 options={[
                   { label: 'OpenAI', value: 'openai' },
-                  { label: 'Anthropic', value: 'anthropic' }
+                  { label: 'Anthropic', value: 'anthropic' },
+                  { label: 'Responses', value: 'responses' }
                 ]}
               />
             </ButtonGroup>

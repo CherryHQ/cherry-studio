@@ -325,7 +325,8 @@
     "description": "通过统一的 API 网关暴露 Cherry Studio 的 AI 功能",
     "endpoints": {
       "chatCompletions": "OpenAI 兼容的聊天补全接口",
-      "messages": "Anthropic 兼容的消息接口"
+      "messages": "Anthropic 兼容的消息接口",
+      "responses": "OpenAI Responses API（新格式）"
     },
     "fields": {
       "baseUrl": {

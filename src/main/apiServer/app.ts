@@ -139,6 +139,7 @@ groupRouter.use(authMiddleware)
 groupRouter.use(gatewayMiddleware)
 groupRouter.use('/v1/chat', chatRoutes)
 groupRouter.use('/v1/messages', extendMessagesTimeout, messagesRoutes)
+groupRouter.use('/v1/responses', extendMessagesTimeout, responsesRoutes)
 app.use('/:groupId', groupRouter)
 
 // API v1 routes with auth and gateway

@@ -7,7 +7,7 @@ import { reduxService } from '../services/ReduxService'
 
 const logger = loggerService.withContext('ApiGatewayConfig')
 
-const DEFAULT_ENABLED_ENDPOINTS: GatewayEndpoint[] = ['/v1/chat/completions', '/v1/messages']
+const DEFAULT_ENABLED_ENDPOINTS: GatewayEndpoint[] = ['/v1/chat/completions', '/v1/messages', '/v1/responses']
 
 class ConfigManager {
   private _config: ApiGatewayConfig | null = null

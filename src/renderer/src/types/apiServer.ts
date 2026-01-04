@@ -1,8 +1,7 @@
 /**
  * Gateway endpoint types that can be enabled/disabled
- * Note: /v1/models is always enabled and not configurable
  */
-export type GatewayEndpoint = '/v1/chat/completions' | '/v1/messages'
+export type GatewayEndpoint = '/v1/chat/completions' | '/v1/messages' | '/v1/responses'
 
 /**
  * Model group - represents a unique endpoint with a specific provider/model combination
@@ -28,7 +27,7 @@ export type ApiGatewayConfig = {
 
   // Gateway settings
   modelGroups: ModelGroup[]
-  enabledEndpoints: GatewayEndpoint[] // /v1/models is always enabled
+  enabledEndpoints: GatewayEndpoint[]
   exposeToNetwork: boolean // true = 0.0.0.0, false = 127.0.0.1
 }
 
@@ -39,7 +38,7 @@ export type ApiServerConfig = ApiGatewayConfig
 
 export type GetApiServerStatusResult = {
   running: boolean
-  config: ApiServerConfig | null
+  config: ApiGatewayConfig | null
 }
 
 export type StartApiServerStatusResult =
