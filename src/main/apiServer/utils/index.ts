@@ -1,6 +1,7 @@
 import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
+import { isOpenAILLMModel } from '@shared/aiCore/config/aihubmix'
 import { isPpioAnthropicCompatibleModel, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider } from '@types'
 
@@ -274,6 +275,7 @@ export function validateProvider(provider: Provider): boolean {
   }
 }
 
+// TODO: checker 和 ProviderCreator重构到一起
 export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model) => boolean) => {
   switch (providerId) {
     case 'cherryin':
@@ -294,6 +296,25 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
 }
 
 /**
+ * Get model checker for OpenAI Responses API compatibility
+ *
+ * Returns a function that checks if a model supports OpenAI Responses API endpoint.
+ * For aggregated providers, only certain models may support this endpoint.
+ */
+export const getProviderOpenAIResponsesModelChecker = (providerId: string): ((m: Model) => boolean) => {
+  switch (providerId) {
+    case 'cherryin':
+    case 'new-api':
+      // Check endpoint_type for responses API support
+      return (m: Model) => m.endpoint_type === 'openai-response'
+    case 'aihubmix':
+      return (m) => isOpenAILLMModel(m)
+    default:
+      return () => false
+  }
+}
+
+/**
  * Check if a specific model is compatible with Anthropic API for a given provider.
  *
  * This is used for fine-grained routing decisions at the model level.
@@ -305,6 +326,35 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
  */
 export function isModelAnthropicCompatible(provider: Provider, modelId: string): boolean {
   const checker = getProviderAnthropicModelChecker(provider.id)
+
+  const model = provider.models?.find((m) => m.id === modelId)
+
+  if (model) {
+    return checker(model)
+  }
+
+  const minimalModel: Model = {
+    id: modelId,
+    name: modelId,
+    provider: provider.id,
+    group: ''
+  }
+
+  return checker(minimalModel)
+}
+
+/**
+ * Check if a specific model is compatible with OpenAI Responses API for a given provider.
+ *
+ * This is used for fine-grained routing decisions at the model level.
+ * For aggregated providers (like new-api/cherryin), only certain models support the Responses API endpoint.
+ *
+ * @param provider - The provider to check
+ * @param modelId - The model ID to check (without provider prefix)
+ * @returns true if the model supports OpenAI Responses API endpoint
+ */
+export function isModelOpenAIResponsesCompatible(provider: Provider, modelId: string): boolean {
+  const checker = getProviderOpenAIResponsesModelChecker(provider.id)
 
   const model = provider.models?.find((m) => m.id === modelId)
 

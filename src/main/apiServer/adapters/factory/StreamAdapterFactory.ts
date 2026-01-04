@@ -6,9 +6,11 @@
  */
 
 import { AnthropicSSEFormatter } from '../formatters/AnthropicSSEFormatter'
+import { OpenAIResponsesSSEFormatter } from '../formatters/OpenAIResponsesSSEFormatter'
 import { OpenAISSEFormatter } from '../formatters/OpenAISSEFormatter'
 import type { ISSEFormatter, IStreamAdapter, OutputFormat, StreamAdapterOptions } from '../interfaces'
 import { AiSdkToAnthropicSSE } from '../stream/AiSdkToAnthropicSSE'
+import { AiSdkToOpenAIResponsesSSE } from '../stream/AiSdkToOpenAIResponsesSSE'
 import { AiSdkToOpenAISSE } from '../stream/AiSdkToOpenAISSE'
 
 /**
@@ -50,6 +52,13 @@ export class StreamAdapterFactory {
       {
         adapterClass: AiSdkToOpenAISSE,
         formatterClass: OpenAISSEFormatter
+      }
+    ],
+    [
+      'openai-responses',
+      {
+        adapterClass: AiSdkToOpenAIResponsesSSE,
+        formatterClass: OpenAIResponsesSSEFormatter
       }
     ]
   ])

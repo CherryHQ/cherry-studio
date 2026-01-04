@@ -19,7 +19,7 @@ export type OutputFormat = 'anthropic' | 'openai' | 'gemini' | 'openai-responses
 /**
  * Supported input formats for message converters
  */
-export type InputFormat = 'anthropic' | 'openai'
+export type InputFormat = 'anthropic' | 'openai' | 'openai-responses'
 
 /**
  * Stream text options extracted from input params

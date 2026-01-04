@@ -20,6 +20,9 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { ReasoningEffort } from '@cherrystudio/openai/resources'
+
+// Re-export for use by message converters
+export type { ReasoningEffort }
 import type { OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
 import { SystemProviderIds } from '@shared/types'
 import { isAnthropicProvider, isAwsBedrockProvider, isGeminiProvider, isOpenAIProvider } from '@shared/utils/provider'

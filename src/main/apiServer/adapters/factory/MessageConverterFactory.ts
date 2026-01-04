@@ -9,6 +9,10 @@ import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
 import { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from '../converters/OpenAIMessageConverter'
+import {
+  OpenAIResponsesMessageConverter,
+  type ResponsesCreateParams
+} from '../converters/OpenAIResponsesMessageConverter'
 import type { IMessageConverter, InputFormat } from '../interfaces'
 
 /**
@@ -17,6 +21,7 @@ import type { IMessageConverter, InputFormat } from '../interfaces'
 export type InputParamsMap = {
   openai: ExtendedChatCompletionCreateParams
   anthropic: MessageCreateParams
+  'openai-responses': ResponsesCreateParams
 }
 
 /**
@@ -58,6 +63,9 @@ export class MessageConverterFactory {
     if (format === 'openai') {
       return new OpenAIMessageConverter() as IMessageConverter<InputParamsMap[T]>
     }
+    if (format === 'openai-responses') {
+      return new OpenAIResponsesMessageConverter() as IMessageConverter<InputParamsMap[T]>
+    }
     return new AnthropicMessageConverter({
       googleReasoningCache: options.googleReasoningCache,
       openRouterReasoningCache: options.openRouterReasoningCache
@@ -68,14 +76,14 @@ export class MessageConverterFactory {
    * Check if a format is supported
    */
   static supportsFormat(format: string): format is InputFormat {
-    return format === 'openai' || format === 'anthropic'
+    return format === 'openai' || format === 'anthropic' || format === 'openai-responses'
   }
 
   /**
    * Get list of all supported formats
    */
   static getSupportedFormats(): InputFormat[] {
-    return ['openai', 'anthropic']
+    return ['openai', 'anthropic', 'openai-responses']
   }
 }
 
