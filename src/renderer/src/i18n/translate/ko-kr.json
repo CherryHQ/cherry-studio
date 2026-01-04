@@ -3719,926 +3719,926 @@
           }
         },
         "disableStream": {
-          "help": "When enabled, loads the file into memory before uploading. This can solve incompatibility issues with some WebDAV servers that do not support chunked uploads, but it will increase memory usage.",
-          "title": "Disable Stream Upload"
+          "help": "활성화하면 업로드 전에 파일을 메모리에 로드합니다. 청크 업로드를 지원하지 않는 일부 WebDAV 서버와의 호환성 문제를 해결할 수 있지만, 메모리 사용량이 증가합니다.",
+          "title": "스트림 업로드 비활성화"
         },
         "host": {
-          "label": "WebDAV Host",
+          "label": "WebDAV 호스트",
           "placeholder": "http://localhost:8080"
         },
-        "hour_interval_one": "{{count}} hour",
-        "hour_interval_other": "{{count}} hours",
-        "lastSync": "Last Backup",
-        "maxBackups": "Maximum Backups",
-        "minute_interval_one": "{{count}} minute",
-        "minute_interval_other": "{{count}} minutes",
-        "noSync": "Waiting for next backup",
-        "password": "WebDAV Password",
+        "hour_interval_one": "{{count}}시간",
+        "hour_interval_other": "{{count}}시간",
+        "lastSync": "마지막 백업",
+        "maxBackups": "최대 백업 수",
+        "minute_interval_one": "{{count}}분",
+        "minute_interval_other": "{{count}}분",
+        "noSync": "다음 백업 대기 중",
+        "password": "WebDAV 비밀번호",
         "path": {
-          "label": "WebDAV Path",
+          "label": "WebDAV 경로",
           "placeholder": "/backup"
         },
         "restore": {
-          "button": "Restore from WebDAV",
+          "button": "WebDAV에서 복원",
           "confirm": {
-            "content": "Restoring from WebDAV will overwrite current data. Do you want to continue?",
-            "title": "Confirm Restore"
+            "content": "WebDAV에서 복원하면 현재 데이터를 덮어씁니다. 계속하시겠습니까?",
+            "title": "복원 확인"
           },
-          "content": "Restore from WebDAV will overwrite the current data, continue?",
-          "title": "Restore from WebDAV"
+          "content": "WebDAV에서 복원하면 현재 데이터를 덮어씁니다. 계속하시겠습니까?",
+          "title": "WebDAV에서 복원"
         },
-        "syncError": "Backup Error",
-        "syncStatus": "Backup Status",
+        "syncError": "백업 오류",
+        "syncStatus": "백업 상태",
         "title": "WebDAV",
-        "user": "WebDAV User"
+        "user": "WebDAV 사용자"
       },
       "yuque": {
         "check": {
-          "button": "Check",
-          "empty_repo_url": "Please enter the knowledge base URL first",
-          "empty_token": "Please enter the Yuque Token first",
-          "fail": "Yuque connection verification failed",
-          "success": "Yuque connection verified successfully"
+          "button": "확인",
+          "empty_repo_url": "먼저 지식 베이스 URL을 입력해주세요",
+          "empty_token": "먼저 Yuque 토큰을 입력해주세요",
+          "fail": "Yuque 연결 확인 실패",
+          "success": "Yuque 연결이 성공적으로 확인되었습니다"
         },
-        "help": "Get Yuque Token",
+        "help": "Yuque 토큰 가져오기",
         "repo_url": "Yuque URL",
         "repo_url_placeholder": "https://www.yuque.com/username/xxx",
-        "title": "Yuque Configuration",
-        "token": "Yuque Token",
-        "token_placeholder": "Please enter the Yuque Token"
+        "title": "Yuque 구성",
+        "token": "Yuque 토큰",
+        "token_placeholder": "Yuque 토큰을 입력해주세요"
       }
     },
     "developer": {
-      "enable_developer_mode": "Enable Developer Mode",
-      "help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation.",
-      "title": "Developer Mode"
+      "enable_developer_mode": "개발자 모드 활성화",
+      "help": "개발자 모드를 활성화하면 모델 호출 중 데이터 흐름을 보기 위해 추적 기능을 사용할 수 있습니다.",
+      "title": "개발자 모드"
     },
     "display": {
       "assistant": {
-        "title": "Assistant Settings"
+        "title": "도우미 설정"
       },
       "custom": {
         "css": {
-          "cherrycss": "Get from cherrycss.com",
-          "label": "Custom CSS",
-          "placeholder": "/* Put custom CSS here */"
+          "cherrycss": "cherrycss.com에서 가져오기",
+          "label": "사용자 정의 CSS",
+          "placeholder": "/* 여기에 사용자 정의 CSS를 입력하세요 */"
         }
       },
       "font": {
-        "code": "Code Font",
-        "default": "Default",
-        "global": "Global Font",
-        "select": "Select Font",
-        "title": "Font Settings"
+        "code": "코드 글꼴",
+        "default": "기본값",
+        "global": "전역 글꼴",
+        "select": "글꼴 선택",
+        "title": "글꼴 설정"
       },
       "navbar": {
         "position": {
-          "label": "Navbar Position",
-          "left": "Left",
-          "top": "Top"
+          "label": "탐색 모음 위치",
+          "left": "왼쪽",
+          "top": "위쪽"
         },
-        "title": "Navbar Settings"
+        "title": "탐색 모음 설정"
       },
       "sidebar": {
         "chat": {
-          "hiddenMessage": "Assistants are basic functions, not supported for hiding"
+          "hiddenMessage": "도우미는 기본 기능이며 숨기기가 지원되지 않습니다"
         },
-        "disabled": "Hide icons",
-        "empty": "Drag the hidden feature from the left side here",
+        "disabled": "아이콘 숨기기",
+        "empty": "왼쪽에서 숨길 기능을 여기로 드래그하세요",
         "files": {
-          "icon": "Show Files icon"
+          "icon": "파일 아이콘 표시"
         },
         "knowledge": {
-          "icon": "Show Knowledge icon"
+          "icon": "지식 아이콘 표시"
         },
         "minapp": {
-          "icon": "Show MinApp icon"
+          "icon": "미니 앱 아이콘 표시"
         },
         "painting": {
-          "icon": "Show Painting icon"
+          "icon": "그리기 아이콘 표시"
         },
-        "title": "Sidebar Settings",
+        "title": "사이드바 설정",
         "translate": {
-          "icon": "Show Translate icon"
+          "icon": "번역 아이콘 표시"
         },
-        "visible": "Show icons"
+        "visible": "아이콘 표시"
       },
-      "title": "Display Settings",
+      "title": "표시 설정",
       "topic": {
-        "title": "Topic Settings"
+        "title": "토픽 설정"
       },
       "zoom": {
-        "title": "Zoom Settings"
+        "title": "확대/축소 설정"
       }
     },
     "font_size": {
-      "title": "Message font size"
+      "title": "메시지 글꼴 크기"
     },
     "general": {
       "auto_check_update": {
-        "title": "Auto Update"
+        "title": "자동 업데이트"
       },
       "avatar": {
-        "builtin": "Builtin avatar",
-        "reset": "Reset avatar"
+        "builtin": "내장 아바타",
+        "reset": "아바타 재설정"
       },
       "backup": {
-        "button": "Backup",
-        "title": "Data Backup and Recovery"
+        "button": "백업",
+        "title": "데이터 백업 및 복구"
       },
       "display": {
-        "title": "Display Settings"
+        "title": "표시 설정"
       },
-      "emoji_picker": "Emoji Picker",
-      "image_upload": "Image Upload",
-      "label": "General Settings",
+      "emoji_picker": "이모지 선택기",
+      "image_upload": "이미지 업로드",
+      "label": "일반 설정",
       "reset": {
-        "button": "Reset",
-        "title": "Data Reset"
+        "button": "재설정",
+        "title": "데이터 재설정"
       },
       "restore": {
-        "button": "Restore"
+        "button": "복원"
       },
       "spell_check": {
-        "label": "Spell Check",
-        "languages": "Use spell check for"
+        "label": "맞춤법 검사",
+        "languages": "맞춤법 검사 사용 언어"
       },
       "test_plan": {
-        "beta_version": "Beta Version (Beta)",
-        "beta_version_tooltip": "Features may change at any time, bugs are more, upgrade quickly",
-        "rc_version": "Preview Version (RC)",
-        "rc_version_tooltip": "Close to stable version, features are basically stable, bugs are few",
-        "title": "Test Plan",
-        "tooltip": "Participate in the test plan to experience the latest features faster, but also brings more risks, please backup your data in advance",
-        "version_channel_not_match": "Preview and test version switching will take effect after the next stable version is released",
-        "version_options": "Version Options"
+        "beta_version": "베타 버전 (Beta)",
+        "beta_version_tooltip": "기능이 언제든지 변경될 수 있으며, 버그가 많고 빠르게 업그레이드됩니다",
+        "rc_version": "미리보기 버전 (RC)",
+        "rc_version_tooltip": "안정 버전에 가까우며 기능이 기본적으로 안정적이고 버그가 적습니다",
+        "title": "테스트 플랜",
+        "tooltip": "테스트 플랜에 참여하여 최신 기능을 더 빨리 체험할 수 있지만 더 많은 위험이 따르므로 미리 데이터를 백업하세요",
+        "version_channel_not_match": "미리보기 및 테스트 버전 전환은 다음 안정 버전이 릴리스된 후 적용됩니다",
+        "version_options": "버전 옵션"
       },
-      "title": "General Settings",
+      "title": "일반 설정",
       "user_name": {
-        "label": "User Name",
-        "placeholder": "Enter your name"
+        "label": "사용자 이름",
+        "placeholder": "이름을 입력하세요"
       },
-      "view_webdav_settings": "View WebDAV settings"
+      "view_webdav_settings": "WebDAV 설정 보기"
     },
     "groq": {
-      "title": "Groq Settings"
+      "title": "Groq 설정"
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
-        "title": "Restart Required"
+        "content": "하드웨어 가속을 비활성화하려면 앱을 다시 시작해야 적용됩니다. 지금 다시 시작하시겠습니까?",
+        "title": "다시 시작 필요"
       },
-      "title": "Disable Hardware Acceleration"
+      "title": "하드웨어 가속 비활성화"
     },
     "input": {
-      "auto_translate_with_space": "Quickly translate with 3 spaces",
+      "auto_translate_with_space": "스페이스 3번으로 빠른 번역",
       "clear": {
-        "all": "Clear",
-        "knowledge_base": "Clear selected knowledge bases",
-        "models": "Clear all models"
+        "all": "모두 지우기",
+        "knowledge_base": "선택된 지식 베이스 지우기",
+        "models": "모든 모델 지우기"
       },
-      "show_translate_confirm": "Show translation confirmation dialog",
+      "show_translate_confirm": "번역 확인 대화 상자 표시",
       "target_language": {
-        "chinese": "Simplified Chinese",
-        "chinese-traditional": "Traditional Chinese",
-        "english": "English",
-        "japanese": "Japanese",
-        "label": "Target language",
-        "russian": "Russian"
+        "chinese": "간체 중국어",
+        "chinese-traditional": "번체 중국어",
+        "english": "영어",
+        "japanese": "일본어",
+        "label": "대상 언어",
+        "russian": "러시아어"
       }
     },
     "launch": {
-      "onboot": "Start Automatically on Boot",
-      "title": "Launch",
-      "totray": "Minimize to Tray on Launch"
+      "onboot": "부팅 시 자동 시작",
+      "title": "시작",
+      "totray": "시작 시 트레이로 최소화"
     },
     "math": {
       "engine": {
-        "label": "Math engine",
-        "none": "None"
+        "label": "수학 엔진",
+        "none": "없음"
       },
       "single_dollar": {
-        "label": "Enable $...$",
-        "tip": "Render math equations quoted by single dollar signs $...$. Default is enabled."
+        "label": "$...$ 사용",
+        "tip": "단일 달러 기호 $...$로 인용된 수학 식을 렌더링합니다. 기본적으로 활성화되어 있습니다."
       },
-      "title": "Math Settings"
+      "title": "수학 설정"
     },
     "mcp": {
-      "actions": "Actions",
-      "active": "Active",
-      "addError": "Failed to add server",
+      "actions": "동작",
+      "active": "활성",
+      "addError": "서버 추가 실패",
       "addServer": {
-        "create": "Quick Create",
+        "create": "빠른 생성",
         "importFrom": {
-          "connectionFailed": "Connection failed",
-          "dxt": "Import DXT Package",
-          "dxtFile": "DXT Package File",
-          "dxtHelp": "Select a .dxt file containing an MCP server package",
-          "dxtProcessFailed": "Failed to process DXT file",
+          "connectionFailed": "연결 실패",
+          "dxt": "DXT 패키지 가져오기",
+          "dxtFile": "DXT 패키지 파일",
+          "dxtHelp": "MCP 서버 패키지가 포함된 .dxt 파일을 선택하세요",
+          "dxtProcessFailed": "DXT 파일 처리 실패",
           "error": {
-            "multipleServers": "Cannot import from multiple servers"
+            "multipleServers": "여러 서버에서 가져올 수 없습니다"
           },
-          "invalid": "Invalid input, please check JSON format",
-          "json": "Import from JSON",
-          "method": "Import Method",
-          "nameExists": "Server already exists: {{name}}",
-          "noDxtFile": "Please select a DXT file",
-          "oneServer": "Only one MCP server configuration at a time",
-          "placeholder": "Paste MCP server JSON config",
-          "selectDxtFile": "Select DXT File",
-          "tooltip": "Please copy the configuration JSON (prioritizing\n NPX or UVX configurations) from the MCP Servers introduction page and paste it into the input box."
+          "invalid": "잘못된 입력입니다. JSON 형식을 확인하세요",
+          "json": "JSON에서 가져오기",
+          "method": "가져오기 방법",
+          "nameExists": "서버가 이미 존재합니다: {{name}}",
+          "noDxtFile": "DXT 파일을 선택하세요",
+          "oneServer": "한 번에 하나의 MCP 서버 구성만",
+          "placeholder": "MCP 서버 JSON 구성을 붙여넣으세요",
+          "selectDxtFile": "DXT 파일 선택",
+          "tooltip": "MCP 서버 소개 페이지에서 구성 JSON(NPX 또는 UVX 구성 우선)을 복사하여 입력 상자에 붙여넣으세요."
         },
-        "label": "Add Server"
+        "label": "서버 추가"
       },
-      "addSuccess": "Server added successfully",
-      "advancedSettings": "Advanced Settings",
-      "args": "Arguments",
-      "argsTooltip": "Each argument on a new line",
-      "baseUrlTooltip": "Remote server base URL",
-      "builtinServers": "Builtin Servers",
+      "addSuccess": "서버가 성공적으로 추가되었습니다",
+      "advancedSettings": "고급 설정",
+      "args": "인수",
+      "argsTooltip": "각 인수를 새 줄에 입력",
+      "baseUrlTooltip": "원격 서버 기본 URL",
+      "builtinServers": "내장 서버",
       "builtinServersDescriptions": {
-        "brave_search": "An MCP server implementation integrating the Brave Search API, providing both web and local search functionalities. Requires configuring the BRAVE_API_KEY environment variable",
-        "browser": "Control a headless Electron window via Chrome DevTools Protocol. Tools: open URL, execute single-line JS, reset session.",
-        "didi_mcp": "DiDi MCP server providing ride-hailing services including map search, price estimation, order management, and driver tracking. Only available in Mainland China. Requires configuring the DIDI_API_KEY environment variable",
-        "dify_knowledge": "Dify's MCP server implementation provides a simple API to interact with Dify. Requires configuring the Dify Key",
-        "fetch": "MCP server for retrieving URL web content",
-        "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
-        "mcp_auto_install": "Automatically install MCP service (beta)",
-        "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable.",
-        "no": "No description",
-        "nowledge_mem": "Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
-        "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
-        "sequentialthinking": "A MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
+        "brave_search": "Brave Search API를 통합하는 MCP 서버 구현으로, 웹 및 로컬 검색 기능을 모두 제공합니다. BRAVE_API_KEY 환경 변수 구성이 필요합니다",
+        "browser": "Chrome DevTools 프로토콜을 통해 헤드리스 Electron 창을 제어합니다. 도구: URL 열기, 단일 행 JS 실행, 세션 재설정",
+        "didi_mcp": "지도 검색, 가격 예상, 주문 관리 및 드라이버 추적 등 승차 공유 서비스를 제공하는 DiDi MCP 서버입니다. 중국 본토에서만 사용 가능합니다. DIDI_API_KEY 환경 변수 구성이 필요합니다",
+        "dify_knowledge": "Dify와 상호작용하기 위한 간단한 API를 제공하는 Dify의 MCP 서버 구현입니다. Dify Key 구성이 필요합니다",
+        "fetch": "URL 웹 콘텐츠를 검색하는 MCP 서버",
+        "filesystem": "파일 시스템 작업을 위해 모델 컨텍스트 프로토콜(MCP)을 구현하는 Node.js 서버입니다. 액세스가 허용된 디렉터리 구성이 필요합니다",
+        "mcp_auto_install": "MCP 서비스 자동 설치 (베타)",
+        "memory": "로컬 지식 그래프를 기반으로 하는 영구 메모리 구현입니다. 이를 통해 모델이 다른 대화에서 사용자 관련 정보를 기억할 수 있습니다. MEMORY_FILE_PATH 환경 변수 구성이 필요합니다",
+        "no": "설명 없음",
+        "nowledge_mem": "로컬에서 실행 중인 Nowledge Mem 앱이 필요합니다. 컴퓨터의 개인 메모리에 AI 채팅, 도구, 메모, 에이전트 및 파일을 보관합니다. https://mem.nowledge.co/에서 다운로드하세요",
+        "python": "보안 샌드박스 환경에서 Python 코드를 실행합니다. Pyodide로 Python을 실행하여 대부분의 표준 라이브러리와 과학 컴퓨팅 패키지를 지원합니다",
+        "sequentialthinking": "구조화된 생각 과정을 통해 동적이고 반영적인 문제 해결을 위한 도구를 제공하는 MCP 서버 구현"
       },
-      "command": "Command",
-      "config_description": "Configure Model Context Protocol servers",
-      "customRegistryPlaceholder": "Enter private registry URL, e.g.: https://npm.company.com",
-      "deleteError": "Failed to delete server",
-      "deleteServer": "Delete Server",
-      "deleteServerConfirm": "Are you sure you want to delete this server?",
-      "deleteSuccess": "Server deleted successfully",
+      "command": "명령",
+      "config_description": "모델 컨텍스트 프로토콜 서버 구성",
+      "customRegistryPlaceholder": "개인 레지스트리 URL을 입력하세요 (예: https://npm.company.com)",
+      "deleteError": "서버 삭제 실패",
+      "deleteServer": "서버 삭제",
+      "deleteServerConfirm": "이 서버를 삭제하시겠습니까?",
+      "deleteSuccess": "서버가 성공적으로 삭제되었습니다",
       "dependenciesInstall": "종속성 설치",
-      "dependenciesInstalling": "Installing dependencies...",
-      "description": "Description",
+      "dependenciesInstalling": "종속성 설치 중...",
+      "description": "설명",
       "disable": {
-        "description": "Do not enable MCP server functionality",
-        "label": "Disable MCP Server"
+        "description": "MCP 서버 기능을 활성화하지 않음",
+        "label": "MCP 서버 비활성화"
       },
-      "discover": "Discover",
-      "duplicateName": "A server with this name already exists",
-      "editJson": "Edit JSON",
-      "editMcpJson": "Edit MCP Configuration",
-      "editServer": "Edit Server",
-      "env": "Environment Variables",
-      "envTooltip": "Format: KEY=value, one per line",
+      "discover": "검색",
+      "duplicateName": "이 이름을 가진 서버가 이미 존재합니다",
+      "editJson": "JSON 편집",
+      "editMcpJson": "MCP 구성 편집",
+      "editServer": "서버 편집",
+      "env": "환경 변수",
+      "envTooltip": "형식: KEY=value, 한 줄에 하나씩",
       "errors": {
-        "32000": "MCP server failed to start, please check the parameters according to the tutorial",
-        "toolNotFound": "Tool {{name}} not found"
+        "32000": "MCP 서버 시작 실패, 튜토리얼에 따라 매개변수를 확인하세요",
+        "toolNotFound": "도구 {{name}}을(를) 찾을 수 없습니다"
       },
       "fetch": {
-        "button": "Fetch Servers",
-        "success": "Successfully fetched MCP servers"
+        "button": "서버 가져오기",
+        "success": "MCP 서버를 성공적으로 가져왔습니다"
       },
-      "findMore": "Find More MCP",
-      "headers": "Headers",
-      "headersTooltip": "Custom headers for HTTP requests",
+      "findMore": "더 많은 MCP 찾기",
+      "headers": "헤더",
+      "headersTooltip": "HTTP 요청에 대한 사용자 정의 헤더",
       "inMemory": "메모리",
       "install": "설치",
       "installError": "종속성 설치 실패",
       "installHelp": "설치 도움말 보기",
       "installSuccess": "종속성이 성공적으로 설치됨",
-      "jsonFormatError": "JSON formatting error",
-      "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
-      "jsonSaveError": "Failed to save JSON configuration.",
-      "jsonSaveSuccess": "JSON configuration has been saved.",
-      "logoUrl": "Logo URL",
-      "logs": "Logs",
-      "longRunning": "Long Running Mode",
-      "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
-      "marketplaces": "Marketplaces",
-      "missingDependencies": "is Missing, please install it to continue.",
+      "jsonFormatError": "JSON 형식 오류",
+      "jsonModeHint": "MCP 서버 구성의 JSON 표현을 편집합니다. 저장하기 전에 형식이 올바른지 확인하세요.",
+      "jsonSaveError": "JSON 구성 저장 실패",
+      "jsonSaveSuccess": "JSON 구성이 저장되었습니다",
+      "logoUrl": "로고 URL",
+      "logs": "로그",
+      "longRunning": "장기 실행 모드",
+      "longRunningTooltip": "활성화하면 서버가 장기 실행 작업을 지원합니다. 진행 알림을 받으면 시간 초과가 재설정되고 최대 실행 시간이 10분으로 연장됩니다",
+      "marketplaces": "마켓플레이스",
+      "missingDependencies": "이(가) 누락되었습니다. 계속하려면 설치하세요",
       "more": {
-        "awesome": "Curated MCP Server List",
-        "composio": "Composio MCP Development Tools",
-        "glama": "Glama MCP Server Directory",
-        "higress": "Higress MCP Server",
-        "mcpso": "MCP Server Discovery Platform",
-        "modelscope": "ModelScope Community MCP Server",
-        "official": "Official MCP Server Collection",
-        "pulsemcp": "Pulse MCP Server",
-        "smithery": "Smithery MCP Tools",
-        "zhipu": "Curated MCP, Fast Integration"
+        "awesome": "큐레이팅된 MCP 서버 목록",
+        "composio": "Composio MCP 개발 도구",
+        "glama": "Glama MCP 서버 디렉터리",
+        "higress": "Higress MCP 서버",
+        "mcpso": "MCP 서버 검색 플랫폼",
+        "modelscope": "ModelScope 커뮤니티 MCP 서버",
+        "official": "공식 MCP 서버 컬렉션",
+        "pulsemcp": "Pulse MCP 서버",
+        "smithery": "Smithery MCP 도구",
+        "zhipu": "큐레이팅된 MCP, 빠른 통합"
       },
-      "name": "Name",
-      "newServer": "MCP Server",
-      "noDescriptionAvailable": "No description available",
-      "noLogs": "No logs yet",
-      "noServers": "No servers configured",
-      "not_support": "Model not supported",
+      "name": "이름",
+      "newServer": "MCP 서버",
+      "noDescriptionAvailable": "사용 가능한 설명 없음",
+      "noLogs": "아직 로그가 없습니다",
+      "noServers": "구성된 서버가 없습니다",
+      "not_support": "지원되지 않는 모델",
       "npx_list": {
-        "actions": "Actions",
-        "description": "Description",
-        "no_packages": "No packages found",
+        "actions": "동작",
+        "description": "설명",
+        "no_packages": "패키지를 찾을 수 없습니다",
         "npm": "NPM",
-        "package_name": "Package Name",
-        "scope_placeholder": "Enter npm scope (e.g. @your-org)",
-        "scope_required": "Please enter npm scope",
-        "search": "Search",
-        "search_error": "Search error",
-        "usage": "Usage",
-        "version": "Version"
+        "package_name": "패키지 이름",
+        "scope_placeholder": "npm 범위 입력 (예: @your-org)",
+        "scope_required": "npm 범위를 입력하세요",
+        "search": "검색",
+        "search_error": "검색 오류",
+        "usage": "사용량",
+        "version": "버전"
       },
       "oauth": {
         "callback": {
-          "message": "You can close this page and return to Cherry Studio",
-          "title": "Authentication Successful"
+          "message": "이 페이지를 닫고 Cherry Studio로 돌아갈 수 있습니다",
+          "title": "인증 성공"
         }
       },
       "prompts": {
-        "arguments": "Arguments",
-        "availablePrompts": "Available Prompts",
-        "genericError": "Get prompt Error",
-        "loadError": "Get prompts Error",
-        "noPromptsAvailable": "No prompts available",
-        "requiredField": "Required Field"
+        "arguments": "인수",
+        "availablePrompts": "사용 가능한 프롬프트",
+        "genericError": "프롬프트 오류",
+        "loadError": "프롬프트 가져오기 오류",
+        "noPromptsAvailable": "사용 가능한 프롬프트 없음",
+        "requiredField": "필수 필드"
       },
       "protocolInstallWarning": {
-        "command": "Startup command",
-        "message": "This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
-        "run": "Run",
-        "title": "Run external MCP?"
+        "command": "시작 명령",
+        "message": "이 MCP는 프로토콜을 통해 외부 소스에서 설치되었습니다. 알 수 없는 도구를 실행하면 컴퓨터가 손상될 수 있습니다.",
+        "run": "실행",
+        "title": "외부 MCP를 실행하시겠습니까?"
       },
-      "provider": "Provider",
-      "providerPlaceholder": "Provider name",
-      "providerUrl": "Provider URL",
-      "providers": "Providers",
-      "registry": "Package Registry",
-      "registryDefault": "Default",
-      "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
-      "requiresConfig": "Requires Configuration",
+      "provider": "공급자",
+      "providerPlaceholder": "공급자 이름",
+      "providerUrl": "공급자 URL",
+      "providers": "공급자",
+      "registry": "패키지 레지스트리",
+      "registryDefault": "기본값",
+      "registryTooltip": "기본 레지스트리의 네트워크 문제를 해결하기 위해 패키지 설치에 사용할 레지스트리를 선택하세요",
+      "requiresConfig": "구성 필요",
       "resources": {
-        "availableResources": "Available Resources",
+        "availableResources": "사용 가능한 리소스",
         "blob": "Blob",
-        "blobInvisible": "Blob Invisible",
-        "genericError": "Resource acquisition error",
-        "mimeType": "MIME Type",
-        "noResourcesAvailable": "No resources available",
-        "size": "Size",
-        "text": "Text",
+        "blobInvisible": "Blob 표시 안 함",
+        "genericError": "리소스 가져오기 오류",
+        "mimeType": "MIME 유형",
+        "noResourcesAvailable": "사용 가능한 리소스 없음",
+        "size": "크기",
+        "text": "텍스트",
         "uri": "URI"
       },
       "search": {
-        "placeholder": "Search MCP servers...",
-        "tooltip": "Search MCP servers"
+        "placeholder": "MCP 서버 검색...",
+        "tooltip": "MCP 서버 검색"
       },
-      "searchNpx": "Search MCP",
-      "serverPlural": "servers",
-      "serverSingular": "server",
-      "servers": "MCP Servers",
-      "sse": "Server-Sent Events (sse)",
-      "startError": "Start failed",
-      "stdio": "Standard Input/Output (stdio)",
-      "streamableHttp": "Streamable HTTP (streamableHttp)",
+      "searchNpx": "MCP 검색",
+      "serverPlural": "서버",
+      "serverSingular": "서버",
+      "servers": "MCP 서버",
+      "sse": "서버 전송 이벤트(sse)",
+      "startError": "시작 실패",
+      "stdio": "표준 입출력(stdio)",
+      "streamableHttp": "스트리밍 가능한 HTTP(streamableHttp)",
       "sync": {
-        "button": "Sync",
-        "discoverMcpServers": "Discover MCP Servers",
-        "discoverMcpServersDescription": "Visit the platform to discover available MCP servers",
-        "error": "Sync MCP Servers error",
-        "getToken": "Get API Token",
-        "getTokenDescription": "Retrieve your personal API token from your account",
-        "noServersAvailable": "No MCP servers available",
-        "selectProvider": "Select Provider:",
-        "setToken": "Enter Your Token",
-        "success": "Sync MCP Servers successful",
-        "title": "Sync Servers",
-        "tokenPlaceholder": "Enter API token here",
-        "tokenRequired": "API Token is required",
-        "unauthorized": "Sync Unauthorized"
+        "button": "동기화",
+        "discoverMcpServers": "MCP 서버 검색",
+        "discoverMcpServersDescription": "사용 가능한 MCP 서버를 검색하려면 플랫폼을 방문하세요",
+        "error": "MCP 서버 동기화 오류",
+        "getToken": "API 토큰 가져오기",
+        "getTokenDescription": "계정에서 개인 API 토큰을 검색하세요",
+        "noServersAvailable": "사용 가능한 MCP 서버 없음",
+        "selectProvider": "공급자 선택:",
+        "setToken": "토큰 입력",
+        "success": "MCP 서버 동기화 성공",
+        "title": "서버 동기화",
+        "tokenPlaceholder": "여기에 API 토큰 입력",
+        "tokenRequired": "API 토큰이 필요합니다",
+        "unauthorized": "동기화 승인되지 않음"
       },
-      "system": "System",
+      "system": "시스템",
       "tabs": {
-        "description": "Description",
-        "general": "General",
-        "prompts": "Prompts",
-        "resources": "Resources",
-        "tools": "Tools"
+        "description": "설명",
+        "general": "일반",
+        "prompts": "프롬프트",
+        "resources": "리소스",
+        "tools": "도구"
       },
-      "tags": "Tags",
-      "tagsPlaceholder": "Enter tags",
-      "timeout": "Timeout",
-      "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
-      "title": "MCP Servers",
+      "tags": "태그",
+      "tagsPlaceholder": "태그 입력",
+      "timeout": "시간 초과",
+      "timeoutTooltip": "이 서버에 대한 요청의 시간 초과(초)입니다. 기본값은 60초입니다",
+      "title": "MCP 서버",
       "tools": {
         "autoApprove": {
-          "label": "Auto Approve",
+          "label": "자동 승인",
           "tooltip": {
-            "confirm": "Are you sure you want to run this MCP tool?",
-            "disabled": "Tool will require manual approval before running",
-            "enabled": "Tool will run automatically without confirmation",
-            "howToEnable": "Enable the tool first to use auto-approve"
+            "confirm": "이 MCP 도구를 실행하시겠습니까?",
+            "disabled": "도구 실행 전 수동 승인이 필요합니다",
+            "enabled": "확인 없이 도구가 자동으로 실행됩니다",
+            "howToEnable": "자동 승인을 사용하려면 먼저 도구를 활성화하세요"
           }
         },
-        "availableTools": "Available Tools",
-        "enable": "Enable Tool",
+        "availableTools": "사용 가능한 도구",
+        "enable": "도구 활성화",
         "inputSchema": {
           "enum": {
-            "allowedValues": "Allowed Values"
+            "allowedValues": "허용되는 값"
           },
-          "label": "Input Schema"
+          "label": "입력 스키마"
         },
-        "loadError": "Get tools Error",
-        "noToolsAvailable": "No tools available",
-        "run": "Run"
+        "loadError": "도구 가져오기 오류",
+        "noToolsAvailable": "사용 가능한 도구 없음",
+        "run": "실행"
       },
-      "type": "Type",
+      "type": "유형",
       "types": {
-        "inMemory": "In Memory",
+        "inMemory": "메모리 내",
         "sse": "SSE",
         "stdio": "STDIO",
-        "streamableHttp": "Streamable HTTP"
+        "streamableHttp": "스트리밍 가능한 HTTP"
       },
-      "updateError": "Failed to update server",
-      "updateSuccess": "Server updated successfully",
+      "updateError": "서버 업데이트 실패",
+      "updateSuccess": "서버가 성공적으로 업데이트되었습니다",
       "url": "URL",
-      "user": "User"
+      "user": "사용자"
     },
     "messages": {
       "divider": {
-        "label": "Show divider between messages",
-        "tooltip": "Not applicable to bubble-style message"
+        "label": "메시지 사이에 구분선 표시",
+        "tooltip": "버블 스타일 메시지에는 적용되지 않습니다"
       },
-      "grid_columns": "Message grid display columns",
+      "grid_columns": "메시지 그리드 표시 열",
       "grid_popover_trigger": {
-        "click": "Click to display",
-        "hover": "Hover to display",
-        "label": "Grid detail trigger"
+        "click": "클릭하여 표시",
+        "hover": "마우스 오버로 표시",
+        "label": "그리드 세부정보 트리거"
       },
       "input": {
-        "confirm_delete_message": "Confirm before deleting messages",
-        "confirm_regenerate_message": "Confirm before regenerating messages",
-        "enable_quick_triggers": "Enable / and @ triggers",
-        "paste_long_text_as_file": "Paste long text as file",
-        "paste_long_text_threshold": "Paste long text length",
-        "send_shortcuts": "Send shortcuts",
-        "show_estimated_tokens": "Show estimated tokens",
-        "title": "Input Settings"
+        "confirm_delete_message": "메시지 삭제 전 확인",
+        "confirm_regenerate_message": "메시지 재생성 전 확인",
+        "enable_quick_triggers": "/ 및 @ 트리거 활성화",
+        "paste_long_text_as_file": "긴 텍스트를 파일로 붙여넣기",
+        "paste_long_text_threshold": "긴 텍스트 길이 붙여넣기",
+        "send_shortcuts": "전송 단축키",
+        "show_estimated_tokens": "예상 토큰 표시",
+        "title": "입력 설정"
       },
-      "markdown_rendering_input_message": "Markdown render input message",
-      "metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
+      "markdown_rendering_input_message": "마크다운 렌더링 입력 메시지",
+      "metrics": "{{time_first_token_millsec}}ms 첫 번째 토큰까지 | {{token_speed}} 토큰/초",
       "model": {
-        "title": "Model Settings"
+        "title": "모델 설정"
       },
       "navigation": {
-        "anchor": "Message Anchor",
-        "buttons": "Navigation Buttons",
-        "label": "Navigation bar",
-        "none": "None"
+        "anchor": "메시지 앵커",
+        "buttons": "탐색 버튼",
+        "label": "탐색 모음",
+        "none": "없음"
       },
-      "prompt": "Show prompt",
-      "show_message_outline": "Show message outline",
-      "title": "Message Settings",
-      "use_serif_font": "Use serif font"
+      "prompt": "프롬프트 표시",
+      "show_message_outline": "메시지 개요 표시",
+      "title": "메시지 설정",
+      "use_serif_font": "세리프 글꼴 사용"
     },
     "mineru": {
-      "api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key."
+      "api_key": "Mineru는 이제 일일 500페이지의 무료 할당량을 제공하며 키를 입력할 필요가 없습니다."
     },
     "miniapps": {
-      "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
-      "cache_description": "Set the maximum number of active mini apps to keep in memory",
-      "cache_settings": "Cache Settings",
-      "cache_title": "Mini App Cache Limit",
+      "cache_change_notice": "열린 미니 앱 수가 설정된 값에 도달하면 변경 사항이 적용됩니다",
+      "cache_description": "메모리에 유지할 활성 미니 앱의 최대 수를 설정합니다",
+      "cache_settings": "캐시 설정",
+      "cache_title": "미니 앱 캐시 제한",
       "custom": {
-        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
-        "duplicate_ids": "Duplicate IDs found: {{ids}}",
-        "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
-        "edit_title": "Edit Custom Mini App",
+        "conflicting_ids": "기본 앱과 충돌하는 ID: {{ids}}",
+        "duplicate_ids": "중복된 ID 발견: {{ids}}",
+        "edit_description": "여기서 사용자 정의 미니 앱 구성을 편집합니다. 각 앱에는 id, name, url, logo 필드가 포함되어야 합니다.",
+        "edit_title": "사용자 정의 미니 앱 편집",
         "id": "ID",
-        "id_error": "ID is required.",
-        "id_placeholder": "Enter ID",
-        "logo": "Logo",
-        "logo_file": "Upload Logo File",
-        "logo_upload_button": "Upload",
-        "logo_upload_error": "Failed to upload logo.",
-        "logo_upload_label": "Upload Logo",
-        "logo_upload_success": "Logo uploaded successfully.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Enter logo URL",
-        "name": "Name",
-        "name_error": "Name is required.",
-        "name_placeholder": "Enter name",
-        "placeholder": "Enter custom mini app configuration (JSON format)",
-        "remove_error": "Failed to remove custom mini app.",
-        "remove_success": "Custom mini app removed successfully.",
-        "save": "Save",
-        "save_error": "Failed to save custom mini app.",
-        "save_success": "Custom mini app saved successfully.",
-        "title": "Custom",
+        "id_error": "ID가 필요합니다.",
+        "id_placeholder": "ID 입력",
+        "logo": "로고",
+        "logo_file": "로고 파일 업로드",
+        "logo_upload_button": "업로드",
+        "logo_upload_error": "로고 업로드 실패.",
+        "logo_upload_label": "로고 업로드",
+        "logo_upload_success": "로고가 성공적으로 업로드되었습니다.",
+        "logo_url": "로고 URL",
+        "logo_url_label": "로고 URL",
+        "logo_url_placeholder": "로고 URL 입력",
+        "name": "이름",
+        "name_error": "이름이 필요합니다.",
+        "name_placeholder": "이름 입력",
+        "placeholder": "사용자 정의 미니 앱 구성 입력(JSON 형식)",
+        "remove_error": "사용자 정의 미니 앱 제거 실패.",
+        "remove_success": "사용자 정의 미니 앱이 성공적으로 제거되었습니다.",
+        "save": "저장",
+        "save_error": "사용자 정의 미니 앱 저장 실패.",
+        "save_success": "사용자 정의 미니 앱이 성공적으로 저장되었습니다.",
+        "title": "사용자 정의",
         "url": "URL",
-        "url_error": "URL is required.",
-        "url_placeholder": "Enter URL"
+        "url_error": "URL이 필요합니다.",
+        "url_placeholder": "URL 입력"
       },
-      "disabled": "Hidden Mini Apps",
-      "display_title": "Mini App Display Settings",
-      "empty": "Drag mini apps from the left to hide them",
+      "disabled": "숨겨진 미니 앱",
+      "display_title": "미니 앱 표시 설정",
+      "empty": "왼쪽에서 미니 앱을 드래그하여 숨기세요",
       "open_link_external": {
-        "title": "Open new-window links in browser"
+        "title": "브라우저에서 새 창 링크 열기"
       },
-      "reset_tooltip": "Reset to default",
-      "sidebar_description": "Show active mini apps in the sidebar",
-      "sidebar_title": "Sidebar Active Mini Apps Display",
-      "title": "Mini Apps Settings",
-      "visible": "Visible Mini Apps"
+      "reset_tooltip": "기본값으로 재설정",
+      "sidebar_description": "사이드바에 활성 미니 앱 표시",
+      "sidebar_title": "사이드바 활성 미니 앱 표시",
+      "title": "미니 앱 설정",
+      "visible": "표시되는 미니 앱"
     },
-    "model": "Default Model",
+    "model": "기본 모델",
     "models": {
       "add": {
-        "add_model": "Add Model",
-        "batch_add_models": "Batch Add Models",
+        "add_model": "모델 추가",
+        "batch_add_models": "모델 일괄 추가",
         "endpoint_type": {
-          "label": "Endpoint Type",
-          "placeholder": "Select endpoint type",
-          "required": "Please select an endpoint type",
-          "tooltip": "Select the API endpoint type format"
+          "label": "엔드포인트 유형",
+          "placeholder": "엔드포인트 유형 선택",
+          "required": "엔드포인트 유형을 선택하세요",
+          "tooltip": "API 엔드포인트 유형 형식 선택"
         },
         "group_name": {
-          "label": "Group Name",
-          "placeholder": "Optional e.g. ChatGPT",
-          "tooltip": "Optional e.g. ChatGPT"
+          "label": "그룹 이름",
+          "placeholder": "선택 사항 (예: ChatGPT)",
+          "tooltip": "선택 사항 (예: ChatGPT)"
         },
         "model_id": {
-          "label": "Model ID",
-          "placeholder": "Required e.g. gpt-3.5-turbo",
+          "label": "모델 ID",
+          "placeholder": "필수 (예: gpt-3.5-turbo)",
           "select": {
-            "placeholder": "Select Model"
+            "placeholder": "모델 선택"
           },
-          "tooltip": "Example: gpt-3.5-turbo"
+          "tooltip": "예: gpt-3.5-turbo"
         },
         "model_name": {
-          "label": "Model Name",
-          "placeholder": "Optional e.g. GPT-4",
-          "tooltip": "Optional e.g. GPT-4"
+          "label": "모델 이름",
+          "placeholder": "선택 사항 (예: GPT-4)",
+          "tooltip": "선택 사항 (예: GPT-4)"
         },
         "supported_text_delta": {
-          "label": "Support incremental text output",
-          "tooltip": "The model returns text incrementally, rather than all at once. Enabled by default, if the model does not support it, please disable this option"
+          "label": "증분 텍스트 출력 지원",
+          "tooltip": "모델이 텍스트를 한 번에 모두 반환하는 대신 증분으로 반환합니다. 기본적으로 활성화되어 있으며, 모델이 지원하지 않는 경우 이 옵션을 비활성화하세요"
         }
       },
-      "api_key": "API Key",
-      "base_url": "Base URL",
+      "api_key": "API 키",
+      "base_url": "기본 URL",
       "check": {
-        "all": "All",
-        "all_models_passed": "All models check passed",
-        "button_caption": "Health check",
-        "disabled": "Disabled",
-        "disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
-        "enable_concurrent": "Concurrent",
-        "enabled": "Enabled",
-        "failed": "Failed",
-        "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
-        "model_status_failed": "{{count}} models completely inaccessible",
-        "model_status_partial": "{{count}} models had inaccessible keys",
-        "model_status_passed": "{{count}} models passed health checks",
+        "all": "모두",
+        "all_models_passed": "모든 모델 확인 통과",
+        "button_caption": "상태 확인",
+        "disabled": "비활성화됨",
+        "disclaimer": "상태 확인에는 요청 전송이 필요하므로 주의해서 사용하세요. 요청별로 요금을 청구하는 모델은 추가 비용이 발생할 수 있으므로 책임지세요.",
+        "enable_concurrent": "동시",
+        "enabled": "활성화됨",
+        "failed": "실패",
+        "keys_status_count": "통과: {{count_passed}}개 키, 실패: {{count_failed}}개 키",
+        "model_status_failed": "{{count}}개 모델에 완전히 액세스할 수 없습니다",
+        "model_status_partial": "{{count}}개 모델에 액세스할 수 없는 키가 있습니다",
+        "model_status_passed": "{{count}}개 모델이 상태 확인을 통과했습니다",
         "model_status_summary": "{{provider}}: {{summary}}",
-        "no_api_keys": "No API keys found, please add API keys first.",
-        "no_results": "No results",
-        "passed": "Passed",
-        "select_api_key": "Select the API key to use:",
-        "single": "Single",
-        "start": "Start",
-        "timeout": "Timeout",
-        "title": "Model health check",
-        "use_all_keys": "Key(s)"
+        "no_api_keys": "API 키를 찾을 수 없습니다. 먼저 API 키를 추가하세요.",
+        "no_results": "결과 없음",
+        "passed": "통과",
+        "select_api_key": "사용할 API 키를 선택하세요:",
+        "single": "단일",
+        "start": "시작",
+        "timeout": "시간 초과",
+        "title": "모델 상태 확인",
+        "use_all_keys": "키"
       },
-      "default_assistant_model": "Default Assistant Model",
-      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
-      "empty": "No models found",
+      "default_assistant_model": "기본 도우미 모델",
+      "default_assistant_model_description": "새 도우미를 만들 때 사용되는 모델입니다. 도우미가 설정되지 않은 경우 이 모델이 사용됩니다",
+      "empty": "모델을 찾을 수 없습니다",
       "manage": {
         "add_listed": {
-          "confirm": "Are you sure you want to add all models to the list?",
-          "label": "Add models to the list"
+          "confirm": "모든 모델을 목록에 추가하시겠습니까?",
+          "label": "모델을 목록에 추가"
         },
-        "add_whole_group": "Add the whole group",
-        "refetch_list": "Refetch model list",
-        "remove_listed": "Remove models from the list",
-        "remove_model": "Remove model",
-        "remove_whole_group": "Remove the whole group"
+        "add_whole_group": "전체 그룹 추가",
+        "refetch_list": "모델 목록 새로고침",
+        "remove_listed": "목록에서 모델 제거",
+        "remove_model": "모델 제거",
+        "remove_whole_group": "전체 그룹 제거"
       },
-      "provider_id": "Provider ID",
-      "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
-      "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
-      "provider_key_add_failed_by_invalid_data": "Failed to add provider API key, data format error",
-      "provider_key_added": "Successfully added API key for {{provider}}",
-      "provider_key_already_exists": "{{provider}} already has an API key ({{existingKey}}). Do not add it again.",
-      "provider_key_confirm_title": "Add Provider API Key",
-      "provider_key_no_change": "API key for {{provider}} has not changed",
-      "provider_key_overridden": "Successfully updated API key for {{provider}}",
-      "provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
-      "provider_name": "Provider Name",
-      "quick_assistant_default_tag": "Default",
+      "provider_id": "공급자 ID",
+      "provider_key_add_confirm": "{{provider}}의 API 키를 추가하시겠습니까?",
+      "provider_key_add_failed_by_empty_data": "공급자 API 키 추가 실패, 데이터가 비어있습니다",
+      "provider_key_add_failed_by_invalid_data": "공급자 API 키 추가 실패, 데이터 형식 오류",
+      "provider_key_added": "{{provider}}의 API 키가 성공적으로 추가되었습니다",
+      "provider_key_already_exists": "{{provider}}에 이미 API 키가 있습니다({{existingKey}}). 다시 추가하지 마세요.",
+      "provider_key_confirm_title": "공급자 API 키 추가",
+      "provider_key_no_change": "{{provider}}의 API 키가 변경되지 않았습니다",
+      "provider_key_overridden": "{{provider}}의 API 키가 성공적으로 업데이트되었습니다",
+      "provider_key_override_confirm": "{{provider}}에 이미 API 키가 있습니다({{existingKey}}). 새 키({{newKey}})로 덮어쓰시겠습니까?",
+      "provider_name": "공급자 이름",
+      "quick_assistant_default_tag": "기본값",
       "quick_assistant_model": "빠른 도우미 모델",
-      "quick_assistant_selection": "Select Assistant",
+      "quick_assistant_selection": "도우미 선택",
       "quick_model": {
-        "description": "Model used for simple tasks such as topic naming and keyword extraction",
-        "label": "Quick Model",
-        "setting_title": "Quick model setup",
-        "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
+        "description": "토픽 이름 지정 및 키워드 추출과 같은 간단한 작업에 사용되는 모델",
+        "label": "빠른 모델",
+        "setting_title": "빠른 모델 설정",
+        "tooltip": "가벼운 모델을 선택하는 것이 좋으며 생각 모델은 선택하지 않는 것이 좋습니다."
       },
       "topic_naming": {
-        "auto": "Topic Auto Naming",
-        "label": "Topic naming",
-        "prompt": "Topic Naming Prompt"
+        "auto": "토픽 자동 이름 지정",
+        "label": "토픽 이름 지정",
+        "prompt": "토픽 이름 지정 프롬프트"
       },
-      "translate_model": "Translate Model",
-      "translate_model_description": "Model used for translation service",
-      "translate_model_prompt_message": "Please enter the translate model prompt",
-      "translate_model_prompt_title": "Translate Model Prompt",
-      "use_assistant": "Use Assistant",
-      "use_model": "Default Model"
+      "translate_model": "번역 모델",
+      "translate_model_description": "번역 서비스에 사용되는 모델",
+      "translate_model_prompt_message": "번역 모델 프롬프트를 입력하세요",
+      "translate_model_prompt_title": "번역 모델 프롬프트",
+      "use_assistant": "도우미 사용",
+      "use_model": "기본 모델"
     },
     "moresetting": {
       "check": {
-        "confirm": "Confirm Selection",
-        "warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!"
+        "confirm": "선택 확인",
+        "warn": "이 옵션을 선택할 때는 주의하세요. 잘못된 선택으로 인해 모델이 오작동할 수 있습니다!"
       },
-      "label": "More Settings",
-      "warn": "Risk Warning"
+      "label": "추가 설정",
+      "warn": "위험 경고"
     },
-    "no_provider_selected": "Provider not selected",
+    "no_provider_selected": "공급자가 선택되지 않았습니다",
     "notification": {
-      "assistant": "Assistant Message",
-      "backup": "Backup Message",
-      "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notification Settings"
+      "assistant": "도우미 메시지",
+      "backup": "백업 메시지",
+      "knowledge_embed": "지식 베이스 메시지",
+      "title": "알림 설정"
     },
     "openai": {
       "service_tier": {
-        "auto": "auto",
-        "default": "default",
-        "flex": "flex",
-        "on_demand": "on demand",
-        "priority": "priority",
-        "tip": "Specifies the latency tier to use for processing the request",
-        "title": "Service Tier"
+        "auto": "자동",
+        "default": "기본값",
+        "flex": "유연",
+        "on_demand": "요청 시",
+        "priority": "우선 순위",
+        "tip": "요청 처리에 사용할 대기 시간 계층을 지정합니다",
+        "title": "서비스 계층"
       },
       "stream_options": {
         "include_usage": {
-          "tip": "Whether token usage is included (applicable only to the OpenAI Chat Completions API)",
-          "title": "Include usage"
+          "tip": "토큰 사용량 포함 여부(OpenAI 채팅 완성 API에만 적용)",
+          "title": "사용량 포함"
         }
       },
       "summary_text_mode": {
-        "auto": "auto",
-        "concise": "concise",
-        "detailed": "detailed",
-        "off": "off",
-        "tip": "A summary of the reasoning performed by the model",
-        "title": "Summary Mode"
+        "auto": "자동",
+        "concise": "간결",
+        "detailed": "상세",
+        "off": "끄기",
+        "tip": "모델이 수행한 추론 요약",
+        "title": "요약 모드"
       },
-      "title": "OpenAI Settings",
+      "title": "OpenAI 설정",
       "verbosity": {
-        "high": "High",
-        "low": "Low",
-        "medium": "Medium",
-        "tip": "Control the level of detail in the model's output",
-        "title": "Verbosity"
+        "high": "높음",
+        "low": "낮음",
+        "medium": "중간",
+        "tip": "모델 출력의 세부 수준을 제어합니다",
+        "title": "상세 수준"
       }
     },
     "privacy": {
-      "enable_privacy_mode": "Anonymous reporting of errors and statistics",
-      "title": "Privacy Settings"
+      "enable_privacy_mode": "오류 및 통계 익명 보고",
+      "title": "개인정보 보호 설정"
     },
     "provider": {
       "add": {
         "name": {
-          "label": "Provider Name",
-          "placeholder": "Example: OpenAI"
+          "label": "공급자 이름",
+          "placeholder": "예: OpenAI"
         },
-        "title": "Add Provider",
-        "type": "Provider Type"
+        "title": "공급자 추가",
+        "type": "공급자 유형"
       },
       "anthropic": {
-        "apikey": "API key",
-        "auth_failed": "Anthropic authentication failed",
-        "auth_method": "Authentication method",
-        "auth_success": "Anthropic OAuth authentication successful",
-        "authenticated": "Verified",
-        "authenticating": "Authenticating",
-        "cancel": "Cancel",
-        "code_error": "Invalid authorization code, please try again",
-        "code_placeholder": "Please enter the authorization code displayed in your browser",
-        "code_required": "Authorization code cannot be empty",
-        "description": "OAuth authentication",
-        "description_detail": "You need to subscribe to Claude Pro or a higher version to use this authentication method",
-        "enter_auth_code": "Authorization code",
-        "logout": "Log out",
-        "logout_failed": "Logout failed, please try again",
-        "logout_success": "Successfully logged out of Anthropic",
-        "oauth": "Web OAuth",
-        "start_auth": "Start authorization",
-        "submit_code": "Complete login"
+        "apikey": "API 키",
+        "auth_failed": "Anthropic 인증 실패",
+        "auth_method": "인증 방법",
+        "auth_success": "Anthropic OAuth 인증 성공",
+        "authenticated": "확인됨",
+        "authenticating": "인증 중",
+        "cancel": "취소",
+        "code_error": "잘못된 인증 코드입니다. 다시 시도하세요",
+        "code_placeholder": "브라우저에 표시된 인증 코드를 입력하세요",
+        "code_required": "인증 코드는 비워둘 수 없습니다",
+        "description": "OAuth 인증",
+        "description_detail": "이 인증 방법을 사용하려면 Claude Pro 이상 버전을 구독해야 합니다",
+        "enter_auth_code": "인증 코드",
+        "logout": "로그아웃",
+        "logout_failed": "로그아웃 실패, 다시 시도하세요",
+        "logout_success": "Anthropic에서 성공적으로 로그아웃했습니다",
+        "oauth": "웹 OAuth",
+        "start_auth": "인증 시작",
+        "submit_code": "로그인 완료"
       },
-      "anthropic_api_host": "Anthropic API Host",
-      "anthropic_api_host_preview": "Anthropic preview: {{url}}",
-      "anthropic_api_host_tooltip": "Use only when the provider offers a Claude-compatible base URL.",
+      "anthropic_api_host": "Anthropic API 호스트",
+      "anthropic_api_host_preview": "Anthropic 미리보기: {{url}}",
+      "anthropic_api_host_tooltip": "공급자가 Claude 호환 기본 URL을 제공하는 경우에만 사용하세요.",
       "api": {
         "key": {
           "check": {
-            "latency": "Latency"
+            "latency": "대기 시간"
           },
           "error": {
-            "duplicate": "API key already exists",
-            "empty": "API key cannot be empty"
+            "duplicate": "API 키가 이미 존재합니다",
+            "empty": "API 키는 비워둘 수 없습니다"
           },
           "list": {
-            "open": "Open Management Interface",
-            "title": "API Key Management"
+            "open": "관리 인터페이스 열기",
+            "title": "API 키 관리"
           },
           "new_key": {
-            "placeholder": "Enter one or more keys"
+            "placeholder": "하나 이상의 키 입력"
           }
         },
         "options": {
           "array_content": {
-            "help": "Does the provider support the content field of the message being of array type?",
-            "label": "Supports array format message content"
+            "help": "공급자가 메시지의 콘텐츠 필드가 배열 유형인 것을 지원합니까?",
+            "label": "배열 형식 메시지 콘텐츠 지원"
           },
           "developer_role": {
-            "help": "Does the provider support messages with role: \"developer\"?",
-            "label": "Support Developer Message"
+            "help": "공급자가 role: \"developer\"가 있는 메시지를 지원합니까?",
+            "label": "개발자 메시지 지원"
           },
           "enable_thinking": {
-            "help": "Does the provider support controlling the reasoning of models like Qwen3 via the enable_thinking parameter?",
-            "label": "Support enable_thinking"
+            "help": "공급자가 enable_thinking 매개변수를 통해 Qwen3와 같은 모델의 추론을 제어하는 것을 지원합니까?",
+            "label": "enable_thinking 지원"
           },
-          "label": "API Settings",
+          "label": "API 설정",
           "service_tier": {
-            "help": "Whether the provider supports configuring the service_tier parameter. When enabled, this parameter can be adjusted in the service tier settings on the chat page. (OpenAI models only)",
-            "label": "Supports service_tier"
+            "help": "공급자가 service_tier 매개변수 구성을 지원합니까? 활성화하면 채팅 페이지의 서비스 계층 설정에서 이 매개변수를 조정할 수 있습니다(OpenAI 모델만 해당)",
+            "label": "service_tier 지원"
           },
           "stream_options": {
-            "help": "Does the provider support the stream_options parameter?",
-            "label": "Support stream_options"
+            "help": "공급자가 stream_options 매개변수를 지원합니까?",
+            "label": "stream_options 지원"
           },
           "verbosity": {
-            "help": "Whether the provider supports the verbosity parameter",
-            "label": "Support verbosity"
+            "help": "공급자가 verbosity 매개변수를 지원합니까?",
+            "label": "verbosity 지원"
           }
         },
         "url": {
-          "preview": "Preview: {{url}}",
-          "reset": "Reset",
-          "tip": "Add # at the end to disable the automatically appended API version."
+          "preview": "미리보기: {{url}}",
+          "reset": "재설정",
+          "tip": "끝에 #을 추가하여 자동으로 추가되는 API 버전을 비활성화합니다."
         }
       },
-      "api_host": "API Host",
-      "api_host_no_valid": "API address is invalid",
-      "api_host_preview": "Preview: {{url}}",
-      "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
+      "api_host": "API 호스트",
+      "api_host_no_valid": "API 주소가 잘못되었습니다",
+      "api_host_preview": "미리보기: {{url}}",
+      "api_host_tooltip": "공급자가 사용자 정의 OpenAI 호환 엔드포인트를 요구하는 경우에만 재정의하세요.",
       "api_key": {
-        "label": "API Key",
-        "tip": "Use commas to separate multiple keys"
+        "label": "API 키",
+        "tip": "쉼표를 사용하여 여러 키 구분"
       },
-      "api_version": "API Version",
+      "api_version": "API 버전",
       "aws-bedrock": {
-        "access_key_id": "AWS Access Key ID",
-        "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
-        "api_key": "Bedrock API Key",
-        "api_key_help": "Your AWS Bedrock API Key for authentication",
-        "auth_type": "Authentication Type",
-        "auth_type_api_key": "Bedrock API Key",
-        "auth_type_help": "Choose between IAM credentials or Bedrock API Key authentication",
-        "auth_type_iam": "IAM Credentials",
-        "description": "AWS Bedrock is Amazon's fully managed foundation model service that supports various advanced large language models",
-        "region": "AWS Region",
-        "region_help": "Your AWS service region, e.g., us-east-1",
-        "secret_access_key": "AWS Secret Access Key",
-        "secret_access_key_help": "Your AWS Secret Access Key, please keep it secure",
-        "title": "AWS Bedrock Configuration"
+        "access_key_id": "AWS 액세스 키 ID",
+        "access_key_id_help": "AWS Bedrock 서비스에 액세스하기 위한 AWS 액세스 키 ID",
+        "api_key": "Bedrock API 키",
+        "api_key_help": "인증을 위한 AWS Bedrock API 키",
+        "auth_type": "인증 유형",
+        "auth_type_api_key": "Bedrock API 키",
+        "auth_type_help": "IAM 자격 증명 또는 Bedrock API 키 인증 중 선택",
+        "auth_type_iam": "IAM 자격 증명",
+        "description": "AWS Bedrock은 다양한 고급 대규모 언어 모델을 지원하는 Amazon의 완전 관리형 기본 모델 서비스입니다",
+        "region": "AWS 리전",
+        "region_help": "AWS 서비스 리전 (예: us-east-1)",
+        "secret_access_key": "AWS 비밀 액세스 키",
+        "secret_access_key_help": "AWS 비밀 액세스 키, 보안을 유지하세요",
+        "title": "AWS Bedrock 구성"
       },
       "azure": {
         "apiversion": {
-          "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the v1 version"
+          "tip": "Azure OpenAI의 API 버전입니다. Response API를 사용하려면 v1 버전을 입력하세요"
         }
       },
       "basic_auth": {
-        "label": "HTTP authentication",
+        "label": "HTTP 인증",
         "password": {
-          "label": "Password",
-          "tip": "Enter your password"
+          "label": "비밀번호",
+          "tip": "비밀번호 입력"
         },
-        "tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
+        "tip": "원격으로 배포된 인스턴스에 적용됩니다(문서 참조). 현재 Basic 체계(RFC 7617)만 지원됩니다.",
         "user_name": {
-          "label": "Username",
-          "tip": "Left empty to disable"
+          "label": "사용자 이름",
+          "tip": "비워두면 비활성화"
         }
       },
-      "bills": "Fee Bills",
-      "charge": "Balance Recharge",
-      "check": "Check",
-      "check_all_keys": "Check All Keys",
-      "check_multiple_keys": "Check Multiple API Keys",
+      "bills": "요금 청구서",
+      "charge": "잔액 충전",
+      "check": "확인",
+      "check_all_keys": "모든 키 확인",
+      "check_multiple_keys": "여러 API 키 확인",
       "copilot": {
-        "auth_failed": "Github Copilot authentication failed.",
-        "auth_success": "GitHub Copilot authentication successful.",
-        "auth_success_title": "Certification successful.",
-        "code_copied": "Authorization code automatically copied to clipboard",
-        "code_failed": "Failed to obtain Device Code, please try again.",
-        "code_generated_desc": "Please copy the device code into the browser link below.",
-        "code_generated_title": "Obtain Device Code",
-        "connect": "Connect to Github",
-        "custom_headers": "Custom request header",
-        "description": "Your GitHub account needs to subscribe to Copilot.",
-        "description_detail": "GitHub Copilot is an AI-powered code assistant that requires a valid GitHub Copilot subscription to use",
-        "expand": "Expand",
-        "headers_description": "Custom request headers (JSON format)",
-        "invalid_json": "JSON format error",
-        "login": "Log in to Github",
-        "logout": "Exit GitHub",
-        "logout_failed": "Exit failed, please try again.",
-        "logout_success": "Successfully logged out.",
-        "model_setting": "Model settings",
-        "open_verification_first": "Please click the link above to access the verification page.",
-        "open_verification_page": "Open Authorization Page",
-        "rate_limit": "Rate limiting",
-        "start_auth": "Start Authorization",
-        "step_authorize": "Open Authorization Page",
-        "step_authorize_desc": "Complete authorization on GitHub",
-        "step_authorize_detail": "Click the button below to open GitHub authorization page, then enter the copied authorization code",
-        "step_connect": "Complete Connection",
-        "step_connect_desc": "Confirm connection to GitHub",
-        "step_connect_detail": "After completing authorization on GitHub page, click this button to complete the connection",
-        "step_copy_code": "Copy Authorization Code",
-        "step_copy_code_desc": "Copy device authorization code",
-        "step_copy_code_detail": "Authorization code has been automatically copied, you can also copy it manually",
-        "step_get_code": "Get Authorization Code",
-        "step_get_code_desc": "Generate device authorization code"
+        "auth_failed": "Github Copilot 인증 실패.",
+        "auth_success": "GitHub Copilot 인증 성공.",
+        "auth_success_title": "인증 성공.",
+        "code_copied": "인증 코드가 클립보드에 자동으로 복사되었습니다",
+        "code_failed": "장치 코드를 가져오지 못했습니다. 다시 시도하세요.",
+        "code_generated_desc": "아래 브라우저 링크에 장치 코드를 복사하세요.",
+        "code_generated_title": "장치 코드 가져오기",
+        "connect": "Github에 연결",
+        "custom_headers": "사용자 정의 요청 헤더",
+        "description": "GitHub 계정이 Copilot을 구독해야 합니다.",
+        "description_detail": "GitHub Copilot은 유효한 GitHub Copilot 구독이 필요한 AI 기반 코드 도우미입니다",
+        "expand": "확장",
+        "headers_description": "사용자 정의 요청 헤더(JSON 형식)",
+        "invalid_json": "JSON 형식 오류",
+        "login": "Github에 로그인",
+        "logout": "GitHub에서 나가기",
+        "logout_failed": "나가기 실패, 다시 시도하세요.",
+        "logout_success": "성공적으로 로그아웃했습니다.",
+        "model_setting": "모델 설정",
+        "open_verification_first": "위 링크를 클릭하여 확인 페이지에 접속하세요.",
+        "open_verification_page": "인증 페이지 열기",
+        "rate_limit": "속도 제한",
+        "start_auth": "인증 시작",
+        "step_authorize": "인증 페이지 열기",
+        "step_authorize_desc": "GitHub에서 인증 완료",
+        "step_authorize_detail": "아래 버튼을 클릭하여 GitHub 인증 페이지를 연 다음 복사한 인증 코드를 입력하세요",
+        "step_connect": "연결 완료",
+        "step_connect_desc": "GitHub 연결 확인",
+        "step_connect_detail": "GitHub 페이지에서 인증을 완료한 후 이 버튼을 클릭하여 연결을 완료하세요",
+        "step_copy_code": "인증 코드 복사",
+        "step_copy_code_desc": "장치 인증 코드 복사",
+        "step_copy_code_detail": "인증 코드가 자동으로 복사되었으며 수동으로 복사할 수도 있습니다",
+        "step_get_code": "인증 코드 가져오기",
+        "step_get_code_desc": "장치 인증 코드 생성"
       },
       "delete": {
-        "content": "Are you sure you want to delete this provider?",
-        "title": "Delete Provider"
+        "content": "이 공급자를 삭제하시겠습니까?",
+        "title": "공급자 삭제"
       },
       "dmxapi": {
-        "select_platform": "Select the platform"
+        "select_platform": "플랫폼 선택"
       },
-      "docs_check": "Check",
-      "docs_more_details": "for more details",
-      "get_api_key": "Get API Key",
-      "misc": "Other",
-      "no_models_for_check": "No models available for checking (e.g. chat models)",
-      "not_checked": "Not Checked",
+      "docs_check": "확인",
+      "docs_more_details": "자세한 내용은",
+      "get_api_key": "API 키 가져오기",
+      "misc": "기타",
+      "no_models_for_check": "확인 가능한 모델이 없습니다(예: 채팅 모델)",
+      "not_checked": "확인되지 않음",
       "notes": {
-        "markdown_editor_default_value": "Preview area",
-        "placeholder": "Enter Markdown content...",
-        "title": "Model Notes"
+        "markdown_editor_default_value": "미리보기 영역",
+        "placeholder": "마크다운 콘텐츠 입력...",
+        "title": "모델 메모"
       },
       "oauth": {
-        "button": "Login with {{provider}}",
-        "description": "This service is provided by <website>{{provider}}</website>",
-        "error": "Authentication failed",
-        "official_website": "Official Website"
+        "button": "{{provider}}(으)로 로그인",
+        "description": "이 서비스는 <website>{{provider}}</website>에서 제공됩니다",
+        "error": "인증 실패",
+        "official_website": "공식 웹사이트"
       },
       "openai": {
-        "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
+        "alert": "OpenAI 공급자는 더 이상 이전 호출 방법을 지원하지 않습니다. 타사 API를 사용하는 경우 새 서비스 공급자를 만드세요."
       },
-      "remove_duplicate_keys": "Remove Duplicate Keys",
-      "remove_invalid_keys": "Remove Invalid Keys",
-      "search": "Search Providers...",
-      "search_placeholder": "Search model id or name",
-      "title": "Model Provider",
+      "remove_duplicate_keys": "중복 키 제거",
+      "remove_invalid_keys": "잘못된 키 제거",
+      "search": "공급자 검색...",
+      "search_placeholder": "모델 ID 또는 이름 검색",
+      "title": "모델 공급자",
       "vertex_ai": {
-        "api_host_help": "The API host for Vertex AI, not recommended to fill in, generally applicable to reverse proxy",
-        "documentation": "View official documentation for more configuration details:",
-        "learn_more": "Learn More",
-        "location": "Location",
-        "location_help": "Vertex AI service location, e.g., us-central1",
-        "project_id": "Project ID",
-        "project_id_help": "Your Google Cloud project ID",
+        "api_host_help": "Vertex AI의 API 호스트입니다. 채우지 않는 것이 권장되며 일반적으로 역방향 프록시에 적용됩니다",
+        "documentation": "더 많은 구성 세부정보는 공식 문서를 확인하세요:",
+        "learn_more": "자세히 알아보기",
+        "location": "위치",
+        "location_help": "Vertex AI 서비스 위치(예: us-central1)",
+        "project_id": "프로젝트 ID",
+        "project_id_help": "Google Cloud 프로젝트 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
         "service_account": {
-          "auth_success": "Service Account authenticated successfully",
-          "client_email": "Client Email",
-          "client_email_help": "The client_email field from the JSON key file downloaded from Google Cloud Console",
-          "client_email_placeholder": "Enter Service Account client email",
-          "description": "Use Service Account for authentication, suitable for environments where ADC is not available",
-          "incomplete_config": "Please complete Service Account configuration first",
-          "private_key": "Private Key",
-          "private_key_help": "The private_key field from the JSON key file downloaded from Google Cloud Console",
-          "private_key_placeholder": "Enter Service Account private key",
-          "title": "Service Account Configuration"
+          "auth_success": "서비스 계정이 성공적으로 인증되었습니다",
+          "client_email": "클라이언트 이메일",
+          "client_email_help": "Google Cloud 콘솔에서 다운로드한 JSON 키 파일의 client_email 필드",
+          "client_email_placeholder": "서비스 계정 클라이언트 이메일 입력",
+          "description": "ADC를 사용할 수 없는 환경에서 인증을 위해 서비스 계정을 사용합니다",
+          "incomplete_config": "먼저 서비스 계정 구성을 완료하세요",
+          "private_key": "비공개 키",
+          "private_key_help": "Google Cloud 콘솔에서 다운로드한 JSON 키 파일의 private_key 필드",
+          "private_key_placeholder": "서비스 계정 비공개 키 입력",
+          "title": "서비스 계정 구성"
         }
       }
     },
     "proxy": {
-      "address": "Proxy Address",
-      "bypass": "Bypass Rules",
+      "address": "프록시 주소",
+      "bypass": "우회 규칙",
       "mode": {
-        "custom": "Custom Proxy",
-        "none": "No Proxy",
-        "system": "System Proxy",
-        "title": "Proxy Mode"
+        "custom": "사용자 정의 프록시",
+        "none": "프록시 없음",
+        "system": "시스템 프록시",
+        "title": "프록시 모드"
       },
-      "tip": "Supports wildcard matching (*.test.com, 192.168.0.0/16)"
+      "tip": "와일드카드 일치 지원(*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "트레이 아이콘을 클릭하여 시작",
@@ -4648,118 +4648,118 @@
       "use_shortcut_to_show": "트레이 아이콘을 마우스 오른쪽 버튼으로 클릭하거나 단축키를 사용하여 시작"
     },
     "quickPanel": {
-      "back": "Back",
-      "close": "Close",
-      "confirm": "Confirm",
-      "forward": "Forward",
-      "multiple": "Multiple Select",
-      "noResult": "No results found",
-      "page": "Page",
-      "select": "Select",
-      "title": "Quick Menu"
+      "back": "뒤로",
+      "close": "닫기",
+      "confirm": "확인",
+      "forward": "앞으로",
+      "multiple": "다중 선택",
+      "noResult": "결과를 찾을 수 없습니다",
+      "page": "페이지",
+      "select": "선택",
+      "title": "빠른 메뉴"
     },
     "quickPhrase": {
-      "add": "Add Phrase",
-      "assistant": "Assistant Phrases",
-      "contentLabel": "Content",
-      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-      "delete": "Delete Phrase",
-      "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
-      "edit": "Edit Phrase",
-      "global": "Global Phrases",
-      "locationLabel": "Add Location",
-      "title": "Quick Phrases",
-      "titleLabel": "Title",
-      "titlePlaceholder": "Please enter phrase title"
+      "add": "구문 추가",
+      "assistant": "도우미 구문",
+      "contentLabel": "콘텐츠",
+      "contentPlaceholder": "구문 콘텐츠를 입력하고 변수 사용을 지원하며 Tab을 눌러 수정할 변수를 빠르게 찾으세요. 예:\n${from}에서 ${to}(으)로 가는 경로를 계획하고 ${email}(으)로 보내주세요.",
+      "delete": "구문 삭제",
+      "deleteConfirm": "구문은 삭제 후 복구할 수 없습니다. 계속하시겠습니까?",
+      "edit": "구문 편집",
+      "global": "전역 구문",
+      "locationLabel": "위치 추가",
+      "title": "빠른 구문",
+      "titleLabel": "제목",
+      "titlePlaceholder": "구문 제목 입력"
     },
     "shortcuts": {
-      "action": "Action",
-      "actions": "operation",
-      "clear_shortcut": "Clear Shortcut",
-      "clear_topic": "Clear Messages",
-      "copy_last_message": "Copy Last Message",
-      "edit_last_user_message": "Edit Last User Message",
-      "enabled": "Enable",
-      "exit_fullscreen": "Exit Fullscreen",
-      "label": "Key",
+      "action": "동작",
+      "actions": "작업",
+      "clear_shortcut": "단축키 지우기",
+      "clear_topic": "메시지 지우기",
+      "copy_last_message": "마지막 메시지 복사",
+      "edit_last_user_message": "마지막 사용자 메시지 편집",
+      "enabled": "활성화",
+      "exit_fullscreen": "전체 화면 종료",
+      "label": "키",
       "mini_window": "빠른 도우미",
-      "new_topic": "New Topic",
-      "press_shortcut": "Press Shortcut",
-      "rename_topic": "Rename Topic",
-      "reset_defaults": "Reset Defaults",
-      "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
-      "reset_to_default": "Reset to Default",
-      "search_message": "Search Message",
-      "search_message_in_chat": "Search Message in Current Chat",
-      "selection_assistant_select_text": "Selection Assistant: Select Text",
-      "selection_assistant_toggle": "Toggle Selection Assistant",
-      "show_app": "Show/Hide App",
-      "show_settings": "Open Settings",
-      "title": "Keyboard Shortcuts",
-      "toggle_new_context": "Clear Context",
-      "toggle_show_assistants": "Toggle Assistants",
-      "toggle_show_topics": "Toggle Topics",
-      "zoom_in": "Zoom In",
-      "zoom_out": "Zoom Out",
-      "zoom_reset": "Reset Zoom"
+      "new_topic": "새 토픽",
+      "press_shortcut": "단축키 누르기",
+      "rename_topic": "토픽 이름 바꾸기",
+      "reset_defaults": "기본값 재설정",
+      "reset_defaults_confirm": "모든 단축키를 재설정하시겠습니까?",
+      "reset_to_default": "기본값으로 재설정",
+      "search_message": "메시지 검색",
+      "search_message_in_chat": "현재 채팅에서 메시지 검색",
+      "selection_assistant_select_text": "선택 도우미: 텍스트 선택",
+      "selection_assistant_toggle": "선택 도우미 전환",
+      "show_app": "앱 표시/숨기기",
+      "show_settings": "설정 열기",
+      "title": "키보드 단축키",
+      "toggle_new_context": "컨텍스트 지우기",
+      "toggle_show_assistants": "도우미 전환",
+      "toggle_show_topics": "토픽 전환",
+      "zoom_in": "확대",
+      "zoom_out": "축소",
+      "zoom_reset": "확대/축소 재설정"
     },
     "theme": {
-      "color_primary": "Primary Color",
-      "dark": "Dark",
-      "light": "Light",
-      "system": "System",
-      "title": "Theme",
+      "color_primary": "기본 색상",
+      "dark": "다크",
+      "light": "라이트",
+      "system": "시스템",
+      "title": "테마",
       "window": {
         "style": {
-          "opaque": "Opaque Window",
-          "title": "Window Style",
-          "transparent": "Transparent Window"
+          "opaque": "불투명 창",
+          "title": "창 스타일",
+          "transparent": "투명 창"
         }
       }
     },
-    "title": "Settings",
+    "title": "설정",
     "tool": {
       "ocr": {
         "common": {
-          "langs": "Supported languages"
+          "langs": "지원되는 언어"
         },
         "error": {
-          "not_system": "System OCR only supports Windows and MacOS"
+          "not_system": "시스템 OCR은 Windows와 MacOS만 지원합니다"
         },
         "image": {
           "error": {
-            "provider_not_found": "The provider does not exist"
+            "provider_not_found": "공급자가 존재하지 않습니다"
           },
           "system": {
-            "no_need_configure": "MacOS requires no configuration"
+            "no_need_configure": "MacOS는 구성이 필요하지 않습니다"
           },
-          "title": "Image"
+          "title": "이미지"
         },
-        "image_provider": "OCR service provider",
+        "image_provider": "OCR 서비스 공급자",
         "paddleocr": {
-          "aistudio_access_token": "Access token of AI Studio Community",
-          "aistudio_url_label": "AI Studio Community",
+          "aistudio_access_token": "AI Studio 커뮤니티의 액세스 토큰",
+          "aistudio_url_label": "AI Studio 커뮤니티",
           "api_url": "API URL",
-          "serving_doc_url_label": "PaddleOCR Serving Documentation",
-          "tip": "You can refer to the official PaddleOCR documentation to deploy a local service, or deploy a cloud service on the PaddlePaddle AI Studio Community. For the latter case, please provide the access token of the AI Studio Community."
+          "serving_doc_url_label": "PaddleOCR 서빙 문서",
+          "tip": "공식 PaddleOCR 문서를 참조하여 로컬 서비스를 배포하거나 PaddlePaddle AI Studio 커뮤니티에 클라우드 서비스를 배포할 수 있습니다. 후자의 경우 AI Studio 커뮤니티의 액세스 토큰을 제공하세요."
         },
         "system": {
           "win": {
-            "langs_tooltip": "Dependent on Windows to provide services, you need to download language packs in the system to support the relevant languages."
+            "langs_tooltip": "Windows가 서비스를 제공하므로 관련 언어를 지원하려면 시스템에서 언어 팩을 다운로드해야 합니다."
           }
         },
         "tesseract": {
-          "langs_tooltip": "Read the documentation to learn which custom languages are supported"
+          "langs_tooltip": "문서를 읽어 사용자 지정 언어 지원 여부를 확인하세요"
         },
-        "title": "OCR service"
+        "title": "OCR 서비스"
       },
       "preprocess": {
-        "provider": "Document Processing Provider",
-        "provider_placeholder": "Choose a document processing provider",
-        "title": "Document Processing",
-        "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
+        "provider": "문서 처리 공급자",
+        "provider_placeholder": "문서 처리 공급자 선택",
+        "title": "문서 처리",
+        "tooltip": "설정 -> 도구에서 문서 처리 서비스 공급자를 설정하세요. 문서 처리는 복잡한 형식의 문서와 스캔된 문서의 검색 성능을 효과적으로 개선할 수 있습니다."
       },
-      "title": "Other Settings",
+      "title": "기타 설정",
       "websearch": {
         "api_key_required": {
           "content": "{{provider}} requires an API key to work. Would you like to configure it now?",
