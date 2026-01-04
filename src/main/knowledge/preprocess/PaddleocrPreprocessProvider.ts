@@ -23,15 +23,15 @@ enum FileType {
   Image = 1
 }
 
-const LayoutParsingResultSchema = z.object({
-  markdown: z.object({
+const LayoutParsingResultSchema = z.looseObject({
+  markdown: z.looseObject({
     text: z.string().min(1, 'Markdown text cannot be empty')
   })
 })
 
-const ApiResponseSchema = z.object({
+const ApiResponseSchema = z.looseObject({
   result: z
-    .object({
+    .looseObject({
       layoutParsingResults: z.array(LayoutParsingResultSchema).min(1, 'At least one layout parsing result required')
     })
     .optional(),
