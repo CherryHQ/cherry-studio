@@ -101,6 +101,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       logger.error('[initialize] No selected text.')
       return
     }
+    logger.silly('[initialize] Start initialization.')
 
     // Initialize language pair.
     // It will update targetLangRef, so we could get latest target language in the following code
@@ -113,6 +114,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     // Initialize topic
     topicRef.current = getDefaultTopic(currentAssistant.id)
+    initialized.current = true
   }, [action.selectedText, isLanguagesLoaded, updateLanguagePair])
 
   // Try to initialize when:
@@ -170,7 +172,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     const assistant = getDefaultTranslateAssistant(translateLang, action.selectedText)
     assistantRef.current = assistant
-
+    logger.debug('process once')
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
   }, [action, targetLanguage, alterLanguage, scrollToBottom])
 
