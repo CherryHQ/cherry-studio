@@ -388,7 +388,8 @@
       "@img/sharp-linux-arm64": "0.34.3",
       "@img/sharp-linux-x64": "0.34.3",
       "@img/sharp-win32-x64": "0.34.3",
-      "@langchain/core": "1.0.2"
+      "@langchain/core": "1.0.2",
+      "@ai-sdk/openai-compatible@1.0.27": "1.0.28"
     },
     "patchedDependencies": {
       "@anthropic-ai/claude-agent-sdk@0.1.62": "patches/@anthropic-ai-claude-agent-sdk-npm-0.1.62-23ae56f8c8.patch",

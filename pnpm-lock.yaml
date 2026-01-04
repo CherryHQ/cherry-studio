@@ -22,6 +22,7 @@ overrides:
   '@img/sharp-linux-x64': 0.34.3
   '@img/sharp-win32-x64': 0.34.3
   '@langchain/core': 1.0.2
+  '@ai-sdk/openai-compatible@1.0.27': 1.0.28
 
 patchedDependencies:
   '@ai-sdk/google@2.0.49':
@@ -1188,12 +1189,6 @@ packages:
 
   '@ai-sdk/mistral@2.0.27':
     resolution: {integrity: sha512-gaptHgaXjMw3+eA0Q4FABcsj5nQNP6EpFaGUR+Pj5WJy7Kn6mApl975/x57224MfeJIShNpt8wFKK3tvh5ewKg==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/openai-compatible@1.0.27':
-    resolution: {integrity: sha512-bpYruxVLhrTbVH6CCq48zMJNeHu6FmHtEedl9FXckEgcIEAi036idFhJlcRwC1jNCwlacbzb8dPD7OAH1EKJaQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -12029,7 +12024,7 @@ snapshots:
 
   '@ai-sdk/huggingface@0.0.10(zod@4.3.4)':
     dependencies:
-      '@ai-sdk/openai-compatible': 1.0.27(zod@4.3.4)
+      '@ai-sdk/openai-compatible': 1.0.28(patch_hash=9e58c17bc8cf6d07feacb22b5ab978a1de42c9ffb51bd236da911e02a0b40128)(zod@4.3.4)
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.17(zod@4.3.4)
       zod: 4.3.4
@@ -12038,12 +12033,6 @@ snapshots:
     dependencies:
       '@ai-sdk/provider': 2.0.1
       '@ai-sdk/provider-utils': 3.0.20(zod@4.3.4)
-      zod: 4.3.4
-
-  '@ai-sdk/openai-compatible@1.0.27(zod@4.3.4)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.17(zod@4.3.4)
       zod: 4.3.4
 
   '@ai-sdk/openai-compatible@1.0.28(patch_hash=9e58c17bc8cf6d07feacb22b5ab978a1de42c9ffb51bd236da911e02a0b40128)(zod@4.3.4)':
