@@ -36,18 +36,16 @@ export default function useTranslate() {
 
   const getLanguageByLangcode = useCallback(
     (langCode: string) => {
-      if (!isLoaded) {
-        logger.verbose('Translate languages are not loaded yet. Return UNKNOWN.')
-        return UNKNOWN
-      }
-
       const result = translateLanguages.find((item) => item.langCode === langCode)
+
       if (result) {
         return result
+      } else if (!isLoaded) {
+        logger.verbose('Translate languages are not loaded yet. Return UNKNOWN.')
       } else {
         logger.warn(`Unknown language ${langCode}`)
-        return UNKNOWN
       }
+      return UNKNOWN
     },
     [isLoaded, translateLanguages]
   )
@@ -63,6 +61,7 @@ export default function useTranslate() {
     prompt,
     settings,
     translateLanguages,
+    isLoaded,
     getLanguageByLangcode,
     updateSettings: handleUpdateSettings
   }
