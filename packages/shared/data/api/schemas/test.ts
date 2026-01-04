@@ -5,7 +5,7 @@
  * These endpoints demonstrate the API patterns and provide testing utilities.
  */
 
-import type { PaginatedResponse, PaginationParams } from '../apiTypes'
+import type { OffsetPaginationParams, OffsetPaginationResponse, SearchParams, SortParams } from '../apiTypes'
 
 // ============================================================================
 // Domain Models & DTOs
@@ -98,15 +98,15 @@ export interface TestSchemas {
   '/test/items': {
     /** List all test items with optional filtering and pagination */
     GET: {
-      query?: PaginationParams & {
-        /** Search items by title or description */
-        search?: string
-        /** Filter by item type */
-        type?: string
-        /** Filter by status */
-        status?: string
-      }
-      response: PaginatedResponse<TestItem>
+      query?: OffsetPaginationParams &
+        SortParams &
+        SearchParams & {
+          /** Filter by item type */
+          type?: string
+          /** Filter by status */
+          status?: string
+        }
+      response: OffsetPaginationResponse<TestItem>
     }
     /** Create a new test item */
     POST: {
@@ -147,18 +147,14 @@ export interface TestSchemas {
   '/test/search': {
     /** Search test items */
     GET: {
-      query: {
+      query: OffsetPaginationParams & {
         /** Search query string */
         query: string
-        /** Page number for pagination */
-        page?: number
-        /** Number of results per page */
-        limit?: number
         /** Additional filters */
         type?: string
         status?: string
       }
-      response: PaginatedResponse<TestItem>
+      response: OffsetPaginationResponse<TestItem>
     }
   }
 

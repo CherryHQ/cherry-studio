@@ -21,12 +21,17 @@ export { TestService } from '@data/services/TestService'
 
 // Re-export types for convenience
 export type {
+  CursorPaginationParams,
+  CursorPaginationResponse,
   DataRequest,
   DataResponse,
   Middleware,
-  PaginatedResponse,
-  PaginationParams,
+  OffsetPaginationParams,
+  OffsetPaginationResponse,
+  PaginationResponse,
   RequestContext,
-  ServiceOptions
+  SearchParams,
+  ServiceOptions,
+  SortParams
 } from '@shared/data/api/apiTypes'
 export type { CreateTestItemDto, TestItem, UpdateTestItemDto } from '@shared/data/api/schemas/test'

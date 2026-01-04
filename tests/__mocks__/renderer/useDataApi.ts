@@ -1,5 +1,5 @@
 import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths, PaginatedResponse } from '@shared/data/api/apiTypes'
+import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/apiTypes'
 import type { KeyedMutator } from 'swr'
 import { vi } from 'vitest'
 
@@ -146,7 +146,7 @@ export const mockUsePaginatedQuery = vi.fn(
       limit?: number
       swrOptions?: any
     }
-  ): ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
+  ): ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
     ? {
         items: T[]
         total: number
@@ -181,7 +181,7 @@ export const mockUsePaginatedQuery = vi.fn(
       nextPage: vi.fn(),
       refresh: vi.fn(),
       reset: vi.fn()
-    } as unknown as ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
+    } as unknown as ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
       ? {
           items: T[]
           total: number

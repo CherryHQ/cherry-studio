@@ -1,9 +1,9 @@
 import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths, PaginationMode } from '@shared/data/api/apiTypes'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import {
-  isCursorPaginatedResponse,
-  type OffsetPaginatedResponse,
-  type PaginatedResponse
+  isCursorPaginationResponse,
+  type OffsetPaginationResponse,
+  type PaginationResponse
 } from '@shared/data/api/apiTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyedMutator } from 'swr'
@@ -18,7 +18,7 @@ import { dataApiService } from '../DataApiService'
 // ============================================================================
 
 /** Infer item type from paginated response path */
-type InferPaginatedItem<TPath extends ConcreteApiPaths> = ResponseForPath<TPath, 'GET'> extends PaginatedResponse<
+type InferPaginatedItem<TPath extends ConcreteApiPaths> = ResponseForPath<TPath, 'GET'> extends PaginationResponse<
   infer T
 >
   ? T
@@ -50,7 +50,7 @@ export interface UseMutationResult<
 /** useInfiniteQuery result type */
 export interface UseInfiniteQueryResult<T> {
   items: T[]
-  pages: PaginatedResponse<T>[]
+  pages: PaginationResponse<T>[]
   total: number
   size: number
   isLoading: boolean
@@ -61,7 +61,7 @@ export interface UseInfiniteQueryResult<T> {
   setSize: (size: number | ((size: number) => number)) => void
   refresh: () => void
   reset: () => void
-  mutate: KeyedMutator<PaginatedResponse<T>[]>
+  mutate: KeyedMutator<PaginationResponse<T>[]>
 }
 
 /** usePaginatedQuery result type */
@@ -356,7 +356,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
     /** Items per page (default: 10) */
     limit?: number
     /** Pagination mode (default: 'cursor') */
-    mode?: PaginationMode
+    mode?: 'offset' | 'cursor'
     /** Whether to enable the query (default: true) */
     enabled?: boolean
     /** SWR options (including initialSize, revalidateAll, etc.) */
@@ -368,19 +368,22 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   const enabled = options?.enabled !== false
 
   const getKey = useCallback(
-    (pageIndex: number, previousPageData: PaginatedResponse<any> | null) => {
+    (pageIndex: number, previousPageData: PaginationResponse<any> | null) => {
       if (!enabled) return null
 
       if (previousPageData) {
         if (mode === 'cursor') {
-          if (!isCursorPaginatedResponse(previousPageData) || !previousPageData.nextCursor) {
+          if (!isCursorPaginationResponse(previousPageData) || !previousPageData.nextCursor) {
             return null
           }
         } else {
-          if (isCursorPaginatedResponse(previousPageData)) {
+          // Offset mode: check if we've reached the end
+          if (isCursorPaginationResponse(previousPageData)) {
             return null
           }
-          if (!previousPageData.hasNext) {
+          const offsetData = previousPageData as OffsetPaginationResponse<any>
+          // No more pages if items returned is less than limit or we've fetched all
+          if (offsetData.items.length < limit || pageIndex * limit >= offsetData.total) {
             return null
           }
         }
@@ -391,7 +394,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
         limit
       }
 
-      if (mode === 'cursor' && previousPageData && isCursorPaginatedResponse(previousPageData)) {
+      if (mode === 'cursor' && previousPageData && isCursorPaginationResponse(previousPageData)) {
         paginationQuery.cursor = previousPageData.nextCursor
       } else if (mode === 'offset') {
         paginationQuery.page = pageIndex + 1
@@ -403,7 +406,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   )
 
   const infiniteFetcher = (key: [ConcreteApiPaths, Record<string, any>?]) => {
-    return getFetcher(key) as Promise<PaginatedResponse<any>>
+    return getFetcher(key) as Promise<PaginationResponse<any>>
   }
 
   const swrResult = useSWRInfinite(getKey, infiniteFetcher, {
@@ -416,7 +419,7 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   })
 
   const { error, isLoading, isValidating, mutate, size, setSize } = swrResult
-  const data = swrResult.data as PaginatedResponse<any>[] | undefined
+  const data = swrResult.data as PaginationResponse<any>[] | undefined
 
   const items = useMemo(() => data?.flatMap((p) => p.items) ?? [], [data])
 
@@ -424,10 +427,13 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
     if (!data?.length) return false
     const last = data[data.length - 1]
     if (mode === 'cursor') {
-      return isCursorPaginatedResponse(last) && !!last.nextCursor
+      return isCursorPaginationResponse(last) && !!last.nextCursor
     }
-    return !isCursorPaginatedResponse(last) && (last as OffsetPaginatedResponse<any>).hasNext
-  }, [data, mode])
+    // Offset mode: check if there are more items
+    if (isCursorPaginationResponse(last)) return false
+    const offsetData = last as OffsetPaginationResponse<any>
+    return offsetData.page * limit < offsetData.total
+  }, [data, mode, limit])
 
   const loadNext = useCallback(() => {
     if (!hasNext || isValidating) return
@@ -437,10 +443,18 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
   const refresh = useCallback(() => mutate(), [mutate])
   const reset = useCallback(() => setSize(1), [setSize])
 
+  // Total is only available in offset mode
+  const total = useMemo(() => {
+    if (!data?.length) return 0
+    const first = data[0]
+    if (isCursorPaginationResponse(first)) return 0
+    return (first as OffsetPaginationResponse<any>).total
+  }, [data])
+
   return {
     items,
     pages: data ?? [],
-    total: data?.[0]?.total ?? 0,
+    total,
     size,
     isLoading,
     isRefreshing: isValidating,
@@ -501,7 +515,8 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
     swrOptions: options?.swrOptions
   })
 
-  const paginatedData = data as PaginatedResponse<any>
+  // usePaginatedQuery is only for offset pagination
+  const paginatedData = data as OffsetPaginationResponse<any> | undefined
   const items = paginatedData?.items || []
   const total = paginatedData?.total || 0
   const totalPages = Math.ceil(total / limit)

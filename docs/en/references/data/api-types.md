@@ -37,7 +37,15 @@ import type {
   DataRequest,
   DataResponse,
   ApiClient,
-  PaginatedResponse
+  // Pagination types
+  OffsetPaginationParams,
+  OffsetPaginationResponse,
+  CursorPaginationParams,
+  CursorPaginationResponse,
+  PaginationResponse,
+  // Query parameter types
+  SortParams,
+  SearchParams
 } from '@shared/data/api'
 
 import {
@@ -45,7 +53,10 @@ import {
   DataApiError,
   DataApiErrorFactory,
   isDataApiError,
-  toDataApiError
+  toDataApiError,
+  // Pagination type guards
+  isOffsetPaginationResponse,
+  isCursorPaginationResponse
 } from '@shared/data/api'
 ```
 
@@ -64,12 +75,68 @@ import type { Message, CreateMessageDto } from '@shared/data/api/schemas/message
 import type { TestItem, CreateTestItemDto } from '@shared/data/api/schemas/test'
 ```
 
+## Pagination Types
+
+The API system supports two pagination modes with composable query parameters.
+
+### Request Parameters
+
+| Type | Fields | Use Case |
+|------|--------|----------|
+| `OffsetPaginationParams` | `page?`, `limit?` | Traditional page-based navigation |
+| `CursorPaginationParams` | `cursor?`, `limit?` | Infinite scroll, real-time feeds |
+| `SortParams` | `sortBy?`, `sortOrder?` | Sorting (combine as needed) |
+| `SearchParams` | `search?` | Text search (combine as needed) |
+
+### Response Types
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `OffsetPaginationResponse<T>` | `items`, `total`, `page` | Page-based results |
+| `CursorPaginationResponse<T>` | `items`, `nextCursor?` | Cursor-based results |
+| `PaginationResponse<T>` | Union of both | When either mode is acceptable |
+
+### Usage Examples
+
+```typescript
+// Offset pagination with sort and search
+query?: OffsetPaginationParams & SortParams & SearchParams & {
+  type?: string
+}
+response: OffsetPaginationResponse<Item>
+
+// Cursor pagination for infinite scroll
+query?: CursorPaginationParams & {
+  userId: string
+}
+response: CursorPaginationResponse<Message>
+```
+
+### Client-side Calculations
+
+For `OffsetPaginationResponse`, clients can calculate:
+```typescript
+const pageCount = Math.ceil(total / limit)
+const hasNext = page * limit < total
+const hasPrev = page > 1
+```
+
+For `CursorPaginationResponse`:
+```typescript
+const hasNext = nextCursor !== undefined
+```
+
 ## Adding a New Domain Schema
 
 1. Create the schema file (e.g., `schemas/topic.ts`):
 
 ```typescript
-import type { PaginatedResponse } from '../apiTypes'
+import type {
+  OffsetPaginationParams,
+  OffsetPaginationResponse,
+  SearchParams,
+  SortParams
+} from '../apiTypes'
 
 // Domain models
 export interface Topic {
@@ -86,7 +153,8 @@ export interface CreateTopicDto {
 export interface TopicSchemas {
   '/topics': {
     GET: {
-      response: PaginatedResponse<Topic>  // response is required
+      query?: OffsetPaginationParams & SortParams & SearchParams
+      response: OffsetPaginationResponse<Topic>  // response is required
     }
     POST: {
       body: CreateTopicDto
@@ -152,7 +220,9 @@ const handlers: ApiImplementation = {
 
 ```typescript
 const topic = await api.get('/topics/123')        // Returns Topic
-const topics = await api.get('/topics', { query: { page: 1 } })  // Returns PaginatedResponse<Topic>
+const topics = await api.get('/topics', {
+  query: { page: 1, limit: 20, search: 'hello' }
+})  // Returns OffsetPaginationResponse<Topic>
 await api.post('/topics', { body: { name: 'New' } })  // Body is typed as CreateTopicDto
 ```
 

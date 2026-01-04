@@ -19,12 +19,18 @@
 // ============================================================================
 
 export type {
+  CursorPaginationParams,
+  CursorPaginationResponse,
   DataRequest,
   DataResponse,
   HttpMethod,
-  PaginatedResponse,
-  PaginationParams
+  OffsetPaginationParams,
+  OffsetPaginationResponse,
+  PaginationResponse,
+  SearchParams,
+  SortParams
 } from './apiTypes'
+export { isCursorPaginationResponse, isOffsetPaginationResponse } from './apiTypes'
 
 // ============================================================================
 // API Schema Type Utilities
