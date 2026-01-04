@@ -5,6 +5,7 @@
  * Includes endpoints for tree visualization and conversation view.
  */
 
+import type { CursorPaginationParams } from '@shared/data/api/apiTypes'
 import type {
   BranchMessagesResponse,
   Message,
@@ -115,14 +116,16 @@ export interface TreeQueryParams {
 
 /**
  * Query parameters for GET /topics/:id/messages
+ *
+ * Uses "before cursor" semantics for loading historical messages:
+ * - First request (no cursor): Returns the most recent `limit` messages
+ * - Subsequent requests: Pass `nextCursor` from previous response as `cursor`
+ *   to load older messages towards root
+ * - The cursor message itself is NOT included in the response
  */
-export interface BranchMessagesQueryParams {
+export interface BranchMessagesQueryParams extends CursorPaginationParams {
   /** End node ID (defaults to topic.activeNodeId) */
   nodeId?: string
-  /** Pagination cursor: return messages before this node */
-  beforeNodeId?: string
-  /** Number of messages to return */
-  limit?: number
   /** Whether to include siblingsGroup in response */
   includeSiblings?: boolean
 }

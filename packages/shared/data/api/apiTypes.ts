@@ -152,9 +152,18 @@ export interface OffsetPaginationParams {
 
 /**
  * Cursor-based pagination parameters (cursor + limit)
+ *
+ * The cursor is typically an opaque reference to a record in the dataset.
+ * The cursor itself is NEVER included in the response - it marks an exclusive boundary.
+ *
+ * Common semantics:
+ * - "after cursor": Returns items AFTER the cursor (forward pagination)
+ * - "before cursor": Returns items BEFORE the cursor (backward/historical pagination)
+ *
+ * The specific semantic depends on the API endpoint. Check endpoint documentation.
  */
 export interface CursorPaginationParams {
-  /** Cursor for next page (undefined for first page) */
+  /** Cursor for pagination boundary (exclusive - cursor item not included in response) */
   cursor?: string
   /** Items per page */
   limit?: number

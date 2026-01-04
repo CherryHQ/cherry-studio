@@ -315,13 +315,23 @@ export class MessageService {
    * Optimized implementation using recursive CTE to fetch only the path
    * from nodeId to root, avoiding loading all messages for large topics.
    * Siblings are batch-queried in a single additional query.
+   *
+   * Uses "before cursor" pagination semantics:
+   * - cursor: Message ID marking the pagination boundary (exclusive)
+   * - Returns messages BEFORE the cursor (towards root)
+   * - The cursor message itself is NOT included
+   * - nextCursor points to the oldest message in current batch
+   *
+   * Example flow:
+   * 1. First request (no cursor) → returns msg80-99, nextCursor=msg80.id
+   * 2. Second request (cursor=msg80.id) → returns msg60-79, nextCursor=msg60.id
    */
   async getBranchMessages(
     topicId: string,
-    options: { nodeId?: string; beforeNodeId?: string; limit?: number; includeSiblings?: boolean } = {}
+    options: { nodeId?: string; cursor?: string; limit?: number; includeSiblings?: boolean } = {}
   ): Promise<BranchMessagesResponse> {
     const db = dbService.getDb()
-    const { limit = DEFAULT_LIMIT, includeSiblings = true } = options
+    const { cursor, limit = DEFAULT_LIMIT, includeSiblings = true } = options
 
     // Get topic
     const [topic] = await db.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1)
@@ -334,7 +344,7 @@ export class MessageService {
 
     // Return empty if no active node
     if (!nodeId) {
-      return { messages: [], activeNodeId: null }
+      return { items: [], nextCursor: undefined, activeNodeId: null }
     }
 
     // Use recursive CTE to get path from nodeId to root (single query)
@@ -359,18 +369,21 @@ export class MessageService {
     let startIndex = 0
     let endIndex = fullPath.length
 
-    if (options.beforeNodeId) {
-      const beforeIndex = fullPath.findIndex((m) => m.id === options.beforeNodeId)
-      if (beforeIndex === -1) {
-        throw DataApiErrorFactory.notFound('Message', options.beforeNodeId)
+    if (cursor) {
+      const cursorIndex = fullPath.findIndex((m) => m.id === cursor)
+      if (cursorIndex === -1) {
+        throw DataApiErrorFactory.notFound('Message (cursor)', cursor)
       }
-      startIndex = Math.max(0, beforeIndex - limit)
-      endIndex = beforeIndex
+      startIndex = Math.max(0, cursorIndex - limit)
+      endIndex = cursorIndex
     } else {
       startIndex = Math.max(0, fullPath.length - limit)
     }
 
     const paginatedPath = fullPath.slice(startIndex, endIndex)
+
+    // Calculate nextCursor: if there are more historical messages
+    const nextCursor = startIndex > 0 ? fullPath[startIndex].id : undefined
 
     // Build result with optional siblings
     const result: BranchMessage[] = []
@@ -435,7 +448,8 @@ export class MessageService {
     }
 
     return {
-      messages: result,
+      items: result,
+      nextCursor,
       activeNodeId: topic.activeNodeId
     }
   }

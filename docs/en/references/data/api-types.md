@@ -88,6 +88,36 @@ The API system supports two pagination modes with composable query parameters.
 | `SortParams` | `sortBy?`, `sortOrder?` | Sorting (combine as needed) |
 | `SearchParams` | `search?` | Text search (combine as needed) |
 
+### Cursor Semantics
+
+The `cursor` in `CursorPaginationParams` marks an **exclusive boundary** - the cursor item itself is never included in the response.
+
+**Common patterns:**
+
+| Pattern | Use Case | Behavior |
+|---------|----------|----------|
+| "after cursor" | Forward pagination, new items | Returns items AFTER cursor |
+| "before cursor" | Backward/historical loading | Returns items BEFORE cursor |
+
+The specific semantic depends on the API endpoint. For example:
+- `GET /topics/:id/messages` uses "before cursor" for loading historical messages
+- Other endpoints may use "after cursor" for forward pagination
+
+**Example: Loading historical messages**
+
+```typescript
+// First request - get most recent messages
+const res1 = await api.get('/topics/123/messages', { query: { limit: 20 } })
+// res1: { items: [msg80...msg99], nextCursor: 'msg80-id', activeNodeId: '...' }
+
+// Load more - get older messages before the cursor
+const res2 = await api.get('/topics/123/messages', {
+  query: { cursor: res1.nextCursor, limit: 20 }
+})
+// res2: { items: [msg60...msg79], nextCursor: 'msg60-id', activeNodeId: '...' }
+// Note: msg80 is NOT in res2 (cursor is exclusive)
+```
+
 ### Response Types
 
 | Type | Fields | Description |

@@ -1,3 +1,4 @@
+import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 /**
  * Message Statistics - combines token usage and performance metrics
  * Replaces the separate `usage` and `metrics` fields
@@ -474,9 +475,7 @@ export interface BranchMessage {
 /**
  * Branch messages response structure
  */
-export interface BranchMessagesResponse {
-  /** Messages in root-to-leaf order */
-  messages: BranchMessage[]
+export interface BranchMessagesResponse extends CursorPaginationResponse<BranchMessage> {
   /** Current active node ID */
   activeNodeId: string | null
 }

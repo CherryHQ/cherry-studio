@@ -45,7 +45,7 @@ export const messageHandlers: {
       const q = (query || {}) as BranchMessagesQueryParams
       return await messageService.getBranchMessages(params.topicId, {
         nodeId: q.nodeId,
-        beforeNodeId: q.beforeNodeId,
+        cursor: q.cursor,
         limit: q.limit,
         includeSiblings: q.includeSiblings
       })
