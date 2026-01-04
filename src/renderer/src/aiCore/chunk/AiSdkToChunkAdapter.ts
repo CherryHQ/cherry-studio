@@ -121,6 +121,21 @@ export class AiSdkToChunkAdapter {
   }
 
   /**
+   * 如果有累积的思考内容，发送 THINKING_COMPLETE chunk 并清空
+   * @param final 包含 reasoningContent 的状态对象
+   * @returns 是否发送了 THINKING_COMPLETE chunk
+   */
+  private emitThinkingCompleteIfNeeded(final: { reasoningContent: string; [key: string]: any }) {
+    if (final.reasoningContent) {
+      this.onChunk({
+        type: ChunkType.THINKING_COMPLETE,
+        text: final.reasoningContent
+      })
+      final.reasoningContent = ''
+    }
+  }
+
+  /**
    * 转换 AI SDK chunk 为 Cherry Studio chunk 并调用回调
    * @param chunk AI SDK 的 chunk 数据
    */
@@ -145,6 +160,9 @@ export class AiSdkToChunkAdapter {
       }
       // === 文本相关事件 ===
       case 'text-start':
+        // 如果有未完成的思考内容，先生成 THINKING_COMPLETE
+        // 这处理了某些提供商不发送 reasoning-end 事件的情况
+        this.emitThinkingCompleteIfNeeded(final)
         this.onChunk({
           type: ChunkType.TEXT_START
         })
@@ -215,11 +233,7 @@ export class AiSdkToChunkAdapter {
         })
         break
       case 'reasoning-end':
-        this.onChunk({
-          type: ChunkType.THINKING_COMPLETE,
-          text: final.reasoningContent || ''
-        })
-        final.reasoningContent = ''
+        this.emitThinkingCompleteIfNeeded(final)
         break
 
       // === 工具调用相关事件（原始 AI SDK 事件，如果没有被中间件处理） ===
