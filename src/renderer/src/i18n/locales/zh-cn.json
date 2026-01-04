@@ -3165,6 +3165,7 @@
         "label": "应用数据",
         "migration_title": "数据迁移",
         "new_path": "新路径",
+        "open": "打开目录",
         "original_path": "原始路径",
         "path_change_failed": "数据目录更改失败",
         "path_changed_without_copy": "路径已更改成功",

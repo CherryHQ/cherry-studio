@@ -3165,6 +3165,7 @@
         "label": "應用程式資料",
         "migration_title": "資料移轉",
         "new_path": "新路徑",
+        "open": "開啟目錄",
         "original_path": "原始路徑",
         "path_change_failed": "資料目錄變更失敗",
         "path_changed_without_copy": "路徑已變更成功",

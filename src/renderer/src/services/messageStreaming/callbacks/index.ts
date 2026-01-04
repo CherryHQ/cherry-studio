@@ -45,18 +45,19 @@ interface CallbacksDependencies {
 export const createCallbacks = (deps: CallbacksDependencies) => {
   const { blockManager, topicId, assistantMsgId, assistant } = deps
 
+  // 首先创建 thinkingCallbacks ，以便传递 getCurrentThinkingInfo 给 baseCallbacks
+  const thinkingCallbacks = createThinkingCallbacks({
+    blockManager,
+    assistantMsgId
+  })
+
   // Create base callbacks (lifecycle, error, complete)
   const baseCallbacks = createBaseCallbacks({
     blockManager,
     topicId,
     assistantMsgId,
-    assistant
-  })
-
-  // Create specialized callbacks for each block type
-  const thinkingCallbacks = createThinkingCallbacks({
-    blockManager,
-    assistantMsgId
+    assistant,
+    getCurrentThinkingInfo: thinkingCallbacks.getCurrentThinkingInfo
   })
 
   const toolCallbacks = createToolCallbacks({

@@ -1,11 +1,4 @@
-import {
-  CloudServerOutlined,
-  CloudSyncOutlined,
-  FileSearchOutlined,
-  LoadingOutlined,
-  WifiOutlined,
-  YuqueOutlined
-} from '@ant-design/icons'
+import { CloudServerOutlined, CloudSyncOutlined, LoadingOutlined, WifiOutlined, YuqueOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import DividerWithText from '@renderer/components/DividerWithText'
@@ -22,8 +15,8 @@ import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Progress, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
+import { Progress, Tooltip, Typography } from 'antd'
+import { FileText, FolderCog, FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -644,10 +637,12 @@ const DataSettings: FC = () => {
                     onClick={() => handleOpenPath(appInfo?.appDataPath)}>
                     {appInfo?.appDataPath}
                   </PathText>
-                  <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
+                  <Tooltip title={t('settings.data.app_data.select')}>
+                    <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
+                  </Tooltip>
                   <RowFlex className="ml-2 gap-[5px]">
-                    <Button variant="ghost" size="sm" onClick={handleSelectAppDataPath}>
-                      {t('settings.data.app_data.select')}
+                    <Button variant="ghost" size="sm" onClick={() => handleOpenPath(appInfo?.appDataPath)}>
+                      {t('settings.data.app_data.open')}
                     </Button>
                   </RowFlex>
                 </PathRow>
@@ -659,7 +654,6 @@ const DataSettings: FC = () => {
                   <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
                     {appInfo?.logsPath}
                   </PathText>
-                  <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
                   <RowFlex className="ml-2 gap-[5px]">
                     <Button variant="ghost" size="sm" onClick={() => handleOpenPath(appInfo?.logsPath)}>
                       {t('settings.data.app_logs.button')}
@@ -719,16 +713,6 @@ const DataSettings: FC = () => {
 
 const Container = styled(RowFlex)`
   flex: 1;
-`
-
-const StyledIcon = styled(FileSearchOutlined)`
-  color: var(--color-text-2);
-  cursor: pointer;
-  transition: color 0.3s;
-
-  &:hover {
-    color: var(--color-text-1);
-  }
 `
 
 const MenuList = styled.div`
