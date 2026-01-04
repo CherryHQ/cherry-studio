@@ -1,37 +1,13 @@
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type { PaginatedResponse } from '@shared/data/api/apiTypes'
+import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/apiPaths'
+import type { ConcreteApiPaths, PaginatedResponse } from '@shared/data/api/apiTypes'
+import type { KeyedMutator } from 'swr'
 import { vi } from 'vitest'
 
 /**
  * Mock useDataApi hooks for testing
  * Provides comprehensive mocks for all data API hooks with realistic SWR-like behavior
+ * Matches the actual interface from src/renderer/src/data/hooks/useDataApi.ts
  */
-
-// Mock SWR response interface
-interface MockSWRResponse<T> {
-  data?: T
-  error?: Error
-  isLoading: boolean
-  isValidating: boolean
-  mutate: (data?: T | Promise<T> | ((data: T) => T)) => Promise<T | undefined>
-}
-
-// Mock mutation response interface
-interface MockMutationResponse<T> {
-  data?: T
-  error?: Error
-  isMutating: boolean
-  trigger: (...args: any[]) => Promise<T>
-  reset: () => void
-}
-
-// Mock paginated response interface
-interface MockPaginatedResponse<T> extends MockSWRResponse<PaginatedResponse<T>> {
-  loadMore: () => void
-  isLoadingMore: boolean
-  hasMore: boolean
-  items: T[]
-}
 
 /**
  * Create mock data based on API path
@@ -70,98 +46,121 @@ function createMockDataForPath(path: ConcreteApiPaths): any {
 
 /**
  * Mock useQuery hook
+ * Matches actual signature: useQuery(path, options?) => { data, loading, error, refetch, mutate }
  */
 export const mockUseQuery = vi.fn(
-  <TPath extends ConcreteApiPaths>(path: TPath | null, _query?: any, options?: any): MockSWRResponse<any> => {
-    const isLoading = options?.initialLoading ?? false
-    const hasError = options?.shouldError ?? false
-
-    if (hasError) {
+  <TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options?: {
+      query?: QueryParamsForPath<TPath>
+      enabled?: boolean
+      swrOptions?: any
+    }
+  ): {
+    data?: ResponseForPath<TPath, 'GET'>
+    loading: boolean
+    error?: Error
+    refetch: () => void
+    mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>>
+  } => {
+    // Check if query is disabled
+    if (options?.enabled === false) {
       return {
         data: undefined,
-        error: new Error(`Mock error for ${path}`),
-        isLoading: false,
-        isValidating: false,
-        mutate: vi.fn().mockResolvedValue(undefined)
+        loading: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(undefined) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>>
       }
     }
 
-    const mockData = path ? createMockDataForPath(path) : undefined
+    const mockData = createMockDataForPath(path)
 
     return {
-      data: mockData,
+      data: mockData as ResponseForPath<TPath, 'GET'>,
+      loading: false,
       error: undefined,
-      isLoading,
-      isValidating: false,
-      mutate: vi.fn().mockResolvedValue(mockData)
+      refetch: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(mockData) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>>
     }
   }
 )
 
 /**
  * Mock useMutation hook
+ * Matches actual signature: useMutation(method, path, options?) => { mutate, loading, error }
  */
 export const mockUseMutation = vi.fn(
   <TPath extends ConcreteApiPaths, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
-    path: TPath,
     method: TMethod,
-    options?: any
-  ): MockMutationResponse<any> => {
-    const isMutating = options?.initialMutating ?? false
-    const hasError = options?.shouldError ?? false
-
-    const mockTrigger = vi.fn(async (...args: any[]) => {
-      if (hasError) {
-        throw new Error(`Mock mutation error for ${method} ${path}`)
+    _path: TPath,
+    _options?: {
+      onSuccess?: (data: ResponseForPath<TPath, TMethod>) => void
+      onError?: (error: Error) => void
+      revalidate?: boolean | string[]
+      optimistic?: boolean
+      optimisticData?: ResponseForPath<TPath, TMethod>
+    }
+  ): {
+    mutate: (data?: {
+      body?: BodyForPath<TPath, TMethod>
+      query?: QueryParamsForPath<TPath>
+    }) => Promise<ResponseForPath<TPath, TMethod>>
+    loading: boolean
+    error: Error | undefined
+  } => {
+    const mockMutate = vi.fn(
+      async (_data?: { body?: BodyForPath<TPath, TMethod>; query?: QueryParamsForPath<TPath> }) => {
+        // Simulate different responses based on method
+        switch (method) {
+          case 'POST':
+            return { id: 'new_item', created: true } as ResponseForPath<TPath, TMethod>
+          case 'PUT':
+          case 'PATCH':
+            return { id: 'updated_item', updated: true } as ResponseForPath<TPath, TMethod>
+          case 'DELETE':
+            return { deleted: true } as ResponseForPath<TPath, TMethod>
+          default:
+            return { success: true } as ResponseForPath<TPath, TMethod>
+        }
       }
-
-      // Simulate different responses based on method
-      switch (method) {
-        case 'POST':
-          return { id: 'new_item', created: true, ...args[0] }
-        case 'PUT':
-        case 'PATCH':
-          return { id: 'updated_item', updated: true, ...args[0] }
-        case 'DELETE':
-          return { deleted: true }
-        default:
-          return { success: true }
-      }
-    })
+    )
 
     return {
-      data: undefined,
-      error: undefined,
-      isMutating,
-      trigger: mockTrigger,
-      reset: vi.fn()
+      mutate: mockMutate,
+      loading: false,
+      error: undefined
     }
   }
 )
 
 /**
  * Mock usePaginatedQuery hook
+ * Matches actual signature: usePaginatedQuery(path, options?) => { items, total, page, loading, error, hasMore, hasPrev, prevPage, nextPage, refresh, reset }
  */
 export const mockUsePaginatedQuery = vi.fn(
-  <TPath extends ConcreteApiPaths>(path: TPath | null, _query?: any, options?: any): MockPaginatedResponse<any> => {
-    const isLoading = options?.initialLoading ?? false
-    const isLoadingMore = options?.initialLoadingMore ?? false
-    const hasError = options?.shouldError ?? false
-
-    if (hasError) {
-      return {
-        data: undefined,
-        error: new Error(`Mock paginated error for ${path}`),
-        isLoading: false,
-        isValidating: false,
-        mutate: vi.fn().mockResolvedValue(undefined),
-        loadMore: vi.fn(),
-        isLoadingMore: false,
-        hasMore: false,
-        items: []
-      }
+  <TPath extends ConcreteApiPaths>(
+    path: TPath,
+    _options?: {
+      query?: Omit<QueryParamsForPath<TPath>, 'page' | 'limit'>
+      limit?: number
+      swrOptions?: any
     }
-
+  ): ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
+    ? {
+        items: T[]
+        total: number
+        page: number
+        loading: boolean
+        error?: Error
+        hasMore: boolean
+        hasPrev: boolean
+        prevPage: () => void
+        nextPage: () => void
+        refresh: () => void
+        reset: () => void
+      }
+    : never => {
     const mockItems = path
       ? [
           { id: 'item1', name: 'Mock Item 1' },
@@ -170,52 +169,61 @@ export const mockUsePaginatedQuery = vi.fn(
         ]
       : []
 
-    const mockData: PaginatedResponse<any> = {
+    return {
       items: mockItems,
       total: mockItems.length,
       page: 1,
-      pageCount: 1,
-      hasNext: false,
-      hasPrev: false
-    }
-
-    return {
-      data: mockData,
+      loading: false,
       error: undefined,
-      isLoading,
-      isValidating: false,
-      mutate: vi.fn().mockResolvedValue(mockData),
-      loadMore: vi.fn(),
-      isLoadingMore,
-      hasMore: mockData.hasNext,
-      items: mockItems
-    }
+      hasMore: false,
+      hasPrev: false,
+      prevPage: vi.fn(),
+      nextPage: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn()
+    } as unknown as ResponseForPath<TPath, 'GET'> extends PaginatedResponse<infer T>
+      ? {
+          items: T[]
+          total: number
+          page: number
+          loading: boolean
+          error?: Error
+          hasMore: boolean
+          hasPrev: boolean
+          prevPage: () => void
+          nextPage: () => void
+          refresh: () => void
+          reset: () => void
+        }
+      : never
   }
 )
 
 /**
  * Mock useInvalidateCache hook
+ * Matches actual signature: useInvalidateCache() => (keys?) => Promise<any>
  */
-export const mockUseInvalidateCache = vi.fn(() => {
-  return {
-    invalidate: vi.fn(async () => {
-      // Mock cache invalidation
-      return Promise.resolve()
-    }),
-    invalidateAll: vi.fn(async () => {
-      // Mock invalidate all caches
-      return Promise.resolve()
-    })
-  }
+export const mockUseInvalidateCache = vi.fn((): ((keys?: string | string[] | boolean) => Promise<any>) => {
+  const invalidate = vi.fn(async (_keys?: string | string[] | boolean) => {
+    return Promise.resolve()
+  })
+  return invalidate
 })
 
 /**
  * Mock prefetch function
+ * Matches actual signature: prefetch(path, options?) => Promise<ResponseForPath<TPath, 'GET'>>
  */
-export const mockPrefetch = vi.fn(async <TPath extends ConcreteApiPaths>(_path: TPath): Promise<any> => {
-  // Mock prefetch - return mock data
-  return createMockDataForPath(_path)
-})
+export const mockPrefetch = vi.fn(
+  async <TPath extends ConcreteApiPaths>(
+    path: TPath,
+    _options?: {
+      query?: QueryParamsForPath<TPath>
+    }
+  ): Promise<ResponseForPath<TPath, 'GET'>> => {
+    return createMockDataForPath(path) as ResponseForPath<TPath, 'GET'>
+  }
+)
 
 /**
  * Export all mocks as a unified module
@@ -246,27 +254,26 @@ export const MockUseDataApiUtils = {
   /**
    * Set up useQuery to return specific data
    */
-  mockQueryData: <T>(path: ConcreteApiPaths, data: T) => {
-    mockUseQuery.mockImplementation((queryPath, query, options) => {
+  mockQueryData: <TPath extends ConcreteApiPaths>(path: TPath, data: ResponseForPath<TPath, 'GET'>) => {
+    mockUseQuery.mockImplementation((queryPath, _options) => {
       if (queryPath === path) {
         return {
           data,
+          loading: false,
           error: undefined,
-          isLoading: false,
-          isValidating: false,
+          refetch: vi.fn(),
           mutate: vi.fn().mockResolvedValue(data)
         }
       }
       // Default behavior for other paths
-      return (
-        mockUseQuery.getMockImplementation()?.(queryPath, query, options) || {
-          data: undefined,
-          error: undefined,
-          isLoading: false,
-          isValidating: false,
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }
-      )
+      const defaultData = createMockDataForPath(queryPath)
+      return {
+        data: defaultData,
+        loading: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(defaultData)
+      }
     })
   },
 
@@ -274,25 +281,24 @@ export const MockUseDataApiUtils = {
    * Set up useQuery to return loading state
    */
   mockQueryLoading: (path: ConcreteApiPaths) => {
-    mockUseQuery.mockImplementation((queryPath, query, options) => {
+    mockUseQuery.mockImplementation((queryPath, _options) => {
       if (queryPath === path) {
         return {
           data: undefined,
+          loading: true,
           error: undefined,
-          isLoading: true,
-          isValidating: true,
+          refetch: vi.fn(),
           mutate: vi.fn().mockResolvedValue(undefined)
         }
       }
-      return (
-        mockUseQuery.getMockImplementation()?.(queryPath, query, options) || {
-          data: undefined,
-          error: undefined,
-          isLoading: false,
-          isValidating: false,
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }
-      )
+      const defaultData = createMockDataForPath(queryPath)
+      return {
+        data: defaultData,
+        loading: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(defaultData)
+      }
     })
   },
 
@@ -300,77 +306,139 @@ export const MockUseDataApiUtils = {
    * Set up useQuery to return error state
    */
   mockQueryError: (path: ConcreteApiPaths, error: Error) => {
-    mockUseQuery.mockImplementation((queryPath, query, options) => {
+    mockUseQuery.mockImplementation((queryPath, _options) => {
       if (queryPath === path) {
         return {
           data: undefined,
+          loading: false,
           error,
-          isLoading: false,
-          isValidating: false,
+          refetch: vi.fn(),
           mutate: vi.fn().mockResolvedValue(undefined)
         }
       }
-      return (
-        mockUseQuery.getMockImplementation()?.(queryPath, query, options) || {
-          data: undefined,
-          error: undefined,
-          isLoading: false,
-          isValidating: false,
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }
-      )
+      const defaultData = createMockDataForPath(queryPath)
+      return {
+        data: defaultData,
+        loading: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(defaultData)
+      }
     })
   },
 
   /**
-   * Set up useMutation to simulate success
+   * Set up useMutation to simulate success with specific result
    */
-  mockMutationSuccess: <T>(path: ConcreteApiPaths, method: string, result: T) => {
-    mockUseMutation.mockImplementation((mutationPath, mutationMethod, options) => {
+  mockMutationSuccess: <TPath extends ConcreteApiPaths, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
+    method: TMethod,
+    path: TPath,
+    result: ResponseForPath<TPath, TMethod>
+  ) => {
+    mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
       if (mutationPath === path && mutationMethod === method) {
         return {
-          data: undefined,
-          error: undefined,
-          isMutating: false,
-          trigger: vi.fn().mockResolvedValue(result),
-          reset: vi.fn()
+          mutate: vi.fn().mockResolvedValue(result),
+          loading: false,
+          error: undefined
         }
       }
-      return (
-        mockUseMutation.getMockImplementation()?.(mutationPath, mutationMethod, options) || {
-          data: undefined,
-          error: undefined,
-          isMutating: false,
-          trigger: vi.fn().mockResolvedValue({}),
-          reset: vi.fn()
-        }
-      )
+      // Default behavior
+      return {
+        mutate: vi.fn().mockResolvedValue({ success: true }),
+        loading: false,
+        error: undefined
+      }
     })
   },
 
   /**
    * Set up useMutation to simulate error
    */
-  mockMutationError: (path: ConcreteApiPaths, method: string, error: Error) => {
-    mockUseMutation.mockImplementation((mutationPath, mutationMethod, options) => {
+  mockMutationError: <TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
+    method: TMethod,
+    path: ConcreteApiPaths,
+    error: Error
+  ) => {
+    mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
       if (mutationPath === path && mutationMethod === method) {
         return {
-          data: undefined,
+          mutate: vi.fn().mockRejectedValue(error),
+          loading: false,
+          error: undefined
+        }
+      }
+      // Default behavior
+      return {
+        mutate: vi.fn().mockResolvedValue({ success: true }),
+        loading: false,
+        error: undefined
+      }
+    })
+  },
+
+  /**
+   * Set up useMutation to be in loading state
+   */
+  mockMutationLoading: <TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
+    method: TMethod,
+    path: ConcreteApiPaths
+  ) => {
+    mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
+      if (mutationPath === path && mutationMethod === method) {
+        return {
+          mutate: vi.fn().mockImplementation(() => new Promise(() => {})), // Never resolves
+          loading: true,
+          error: undefined
+        }
+      }
+      // Default behavior
+      return {
+        mutate: vi.fn().mockResolvedValue({ success: true }),
+        loading: false,
+        error: undefined
+      }
+    })
+  },
+
+  /**
+   * Set up usePaginatedQuery to return specific items
+   */
+  mockPaginatedData: <TPath extends ConcreteApiPaths>(
+    path: TPath,
+    items: any[],
+    options?: { total?: number; page?: number; hasMore?: boolean; hasPrev?: boolean }
+  ) => {
+    mockUsePaginatedQuery.mockImplementation((queryPath, _queryOptions) => {
+      if (queryPath === path) {
+        return {
+          items,
+          total: options?.total ?? items.length,
+          page: options?.page ?? 1,
+          loading: false,
           error: undefined,
-          isMutating: false,
-          trigger: vi.fn().mockRejectedValue(error),
+          hasMore: options?.hasMore ?? false,
+          hasPrev: options?.hasPrev ?? false,
+          prevPage: vi.fn(),
+          nextPage: vi.fn(),
+          refresh: vi.fn(),
           reset: vi.fn()
         }
       }
-      return (
-        mockUseMutation.getMockImplementation()?.(mutationPath, mutationMethod, options) || {
-          data: undefined,
-          error: undefined,
-          isMutating: false,
-          trigger: vi.fn().mockResolvedValue({}),
-          reset: vi.fn()
-        }
-      )
+      // Default behavior
+      return {
+        items: [],
+        total: 0,
+        page: 1,
+        loading: false,
+        error: undefined,
+        hasMore: false,
+        hasPrev: false,
+        prevPage: vi.fn(),
+        nextPage: vi.fn(),
+        refresh: vi.fn(),
+        reset: vi.fn()
+      }
     })
   }
 }
