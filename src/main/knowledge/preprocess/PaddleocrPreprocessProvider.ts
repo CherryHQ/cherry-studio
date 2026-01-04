@@ -47,9 +47,24 @@ const isApiSuccess = (response: ApiResponse): boolean => {
   return hasNoError && hasSuccessMsg
 }
 
+function formatZodError(error: z.ZodError): string {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.join('.')
+      const code = issue.code
+      const message = issue.message
+      return `[${code}] ${path}: ${message}`
+    })
+    .join('; ')
+}
+
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
+  if (error instanceof z.ZodError) {
+    return formatZodError(error)
+  } else if (error instanceof Error) {
     return error.message
+  } else if (typeof error === 'string') {
+    return error
   } else {
     return t('error.unknown')
   }
