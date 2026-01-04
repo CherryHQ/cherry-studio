@@ -132,7 +132,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       pointer-events: none;
     }
     /* Hide separator for last tab */
-    .tab:last-child::after { display: none; }
+    .tab:last-of-type::after { display: none; }
     /* Hide separator when tab is hovered (right side) */
     .tab:hover::after { display: none; }
     /* Hide separator on tab before hovered tab (left side of hovered) - managed by JS .before-hover class */
