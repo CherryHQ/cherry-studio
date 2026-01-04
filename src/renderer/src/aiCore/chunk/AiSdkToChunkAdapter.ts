@@ -3,6 +3,7 @@
  * 用于将 AI SDK 的 fullStream 转换为 Cherry Studio 的 chunk 格式
  */
 
+import type { JSONValue } from '@ai-sdk/provider'
 import { loggerService } from '@logger'
 import type { AISDKWebSearchResult, MCPTool, WebSearchResults } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
@@ -12,7 +13,7 @@ import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
-import { AISDKError, type TextStreamPart, type ToolSet } from 'ai'
+import { AISDKError, type ProviderMetadata, type TextStreamPart, type ToolSet } from 'ai'
 
 import { ToolCallChunkHandler } from './handleToolCallChunk'
 
@@ -57,6 +58,39 @@ export class AiSdkToChunkAdapter {
   private resetTimingState() {
     this.responseStartTimestamp = null
     this.firstTokenTimestamp = null
+  }
+
+  private extractOpenAIResponsesReasoningRawPayload(providerMetadata: unknown) {
+    if (!providerMetadata || typeof providerMetadata !== 'object') return undefined
+
+    const openaiMetadata = (providerMetadata as ProviderMetadata).openai
+    if (!openaiMetadata || typeof openaiMetadata !== 'object') return undefined
+
+    const itemId = (openaiMetadata as Record<string, JSONValue>).itemId
+    const reasoningEncryptedContent = (openaiMetadata as Record<string, JSONValue>).reasoningEncryptedContent
+
+    if (typeof itemId !== 'string' || itemId.length === 0) return undefined
+    if (typeof reasoningEncryptedContent !== 'string' || reasoningEncryptedContent.length === 0) return undefined
+
+    return { itemId, encryptedContent: reasoningEncryptedContent } as const
+  }
+
+  private emitOpenAIResponsesReasoningEncryptedContent(providerMetadata: unknown) {
+    const payload = this.extractOpenAIResponsesReasoningRawPayload(providerMetadata)
+    if (!payload) return
+
+    this.onChunk({
+      type: ChunkType.RAW,
+      content: {
+        type: 'responses_reasoning',
+        itemId: payload.itemId,
+        encryptedContent: payload.encryptedContent
+      },
+      metadata: {
+        source: 'ai-sdk',
+        provider: 'openai'
+      }
+    })
   }
 
   /**
@@ -199,6 +233,7 @@ export class AiSdkToChunkAdapter {
       case 'reasoning-start':
         // if (final.reasoningId !== chunk.id) {
         final.reasoningId = chunk.id
+        this.emitOpenAIResponsesReasoningEncryptedContent(chunk.providerMetadata)
         this.onChunk({
           type: ChunkType.THINKING_START
         })
@@ -215,6 +250,7 @@ export class AiSdkToChunkAdapter {
         })
         break
       case 'reasoning-end':
+        this.emitOpenAIResponsesReasoningEncryptedContent(chunk.providerMetadata)
         this.onChunk({
           type: ChunkType.THINKING_COMPLETE,
           text: final.reasoningContent || ''

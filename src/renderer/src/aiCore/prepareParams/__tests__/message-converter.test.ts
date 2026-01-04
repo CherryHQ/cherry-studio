@@ -8,6 +8,7 @@ import {
   MessageBlockStatus,
   MessageBlockType,
   type ThinkingMessageBlock,
+  type ToolMessageBlock,
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,13 +36,15 @@ type MockableMessage = Message & {
   __mockFileBlocks?: FileMessageBlock[]
   __mockImageBlocks?: ImageMessageBlock[]
   __mockThinkingBlocks?: ThinkingMessageBlock[]
+  __mockToolBlocks?: ToolMessageBlock[]
 }
 
 vi.mock('@renderer/utils/messageUtils/find', () => ({
   getMainTextContent: (message: Message) => (message as MockableMessage).__mockContent ?? '',
   findFileBlocks: (message: Message) => (message as MockableMessage).__mockFileBlocks ?? [],
   findImageBlocks: (message: Message) => (message as MockableMessage).__mockImageBlocks ?? [],
-  findThinkingBlocks: (message: Message) => (message as MockableMessage).__mockThinkingBlocks ?? []
+  findThinkingBlocks: (message: Message) => (message as MockableMessage).__mockThinkingBlocks ?? [],
+  findToolBlocks: (message: Message) => (message as MockableMessage).__mockToolBlocks ?? []
 }))
 
 import { convertMessagesToSdkMessages, convertMessageToSdkParam } from '../messageConverter'
@@ -123,6 +126,39 @@ const createThinkingBlock = (
   ...overrides
 })
 
+const createToolBlock = (
+  messageId: string,
+  overrides: Partial<Omit<ToolMessageBlock, 'type' | 'messageId' | 'toolId'>> & {
+    toolId?: string
+    rawMcpToolResponse?: any
+  } = {}
+): ToolMessageBlock => {
+  const { rawMcpToolResponse, ...blockOverrides } = overrides
+  const timestamp = new Date(2024, 0, 1, 0, 0, ++blockCounter).toISOString()
+  return {
+    id: blockOverrides.id ?? `tool-block-${blockCounter}`,
+    messageId,
+    type: MessageBlockType.TOOL,
+    createdAt: blockOverrides.createdAt ?? timestamp,
+    status: blockOverrides.status ?? MessageBlockStatus.SUCCESS,
+    toolId: blockOverrides.toolId ?? `tool-call-${blockCounter}`,
+    toolName: (blockOverrides as any)?.toolName ?? 'test-tool',
+    metadata: {
+      rawMcpToolResponse:
+        rawMcpToolResponse ??
+        ({
+          id: 'call-1',
+          toolCallId: 'call-1',
+          tool: { id: 'test-tool', name: 'test-tool', description: 'test-tool', type: 'builtin' },
+          arguments: '{"a":1}',
+          status: 'done',
+          response: { ok: true }
+        } as any)
+    },
+    ...blockOverrides
+  }
+}
+
 describe('messageConverter', () => {
   beforeEach(() => {
     convertFileBlockToFilePartMock.mockReset()
@@ -134,6 +170,161 @@ describe('messageConverter', () => {
   })
 
   describe('convertMessageToSdkParam', () => {
+    it('replays Responses API encrypted reasoning content when present on assistant message', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Done.'
+      message.providerMetadata = { openai: { itemId: 'rs_123', reasoningEncryptedContent: 'enc_abc' } }
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [
+          {
+            type: 'reasoning',
+            text: '',
+            providerOptions: {
+              openai: {
+                itemId: 'rs_123',
+                reasoningEncryptedContent: 'enc_abc'
+              }
+            }
+          },
+          { type: 'text', text: 'Done.' }
+        ]
+      })
+    })
+
+    it('suppresses thinking blocks when Responses API encrypted reasoning replay is present', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Done.'
+      message.providerMetadata = { openai: { itemId: 'rs_123', reasoningEncryptedContent: 'enc_abc' } }
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'This should not be sent' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [
+          {
+            type: 'reasoning',
+            text: '',
+            providerOptions: {
+              openai: {
+                itemId: 'rs_123',
+                reasoningEncryptedContent: 'enc_abc'
+              }
+            }
+          },
+          { type: 'text', text: 'Done.' }
+        ]
+      })
+    })
+
+    it('replays tool calls/results from tool blocks for assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Final answer'
+      message.__mockToolBlocks = [createToolBlock(message.id)]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual([
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'test-tool', input: { a: 1 } }]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'test-tool',
+              output: { type: 'text', value: '{"ok":true}' }
+            }
+          ]
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Final answer' }]
+        }
+      ])
+    })
+
+    it('replays encrypted reasoning content alongside tool history when both are present', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Final answer'
+      message.__mockToolBlocks = [createToolBlock(message.id)]
+      message.providerMetadata = { openai: { itemId: 'rs_123', reasoningEncryptedContent: 'enc_abc' } }
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual([
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'test-tool', input: { a: 1 } }]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'test-tool',
+              output: { type: 'text', value: '{"ok":true}' }
+            }
+          ]
+        },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'reasoning',
+              text: '',
+              providerOptions: {
+                openai: {
+                  itemId: 'rs_123',
+                  reasoningEncryptedContent: 'enc_abc'
+                }
+              }
+            },
+            { type: 'text', text: 'Final answer' }
+          ]
+        }
+      ])
+    })
+
+    it('returns only tool history when assistant message has tool blocks but no content', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = ''
+      message.__mockToolBlocks = [createToolBlock(message.id)]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual([
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'test-tool', input: { a: 1 } }]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'test-tool',
+              output: { type: 'text', value: '{"ok":true}' }
+            }
+          ]
+        }
+      ])
+    })
+
     it('includes text and image parts for user messages on vision models', async () => {
       const model = createModel()
       const message = createMessage('user')
@@ -255,8 +446,8 @@ describe('messageConverter', () => {
       expect(result).toEqual({
         role: 'assistant',
         content: [
-          { type: 'text', text: 'Here is my answer' },
-          { type: 'reasoning', text: 'Let me think...' }
+          { type: 'reasoning', text: 'Let me think...' },
+          { type: 'text', text: 'Here is my answer' }
         ]
       })
     })
