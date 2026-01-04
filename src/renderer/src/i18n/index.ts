@@ -31,7 +31,7 @@ const resources = Object.fromEntries(
     ['es-ES', esES],
     ['fr-FR', frFR],
     ['pt-PT', ptPT],
-    ['ro-RO', roRO]
+    ['ro-RO', roRO],
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
