@@ -130,8 +130,7 @@ export class BlockManager {
    *
    * This method:
    * 1. Updates active block tracking state
-   * 2. Adds new block to StreamingService
-   * 3. Updates message block references
+   * 2. Adds new block to StreamingService (which also updates message.blocks references)
    *
    * NOTE: DB saves are removed - persistence happens during finalize()
    */
@@ -140,11 +139,8 @@ export class BlockManager {
     this._lastBlockType = newBlockType
     this._activeBlockInfo = { id: newBlock.id, type: newBlockType } // Set new active block info
 
-    // Add new block to StreamingService (replaces dispatch(upsertOneBlock))
+    // Add new block to StreamingService (also updates message.blocks references internally)
     streamingService.addBlock(this.deps.assistantMsgId, newBlock)
-
-    // Update block reference in message (replaces dispatch(upsertBlockReference))
-    streamingService.addBlockReference(this.deps.assistantMsgId, newBlock.id)
 
     // TEMPORARY: The blockInstruction field was used for UI coordination.
     // TODO: Evaluate if this is still needed with StreamingService approach
