@@ -95,10 +95,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
 export async function uploadNotes(entries: FileEntryData[], targetPath: string): Promise<UploadResult>
 
 // Implementation signature
-export async function uploadNotes(
-  filesOrEntries: File[] | FileEntryData[],
-  targetPath: string
-): Promise<UploadResult> {
+export async function uploadNotes(filesOrEntries: File[] | FileEntryData[], targetPath: string): Promise<UploadResult> {
   if (filesOrEntries.length === 0) {
     return {
       uploadedNodes: [],
