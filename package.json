@@ -27,6 +27,7 @@
   "scripts": {
     "start": "electron-vite preview",
     "dev": "dotenv electron-vite dev",
+    "dev:react-scan": "dotenv -- cross-env RENDERER_VITE_REACT_SCAN=true electron-vite dev",
     "dev:watch": "dotenv electron-vite dev -- -w",
     "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
@@ -337,6 +338,7 @@
     "react-redux": "^9.1.2",
     "react-router": "6",
     "react-router-dom": "6",
+    "react-scan": "^0.4.3",
     "react-spinners": "^0.14.1",
     "react-transition-group": "^4.4.5",
     "redux": "^5.0.1",
