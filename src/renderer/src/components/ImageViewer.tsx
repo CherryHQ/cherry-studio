@@ -11,6 +11,7 @@ import {
 import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
 import { convertImageToPng } from '@renderer/utils/image'
+import { parseDataUrl } from '@shared/utils'
 import type { ImageProps as AntImageProps } from 'antd'
 import { Dropdown, Image as AntImage, Space } from 'antd'
 import { Base64 } from 'js-base64'
@@ -37,12 +38,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
       let blob: Blob
 
       if (src.startsWith('data:')) {
-        // 处理 base64 格式的图片
-        const match = src.match(/^data:(image\/\w+);base64,(.+)$/)
-        if (!match) throw new Error('Invalid base64 image format')
-        const mimeType = match[1]
-        const byteArray = Base64.toUint8Array(match[2])
-        blob = new Blob([byteArray], { type: mimeType })
+        // 处理 base64 格式的图片 - 使用 parseDataUrl 避免正则匹配大字符串导致OOM
+        const parseResult = parseDataUrl(src)
+        if (!parseResult || !parseResult.mediaType || !parseResult.isBase64) {
+          throw new Error('Invalid base64 image format')
+        }
+        const byteArray = Base64.toUint8Array(parseResult.data)
+        blob = new Blob([byteArray], { type: parseResult.mediaType })
       } else if (src.startsWith('file://')) {
         // 处理本地文件路径
         const bytes = await window.api.fs.read(src)

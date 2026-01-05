@@ -1297,6 +1297,7 @@
     "backup": {
       "file_format": "備份檔案格式錯誤"
     },
+    "base64DataTruncated": "Base64 圖片資料已截斷，大小",
     "boundary": {
       "default": {
         "devtools": "開啟除錯面板",
@@ -1377,6 +1378,8 @@
     "text": "文字",
     "toolInput": "工具輸入",
     "toolName": "工具名稱",
+    "truncated": "資料已截斷，原始大小",
+    "truncatedBadge": "已截斷",
     "unknown": "未知錯誤",
     "usage": "用量",
     "user_message_not_found": "無法找到原始使用者訊息",
