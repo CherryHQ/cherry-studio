@@ -386,61 +386,42 @@ interface QuickLoadingProps extends QuickApiProps {
   promise: ToastProps['promise']
 }
 
-toast.info = (message: ReactNode, data?: QuickApiProps) => {
+toast.info = (message: ReactNode, data?: QuickApiProps) =>
   toast({
     type: 'info',
     title: message,
     ...data
   })
-}
 
-toast.success = (message: ReactNode, data?: QuickApiProps) => {
+toast.success = (message: ReactNode, data?: QuickApiProps) =>
   toast({
     type: 'success',
     title: message,
     ...data
   })
-}
 
-toast.warning = (message: ReactNode, data?: QuickApiProps) => {
+toast.warning = (message: ReactNode, data?: QuickApiProps) =>
   toast({
     type: 'warning',
     title: message,
     ...data
   })
-}
 
-toast.error = (message: ReactNode, data?: QuickApiProps) => {
+toast.error = (message: ReactNode, data?: QuickApiProps) =>
   toast({
     type: 'error',
     title: message,
     ...data
   })
-}
 
-toast.loading = (message: ReactNode, data: QuickLoadingProps) => {
+toast.loading = (message: ReactNode, data: QuickLoadingProps) =>
   toast({
     type: 'loading',
     title: message,
     ...data
   })
-}
 
-toast.dismiss = (id: ToastProps['id']) => {
-  sonnerToast.dismiss(id)
-}
-
-// const toastColorVariants = cva(undefined, {
-//   variants: {
-//     type: {
-//       info: 'text-blue-500',
-//       warning: 'text-warning-base',
-//       error: 'text-error-base',
-//       success: 'text-success-base',
-//       loading: 'text-foreground-muted'
-//     }
-//   }
-// })
+toast.dismiss = (id: ToastProps['id']) => sonnerToast.dismiss(id)
 
 const toastBgColorVariants = cva(undefined, {
   variants: {
@@ -453,99 +434,6 @@ const toastBgColorVariants = cva(undefined, {
     }
   }
 })
-
-// function Toast({
-//   id,
-//   type,
-//   title,
-//   description,
-//   coloredMessage,
-//   colored: coloredBackground,
-//   dismissable,
-//   onDismiss,
-//   button,
-//   link
-// }: ToastProps) {
-//   const icon = useMemo(() => {
-//     switch (type) {
-//       case 'info':
-//         return <InfoIcon className="size-6" />
-//       case 'error':
-//         return <ErrorIcon className="size-6" />
-//       case 'loading':
-//         return <Loader2Icon className="size-6 animate-spin" />
-//       case 'success':
-//         return <SuccessIcon className="size-6" />
-//       case 'warning':
-//         return <WarningIcon className="size-6" />
-//     }
-//   }, [type])
-
-//   const handleDismiss = useCallback(() => {
-//     sonnerToast.dismiss(id)
-//     onDismiss?.()
-//   }, [id, onDismiss])
-
-//   return (
-//     <div
-//       id={String(id)}
-//       className={cn(
-//         'flex p-4 rounded-xs bg-background border-border border-[0.5px] items-center shadow-lg',
-//         coloredBackground && toastBgColorVariants({ type })
-//       )}
-//       aria-label="Toast">
-//       {dismissable && (
-//         <button type="button" aria-label="Dismiss the toast" onClick={handleDismiss}>
-//           <CloseIcon className="size-5 absolute top-[5px] right-1.5" />
-//         </button>
-//       )}
-//       <div className={cn('flex items-start flex-1', button !== undefined ? 'gap-3' : 'gap-4')}>
-//         {icon}
-//         <div className="cs-toast-content flex flex-col gap-1">
-//           <div className="cs-toast-title font-medium leading-4.5" role="heading">
-//             {title}
-//           </div>
-//           <div className="cs-toast-description">
-//             <p className="text-foreground-secondary text-xs leading-3.5 tracking-normal">
-//               {coloredMessage && <span className={toastColorVariants({ type })}>{coloredMessage} </span>}
-//               {description}
-//             </p>
-//           </div>
-//           {link && (
-//             // FIXME: missing typography/typography components/p/letter-spacing
-//             <div className="cs-toast-link text-foreground-muted text-xs leading-3.5 tracking-normal">
-//               <a
-//                 href={link.href}
-//                 onClick={link.onClick}
-//                 className={cn(
-//                   'underline decoration-foreground-muted cursor-pointer',
-//                   'hover:text-foreground-secondary',
-//                   // FIXME: missing active style in design
-//                   'active:text-black'
-//                 )}>
-//                 {link.label}
-//               </a>
-//             </div>
-//           )}
-//         </div>
-//       </div>
-//       {button !== undefined && (
-//         <button
-//           type="button"
-//           // FIXME: missing hover/active style
-//           className={cn(
-//             'py-1 px-2 rounded-3xs flex items-center h-7 bg-background-subtle border-[0.5px] border-border',
-//             'text-foreground text-sm leading-4 tracking-normal',
-//             button.icon !== undefined && 'gap-2'
-//           )}
-//           onClick={button.onClick}>
-//           <div>{button.icon}</div>
-//           <div>{button.label}</div>
-//         </button>
-//       )}
-//     </div>
-//   )
-// }
 
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
