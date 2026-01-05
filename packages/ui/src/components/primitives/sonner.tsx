@@ -371,7 +371,7 @@ function toast(props: ToastProps) {
     toast: cn(
       'flex rounded-xs p-4 bg-background border-border border-[0.5px] shadow-lg items-center',
       props.button ? 'gap-3' : 'gap-4',
-      props.colored && type !== 'custom' && toastBgColorVariants({ type }),
+      props.colored && toastBgColorVariants({ type: props.type }),
       props.classNames?.toast
     ),
     content: cn('flex flex-col', props.description && (props.button ? 'gap-1' : 'gap-2')),
