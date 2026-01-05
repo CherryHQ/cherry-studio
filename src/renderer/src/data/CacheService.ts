@@ -105,7 +105,10 @@ export class CacheService {
    *
    * Supports both fixed keys and template keys:
    * - Fixed keys: `get('app.user.avatar')`
-   * - Template keys: `get('scroll.position:topic-123')` (matches schema `'scroll.position:${id}'`)
+   * - Template keys: `get('scroll.position.topic123')` (matches schema `'scroll.position.${id}'`)
+   *
+   * Template keys follow the same dot-separated pattern as fixed keys.
+   * When ${xxx} is treated as a literal string, the key matches: xxx.yyy.zzz_www
    *
    * DESIGN NOTE: Returns `undefined` when cache miss or TTL expired.
    * This is intentional - developers need to know when a value doesn't exist
@@ -122,8 +125,8 @@ export class CacheService {
    * // Fixed key - handle undefined explicitly
    * const avatar = cacheService.get('app.user.avatar') ?? ''
    *
-   * // Template key (schema: 'scroll.position:${id}': number)
-   * const scrollPos = cacheService.get('scroll.position:topic-123') ?? 0
+   * // Template key (schema: 'scroll.position.${id}': number)
+   * const scrollPos = cacheService.get('scroll.position.topic123') ?? 0
    * ```
    */
   get<K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined {
@@ -181,7 +184,9 @@ export class CacheService {
    *
    * Supports both fixed keys and template keys:
    * - Fixed keys: `set('app.user.avatar', 'url')`
-   * - Template keys: `set('scroll.position:topic-123', 100)`
+   * - Template keys: `set('scroll.position.topic123', 100)`
+   *
+   * Template keys follow the same dot-separated pattern as fixed keys.
    *
    * @template K - The cache key type (inferred from UseCacheKey, supports template patterns)
    * @param key - Schema-defined cache key (fixed or matching template pattern)
@@ -193,8 +198,8 @@ export class CacheService {
    * // Fixed key
    * cacheService.set('app.user.avatar', 'https://example.com/avatar.png')
    *
-   * // Template key (schema: 'scroll.position:${id}': number)
-   * cacheService.set('scroll.position:topic-123', 150)
+   * // Template key (schema: 'scroll.position.${id}': number)
+   * cacheService.set('scroll.position.topic123', 150)
    *
    * // With TTL (expires after 30 seconds)
    * cacheService.set('chat.generating', true, 30000)

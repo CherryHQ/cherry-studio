@@ -163,12 +163,14 @@ const topic = cacheService.getCasual<TopicCache>(`my.custom.key`)
 
 // Compile error: cannot use schema keys with Casual methods
 cacheService.getCasual('app.user.avatar')           // Error: matches fixed key
-cacheService.getCasual('scroll.position:topic-123') // Error: matches template key
+cacheService.getCasual('scroll.position.topic123')  // Error: matches template key
 ```
 
 ### Template Keys
 
 Template keys provide type-safe caching for dynamic key patterns. Define a template in the schema using `${variable}` syntax, and TypeScript will automatically match and infer types for concrete keys.
+
+**Important**: Template keys follow the same dot-separated naming pattern as fixed keys. When `${xxx}` is treated as a literal string, the key must match the format: `xxx.yyy.zzz_www`
 
 #### Defining Template Keys
 
@@ -179,15 +181,16 @@ export type UseCacheSchema = {
   'app.user.avatar': string
 
   // Template keys - use ${variable} for dynamic segments
-  'scroll.position:${topicId}': number
-  'entity.cache:${type}:${id}': EntityData
+  // Must follow dot-separated pattern like fixed keys
+  'scroll.position.${topicId}': number
+  'entity.cache.${type}_${id}': EntityData
 }
 
 // Default values for templates (shared by all instances)
 export const DefaultUseCache: UseCacheSchema = {
   'app.user.avatar': '',
-  'scroll.position:${topicId}': 0,
-  'entity.cache:${type}:${id}': { loaded: false }
+  'scroll.position.${topicId}': 0,
+  'entity.cache.${type}_${id}': { loaded: false }
 }
 ```
 
@@ -195,15 +198,15 @@ export const DefaultUseCache: UseCacheSchema = {
 
 ```typescript
 // TypeScript infers the value type from schema
-const [scrollPos, setScrollPos] = useCache('scroll.position:topic-123')
+const [scrollPos, setScrollPos] = useCache('scroll.position.topic123')
 // scrollPos is inferred as `number`
 
-const [entity, setEntity] = useCache('entity.cache:user:456')
+const [entity, setEntity] = useCache('entity.cache.user_456')
 // entity is inferred as `EntityData`
 
 // Direct CacheService usage
-cacheService.set('scroll.position:my-topic', 150)  // OK: value must be number
-cacheService.set('scroll.position:my-topic', 'hi') // Error: type mismatch
+cacheService.set('scroll.position.mytopic', 150)  // OK: value must be number
+cacheService.set('scroll.position.mytopic', 'hi') // Error: type mismatch
 ```
 
 #### Template Key Benefits
@@ -221,9 +224,9 @@ cacheService.set('scroll.position:my-topic', 'hi') // Error: type mismatch
 | Scenario | Method | Example |
 |----------|--------|---------|
 | Fixed cache keys | Type-safe | `useCache('ui.counter')` |
-| Dynamic keys with known pattern | Template key | `useCache('scroll.position:topic-123')` |
-| Entity caching by ID | Template key | `get('entity.cache:user:456')` |
-| Completely dynamic keys | Casual | `getCasual<T>(\`unknown.pattern:${x}\`)` |
+| Dynamic keys with known pattern | Template key | `useCache('scroll.position.topic123')` |
+| Entity caching by ID | Template key | `get('entity.cache.user_456')` |
+| Completely dynamic keys | Casual | `getCasual<T>(\`custom.dynamic.${x}\`)` |
 | UI state | Type-safe | `useSharedCache('window.layout')` |
 
 ## Common Patterns
@@ -342,13 +345,13 @@ const [data, setData] = useCache('myFeature.data')
 export type UseCacheSchema = {
   // Existing keys...
   // Template key with dynamic segment
-  'scroll.position:${topicId}': number
+  'scroll.position.${topicId}': number
 }
 
 export const DefaultUseCache: UseCacheSchema = {
   // Existing defaults...
   // Default shared by all instances of this template
-  'scroll.position:${topicId}': 0
+  'scroll.position.${topicId}': 0
 }
 ```
 
@@ -356,27 +359,28 @@ export const DefaultUseCache: UseCacheSchema = {
 
 ```typescript
 // TypeScript infers number from template pattern
-const [scrollPos, setScrollPos] = useCache(`scroll.position:${topicId}`)
+const [scrollPos, setScrollPos] = useCache(`scroll.position.${topicId}`)
 
 // Works with any string in the dynamic segment
-const [pos1, setPos1] = useCache('scroll.position:topic-123')
-const [pos2, setPos2] = useCache('scroll.position:conversation-abc')
+const [pos1, setPos1] = useCache('scroll.position.topic123')
+const [pos2, setPos2] = useCache('scroll.position.conversationabc')
 ```
 
 ### Key Naming Convention
 
-All keys (fixed and template) must follow the naming convention:
+All keys (fixed and template) must follow the same naming convention:
 
-- **Format**: `namespace.sub.key_name` or `namespace.key:${variable}`
+- **Format**: `namespace.sub.key_name` (template `${xxx}` treated as a literal string segment)
 - **Rules**:
   - Start with lowercase letter
   - Use lowercase letters, numbers, and underscores
   - Separate segments with dots (`.`)
-  - Use colons (`:`) before template placeholders
+  - Template placeholders `${xxx}` are treated as literal string segments
 - **Examples**:
   - ✅ `app.user.avatar`
-  - ✅ `scroll.position:${id}`
-  - ✅ `cache.entity:${type}:${id}`
+  - ✅ `scroll.position.${id}`
+  - ✅ `entity.cache.${type}_${id}`
+  - ❌ `scroll.position:${id}` (colon not allowed)
   - ❌ `UserAvatar` (no dots)
   - ❌ `App.User` (uppercase)
 

@@ -3,6 +3,7 @@ import type {
   RendererPersistCacheSchema,
   UseCacheKey,
   UseCacheSchema,
+  InferUseCacheValue,
   SharedCacheKey,
   SharedCacheSchema
 } from '@shared/data/cache/cacheSchemas'
@@ -14,14 +15,14 @@ import { vi } from 'vitest'
  * Provides comprehensive mocks for all cache management hooks
  */
 
-// Mock cache state storage
-const mockMemoryCache = new Map<UseCacheKey, any>()
+// Mock cache state storage (using string for memory cache to support template keys)
+const mockMemoryCache = new Map<string, any>()
 const mockSharedCache = new Map<SharedCacheKey, any>()
 const mockPersistCache = new Map<RendererPersistCacheKey, any>()
 
 // Initialize caches with defaults
 Object.entries(DefaultUseCache).forEach(([key, value]) => {
-  mockMemoryCache.set(key as UseCacheKey, value)
+  mockMemoryCache.set(key, value)
 })
 
 Object.entries(DefaultSharedCache).forEach(([key, value]) => {
@@ -32,13 +33,13 @@ Object.entries(DefaultRendererPersistCache).forEach(([key, value]) => {
   mockPersistCache.set(key as RendererPersistCacheKey, value)
 })
 
-// Mock subscribers for cache changes
-const mockMemorySubscribers = new Map<UseCacheKey, Set<() => void>>()
+// Mock subscribers for cache changes (using string for memory to support template keys)
+const mockMemorySubscribers = new Map<string, Set<() => void>>()
 const mockSharedSubscribers = new Map<SharedCacheKey, Set<() => void>>()
 const mockPersistSubscribers = new Map<RendererPersistCacheKey, Set<() => void>>()
 
 // Helper functions to notify subscribers
-const notifyMemorySubscribers = (key: UseCacheKey) => {
+const notifyMemorySubscribers = (key: string) => {
   const subscribers = mockMemorySubscribers.get(key)
   if (subscribers) {
     subscribers.forEach((callback) => {
@@ -77,25 +78,78 @@ const notifyPersistSubscribers = (key: RendererPersistCacheKey) => {
   }
 }
 
+// ============ Template Key Utilities ============
+
+/**
+ * Checks if a schema key is a template key (contains ${...} placeholder).
+ */
+const isTemplateKey = (key: string): boolean => {
+  return key.includes('${') && key.includes('}')
+}
+
+/**
+ * Converts a template key pattern into a RegExp for matching concrete keys.
+ */
+const templateToRegex = (template: string): RegExp => {
+  const escaped = template.replace(/[.*+?^${}()|[\]\\]/g, (match) => {
+    if (match === '$' || match === '{' || match === '}') {
+      return match
+    }
+    return '\\' + match
+  })
+  const pattern = escaped.replace(/\$\{[^}]+\}/g, '([\\w\\-]+)')
+  return new RegExp(`^${pattern}$`)
+}
+
+/**
+ * Finds the schema key that matches a given concrete key.
+ */
+const findMatchingSchemaKey = (key: string): keyof UseCacheSchema | undefined => {
+  if (key in DefaultUseCache) {
+    return key as keyof UseCacheSchema
+  }
+  const schemaKeys = Object.keys(DefaultUseCache) as Array<keyof UseCacheSchema>
+  for (const schemaKey of schemaKeys) {
+    if (isTemplateKey(schemaKey as string)) {
+      const regex = templateToRegex(schemaKey as string)
+      if (regex.test(key)) {
+        return schemaKey
+      }
+    }
+  }
+  return undefined
+}
+
+/**
+ * Gets the default value for a cache key from the schema.
+ */
+const getDefaultValue = <K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined => {
+  const schemaKey = findMatchingSchemaKey(key)
+  if (schemaKey) {
+    return DefaultUseCache[schemaKey] as InferUseCacheValue<K>
+  }
+  return undefined
+}
+
 /**
  * Mock useCache hook (memory cache)
  */
 export const mockUseCache = vi.fn(
   <K extends UseCacheKey>(
     key: K,
-    initValue?: UseCacheSchema[K]
-  ): [UseCacheSchema[K], (value: UseCacheSchema[K]) => void] => {
+    initValue?: InferUseCacheValue<K>
+  ): [InferUseCacheValue<K>, (value: InferUseCacheValue<K>) => void] => {
     // Get current value
     let currentValue = mockMemoryCache.get(key)
     if (currentValue === undefined) {
-      currentValue = initValue ?? DefaultUseCache[key]
+      currentValue = initValue ?? getDefaultValue(key)
       if (currentValue !== undefined) {
         mockMemoryCache.set(key, currentValue)
       }
     }
 
     // Mock setValue function
-    const setValue = vi.fn((value: UseCacheSchema[K]) => {
+    const setValue = vi.fn((value: InferUseCacheValue<K>) => {
       mockMemoryCache.set(key, value)
       notifyMemorySubscribers(key)
     })
@@ -185,7 +239,7 @@ export const MockUseCacheUtils = {
     mockPersistCache.clear()
 
     Object.entries(DefaultUseCache).forEach(([key, value]) => {
-      mockMemoryCache.set(key as UseCacheKey, value)
+      mockMemoryCache.set(key, value)
     })
 
     Object.entries(DefaultSharedCache).forEach(([key, value]) => {
@@ -205,7 +259,7 @@ export const MockUseCacheUtils = {
   /**
    * Set cache value for testing (memory cache)
    */
-  setCacheValue: <K extends UseCacheKey>(key: K, value: UseCacheSchema[K]) => {
+  setCacheValue: <K extends UseCacheKey>(key: K, value: InferUseCacheValue<K>) => {
     mockMemoryCache.set(key, value)
     notifyMemorySubscribers(key)
   },
@@ -213,8 +267,8 @@ export const MockUseCacheUtils = {
   /**
    * Get cache value (memory cache)
    */
-  getCacheValue: <K extends UseCacheKey>(key: K): UseCacheSchema[K] => {
-    return mockMemoryCache.get(key) ?? DefaultUseCache[key]
+  getCacheValue: <K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined => {
+    return mockMemoryCache.get(key) ?? getDefaultValue(key)
   },
 
   /**
@@ -283,7 +337,7 @@ export const MockUseCacheUtils = {
   /**
    * Simulate cache change from external source
    */
-  simulateExternalCacheChange: <K extends UseCacheKey>(key: K, value: UseCacheSchema[K]) => {
+  simulateExternalCacheChange: <K extends UseCacheKey>(key: K, value: InferUseCacheValue<K>) => {
     mockMemoryCache.set(key, value)
     notifyMemorySubscribers(key)
   },
@@ -293,17 +347,17 @@ export const MockUseCacheUtils = {
    */
   mockCacheReturn: <K extends UseCacheKey>(
     key: K,
-    value: UseCacheSchema[K],
-    setValue?: (value: UseCacheSchema[K]) => void
+    value: InferUseCacheValue<K>,
+    setValue?: (value: InferUseCacheValue<K>) => void
   ) => {
     mockUseCache.mockImplementation((cacheKey, initValue) => {
       if (cacheKey === key) {
-        return [value, setValue || vi.fn()]
+        return [value, setValue || vi.fn()] as any
       }
 
       // Default behavior for other keys
-      const defaultValue = mockMemoryCache.get(cacheKey) ?? initValue ?? DefaultUseCache[cacheKey]
-      return [defaultValue, vi.fn()]
+      const defaultValue = mockMemoryCache.get(cacheKey) ?? initValue ?? getDefaultValue(cacheKey)
+      return [defaultValue, vi.fn()] as any
     })
   },
 

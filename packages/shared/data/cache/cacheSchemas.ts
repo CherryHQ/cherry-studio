@@ -5,32 +5,35 @@ import type * as CacheValueTypes from './cacheValueTypes'
  *
  * ## Key Naming Convention
  *
- * All cache keys MUST follow the format: `namespace.sub.key_name`
+ * All cache keys (fixed and template) MUST follow the format: `namespace.sub.key_name`
  *
  * Rules:
  * - At least 2 segments separated by dots (.)
  * - Each segment uses lowercase letters, numbers, and underscores only
  * - Pattern: /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+ * - Template placeholders `${xxx}` are treated as literal string segments
  *
  * Examples:
  * - 'app.user.avatar' (valid)
  * - 'chat.multi_select_mode' (valid)
- * - 'minapp.opened_keep_alive' (valid)
+ * - 'scroll.position.${topicId}' (valid template key)
  * - 'userAvatar' (invalid - missing dot separator)
  * - 'App.user' (invalid - uppercase not allowed)
+ * - 'scroll.position:${id}' (invalid - colon not allowed)
  *
  * ## Template Key Support
  *
  * Template keys allow type-safe dynamic keys using template literal syntax.
  * Define in schema with `${variable}` placeholder, use with actual values.
+ * Template keys follow the same dot-separated pattern as fixed keys.
  *
  * Examples:
- * - Schema: `'scroll.position:${topicId}': number`
- * - Usage: `useCache('scroll.position:topic-123')` -> infers `number` type
+ * - Schema: `'scroll.position.${topicId}': number`
+ * - Usage: `useCache('scroll.position.topic123')` -> infers `number` type
  *
  * Multiple placeholders are supported:
- * - Schema: `'cache:${type}:${id}': CacheData`
- * - Usage: `useCache('cache:user:456')` -> infers `CacheData` type
+ * - Schema: `'entity.cache.${type}_${id}': CacheData`
+ * - Usage: `useCache('entity.cache.user_456')` -> infers `CacheData` type
  *
  * This convention is enforced by ESLint rule: data-schema-key/valid-key
  */
@@ -50,9 +53,9 @@ import type * as CacheValueTypes from './cacheValueTypes'
  *
  * @example
  * ```typescript
- * type Test1 = IsTemplateKey<'scroll:${id}'>        // true
- * type Test2 = IsTemplateKey<'cache:${a}:${b}'>     // true
- * type Test3 = IsTemplateKey<'app.user.avatar'>    // false
+ * type Test1 = IsTemplateKey<'scroll.position.${id}'>     // true
+ * type Test2 = IsTemplateKey<'entity.cache.${a}_${b}'>    // true
+ * type Test3 = IsTemplateKey<'app.user.avatar'>           // false
  * ```
  */
 export type IsTemplateKey<K extends string> = K extends `${string}\${${string}}${string}` ? true : false
@@ -69,11 +72,11 @@ export type IsTemplateKey<K extends string> = K extends `${string}\${${string}}$
  *
  * @example
  * ```typescript
- * type Test1 = ExpandTemplateKey<'scroll:${id}'>
- * // Result: `scroll:${string}` (matches 'scroll:123', 'scroll:abc', etc.)
+ * type Test1 = ExpandTemplateKey<'scroll.position.${id}'>
+ * // Result: `scroll.position.${string}` (matches 'scroll.position.123', etc.)
  *
- * type Test2 = ExpandTemplateKey<'cache:${type}:${id}'>
- * // Result: `cache:${string}:${string}` (matches 'cache:user:123', etc.)
+ * type Test2 = ExpandTemplateKey<'entity.cache.${type}_${id}'>
+ * // Result: `entity.cache.${string}_${string}` (matches 'entity.cache.user_123', etc.)
  *
  * type Test3 = ExpandTemplateKey<'app.user.avatar'>
  * // Result: 'app.user.avatar' (unchanged for non-template keys)
@@ -94,8 +97,8 @@ export type ExpandTemplateKey<T extends string> = T extends `${infer Prefix}\${$
  *
  * @example
  * ```typescript
- * type Test1 = ProcessKey<'scroll:${id}'>       // `scroll:${string}`
- * type Test2 = ProcessKey<'app.user.avatar'>   // 'app.user.avatar'
+ * type Test1 = ProcessKey<'scroll.position.${id}'>  // `scroll.position.${string}`
+ * type Test2 = ProcessKey<'app.user.avatar'>        // 'app.user.avatar'
  * ```
  */
 export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? ExpandTemplateKey<K> : K
@@ -135,6 +138,10 @@ export type UseCacheSchema = {
   'agent.active_id': string | null
   'agent.session.active_id_map': Record<string, string | null>
   'agent.session.waiting_id_map': Record<string, boolean>
+
+  // Template key examples (for testing and demonstration)
+  'scroll.position.${topicId}': number
+  'entity.cache.${type}_${id}': { loaded: boolean; data: unknown }
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -173,7 +180,11 @@ export const DefaultUseCache: UseCacheSchema = {
   // Agent management
   'agent.active_id': null,
   'agent.session.active_id_map': {},
-  'agent.session.waiting_id_map': {}
+  'agent.session.waiting_id_map': {},
+
+  // Template key examples (for testing and demonstration)
+  'scroll.position.${topicId}': 0,
+  'entity.cache.${type}_${id}': { loaded: false, data: null }
 }
 
 /**
@@ -218,7 +229,7 @@ export type SharedCacheKey = keyof SharedCacheSchema
  *
  * This type expands all schema keys using ProcessKey, which:
  * - Keeps fixed keys unchanged (e.g., 'app.user.avatar')
- * - Expands template keys to match patterns (e.g., 'scroll:${id}' -> `scroll:${string}`)
+ * - Expands template keys to match patterns (e.g., 'scroll.position.${id}' -> `scroll.position.${string}`)
  *
  * The resulting union type allows TypeScript to accept any concrete key
  * that matches either a fixed key or an expanded template pattern.
@@ -227,17 +238,17 @@ export type SharedCacheKey = keyof SharedCacheSchema
  * ```typescript
  * // Given schema:
  * // 'app.user.avatar': string
- * // 'scroll.position:${topicId}': number
+ * // 'scroll.position.${topicId}': number
  *
- * // UseCacheKey becomes: 'app.user.avatar' | `scroll.position:${string}`
+ * // UseCacheKey becomes: 'app.user.avatar' | `scroll.position.${string}`
  *
  * // Valid keys:
- * const k1: UseCacheKey = 'app.user.avatar'      // fixed key
- * const k2: UseCacheKey = 'scroll.position:123'  // matches template
- * const k3: UseCacheKey = 'scroll.position:abc'  // matches template
+ * const k1: UseCacheKey = 'app.user.avatar'       // fixed key
+ * const k2: UseCacheKey = 'scroll.position.123'   // matches template
+ * const k3: UseCacheKey = 'scroll.position.abc'   // matches template
  *
  * // Invalid keys:
- * const k4: UseCacheKey = 'unknown.key'          // error: not in schema
+ * const k4: UseCacheKey = 'unknown.key'           // error: not in schema
  * ```
  */
 export type UseCacheKey = {
@@ -264,12 +275,12 @@ export type UseCacheKey = {
  * ```typescript
  * // Given schema:
  * // 'app.user.avatar': string
- * // 'scroll.position:${topicId}': number
+ * // 'scroll.position.${topicId}': number
  *
  * type T1 = InferUseCacheValue<'app.user.avatar'>       // string
- * type T2 = InferUseCacheValue<'scroll.position:123'>   // number
- * type T3 = InferUseCacheValue<'scroll.position:abc'>   // number
- * type T4 = InferUseCacheValue<'unknown.key'>          // never
+ * type T2 = InferUseCacheValue<'scroll.position.123'>   // number
+ * type T3 = InferUseCacheValue<'scroll.position.abc'>   // number
+ * type T4 = InferUseCacheValue<'unknown.key'>           // never
  * ```
  */
 export type InferUseCacheValue<K extends string> = {
@@ -291,15 +302,15 @@ export type InferUseCacheValue<K extends string> = {
  * ```typescript
  * // Given schema:
  * // 'app.user.avatar': string
- * // 'scroll.position:${topicId}': number
+ * // 'scroll.position.${topicId}': number
  *
  * // These cause compile-time errors (key matches schema):
  * getCasual('app.user.avatar')        // Error: never
- * getCasual('scroll.position:123')    // Error: never (matches template)
+ * getCasual('scroll.position.123')    // Error: never (matches template)
  *
  * // These are allowed (key doesn't match any schema pattern):
  * getCasual('my.custom.key')          // OK
- * getCasual('dynamic:xyz:456')        // OK
+ * getCasual('other.dynamic.key')      // OK
  * ```
  */
 export type UseCacheCasualKey<K extends string> = K extends UseCacheKey ? never : K

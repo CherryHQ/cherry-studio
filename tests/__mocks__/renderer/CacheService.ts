@@ -2,11 +2,11 @@ import type {
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
   UseCacheKey,
-  UseCacheSchema,
+  InferUseCacheValue,
   SharedCacheKey,
   SharedCacheSchema
 } from '@shared/data/cache/cacheSchemas'
-import { DefaultRendererPersistCache, DefaultUseCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
+import { DefaultRendererPersistCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSubscriber } from '@shared/data/cache/cacheTypes'
 import { vi } from 'vitest'
 
@@ -66,20 +66,20 @@ export const createMockCacheService = (
   const mockCacheService = {
     // ============ Memory Cache (Type-safe) ============
 
-    get: vi.fn(<K extends UseCacheKey>(key: K): UseCacheSchema[K] => {
+    get: vi.fn(<K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined => {
       const entry = memoryCache.get(key)
       if (entry === undefined) {
-        return DefaultUseCache[key]
+        return undefined
       }
       if (isExpired(entry)) {
         memoryCache.delete(key)
         notifySubscribers(key)
-        return DefaultUseCache[key]
+        return undefined
       }
-      return entry.value
+      return entry.value as InferUseCacheValue<K>
     }),
 
-    set: vi.fn(<K extends UseCacheKey>(key: K, value: UseCacheSchema[K], ttl?: number): void => {
+    set: vi.fn(<K extends UseCacheKey>(key: K, value: InferUseCacheValue<K>, ttl?: number): void => {
       const entry: CacheEntry = {
         value,
         expireAt: ttl ? Date.now() + ttl : undefined
@@ -409,12 +409,12 @@ export const MockCacheService = {
     }
 
     // ============ Memory Cache (Type-safe) ============
-    get<K extends UseCacheKey>(key: K): UseCacheSchema[K] {
-      return mockCacheService.get(key)
+    get<K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined {
+      return mockCacheService.get(key) as unknown as InferUseCacheValue<K> | undefined
     }
 
-    set<K extends UseCacheKey>(key: K, value: UseCacheSchema[K], ttl?: number): void {
-      return mockCacheService.set(key, value, ttl)
+    set<K extends UseCacheKey>(key: K, value: InferUseCacheValue<K>, ttl?: number): void {
+      mockCacheService.set(key, value as unknown as InferUseCacheValue<UseCacheKey>, ttl)
     }
 
     has<K extends UseCacheKey>(key: K): boolean {

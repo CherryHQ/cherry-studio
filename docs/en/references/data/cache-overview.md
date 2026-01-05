@@ -52,8 +52,10 @@ cacheService.set('temp.calculation', result, 30000)
 
 ### Type Safety
 - **Fixed keys**: Schema-based keys for compile-time checking (e.g., `'app.user.avatar'`)
-- **Template keys**: Dynamic patterns with automatic type inference (e.g., `'scroll.position:${id}'` matches `'scroll.position:topic-123'`)
+- **Template keys**: Dynamic patterns with automatic type inference (e.g., `'scroll.position.${id}'` matches `'scroll.position.topic123'`)
 - **Casual methods**: For completely dynamic keys with manual typing (blocked from using schema-defined keys)
+
+Note: Template keys follow the same dot-separated naming pattern as fixed keys. When `${xxx}` is treated as a literal string, the key must match the format: `xxx.yyy.zzz_www`
 
 ## Data Categories
 
@@ -126,8 +128,8 @@ For detailed code examples and API usage, see [Cache Usage Guide](./cache-usage.
 | Type | Example Schema | Example Usage | Type Inference |
 |------|----------------|---------------|----------------|
 | Fixed key | `'app.user.avatar': string` | `get('app.user.avatar')` | Automatic |
-| Template key | `'scroll.position:${id}': number` | `get('scroll.position:topic-123')` | Automatic |
-| Casual key | N/A | `getCasual<T>('my.key')` | Manual |
+| Template key | `'scroll.position.${id}': number` | `get('scroll.position.topic123')` | Automatic |
+| Casual key | N/A | `getCasual<T>('my.custom.key')` | Manual |
 
 ### API Reference
 

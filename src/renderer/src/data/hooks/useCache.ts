@@ -26,8 +26,8 @@ const logger = loggerService.withContext('useCache')
  *
  * @example
  * ```typescript
- * isTemplateKey('scroll.position:${id}')  // true
- * isTemplateKey('app.user.avatar')       // false
+ * isTemplateKey('scroll.position.${id}')  // true
+ * isTemplateKey('app.user.avatar')        // false
  * ```
  */
 function isTemplateKey(key: string): boolean {
@@ -38,17 +38,21 @@ function isTemplateKey(key: string): boolean {
  * Converts a template key pattern into a RegExp for matching concrete keys.
  *
  * Each `${variable}` placeholder is replaced with a pattern that matches
- * any non-empty string of word characters, dots, and hyphens.
+ * any non-empty string of word characters (letters, numbers, underscores, hyphens).
  *
- * @param template - The template key pattern (e.g., 'scroll.position:${id}')
+ * Template keys follow the same dot-separated pattern as fixed keys.
+ * When ${xxx} is treated as a literal string, the key matches: xxx.yyy.zzz_www
+ *
+ * @param template - The template key pattern (e.g., 'scroll.position.${id}')
  * @returns A RegExp that matches concrete keys for this template
  *
  * @example
  * ```typescript
- * const regex = templateToRegex('scroll.position:${id}')
- * regex.test('scroll.position:topic-123')  // true
- * regex.test('scroll.position:')           // false
- * regex.test('other.key:123')              // false
+ * const regex = templateToRegex('scroll.position.${id}')
+ * regex.test('scroll.position.topic123')   // true
+ * regex.test('scroll.position.topic-123')  // true
+ * regex.test('scroll.position.')           // false
+ * regex.test('other.key.123')              // false
  * ```
  */
 function templateToRegex(template: string): RegExp {
@@ -62,8 +66,9 @@ function templateToRegex(template: string): RegExp {
   })
 
   // Replace ${...} placeholders with a pattern matching non-empty strings
-  // Allows: word chars, dots, hyphens, underscores, colons
-  const pattern = escaped.replace(/\$\{[^}]+\}/g, '([\\w.\\-_:]+)')
+  // Allows: word chars (letters, numbers, underscores) and hyphens
+  // Does NOT allow dots or colons since those are structural separators
+  const pattern = escaped.replace(/\$\{[^}]+\}/g, '([\\w\\-]+)')
 
   return new RegExp(`^${pattern}$`)
 }
@@ -79,10 +84,10 @@ function templateToRegex(template: string): RegExp {
  *
  * @example
  * ```typescript
- * // Given schema has 'app.user.avatar' and 'scroll.position:${id}'
+ * // Given schema has 'app.user.avatar' and 'scroll.position.${id}'
  *
  * findMatchingUseCacheSchemaKey('app.user.avatar')       // 'app.user.avatar'
- * findMatchingUseCacheSchemaKey('scroll.position:123')   // 'scroll.position:${id}'
+ * findMatchingUseCacheSchemaKey('scroll.position.123')   // 'scroll.position.${id}'
  * findMatchingUseCacheSchemaKey('unknown.key')           // undefined
  * ```
  */
@@ -119,10 +124,10 @@ function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | unde
  * ```typescript
  * // Given schema:
  * // 'app.user.avatar': '' (default)
- * // 'scroll.position:${id}': 0 (default)
+ * // 'scroll.position.${id}': 0 (default)
  *
  * getUseCacheDefaultValue('app.user.avatar')       // ''
- * getUseCacheDefaultValue('scroll.position:123')   // 0
+ * getUseCacheDefaultValue('scroll.position.123')   // 0
  * getUseCacheDefaultValue('unknown.key')           // undefined
  * ```
  */
@@ -142,7 +147,10 @@ function getUseCacheDefaultValue<K extends UseCacheKey>(key: K): InferUseCacheVa
  *
  * Supports both fixed keys and template keys:
  * - Fixed keys: `useCache('app.user.avatar')`
- * - Template keys: `useCache('scroll.position:topic-123')` (matches schema `'scroll.position:${id}'`)
+ * - Template keys: `useCache('scroll.position.topic123')` (matches schema `'scroll.position.${id}'`)
+ *
+ * Template keys follow the same dot-separated pattern as fixed keys.
+ * When ${xxx} is treated as a literal string, the key matches: xxx.yyy.zzz_www
  *
  * @template K - The cache key type (inferred from UseCacheKey)
  * @param key - Cache key from the predefined schema (fixed or matching template pattern)
@@ -154,8 +162,8 @@ function getUseCacheDefaultValue<K extends UseCacheKey>(key: K): InferUseCacheVa
  * // Fixed key usage
  * const [avatar, setAvatar] = useCache('app.user.avatar')
  *
- * // Template key usage (schema: 'scroll.position:${id}': number)
- * const [scrollPos, setScrollPos] = useCache('scroll.position:topic-123')
+ * // Template key usage (schema: 'scroll.position.${id}': number)
+ * const [scrollPos, setScrollPos] = useCache('scroll.position.topic123')
  * // TypeScript infers scrollPos as number
  *
  * // With custom initial value
