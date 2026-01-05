@@ -451,6 +451,7 @@ export const SidebarContainer = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
+  isolation: isolate;
 `
 
 export const NotesTreeContainer = styled.div`
