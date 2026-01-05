@@ -47,7 +47,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const handleClick = () => {
     if (isTopNavbar) {
       // 顶部导航栏：导航到小程序页面
-      navigate({ to: `/apps/${app.id}` })
+      navigate({ to: '/app/minapp/$appId', params: { appId: app.id } })
     } else {
       // 侧边导航栏：保持原有弹窗行为
       openMinappKeepAlive(app)

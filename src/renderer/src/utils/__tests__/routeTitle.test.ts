@@ -5,17 +5,17 @@ vi.mock('@renderer/i18n', () => ({
   default: {
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {
-        'tab.new': '新标签页',
-        'assistants.title': '助手',
-        'assistants.presets.title': '预设助手',
-        'paintings.title': '绘图',
-        'translate.title': '翻译',
-        'minapp.title': '小程序',
-        'knowledge.title': '知识库',
-        'files.title': '文件',
-        'code.title': '代码',
-        'notes.title': '笔记',
-        'settings.title': '设置'
+        'title.home': '首页',
+        'common.chat': '聊天',
+        'title.store': '助手库',
+        'title.paintings': '绘画',
+        'title.translate': '翻译',
+        'title.apps': '小程序',
+        'title.knowledge': '知识库',
+        'title.files': '文件',
+        'title.code': 'Code',
+        'title.notes': '笔记',
+        'title.settings': '设置'
       }
       return translations[key] || key
     })
@@ -32,16 +32,17 @@ describe('routeTitle', () => {
   describe('getDefaultRouteTitle', () => {
     describe('exact route matches', () => {
       it.each([
-        ['/', '新标签页'],
-        ['/chat', '助手'],
-        ['/store', '预设助手'],
-        ['/paintings', '绘图'],
-        ['/translate', '翻译'],
-        ['/apps', '小程序'],
-        ['/knowledge', '知识库'],
-        ['/files', '文件'],
-        ['/code', '代码'],
-        ['/notes', '笔记'],
+        ['/', '首页'],
+        ['/home', '首页'],
+        ['/app/chat', '聊天'],
+        ['/app/assistant', '助手库'],
+        ['/app/paintings', '绘画'],
+        ['/app/translate', '翻译'],
+        ['/app/minapp', '小程序'],
+        ['/app/knowledge', '知识库'],
+        ['/app/files', '文件'],
+        ['/app/code', 'Code'],
+        ['/app/notes', '笔记'],
         ['/settings', '设置']
       ])('should return correct title for %s', (url, expectedTitle) => {
         expect(getDefaultRouteTitle(url)).toBe(expectedTitle)
@@ -50,25 +51,25 @@ describe('routeTitle', () => {
 
     describe('nested route matches', () => {
       it('should match base path for nested routes', () => {
-        expect(getDefaultRouteTitle('/chat/topic-123')).toBe('助手')
+        expect(getDefaultRouteTitle('/app/chat/topic-123')).toBe('聊天')
         expect(getDefaultRouteTitle('/settings/provider')).toBe('设置')
         expect(getDefaultRouteTitle('/settings/mcp/servers')).toBe('设置')
-        expect(getDefaultRouteTitle('/paintings/zhipu')).toBe('绘图')
+        expect(getDefaultRouteTitle('/app/paintings/zhipu')).toBe('绘画')
       })
     })
 
     describe('URL with query params and hash', () => {
       it('should handle URLs with query parameters', () => {
-        expect(getDefaultRouteTitle('/chat?topicId=123')).toBe('助手')
+        expect(getDefaultRouteTitle('/app/chat?topicId=123')).toBe('聊天')
         expect(getDefaultRouteTitle('/settings/provider?id=openai')).toBe('设置')
       })
 
       it('should handle URLs with hash', () => {
-        expect(getDefaultRouteTitle('/knowledge#section1')).toBe('知识库')
+        expect(getDefaultRouteTitle('/app/knowledge#section1')).toBe('知识库')
       })
 
       it('should handle URLs with both query and hash', () => {
-        expect(getDefaultRouteTitle('/chat?id=1#message-5')).toBe('助手')
+        expect(getDefaultRouteTitle('/app/chat?id=1#message-5')).toBe('聊天')
       })
     })
 
@@ -85,20 +86,20 @@ describe('routeTitle', () => {
 
     describe('edge cases', () => {
       it('should handle trailing slashes', () => {
-        expect(getDefaultRouteTitle('/chat/')).toBe('助手')
+        expect(getDefaultRouteTitle('/app/chat/')).toBe('聊天')
         expect(getDefaultRouteTitle('/settings/')).toBe('设置')
       })
 
       it('should handle double slashes (protocol-relative URL)', () => {
         // '//chat' is a protocol-relative URL, so 'chat' becomes the hostname
         // This is expected behavior per URL standard
-        expect(getDefaultRouteTitle('//chat')).toBe('新标签页')
+        expect(getDefaultRouteTitle('//chat')).toBe('首页')
       })
 
       it('should handle relative-like paths', () => {
         // URL constructor with base will normalize these
-        expect(getDefaultRouteTitle('chat')).toBe('助手')
-        expect(getDefaultRouteTitle('./chat')).toBe('助手')
+        expect(getDefaultRouteTitle('app/chat')).toBe('聊天')
+        expect(getDefaultRouteTitle('./app/chat')).toBe('聊天')
       })
     })
   })
@@ -106,10 +107,10 @@ describe('routeTitle', () => {
   describe('getRouteTitleKey', () => {
     describe('exact matches', () => {
       it.each([
-        ['/', 'tab.new'],
-        ['/chat', 'assistants.title'],
-        ['/store', 'assistants.presets.title'],
-        ['/settings', 'settings.title']
+        ['/', 'title.home'],
+        ['/app/chat', 'common.chat'],
+        ['/app/assistant', 'title.store'],
+        ['/settings', 'title.settings']
       ])('should return i18n key for %s', (url, expectedKey) => {
         expect(getRouteTitleKey(url)).toBe(expectedKey)
       })
@@ -117,8 +118,8 @@ describe('routeTitle', () => {
 
     describe('base path matches', () => {
       it('should return base path key for nested routes', () => {
-        expect(getRouteTitleKey('/chat/topic-123')).toBe('assistants.title')
-        expect(getRouteTitleKey('/settings/provider')).toBe('settings.title')
+        expect(getRouteTitleKey('/app/chat/topic-123')).toBe('common.chat')
+        expect(getRouteTitleKey('/settings/provider')).toBe('title.settings')
       })
     })
 

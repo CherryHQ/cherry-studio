@@ -54,7 +54,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
     await modelGenerating()
     SearchPopup.hide()
     const assistant = getAssistantById(topic.assistantId)
-    navigate({ to: '/chat', search: { assistantId: assistant?.id, topicId: topic.id } })
+    navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic.id } })
     setTimeoutTimer('onContinueChat', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
   }
 

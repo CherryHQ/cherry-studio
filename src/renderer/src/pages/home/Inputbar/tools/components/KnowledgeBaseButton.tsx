@@ -54,7 +54,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
     items.push({
       label: t('knowledge.add.title') + '...',
       icon: <Plus />,
-      action: () => navigate({ to: '/knowledge' }),
+      action: () => navigate({ to: '/app/knowledge' }),
       isSelected: false
     })
 

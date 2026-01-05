@@ -213,7 +213,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [app.id, webviewRef, scheduleNavigationUpdate])
 
   const handleMinimize = useCallback(() => {
-    navigate({ to: '/apps' })
+    navigate({ to: '/app/minapp' })
   }, [navigate])
 
   const handleTogglePin = useCallback(() => {

@@ -31,10 +31,10 @@ const MinAppTabsPool: React.FC = () => {
   // 使用集中工具进行更稳健的路由判断
   const isAppDetail = (() => {
     const pathname = location.pathname
-    if (pathname === '/apps') return false
-    if (!pathname.startsWith('/apps/')) return false
-    const parts = pathname.split('/').filter(Boolean) // ['apps', '<id>', ...]
-    return parts.length >= 2
+    if (pathname === '/app/minapp') return false
+    if (!pathname.startsWith('/app/minapp/')) return false
+    const parts = pathname.split('/').filter(Boolean) // ['app', 'minapp', '<id>', ...]
+    return parts.length >= 3
   })()
   const shouldShow = isTopNavbar && isAppDetail
 

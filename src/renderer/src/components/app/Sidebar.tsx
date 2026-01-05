@@ -149,15 +149,15 @@ const MainMenus: FC = () => {
   }
 
   const pathMap = {
-    assistants: '/chat',
-    store: '/store',
-    paintings: `/paintings/${defaultPaintingProvider}`,
-    translate: '/translate',
-    minapp: '/apps',
-    knowledge: '/knowledge',
-    files: '/files',
-    code_tools: '/code',
-    notes: '/notes'
+    assistants: '/app/chat',
+    store: '/app/assistant',
+    paintings: `/app/paintings/${defaultPaintingProvider}`,
+    translate: '/app/translate',
+    minapp: '/app/minapp',
+    knowledge: '/app/knowledge',
+    files: '/app/files',
+    code_tools: '/app/code',
+    notes: '/app/notes'
   }
 
   // 在当前 Tab 内跳转

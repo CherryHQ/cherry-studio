@@ -9,18 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TranslateRouteImport } from './routes/translate'
-import { Route as StoreRouteImport } from './routes/store'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as NotesRouteImport } from './routes/notes'
-import { Route as KnowledgeRouteImport } from './routes/knowledge'
-import { Route as FilesRouteImport } from './routes/files'
-import { Route as CodeRouteImport } from './routes/code'
-import { Route as ChatRouteImport } from './routes/chat'
+import { Route as HomeRouteImport } from './routes/home'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
-import { Route as PaintingsIndexRouteImport } from './routes/paintings/index'
-import { Route as AppsIndexRouteImport } from './routes/apps/index'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
 import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selectionAssistant'
@@ -37,10 +30,17 @@ import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
-import { Route as PaintingsSplatRouteImport } from './routes/paintings/$'
-import { Route as AppsAppIdRouteImport } from './routes/apps/$appId'
+import { Route as AppTranslateRouteImport } from './routes/app/translate'
+import { Route as AppNotesRouteImport } from './routes/app/notes'
+import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
+import { Route as AppFilesRouteImport } from './routes/app/files'
+import { Route as AppCodeRouteImport } from './routes/app/code'
+import { Route as AppChatRouteImport } from './routes/app/chat'
+import { Route as AppAssistantRouteImport } from './routes/app/assistant'
 import { Route as SettingsWebsearchIndexRouteImport } from './routes/settings/websearch/index'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp/index'
+import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings/index'
+import { Route as AppMinappIndexRouteImport } from './routes/app/minapp/index'
 import { Route as SettingsWebsearchGeneralRouteImport } from './routes/settings/websearch/general'
 import { Route as SettingsMcpServersRouteImport } from './routes/settings/mcp/servers'
 import { Route as SettingsMcpNpxSearchRouteImport } from './routes/settings/mcp/npx-search'
@@ -48,47 +48,24 @@ import { Route as SettingsMcpMcpInstallRouteImport } from './routes/settings/mcp
 import { Route as SettingsMcpMarketplacesRouteImport } from './routes/settings/mcp/marketplaces'
 import { Route as SettingsMcpBuiltinRouteImport } from './routes/settings/mcp/builtin'
 import { Route as SettingsMcpSplatRouteImport } from './routes/settings/mcp/$'
+import { Route as AppPaintingsSplatRouteImport } from './routes/app/paintings/$'
+import { Route as AppMinappAppIdRouteImport } from './routes/app/minapp/$appId'
 import { Route as SettingsWebsearchProviderProviderIdRouteImport } from './routes/settings/websearch/provider.$providerId'
 import { Route as SettingsMcpSettingsServerIdRouteImport } from './routes/settings/mcp/settings.$serverId'
 
-const TranslateRoute = TranslateRouteImport.update({
-  id: '/translate',
-  path: '/translate',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StoreRoute = StoreRouteImport.update({
-  id: '/store',
-  path: '/store',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const NotesRoute = NotesRouteImport.update({
-  id: '/notes',
-  path: '/notes',
+const HomeRoute = HomeRouteImport.update({
+  id: '/home',
+  path: '/home',
   getParentRoute: () => rootRouteImport,
 } as any)
-const KnowledgeRoute = KnowledgeRouteImport.update({
-  id: '/knowledge',
-  path: '/knowledge',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FilesRoute = FilesRouteImport.update({
-  id: '/files',
-  path: '/files',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CodeRoute = CodeRouteImport.update({
-  id: '/code',
-  path: '/code',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChatRoute = ChatRouteImport.update({
-  id: '/chat',
-  path: '/chat',
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -100,16 +77,6 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SettingsRoute,
-} as any)
-const PaintingsIndexRoute = PaintingsIndexRouteImport.update({
-  id: '/paintings/',
-  path: '/paintings/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppsIndexRoute = AppsIndexRouteImport.update({
-  id: '/apps/',
-  path: '/apps/',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsWebsearchRoute = SettingsWebsearchRouteImport.update({
   id: '/websearch',
@@ -192,15 +159,40 @@ const SettingsAboutRoute = SettingsAboutRouteImport.update({
   path: '/about',
   getParentRoute: () => SettingsRoute,
 } as any)
-const PaintingsSplatRoute = PaintingsSplatRouteImport.update({
-  id: '/paintings/$',
-  path: '/paintings/$',
-  getParentRoute: () => rootRouteImport,
+const AppTranslateRoute = AppTranslateRouteImport.update({
+  id: '/translate',
+  path: '/translate',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppsAppIdRoute = AppsAppIdRouteImport.update({
-  id: '/apps/$appId',
-  path: '/apps/$appId',
-  getParentRoute: () => rootRouteImport,
+const AppNotesRoute = AppNotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFilesRoute = AppFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCodeRoute = AppCodeRouteImport.update({
+  id: '/code',
+  path: '/code',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppChatRoute = AppChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAssistantRoute = AppAssistantRouteImport.update({
+  id: '/assistant',
+  path: '/assistant',
+  getParentRoute: () => AppRoute,
 } as any)
 const SettingsWebsearchIndexRoute = SettingsWebsearchIndexRouteImport.update({
   id: '/',
@@ -211,6 +203,16 @@ const SettingsMcpIndexRoute = SettingsMcpIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SettingsMcpRoute,
+} as any)
+const AppPaintingsIndexRoute = AppPaintingsIndexRouteImport.update({
+  id: '/paintings/',
+  path: '/paintings/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMinappIndexRoute = AppMinappIndexRouteImport.update({
+  id: '/minapp/',
+  path: '/minapp/',
+  getParentRoute: () => AppRoute,
 } as any)
 const SettingsWebsearchGeneralRoute =
   SettingsWebsearchGeneralRouteImport.update({
@@ -248,6 +250,16 @@ const SettingsMcpSplatRoute = SettingsMcpSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => SettingsMcpRoute,
 } as any)
+const AppPaintingsSplatRoute = AppPaintingsSplatRouteImport.update({
+  id: '/paintings/$',
+  path: '/paintings/$',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMinappAppIdRoute = AppMinappAppIdRouteImport.update({
+  id: '/minapp/$appId',
+  path: '/minapp/$appId',
+  getParentRoute: () => AppRoute,
+} as any)
 const SettingsWebsearchProviderProviderIdRoute =
   SettingsWebsearchProviderProviderIdRouteImport.update({
     id: '/provider/$providerId',
@@ -263,16 +275,16 @@ const SettingsMcpSettingsServerIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/chat': typeof ChatRoute
-  '/code': typeof CodeRoute
-  '/files': typeof FilesRoute
-  '/knowledge': typeof KnowledgeRoute
-  '/notes': typeof NotesRoute
+  '/app': typeof AppRouteWithChildren
+  '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/store': typeof StoreRoute
-  '/translate': typeof TranslateRoute
-  '/apps/$appId': typeof AppsAppIdRoute
-  '/paintings/$': typeof PaintingsSplatRoute
+  '/app/assistant': typeof AppAssistantRoute
+  '/app/chat': typeof AppChatRoute
+  '/app/code': typeof AppCodeRoute
+  '/app/files': typeof AppFilesRoute
+  '/app/knowledge': typeof AppKnowledgeRoute
+  '/app/notes': typeof AppNotesRoute
+  '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/data': typeof SettingsDataRoute
@@ -289,9 +301,9 @@ export interface FileRoutesByFullPath {
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
-  '/apps': typeof AppsIndexRoute
-  '/paintings': typeof PaintingsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/app/minapp/$appId': typeof AppMinappAppIdRoute
+  '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
   '/settings/mcp/marketplaces': typeof SettingsMcpMarketplacesRoute
@@ -299,6 +311,8 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
+  '/app/minapp': typeof AppMinappIndexRoute
+  '/app/paintings': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/websearch/': typeof SettingsWebsearchIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
@@ -306,15 +320,15 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/chat': typeof ChatRoute
-  '/code': typeof CodeRoute
-  '/files': typeof FilesRoute
-  '/knowledge': typeof KnowledgeRoute
-  '/notes': typeof NotesRoute
-  '/store': typeof StoreRoute
-  '/translate': typeof TranslateRoute
-  '/apps/$appId': typeof AppsAppIdRoute
-  '/paintings/$': typeof PaintingsSplatRoute
+  '/app': typeof AppRouteWithChildren
+  '/home': typeof HomeRoute
+  '/app/assistant': typeof AppAssistantRoute
+  '/app/chat': typeof AppChatRoute
+  '/app/code': typeof AppCodeRoute
+  '/app/files': typeof AppFilesRoute
+  '/app/knowledge': typeof AppKnowledgeRoute
+  '/app/notes': typeof AppNotesRoute
+  '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/data': typeof SettingsDataRoute
@@ -329,9 +343,9 @@ export interface FileRoutesByTo {
   '/settings/quickphrase': typeof SettingsQuickphraseRoute
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
-  '/apps': typeof AppsIndexRoute
-  '/paintings': typeof PaintingsIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/app/minapp/$appId': typeof AppMinappAppIdRoute
+  '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
   '/settings/mcp/marketplaces': typeof SettingsMcpMarketplacesRoute
@@ -339,6 +353,8 @@ export interface FileRoutesByTo {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
+  '/app/minapp': typeof AppMinappIndexRoute
+  '/app/paintings': typeof AppPaintingsIndexRoute
   '/settings/mcp': typeof SettingsMcpIndexRoute
   '/settings/websearch': typeof SettingsWebsearchIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
@@ -347,16 +363,16 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/chat': typeof ChatRoute
-  '/code': typeof CodeRoute
-  '/files': typeof FilesRoute
-  '/knowledge': typeof KnowledgeRoute
-  '/notes': typeof NotesRoute
+  '/app': typeof AppRouteWithChildren
+  '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/store': typeof StoreRoute
-  '/translate': typeof TranslateRoute
-  '/apps/$appId': typeof AppsAppIdRoute
-  '/paintings/$': typeof PaintingsSplatRoute
+  '/app/assistant': typeof AppAssistantRoute
+  '/app/chat': typeof AppChatRoute
+  '/app/code': typeof AppCodeRoute
+  '/app/files': typeof AppFilesRoute
+  '/app/knowledge': typeof AppKnowledgeRoute
+  '/app/notes': typeof AppNotesRoute
+  '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/data': typeof SettingsDataRoute
@@ -373,9 +389,9 @@ export interface FileRoutesById {
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
-  '/apps/': typeof AppsIndexRoute
-  '/paintings/': typeof PaintingsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/app/minapp/$appId': typeof AppMinappAppIdRoute
+  '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
   '/settings/mcp/marketplaces': typeof SettingsMcpMarketplacesRoute
@@ -383,6 +399,8 @@ export interface FileRoutesById {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
+  '/app/minapp/': typeof AppMinappIndexRoute
+  '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/websearch/': typeof SettingsWebsearchIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
@@ -392,16 +410,16 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/chat'
-    | '/code'
-    | '/files'
-    | '/knowledge'
-    | '/notes'
+    | '/app'
+    | '/home'
     | '/settings'
-    | '/store'
-    | '/translate'
-    | '/apps/$appId'
-    | '/paintings/$'
+    | '/app/assistant'
+    | '/app/chat'
+    | '/app/code'
+    | '/app/files'
+    | '/app/knowledge'
+    | '/app/notes'
+    | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
     | '/settings/data'
@@ -418,9 +436,9 @@ export interface FileRouteTypes {
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
     | '/settings/websearch'
-    | '/apps'
-    | '/paintings'
     | '/settings/'
+    | '/app/minapp/$appId'
+    | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
     | '/settings/mcp/marketplaces'
@@ -428,6 +446,8 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
+    | '/app/minapp'
+    | '/app/paintings'
     | '/settings/mcp/'
     | '/settings/websearch/'
     | '/settings/mcp/settings/$serverId'
@@ -435,15 +455,15 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/chat'
-    | '/code'
-    | '/files'
-    | '/knowledge'
-    | '/notes'
-    | '/store'
-    | '/translate'
-    | '/apps/$appId'
-    | '/paintings/$'
+    | '/app'
+    | '/home'
+    | '/app/assistant'
+    | '/app/chat'
+    | '/app/code'
+    | '/app/files'
+    | '/app/knowledge'
+    | '/app/notes'
+    | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
     | '/settings/data'
@@ -458,9 +478,9 @@ export interface FileRouteTypes {
     | '/settings/quickphrase'
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
-    | '/apps'
-    | '/paintings'
     | '/settings'
+    | '/app/minapp/$appId'
+    | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
     | '/settings/mcp/marketplaces'
@@ -468,6 +488,8 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
+    | '/app/minapp'
+    | '/app/paintings'
     | '/settings/mcp'
     | '/settings/websearch'
     | '/settings/mcp/settings/$serverId'
@@ -475,16 +497,16 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/chat'
-    | '/code'
-    | '/files'
-    | '/knowledge'
-    | '/notes'
+    | '/app'
+    | '/home'
     | '/settings'
-    | '/store'
-    | '/translate'
-    | '/apps/$appId'
-    | '/paintings/$'
+    | '/app/assistant'
+    | '/app/chat'
+    | '/app/code'
+    | '/app/files'
+    | '/app/knowledge'
+    | '/app/notes'
+    | '/app/translate'
     | '/settings/about'
     | '/settings/api-server'
     | '/settings/data'
@@ -501,9 +523,9 @@ export interface FileRouteTypes {
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
     | '/settings/websearch'
-    | '/apps/'
-    | '/paintings/'
     | '/settings/'
+    | '/app/minapp/$appId'
+    | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
     | '/settings/mcp/marketplaces'
@@ -511,6 +533,8 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
+    | '/app/minapp/'
+    | '/app/paintings/'
     | '/settings/mcp/'
     | '/settings/websearch/'
     | '/settings/mcp/settings/$serverId'
@@ -519,36 +543,13 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ChatRoute: typeof ChatRoute
-  CodeRoute: typeof CodeRoute
-  FilesRoute: typeof FilesRoute
-  KnowledgeRoute: typeof KnowledgeRoute
-  NotesRoute: typeof NotesRoute
+  AppRoute: typeof AppRouteWithChildren
+  HomeRoute: typeof HomeRoute
   SettingsRoute: typeof SettingsRouteWithChildren
-  StoreRoute: typeof StoreRoute
-  TranslateRoute: typeof TranslateRoute
-  AppsAppIdRoute: typeof AppsAppIdRoute
-  PaintingsSplatRoute: typeof PaintingsSplatRoute
-  AppsIndexRoute: typeof AppsIndexRoute
-  PaintingsIndexRoute: typeof PaintingsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/translate': {
-      id: '/translate'
-      path: '/translate'
-      fullPath: '/translate'
-      preLoaderRoute: typeof TranslateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/store': {
-      id: '/store'
-      path: '/store'
-      fullPath: '/store'
-      preLoaderRoute: typeof StoreRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -556,39 +557,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/notes': {
-      id: '/notes'
-      path: '/notes'
-      fullPath: '/notes'
-      preLoaderRoute: typeof NotesRouteImport
+    '/home': {
+      id: '/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof HomeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/knowledge': {
-      id: '/knowledge'
-      path: '/knowledge'
-      fullPath: '/knowledge'
-      preLoaderRoute: typeof KnowledgeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/files': {
-      id: '/files'
-      path: '/files'
-      fullPath: '/files'
-      preLoaderRoute: typeof FilesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/code': {
-      id: '/code'
-      path: '/code'
-      fullPath: '/code'
-      preLoaderRoute: typeof CodeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chat': {
-      id: '/chat'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof ChatRouteImport
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -604,20 +584,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/'
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof SettingsRoute
-    }
-    '/paintings/': {
-      id: '/paintings/'
-      path: '/paintings'
-      fullPath: '/paintings'
-      preLoaderRoute: typeof PaintingsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/apps/': {
-      id: '/apps/'
-      path: '/apps'
-      fullPath: '/apps'
-      preLoaderRoute: typeof AppsIndexRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/settings/websearch': {
       id: '/settings/websearch'
@@ -731,19 +697,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAboutRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/paintings/$': {
-      id: '/paintings/$'
-      path: '/paintings/$'
-      fullPath: '/paintings/$'
-      preLoaderRoute: typeof PaintingsSplatRouteImport
-      parentRoute: typeof rootRouteImport
+    '/app/translate': {
+      id: '/app/translate'
+      path: '/translate'
+      fullPath: '/app/translate'
+      preLoaderRoute: typeof AppTranslateRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/apps/$appId': {
-      id: '/apps/$appId'
-      path: '/apps/$appId'
-      fullPath: '/apps/$appId'
-      preLoaderRoute: typeof AppsAppIdRouteImport
-      parentRoute: typeof rootRouteImport
+    '/app/notes': {
+      id: '/app/notes'
+      path: '/notes'
+      fullPath: '/app/notes'
+      preLoaderRoute: typeof AppNotesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/knowledge': {
+      id: '/app/knowledge'
+      path: '/knowledge'
+      fullPath: '/app/knowledge'
+      preLoaderRoute: typeof AppKnowledgeRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/files': {
+      id: '/app/files'
+      path: '/files'
+      fullPath: '/app/files'
+      preLoaderRoute: typeof AppFilesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/code': {
+      id: '/app/code'
+      path: '/code'
+      fullPath: '/app/code'
+      preLoaderRoute: typeof AppCodeRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/chat': {
+      id: '/app/chat'
+      path: '/chat'
+      fullPath: '/app/chat'
+      preLoaderRoute: typeof AppChatRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/assistant': {
+      id: '/app/assistant'
+      path: '/assistant'
+      fullPath: '/app/assistant'
+      preLoaderRoute: typeof AppAssistantRouteImport
+      parentRoute: typeof AppRoute
     }
     '/settings/websearch/': {
       id: '/settings/websearch/'
@@ -758,6 +759,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/mcp/'
       preLoaderRoute: typeof SettingsMcpIndexRouteImport
       parentRoute: typeof SettingsMcpRoute
+    }
+    '/app/paintings/': {
+      id: '/app/paintings/'
+      path: '/paintings'
+      fullPath: '/app/paintings'
+      preLoaderRoute: typeof AppPaintingsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/minapp/': {
+      id: '/app/minapp/'
+      path: '/minapp'
+      fullPath: '/app/minapp'
+      preLoaderRoute: typeof AppMinappIndexRouteImport
+      parentRoute: typeof AppRoute
     }
     '/settings/websearch/general': {
       id: '/settings/websearch/general'
@@ -808,6 +823,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMcpSplatRouteImport
       parentRoute: typeof SettingsMcpRoute
     }
+    '/app/paintings/$': {
+      id: '/app/paintings/$'
+      path: '/paintings/$'
+      fullPath: '/app/paintings/$'
+      preLoaderRoute: typeof AppPaintingsSplatRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/minapp/$appId': {
+      id: '/app/minapp/$appId'
+      path: '/minapp/$appId'
+      fullPath: '/app/minapp/$appId'
+      preLoaderRoute: typeof AppMinappAppIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/settings/websearch/provider/$providerId': {
       id: '/settings/websearch/provider/$providerId'
       path: '/provider/$providerId'
@@ -824,6 +853,36 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AppRouteChildren {
+  AppAssistantRoute: typeof AppAssistantRoute
+  AppChatRoute: typeof AppChatRoute
+  AppCodeRoute: typeof AppCodeRoute
+  AppFilesRoute: typeof AppFilesRoute
+  AppKnowledgeRoute: typeof AppKnowledgeRoute
+  AppNotesRoute: typeof AppNotesRoute
+  AppTranslateRoute: typeof AppTranslateRoute
+  AppMinappAppIdRoute: typeof AppMinappAppIdRoute
+  AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
+  AppMinappIndexRoute: typeof AppMinappIndexRoute
+  AppPaintingsIndexRoute: typeof AppPaintingsIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppAssistantRoute: AppAssistantRoute,
+  AppChatRoute: AppChatRoute,
+  AppCodeRoute: AppCodeRoute,
+  AppFilesRoute: AppFilesRoute,
+  AppKnowledgeRoute: AppKnowledgeRoute,
+  AppNotesRoute: AppNotesRoute,
+  AppTranslateRoute: AppTranslateRoute,
+  AppMinappAppIdRoute: AppMinappAppIdRoute,
+  AppPaintingsSplatRoute: AppPaintingsSplatRoute,
+  AppMinappIndexRoute: AppMinappIndexRoute,
+  AppPaintingsIndexRoute: AppPaintingsIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface SettingsMcpRouteChildren {
   SettingsMcpSplatRoute: typeof SettingsMcpSplatRoute
@@ -913,18 +972,9 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ChatRoute: ChatRoute,
-  CodeRoute: CodeRoute,
-  FilesRoute: FilesRoute,
-  KnowledgeRoute: KnowledgeRoute,
-  NotesRoute: NotesRoute,
+  AppRoute: AppRouteWithChildren,
+  HomeRoute: HomeRoute,
   SettingsRoute: SettingsRouteWithChildren,
-  StoreRoute: StoreRoute,
-  TranslateRoute: TranslateRoute,
-  AppsAppIdRoute: AppsAppIdRoute,
-  PaintingsSplatRoute: PaintingsSplatRoute,
-  AppsIndexRoute: AppsIndexRoute,
-  PaintingsIndexRoute: PaintingsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

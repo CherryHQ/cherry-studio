@@ -15,8 +15,8 @@ const logger = loggerService.withContext('useTabs')
 const DEFAULT_TAB: Tab = {
   id: 'home',
   type: 'route',
-  url: '/',
-  title: getDefaultRouteTitle('/'),
+  url: '/home',
+  title: getDefaultRouteTitle('/home'),
   lastAccessTime: Date.now(),
   isDormant: false
 }
