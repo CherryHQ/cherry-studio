@@ -11,7 +11,7 @@
 ### Install
 
 ```bash
-yarn
+pnpm install
 ```
 
 ### Development
@@ -20,17 +20,17 @@ yarn
 
 Download and install [Node.js v22.x.x](https://nodejs.org/en/download)
 
-### Setup Yarn
+### Setup pnpm
 
 ```bash
 corepack enable
-corepack prepare yarn@4.9.1 --activate
+corepack prepare pnpm@10.27.0 --activate
 ```
 
 ### Install Dependencies
 
 ```bash
-yarn install
+pnpm install
 ```
 
 ### ENV
@@ -42,13 +42,13 @@ cp .env.example .env
 ### Start
 
 ```bash
-yarn dev
+pnpm dev
 ```
 
 ### Debug
 
 ```bash
-yarn debug
+pnpm debug
 ```
 
 Then input chrome://inspect in browser
@@ -56,18 +56,18 @@ Then input chrome://inspect in browser
 ### Test
 
 ```bash
-yarn test
+pnpm test
 ```
 
 ### Build
 
 ```bash
 # For windows
-$ yarn build:win
+$ pnpm build:win
 
 # For macOS
-$ yarn build:mac
+$ pnpm build:mac
 
 # For Linux
-$ yarn build:linux
+$ pnpm build:linux
 ```

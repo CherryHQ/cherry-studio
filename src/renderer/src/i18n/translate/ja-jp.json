@@ -3165,6 +3165,7 @@
         "label": "アプリデータ",
         "migration_title": "データ移行",
         "new_path": "新しいパス",
+        "open": "オープンディレクトリ",
         "original_path": "元のパス",
         "path_change_failed": "データディレクトリの変更に失敗しました",
         "path_changed_without_copy": "パスが変更されました。",

@@ -1061,12 +1061,18 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     } catch (error) {
       const pluginError = extractPluginError(error)
       if (pluginError) {
-        logger.error('Failed to list installed plugins', { agentId, error: pluginError })
+        logger.error('Failed to list installed plugins', {
+          agentId,
+          error: pluginError
+        })
         return { success: false, error: pluginError }
       }
 
       const err = normalizeError(error)
-      logger.error('Failed to list installed plugins', { agentId, error: err })
+      logger.error('Failed to list installed plugins', {
+        agentId,
+        error: err
+      })
       return {
         success: false,
         error: {
