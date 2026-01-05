@@ -123,6 +123,33 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     return unifiedResult.groupedMessages.filter((group) => !group.some((item) => streamingSet.has(item.message.id)))
   }, [isDataApiPath, unifiedResult.groupedMessages, sessionIds])
 
+  // NOTE: [v2 Migration] Listen for MESSAGE_CREATED event to refresh data when user sends a message.
+  // This ensures user messages appear immediately in the list.
+  useEffect(() => {
+    if (!isDataApiPath) return
+
+    const handler = async ({
+      topicId: eventTopicId
+    }: {
+      message: Message
+      blocks: MessageBlock[]
+      topicId: string
+    }) => {
+      if (eventTopicId !== topic.id) return
+
+      // Refresh DataApi to show the new user message
+      if (unifiedResult.mutate) {
+        await unifiedResult.mutate()
+      }
+    }
+
+    EventEmitter.on(EVENT_NAMES.MESSAGE_CREATED, handler)
+    return () => {
+      EventEmitter.off(EVENT_NAMES.MESSAGE_CREATED, handler)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutate is stable (useCallback wrapped)
+  }, [isDataApiPath, topic.id, unifiedResult.mutate])
+
   // NOTE: [v2 Migration] Listen for STREAMING_FINALIZED event to handle DataApi refresh and cache clearing.
   // TRADEOFF: Event-driven ensures mutate() completes before cache clears, preventing UI flicker.
   useEffect(() => {

@@ -28,5 +28,8 @@ export const EVENT_NAMES = {
   CHANGE_TOPIC: 'CHANGE_TOPIC',
   // NOTE: [v2 Migration] Used for streaming->API transition.
   // Emitted by StreamingService.finalize() to signal UI hooks to refresh data and clear cache.
-  STREAMING_FINALIZED: 'streaming:finalized'
+  STREAMING_FINALIZED: 'streaming:finalized',
+  // NOTE: [v2 Migration] Emitted when a message is created and saved to DB.
+  // Used by Messages.tsx to optimistically update SWR cache for immediate UI display.
+  MESSAGE_CREATED: 'message:created'
 }

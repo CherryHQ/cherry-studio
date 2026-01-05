@@ -343,10 +343,20 @@ class StreamingService {
 
     // Merge changes - use type assertion since we're updating the same block type
     const updatedBlock = { ...existingBlock, ...changes } as MessageBlock
-    session.blocks[blockId] = updatedBlock
 
-    // Update caches
-    cacheService.set(getSessionKey(messageId), session, SESSION_TTL)
+    // IMPORTANT: Create new session object to trigger CacheService notification.
+    // CacheService uses Object.is() for value comparison - same reference = no notification.
+    // Without this, useCache subscribers won't re-render on updates.
+    const updatedSession: StreamingSession = {
+      ...session,
+      blocks: {
+        ...session.blocks,
+        [blockId]: updatedBlock
+      }
+    }
+
+    // Update caches with new object references
+    cacheService.set(getSessionKey(messageId), updatedSession, SESSION_TTL)
     cacheService.set(getBlockKey(blockId), updatedBlock, SESSION_TTL)
   }
 
