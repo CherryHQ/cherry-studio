@@ -152,7 +152,7 @@
     "@floating-ui/dom": "1.7.3",
     "@google/genai": "1.0.1",
     "@hello-pangea/dnd": "^18.0.1",
-    "@kangfenmao/keyv-storage": "^0.1.0",
+    "@kangfenmao/keyv-storage": "^0.1.3",
     "@langchain/community": "^1.0.0",
     "@langchain/core": "1.0.2",
     "@langchain/openai": "1.0.0",
