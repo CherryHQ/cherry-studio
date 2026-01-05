@@ -4868,7 +4868,7 @@
       "custom": {
         "delete": {
           "description": "Ești sigur că vrei să ștergi?",
-          "title": "Șterge limbă personalizată"
+          "title": "Șterge limba personalizată"
         },
         "error": {
           "add": "Adăugarea a eșuat",
