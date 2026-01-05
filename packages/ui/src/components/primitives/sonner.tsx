@@ -1,4 +1,4 @@
-import { cn } from '@cherrystudio/ui/utils'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { cva } from 'class-variance-authority'
 import { merge } from 'lodash'
 import { type ReactNode, type SVGProps, useId } from 'react'
