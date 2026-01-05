@@ -13918,6 +13918,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@xterm/xterm@npm:^5.5.0":
+  version: 5.5.0
+  resolution: "@xterm/xterm@npm:5.5.0"
+  checksum: 10c0/358801feece58617d777b2783bec68dac1f52f736da3b0317f71a34f4e25431fb0b1920244f678b8d673f797145b4858c2a5ccb463a4a6df7c10c9093f1c9267
+  languageName: node
+  linkType: hard
+
 "@xyflow/react@npm:^12.4.4":
   version: 12.5.6
   resolution: "@xyflow/react@npm:12.5.6"
@@ -14109,6 +14116,7 @@ __metadata:
     "@vitest/web-worker": "npm:^3.2.4"
     "@viz-js/lang-dot": "npm:^1.0.5"
     "@viz-js/viz": "npm:^3.14.0"
+    "@xterm/xterm": "npm:^5.5.0"
     "@xyflow/react": "npm:^12.4.4"
     ai: "npm:^5.0.98"
     antd: "patch:antd@npm%3A5.27.0#~/.yarn/patches/antd-npm-5.27.0-aa91c36546.patch"

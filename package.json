@@ -245,6 +245,7 @@
     "@vitest/web-worker": "^3.2.4",
     "@viz-js/lang-dot": "^1.0.5",
     "@viz-js/viz": "^3.14.0",
+    "@xterm/xterm": "^5.5.0",
     "@xyflow/react": "^12.4.4",
     "ai": "^5.0.98",
     "antd": "patch:antd@npm%3A5.27.0#~/.yarn/patches/antd-npm-5.27.0-aa91c36546.patch",
