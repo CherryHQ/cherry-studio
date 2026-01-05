@@ -476,7 +476,7 @@ toast.custom = (props: QuickCustomProps) =>
     ...props
   } satisfies CustomToastProps)
 
-toast.dismiss = (id: string | number) => sonnerToast.dismiss(id)
+toast.dismiss = (id: ToastIdType) => sonnerToast.dismiss(id)
 
 const toastBgColorVariants = cva(undefined, {
   variants: {
