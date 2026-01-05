@@ -83,6 +83,8 @@ export async function checkDataLimit() {
       }
       currentInterval = setInterval(check, CHECK_INTERVAL_WARNING)
     } else if (!shouldShowWarning && currentToastId) {
+      // Dismiss toast when space is recovered
+
       window.toast.close(currentToastId)
       currentToastId = null
 
