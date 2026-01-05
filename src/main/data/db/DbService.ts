@@ -6,6 +6,7 @@ import { app } from 'electron'
 import path from 'path'
 import { pathToFileURL } from 'url'
 
+import { CUSTOM_SQL_STATEMENTS } from './customSql'
 import Seeding from './seeding'
 import type { DbType } from './types'
 
@@ -120,9 +121,33 @@ class DbService {
       const migrationsFolder = this.getMigrationsFolder()
       await migrate(this.db, { migrationsFolder })
 
+      // Run custom SQL that Drizzle cannot manage (triggers, virtual tables, etc.)
+      await this.runCustomMigrations()
+
       logger.info('Database migration completed successfully')
     } catch (error) {
       logger.error('Database migration failed', error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * Run custom SQL statements that Drizzle cannot manage
+   *
+   * This includes triggers, virtual tables, and other SQL objects.
+   * Called after every migration because:
+   * 1. Drizzle doesn't track these in schema
+   * 2. DROP TABLE removes associated triggers
+   * 3. All statements use IF NOT EXISTS, so they're idempotent
+   */
+  private async runCustomMigrations(): Promise<void> {
+    try {
+      for (const statement of CUSTOM_SQL_STATEMENTS) {
+        await this.db.run(sql.raw(statement))
+      }
+      logger.debug('Custom migrations completed', { count: CUSTOM_SQL_STATEMENTS.length })
+    } catch (error) {
+      logger.error('Custom migrations failed', error as Error)
       throw error
     }
   }

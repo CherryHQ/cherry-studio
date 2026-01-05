@@ -1,4 +1,4 @@
-import { cn } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Divider } from 'antd'
 import Link from 'antd/es/typography/Link'

@@ -1,4 +1,4 @@
-import type { ApiSchemas } from './apiSchemas'
+import type { ApiSchemas } from './schemas'
 
 /**
  * Template literal type utilities for converting parameterized paths to concrete paths

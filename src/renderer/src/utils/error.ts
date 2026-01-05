@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import type { AgentServerError } from '@renderer/types'
 import { AgentServerErrorSchema } from '@renderer/types'
@@ -19,7 +20,7 @@ import { ZodError } from 'zod'
 import { parseJSON } from './json'
 import { safeSerialize } from './serialize'
 
-// const logger = loggerService.withContext('Utils:error')
+const logger = loggerService.withContext('Utils:error')
 
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
   // Handle circular references
@@ -64,11 +65,16 @@ export function formatErrorMessage(error: unknown): string {
   delete detailedError?.stack
   delete detailedError?.request_id
 
-  const formattedJson = JSON.stringify(detailedError, null, 2)
-    .split('\n')
-    .map((line) => `  ${line}`)
-    .join('\n')
-  return detailedError.message ? detailedError.message : `Error Details:\n${formattedJson}`
+  if (detailedError) {
+    const formattedJson = JSON.stringify(detailedError, null, 2)
+      .split('\n')
+      .map((line) => `  ${line}`)
+      .join('\n')
+    return detailedError.message ? detailedError.message : `Error Details:\n${formattedJson}`
+  } else {
+    logger.warn('Get detailed error failed.')
+    return ''
+  }
 }
 
 export function getErrorMessage(error: unknown): string {

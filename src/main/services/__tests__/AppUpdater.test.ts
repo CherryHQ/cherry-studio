@@ -14,7 +14,7 @@ vi.mock('@logger', () => ({
 
 // Mock PreferenceService using the existing mock
 vi.mock('@data/PreferenceService', async () => {
-  const { MockMainPreferenceServiceExport } = await import('../../../../tests/__mocks__/main/PreferenceService')
+  const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   return MockMainPreferenceServiceExport
 })
 
@@ -84,9 +84,9 @@ vi.mock('electron-updater', () => ({
 // Import after mocks
 import { preferenceService } from '@data/PreferenceService'
 import { UpdateMirror } from '@shared/config/constant'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app, net } from 'electron'
 
-import { MockMainPreferenceServiceUtils } from '../../../../tests/__mocks__/main/PreferenceService'
 import AppUpdater from '../AppUpdater'
 
 // Mock clientId for ConfigManager since it's not migrated yet

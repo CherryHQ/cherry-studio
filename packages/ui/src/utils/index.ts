@@ -1,13 +1,11 @@
-import { type ClassValue, clsx } from 'clsx'
-import { twMerge } from 'tailwind-merge'
-
 /**
- * Merge class names with tailwind-merge
- * This utility combines clsx and tailwind-merge for optimal class name handling
+ * Public utility functions for external consumers.
+ *
+ * This module is part of the PUBLIC API and can be imported via `@cherrystudio/ui/utils`.
+ * For internal-only utilities (e.g., Tailwind class merging), use `lib/` instead.
+ *
+ * @module utils
  */
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
 
 /**
  * Converts `null` to `undefined`, otherwise returns the input value.

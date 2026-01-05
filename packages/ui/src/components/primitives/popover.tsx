@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@cherrystudio/ui/utils'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import * as React from 'react'
 

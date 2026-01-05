@@ -9,6 +9,8 @@
 /src/main/data/ @0xfullex
 /src/renderer/src/data/ @0xfullex
 /v2-refactor-temp/ @0xfullex
+/docs/en/references/data/ @0xfullex
+/docs/zh/references/data/ @0xfullex
 
 /packages/ui/ @MyPrototypeWhat
 

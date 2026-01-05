@@ -1,10 +1,10 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { DraggableSyntheticListeners } from '@dnd-kit/core'
 import type { Transform } from '@dnd-kit/utilities'
 import { CSS } from '@dnd-kit/utilities'
 import React, { useEffect } from 'react'
 import styled from 'styled-components'
 
-import { cn } from '../../../utils'
 import type { RenderItemType } from './types'
 
 interface ItemRendererProps<T> {
