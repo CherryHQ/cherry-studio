@@ -29,8 +29,8 @@ const InfoIcon = ({ className }: SVGProps<SVGSVGElement>) => (
         width="29.0476"
         height="30"
         filterUnits="userSpaceOnUse"
-        color-interpolation-filters="sRGB">
-        <feFlood flood-opacity="0" result="BackgroundImageFix" />
+        colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
         <feColorMatrix
           in="SourceAlpha"
           type="matrix"
@@ -64,8 +64,8 @@ const InfoIcon = ({ className }: SVGProps<SVGSVGElement>) => (
         x2="14.5239"
         y2="39.5"
         gradientUnits="userSpaceOnUse">
-        <stop stop-color="#3B82F6" />
-        <stop offset="1" stop-color="white" />
+        <stop stopColor="#3B82F6" />
+        <stop offset="1" stopColor="white" />
       </linearGradient>
     </defs>
   </svg>
@@ -227,7 +227,7 @@ const SuccessIcon = ({ className, ...props }: SVGProps<SVGSVGElement>) => {
 
 const ErrorIcon = ({ className }: SVGProps<SVGSVGElement>) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <g clip-path="url(#clip0_1669_13492)">
+    <g clipPath="url(#clip0_1669_13492)">
       <foreignObject x="-3" y="-2" width="30" height="28.8169">
         <div
           // xmlns="http://www.w3.org/1999/xhtml"
@@ -253,8 +253,8 @@ const ErrorIcon = ({ className }: SVGProps<SVGSVGElement>) => (
         width="30"
         height="28.8169"
         filterUnits="userSpaceOnUse"
-        color-interpolation-filters="sRGB">
-        <feFlood flood-opacity="0" result="BackgroundImageFix" />
+        colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
         <feColorMatrix
           in="SourceAlpha"
           type="matrix"
@@ -282,8 +282,8 @@ const ErrorIcon = ({ className }: SVGProps<SVGSVGElement>) => (
         <path d="M21.709 17.3146L14.0873 3.2413C13.6682 2.47438 12.8697 2 12 2C11.1303 2 10.3318 2.47438 9.91272 3.2413L2.29101 17.3146C1.88778 18.0578 1.90359 18.9354 2.33844 19.6628C2.77329 20.3823 3.5323 20.8171 4.37828 20.8171H19.6217C20.4677 20.8171 21.2267 20.3823 21.6616 19.6628C22.0964 18.9354 22.1122 18.0578 21.709 17.3146ZM12 17.6546C11.5652 17.6546 11.2094 17.2988 11.2094 16.8639C11.2094 16.4291 11.5652 16.0733 12 16.0733C12.4348 16.0733 12.7906 16.4291 12.7906 16.8639C12.7906 17.2988 12.4348 17.6546 12 17.6546ZM12.7906 14.492C12.7906 14.9269 12.4348 15.2827 12 15.2827C11.5652 15.2827 11.2094 14.9269 11.2094 14.492V8.16695C11.2094 7.7321 11.5652 7.37632 12 7.37632C12.4348 7.37632 12.7906 7.7321 12.7906 8.16695V14.492Z" />
       </clipPath>
       <linearGradient id="paint0_linear_1669_13492" x1="12" y1="31.5" x2="12" y2="11" gradientUnits="userSpaceOnUse">
-        <stop stop-color="white" />
-        <stop offset="0.97" stop-color="#DC2626" />
+        <stop stopColor="white" />
+        <stop offset="0.97" stopColor="#DC2626" />
       </linearGradient>
       <clipPath id="clip0_1669_13492">
         <rect width="24" height="24" fill="white" />
