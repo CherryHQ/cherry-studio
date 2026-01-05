@@ -172,6 +172,9 @@ export default defineConfig([
     }
   },
   // Schema key naming convention (cache & preferences)
+  // Supports both fixed keys and template keys:
+  // - Fixed: 'app.user.avatar', 'chat.multi_select_mode'
+  // - Template: 'scroll.position:${topicId}', 'cache:${type}:${id}'
   {
     files: ['packages/shared/data/cache/cacheSchemas.ts', 'packages/shared/data/preference/preferenceSchemas.ts'],
     plugins: {
@@ -181,25 +184,91 @@ export default defineConfig([
             meta: {
               type: 'problem',
               docs: {
-                description: 'Enforce schema key naming convention: namespace.sub.key_name',
+                description:
+                  'Enforce schema key naming convention: namespace.sub.key_name or namespace.key:${variable}',
                 recommended: true
               },
               messages: {
                 invalidKey:
-                  'Schema key "{{key}}" must follow format: namespace.sub.key_name (e.g., app.user.avatar).'
+                  'Schema key "{{key}}" must follow format: namespace.sub.key_name (e.g., app.user.avatar) or with template: namespace.key:${variable} (e.g., scroll.position:${id}).',
+                invalidTemplateVar:
+                  'Template variable in "{{key}}" must be a valid identifier (e.g., ${id}, ${topicId}).'
               }
             },
             create(context) {
-              const VALID_KEY_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+              /**
+               * Validates a schema key for correct naming convention.
+               *
+               * Supports two formats:
+               * 1. Fixed keys: lowercase segments separated by dots
+               *    Example: 'app.user.avatar', 'chat.multi_select_mode'
+               *
+               * 2. Template keys: fixed prefix + template placeholders
+               *    Example: 'scroll.position:${id}', 'cache:${type}:${id}'
+               *
+               * Template placeholder rules:
+               * - Must use ${variableName} syntax
+               * - Variable name must be valid identifier (start with letter, alphanumeric + underscore)
+               * - Empty placeholders like ${} are invalid
+               *
+               * @param {string} key - The schema key to validate
+               * @returns {{ valid: boolean, error?: 'invalidKey' | 'invalidTemplateVar' }}
+               */
+              function validateKey(key) {
+                // Check if key contains template placeholders
+                const hasTemplate = key.includes('${')
+
+                if (hasTemplate) {
+                  // Template key validation
+                  // Must have at least one dot-separated segment before any template or colon
+                  // Example valid: 'scroll.position:${id}', 'cache:${type}:${id}'
+                  // Example invalid: '${id}', ':${id}'
+
+                  // Extract and validate all template variables
+                  const templateVarPattern = /\$\{([^}]*)\}/g
+                  let match
+                  while ((match = templateVarPattern.exec(key)) !== null) {
+                    const varName = match[1]
+                    // Variable must be a valid identifier: start with letter, contain only alphanumeric and underscore
+                    if (!varName || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(varName)) {
+                      return { valid: false, error: 'invalidTemplateVar' }
+                    }
+                  }
+
+                  // Replace template placeholders with a marker to validate the structure
+                  const keyWithoutTemplates = key.replace(/\$\{[^}]+\}/g, '__TEMPLATE__')
+
+                  // Template key structure:
+                  // - Must start with a valid segment (lowercase letters, numbers, underscores)
+                  // - Segments separated by dots or colons
+                  // - Must have at least one dot-separated segment
+                  // - Can end with template placeholder
+                  const templateKeyPattern = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*(:[a-z0-9_]*|:__TEMPLATE__)*$/
+
+                  if (!templateKeyPattern.test(keyWithoutTemplates)) {
+                    return { valid: false, error: 'invalidKey' }
+                  }
+
+                  return { valid: true }
+                } else {
+                  // Fixed key validation: standard dot-separated format
+                  const fixedKeyPattern = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+                  if (!fixedKeyPattern.test(key)) {
+                    return { valid: false, error: 'invalidKey' }
+                  }
+                  return { valid: true }
+                }
+              }
 
               return {
                 TSPropertySignature(node) {
                   if (node.key.type === 'Literal' && typeof node.key.value === 'string') {
                     const key = node.key.value
-                    if (!VALID_KEY_PATTERN.test(key)) {
+                    const result = validateKey(key)
+                    if (!result.valid) {
                       context.report({
                         node: node.key,
-                        messageId: 'invalidKey',
+                        messageId: result.error,
                         data: { key }
                       })
                     }
@@ -208,10 +277,11 @@ export default defineConfig([
                 Property(node) {
                   if (node.key.type === 'Literal' && typeof node.key.value === 'string') {
                     const key = node.key.value
-                    if (!VALID_KEY_PATTERN.test(key)) {
+                    const result = validateKey(key)
+                    if (!result.valid) {
                       context.report({
                         node: node.key,
-                        messageId: 'invalidKey',
+                        messageId: result.error,
                         data: { key }
                       })
                     }

@@ -155,19 +155,75 @@ const [counter, setCounter] = useCache('ui.counter', 0)
 - Use dynamically constructed keys
 - Require manual type specification via generics
 - No compile-time key validation
+- **Cannot use keys that match schema patterns** (including template keys)
 
 ```typescript
 // Dynamic key, must specify type
-const topic = cacheService.getCasual<TopicCache>(`topic:${id}`)
+const topic = cacheService.getCasual<TopicCache>(`my.custom.key`)
+
+// Compile error: cannot use schema keys with Casual methods
+cacheService.getCasual('app.user.avatar')           // Error: matches fixed key
+cacheService.getCasual('scroll.position:topic-123') // Error: matches template key
 ```
+
+### Template Keys
+
+Template keys provide type-safe caching for dynamic key patterns. Define a template in the schema using `${variable}` syntax, and TypeScript will automatically match and infer types for concrete keys.
+
+#### Defining Template Keys
+
+```typescript
+// packages/shared/data/cache/cacheSchemas.ts
+export type UseCacheSchema = {
+  // Fixed key
+  'app.user.avatar': string
+
+  // Template keys - use ${variable} for dynamic segments
+  'scroll.position:${topicId}': number
+  'entity.cache:${type}:${id}': EntityData
+}
+
+// Default values for templates (shared by all instances)
+export const DefaultUseCache: UseCacheSchema = {
+  'app.user.avatar': '',
+  'scroll.position:${topicId}': 0,
+  'entity.cache:${type}:${id}': { loaded: false }
+}
+```
+
+#### Using Template Keys
+
+```typescript
+// TypeScript infers the value type from schema
+const [scrollPos, setScrollPos] = useCache('scroll.position:topic-123')
+// scrollPos is inferred as `number`
+
+const [entity, setEntity] = useCache('entity.cache:user:456')
+// entity is inferred as `EntityData`
+
+// Direct CacheService usage
+cacheService.set('scroll.position:my-topic', 150)  // OK: value must be number
+cacheService.set('scroll.position:my-topic', 'hi') // Error: type mismatch
+```
+
+#### Template Key Benefits
+
+| Feature | Fixed Keys | Template Keys | Casual Methods |
+|---------|-----------|---------------|----------------|
+| Type inference | ✅ Automatic | ✅ Automatic | ❌ Manual |
+| Auto-completion | ✅ Full | ✅ Partial (prefix) | ❌ None |
+| Compile-time validation | ✅ Yes | ✅ Yes | ❌ No |
+| Dynamic IDs | ❌ No | ✅ Yes | ✅ Yes |
+| Default values | ✅ Yes | ✅ Shared per template | ❌ No |
 
 ### When to Use Which
 
 | Scenario | Method | Example |
 |----------|--------|---------|
 | Fixed cache keys | Type-safe | `useCache('ui.counter')` |
-| Entity caching by ID | Casual | `getCasual<Topic>(\`topic:${id}\`)` |
-| Session-based keys | Casual | `setCasual(\`session:${sessionId}\`)` |
+| Dynamic keys with known pattern | Template key | `useCache('scroll.position:topic-123')` |
+| Entity caching by ID | Template key | `get('entity.cache:user:456')` |
+| Completely dynamic keys | Casual | `getCasual<T>(\`unknown.pattern:${x}\`)` |
 | UI state | Type-safe | `useSharedCache('window.layout')` |
 
 ## Common Patterns
@@ -243,17 +299,24 @@ function useCachedWithExpiry<T>(key: string, fetcher: () => Promise<T>, maxAge: 
 
 ## Adding New Cache Keys
 
-### 1. Add to Cache Schema
+### Adding Fixed Keys
+
+#### 1. Add to Cache Schema
 
 ```typescript
 // packages/shared/data/cache/cacheSchemas.ts
-export interface CacheSchema {
+export type UseCacheSchema = {
   // Existing keys...
   'myFeature.data': MyDataType
 }
+
+export const DefaultUseCache: UseCacheSchema = {
+  // Existing defaults...
+  'myFeature.data': { items: [], lastUpdated: 0 }
+}
 ```
 
-### 2. Define Value Type (if complex)
+#### 2. Define Value Type (if complex)
 
 ```typescript
 // packages/shared/data/cache/cacheValueTypes.ts
@@ -263,12 +326,59 @@ export interface MyDataType {
 }
 ```
 
-### 3. Use in Code
+#### 3. Use in Code
 
 ```typescript
 // Now type-safe
-const [data, setData] = useCache('myFeature.data', defaultValue)
+const [data, setData] = useCache('myFeature.data')
 ```
+
+### Adding Template Keys
+
+#### 1. Add Template to Schema
+
+```typescript
+// packages/shared/data/cache/cacheSchemas.ts
+export type UseCacheSchema = {
+  // Existing keys...
+  // Template key with dynamic segment
+  'scroll.position:${topicId}': number
+}
+
+export const DefaultUseCache: UseCacheSchema = {
+  // Existing defaults...
+  // Default shared by all instances of this template
+  'scroll.position:${topicId}': 0
+}
+```
+
+#### 2. Use in Code
+
+```typescript
+// TypeScript infers number from template pattern
+const [scrollPos, setScrollPos] = useCache(`scroll.position:${topicId}`)
+
+// Works with any string in the dynamic segment
+const [pos1, setPos1] = useCache('scroll.position:topic-123')
+const [pos2, setPos2] = useCache('scroll.position:conversation-abc')
+```
+
+### Key Naming Convention
+
+All keys (fixed and template) must follow the naming convention:
+
+- **Format**: `namespace.sub.key_name` or `namespace.key:${variable}`
+- **Rules**:
+  - Start with lowercase letter
+  - Use lowercase letters, numbers, and underscores
+  - Separate segments with dots (`.`)
+  - Use colons (`:`) before template placeholders
+- **Examples**:
+  - ✅ `app.user.avatar`
+  - ✅ `scroll.position:${id}`
+  - ✅ `cache.entity:${type}:${id}`
+  - ❌ `UserAvatar` (no dots)
+  - ❌ `App.User` (uppercase)
 
 ## Shared Cache Ready State
 
@@ -303,6 +413,8 @@ unsubscribe()
 1. **Choose the right tier**: Memory for temp, Shared for cross-window, Persist for survival
 2. **Use TTL for stale data**: Prevent serving outdated cached values
 3. **Prefer type-safe keys**: Add to schema when possible
-4. **Clean up dynamic keys**: Remove casual cache entries when no longer needed
-5. **Consider data size**: Persist cache uses localStorage (limited to ~5MB)
-6. **Use absolute timestamps for sync**: CacheSyncMessage uses `expireAt` (absolute Unix timestamp) for precise cross-window TTL sync
+4. **Use template keys for patterns**: When you have a recurring pattern (e.g., caching by ID), define a template key instead of using casual methods
+5. **Reserve casual for truly dynamic keys**: Only use casual methods when the key pattern is completely unknown at development time
+6. **Clean up dynamic keys**: Remove casual cache entries when no longer needed
+7. **Consider data size**: Persist cache uses localStorage (limited to ~5MB)
+8. **Use absolute timestamps for sync**: CacheSyncMessage uses `expireAt` (absolute Unix timestamp) for precise cross-window TTL sync

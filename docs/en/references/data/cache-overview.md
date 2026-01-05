@@ -51,8 +51,9 @@ cacheService.set('temp.calculation', result, 30000)
 - Main process resolves conflicts
 
 ### Type Safety
-- Schema-based keys for compile-time checking
-- Casual methods for dynamic keys with manual typing
+- **Fixed keys**: Schema-based keys for compile-time checking (e.g., `'app.user.avatar'`)
+- **Template keys**: Dynamic patterns with automatic type inference (e.g., `'scroll.position:${id}'` matches `'scroll.position:topic-123'`)
+- **Casual methods**: For completely dynamic keys with manual typing (blocked from using schema-defined keys)
 
 ## Data Categories
 
@@ -120,10 +121,20 @@ cacheService.set('temp.calculation', result, 30000)
 
 For detailed code examples and API usage, see [Cache Usage Guide](./cache-usage.md).
 
-| Method | Tier | Type Safety |
-|--------|------|-------------|
-| `useCache` / `get` / `set` | Memory | Schema-based keys |
-| `getCasual` / `setCasual` | Memory | Dynamic keys (manual typing) |
-| `useSharedCache` / `getShared` / `setShared` | Shared | Schema-based keys |
-| `getSharedCasual` / `setSharedCasual` | Shared | Dynamic keys (manual typing) |
-| `usePersistCache` / `getPersist` / `setPersist` | Persist | Schema-based keys only |
+### Key Types
+
+| Type | Example Schema | Example Usage | Type Inference |
+|------|----------------|---------------|----------------|
+| Fixed key | `'app.user.avatar': string` | `get('app.user.avatar')` | Automatic |
+| Template key | `'scroll.position:${id}': number` | `get('scroll.position:topic-123')` | Automatic |
+| Casual key | N/A | `getCasual<T>('my.key')` | Manual |
+
+### API Reference
+
+| Method | Tier | Key Type |
+|--------|------|----------|
+| `useCache` / `get` / `set` | Memory | Fixed + Template keys |
+| `getCasual` / `setCasual` | Memory | Dynamic keys only (schema keys blocked) |
+| `useSharedCache` / `getShared` / `setShared` | Shared | Fixed keys only |
+| `getSharedCasual` / `setSharedCasual` | Shared | Dynamic keys only (schema keys blocked) |
+| `usePersistCache` / `getPersist` / `setPersist` | Persist | Fixed keys only |

@@ -191,7 +191,8 @@ class WebSearchService {
    * 设置网络搜索状态
    */
   private async setWebSearchStatus(requestId: string, status: WebSearchStatus, delayMs?: number) {
-    const activeSearches = cacheService.get('chat.websearch.active_searches')
+    // Use ?? {} to handle cache miss (cacheService.get returns undefined when not cached)
+    const activeSearches = cacheService.get('chat.websearch.active_searches') ?? {}
     activeSearches[requestId] = status
 
     cacheService.set('chat.websearch.active_searches', activeSearches)

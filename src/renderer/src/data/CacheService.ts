@@ -19,12 +19,12 @@
 
 import { loggerService } from '@logger'
 import type {
+  InferUseCacheValue,
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
   SharedCacheKey,
   SharedCacheSchema,
-  UseCacheKey,
-  UseCacheSchema
+  UseCacheKey
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSubscriber, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
@@ -102,17 +102,57 @@ export class CacheService {
 
   /**
    * Get value from memory cache with TTL validation (type-safe)
-   * @param key - Schema-defined cache key
+   *
+   * Supports both fixed keys and template keys:
+   * - Fixed keys: `get('app.user.avatar')`
+   * - Template keys: `get('scroll.position:topic-123')` (matches schema `'scroll.position:${id}'`)
+   *
+   * DESIGN NOTE: Returns `undefined` when cache miss or TTL expired.
+   * This is intentional - developers need to know when a value doesn't exist
+   * (e.g., after explicit deletion) and handle it appropriately.
+   * For UI components that always need a value, use `useCache` hook instead,
+   * which provides automatic default value fallback.
+   *
+   * @template K - The cache key type (inferred from UseCacheKey, supports template patterns)
+   * @param key - Schema-defined cache key (fixed or matching template pattern)
    * @returns Cached value or undefined if not found or expired
+   *
+   * @example
+   * ```typescript
+   * // Fixed key - handle undefined explicitly
+   * const avatar = cacheService.get('app.user.avatar') ?? ''
+   *
+   * // Template key (schema: 'scroll.position:${id}': number)
+   * const scrollPos = cacheService.get('scroll.position:topic-123') ?? 0
+   * ```
    */
-  get<K extends UseCacheKey>(key: K): UseCacheSchema[K] {
+  get<K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined {
     return this.getInternal(key)
   }
 
   /**
    * Get value from memory cache with TTL validation (casual, dynamic key)
-   * @param key - Dynamic cache key (e.g., `topic:${id}`)
+   *
+   * Use this for fully dynamic keys that don't match any schema pattern.
+   * For keys matching schema patterns (including templates), use `get()` instead.
+   *
+   * Note: Due to TypeScript limitations with template literal types, compile-time
+   * blocking of schema keys works best with literal string arguments. Variable
+   * keys are accepted but may not trigger compile errors.
+   *
+   * @template T - The expected value type (must be specified manually)
+   * @param key - Dynamic cache key that doesn't match any schema pattern
    * @returns Cached value or undefined if not found or expired
+   *
+   * @example
+   * ```typescript
+   * // Dynamic key with manual type specification
+   * const data = cacheService.getCasual<MyDataType>('custom.dynamic.key')
+   *
+   * // Schema keys should use type-safe methods:
+   * // Use: cacheService.get('app.user.avatar')
+   * // Instead of: cacheService.getCasual('app.user.avatar')
+   * ```
    */
   getCasual<T>(key: Exclude<string, UseCacheKey>): T | undefined {
     return this.getInternal(key)
@@ -138,19 +178,54 @@ export class CacheService {
 
   /**
    * Set value in memory cache with optional TTL (type-safe)
-   * @param key - Schema-defined cache key
-   * @param value - Value to cache (type inferred from schema)
+   *
+   * Supports both fixed keys and template keys:
+   * - Fixed keys: `set('app.user.avatar', 'url')`
+   * - Template keys: `set('scroll.position:topic-123', 100)`
+   *
+   * @template K - The cache key type (inferred from UseCacheKey, supports template patterns)
+   * @param key - Schema-defined cache key (fixed or matching template pattern)
+   * @param value - Value to cache (type inferred from schema via template matching)
    * @param ttl - Time to live in milliseconds (optional)
+   *
+   * @example
+   * ```typescript
+   * // Fixed key
+   * cacheService.set('app.user.avatar', 'https://example.com/avatar.png')
+   *
+   * // Template key (schema: 'scroll.position:${id}': number)
+   * cacheService.set('scroll.position:topic-123', 150)
+   *
+   * // With TTL (expires after 30 seconds)
+   * cacheService.set('chat.generating', true, 30000)
+   * ```
    */
-  set<K extends UseCacheKey>(key: K, value: UseCacheSchema[K], ttl?: number): void {
+  set<K extends UseCacheKey>(key: K, value: InferUseCacheValue<K>, ttl?: number): void {
     this.setInternal(key, value, ttl)
   }
 
   /**
    * Set value in memory cache with optional TTL (casual, dynamic key)
-   * @param key - Dynamic cache key (e.g., `topic:${id}`)
+   *
+   * Use this for fully dynamic keys that don't match any schema pattern.
+   * For keys matching schema patterns (including templates), use `set()` instead.
+   *
+   * @template T - The value type to cache
+   * @param key - Dynamic cache key that doesn't match any schema pattern
    * @param value - Value to cache
    * @param ttl - Time to live in milliseconds (optional)
+   *
+   * @example
+   * ```typescript
+   * // Dynamic key usage
+   * cacheService.setCasual('my.custom.key', { data: 'value' })
+   *
+   * // With TTL (expires after 60 seconds)
+   * cacheService.setCasual('temp.data', result, 60000)
+   *
+   * // Schema keys should use type-safe methods:
+   * // Use: cacheService.set('app.user.avatar', 'url')
+   * ```
    */
   setCasual<T>(key: Exclude<string, UseCacheKey>, value: T, ttl?: number): void {
     this.setInternal(key, value, ttl)
@@ -196,8 +271,19 @@ export class CacheService {
 
   /**
    * Check if key exists in memory cache and is not expired (casual, dynamic key)
-   * @param key - Dynamic cache key
+   *
+   * Use this for fully dynamic keys that don't match any schema pattern.
+   * For keys matching schema patterns (including templates), use `has()` instead.
+   *
+   * @param key - Dynamic cache key that doesn't match any schema pattern
    * @returns True if key exists and is valid, false otherwise
+   *
+   * @example
+   * ```typescript
+   * if (cacheService.hasCasual('my.custom.key')) {
+   *   const data = cacheService.getCasual<MyType>('my.custom.key')
+   * }
+   * ```
    */
   hasCasual(key: Exclude<string, UseCacheKey>): boolean {
     return this.hasInternal(key)
@@ -233,8 +319,18 @@ export class CacheService {
 
   /**
    * Delete from memory cache with hook protection (casual, dynamic key)
-   * @param key - Dynamic cache key
+   *
+   * Use this for fully dynamic keys that don't match any schema pattern.
+   * For keys matching schema patterns (including templates), use `delete()` instead.
+   *
+   * @param key - Dynamic cache key that doesn't match any schema pattern
    * @returns True if deletion succeeded, false if key is protected by active hooks
+   *
+   * @example
+   * ```typescript
+   * // Delete dynamic cache entry
+   * cacheService.deleteCasual('my.custom.key')
+   * ```
    */
   deleteCasual(key: Exclude<string, UseCacheKey>): boolean {
     return this.deleteInternal(key)
@@ -274,8 +370,19 @@ export class CacheService {
 
   /**
    * Check if a key has TTL set in memory cache (casual, dynamic key)
-   * @param key - Dynamic cache key
+   *
+   * Use this for fully dynamic keys that don't match any schema pattern.
+   * For keys matching schema patterns (including templates), use `hasTTL()` instead.
+   *
+   * @param key - Dynamic cache key that doesn't match any schema pattern
    * @returns True if key has TTL configured
+   *
+   * @example
+   * ```typescript
+   * if (cacheService.hasTTLCasual('my.custom.key')) {
+   *   console.log('This cache entry will expire')
+   * }
+   * ```
    */
   hasTTLCasual(key: Exclude<string, UseCacheKey>): boolean {
     const entry = this.memoryCache.get(key)
