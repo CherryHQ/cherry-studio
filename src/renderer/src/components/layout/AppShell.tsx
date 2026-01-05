@@ -1,6 +1,7 @@
 import '@renderer/databases'
 
-import { cn, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Plus, X } from 'lucide-react'
 import { Activity } from 'react'
