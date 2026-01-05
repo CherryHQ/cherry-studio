@@ -43,7 +43,7 @@ When creating a Pull Request, you MUST:
 ### Electron Structure
 
 - **Main Process** (`src/main/`): Node.js backend with services (MCP, Knowledge, Storage, etc.)
-- **Renderer Process** (`src/renderer/`): React UI with Redux state management
+- **Renderer Process** (`src/renderer/`): React UI
 - **Preload Scripts** (`src/preload/`): Secure IPC bridge
 
 ### Key Architectural Components
@@ -52,11 +52,11 @@ When creating a Pull Request, you MUST:
 
 **MUST READ**: [docs/en/references/data/README.md](docs/en/references/data/README.md) for system selection, architecture, and patterns.
 
-| System | Use Case | APIs |
-|--------|----------|------|
-| Cache | Temp data (can lose) | `useCache`, `useSharedCache`, `usePersistCache` |
-| Preference | User settings | `usePreference` |
-| DataApi | Business data (**critical**) | `useQuery`, `useMutation` |
+| System     | Use Case                     | APIs                                            |
+| ---------- | ---------------------------- | ----------------------------------------------- |
+| Cache      | Temp data (can lose)         | `useCache`, `useSharedCache`, `usePersistCache` |
+| Preference | User settings                | `usePreference`                                 |
+| DataApi    | Business data (**critical**) | `useQuery`, `useMutation`                       |
 
 Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `yarn db:migrations:generate`
 
@@ -83,16 +83,32 @@ Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migratio
 - **Multi-language Support**: i18n with dynamic loading
 - **Theme System**: Light/dark themes with custom CSS variables
 
-### UI Design
+## v2 Refactoring (In Progress)
 
-The project is in the process of migrating from antd & styled-components to Tailwind CSS and Shadcn UI. Please use components from `@packages/ui` to build UI components. The use of antd and styled-components is prohibited.
+The v2 branch is undergoing a major refactoring effort:
 
-UI Library: `@packages/ui`
+### Data Layer
+
+- **Removing**: Redux, Dexie
+- **Adopting**: Cache / Preference / DataApi architecture (see [Data Management](#data-management))
+
+### UI Layer
+
+- **Removing**: antd, HeroUI, styled-components
+- **Adopting**: `@cherrystudio/ui` (located in `packages/ui`, Tailwind CSS + Shadcn UI)
+- **Prohibited**: antd, HeroUI, styled-components
+
+### File Naming Convention
+
+During migration, use `*.v2.ts` suffix for files not yet fully migrated:
+
+- Indicates work-in-progress refactoring
+- Avoids conflicts with existing code
+- **Post-completion**: These files will be renamed or merged into their final locations
 
 ## Logging Standards
 
 ### Usage
-
 
 ```typescript
 import { loggerService } from "@logger";
