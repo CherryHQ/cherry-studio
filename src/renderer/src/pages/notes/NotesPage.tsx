@@ -10,11 +10,11 @@ import {
   addDir,
   addNote,
   delNode,
+  type FileEntryData,
   loadTree,
   renameNode as renameEntry,
   sortTree,
-  uploadNotes,
-  type FileEntryData
+  uploadNotes
 } from '@renderer/services/NotesService'
 import {
   addUniquePath,
@@ -712,7 +712,11 @@ const NotesPage: FC = () => {
 
         let result: Awaited<ReturnType<typeof uploadNotes>>
         try {
-          result = await uploadNotes(files, targetFolderPath)
+          if (files.length > 0 && 'fullPath' in files[0]) {
+            result = await uploadNotes(files as FileEntryData[], targetFolderPath)
+          } else {
+            result = await uploadNotes(files as File[], targetFolderPath)
+          }
         } catch (uploadError) {
           logger.error('Upload operation failed:', uploadError as Error)
           throw uploadError
