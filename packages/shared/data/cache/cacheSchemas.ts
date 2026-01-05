@@ -142,6 +142,21 @@ export type UseCacheSchema = {
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': number
   'entity.cache.${type}_${id}': { loaded: boolean; data: unknown }
+
+  // ============================================================================
+  // Message Streaming Cache (Temporary)
+  // ============================================================================
+  // TODO [v2]: Replace `any` with proper types after newMessage.ts types are
+  // migrated to packages/shared/data/types/message.ts
+  // Current types:
+  // - StreamingSession: defined locally in StreamingService.ts
+  // - Message: src/renderer/src/types/newMessage.ts (renderer format, not shared/Message)
+  // - MessageBlock: src/renderer/src/types/newMessage.ts
+  'message.streaming.session.${messageId}': any // StreamingSession
+  'message.streaming.topic_sessions.${topicId}': string[]
+  'message.streaming.content.${messageId}': any // Message (renderer format)
+  'message.streaming.block.${blockId}': any // MessageBlock
+  'message.streaming.siblings_counter.${topicId}': number
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -184,7 +199,14 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': 0,
-  'entity.cache.${type}_${id}': { loaded: false, data: null }
+  'entity.cache.${type}_${id}': { loaded: false, data: null },
+
+  // Message Streaming Cache
+  'message.streaming.session.${messageId}': null,
+  'message.streaming.topic_sessions.${topicId}': [],
+  'message.streaming.content.${messageId}': null,
+  'message.streaming.block.${blockId}': null,
+  'message.streaming.siblings_counter.${topicId}': 0
 }
 
 /**
