@@ -303,23 +303,69 @@ const ErrorIcon = ({ className }: SVGProps<SVGSVGElement>) => (
 //     />
 //   </svg>
 // )
-interface ToastProps<ToastData = unknown> {
-  id: string | number
-  type?: 'info' | 'warning' | 'error' | 'success' | 'loading' | 'custom'
+
+/** Unique identifier for the toast. Handled internally, not passed in by external. */
+type ToastIdType = string | number
+
+interface BaseToastProps {
+  /** Main toast message content */
   title: ReactNode
+  /** Optional detailed description */
   description?: ReactNode
+  /** Whether to apply colored background styling */
   colored?: boolean
+  /** Duration in milliseconds before auto-dismissal */
   duration?: number
+  /** Whether the toast can be manually dismissed */
   dismissable?: boolean
+  /** Callback function when toast is dismissed */
   onDismiss?: () => void
+  /** Action button or custom React node */
   button?: Action | ReactNode
-  promise?: Promise<ToastData>
+  /** Custom class names for toast sub-components */
   classNames?: ToastClassnames
-  jsx?: (id: number | string) => React.ReactElement
 }
 
-function toast(props: Omit<ToastProps, 'id'>) {
-  const type = props.type ?? 'info'
+interface InfoToastProps extends BaseToastProps {
+  // defaults to info
+  type?: 'info'
+}
+
+interface WarningToastProps extends BaseToastProps {
+  type: 'warning'
+}
+
+interface ErrorToastProps extends BaseToastProps {
+  type: 'error'
+}
+
+interface SuccessToastProps extends BaseToastProps {
+  type: 'success'
+}
+
+interface LoadingToastProps<ToastData = unknown> extends BaseToastProps {
+  type: 'loading'
+  promise?: Promise<ToastData>
+}
+
+interface CustomToastProps {
+  type: 'custom'
+  jsx: (id: number | string) => React.ReactElement
+  data: ExternalToast
+}
+
+type ToastProps<ToastData = unknown> =
+  | InfoToastProps
+  | WarningToastProps
+  | ErrorToastProps
+  | SuccessToastProps
+  | LoadingToastProps<ToastData>
+  | CustomToastProps
+
+function toast(props: ToastProps) {
+  if (props.type === 'custom') {
+    return sonnerToast.custom(props.jsx, props.data)
+  }
 
   const baseClassNames: ToastClassnames = {
     toast: cn(
@@ -356,7 +402,8 @@ function toast(props: Omit<ToastProps, 'id'>) {
     dismissible: rest.dismissable,
     onDismiss: rest.onDismiss
   } satisfies ExternalToast
-  switch (type) {
+  switch (props.type) {
+    default:
     case 'info':
       return sonnerToast.info(props.title, data)
     case 'warning':
@@ -374,16 +421,18 @@ function toast(props: Omit<ToastProps, 'id'>) {
         })
       }
       return id
-    default:
-      console.warn('Using custom toast without a jsx.')
-      return sonnerToast.custom(props.jsx ?? ((id) => <div id={String(id)}>{props.title}</div>))
   }
 }
 
-interface QuickApiProps extends Omit<ToastProps, 'type' | 'id' | 'title'> {}
+interface QuickApiProps extends Omit<BaseToastProps, 'type' | 'id' | 'title'> {}
 
-interface QuickLoadingProps extends QuickApiProps {
-  promise: ToastProps['promise']
+interface QuickLoadingProps<ToastData = unknown> extends QuickApiProps {
+  promise?: LoadingToastProps<ToastData>['promise']
+}
+
+interface QuickCustomProps {
+  jsx: CustomToastProps['jsx']
+  data: CustomToastProps['data']
 }
 
 toast.info = (message: ReactNode, data?: QuickApiProps) =>
@@ -391,37 +440,43 @@ toast.info = (message: ReactNode, data?: QuickApiProps) =>
     type: 'info',
     title: message,
     ...data
-  })
+  } satisfies InfoToastProps)
 
 toast.success = (message: ReactNode, data?: QuickApiProps) =>
   toast({
     type: 'success',
     title: message,
     ...data
-  })
+  } satisfies SuccessToastProps)
 
 toast.warning = (message: ReactNode, data?: QuickApiProps) =>
   toast({
     type: 'warning',
     title: message,
     ...data
-  })
+  } satisfies WarningToastProps)
 
 toast.error = (message: ReactNode, data?: QuickApiProps) =>
   toast({
     type: 'error',
     title: message,
     ...data
-  })
+  } satisfies ErrorToastProps)
 
-toast.loading = (message: ReactNode, data: QuickLoadingProps) =>
+toast.loading = <ToastData = unknown>(message: ReactNode, data: QuickLoadingProps<ToastData>) =>
   toast({
     type: 'loading',
     title: message,
     ...data
-  })
+  } satisfies LoadingToastProps<ToastData>)
 
-toast.dismiss = (id: ToastProps['id']) => sonnerToast.dismiss(id)
+toast.custom = (props: QuickCustomProps) =>
+  toast({
+    type: 'custom',
+    ...props
+  } satisfies CustomToastProps)
+
+toast.dismiss = (id: string | number) => sonnerToast.dismiss(id)
 
 const toastBgColorVariants = cva(undefined, {
   variants: {
