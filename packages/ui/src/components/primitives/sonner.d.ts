@@ -1,72 +1,113 @@
 import type { ReactNode } from 'react'
+import type { Action, ExternalToast, ToastClassnames } from 'sonner'
 
 /**
- * Toast type variants
+ * Unique identifier for the toast
  */
-type ToastType = 'info' | 'warning' | 'error' | 'success' | 'loading'
+type ToastIdType = string | number
 
 /**
- * Button configuration for toast actions
+ * Base toast properties shared across all toast types
  */
-interface ToastButton {
-  /** Icon to display in the button */
-  icon?: ReactNode
-  /** Button label text */
-  label: string
-  /** Click handler for the button */
-  onClick: () => void
-}
-
-/**
- * Link configuration for toast navigation
- */
-interface ToastLink {
-  /** Link label text */
-  label: string
-  /** URL to navigate to */
-  href?: string
-  /** Click handler for the link */
-  onClick?: () => void
-}
-
-/**
- * Base toast properties
- */
-interface ToastProps {
-  /** Unique identifier for the toast */
-  id: string | number
-  /** Type of toast notification */
-  type: ToastType
-  /** Main title text */
-  title: string
-  /** Optional description text */
-  description?: string
-  /** Optional colored message text */
-  coloredMessage?: string
-  /** Whether to use colored background for the toast */
-  coloredBackground?: boolean
-  /** Whether the toast can be dismissed */
+interface BaseToastProps {
+  /** Main toast message content */
+  title: ReactNode
+  /** Optional detailed description */
+  description?: ReactNode
+  /** Whether to apply colored background styling */
+  colored?: boolean
+  /** Duration in milliseconds before auto-dismissal */
+  duration?: number
+  /** Whether the toast can be manually dismissed */
   dismissable?: boolean
-  /** Callback when toast is dismissed */
+  /** Callback function when toast is dismissed */
   onDismiss?: () => void
-  /** Optional action button */
-  button?: ToastButton
-  /** Optional navigation link */
-  link?: ToastLink
-  /** Promise to track for loading state */
-  promise?: Promise<unknown>
+  /** Action button or custom React node */
+  button?: Action | ReactNode
+  /** Custom class names for toast sub-components */
+  classNames?: ToastClassnames
 }
 
 /**
- * Props for quick toast API methods (without type field)
+ * Info toast properties
  */
-interface QuickToastProps extends Omit<ToastProps, 'type' | 'id'> {}
+interface InfoToastProps extends BaseToastProps {
+  type?: 'info'
+}
 
 /**
- * Props for loading toast (requires promise)
+ * Warning toast properties
  */
-interface QuickLoadingProps extends QuickToastProps {
-  promise: ToastProps['promise']
+interface WarningToastProps extends BaseToastProps {
+  type: 'warning'
+}
+
+/**
+ * Error toast properties
+ */
+interface ErrorToastProps extends BaseToastProps {
+  type: 'error'
+}
+
+/**
+ * Success toast properties
+ */
+interface SuccessToastProps extends BaseToastProps {
+  type: 'success'
+}
+
+/**
+ * Loading toast properties
+ */
+interface LoadingToastProps<ToastData = unknown> extends BaseToastProps {
+  type: 'loading'
+  /** Optional promise to track for auto-dismissal when settled */
+  promise?: Promise<ToastData>
+}
+
+/**
+ * Custom toast properties
+ */
+interface CustomToastProps {
+  type: 'custom'
+  /** Custom JSX render function receiving toast ID */
+  jsx: (id: ToastIdType) => React.ReactElement
+  /** Additional toast configuration */
+  data: ExternalToast
+}
+
+/**
+ * Discriminated union of all toast types
+ */
+type ToastProps<ToastData = unknown> =
+  | InfoToastProps
+  | WarningToastProps
+  | ErrorToastProps
+  | SuccessToastProps
+  | LoadingToastProps<ToastData>
+  | CustomToastProps
+
+/**
+ * Props for quick toast API methods (excluding type-specific fields)
+ */
+interface QuickApiProps extends Omit<BaseToastProps, 'type'> {}
+
+/**
+ * Props for loading toast quick API (with optional promise)
+ */
+interface QuickLoadingProps<ToastData = unknown> extends QuickApiProps {
+  /** Optional promise to track for auto-dismissal when settled */
+  promise?: LoadingToastProps<ToastData>['promise']
+}
+
+/**
+ * Props for custom toast quick API
+ */
+interface QuickCustomProps {
+  /** Custom JSX render function receiving toast ID */
+  jsx: CustomToastProps['jsx']
+  /** Additional toast configuration */
+  data: CustomToastProps['data']
 }
 
 /**
@@ -75,7 +116,7 @@ interface QuickLoadingProps extends QuickToastProps {
 interface toast {
   /**
    * Display a custom toast notification
-   * @param props - Toast configuration (must include type)
+   * @param props - Toast configuration with discriminated type
    * @returns Toast ID
    * @example
    * toast({
@@ -84,72 +125,102 @@ interface toast {
    *   description: 'This is a toast'
    * })
    */
-  (props: Omit<ToastProps, 'id'>): string | number
+  <ToastData = unknown>(props: ToastProps<ToastData>): ToastIdType
 
   /**
    * Display an info toast notification
-   * @param props - Toast configuration (type is automatically set to 'info')
+   * @param message - Toast message content
+   * @param data - Optional additional configuration
+   * @returns Toast ID
    * @example
-   * toast.info({
-   *   title: 'Information',
+   * toast.info('Information message', {
    *   description: 'This is an info message'
    * })
    */
-  info: (props: QuickToastProps) => void
+  info: (message: ReactNode, data?: QuickApiProps) => ToastIdType
 
   /**
    * Display a success toast notification
-   * @param props - Toast configuration (type is automatically set to 'success')
+   * @param message - Toast message content
+   * @param data - Optional additional configuration
+   * @returns Toast ID
    * @example
-   * toast.success({
-   *   title: 'Success!',
+   * toast.success('Success!', {
    *   description: 'Operation completed successfully'
    * })
    */
-  success: (props: QuickToastProps) => void
+  success: (message: ReactNode, data?: QuickApiProps) => ToastIdType
 
   /**
    * Display a warning toast notification
-   * @param props - Toast configuration (type is automatically set to 'warning')
+   * @param message - Toast message content
+   * @param data - Optional additional configuration
+   * @returns Toast ID
    * @example
-   * toast.warning({
-   *   title: 'Warning',
+   * toast.warning('Warning', {
    *   description: 'Please be careful'
    * })
    */
-  warning: (props: QuickToastProps) => void
+  warning: (message: ReactNode, data?: QuickApiProps) => ToastIdType
 
   /**
    * Display an error toast notification
-   * @param props - Toast configuration (type is automatically set to 'error')
+   * @param message - Toast message content
+   * @param data - Optional additional configuration
+   * @returns Toast ID
    * @example
-   * toast.error({
-   *   title: 'Error',
+   * toast.error('Error', {
    *   description: 'Something went wrong'
    * })
    */
-  error: (props: QuickToastProps) => void
+  error: (message: ReactNode, data?: QuickApiProps) => ToastIdType
 
   /**
-   * Display a loading toast notification with promise tracking
-   * @param props - Toast configuration (type is automatically set to 'loading', requires promise)
+   * Display a loading toast notification with optional promise tracking
+   * @param message - Toast message content
+   * @param data - Additional configuration with optional promise
+   * @returns Toast ID
    * @example
-   * toast.loading({
-   *   title: 'Loading...',
+   * toast.loading('Loading...', {
    *   promise: fetchData()
    * })
    */
-  loading: (props: QuickLoadingProps) => void
+  loading: <ToastData = unknown>(message: ReactNode, data?: QuickLoadingProps<ToastData>) => ToastIdType
+
+  /**
+   * Display a custom toast notification
+   * @param props - Custom toast configuration
+   * @returns Toast ID
+   * @example
+   * toast.custom({
+   *   jsx: (id) => <div>Custom toast {id}</div>,
+   *   data: { duration: 5000 }
+   * })
+   */
+  custom: (props: QuickCustomProps) => ToastIdType
 
   /**
    * Dismiss a toast notification by its ID
    * @param id - The ID of the toast to dismiss
    * @example
-   * const toastId = toast.info({ title: 'Info' })
+   * const toastId = toast.info('Info')
    * toast.dismiss(toastId)
    */
-  dismiss: (id: string | number) => void
+  dismiss: (id: ToastIdType) => void
 }
 
 // Export types for external use
-export type { QuickLoadingProps, QuickToastProps, ToastButton, ToastLink, ToastProps, ToastType }
+export type {
+  BaseToastProps,
+  CustomToastProps,
+  ErrorToastProps,
+  InfoToastProps,
+  LoadingToastProps,
+  QuickApiProps,
+  QuickCustomProps,
+  QuickLoadingProps,
+  SuccessToastProps,
+  ToastIdType,
+  ToastProps,
+  WarningToastProps
+}
