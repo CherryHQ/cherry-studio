@@ -1,3 +1,5 @@
 export { BlockManager } from './BlockManager'
 export type { createCallbacks as CreateCallbacksFunction } from './callbacks'
 export { createCallbacks } from './callbacks'
+export type { StartSessionOptions, StreamingSession } from './StreamingService'
+export { StreamingService, streamingService } from './StreamingService'

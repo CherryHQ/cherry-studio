@@ -1,4 +1,4 @@
-import { cn } from '@cherrystudio/ui/utils/index'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import * as React from 'react'
 

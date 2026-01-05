@@ -5,7 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId, ThinkingOption } from '@renderer/types'
+import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
 import { BuiltinMCPServerNames } from '@renderer/types'
 
 import i18n from './index'
@@ -88,7 +88,8 @@ const providerKeyMap = {
   huggingface: 'provider.huggingface',
   sophnet: 'provider.sophnet',
   gateway: 'provider.ai-gateway',
-  cerebras: 'provider.cerebras'
+  cerebras: 'provider.cerebras',
+  mimo: 'provider.mimo'
 } as const
 
 /**
@@ -310,20 +311,6 @@ export const getHttpMessageLabel = (key: string): string => {
   return getLabel(httpMessageKeyMap, key)
 }
 
-const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
-  none: 'assistants.settings.reasoning_effort.off',
-  minimal: 'assistants.settings.reasoning_effort.minimal',
-  high: 'assistants.settings.reasoning_effort.high',
-  low: 'assistants.settings.reasoning_effort.low',
-  medium: 'assistants.settings.reasoning_effort.medium',
-  auto: 'assistants.settings.reasoning_effort.default',
-  xhigh: 'assistants.settings.reasoning_effort.xhigh'
-} as const
-
-export const getReasoningEffortOptionsLabel = (key: string): string => {
-  return getLabel(reasoningEffortOptionsKeyMap, key)
-}
-
 const fileFieldKeyMap = {
   created_at: 'files.created_at',
   size: 'files.size',
@@ -343,7 +330,9 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
   [BuiltinMCPServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
   [BuiltinMCPServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
   [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
-  [BuiltinMCPServerNames.didiMCP]: 'settings.mcp.builtinServersDescriptions.didi_mcp'
+  [BuiltinMCPServerNames.didiMCP]: 'settings.mcp.builtinServersDescriptions.didi_mcp',
+  [BuiltinMCPServerNames.browser]: 'settings.mcp.builtinServersDescriptions.browser',
+  [BuiltinMCPServerNames.nowledgeMem]: 'settings.mcp.builtinServersDescriptions.nowledge_mem'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {

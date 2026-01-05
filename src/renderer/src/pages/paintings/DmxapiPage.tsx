@@ -136,11 +136,14 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     let model = ''
     let priceModel = ''
     let image_size = ''
+    let extend_params = {}
+
     for (const provider of Object.keys(modelGroups)) {
       if (modelGroups[provider] && modelGroups[provider].length > 0) {
         model = modelGroups[provider][0].id
         priceModel = modelGroups[provider][0].price
         image_size = modelGroups[provider][0].image_sizes[0].value
+        extend_params = modelGroups[provider][0].extend_params
         break
       }
     }
@@ -149,7 +152,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       model,
       priceModel,
       image_size,
-      modelGroups
+      modelGroups,
+      extend_params
     }
   }
 
@@ -158,7 +162,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     const generationMode = params?.generationMode || painting?.generationMode || MODEOPTIONS[0].value
 
-    const { model, priceModel, image_size, modelGroups } = getFirstModelInfo(generationMode)
+    const { model, priceModel, image_size, modelGroups, extend_params } = getFirstModelInfo(generationMode)
 
     return {
       ...DEFAULT_PAINTING,
@@ -169,6 +173,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       modelGroups,
       priceModel,
       image_size,
+      extend_params,
       ...params
     }
   }
@@ -186,7 +191,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectModel = (modelId: string) => {
     const model = allModels.find((m) => m.id === modelId)
     if (model) {
-      updatePaintingState({ model: modelId, priceModel: model.price, image_size: model.image_sizes[0].value })
+      updatePaintingState({
+        model: modelId,
+        priceModel: model.price,
+        image_size: model.image_sizes[0].value,
+        extend_params: model.extend_params
+      })
     }
   }
 
@@ -289,7 +299,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     clearImages()
 
-    const { model, priceModel, image_size, modelGroups } = getFirstModelInfo(v)
+    const { model, priceModel, image_size, modelGroups, extend_params } = getFirstModelInfo(v)
 
     setModelOptions(modelGroups)
 
@@ -305,9 +315,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       // 否则更新当前painting
       updatePaintingState({
         generationMode: v,
-        model: model,
-        image_size: image_size,
-        priceModel: priceModel
+        model,
+        image_size,
+        priceModel,
+        extend_params
       })
     }
   }
@@ -351,7 +362,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const params = {
       prompt,
       model: painting.model,
-      n: painting.n
+      n: painting.n,
+      ...painting?.extend_params
     }
 
     const headerExpand = {
@@ -393,7 +405,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const params = {
       prompt,
       n: painting.n,
-      model: painting.model
+      model: painting.model,
+      ...painting?.extend_params
     }
 
     if (painting.image_size) {

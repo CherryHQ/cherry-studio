@@ -31,27 +31,31 @@
       }
     },
     "gitBash": {
-      "autoDetected": "[to be translated]:Using auto-detected Git Bash",
+      "autoDetected": "自動検出されたGit Bashを使用中",
+      "autoDiscoveredHint": "自動検出",
       "clear": {
-        "button": "[to be translated]:Clear custom path"
+        "button": "カスタムパスをクリア"
       },
-      "customPath": "[to be translated]:Using custom path: {{path}}",
+      "customPath": "カスタムパスを使用中: {{path}}",
       "error": {
         "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
         "recheck": "Git Bashのインストールを再確認してください",
+        "required": "WindowsではGit Bashのパスが必要です",
         "title": "Git Bashが必要です"
       },
       "found": {
-        "title": "[to be translated]:Git Bash configured"
+        "title": "Git Bashが設定されました"
       },
       "notFound": "Git Bash が見つかりません。先にインストールしてください。",
       "pick": {
-        "button": "[to be translated]:Select Git Bash Path",
-        "failed": "[to be translated]:Failed to set Git Bash path",
-        "invalidPath": "[to be translated]:Selected file is not a valid Git Bash executable (bash.exe).",
-        "title": "[to be translated]:Select Git Bash executable"
+        "button": "Git Bashパスを選択",
+        "failed": "Git Bashパスの設定に失敗しました",
+        "invalidPath": "選択されたファイルは有効なGit Bash実行ファイル（bash.exe）ではありません。",
+        "title": "Git Bash実行ファイルを選択"
       },
-      "success": "Git Bashが正常に検出されました！"
+      "placeholder": "bash.exeのパスを選択",
+      "success": "Git Bashが正常に検出されました！",
+      "tooltip": "Windowsでエージェントを実行するにはGit Bashが必要です。まだインストールされていない場合は、git-scm.comからインストールしてください。"
     },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
@@ -416,6 +420,9 @@
     },
     "delete": {
       "content": "アシスタントを削除すると、そのアシスタントのすべてのトピックとファイルが削除されます。削除しますか？",
+      "error": {
+        "remain_one": "最後の1人のアシスタントは削除できません"
+      },
       "title": "アシスタントを削除"
     },
     "edit": {
@@ -472,6 +479,7 @@
         "button": "インポート",
         "error": {
           "fetch_failed": "URLからのデータ取得に失敗しました",
+          "file_required": "まずファイルを選択してください",
           "invalid_format": "無効なアシスタント形式：必須フィールドが不足しています",
           "url_required": "URLを入力してください"
         },
@@ -489,8 +497,11 @@
           "button": "バッチ削除",
           "confirm": "選択した{{count}}件のアシスタントを削除してもよろしいですか？"
         },
+        "batch_export": {
+          "button": "エクスポート"
+        },
         "mode": {
-          "delete": "削除",
+          "manage": "管理",
           "sort": "並べ替え"
         },
         "title": "アシスタントを管理"
@@ -540,14 +551,23 @@
       "more": "アシスタント設定",
       "prompt": "プロンプト設定",
       "reasoning_effort": {
+        "auto": "自動",
+        "auto_description": "推論にかける労力を柔軟に調整する",
         "default": "デフォルト",
+        "default_description": "設定なしで、モデルの既定の動作に依存する。",
         "high": "最大限の思考",
+        "high_description": "高度な推論",
         "label": "思考連鎖の長さ",
         "low": "少しの思考",
+        "low_description": "低レベル推論",
         "medium": "普通の思考",
+        "medium_description": "中レベル推論",
         "minimal": "最小限の思考",
+        "minimal_description": "最小限の推論",
         "off": "オフ",
-        "xhigh": "[to be translated]:Extra High"
+        "off_description": "推論を無効にする",
+        "xhigh": "超高",
+        "xhigh_description": "超高度な推論"
       },
       "regular_phrases": {
         "add": "プロンプトを追加",
@@ -1027,6 +1047,29 @@
         "yuque": "語雀にエクスポート"
       },
       "list": "トピックリスト",
+      "manage": {
+        "clear_selection": "選択をクリア",
+        "delete": {
+          "confirm": {
+            "content": "{{count}}件の選択したトピックを削除してもよろしいですか？この操作は元に戻せません。",
+            "title": "トピックを削除"
+          },
+          "success": "{{count}}件のトピックを削除しました"
+        },
+        "deselect_all": "すべての選択を解除",
+        "error": {
+          "at_least_one": "少なくとも1つのトピックは保持されなければなりません"
+        },
+        "move": {
+          "button": "移動",
+          "placeholder": "対象を選択",
+          "success": "{{count}}件のトピックを移動しました"
+        },
+        "pinned": "ピン留めされたトピック",
+        "selected_count": "{{count}} 選択済み",
+        "title": "トピックを管理",
+        "unpinned": "ピン留めされていないトピック"
+      },
       "move_to": "移動先",
       "new": "新しいトピック",
       "pin": "トピックを固定",
@@ -1036,6 +1079,10 @@
         },
         "label": "トピック提示語",
         "tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供"
+      },
+      "search": {
+        "placeholder": "トピックを検索...",
+        "title": "検索"
       },
       "title": "トピック",
       "unpin": "固定解除"
@@ -1221,11 +1268,13 @@
       }
     },
     "stop": "停止",
+    "subscribe": "購読",
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
     "unknown": "Unknown",
     "unnamed": "無題",
+    "unsubscribe": "配信停止",
     "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
     "warning": "警告",
@@ -2152,6 +2201,7 @@
     "collapse": "閉じる",
     "content_placeholder": "メモの内容を入力してください...",
     "copyContent": "コンテンツをコピーします",
+    "crossPlatformRestoreWarning": "クロスプラットフォーム設定は復元されましたが、ノートディレクトリが空です。ノートファイルを次の場所にコピーしてください：{{path}}",
     "delete": "削除",
     "delete_confirm": "この{{type}}を本当に削除しますか？",
     "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
@@ -2596,6 +2646,7 @@
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
     "longcat": "トトロ",
+    "mimo": "シャオミ・ミモ",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3114,6 +3165,7 @@
         "label": "アプリデータ",
         "migration_title": "データ移行",
         "new_path": "新しいパス",
+        "open": "オープンディレクトリ",
         "original_path": "元のパス",
         "path_change_failed": "データディレクトリの変更に失敗しました",
         "path_changed_without_copy": "パスが変更されました。",
@@ -3184,24 +3236,43 @@
         },
         "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
         "lan": {
-          "auto_close_tip": "{{seconds}}秒後に自動的に閉じます...",
-          "confirm_close_message": "ファイル転送が進行中です。閉じると転送が中断されます。強制終了してもよろしいですか？",
-          "confirm_close_title": "閉じることを確認",
           "connected": "接続済み",
           "connection_failed": "接続に失敗しました",
           "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",
+          "device_list_title": "ローカルネットワークデバイス",
+          "discovered_devices": "発見されたデバイス",
           "error": {
+            "file_too_large": "ファイルが大きすぎます。最大500MBまでサポートされています。",
             "init_failed": "初期化に失敗しました",
+            "invalid_file_type": "ZIPファイルのみがサポートされています",
             "no_file": "ファイルが選択されていません",
             "no_ip": "IPアドレスを取得できません",
+            "not_connected": "まずハンドシェイクを完了してください",
             "send_failed": "ファイルの送信に失敗しました"
           },
-          "force_close": "強制終了",
-          "generating_qr": "QRコードを生成中...",
-          "noZipSelected": "圧縮ファイルが選択されていません",
-          "scan_qr": "携帯電話でQRコードをスキャンしてください",
-          "selectZip": "圧縮ファイルを選択",
-          "sendZip": "データの復元を開始します",
+          "file_transfer": {
+            "cancelled": "転送がキャンセルされました",
+            "failed": "ファイル転送に失敗しました: {{message}}",
+            "progress": "送信中... {{progress}}%",
+            "success": "ファイルは正常に送信されました"
+          },
+          "handshake": {
+            "button": "握手",
+            "failed": "ハンドシェイクに失敗しました: {{message}}",
+            "in_progress": "ハンドシェイク中...",
+            "success": "{{device}}とのハンドシェイクが完了しました",
+            "test_message_received": "{{device}}からpongを受信しました",
+            "test_message_sent": "hello world テストペイロードを送信しました"
+          },
+          "idle_hint": "スキャンが一時停止されました。スキャンを開始して、LAN上のCherry Studioピアを検索してください。",
+          "ip_addresses": "IPアドレス",
+          "last_seen": "最後に見たのは{{time}}",
+          "metadata": "メタデータ",
+          "no_connection_warning": "Cherry StudioモバイルでLAN転送を開いてください",
+          "no_devices": "まだLANピアが見つかっていません",
+          "scan_devices": "デバイスをスキャン",
+          "scanning_hint": "ローカルネットワークでCherry Studioのピアをスキャンしています...",
+          "send_file": "ファイルを送信",
           "status": {
             "completed": "転送完了",
             "connected": "接続済み",
@@ -3210,9 +3281,11 @@
             "error": "接続エラー",
             "initializing": "接続を初期化中...",
             "preparing": "転送準備中...",
-            "sending": "転送中 {{progress}}%",
-            "waiting_qr_scan": "QRコードをスキャンして接続してください"
+            "sending": "転送中 {{progress}}%"
           },
+          "status_badge_idle": "アイドル",
+          "status_badge_scanning": "スキャン",
+          "stop_scan": "スキャンを停止",
           "title": "LAN転送",
           "transfer_progress": "転送進行"
         },
@@ -3884,6 +3957,7 @@
       "builtinServers": "組み込みサーバー",
       "builtinServersDescriptions": {
         "brave_search": "Brave検索APIを統合したMCPサーバーの実装で、ウェブ検索とローカル検索の両機能を提供します。BRAVE_API_KEY環境変数の設定が必要です",
+        "browser": "Chrome DevTools Protocolを介してheadless Electronウィンドウを制御します。ツール：URLを開く、単一行JSを実行、セッションをリセット。",
         "didi_mcp": "DiDi MCPサーバーは、地図検索、料金見積もり、注文管理、ドライバー追跡を含むライドシェアサービスを提供します。中国本土でのみ利用可能です。DIDI_API_KEY環境変数の設定が必要です",
         "dify_knowledge": "DifyのMCPサーバー実装は、Difyと対話するためのシンプルなAPIを提供します。Dify Keyの設定が必要です。",
         "fetch": "URLのウェブページコンテンツを取得するためのMCPサーバー",
@@ -3891,6 +3965,7 @@
         "mcp_auto_install": "MCPサービスの自動インストール（ベータ版）",
         "memory": "ローカルのナレッジグラフに基づく永続的なメモリの基本的な実装です。これにより、モデルは異なる会話間でユーザーの関連情報を記憶できるようになります。MEMORY_FILE_PATH 環境変数の設定が必要です。",
         "no": "説明なし",
+        "nowledge_mem": "Nowledge Mem アプリをローカルで実行する必要があります。AI チャット、ツール、ノート、エージェント、ファイルをコンピューター上のプライベートメモリに保存します。https://mem.nowledge.co/ からダウンロードしてください",
         "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",
         "sequentialthinking": "構造化された思考プロセスを通じて動的かつ反省的な問題解決を行うためのツールを提供するMCPサーバーの実装"
       },
@@ -4685,6 +4760,12 @@
       },
       "title": "その他の設定",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}}はAPIキーが必要です。今すぐ設定しますか？",
+          "ok": "設定",
+          "title": "APIキーが必要"
+        },
+        "api_providers": "APIプロバイダー",
         "apikey": "APIキー",
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
@@ -4726,7 +4807,15 @@
         },
         "content_limit": "コンテンツ制限",
         "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
+        "default_provider": "デフォルトプロバイダー",
         "free": "無料",
+        "is_default": "デフォルト",
+        "local_provider": {
+          "hint": "ウェブサイトにログインして、より良い検索結果を得て、検索設定をパーソナライズしてください。",
+          "open_settings": "{{provider}}設定を開く",
+          "settings": "ローカル検索設定"
+        },
+        "local_providers": "地元のプロバイダー",
         "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
         "overwrite": "検索サービスを上書き",
         "overwrite_tooltip": "LLMの代わりに検索サービスを強制的に使用する",
@@ -4737,6 +4826,7 @@
         "search_provider": "検索サービスプロバイダー",
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
         "search_with_time": "日付を含む検索",
+        "set_as_default": "既定として設定",
         "subscribe": "ブラックリスト購読",
         "subscribe_add": "購読を追加",
         "subscribe_add_failed": "購読ソースの追加に失敗しました",

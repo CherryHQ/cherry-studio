@@ -32,6 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Automatisch ermitteltes Git Bash wird verwendet",
+      "autoDiscoveredHint": "Automatisch erkannt",
       "clear": {
         "button": "Benutzerdefinierten Pfad löschen"
       },
@@ -39,6 +40,7 @@
       "error": {
         "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
         "recheck": "Überprüfe die Git Bash-Installation erneut",
+        "required": "Git Bash-Pfad ist unter Windows erforderlich",
         "title": "Git Bash erforderlich"
       },
       "found": {
@@ -51,7 +53,9 @@
         "invalidPath": "Die ausgewählte Datei ist keine gültige Git Bash ausführbare Datei (bash.exe).",
         "title": "Git Bash ausführbare Datei auswählen"
       },
-      "success": "Git Bash erfolgreich erkannt!"
+      "placeholder": "Wählen Sie den Pfad zu bash.exe",
+      "success": "Git Bash erfolgreich erkannt!",
+      "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installiere es von git-scm.com, falls es nicht verfügbar ist."
     },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
@@ -416,6 +420,9 @@
     },
     "delete": {
       "content": "Das Löschen des Assistenten löscht alle Themen und Dateien unter diesem Assistenten. Möchten Sie fortfahren?",
+      "error": {
+        "remain_one": "Man darf den letzten Assistenten nicht löschen."
+      },
       "title": "Assistent löschen"
     },
     "edit": {
@@ -472,6 +479,7 @@
         "button": "Importieren",
         "error": {
           "fetch_failed": "Daten von URL abrufen fehlgeschlagen",
+          "file_required": "Bitte wählen Sie zuerst eine Datei aus",
           "invalid_format": "Ungültiges Assistentenformat: Pflichtfelder fehlen",
           "url_required": "Bitte geben Sie eine URL ein"
         },
@@ -489,8 +497,11 @@
           "button": "Stapel löschen",
           "confirm": "Sind Sie sicher, dass Sie die ausgewählten {{count}} Assistenten löschen möchten?"
         },
+        "batch_export": {
+          "button": "Exportieren"
+        },
         "mode": {
-          "delete": "Löschen",
+          "manage": "Verwalten",
           "sort": "Sortieren"
         },
         "title": "Assistenten verwalten"
@@ -540,14 +551,23 @@
       "more": "Assistenteneinstellungen",
       "prompt": "Prompt-Einstellungen",
       "reasoning_effort": {
+        "auto": "Auto",
+        "auto_description": "Denkaufwand flexibel bestimmen",
         "default": "Standard",
+        "default_description": "Vom Standardverhalten des Modells abhängen, ohne Konfiguration.",
         "high": "Tiefes Nachdenken",
+        "high_description": "Ganzheitliches Denken",
         "label": "Gedankenkettenlänge",
         "low": "Spontan",
+        "low_description": "Geringfügige Argumentation",
         "medium": "Überlegt",
+        "medium_description": "Denken auf mittlerem Niveau",
         "minimal": "Minimal",
+        "minimal_description": "Minimales Denken",
         "off": "Aus",
-        "xhigh": "Extra hoch"
+        "off_description": "Denken deaktivieren",
+        "xhigh": "Extra hoch",
+        "xhigh_description": "Extra hohes Denkvermögen"
       },
       "regular_phrases": {
         "add": "Phrase hinzufügen",
@@ -1027,6 +1047,29 @@
         "yuque": "Nach Yuque exportieren"
       },
       "list": "Themenliste",
+      "manage": {
+        "clear_selection": "Auswahl aufheben",
+        "delete": {
+          "confirm": {
+            "content": "Sind Sie sicher, dass Sie {{count}} ausgewähltes Thema bzw. ausgewählte Themen löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+            "title": "Themen löschen"
+          },
+          "success": "{{count}} Thema/Themen gelöscht"
+        },
+        "deselect_all": "Alle abwählen",
+        "error": {
+          "at_least_one": "Mindestens ein Thema muss beibehalten werden"
+        },
+        "move": {
+          "button": "Bewegen",
+          "placeholder": "Ziel auswählen",
+          "success": "{{count}} Thema(s) verschoben"
+        },
+        "pinned": "Angepinnte Themen",
+        "selected_count": "{{count}} ausgewählt",
+        "title": "Themen verwalten",
+        "unpinned": "Losgelöste Themen"
+      },
       "move_to": "Verschieben nach",
       "new": "Neues Gespräch starten",
       "pin": "Thema anheften",
@@ -1036,6 +1079,10 @@
         },
         "label": "Themen-Prompt",
         "tips": "Themen-Prompt: Bietet zusätzliche ergänzende Prompts für das aktuelle Thema"
+      },
+      "search": {
+        "placeholder": "Themen durchsuchen...",
+        "title": "Suche"
       },
       "title": "Thema",
       "unpin": "Anheften aufheben"
@@ -1221,11 +1268,13 @@
       }
     },
     "stop": "Stoppen",
+    "subscribe": "Abonnieren",
     "success": "Erfolgreich",
     "swap": "Tauschen",
     "topics": "Themen",
     "unknown": "Unbekannt",
     "unnamed": "Unbenannt",
+    "unsubscribe": "Abmelden",
     "update_success": "Erfolgreich aktualisiert",
     "upload_files": "Dateien hochladen",
     "warning": "Warnung",
@@ -2152,6 +2201,7 @@
     "collapse": "Einklappen",
     "content_placeholder": "Bitte Notizinhalt eingeben...",
     "copyContent": "Inhalt kopieren",
+    "crossPlatformRestoreWarning": "Plattformübergreifende Konfiguration wiederhergestellt, aber das Notizenverzeichnis ist leer. Bitte kopieren Sie Ihre Notizdateien nach: {{path}}",
     "delete": "Löschen",
     "delete_confirm": "Möchten Sie diesen {{type}} wirklich löschen?",
     "delete_folder_confirm": "Möchten Sie Ordner \"{{name}}\" und alle seine Inhalte wirklich löschen?",
@@ -2596,6 +2646,7 @@
     "lanyun": "Lanyun Technologie",
     "lmstudio": "LM Studio",
     "longcat": "Meißner Riesenhamster",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3114,6 +3165,7 @@
         "label": "Anwendungsdaten",
         "migration_title": "Datenmigration",
         "new_path": "Neuer Pfad",
+        "open": "Offenes Verzeichnis",
         "original_path": "Ursprünglicher Pfad",
         "path_change_failed": "Datenverzeichnisänderung fehlgeschlagen",
         "path_changed_without_copy": "Pfad erfolgreich geändert",
@@ -3184,24 +3236,43 @@
         },
         "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
         "lan": {
-          "auto_close_tip": "Automatisches Schließen in {{seconds}} Sekunden...",
-          "confirm_close_message": "Dateiübertragung läuft. Beim Schließen wird die Übertragung unterbrochen. Möchten Sie wirklich das Schließen erzwingen?",
-          "confirm_close_title": "Schließen bestätigen",
           "connected": "Verbunden",
           "connection_failed": "Verbindung fehlgeschlagen",
           "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
+          "device_list_title": "Lokale Netzwerkgeräte",
+          "discovered_devices": "Entdeckte Geräte",
           "error": {
+            "file_too_large": "Datei zu groß, maximal 500 MB unterstützt",
             "init_failed": "Initialisierung fehlgeschlagen",
+            "invalid_file_type": "Nur ZIP-Dateien werden unterstützt",
             "no_file": "Keine Datei ausgewählt",
             "no_ip": "IP-Adresse kann nicht abgerufen werden",
+            "not_connected": "Bitte vervollständigen Sie zuerst das Handshake.",
             "send_failed": "Fehler beim Senden der Datei"
           },
-          "force_close": "Erzwungenes Schließen",
-          "generating_qr": "QR-Code wird generiert...",
-          "noZipSelected": "Keine komprimierte Datei ausgewählt",
-          "scan_qr": "Bitte scannen Sie den QR-Code mit Ihrem Telefon.",
-          "selectZip": "Wählen Sie eine komprimierte Datei",
-          "sendZip": "Datenwiederherstellung beginnen",
+          "file_transfer": {
+            "cancelled": "Überweisung storniert",
+            "failed": "Dateiübertragung fehlgeschlagen: {{message}}",
+            "progress": "Senden... {{progress}}%",
+            "success": "Datei erfolgreich gesendet"
+          },
+          "handshake": {
+            "button": "Handshake",
+            "failed": "Handshake fehlgeschlagen: {{message}}",
+            "in_progress": "Handshake läuft...",
+            "success": "Handshake mit {{device}} abgeschlossen",
+            "test_message_received": "Pong von {{device}} empfangen",
+            "test_message_sent": "Hallo-Welt-Test-Payload gesendet"
+          },
+          "idle_hint": "Scanvorgang pausiert. Starten Sie das Scannen, um Cherry-Studio-Peers in Ihrem LAN zu finden.",
+          "ip_addresses": "IP-Adressen",
+          "last_seen": "Zuletzt gesehen um {{time}}",
+          "metadata": "Metadaten",
+          "no_connection_warning": "Bitte öffne LAN-Transfer in der Cherry Studio Mobile-App.",
+          "no_devices": "Noch keine LAN-Peers gefunden",
+          "scan_devices": "Geräte scannen",
+          "scanning_hint": "Scanne dein lokales Netzwerk nach Cherry-Studio-Peers …",
+          "send_file": "Datei senden",
           "status": {
             "completed": "Übertragung abgeschlossen",
             "connected": "Verbunden",
@@ -3210,9 +3281,11 @@
             "error": "Verbindungsfehler",
             "initializing": "Verbindung wird initialisiert...",
             "preparing": "Übertragung wird vorbereitet...",
-            "sending": "Übertrage {{progress}}%",
-            "waiting_qr_scan": "Bitte QR-Code scannen, um zu verbinden"
+            "sending": "Übertrage {{progress}}%"
           },
+          "status_badge_idle": "Leerlauf",
+          "status_badge_scanning": "Scannen",
+          "stop_scan": "Scanvorgang stoppen",
           "title": "LAN-Übertragung",
           "transfer_progress": "Übertragungsfortschritt"
         },
@@ -3884,6 +3957,7 @@
       "builtinServers": "Integrierter Server",
       "builtinServersDescriptions": {
         "brave_search": "MCP-Server-Implementierung mit Brave-Search-API, die sowohl Web- als auch lokale Suchfunktionen bietet. BRAVE_API_KEY-Umgebungsvariable muss konfiguriert werden",
+        "browser": "Steuert ein headless Electron-Fenster über das Chrome DevTools Protocol. Tools: URL öffnen, einzeiligen JS ausführen, Sitzung zurücksetzen.",
         "didi_mcp": "An integrated Didi MCP server implementation that provides ride-hailing services including map search, price estimation, order management, and driver tracking. Only available in mainland China. Requires the DIDI_API_KEY environment variable to be configured.",
         "dify_knowledge": "MCP-Server-Implementierung von Dify, die einen einfachen API-Zugriff auf Dify bietet. Dify Key muss konfiguriert werden",
         "fetch": "MCP-Server zum Abrufen von Webseiteninhalten",
@@ -3891,6 +3965,7 @@
         "mcp_auto_install": "MCP-Service automatisch installieren (Beta-Version)",
         "memory": "MCP-Server mit persistenter Erinnerungsbasis auf lokalem Wissensgraphen, der Informationen über verschiedene Dialoge hinweg speichert. MEMORY_FILE_PATH-Umgebungsvariable muss konfiguriert werden",
         "no": "Keine Beschreibung",
+        "nowledge_mem": "Erfordert lokal laufende Nowledge Mem App. Speichert KI-Chats, Tools, Notizen, Agenten und Dateien in einem privaten Speicher auf Ihrem Computer. Download unter https://mem.nowledge.co/",
         "python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
         "sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht"
       },
@@ -4051,7 +4126,7 @@
       "tagsPlaceholder": "Tag eingeben",
       "timeout": "Timeout",
       "timeoutTooltip": "Timeout für Anfragen an den Server in Sekunden. Standardmäßig 60 Sekunden.",
-      "title": "MCP",
+      "title": "MCP-Server",
       "tools": {
         "autoApprove": {
           "label": "Automatische Genehmigung",
@@ -4685,6 +4760,12 @@
       },
       "title": "Weitere Einstellungen",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} erfordert einen API-Schlüssel, um zu funktionieren. Möchten Sie ihn jetzt konfigurieren?",
+          "ok": "Konfigurieren",
+          "title": "API-Schlüssel erforderlich"
+        },
+        "api_providers": "API-Anbieter",
         "apikey": "API-Schlüssel",
         "blacklist": "Schwarze Liste",
         "blacklist_description": "Folgende Websites werden nicht in Suchergebnissen angezeigt",
@@ -4726,7 +4807,15 @@
         },
         "content_limit": "Inhaltslängenbegrenzung",
         "content_limit_tooltip": "Begrenzen Sie die Länge der Suchergebnisse, überschreitende Inhalte werden abgeschnitten",
+        "default_provider": "Standardanbieter",
         "free": "Kostenlos",
+        "is_default": "Standard",
+        "local_provider": {
+          "hint": "Melden Sie sich auf der Website an, um bessere Suchergebnisse zu erhalten und Ihre Sucheinstellungen zu personalisieren.",
+          "open_settings": "{{provider}}-Einstellungen öffnen",
+          "settings": "Lokale Sucheinstellungen"
+        },
+        "local_providers": "Lokale Anbieter",
         "no_provider_selected": "Wählen Sie einen Suchanbieter aus, bevor Sie suchen",
         "overwrite": "Suchanbieter statt LLM für Suche erzwingen",
         "overwrite_tooltip": "Suchanbieter statt LLM für Suche erzwingen",
@@ -4737,6 +4826,7 @@
         "search_provider": "Suchanbieter",
         "search_provider_placeholder": "Einen Suchanbieter auswählen",
         "search_with_time": "Suche mit Datum",
+        "set_as_default": "Als Standard festlegen",
         "subscribe": "Schwarze Liste-Abonnement",
         "subscribe_add": "Abonnement hinzufügen",
         "subscribe_add_failed": "Abonnement-Quelle hinzufügen fehlgeschlagen",

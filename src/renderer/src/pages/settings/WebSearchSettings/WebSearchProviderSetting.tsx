@@ -1,15 +1,18 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
+import BingLogo from '@renderer/assets/images/search/bing.svg'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
+import GoogleLogo from '@renderer/assets/images/search/google.svg'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
+import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
@@ -30,6 +33,7 @@ interface Props {
 
 const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider } = useWebSearchProvider(providerId)
+  const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState(provider.apiKey || '')
   const [apiHost, setApiHost] = useState(provider.apiHost || '')
@@ -144,29 +148,84 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       case 'searxng':
         return SearxngLogo
       case 'exa':
+      case 'exa-mcp':
         return ExaLogo
       case 'bocha':
         return BochaLogo
+      case 'local-google':
+        return GoogleLogo
+      case 'local-bing':
+        return BingLogo
+      case 'local-baidu':
+        return BaiduLogo
       default:
         return undefined
+    }
+  }
+
+  const isLocalProvider = provider.id.startsWith('local')
+
+  const openLocalProviderSettings = async () => {
+    if (officialWebsite) {
+      await window.api.searchService.openSearchWindow(provider.id, true)
+      await window.api.searchService.openUrlInSearchWindow(provider.id, officialWebsite)
+    }
+  }
+
+  const providerLogo = getWebSearchProviderLogo(provider.id)
+
+  // Check if this provider is already the default
+  const isDefault = defaultProvider?.id === provider.id
+
+  // Check if provider needs API key but doesn't have one configured
+  const needsApiKey = hasObjectKey(provider, 'apiKey')
+  const hasApiKey = provider.apiKey && provider.apiKey.trim() !== ''
+  const canSetAsDefault = !isDefault && (!needsApiKey || hasApiKey)
+
+  const handleSetAsDefault = () => {
+    if (canSetAsDefault) {
+      setDefaultProvider(provider)
     }
   }
 
   return (
     <>
       <SettingTitle>
-        <Flex className="items-center gap-2">
-          <ProviderLogo src={getWebSearchProviderLogo(provider.id)} />
-          <ProviderName> {provider.name}</ProviderName>
-          {officialWebsite && webSearchProviderConfig?.websites && (
-            <Link target="_blank" href={webSearchProviderConfig.websites.official}>
-              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
-            </Link>
-          )}
+        <Flex className="items-center justify-between" style={{ width: '100%' }}>
+          <Flex className="items-center gap-2">
+            {providerLogo ? (
+              <img src={providerLogo} alt={provider.name} className="h-5 w-5 object-contain" />
+            ) : (
+              <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
+            )}
+            <ProviderName> {provider.name}</ProviderName>
+            {officialWebsite && webSearchProviderConfig?.websites && (
+              <Link target="_blank" href={webSearchProviderConfig.websites.official}>
+                <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
+              </Link>
+            )}
+          </Flex>
+          <Button variant="default" disabled={!canSetAsDefault} onClick={handleSetAsDefault}>
+            {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
+          </Button>
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {hasObjectKey(provider, 'apiKey') && (
+      {isLocalProvider && (
+        <>
+          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
+            {t('settings.tool.websearch.local_provider.settings')}
+          </SettingSubtitle>
+          <Button variant="default" onClick={openLocalProviderSettings}>
+            <ExportOutlined />
+            {t('settings.tool.websearch.local_provider.open_settings', { provider: provider.name })}
+          </Button>
+          <SettingHelpTextRow style={{ marginTop: 10 }}>
+            <SettingHelpText>{t('settings.tool.websearch.local_provider.hint')}</SettingHelpText>
+          </SettingHelpTextRow>
+        </>
+      )}
+      {!isLocalProvider && hasObjectKey(provider, 'apiKey') && (
         <>
           <SettingSubtitle
             style={{
@@ -215,7 +274,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </SettingHelpTextRow>
         </>
       )}
-      {hasObjectKey(provider, 'apiHost') && (
+      {!isLocalProvider && hasObjectKey(provider, 'apiHost') && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
@@ -230,10 +289,11 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </Flex>
         </>
       )}
-      {hasObjectKey(provider, 'basicAuthUsername') && (
+      {!isLocalProvider && hasObjectKey(provider, 'basicAuthUsername') && (
         <>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
+          <SettingSubtitle
+            style={{ marginTop: 5, marginBottom: 10, display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
             {t('settings.provider.basic_auth.label')}
             <InfoTooltip
               placement="right"
@@ -292,11 +352,6 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
-`
-const ProviderLogo = styled.img`
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
 `
 
 export default WebSearchProviderSetting

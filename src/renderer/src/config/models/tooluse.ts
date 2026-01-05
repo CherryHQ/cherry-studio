@@ -22,14 +22,17 @@ export const FUNCTION_CALLING_MODELS = [
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
   'glm-4.5(?:-[\\w-]+)?',
+  'glm-4.7(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'doubao-seed-1[.-][68](?:-[\\w-]+)?',
+  'doubao-seed-code(?:-[\\w-]+)?',
   'kimi-k2(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
-  'minimax-m2'
+  'minimax-m2(?:.1)?',
+  'mimo-v2-flash'
 ] as const
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [

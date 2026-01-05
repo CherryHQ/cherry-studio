@@ -15,9 +15,10 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
-import { ConfigKeys, configManager } from '@main/services/ConfigManager'
-import { validateGitBashPath } from '@main/utils/process'
+import { isWin } from '@main/constant'
+import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
+import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -113,7 +114,15 @@ class ClaudeCodeService implements AgentServiceInterface {
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
     ) as Record<string, string>
 
-    const customGitBashPath = validateGitBashPath(configManager.get(ConfigKeys.GitBashPath) as string | undefined)
+    // Auto-discover Git Bash path on Windows (already logs internally)
+    const customGitBashPath = isWin ? autoDiscoverGitBash() : null
+
+    // Claude Agent SDK builds the final endpoint as `${ANTHROPIC_BASE_URL}/v1/messages`.
+    // To avoid malformed URLs like `/v1/v1/messages`, we normalize the provider host
+    // by stripping any trailing API version (e.g. `/v1`).
+    const anthropicBaseUrl = withoutTrailingApiVersion(
+      modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost
+    )
 
     const env = {
       ...loginShellEnvWithoutProxies,
@@ -123,7 +132,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       // ANTHROPIC_BASE_URL: `http://${apiConfig['feature.csaas.host']}:${apiConfig['feature.csaas.port']}/${modelInfo.provider.id}`,
       ANTHROPIC_API_KEY: modelInfo.provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
-      ANTHROPIC_BASE_URL: modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost,
+      ANTHROPIC_BASE_URL: anthropicBaseUrl,
       ANTHROPIC_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_OPUS_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_SONNET_MODEL: modelInfo.modelId,

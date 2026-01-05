@@ -22,7 +22,7 @@ export interface CacheSyncMessage {
   type: 'shared' | 'persist'
   key: string
   value: any
-  ttl?: number
+  expireAt?: number // Absolute Unix timestamp for precise cross-window sync
 }
 
 /**
@@ -33,7 +33,7 @@ export interface CacheSyncBatchMessage {
   entries: Array<{
     key: string
     value: any
-    ttl?: number
+    expireAt?: number // Absolute Unix timestamp for precise cross-window sync
   }>
 }
 
