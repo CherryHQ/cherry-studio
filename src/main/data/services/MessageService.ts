@@ -43,23 +43,35 @@ const DEFAULT_LIMIT = 20
 
 /**
  * Convert database row to Message entity
+ *
+ * Note: When using raw SQL queries (db.all with sql``), Drizzle ORM does NOT
+ * automatically parse JSON columns. This function handles both parsed objects
+ * (from ORM queries) and JSON strings (from raw SQL queries).
  */
 function rowToMessage(row: typeof messageTable.$inferSelect): Message {
+  // Handle JSON strings from raw SQL queries (db.all with sql``)
+  // ORM queries (.select().from()) return already-parsed objects
+  const parseJson = <T>(value: T | string | null | undefined): T | null => {
+    if (value == null) return null
+    if (typeof value === 'string') return JSON.parse(value)
+    return value as T
+  }
+
   return {
     id: row.id,
     topicId: row.topicId,
     parentId: row.parentId,
     role: row.role as Message['role'],
-    data: row.data,
+    data: parseJson(row.data)!,
     searchableText: row.searchableText,
     status: row.status as Message['status'],
     siblingsGroupId: row.siblingsGroupId ?? 0,
     assistantId: row.assistantId,
-    assistantMeta: row.assistantMeta,
+    assistantMeta: parseJson(row.assistantMeta),
     modelId: row.modelId,
-    modelMeta: row.modelMeta,
+    modelMeta: parseJson(row.modelMeta),
     traceId: row.traceId,
-    stats: row.stats,
+    stats: parseJson(row.stats),
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
   }
