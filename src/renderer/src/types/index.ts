@@ -88,24 +88,30 @@ const ThinkModelTypes = [
   'gpt5_1',
   'gpt5_codex',
   'gpt5_1_codex',
+  'gpt5_1_codex_max',
+  'gpt5_2',
   'gpt5pro',
+  'gpt52pro',
+  'gpt_oss',
   'grok',
   'grok4_fast',
-  'gemini',
-  'gemini_pro',
-  'gemini3',
+  'gemini2_flash',
+  'gemini2_pro',
+  'gemini3_flash',
+  'gemini3_pro',
   'qwen',
   'qwen_thinking',
   'doubao',
   'doubao_no_auto',
   'doubao_after_251015',
+  'mimo',
   'hunyuan',
   'zhipu',
   'perplexity',
   'deepseek_hybrid'
 ] as const
 
-export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto' | 'default'
 export type ThinkingOption = ReasoningEffortOption
 export type ThinkingModelType = (typeof ThinkModelTypes)[number]
 export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
@@ -117,11 +123,14 @@ export function isThinkModelType(type: string): type is ThinkingModelType {
 }
 
 export const EFFORT_RATIO: EffortRatio = {
+  // 'default' is not expected to be used.
+  default: 0,
   none: 0.01,
   minimal: 0.05,
   low: 0.05,
   medium: 0.5,
   high: 0.8,
+  xhigh: 0.9,
   auto: 2
 }
 
@@ -136,12 +145,11 @@ export type AssistantSettings = {
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
-  reasoning_effort?: ReasoningEffortOption
-  /** 保留上一次使用思考模型时的 reasoning effort, 在从非思考模型切换到思考模型时恢复.
-   *
-   * TODO: 目前 reasoning_effort === undefined 有两个语义，有的场景是显式关闭思考，有的场景是不传参。
-   * 未来应该重构思考控制，将启用/关闭思考和思考选项分离，这样就不用依赖 cache 了。
-   *
+  reasoning_effort: ReasoningEffortOption
+  /**
+   * Preserve the effective reasoning effort (not 'default') from the last use of a thinking model which supports thinking control,
+   * and restore it when switching back from a non-thinking or fixed reasoning model.
+   * FIXME: It should be managed by external cache service instead of being stored in the assistant
    */
   reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
@@ -388,6 +396,7 @@ export interface DmxapiPainting extends PaintingParams {
   autoCreate?: boolean
   generationMode?: generationModeType
   priceModel?: string
+  extend_params?: Record<string, unknown>
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -464,6 +473,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'ja-JP'
   | 'pt-PT'
+  | 'ro-RO'
   | 'ru-RU'
 
 export type CodeStyleVarious = 'auto' | string
@@ -596,6 +606,7 @@ export const WebSearchProviderIds = {
   tavily: 'tavily',
   searxng: 'searxng',
   exa: 'exa',
+  'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
   'local-google': 'local-google',
   'local-bing': 'local-bing',
@@ -744,7 +755,9 @@ export const BuiltinMCPServerNames = {
   filesystem: '@cherry/filesystem',
   difyKnowledge: '@cherry/dify-knowledge',
   python: '@cherry/python',
-  didiMCP: '@cherry/didi-mcp'
+  didiMCP: '@cherry/didi-mcp',
+  browser: '@cherry/browser',
+  nowledgeMem: '@cherry/nowledge-mem'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
@@ -905,17 +918,11 @@ export * from './tool'
 // Memory Service Types
 // ========================================================================
 export interface MemoryConfig {
-  /**
-   * @deprecated use embedderApiClient instead
-   */
-  embedderModel?: Model
-  embedderDimensions?: number
-  /**
-   * @deprecated use llmApiClient instead
-   */
+  embeddingDimensions?: number
+  embeddingModel?: Model
   llmModel?: Model
-  embedderApiClient?: ApiClient
-  llmApiClient?: ApiClient
+  // Dynamically retrieved, not persistently stored
+  embeddingApiClient?: ApiClient
   customFactExtractionPrompt?: string
   customUpdateMemoryPrompt?: string
   /** Indicates whether embedding dimensions are automatically detected */

@@ -8,16 +8,16 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  getThinkModelType,
+  getModelSupportedReasoningEffortOptions,
   isDeepSeekHybridInferenceModel,
+  isDoubaoSeed18Model,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
   isGemini3ThinkingTokenModel,
-  isGPT5SeriesModel,
-  isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
+  isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -28,14 +28,15 @@ import {
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenHunyuanModel,
+  isSupportedThinkingTokenMiMoModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
-  MODEL_SUPPORTED_REASONING_EFFORT
+  isSupportNoneReasoningEffortModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
-import type { Assistant, Model } from '@renderer/types'
+import type { Assistant, Model, ReasoningEffortOption } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import type { OpenAIReasoningSummary } from '@renderer/types/aiCoreTypes'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
@@ -65,7 +66,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // reasoningEffort is not set, no extra reasoning setting
   // Generally, for every model which supports reasoning control, the reasoning effort won't be undefined.
   // It's for some reasoning models that don't support reasoning control, such as deepseek reasoner.
-  if (!reasoningEffort) {
+  if (!reasoningEffort || reasoningEffort === 'default') {
     return {}
   }
 
@@ -73,9 +74,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   if (reasoningEffort === 'none') {
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
-      // 'none' is not an available value for effort for now.
-      // I think they should resolve this issue soon, so I'll just go ahead and use this value.
-      if (isGPT51SeriesModel(model) && reasoningEffort === 'none') {
+      if (isSupportNoneReasoningEffortModel(model) && reasoningEffort === 'none') {
         return { reasoning: { effort: 'none' } }
       }
       return { reasoning: { enabled: false, exclude: true } }
@@ -119,8 +118,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return { thinking: { type: 'disabled' } }
     }
 
-    // Specially for GPT-5.1. Suppose this is a OpenAI Compatible provider
-    if (isGPT51SeriesModel(model)) {
+    // GPT 5.1, GPT 5.2, or newer
+    if (isSupportNoneReasoningEffortModel(model)) {
       return {
         reasoningEffort: 'none'
       }
@@ -134,8 +133,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // https://creator.poe.com/docs/external-applications/openai-compatible-api#additional-considerations
   // Poe provider - supports custom bot parameters via extra_body
   if (provider.id === SystemProviderIds.poe) {
-    // GPT-5 series models use reasoning_effort parameter in extra_body
-    if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) {
+    if (isOpenAIReasoningModel(model)) {
       return {
         extra_body: {
           reasoning_effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
@@ -331,16 +329,15 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // Grok models/Perplexity models/OpenAI models, use reasoning_effort
   if (isSupportedReasoningEffortModel(model)) {
     // 检查模型是否支持所选选项
-    const modelType = getThinkModelType(model)
-    const supportedOptions = MODEL_SUPPORTED_REASONING_EFFORT[modelType]
-    if (supportedOptions.includes(reasoningEffort)) {
+    const supportedOptions = getModelSupportedReasoningEffortOptions(model)?.filter((option) => option !== 'default')
+    if (supportedOptions?.includes(reasoningEffort)) {
       return {
         reasoningEffort
       }
     } else {
       // 如果不支持，fallback到第一个支持的值
       return {
-        reasoningEffort: supportedOptions[0]
+        reasoningEffort: supportedOptions?.[0]
       }
     }
   }
@@ -392,7 +389,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // Use thinking, doubao, zhipu, etc.
   if (isSupportedThinkingTokenDoubaoModel(model)) {
-    if (isDoubaoSeedAfter251015(model)) {
+    if (isDoubaoSeedAfter251015(model) || isDoubaoSeed18Model(model)) {
       return { reasoningEffort }
     }
     if (reasoningEffort === 'high') {
@@ -409,6 +406,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return {}
     }
     return { thinking: { type: 'enabled' } }
+  }
+
+  if (isSupportedThinkingTokenMiMoModel(model)) {
+    return {
+      thinking: { type: 'enabled' }
+    }
   }
 
   // Default case: no special thinking settings
@@ -430,7 +433,7 @@ export function getOpenAIReasoningParams(
 
   let reasoningEffort = assistant?.settings?.reasoning_effort
 
-  if (!reasoningEffort) {
+  if (!reasoningEffort || reasoningEffort === 'default') {
     return {}
   }
 
@@ -482,16 +485,14 @@ export function getAnthropicThinkingBudget(
     return undefined
   }
 
-  const budgetTokens = Math.max(
-    1024,
-    Math.floor(
-      Math.min(
-        (tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min,
-        (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
-      )
-    )
-  )
-  return budgetTokens
+  const budget = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+
+  let budgetTokens = budget
+  if (maxTokens !== undefined) {
+    budgetTokens = Math.min(budget, maxTokens)
+  }
+
+  return Math.max(1024, budgetTokens)
 }
 
 /**
@@ -508,7 +509,11 @@ export function getAnthropicReasoningParams(
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
 
-  if (reasoningEffort === undefined || reasoningEffort === 'none') {
+  if (!reasoningEffort || reasoningEffort === 'default') {
+    return {}
+  }
+
+  if (reasoningEffort === 'none') {
     return {
       thinking: {
         type: 'disabled'
@@ -532,20 +537,25 @@ export function getAnthropicReasoningParams(
   return {}
 }
 
-// type GoogleThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']
+type GoogleThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']
 
-// function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogelThinkingLevel {
-//   switch (reasoningEffort) {
-//     case 'low':
-//       return 'low'
-//     case 'medium':
-//       return 'medium'
-//     case 'high':
-//       return 'high'
-//     default:
-//       return 'medium'
-//   }
-// }
+function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogleThinkingLevel {
+  switch (reasoningEffort) {
+    case 'default':
+      return undefined
+    case 'minimal':
+      return 'minimal'
+    case 'low':
+      return 'low'
+    case 'medium':
+      return 'medium'
+    case 'high':
+      return 'high'
+    default:
+      logger.warn('Unknown thinking level for Gemini. Fallback to medium instead.', { reasoningEffort })
+      return 'medium'
+  }
+}
 
 /**
  * 获取 Gemini 推理参数
@@ -563,6 +573,10 @@ export function getGeminiReasoningParams(
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
 
+  if (!reasoningEffort || reasoningEffort === 'default') {
+    return {}
+  }
+
   // Gemini 推理参数
   if (isSupportedThinkingTokenGeminiModel(model)) {
     if (reasoningEffort === undefined || reasoningEffort === 'none') {
@@ -574,21 +588,22 @@ export function getGeminiReasoningParams(
       }
     }
 
-    // TODO: 很多中转还不支持
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
-    // if (isGemini3ThinkingTokenModel(model)) {
-    //   return {
-    //     thinkingConfig: {
-    //       thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
-    //     }
-    //   }
-    // }
+    if (isGemini3ThinkingTokenModel(model)) {
+      return {
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
+        }
+      }
+    }
 
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
     if (effortRatio > 1) {
       return {
         thinkingConfig: {
+          thinkingBudget: -1,
           includeThoughts: true
         }
       }
@@ -622,10 +637,6 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Pick<
 
   const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
 
-  if (!reasoningEffort || reasoningEffort === 'none') {
-    return {}
-  }
-
   switch (reasoningEffort) {
     case 'auto':
     case 'minimal':
@@ -634,6 +645,12 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Pick<
     case 'low':
     case 'high':
       return { reasoningEffort }
+    case 'xhigh':
+      return { reasoningEffort: 'high' }
+    case 'default':
+    case 'none':
+    default:
+      return {}
   }
 }
 
@@ -650,7 +667,7 @@ export function getBedrockReasoningParams(
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
 
-  if (reasoningEffort === undefined) {
+  if (reasoningEffort === undefined || reasoningEffort === 'default') {
     return {}
   }
 

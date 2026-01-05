@@ -42,7 +42,8 @@ vi.mock('@renderer/utils/api', () => ({
   routeToEndpoint: vi.fn((host) => ({
     baseURL: host,
     endpoint: '/chat/completions'
-  }))
+  })),
+  isWithTrailingSharp: vi.fn((host) => host?.endsWith('#') || false)
 }))
 
 vi.mock('@renderer/utils/provider', async (importOriginal) => {
@@ -78,7 +79,7 @@ vi.mock('@renderer/services/AssistantService', () => ({
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
-import { isCherryAIProvider, isPerplexityProvider } from '@renderer/utils/provider'
+import { isAzureOpenAIProvider, isCherryAIProvider, isPerplexityProvider } from '@renderer/utils/provider'
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'
@@ -130,6 +131,17 @@ const createPerplexityProvider = (): Provider => ({
   apiHost: 'https://api.perplexity.ai',
   models: [],
   isSystem: false
+})
+
+const createAzureProvider = (apiVersion: string): Provider => ({
+  id: 'azure-openai',
+  type: 'azure-openai',
+  name: 'Azure OpenAI',
+  apiKey: 'test-key',
+  apiHost: 'https://example.openai.azure.com/openai',
+  apiVersion,
+  models: [],
+  isSystem: true
 })
 
 describe('Copilot responses routing', () => {
@@ -227,12 +239,19 @@ describe('CherryAI provider configuration', () => {
     // Mock the functions to simulate non-CherryAI provider
     vi.mocked(isCherryAIProvider).mockReturnValue(false)
     vi.mocked(getProviderByModel).mockReturnValue(provider)
+    // Mock isWithTrailingSharp to return false for this test
+    vi.mocked(formatApiHost as any).mockImplementation((host, isSupportedAPIVersion = true) => {
+      if (isSupportedAPIVersion === false) {
+        return host
+      }
+      return `${host}/v1`
+    })
 
     // Call getActualProvider
     const actualProvider = getActualProvider(model)
 
-    // Verify that formatApiHost was called with default parameters (true)
-    expect(formatApiHost).toHaveBeenCalledWith('https://api.openai.com')
+    // Verify that formatApiHost was called with appendApiVersion parameter
+    expect(formatApiHost).toHaveBeenCalledWith('https://api.openai.com', true)
     expect(actualProvider.apiHost).toBe('https://api.openai.com/v1')
   })
 
@@ -303,12 +322,19 @@ describe('Perplexity provider configuration', () => {
     vi.mocked(isCherryAIProvider).mockReturnValue(false)
     vi.mocked(isPerplexityProvider).mockReturnValue(false)
     vi.mocked(getProviderByModel).mockReturnValue(provider)
+    // Mock isWithTrailingSharp to return false for this test
+    vi.mocked(formatApiHost as any).mockImplementation((host, isSupportedAPIVersion = true) => {
+      if (isSupportedAPIVersion === false) {
+        return host
+      }
+      return `${host}/v1`
+    })
 
     // Call getActualProvider
     const actualProvider = getActualProvider(model)
 
-    // Verify that formatApiHost was called with default parameters (true)
-    expect(formatApiHost).toHaveBeenCalledWith('https://api.openai.com')
+    // Verify that formatApiHost was called with appendApiVersion parameter
+    expect(formatApiHost).toHaveBeenCalledWith('https://api.openai.com', true)
     expect(actualProvider.apiHost).toBe('https://api.openai.com/v1')
   })
 
@@ -487,5 +513,48 @@ describe('Stream options includeUsage configuration', () => {
 
     expect(config.options.includeUsage).toBeUndefined()
     expect(config.providerId).toBe('github-copilot-openai-compatible')
+  })
+})
+
+describe('Azure OpenAI traditional API routing', () => {
+  beforeEach(() => {
+    ;(globalThis as any).window = {
+      ...(globalThis as any).window,
+      keyv: createWindowKeyv()
+    }
+    mockGetState.mockReturnValue({
+      settings: {
+        openAI: {
+          streamOptions: {
+            includeUsage: undefined
+          }
+        }
+      }
+    })
+
+    vi.mocked(isAzureOpenAIProvider).mockImplementation((provider) => provider.type === 'azure-openai')
+  })
+
+  it('uses deployment-based URLs when apiVersion is a date version', () => {
+    const provider = createAzureProvider('2024-02-15-preview')
+    const config = providerToAiSdkConfig(provider, createModel('gpt-4o', 'GPT-4o', provider.id))
+
+    expect(config.providerId).toBe('azure')
+    expect(config.options.apiVersion).toBe('2024-02-15-preview')
+    expect(config.options.useDeploymentBasedUrls).toBe(true)
+  })
+
+  it('does not force deployment-based URLs for apiVersion v1/preview', () => {
+    const v1Provider = createAzureProvider('v1')
+    const v1Config = providerToAiSdkConfig(v1Provider, createModel('gpt-4o', 'GPT-4o', v1Provider.id))
+    expect(v1Config.providerId).toBe('azure-responses')
+    expect(v1Config.options.apiVersion).toBe('v1')
+    expect(v1Config.options.useDeploymentBasedUrls).toBeUndefined()
+
+    const previewProvider = createAzureProvider('preview')
+    const previewConfig = providerToAiSdkConfig(previewProvider, createModel('gpt-4o', 'GPT-4o', previewProvider.id))
+    expect(previewConfig.providerId).toBe('azure-responses')
+    expect(previewConfig.options.apiVersion).toBe('preview')
+    expect(previewConfig.options.useDeploymentBasedUrls).toBeUndefined()
   })
 })

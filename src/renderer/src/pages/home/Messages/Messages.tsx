@@ -162,7 +162,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
           const { message: clearMessage } = getUserMessage({ assistant, topic, type: 'clear' })
           dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: clearMessage }))
-          await saveMessageAndBlocksToDB(clearMessage, [])
+          await saveMessageAndBlocksToDB(topic.id, clearMessage, [])
 
           scrollToBottom()
         } finally {

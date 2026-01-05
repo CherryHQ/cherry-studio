@@ -128,8 +128,8 @@ export class CallBackServer {
     })
 
     return new Promise<http.Server>((resolve, reject) => {
-      server.listen(port, () => {
-        logger.info(`OAuth callback server listening on port ${port}`)
+      server.listen(port, '127.0.0.1', () => {
+        logger.info(`OAuth callback server listening on 127.0.0.1:${port}`)
         resolve(server)
       })
 

@@ -91,7 +91,9 @@ export default class ModernAiProvider {
     if (this.isModel(modelOrProvider)) {
       // 传入的是 Model
       this.model = modelOrProvider
-      this.actualProvider = provider ? adaptProvider({ provider }) : getActualProvider(modelOrProvider)
+      this.actualProvider = provider
+        ? adaptProvider({ provider, model: modelOrProvider })
+        : getActualProvider(modelOrProvider)
       // 只保存配置，不预先创建executor
       this.config = providerToAiSdkConfig(this.actualProvider, modelOrProvider)
     } else {

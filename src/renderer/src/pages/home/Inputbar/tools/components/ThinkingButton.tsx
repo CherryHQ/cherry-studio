@@ -5,7 +5,9 @@ import {
   MdiLightbulbOn,
   MdiLightbulbOn30,
   MdiLightbulbOn50,
-  MdiLightbulbOn80
+  MdiLightbulbOn80,
+  MdiLightbulbOn90,
+  MdiLightbulbQuestion
 } from '@renderer/components/Icons/SVGIcon'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
@@ -17,7 +19,6 @@ import {
   MODEL_SUPPORTED_OPTIONS
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { Model, ThinkingOption } from '@renderer/types'
 import { Tooltip } from 'antd'
@@ -87,19 +88,48 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
     [updateAssistantSettings, assistant.enableWebSearch, model, t]
   )
 
+  const reasoningEffortOptionLabelMap = {
+    default: t('assistants.settings.reasoning_effort.default'),
+    none: t('assistants.settings.reasoning_effort.off'),
+    minimal: t('assistants.settings.reasoning_effort.minimal'),
+    high: t('assistants.settings.reasoning_effort.high'),
+    low: t('assistants.settings.reasoning_effort.low'),
+    medium: t('assistants.settings.reasoning_effort.medium'),
+    auto: t('assistants.settings.reasoning_effort.auto'),
+    xhigh: t('assistants.settings.reasoning_effort.xhigh')
+  } as const satisfies Record<ThinkingOption, string>
+
+  const reasoningEffortDescriptionMap = {
+    default: t('assistants.settings.reasoning_effort.default_description'),
+    none: t('assistants.settings.reasoning_effort.off_description'),
+    minimal: t('assistants.settings.reasoning_effort.minimal_description'),
+    low: t('assistants.settings.reasoning_effort.low_description'),
+    medium: t('assistants.settings.reasoning_effort.medium_description'),
+    high: t('assistants.settings.reasoning_effort.high_description'),
+    xhigh: t('assistants.settings.reasoning_effort.xhigh_description'),
+    auto: t('assistants.settings.reasoning_effort.auto_description')
+  } as const satisfies Record<ThinkingOption, string>
+
   const panelItems = useMemo(() => {
     // 使用表中定义的选项创建UI选项
     return supportedOptions.map((option) => ({
       level: option,
-      label: getReasoningEffortOptionsLabel(option),
-      description: '',
-      icon: ThinkingIcon(option),
+      label: reasoningEffortOptionLabelMap[option],
+      description: reasoningEffortDescriptionMap[option],
+      icon: ThinkingIcon({ option }),
       isSelected: currentReasoningEffort === option,
       action: () => onThinkingChange(option)
     }))
-  }, [currentReasoningEffort, supportedOptions, onThinkingChange])
+  }, [
+    supportedOptions,
+    reasoningEffortOptionLabelMap,
+    reasoningEffortDescriptionMap,
+    currentReasoningEffort,
+    onThinkingChange
+  ])
 
-  const isThinkingEnabled = currentReasoningEffort !== undefined && currentReasoningEffort !== 'none'
+  const isThinkingEnabled =
+    currentReasoningEffort !== undefined && currentReasoningEffort !== 'none' && currentReasoningEffort !== 'default'
 
   const disableThinking = useCallback(() => {
     onThinkingChange('none')
@@ -135,7 +165,7 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       {
         label: t('assistants.settings.reasoning_effort.label'),
         description: '',
-        icon: ThinkingIcon(currentReasoningEffort),
+        icon: ThinkingIcon({ option: currentReasoningEffort }),
         isMenu: true,
         action: () => openQuickPanel()
       }
@@ -163,37 +193,44 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
         aria-label={ariaLabel}
         aria-pressed={currentReasoningEffort !== 'none'}
         style={isFixedReasoning ? { cursor: 'default' } : undefined}>
-        {ThinkingIcon(currentReasoningEffort)}
+        {ThinkingIcon({ option: currentReasoningEffort, isFixedReasoning })}
       </ActionIconButton>
     </Tooltip>
   )
 }
 
-const ThinkingIcon = (option?: ThinkingOption) => {
+const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boolean }) => {
   let IconComponent: React.FC<React.SVGProps<SVGSVGElement>> | null = null
-
-  switch (option) {
-    case 'minimal':
-      IconComponent = MdiLightbulbOn30
-      break
-    case 'low':
-      IconComponent = MdiLightbulbOn50
-      break
-    case 'medium':
-      IconComponent = MdiLightbulbOn80
-      break
-    case 'high':
-      IconComponent = MdiLightbulbOn
-      break
-    case 'auto':
-      IconComponent = MdiLightbulbAutoOutline
-      break
-    case 'none':
-      IconComponent = MdiLightbulbOffOutline
-      break
-    default:
-      IconComponent = MdiLightbulbOffOutline
-      break
+  if (props.isFixedReasoning) {
+    IconComponent = MdiLightbulbAutoOutline
+  } else {
+    switch (props.option) {
+      case 'minimal':
+        IconComponent = MdiLightbulbOn30
+        break
+      case 'low':
+        IconComponent = MdiLightbulbOn50
+        break
+      case 'medium':
+        IconComponent = MdiLightbulbOn80
+        break
+      case 'high':
+        IconComponent = MdiLightbulbOn90
+        break
+      case 'xhigh':
+        IconComponent = MdiLightbulbOn
+        break
+      case 'auto':
+        IconComponent = MdiLightbulbAutoOutline
+        break
+      case 'none':
+        IconComponent = MdiLightbulbOffOutline
+        break
+      case 'default':
+      default:
+        IconComponent = MdiLightbulbQuestion
+        break
+    }
   }
 
   return <IconComponent className="icon" width={18} height={18} style={{ marginTop: -2 }} />

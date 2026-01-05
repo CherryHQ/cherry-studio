@@ -6,6 +6,9 @@
         "failed": "Failed to add a agent",
         "invalid_agent": "Invalid Agent"
       },
+      "model": {
+        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature."
+      },
       "title": "Add Agent",
       "type": {
         "placeholder": "Select an agent type"
@@ -28,13 +31,31 @@
       }
     },
     "gitBash": {
+      "autoDetected": "Using auto-detected Git Bash",
+      "autoDiscoveredHint": "Auto-discovered",
+      "clear": {
+        "button": "Clear custom path"
+      },
+      "customPath": "Using custom path: {{path}}",
       "error": {
         "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
         "recheck": "Recheck Git Bash Installation",
+        "required": "Git Bash path is required on Windows",
         "title": "Git Bash Required"
       },
+      "found": {
+        "title": "Git Bash configured"
+      },
       "notFound": "Git Bash not found. Please install it first.",
-      "success": "Git Bash detected successfully!"
+      "pick": {
+        "button": "Select Git Bash Path",
+        "failed": "Failed to set Git Bash path",
+        "invalidPath": "Selected file is not a valid Git Bash executable (bash.exe).",
+        "title": "Select Git Bash executable"
+      },
+      "placeholder": "Select bash.exe path",
+      "success": "Git Bash detected successfully!",
+      "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "input": {
       "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command"
@@ -399,6 +420,9 @@
     },
     "delete": {
       "content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
+      "error": {
+        "remain_one": "Not allowed to delete the last one assistant"
+      },
       "title": "Delete Assistant"
     },
     "edit": {
@@ -455,6 +479,7 @@
         "button": "Import",
         "error": {
           "fetch_failed": "Failed to fetch from URL",
+          "file_required": "Please select a file first",
           "invalid_format": "Invalid assistant format: missing required fields",
           "url_required": "Please enter a URL"
         },
@@ -468,6 +493,17 @@
         "url_placeholder": "Enter JSON URL"
       },
       "manage": {
+        "batch_delete": {
+          "button": "Delete",
+          "confirm": "Are you sure you want to delete the selected {{count}} assistants?"
+        },
+        "batch_export": {
+          "button": "Export"
+        },
+        "mode": {
+          "manage": "Manage",
+          "sort": "Sort"
+        },
         "title": "Manage Assistants"
       },
       "my_agents": "My Assistants",
@@ -515,13 +551,23 @@
       "more": "Assistant Settings",
       "prompt": "Prompt Settings",
       "reasoning_effort": {
+        "auto": "Auto",
+        "auto_description": "Flexibly determine reasoning effort",
         "default": "Default",
+        "default_description": "Depend on the model's default behavior, without any configuration.",
         "high": "High",
+        "high_description": "High level reasoning",
         "label": "Reasoning effort",
         "low": "Low",
+        "low_description": "Low level reasoning",
         "medium": "Medium",
+        "medium_description": "Medium level reasoning",
         "minimal": "Minimal",
-        "off": "Off"
+        "minimal_description": "Minimal reasoning",
+        "off": "Off",
+        "off_description": "Disable reasoning",
+        "xhigh": "Extra High",
+        "xhigh_description": "Extra high level reasoning"
       },
       "regular_phrases": {
         "add": "Add Phrase",
@@ -1001,6 +1047,29 @@
         "yuque": "Export to Yuque"
       },
       "list": "Topic List",
+      "manage": {
+        "clear_selection": "Clear Selection",
+        "delete": {
+          "confirm": {
+            "content": "Are you sure you want to delete {{count}} selected topic(s)? This action cannot be undone.",
+            "title": "Delete Topics"
+          },
+          "success": "Deleted {{count}} topic(s)"
+        },
+        "deselect_all": "Deselect All",
+        "error": {
+          "at_least_one": "At least one topic must be kept"
+        },
+        "move": {
+          "button": "Move",
+          "placeholder": "Select target assistant",
+          "success": "Moved {{count}} topic(s)"
+        },
+        "pinned": "Pinned Topics",
+        "selected_count": "{{count}} selected",
+        "title": "Manage Topics",
+        "unpinned": "Unpinned Topics"
+      },
       "move_to": "Move to",
       "new": "New Topic",
       "pin": "Pin Topic",
@@ -1010,6 +1079,10 @@
         },
         "label": "Topic Prompts",
         "tips": "Topic Prompts: Additional supplementary prompts provided for the current topic"
+      },
+      "search": {
+        "placeholder": "Search topics...",
+        "title": "Search"
       },
       "title": "Topics",
       "unpin": "Unpin Topic"
@@ -1182,6 +1255,7 @@
     "saved": "Saved",
     "search": "Search",
     "select": "Select",
+    "select_all": "Select All",
     "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
@@ -1194,11 +1268,13 @@
       }
     },
     "stop": "Stop",
+    "subscribe": "Subscribe",
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
+    "unsubscribe": "Unsubscribe",
     "update_success": "Update successfully",
     "upload_files": "Upload file",
     "warning": "Warning",
@@ -1693,7 +1769,7 @@
       "import": {
         "error": "Import failed"
       },
-      "imported": "Imported successfully"
+      "imported": "Successfully imported {{count}} assistant(s)"
     },
     "api": {
       "check": {
@@ -2125,6 +2201,7 @@
     "collapse": "Collapse",
     "content_placeholder": "Please enter the note content...",
     "copyContent": "Copy Content",
+    "crossPlatformRestoreWarning": "Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
     "delete": "delete",
     "delete_confirm": "Are you sure you want to delete this {{type}}?",
     "delete_folder_confirm": "Are you sure you want to delete the folder \"{{name}}\" and all of its contents?",
@@ -2307,7 +2384,7 @@
     "failed": {
       "install": "Install OVMS failed:",
       "install_code_100": "Unknown Error",
-      "install_code_101": "Only supports Intel(R) Core(TM) Ultra CPU",
+      "install_code_101": "Only supports Intel(R) CPU",
       "install_code_102": "Only supports Windows",
       "install_code_103": "Download OVMS runtime failed",
       "install_code_104": "Failed to install OVMS runtime",
@@ -2521,7 +2598,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Copy as image"
+      "image": "Copy as image",
+      "src": "Copy Image Source"
     },
     "dialog": "Open Dialog",
     "label": "Preview",
@@ -2575,6 +2653,7 @@
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
     "longcat": "LongCat AI",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3093,6 +3172,7 @@
         "label": "App Data",
         "migration_title": "Data Migration",
         "new_path": "New Path",
+        "open": "Open Directory",
         "original_path": "Original Path",
         "path_change_failed": "Failed to change data directory",
         "path_changed_without_copy": "Path changed successfully",
@@ -3163,24 +3243,43 @@
         },
         "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
         "lan": {
-          "auto_close_tip": "Auto-closing in {{seconds}} seconds...",
-          "confirm_close_message": "File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
-          "confirm_close_title": "Confirm Close",
           "connected": "Connected",
           "connection_failed": "Connection failed",
-          "content": "Please ensure your computer and phone are on the same network for LAN transfer. Open the Cherry Studio App to scan this QR code.",
+          "content": "Please ensure your computer and phone are on the same network for LAN transfer.",
+          "device_list_title": "Local network devices",
+          "discovered_devices": "Discovered devices",
           "error": {
+            "file_too_large": "File too large, maximum 500MB supported",
             "init_failed": "Initialization failed",
+            "invalid_file_type": "Only ZIP files are supported",
             "no_file": "No file selected",
             "no_ip": "Unable to get IP address",
+            "not_connected": "Please complete handshake first",
             "send_failed": "Failed to send file"
           },
-          "force_close": "Force Close",
-          "generating_qr": "Generating QR code...",
-          "noZipSelected": "No compressed file selected",
-          "scan_qr": "Please scan QR code with your phone",
-          "selectZip": "Select a compressed file",
-          "sendZip": "Begin data recovery",
+          "file_transfer": {
+            "cancelled": "Transfer cancelled",
+            "failed": "File transfer failed: {{message}}",
+            "progress": "Sending... {{progress}}%",
+            "success": "File sent successfully"
+          },
+          "handshake": {
+            "button": "Handshake",
+            "failed": "Handshake failed: {{message}}",
+            "in_progress": "Handshaking...",
+            "success": "Handshake completed with {{device}}",
+            "test_message_received": "Received pong from {{device}}",
+            "test_message_sent": "Sent hello world test payload"
+          },
+          "idle_hint": "Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
+          "ip_addresses": "IP addresses",
+          "last_seen": "Last seen at {{time}}",
+          "metadata": "Metadata",
+          "no_connection_warning": "Please open LAN Transfer on Cherry Studio mobile",
+          "no_devices": "No LAN peers found yet",
+          "scan_devices": "Scan devices",
+          "scanning_hint": "Scanning your local network for Cherry Studio peers...",
+          "send_file": "Send File",
           "status": {
             "completed": "Transfer completed",
             "connected": "Connected",
@@ -3189,9 +3288,11 @@
             "error": "Connection error",
             "initializing": "Initializing connection...",
             "preparing": "Preparing transfer...",
-            "sending": "Transferring {{progress}}%",
-            "waiting_qr_scan": "Please scan QR code to connect"
+            "sending": "Transferring {{progress}}%"
           },
+          "status_badge_idle": "Idle",
+          "status_badge_scanning": "Scanning",
+          "stop_scan": "Stop scan",
           "title": "LAN transmission",
           "transfer_progress": "Transfer progress"
         },
@@ -3863,6 +3964,7 @@
       "builtinServers": "Builtin Servers",
       "builtinServersDescriptions": {
         "brave_search": "An MCP server implementation integrating the Brave Search API, providing both web and local search functionalities. Requires configuring the BRAVE_API_KEY environment variable",
+        "browser": "Control a headless Electron window via Chrome DevTools Protocol. Tools: open URL, execute single-line JS, reset session.",
         "didi_mcp": "DiDi MCP server providing ride-hailing services including map search, price estimation, order management, and driver tracking. Only available in Mainland China. Requires configuring the DIDI_API_KEY environment variable",
         "dify_knowledge": "Dify's MCP server implementation provides a simple API to interact with Dify. Requires configuring the Dify Key",
         "fetch": "MCP server for retrieving URL web content",
@@ -3870,6 +3972,7 @@
         "mcp_auto_install": "Automatically install MCP service (beta)",
         "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable.",
         "no": "No description",
+        "nowledge_mem": "Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
         "sequentialthinking": "A MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
       },
@@ -3915,6 +4018,7 @@
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
       "logoUrl": "Logo URL",
+      "logs": "Logs",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
       "marketplaces": "Marketplaces",
@@ -3934,6 +4038,7 @@
       "name": "Name",
       "newServer": "MCP Server",
       "noDescriptionAvailable": "No description available",
+      "noLogs": "No logs yet",
       "noServers": "No servers configured",
       "not_support": "Model not supported",
       "npx_list": {
@@ -4028,7 +4133,7 @@
       "tagsPlaceholder": "Enter tags",
       "timeout": "Timeout",
       "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
-      "title": "MCP",
+      "title": "MCP Servers",
       "tools": {
         "autoApprove": {
           "label": "Auto Approve",
@@ -4662,6 +4767,12 @@
       },
       "title": "Other Settings",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} requires an API key to work. Would you like to configure it now?",
+          "ok": "Configure",
+          "title": "API Key Required"
+        },
+        "api_providers": "API Providers",
         "apikey": "API key",
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
@@ -4703,7 +4814,15 @@
         },
         "content_limit": "Content length limit",
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
+        "default_provider": "Default Provider",
         "free": "Free",
+        "is_default": "Default",
+        "local_provider": {
+          "hint": "Log in to the website to get better search results and personalize your search settings.",
+          "open_settings": "Open {{provider}} Settings",
+          "settings": "Local Search Settings"
+        },
+        "local_providers": "Local Providers",
         "no_provider_selected": "Please select a search service provider before checking.",
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",
@@ -4714,6 +4833,7 @@
         "search_provider": "Search service provider",
         "search_provider_placeholder": "Choose a search service provider.",
         "search_with_time": "Search with dates included",
+        "set_as_default": "Set as Default",
         "subscribe": "Blacklist Subscription",
         "subscribe_add": "Add Subscription",
         "subscribe_add_failed": "Failed to add feed source",

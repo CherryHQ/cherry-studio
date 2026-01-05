@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -58,7 +58,7 @@ jobs:
         run: yarn typecheck
 
       - name: i18n Check
-        run: yarn check:i18n
+        run: yarn i18n:check
 
       - name: Test
         run: yarn test

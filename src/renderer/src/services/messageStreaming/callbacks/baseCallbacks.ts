@@ -4,10 +4,11 @@ import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import { updateOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
-import type { PlaceholderMessageBlock, Response } from '@renderer/types/newMessage'
+import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { isAbortError, serializeError } from '@renderer/utils/error'
@@ -28,10 +29,20 @@ interface BaseCallbacksDependencies {
   assistantMsgId: string
   saveUpdatesToDB: any
   assistant: Assistant
+  getCurrentThinkingInfo?: () => { blockId: string | null; millsec: number }
 }
 
 export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
-  const { blockManager, dispatch, getState, topicId, assistantMsgId, saveUpdatesToDB, assistant } = deps
+  const {
+    blockManager,
+    dispatch,
+    getState,
+    topicId,
+    assistantMsgId,
+    saveUpdatesToDB,
+    assistant,
+    getCurrentThinkingInfo
+  } = deps
 
   const startTime = Date.now()
   const notificationService = NotificationService.getInstance()
@@ -97,11 +108,52 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       const possibleBlockId = findBlockIdForCompletion()
 
       if (possibleBlockId) {
-        // 更改上一个block的状态为ERROR
-        const changes = {
+        // 更改上一个block的状态为ERROR/PAUSED
+        const changes: Partial<ThinkingMessageBlock> = {
           status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
         }
+        // 如果是 thinking block，保留实际思考时间
+        if (blockManager.lastBlockType === MessageBlockType.THINKING) {
+          const thinkingInfo = getCurrentThinkingInfo?.()
+          if (thinkingInfo?.blockId === possibleBlockId && thinkingInfo?.millsec && thinkingInfo.millsec > 0) {
+            changes.thinking_millsec = thinkingInfo.millsec
+          }
+        }
         blockManager.smartBlockUpdate(possibleBlockId, changes, blockManager.lastBlockType!, true)
+      }
+
+      // Fix: 更新所有仍处于 STREAMING 状态的 blocks 为 PAUSED/ERROR
+      // 这修复了停止回复时思考计时器继续运行的问题
+      const currentMessage = getState().messages.entities[assistantMsgId]
+      if (currentMessage) {
+        const allBlockRefs = findAllBlocks(currentMessage)
+        const blockState = getState().messageBlocks
+        // 获取当前思考信息（如果有），用于保留实际思考时间
+        const thinkingInfo = getCurrentThinkingInfo?.()
+        for (const blockRef of allBlockRefs) {
+          const block = blockState.entities[blockRef.id]
+          if (block && block.status === MessageBlockStatus.STREAMING && block.id !== possibleBlockId) {
+            // 构建更新对象
+            const changes: Partial<ThinkingMessageBlock> = {
+              status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+            }
+            // 如果是 thinking block 且有思考时间信息，保留实际思考时间
+            if (
+              block.type === MessageBlockType.THINKING &&
+              thinkingInfo?.blockId === block.id &&
+              thinkingInfo?.millsec &&
+              thinkingInfo.millsec > 0
+            ) {
+              changes.thinking_millsec = thinkingInfo.millsec
+            }
+            dispatch(
+              updateOneBlock({
+                id: block.id,
+                changes
+              })
+            )
+          }
+        }
       }
 
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })

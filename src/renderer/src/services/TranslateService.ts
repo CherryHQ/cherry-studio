@@ -1,8 +1,10 @@
 import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import type {
+  AssistantSettings,
   CustomTranslateLanguage,
   FetchChatCompletionRequestOptions,
+  ReasoningEffortOption,
   TranslateHistory,
   TranslateLanguage,
   TranslateLanguageCode
@@ -20,6 +22,10 @@ import { getDefaultTranslateAssistant } from './AssistantService'
 
 const logger = loggerService.withContext('TranslateService')
 
+type TranslateOptions = {
+  reasoningEffort: ReasoningEffortOption
+}
+
 /**
  * 翻译文本到目标语言
  * @param text - 需要翻译的文本内容
@@ -33,10 +39,14 @@ export const translateText = async (
   text: string,
   targetLanguage: TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  abortKey?: string
+  abortKey?: string,
+  options?: TranslateOptions
 ) => {
-  let abortError
-  const assistant = getDefaultTranslateAssistant(targetLanguage, text)
+  let error
+  const assistantSettings: Partial<AssistantSettings> | undefined = options
+    ? { reasoning_effort: options?.reasoningEffort }
+    : undefined
+  const assistant = getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
 
   const signal = abortKey ? readyToAbort(abortKey) : undefined
 
@@ -48,8 +58,8 @@ export const translateText = async (
     } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
       completed = true
     } else if (chunk.type === ChunkType.ERROR) {
+      error = chunk.error
       if (isAbortError(chunk.error)) {
-        abortError = chunk.error
         completed = true
       }
     }
@@ -74,8 +84,8 @@ export const translateText = async (
     }
   }
 
-  if (abortError) {
-    throw abortError
+  if (error !== undefined && !isAbortError(error)) {
+    throw error
   }
 
   const trimmedText = translatedText.trim()
