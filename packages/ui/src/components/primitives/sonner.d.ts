@@ -18,12 +18,14 @@ interface BaseToastProps {
   colored?: boolean
   /** Duration in milliseconds before auto-dismissal */
   duration?: number
-  /** Whether the toast can be manually dismissed */
+  /** If 'false', it'll prevent the user from dismissing the toast. Defaults to false. */
   dismissable?: boolean
   /** Callback function when toast is dismissed */
   onDismiss?: () => void
   /** Action button or custom React node */
   button?: Action | ReactNode
+  /** Whether to show a close button. Defaults to false */
+  closeButton?: boolean
   /** Custom class names for toast sub-components */
   classNames?: ToastClassnames
 }

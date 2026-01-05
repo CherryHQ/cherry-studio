@@ -10,6 +10,7 @@ interface PlaygroundArgs {
   colored: boolean
   duration: number
   dismissable: boolean
+  closeButton: boolean
   withButton: boolean
   buttonLabel: string
 }
@@ -49,6 +50,7 @@ export const Playground: StoryObj<PlaygroundArgs> = {
     colored: false,
     duration: 4000,
     dismissable: true,
+    closeButton: false,
     withButton: false,
     buttonLabel: 'Action'
   },
@@ -76,7 +78,11 @@ export const Playground: StoryObj<PlaygroundArgs> = {
     },
     dismissable: {
       control: 'boolean',
-      description: 'Whether the toast can be manually dismissed'
+      description: 'Whether the toast can be dismissed by user interaction (click, swipe)'
+    },
+    closeButton: {
+      control: 'boolean',
+      description: 'Whether to show a close button'
     },
     withButton: {
       control: 'boolean',
@@ -95,6 +101,7 @@ export const Playground: StoryObj<PlaygroundArgs> = {
         colored: args.colored,
         duration: args.duration,
         dismissable: args.dismissable,
+        closeButton: args.closeButton,
         ...(args.withButton && {
           button: {
             label: args.buttonLabel || 'Action',
@@ -608,30 +615,30 @@ export const CustomToast: Story = {
   }
 }
 
-// Dismissable Control
-export const DismissableControl: Story = {
+// Close Button Control
+export const CloseButtonControl: Story = {
   render: () => {
     return (
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={() =>
-            toast.info('Dismissable toast', {
-              description: 'You can close this manually',
-              dismissable: true,
+            toast.info('With close button', {
+              description: 'Click the X to close this toast',
+              closeButton: true,
               duration: Number.POSITIVE_INFINITY
             })
           }>
-          Dismissable (Default)
+          With Close Button
         </Button>
         <Button
           onClick={() =>
-            toast.warning('Non-dismissable toast', {
+            toast.warning('Without close button', {
               description: 'This will auto-close after 3 seconds',
-              dismissable: false,
+              closeButton: false,
               duration: 3000
             })
           }>
-          Non-dismissable
+          Without Close Button (Default)
         </Button>
       </div>
     )

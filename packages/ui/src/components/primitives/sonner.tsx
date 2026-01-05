@@ -316,12 +316,14 @@ interface BaseToastProps {
   colored?: boolean
   /** Duration in milliseconds before auto-dismissal */
   duration?: number
-  /** Whether the toast can be manually dismissed */
+  /** If 'false', it'll prevent the user from dismissing the toast. Defaults to false. */
   dismissable?: boolean
   /** Callback function when toast is dismissed */
   onDismiss?: () => void
   /** Action button or custom React node */
   button?: Action | ReactNode
+  /** Whether to show a close button. Defaults to false */
+  closeButton?: boolean
   /** Custom class names for toast sub-components */
   classNames?: ToastClassnames
 }
@@ -388,7 +390,8 @@ function toast(props: ToastProps) {
       props.classNames?.actionButton
     ),
     icon: cn('size-6 min-w-6', props.description && 'self-start'),
-    loader: cn('!static ![--size:24px]')
+    loader: cn('!static ![--size:24px]'),
+    closeButton: cn('absolute size-5 min-w-5 top-[5px] right-1.5 [&_svg]:size-5')
   }
   const { classNames: externalClassNames, ...rest } = props
   delete externalClassNames?.toast
@@ -400,7 +403,8 @@ function toast(props: ToastProps) {
     duration: rest.duration,
     action: rest.button,
     dismissible: rest.dismissable,
-    onDismiss: rest.onDismiss
+    onDismiss: rest.onDismiss,
+    closeButton: rest.closeButton
   } satisfies ExternalToast
   switch (props.type) {
     default:
