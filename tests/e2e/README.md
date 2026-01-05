@@ -36,32 +36,32 @@ tests/e2e/
 
 ### 前置条件
 
-1. 安装依赖：`yarn install`
-2. 构建应用：`yarn build`
+1. 安装依赖：`pnpm install`
+2. 构建应用：`pnpm build`
 
 ### 运行命令
 
 ```bash
 # 运行所有 e2e 测试
-yarn test:e2e
+pnpm test:e2e
 
 # 带可视化窗口运行（可以看到测试过程）
-yarn test:e2e --headed
+pnpm test:e2e --headed
 
 # 运行特定测试文件
-yarn playwright test tests/e2e/specs/app-launch.spec.ts
+pnpm playwright test tests/e2e/specs/app-launch.spec.ts
 
 # 运行匹配名称的测试
-yarn playwright test -g "should launch"
+pnpm playwright test -g "should launch"
 
 # 调试模式（会暂停并打开调试器）
-yarn playwright test --debug
+pnpm playwright test --debug
 
 # 使用 Playwright UI 模式
-yarn playwright test --ui
+pnpm playwright test --ui
 
 # 查看测试报告
-yarn playwright show-report
+pnpm playwright show-report
 ```
 
 ### 常见问题
@@ -71,7 +71,7 @@ A: 默认是 headless 模式，使用 `--headed` 参数可看到窗口。
 
 **Q: 测试失败，提示找不到元素？**
 A:
-1. 确保已运行 `yarn build` 构建最新代码
+1. 确保已运行 `pnpm build` 构建最新代码
 2. 检查选择器是否正确，UI 可能已更新
 
 **Q: 测试超时？**
