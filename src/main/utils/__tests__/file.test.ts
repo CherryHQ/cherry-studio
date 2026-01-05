@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readTextFileWithAutoEncoding } from '../file'
 import {
+  findCommonRoot,
   getAllFiles,
   getAppConfigDir,
   getConfigDir,
@@ -478,6 +479,82 @@ describe('file', () => {
           }
         }
       )
+    })
+  })
+
+  describe('findCommonRoot', () => {
+    beforeEach(() => {
+      // Mock path module for findCommonRoot tests
+      vi.mocked(path.dirname).mockImplementation((filePath) => {
+        const parts = filePath.split('/')
+        parts.pop()
+        return parts.join('/') || '/'
+      })
+
+      // Mock path.sep as '/' for Unix tests
+      Object.defineProperty(path, 'sep', { value: '/', writable: true, configurable: true })
+    })
+
+    it('should return empty string for empty array', () => {
+      const result = findCommonRoot([])
+      expect(result).toBe('')
+    })
+
+    it('should return parent directory for single file', () => {
+      const result = findCommonRoot(['/User/tmp/file.md'])
+      expect(result).toBe('/User/tmp')
+    })
+
+    it('should find common root for files in same directory', () => {
+      const files = ['/User/tmp/a.md', '/User/tmp/b.md', '/User/tmp/c.md']
+      const result = findCommonRoot(files)
+      expect(result).toBe('/User/tmp')
+    })
+
+    it('should find common root for nested files', () => {
+      const files = ['/User/tmp/sub/1.md', '/User/tmp/2.md', '/User/tmp/sub/deep/3.md']
+      const result = findCommonRoot(files)
+      expect(result).toBe('/User/tmp')
+    })
+
+    it('should find common root for files in different branches', () => {
+      const files = ['/User/tmp/a/1.md', '/User/tmp/b/2.md', '/User/tmp/c/d/3.md']
+      const result = findCommonRoot(files)
+      expect(result).toBe('/User/tmp')
+    })
+
+    it('should handle files with different directory depths', () => {
+      const files = ['/a/b/c/d/e/file.md', '/a/b/x.md']
+      const result = findCommonRoot(files)
+      expect(result).toBe('/a/b')
+    })
+
+    it('should handle root level files', () => {
+      const files = ['/a.md', '/b.md']
+      const result = findCommonRoot(files)
+      expect(result).toBe('/')
+    })
+
+    it('should handle Windows paths', () => {
+      // Skip on non-Windows platforms as path.sep differs
+      if (process.platform !== 'win32') {
+        // On Unix, test Unix paths instead
+        const files = ['/C/Users/tmp/a.md', '/C/Users/tmp/b.md']
+        const result = findCommonRoot(files)
+        expect(result).toBe('/C/Users/tmp')
+      } else {
+        // Mock for Windows
+        Object.defineProperty(path, 'sep', { value: '\\', writable: true })
+        vi.mocked(path.dirname).mockImplementation((filePath) => {
+          const parts = filePath.split('\\')
+          parts.pop()
+          return parts.join('\\') || 'C:\\'
+        })
+
+        const files = ['C:\\Users\\tmp\\a.md', 'C:\\Users\\tmp\\b.md']
+        const result = findCommonRoot(files)
+        expect(result).toBe('C:\\Users\\tmp')
+      }
     })
   })
 })

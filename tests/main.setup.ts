@@ -115,25 +115,30 @@ vi.mock('node:path', async () => {
   }
 })
 
-vi.mock('node:fs', () => ({
-  promises: {
-    access: vi.fn(),
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-    mkdir: vi.fn(),
-    readdir: vi.fn(),
-    stat: vi.fn(),
-    unlink: vi.fn(),
-    rmdir: vi.fn()
-  },
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  readdirSync: vi.fn(),
-  statSync: vi.fn(),
-  unlinkSync: vi.fn(),
-  rmdirSync: vi.fn(),
-  createReadStream: vi.fn(),
-  createWriteStream: vi.fn()
-}))
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
+  return {
+    ...actual,
+    default: actual,
+    promises: {
+      access: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      mkdir: vi.fn(),
+      readdir: vi.fn(),
+      stat: vi.fn(),
+      unlink: vi.fn(),
+      rmdir: vi.fn()
+    },
+    existsSync: vi.fn(),
+    readFileSync: vi.fn(),
+    writeFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
+    readdirSync: vi.fn(),
+    statSync: vi.fn(),
+    unlinkSync: vi.fn(),
+    rmdirSync: vi.fn(),
+    createReadStream: vi.fn(),
+    createWriteStream: vi.fn()
+  }
+})

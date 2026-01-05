@@ -52,6 +52,8 @@ export interface RichEditorProps {
   fontSize?: number
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** Current markdown file path for resolving relative image paths */
+  currentFilePath?: string
 }
 
 export interface ToolbarItem {

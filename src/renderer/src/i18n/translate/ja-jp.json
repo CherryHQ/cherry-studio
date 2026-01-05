@@ -2212,11 +2212,14 @@
     "export_failed": "知識ベースへのエクスポートに失敗しました",
     "export_knowledge": "ノートをナレッジベースにエクスポートする",
     "export_success": "知識ベースへのエクスポートが成功しました",
+    "failed_to_select_files": "[to be translated]:Failed to select files",
+    "failed_to_select_folder": "[to be translated]:Failed to select folder",
     "folder": "フォルダー",
     "new_folder": "新しいフォルダーを作成する",
     "new_note": "新規ノート作成",
     "no_content_to_copy": "コピーするコンテンツはありません",
     "no_file_selected": "アップロードするファイルを選択してください",
+    "no_markdown_files_in_folder": "[to be translated]:No Markdown files in the selected folder",
     "no_valid_files": "有効なファイルがアップロードされていません",
     "open_folder": "外部フォルダーを開きます",
     "open_outside": "外部から開く",
@@ -2231,6 +2234,8 @@
       "searching": "検索中...",
       "show_less": "閉じる"
     },
+    "select_files_to_upload": "[to be translated]:Select files to upload",
+    "select_folder_to_upload": "[to be translated]:Select folder to upload",
     "settings": {
       "data": {
         "apply": "応用",
@@ -2296,10 +2301,12 @@
     "unstar": "お気に入りを解除する",
     "untitled_folder": "新ファイル夹",
     "untitled_note": "無題のメモ",
+    "upload": "[to be translated]:Upload",
     "upload_failed": "ノートのアップロードに失敗しました",
     "upload_files": "ファイルをアップロード",
     "upload_folder": "アップロードフォルダ",
     "upload_success": "ノートのアップロードが成功しました",
+    "uploading": "[to be translated]:Uploading",
     "uploading_files": "{{count}} 個のファイルをアップロード中..."
   },
   "notification": {
