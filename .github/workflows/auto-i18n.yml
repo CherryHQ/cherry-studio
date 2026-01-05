@@ -73,7 +73,7 @@ jobs:
 
       - name: 🚀 Create Pull Request if changes exist
         if: steps.git_status.outputs.has_changes == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }} # Use the built-in GITHUB_TOKEN for bot actions
           commit-message: "feat(bot): Weekly automated script run"

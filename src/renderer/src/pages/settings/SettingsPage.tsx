@@ -1,5 +1,5 @@
-import { GlobalOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { Divider as AntDivider } from 'antd'
@@ -8,13 +8,12 @@ import {
   Cloud,
   Command,
   FileCode,
-  Hammer,
   HardDrive,
   Info,
   MonitorCog,
-  NotebookPen,
   Package,
   PictureInPicture2,
+  Search,
   Server,
   Settings2,
   TextCursorInput,
@@ -72,19 +71,13 @@ const SettingsPage: FC = () => {
           <Divider />
           <MenuItemLink to="/settings/mcp">
             <MenuItem className={isRoute('/settings/mcp')}>
-              <Hammer size={18} />
+              <McpLogo width={18} height={18} style={{ opacity: 0.8 }} />
               {t('settings.mcp.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/notes">
-            <MenuItem className={isRoute('/settings/notes')}>
-              <NotebookPen size={18} />
-              {t('notes.settings.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/websearch">
             <MenuItem className={isRoute('/settings/websearch')}>
-              <GlobalOutlined style={{ fontSize: 18 }} />
+              <Search size={18} />
               {t('settings.tool.websearch.title')}
             </MenuItem>
           </MenuItemLink>

@@ -1,4 +1,4 @@
-import { cn } from '@cherrystudio/ui/utils'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import * as React from 'react'
 
 interface InputProps extends React.ComponentProps<'input'> {}

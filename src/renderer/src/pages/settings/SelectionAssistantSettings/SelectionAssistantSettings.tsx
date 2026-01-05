@@ -1,13 +1,12 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { Radio, RadioGroup } from '@heroui/react'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { Link } from '@tanstack/react-router'
-import { Row, Slider } from 'antd'
+import { Radio, Row, Slider } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -129,11 +128,7 @@ const SelectionAssistantSettings: FC = () => {
                 </SettingRowTitle>
                 <SettingDescription>{t('selection.settings.toolbar.trigger_mode.description')}</SettingDescription>
               </SettingLabel>
-              <RadioGroup
-                size="sm"
-                orientation="horizontal"
-                value={triggerMode}
-                onValueChange={(value) => setTriggerMode(value as SelectionTriggerMode)}>
+              <Radio.Group value={triggerMode} onChange={(e) => setTriggerMode(e.target.value as SelectionTriggerMode)}>
                 <Tooltip content={t('selection.settings.toolbar.trigger_mode.selected_note')}>
                   <Radio value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio>
                 </Tooltip>
@@ -154,7 +149,7 @@ const SelectionAssistantSettings: FC = () => {
                   }>
                   <Radio value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio>
                 </Tooltip>
-              </RadioGroup>
+              </Radio.Group>
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -230,15 +225,13 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.advanced.filter_mode.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
               </SettingLabel>
-              <RadioGroup
-                size="sm"
-                orientation="horizontal"
+              <Radio.Group
                 value={filterMode ?? 'default'}
-                onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}>
+                onChange={(e) => setFilterMode(e.target.value as SelectionFilterMode)}>
                 <Radio value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio>
                 <Radio value="whitelist">{t('selection.settings.advanced.filter_mode.whitelist')}</Radio>
                 <Radio value="blacklist">{t('selection.settings.advanced.filter_mode.blacklist')}</Radio>
-              </RadioGroup>
+              </Radio.Group>
             </SettingRow>
 
             {filterMode && filterMode !== 'default' && (

@@ -1,7 +1,7 @@
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
 
@@ -18,7 +18,7 @@ const isProd = process.env.NODE_ENV === 'production'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin(), ...visualizerPlugin('main')],
+    plugins: [...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -27,7 +27,8 @@ export default defineConfig({
         '@shared': resolve('packages/shared'),
         '@logger': resolve('src/main/services/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node')
+        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
+        '@test-mocks': resolve('tests/__mocks__')
       }
     },
     build: {
@@ -53,8 +54,7 @@ export default defineConfig({
     plugins: [
       react({
         tsDecorators: true
-      }),
-      externalizeDepsPlugin()
+      })
     ],
     resolve: {
       alias: {
@@ -120,7 +120,8 @@ export default defineConfig({
         '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
-        '@cherrystudio/ui': resolve('packages/ui/src')
+        '@cherrystudio/ui': resolve('packages/ui/src'),
+        '@test-mocks': resolve('tests/__mocks__')
       }
     },
     optimizeDeps: {

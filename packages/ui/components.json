@@ -5,7 +5,7 @@
     "hooks": "@cherrystudio/ui/hooks",
     "lib": "@cherrystudio/ui/lib",
     "ui": "@cherrystudio/ui/components/primitives",
-    "utils": "@cherrystudio/ui/utils"
+    "utils": "@cherrystudio/ui/lib/utils"
   },
   "iconLibrary": "lucide",
   "rsc": false,

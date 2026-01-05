@@ -22,7 +22,6 @@ import type { LRUCache } from 'lru-cache'
 import {
   FileSearch,
   Folder,
-  Hammer,
   Home,
   Languages,
   LayoutGrid,
@@ -99,8 +98,6 @@ const getTabIcon = (
       return <NotepadText size={14} />
     case 'knowledge':
       return <FileSearch size={14} />
-    case 'mcp':
-      return <Hammer size={14} />
     case 'files':
       return <Folder size={14} />
     case 'settings':

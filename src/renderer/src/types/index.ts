@@ -92,6 +92,7 @@ const ThinkModelTypes = [
   'gpt5_2',
   'gpt5pro',
   'gpt52pro',
+  'gpt_oss',
   'grok',
   'grok4_fast',
   'gemini2_flash',
@@ -395,6 +396,7 @@ export interface DmxapiPainting extends PaintingParams {
   autoCreate?: boolean
   generationMode?: generationModeType
   priceModel?: string
+  extend_params?: Record<string, unknown>
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -455,7 +457,18 @@ export type MinAppType = {
 }
 
 /** 有限的UI语言 */
-// export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
+// export type LanguageVarious =
+//   | 'zh-CN'
+//   | 'zh-TW'
+//   | 'de-DE'
+//   | 'el-GR'
+//   | 'en-US'
+//   | 'es-ES'
+//   | 'fr-FR'
+//   | 'ja-JP'
+//   | 'pt-PT'
+//   | 'ro-RO'
+//   | 'ru-RU'
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -900,17 +913,11 @@ export * from './tool'
 // Memory Service Types
 // ========================================================================
 export interface MemoryConfig {
-  /**
-   * @deprecated use embedderApiClient instead
-   */
-  embedderModel?: Model
-  embedderDimensions?: number
-  /**
-   * @deprecated use llmApiClient instead
-   */
+  embeddingDimensions?: number
+  embeddingModel?: Model
   llmModel?: Model
-  embedderApiClient?: ApiClient
-  llmApiClient?: ApiClient
+  // Dynamically retrieved, not persistently stored
+  embeddingApiClient?: ApiClient
   customFactExtractionPrompt?: string
   customUpdateMemoryPrompt?: string
   /** Indicates whether embedding dimensions are automatically detected */

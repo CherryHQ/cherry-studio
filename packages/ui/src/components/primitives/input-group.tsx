@@ -3,7 +3,7 @@ import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
 import { Input } from '@cherrystudio/ui/components/primitives/input'
 import type { TextareaInputProps } from '@cherrystudio/ui/components/primitives/textarea'
 import * as Textarea from '@cherrystudio/ui/components/primitives/textarea'
-import { cn } from '@cherrystudio/ui/utils/index'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
 

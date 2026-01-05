@@ -7,12 +7,12 @@
  */
 
 // Original path: src/renderer/src/components/ThinkingEffect.tsx
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { isEqual } from 'lodash'
 import { ChevronRight, Lightbulb } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { useEffect, useMemo, useState } from 'react'
 
-import { cn } from '../../../utils'
 import { lightbulbVariants } from './defaultVariants'
 
 interface ThinkingEffectProps {

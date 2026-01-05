@@ -1,7 +1,8 @@
-import { Avatar, cn } from '@cherrystudio/ui'
+import { Avatar } from '@cherrystudio/ui'
 import { PoeLogo } from '@renderer/components/Icons'
 import { getProviderLogo } from '@renderer/config/providers'
 import type { Provider } from '@renderer/types'
+import { cn } from '@renderer/utils'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
 import React from 'react'
 

@@ -96,7 +96,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
   // Topics that can be selected (non-pinned, and filtered when in search mode)
   const selectableTopics = useMemo(() => {
     const baseTopics = isSearchMode ? filteredTopics : assistant.topics
-    return baseTopics.filter((topic) => !topic.pinned)
+    return (baseTopics ?? []).filter((topic) => !topic.pinned)
   }, [assistant.topics, filteredTopics, isSearchMode])
 
   // Check if all selectable topics are selected

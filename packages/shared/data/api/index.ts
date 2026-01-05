@@ -1,121 +1,110 @@
 /**
  * Cherry Studio Data API - Barrel Exports
  *
- * This file provides a centralized entry point for all data API types,
- * schemas, and utilities. Import everything you need from this single location.
+ * Exports common infrastructure types for the Data API system.
+ * Domain-specific DTOs should be imported directly from their schema files.
  *
  * @example
  * ```typescript
- * import { Topic, CreateTopicDto, ApiSchemas, DataRequest, ErrorCode } from '@/shared/data'
+ * // Infrastructure types from barrel export
+ * import { DataRequest, DataResponse, ErrorCode, DataApiError } from '@shared/data/api'
+ *
+ * // Domain DTOs from schema files directly
+ * import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topic'
  * ```
  */
 
-// Core data API types and infrastructure
+// ============================================================================
+// Core Request/Response Types
+// ============================================================================
+
 export type {
-  BatchRequest,
-  BatchResponse,
-  CacheOptions,
-  DataApiError,
+  CursorPaginationParams,
+  CursorPaginationResponse,
   DataRequest,
   DataResponse,
   HttpMethod,
-  Middleware,
-  PaginatedResponse,
-  PaginationParams,
-  RequestContext,
-  ServiceOptions,
-  ServiceResult,
-  SubscriptionCallback,
-  SubscriptionOptions,
-  TransactionRequest
+  OffsetPaginationParams,
+  OffsetPaginationResponse,
+  PaginationResponse,
+  SearchParams,
+  SortParams
 } from './apiTypes'
-export { ErrorCode, SubscriptionEvent } from './apiTypes'
+export { isCursorPaginationResponse, isOffsetPaginationResponse } from './apiTypes'
 
-// Domain models and DTOs
-export type {
-  BulkOperationRequest,
-  BulkOperationResponse,
-  CreateTestItemDto,
-  TestItem,
-  UpdateTestItemDto
-} from './apiModels'
+// ============================================================================
+// API Schema Type Utilities
+// ============================================================================
 
-// API schema definitions and type helpers
 export type {
   ApiBody,
   ApiClient,
+  ApiHandler,
+  ApiImplementation,
   ApiMethods,
   ApiParams,
   ApiPaths,
   ApiQuery,
   ApiResponse,
-  ApiSchemas
-} from './apiSchemas'
+  ApiSchemas,
+  ConcreteApiPaths
+} from './apiTypes'
 
-// Path type utilities for template literal types
+// ============================================================================
+// Path Resolution Utilities
+// ============================================================================
+
 export type {
   BodyForPath,
-  ConcreteApiPaths,
   MatchApiPath,
   QueryParamsForPath,
   ResolvedPath,
   ResponseForPath
 } from './apiPaths'
 
-// Error handling utilities
+// ============================================================================
+// Error Handling (from apiErrors.ts)
+// ============================================================================
+
+// Error code enum and mappings
 export {
-  ErrorCode as DataApiErrorCode,
-  DataApiErrorFactory,
   ERROR_MESSAGES,
   ERROR_STATUS_MAP,
-  isDataApiError,
-  toDataApiError
-} from './errorCodes'
-
-/**
- * Re-export commonly used type combinations for convenience
- */
-
-// Import types for re-export convenience types
-import type { CreateTestItemDto, TestItem, UpdateTestItemDto } from './apiModels'
-import type {
-  BatchRequest,
-  BatchResponse,
-  DataApiError,
-  DataRequest,
-  DataResponse,
   ErrorCode,
-  PaginatedResponse,
-  PaginationParams,
-  TransactionRequest
-} from './apiTypes'
-import type { DataApiErrorFactory } from './errorCodes'
+  isRetryableErrorCode,
+  RETRYABLE_ERROR_CODES
+} from './apiErrors'
 
-/** All test item-related types */
-export type TestItemTypes = {
-  TestItem: TestItem
-  CreateTestItemDto: CreateTestItemDto
-  UpdateTestItemDto: UpdateTestItemDto
-}
+// DataApiError class and factory
+export {
+  DataApiError,
+  DataApiErrorFactory,
+  isDataApiError,
+  isSerializedDataApiError,
+  toDataApiError
+} from './apiErrors'
 
-/** All error-related types and utilities */
-export type ErrorTypes = {
-  DataApiError: DataApiError
-  ErrorCode: ErrorCode
-  ErrorFactory: typeof DataApiErrorFactory
-}
+// Error-related types
+export type {
+  ConcurrentModificationErrorDetails,
+  DatabaseErrorDetails,
+  DataInconsistentErrorDetails,
+  DetailsForCode,
+  ErrorDetailsMap,
+  InternalErrorDetails,
+  InvalidOperationErrorDetails,
+  NotFoundErrorDetails,
+  PermissionDeniedErrorDetails,
+  RequestContext,
+  ResourceLockedErrorDetails,
+  SerializedDataApiError,
+  TimeoutErrorDetails,
+  ValidationErrorDetails
+} from './apiErrors'
 
-/** All request/response types */
-export type RequestTypes = {
-  DataRequest: DataRequest
-  DataResponse: DataResponse
-  BatchRequest: BatchRequest
-  BatchResponse: BatchResponse
-  TransactionRequest: TransactionRequest
-}
+// ============================================================================
+// Subscription & Middleware (for advanced usage)
+// ============================================================================
 
-/** All pagination-related types */
-export type PaginationTypes = {
-  PaginationParams: PaginationParams
-  PaginatedResponse: PaginatedResponse<any>
-}
+export type { Middleware, ServiceOptions, SubscriptionCallback, SubscriptionOptions } from './apiTypes'
+export { SubscriptionEvent } from './apiTypes'

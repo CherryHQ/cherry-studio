@@ -10,6 +10,7 @@ import {
   isAnthropicModel,
   isGeminiModel,
   isGrokModel,
+  isInterleavedThinkingModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isQwenMTModel,
@@ -396,10 +397,12 @@ function buildOpenAIProviderOptions(
     }
   }
 
+  // TODO: 支持配置是否在服务端持久化
   providerOptions = {
     ...providerOptions,
     serviceTier,
-    textVerbosity
+    textVerbosity,
+    store: false
   }
 
   return {
@@ -577,8 +580,10 @@ function buildOllamaProviderOptions(
   const reasoningEffort = assistant.settings?.reasoning_effort
   if (enableReasoning) {
     if (isOpenAIOpenWeightModel(model)) {
-      // @ts-ignore upstream type error
-      providerOptions.think = reasoningEffort as any
+      // For gpt-oss models, Ollama accepts: 'low' | 'medium' | 'high'
+      if (reasoningEffort === 'low' || reasoningEffort === 'medium' || reasoningEffort === 'high') {
+        providerOptions.think = reasoningEffort
+      }
     } else {
       providerOptions.think = !['none', undefined].includes(reasoningEffort)
     }
@@ -601,13 +606,21 @@ function buildGenericProviderOptions(
     enableGenerateImage: boolean
   }
 ): Record<string, any> {
-  const { enableWebSearch } = capabilities
+  const { enableWebSearch, enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
 
   const reasoningParams = getReasoningEffort(assistant, model)
   providerOptions = {
     ...providerOptions,
     ...reasoningParams
+  }
+  if (enableReasoning) {
+    if (isInterleavedThinkingModel(model)) {
+      providerOptions = {
+        ...providerOptions,
+        sendReasoning: true
+      }
+    }
   }
 
   if (enableWebSearch) {

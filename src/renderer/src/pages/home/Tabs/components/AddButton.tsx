@@ -1,4 +1,5 @@
-import { Button, cn } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils'
 import { PlusIcon } from 'lucide-react'
 
 const AddButton = ({ children, className, ...props }) => {
