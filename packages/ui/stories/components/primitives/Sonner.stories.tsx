@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { toast, Toaster } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
+import { CheckIcon } from 'lucide-react'
 
 interface PlaygroundArgs {
   type: 'info' | 'success' | 'warning' | 'error' | 'loading'
@@ -8,6 +9,7 @@ interface PlaygroundArgs {
   description: string
   colored: boolean
   duration: number
+  dismissable: boolean
   withButton: boolean
   buttonLabel: string
 }
@@ -20,7 +22,7 @@ const meta: Meta<typeof Toaster> = {
     docs: {
       description: {
         component:
-          'A custom toast notification component built on sonner. Features custom icons, action buttons, links, and support for info, success, warning, error, and loading states.'
+          'A toast notification component built on Sonner with custom icons and styling. Supports info, success, warning, error, loading, and custom toast types with discriminated union types for type-safe APIs.'
       }
     }
   },
@@ -46,6 +48,7 @@ export const Playground: StoryObj<PlaygroundArgs> = {
     description: 'This is a description that provides more details about the notification.',
     colored: false,
     duration: 4000,
+    dismissable: true,
     withButton: false,
     buttonLabel: 'Action'
   },
@@ -65,11 +68,15 @@ export const Playground: StoryObj<PlaygroundArgs> = {
     },
     colored: {
       control: 'boolean',
-      description: 'Enable colored background'
+      description: 'Enable colored background with backdrop blur'
     },
     duration: {
       control: { type: 'number', min: 1000, max: 10000, step: 1000 },
       description: 'Duration in milliseconds (use Infinity for persistent)'
+    },
+    dismissable: {
+      control: 'boolean',
+      description: 'Whether the toast can be manually dismissed'
     },
     withButton: {
       control: 'boolean',
@@ -83,26 +90,17 @@ export const Playground: StoryObj<PlaygroundArgs> = {
   },
   render: (args: PlaygroundArgs) => {
     const handleToast = () => {
-      const toastOptions: {
-        description?: string
-        colored: boolean
-        duration: number
-        button?: {
-          label: string
-          onClick: () => void
-        }
-        promise?: Promise<void>
-      } = {
+      const toastOptions = {
         description: args.description || undefined,
         colored: args.colored,
-        duration: args.duration
-      }
-
-      if (args.withButton) {
-        toastOptions.button = {
-          label: args.buttonLabel || 'Action',
-          onClick: () => toast.info('Button clicked!')
-        }
+        duration: args.duration,
+        dismissable: args.dismissable,
+        ...(args.withButton && {
+          button: {
+            label: args.buttonLabel || 'Action',
+            onClick: () => toast.info('Button clicked!')
+          }
+        })
       }
 
       switch (args.type) {
@@ -567,6 +565,99 @@ export const RealWorldExamples: Story = {
           <div className="flex gap-2">
             <Button onClick={handleUpdate}>Show Update</Button>
           </div>
+        </div>
+      </div>
+    )
+  }
+}
+
+// Custom Toast with JSX
+export const CustomToast: Story = {
+  render: () => {
+    const showCustomToast = () => {
+      toast.custom({
+        jsx: (id) => (
+          <div className="flex items-center gap-4 rounded-xs bg-gradient-to-r from-purple-500 to-pink-500 p-4 text-white shadow-lg">
+            <CheckIcon className="size-6" />
+            <div className="flex flex-col gap-1">
+              <div className="text-md font-medium leading-4.5">Custom Design</div>
+              <div className="text-xs leading-3.5">This is a fully customized toast with JSX</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => toast.dismiss(id)}
+              className="ml-auto rounded-3xs bg-white/20 px-2 py-1 text-xs hover:bg-white/30">
+              Dismiss
+            </button>
+          </div>
+        ),
+        data: {
+          duration: 5000
+        }
+      })
+    }
+
+    return (
+      <div className="flex flex-col gap-3">
+        <Button onClick={showCustomToast}>Show Custom Toast</Button>
+        <div className="text-sm text-muted-foreground max-w-md">
+          Custom toasts allow you to render any JSX content with full styling control.
+        </div>
+      </div>
+    )
+  }
+}
+
+// Dismissable Control
+export const DismissableControl: Story = {
+  render: () => {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Button
+          onClick={() =>
+            toast.info('Dismissable toast', {
+              description: 'You can close this manually',
+              dismissable: true,
+              duration: Number.POSITIVE_INFINITY
+            })
+          }>
+          Dismissable (Default)
+        </Button>
+        <Button
+          onClick={() =>
+            toast.warning('Non-dismissable toast', {
+              description: 'This will auto-close after 3 seconds',
+              dismissable: false,
+              duration: 3000
+            })
+          }>
+          Non-dismissable
+        </Button>
+      </div>
+    )
+  }
+}
+
+// With Custom Class Names
+export const WithCustomClassNames: Story = {
+  render: () => {
+    return (
+      <div className="flex flex-col gap-3">
+        <Button
+          onClick={() =>
+            toast.success('Custom Styled Toast', {
+              description: 'This toast has custom class names applied',
+              classNames: {
+                toast: 'border-2 border-green-500',
+                title: 'text-lg font-bold',
+                description: 'text-green-700 italic'
+              }
+            })
+          }>
+          Custom Class Names
+        </Button>
+        <div className="text-sm text-muted-foreground max-w-md">
+          You can customize specific parts of the toast using the classNames prop.
         </div>
       </div>
     )
