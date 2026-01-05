@@ -1,3 +1,11 @@
+// Initialize react-scan for performance monitoring (enable via: yarn dev:react-scan)
+import { reactScanConfig } from '@renderer/config/reactScan.config'
+import { scan } from 'react-scan'
+
+if (import.meta.env.RENDERER_VITE_REACT_SCAN === 'true') {
+  scan(reactScanConfig)
+}
+
 import i18n from '@renderer/i18n'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
