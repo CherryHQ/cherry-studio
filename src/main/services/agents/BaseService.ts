@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
 import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
+import { buildFunctionCallToolName } from '@main/utils/mcp'
 import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
 import { objectKeys } from '@types'
 import fs from 'fs'
@@ -14,6 +15,17 @@ import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('BaseService')
+const MCP_TOOL_ID_PREFIX = 'mcp__'
+const MCP_TOOL_LEGACY_PREFIX = 'mcp_'
+
+const buildMcpToolId = (serverId: string, toolName: string) => `${MCP_TOOL_ID_PREFIX}${serverId}__${toolName}`
+const toLegacyMcpToolId = (toolId: string) => {
+  if (!toolId.startsWith(MCP_TOOL_ID_PREFIX)) {
+    return null
+  }
+  const rawId = toolId.slice(MCP_TOOL_ID_PREFIX.length)
+  return `${MCP_TOOL_LEGACY_PREFIX}${rawId.replace(/__/g, '_')}`
+}
 
 /**
  * Base service class providing shared utilities for all agent-related services.
@@ -35,8 +47,12 @@ export abstract class BaseService {
     'slash_commands'
   ]
 
-  public async listMcpTools(agentType: AgentType, ids?: string[]): Promise<Tool[]> {
+  public async listMcpTools(
+    agentType: AgentType,
+    ids?: string[]
+  ): Promise<{ tools: Tool[]; legacyIdMap: Map<string, string> }> {
     const tools: Tool[] = []
+    const legacyIdMap = new Map<string, string>()
     if (agentType === 'claude-code') {
       tools.push(...builtinTools)
     }
@@ -46,13 +62,21 @@ export abstract class BaseService {
           const server = await mcpApiService.getServerInfo(id)
           if (server) {
             server.tools.forEach((tool: MCPTool) => {
+              const canonicalId = buildFunctionCallToolName(server.name, tool.name)
+              const serverIdBasedId = buildMcpToolId(id, tool.name)
+              const legacyId = toLegacyMcpToolId(serverIdBasedId)
+
               tools.push({
-                id: `mcp_${id}_${tool.name}`,
+                id: canonicalId,
                 name: tool.name,
                 type: 'mcp',
                 description: tool.description || '',
                 requirePermissions: true
               })
+              legacyIdMap.set(serverIdBasedId, canonicalId)
+              if (legacyId) {
+                legacyIdMap.set(legacyId, canonicalId)
+              }
             })
           }
         } catch (error) {
@@ -64,7 +88,53 @@ export abstract class BaseService {
       }
     }
 
-    return tools
+    return { tools, legacyIdMap }
+  }
+
+  /**
+   * Normalize MCP tool IDs in allowed_tools to the current format.
+   *
+   * Legacy formats:
+   * - "mcp__<serverId>__<toolName>" (double underscore separators, server ID based)
+   * - "mcp_<serverId>_<toolName>" (single underscore separators)
+   * Current format: "mcp__<serverName>__<toolName>" (double underscore separators).
+   *
+   * This keeps persisted data compatible without requiring a database migration.
+   */
+  protected normalizeAllowedTools(
+    allowedTools: string[] | undefined,
+    tools: Tool[],
+    legacyIdMap?: Map<string, string>
+  ): string[] | undefined {
+    if (!allowedTools || allowedTools.length === 0) {
+      return allowedTools
+    }
+
+    const resolvedLegacyIdMap = new Map<string, string>()
+
+    if (legacyIdMap) {
+      for (const [legacyId, canonicalId] of legacyIdMap) {
+        resolvedLegacyIdMap.set(legacyId, canonicalId)
+      }
+    }
+
+    for (const tool of tools) {
+      if (tool.type !== 'mcp') {
+        continue
+      }
+      const legacyId = toLegacyMcpToolId(tool.id)
+      if (!legacyId) {
+        continue
+      }
+      resolvedLegacyIdMap.set(legacyId, tool.id)
+    }
+
+    if (resolvedLegacyIdMap.size === 0) {
+      return allowedTools
+    }
+
+    const normalized = allowedTools.map((toolId) => resolvedLegacyIdMap.get(toolId) ?? toolId)
+    return Array.from(new Set(normalized))
   }
 
   public async listSlashCommands(agentType: AgentType): Promise<SlashCommand[]> {

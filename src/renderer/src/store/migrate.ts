@@ -3147,11 +3147,26 @@ const migrateConfig = {
   },
   '192': (state: RootState) => {
     try {
-      addPreprocessProviders(state, 'paddleocr')
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === '302ai') {
+          provider.anthropicApiHost = 'https://api.302.ai'
+        }
+      })
+      state.settings.readClipboardAtStartup = false
       logger.info('migrate 192 success')
       return state
     } catch (error) {
       logger.error('migrate 192 error', error as Error)
+      return state
+    }
+  }
+  '193': (state: RootState) => {
+    try {
+      addPreprocessProviders(state, 'paddleocr')
+      logger.info('migrate 193 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 193 error', error as Error)
       return state
     }
   }
