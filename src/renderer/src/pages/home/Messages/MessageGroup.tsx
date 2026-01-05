@@ -7,7 +7,7 @@ import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
@@ -23,11 +23,12 @@ import MessageGroupMenuBar from './MessageGroupMenuBar'
 const logger = loggerService.withContext('MessageGroup')
 interface Props {
   messages: (Message & { index: number })[]
+  blocksMap?: Record<string, MessageBlock[]> // NOTE: [v2 Migration] Block objects for DataApi path
   topic: Topic
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
 
-const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
+const MessageGroup = ({ messages, blocksMap, topic, registerMessageElement }: Props) => {
   const messageLength = messages.length
 
   // Hooks
@@ -201,9 +202,12 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
+      // NOTE: [v2 Migration] Get blocks from blocksMap for DataApi path
+      const blocks = blocksMap?.[message.id]
       const messageProps = {
         isGrouped,
         message,
+        blocks, // NOTE: [v2 Migration] Pass block objects directly for DataApi path
         topic,
         index: message.index
       } satisfies ComponentProps<typeof MessageItem>
@@ -258,6 +262,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     [
       isGrid,
       isGrouped,
+      blocksMap,
       topic,
       multiModelMessageStyle,
       messages,

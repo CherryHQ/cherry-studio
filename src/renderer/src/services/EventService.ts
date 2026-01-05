@@ -25,5 +25,8 @@ export const EVENT_NAMES = {
   RESEND_MESSAGE: 'RESEND_MESSAGE',
   SHOW_MODEL_SELECTOR: 'SHOW_MODEL_SELECTOR',
   EDIT_CODE_BLOCK: 'EDIT_CODE_BLOCK',
-  CHANGE_TOPIC: 'CHANGE_TOPIC'
+  CHANGE_TOPIC: 'CHANGE_TOPIC',
+  // NOTE: [v2 Migration] Used for streaming->API transition.
+  // Emitted by StreamingService.finalize() to signal UI hooks to refresh data and clear cache.
+  STREAMING_FINALIZED: 'streaming:finalized'
 }

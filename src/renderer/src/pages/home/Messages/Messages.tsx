@@ -6,6 +6,8 @@ import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+// NOTE: [v2 Migration] Import unified hook and streaming session hook for DataApi path
+import { useStreamingSessionIds, useTopicMessagesUnified } from '@renderer/hooks/useMessages.v2'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -14,6 +16,8 @@ import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
+// NOTE: [v2 Migration] Import streaming service for cache clearing
+import { streamingService } from '@renderer/services/messageStreaming/StreamingService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import store, { useAppDispatch } from '@renderer/store'
 import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
@@ -42,6 +46,8 @@ import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
 import { MessagesContainer, ScrollContainer } from './shared'
+// NOTE: [v2 Migration] Import streaming message component for DataApi path
+import StreamingMessageItem from './StreamingMessageItem.v2'
 
 interface MessagesProps {
   assistant: Assistant
@@ -67,7 +73,19 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+
+  // NOTE: [v2 Migration] Use unified hook for routing between DataApi and legacy paths.
+  // For normal topics: uses DataApi with grouped messages
+  // For Agent Sessions: uses legacy Redux path (temporary until Agent Session migration)
+  const unifiedResult = useTopicMessagesUnified(topic.id)
+  const isDataApiPath = unifiedResult.source === 'dataapi'
+
+  // Legacy path: still uses useTopicMessages for Agent Sessions
   const messages = useTopicMessages(topic.id)
+
+  // DataApi path: get streaming session IDs for rendering
+  const sessionIds = useStreamingSessionIds(topic.id)
+
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const { setTimeoutTimer } = useTimer()
 
@@ -88,11 +106,46 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     }
   }, [])
 
+  // NOTE: [v2 Migration] For legacy path only: compute display messages from Redux
   useEffect(() => {
-    const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
-    setDisplayMessages(newDisplayMessages)
-    setHasMore(messages.length > displayCount)
-  }, [messages, displayCount])
+    if (!isDataApiPath) {
+      const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
+      setDisplayMessages(newDisplayMessages)
+      setHasMore(messages.length > displayCount)
+    }
+  }, [messages, displayCount, isDataApiPath])
+
+  // NOTE: [v2 Migration] For DataApi path: filter out groups that contain streaming messages
+  // This prevents duplicate rendering (streaming messages are rendered separately)
+  const filteredApiGroups = useMemo(() => {
+    if (!isDataApiPath || !unifiedResult.groupedMessages) return []
+    const streamingSet = new Set(sessionIds)
+    return unifiedResult.groupedMessages.filter((group) => !group.some((item) => streamingSet.has(item.message.id)))
+  }, [isDataApiPath, unifiedResult.groupedMessages, sessionIds])
+
+  // NOTE: [v2 Migration] Listen for STREAMING_FINALIZED event to handle DataApi refresh and cache clearing.
+  // TRADEOFF: Event-driven ensures mutate() completes before cache clears, preventing UI flicker.
+  useEffect(() => {
+    if (!isDataApiPath) return
+
+    const handler = async ({ messageId, topicId: eventTopicId }: { messageId: string; topicId: string }) => {
+      if (eventTopicId !== topic.id) return
+
+      // Wait for DataApi to refresh (mutate triggers SWR revalidation)
+      if (unifiedResult.mutate) {
+        await unifiedResult.mutate()
+      }
+
+      // After data is refreshed, clear the streaming cache
+      streamingService.clearSession(messageId)
+    }
+
+    EventEmitter.on(EVENT_NAMES.STREAMING_FINALIZED, handler)
+    return () => {
+      EventEmitter.off(EVENT_NAMES.STREAMING_FINALIZED, handler)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutate is stable (useCallback wrapped), avoid re-renders from unifiedResult object reference changes
+  }, [isDataApiPath, topic.id, unifiedResult.mutate])
 
   // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
@@ -287,8 +340,36 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     requestAnimationFrame(() => onComponentUpdate?.())
   }, [onComponentUpdate])
 
-  // NOTE: 因为displayMessages是倒序的，所以得到的groupedMessages每个group内部也是倒序的，需要再倒一遍
+  // NOTE: [v2 Migration] groupedMessages computation handles both DataApi and legacy paths.
+  // - DataApi path: uses filteredApiGroups (already grouped by API, just needs format conversion)
+  // - Legacy path: uses displayMessages with getGroupedMessages (existing logic)
+  // TRADEOFF: DataApi path returns object with blocksMap, legacy path returns tuple for compatibility.
+  // This avoids breaking changes while enabling block data flow for DataApi path.
   const groupedMessages = useMemo(() => {
+    if (isDataApiPath) {
+      // DataApi path: convert MessageWithBlocks[][] to object format with blocksMap
+      // Key is the first message's ID in each group
+      // NOTE: [v2 Migration] MessageGroup requires index property for message navigation.
+      // For DataApi path, we calculate index based on position in the flattened list.
+      let globalIndex = 0
+      return filteredApiGroups.map((group) => {
+        const key = group[0]?.message.id ?? ''
+        const messages: (Message & { index: number })[] = []
+        const blocksMap: Record<string, MessageBlock[]> = {}
+
+        group.forEach((item) => {
+          const msg = { ...item.message, index: globalIndex }
+          messages.push(msg)
+          blocksMap[msg.id] = item.blocks // NOTE: [v2 Migration] Preserve blocks for DataApi path
+          globalIndex++
+        })
+
+        return { key, messages, blocksMap }
+      })
+    }
+
+    // Legacy path: original logic for Agent Sessions
+    // NOTE: 因为displayMessages是倒序的，所以得到的groupedMessages每个group内部也是倒序的，需要再倒一遍
     const grouped = Object.entries(getGroupedMessages(displayMessages))
     const newGrouped: {
       [key: string]: (Message & {
@@ -298,8 +379,22 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     grouped.forEach(([key, group]) => {
       newGrouped[key] = group.toReversed()
     })
-    return Object.entries(newGrouped)
-  }, [displayMessages])
+    // Legacy path: return object format for consistency (blocksMap undefined)
+    return Object.entries(newGrouped).map(([key, messages]) => ({ key, messages, blocksMap: undefined }))
+  }, [isDataApiPath, filteredApiGroups, displayMessages])
+
+  // NOTE: [v2 Migration] Compute infinite scroll props based on path
+  const infiniteScrollProps = isDataApiPath
+    ? {
+        dataLength: filteredApiGroups.length,
+        next: unifiedResult.loadMore ?? (() => {}),
+        hasMore: unifiedResult.hasMore ?? false
+      }
+    : {
+        dataLength: displayMessages.length,
+        next: loadMoreMessages,
+        hasMore: hasMore
+      }
 
   return (
     <MessagesContainer
@@ -310,19 +405,24 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       onScroll={handleScrollPosition}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
-          dataLength={displayMessages.length}
-          next={loadMoreMessages}
-          hasMore={hasMore}
+          dataLength={infiniteScrollProps.dataLength}
+          next={infiniteScrollProps.next}
+          hasMore={infiniteScrollProps.hasMore}
           loader={null}
           scrollableTarget="messages"
           inverse
           style={{ overflow: 'visible' }}>
           <ContextMenu>
             <ScrollContainer>
-              {groupedMessages.map(([key, groupMessages]) => (
+              {/* NOTE: [v2 Migration] Render streaming messages first (at top) for DataApi path */}
+              {isDataApiPath &&
+                sessionIds.map((id) => <StreamingMessageItem key={`streaming-${id}`} messageId={id} topic={topic} />)}
+              {/* Render grouped messages (both DataApi and legacy paths) */}
+              {groupedMessages.map(({ key, messages: groupMessages, blocksMap }) => (
                 <MessageGroup
                   key={key}
                   messages={groupMessages}
+                  blocksMap={blocksMap}
                   topic={topic}
                   registerMessageElement={registerMessageElement}
                 />
@@ -338,6 +438,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
         {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>
+      {/* TODO: [v2 Migration] MessageAnchorLine only works for legacy path (Agent Sessions).
+          For DataApi path, displayMessages is empty because it's only populated in the legacy useEffect.
+          To fix: flatten filteredApiGroups into a messages array for DataApi path. */}
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       <SelectionBox
         isMultiSelectMode={isMultiSelectMode}

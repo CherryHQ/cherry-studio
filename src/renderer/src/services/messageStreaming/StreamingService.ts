@@ -22,6 +22,7 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Model } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
@@ -219,7 +220,20 @@ class StreamingService {
         await dataApiService.patch(`/messages/${session.messageId}`, { body: dataApiPayload })
       }
 
-      this.clearSession(messageId)
+      // NOTE: [v2 Migration] Event-driven clearing for normal topics.
+      // TRADEOFF: Agent sessions clear immediately vs normal topics use event-driven clearing.
+      // Event-driven ensures DataApi has refreshed (via mutate) before cache clears, preventing UI flicker.
+      // Agent sessions still use immediate clearing since they don't use the new DataApi path yet.
+      if (isAgentSessionTopicId(session.topicId)) {
+        // Agent Session → Clear immediately (legacy behavior, will be migrated later)
+        this.clearSession(messageId)
+      } else {
+        // Normal Topic → Emit event, let UI hook handle clearing after mutate()
+        EventEmitter.emit(EVENT_NAMES.STREAMING_FINALIZED, {
+          messageId,
+          topicId: session.topicId
+        })
+      }
       logger.debug('Finalized streaming session', { messageId, status })
     } catch (error) {
       logger.error('finalize failed:', error as Error)
