@@ -1,5 +1,5 @@
 import { hasProviderConfig } from '@cherrystudio/ai-core/provider'
-import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
+import { isOpenAIChatCompletionOnlyModel, isOpenAIReasoningModel } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockApiKey,
@@ -11,7 +11,7 @@ import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useV
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider } from '@renderer/types'
-import { isSupportStreamOptionsProvider } from '@renderer/utils/provider'
+import { isSupportDeveloperRoleProvider, isSupportStreamOptionsProvider } from '@renderer/utils/provider'
 import {
   type AiSdkConfigContext,
   formatProviderApiHost as sharedFormatProviderApiHost,
@@ -52,7 +52,9 @@ function createRendererSdkContext(model: Model): AiSdkConfigContext {
       }
       return createVertexProvider(provider as Provider)
     },
-    getEndpointType: () => model.endpoint_type
+    getEndpointType: () => model.endpoint_type,
+    isSupportDeveloperRoleProvider: (provider) => isSupportDeveloperRoleProvider(provider as Provider),
+    isOpenAIReasoningModel: () => isOpenAIReasoningModel(model)
   }
 }
 
@@ -202,5 +204,6 @@ export async function prepareSpecialProviderConfig(
       }
     }
   }
+
   return config
 }

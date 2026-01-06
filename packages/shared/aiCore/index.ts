@@ -6,6 +6,7 @@
  */
 export type { AiSdkConfig, AiSdkConfigContext, ApiKeyRotator, ProviderFormatContext } from './providerConfig'
 export {
+  createDeveloperToSystemFetch,
   defaultFormatAzureOpenAIApiHost,
   formatProviderApiHost,
   getBaseUrlForAiSdk,
