@@ -19,7 +19,7 @@ export async function getIpCountry(): Promise<string> {
 
     clearTimeout(timeoutId)
     const data = await ipinfo.json()
-    const country = data.country || 'CN'
+    const country = data.country_code || 'CN'
     logger.info(`Detected user IP address country: ${country}`)
     return country
   } catch (error) {
