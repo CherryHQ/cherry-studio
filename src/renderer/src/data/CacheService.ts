@@ -56,8 +56,8 @@ export class CacheService {
   private sharedCache = new Map<string, CacheEntry>() // Cross-window cache (local copy)
   private persistCache = new Map<RendererPersistCacheKey, any>() // Persistent cache
 
-  // Hook reference tracking
-  private activeHooks = new Set<string>()
+  // Hook reference tracking (reference-counted)
+  private activeHookCounts = new Map<string, number>()
 
   // Subscription management
   private subscribers = new Map<string, Set<CacheSubscriber>>()
@@ -346,7 +346,7 @@ export class CacheService {
    */
   private deleteInternal(key: string): boolean {
     // Check if key is being used by hooks
-    if (this.activeHooks.has(key)) {
+    if (this.activeHookCounts.get(key)) {
       logger.error(`Cannot delete key "${key}" as it's being used by useCache hook`)
       return false
     }
@@ -574,7 +574,7 @@ export class CacheService {
    */
   private deleteSharedInternal(key: string): boolean {
     // Check if key is being used by hooks
-    if (this.activeHooks.has(key)) {
+    if (this.activeHookCounts.get(key)) {
       logger.error(`Cannot delete key "${key}" as it's being used by useSharedCache hook`)
       return false
     }
@@ -666,7 +666,8 @@ export class CacheService {
    * @param key - Cache key being used by the hook
    */
   registerHook(key: string): void {
-    this.activeHooks.add(key)
+    const currentCount = this.activeHookCounts.get(key) ?? 0
+    this.activeHookCounts.set(key, currentCount + 1)
   }
 
   /**
@@ -674,7 +675,17 @@ export class CacheService {
    * @param key - Cache key no longer being used by the hook
    */
   unregisterHook(key: string): void {
-    this.activeHooks.delete(key)
+    const currentCount = this.activeHookCounts.get(key)
+    if (!currentCount) {
+      return
+    }
+
+    if (currentCount === 1) {
+      this.activeHookCounts.delete(key)
+      return
+    }
+
+    this.activeHookCounts.set(key, currentCount - 1)
   }
 
   // ============ Shared Cache Ready State Management ============
@@ -998,7 +1009,7 @@ export class CacheService {
     this.persistCache.clear()
 
     // Clear tracking
-    this.activeHooks.clear()
+    this.activeHookCounts.clear()
     this.subscribers.clear()
 
     logger.debug('CacheService cleanup completed')

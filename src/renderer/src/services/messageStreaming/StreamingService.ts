@@ -22,6 +22,7 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Model } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
@@ -219,7 +220,20 @@ class StreamingService {
         await dataApiService.patch(`/messages/${session.messageId}`, { body: dataApiPayload })
       }
 
-      this.clearSession(messageId)
+      // NOTE: [v2 Migration] Event-driven clearing for normal topics.
+      // TRADEOFF: Agent sessions clear immediately vs normal topics use event-driven clearing.
+      // Event-driven ensures DataApi has refreshed (via mutate) before cache clears, preventing UI flicker.
+      // Agent sessions still use immediate clearing since they don't use the new DataApi path yet.
+      if (isAgentSessionTopicId(session.topicId)) {
+        // Agent Session → Clear immediately (legacy behavior, will be migrated later)
+        this.clearSession(messageId)
+      } else {
+        // Normal Topic → Emit event, let UI hook handle clearing after mutate()
+        EventEmitter.emit(EVENT_NAMES.STREAMING_FINALIZED, {
+          messageId,
+          topicId: session.topicId
+        })
+      }
       logger.debug('Finalized streaming session', { messageId, status })
     } catch (error) {
       logger.error('finalize failed:', error as Error)
@@ -329,10 +343,20 @@ class StreamingService {
 
     // Merge changes - use type assertion since we're updating the same block type
     const updatedBlock = { ...existingBlock, ...changes } as MessageBlock
-    session.blocks[blockId] = updatedBlock
 
-    // Update caches
-    cacheService.set(getSessionKey(messageId), session, SESSION_TTL)
+    // IMPORTANT: Create new session object to trigger CacheService notification.
+    // CacheService uses Object.is() for value comparison - same reference = no notification.
+    // Without this, useCache subscribers won't re-render on updates.
+    const updatedSession: StreamingSession = {
+      ...session,
+      blocks: {
+        ...session.blocks,
+        [blockId]: updatedBlock
+      }
+    }
+
+    // Update caches with new object references
+    cacheService.set(getSessionKey(messageId), updatedSession, SESSION_TTL)
     cacheService.set(getBlockKey(blockId), updatedBlock, SESSION_TTL)
   }
 

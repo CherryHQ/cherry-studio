@@ -52,7 +52,8 @@
       "!src/main/integration/**",
       "!**/tailwind.css",
       "!**/package.json",
-      "!src/renderer/src/routeTree.gen.ts"
+      "!src/renderer/src/routeTree.gen.ts",
+      "!.zed/**"
     ],
     "indentStyle": "space",
     "indentWidth": 2,

@@ -1,6 +1,6 @@
 import { Flex } from '@cherrystudio/ui'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { Message } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { isEmpty } from 'lodash'
 import React from 'react'
 import styled from 'styled-components'
@@ -8,9 +8,10 @@ import styled from 'styled-components'
 import MessageBlockRenderer from './Blocks'
 interface Props {
   message: Message
+  blocks?: MessageBlock[]
 }
 
-const MessageContent: React.FC<Props> = ({ message }) => {
+const MessageContent: React.FC<Props> = ({ message, blocks }) => {
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -20,7 +21,10 @@ const MessageContent: React.FC<Props> = ({ message }) => {
           ))}
         </Flex>
       )}
-      <MessageBlockRenderer blocks={message.blocks} message={message} />
+      {/* NOTE: [v2 Migration] blocks prop takes priority over message.blocks.
+          When blocks is provided (from DataApi/Streaming), use it directly.
+          Otherwise fall back to message.blocks (string[] for Redux path). */}
+      <MessageBlockRenderer blocks={blocks ?? message.blocks} message={message} />
     </>
   )
 }
