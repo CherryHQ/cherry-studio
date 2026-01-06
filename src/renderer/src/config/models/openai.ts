@@ -135,6 +135,40 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   )
 }
 
+/**
+ * Checks if the model is an OpenAI native reasoning model that supports the 'developer' role.
+ * This excludes third-party models (like DeepSeek-R1) deployed through Azure OpenAI or other providers.
+ *
+ * The 'developer' role is only supported by OpenAI's native reasoning models (o1, o3, o4, gpt-5 series).
+ * Third-party models like DeepSeek-R1 deployed through Azure do not support this role and should use 'system' instead.
+ *
+ * @param model - The model to check
+ * @returns true if the model is an OpenAI native reasoning model that supports 'developer' role
+ */
+export function isOpenAINativeDeveloperRoleModel(model: Model): boolean {
+  if (!isSupportedReasoningEffortOpenAIModel(model)) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+
+  // Exclude third-party models that might be deployed through Azure or other providers
+  // DeepSeek models use naming patterns like: deepseek-*, DeepSeek-*, *deepseek*
+  if (modelId.includes('deepseek')) {
+    return false
+  }
+
+  // Exclude other known third-party models that might be deployed through Azure
+  // but don't support the 'developer' role
+  const thirdPartyPatterns = ['llama', 'mistral', 'phi-', 'cohere', 'jamba']
+
+  if (thirdPartyPatterns.some((pattern) => modelId.includes(pattern))) {
+    return false
+  }
+
+  return true
+}
+
 const OPENAI_DEEP_RESEARCH_MODEL_REGEX = /deep[-_]?research/
 
 export function isOpenAIDeepResearchModel(model?: Model): boolean {

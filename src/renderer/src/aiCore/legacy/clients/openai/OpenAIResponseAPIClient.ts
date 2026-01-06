@@ -7,8 +7,8 @@ import {
   isGPT5SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAILLMModel,
+  isOpenAINativeDeveloperRoleModel,
   isOpenAIOpenWeightModel,
-  isSupportedReasoningEffortOpenAIModel,
   isSupportVerbosityModel,
   isVisionModel
 } from '@renderer/config/models'
@@ -429,8 +429,10 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           text: assistant.prompt || '',
           type: 'input_text'
         }
+        // Only use 'developer' role for OpenAI native reasoning models (o1, o3, o4, gpt-5 series)
+        // Third-party models like DeepSeek-R1 deployed through Azure do not support 'developer' role
         if (
-          isSupportedReasoningEffortOpenAIModel(model) &&
+          isOpenAINativeDeveloperRoleModel(model) &&
           isSupportDeveloperRoleProvider(this.provider) &&
           isOpenAIOpenWeightModel(model)
         ) {

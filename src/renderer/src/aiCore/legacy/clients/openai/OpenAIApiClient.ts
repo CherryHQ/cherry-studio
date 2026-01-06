@@ -17,6 +17,7 @@ import {
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
   isOpenAIDeepResearchModel,
+  isOpenAINativeDeveloperRoleModel,
   isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
@@ -24,7 +25,6 @@ import {
   isQwenReasoningModel,
   isReasoningModel,
   isSupportedReasoningEffortModel,
-  isSupportedReasoningEffortOpenAIModel,
   isSupportedThinkingTokenClaudeModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
@@ -617,8 +617,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         // 1. 处理系统消息
         const systemMessage = { role: 'system', content: assistant.prompt || '' }
 
+        // Only use 'developer' role for OpenAI native reasoning models (o1, o3, o4, gpt-5 series)
+        // Third-party models like DeepSeek-R1 deployed through Azure do not support 'developer' role
         if (
-          isSupportedReasoningEffortOpenAIModel(model) &&
+          isOpenAINativeDeveloperRoleModel(model) &&
           isSupportDeveloperRoleProvider(this.provider) &&
           !isOpenAIOpenWeightModel(model)
         ) {
