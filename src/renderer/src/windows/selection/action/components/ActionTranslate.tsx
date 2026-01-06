@@ -1,4 +1,3 @@
-import { LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
@@ -10,6 +9,7 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
@@ -48,7 +48,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   const [error, setError] = useState('')
   const [showOriginal, setShowOriginal] = useState(false)
-  const [isContented, setIsContented] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [contentToCopy, setContentToCopy] = useState('')
   const [initialized, setInitialized] = useState(false)
@@ -132,19 +131,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       askId.current = id
     }
     const onStream = () => {
-      setIsContented(true)
       scrollToBottom?.()
     }
     const onFinish = (content: string) => {
       setContentToCopy(content)
-      setIsLoading(false)
     }
     const onError = (error: Error) => {
-      setIsLoading(false)
       setError(error.message)
     }
-
-    setIsLoading(true)
 
     let sourceLanguageCode: TranslateLanguageCode
 
@@ -190,6 +184,18 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     return assistantMessages[assistantMessages.length - 1]
   }, [allMessages])
 
+  const isStreaming = useMemo(() => {
+    if (lastAssistantMessage) {
+      return (
+        lastAssistantMessage.status === AssistantMessageStatus.PENDING ||
+        lastAssistantMessage.status === AssistantMessageStatus.PROCESSING ||
+        lastAssistantMessage.status === AssistantMessageStatus.SEARCHING
+      )
+    } else {
+      return false
+    }
+  }, [lastAssistantMessage])
+
   const handleChangeLanguage = (targetLanguage: TranslateLanguage, alterLanguage: TranslateLanguage) => {
     if (!initialized) {
       return
@@ -204,13 +210,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const handlePause = () => {
     if (askId.current) {
       abortCompletion(askId.current)
-      setIsLoading(false)
     }
   }
 
   const handleRegenerate = () => {
     setContentToCopy('')
-    setIsLoading(true)
     fetchResult()
   }
 
@@ -230,7 +234,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               title={t('translate.target_language')}
               optionFilterProp="label"
               onChange={(value) => handleChangeLanguage(getLanguageByLangcode(value), alterLanguage)}
-              disabled={isLoading}
+              disabled={isStreaming}
             />
           </Tooltip>
           <ArrowRightFromLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
@@ -242,7 +246,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               title={t('translate.alter_language')}
               optionFilterProp="label"
               onChange={(value) => handleChangeLanguage(targetLanguage, getLanguageByLangcode(value))}
-              disabled={isLoading}
+              disabled={isStreaming}
             />
           </Tooltip>
           <Tooltip placement="bottom" title={t('selection.action.translate.smart_translate_tips')} arrow>
@@ -269,13 +273,17 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
-          {!isContented && isLoading && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {lastAssistantMessage && <MessageContent key={lastAssistantMessage.id} message={lastAssistantMessage} />}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter loading={isLoading} onPause={handlePause} onRegenerate={handleRegenerate} content={contentToCopy} />
+      <WindowFooter
+        loading={isStreaming}
+        onPause={handlePause}
+        onRegenerate={handleRegenerate}
+        content={contentToCopy}
+      />
     </>
   )
 }
