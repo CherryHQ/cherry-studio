@@ -28,37 +28,36 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install corepack
-        run: corepack enable && corepack prepare yarn@4.9.1 --activate
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - name: Cache yarn dependencies
+      - name: Cache pnpm dependencies
         uses: actions/cache@v4
         with:
-          path: |
-            ${{ steps.yarn-cache-dir-path.outputs.dir }}
-            node_modules
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-pnpm-
 
       - name: Install Dependencies
-        run: yarn install
+        run: pnpm install
 
       - name: Lint Check
-        run: yarn test:lint
+        run: pnpm test:lint
 
       - name: Format Check
-        run: yarn format:check
+        run: pnpm format:check
 
       - name: Type Check
-        run: yarn typecheck
+        run: pnpm typecheck
 
       - name: i18n Check
-        run: yarn i18n:check
+        run: pnpm i18n:check
 
       - name: Test
-        run: yarn test
+        run: pnpm test

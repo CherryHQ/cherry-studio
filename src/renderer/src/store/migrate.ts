@@ -3144,6 +3144,21 @@ const migrateConfig = {
       logger.error('migrate 191 error', error as Error)
       return state
     }
+  },
+  '192': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === '302ai') {
+          provider.anthropicApiHost = 'https://api.302.ai'
+        }
+      })
+      state.settings.readClipboardAtStartup = false
+      logger.info('migrate 192 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 192 error', error as Error)
+      return state
+    }
   }
 }
 

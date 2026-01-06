@@ -154,14 +154,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Enable Corepack
+      - name: Install pnpm
         if: steps.check.outputs.should_run == 'true'
-        run: corepack enable && corepack prepare yarn@4.9.1 --activate
+        uses: pnpm/action-setup@v4
 
       - name: Install dependencies
         if: steps.check.outputs.should_run == 'true'
         working-directory: main
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Update upgrade config
         if: steps.check.outputs.should_run == 'true'
@@ -170,7 +170,7 @@ jobs:
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
           IS_PRERELEASE: ${{ steps.check.outputs.is_prerelease }}
         run: |
-          yarn tsx scripts/update-app-upgrade-config.ts \
+          pnpm tsx scripts/update-app-upgrade-config.ts \
             --tag "$RELEASE_TAG" \
             --config ../cs/app-upgrade-config.json \
             --is-prerelease "$IS_PRERELEASE"

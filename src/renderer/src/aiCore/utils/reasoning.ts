@@ -118,6 +118,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return { thinking: { type: 'disabled' } }
     }
 
+    // Deepseek, default behavior is non-thinking
+    if (isDeepSeekHybridInferenceModel(model)) {
+      return {}
+    }
+
     // GPT 5.1, GPT 5.2, or newer
     if (isSupportNoneReasoningEffortModel(model)) {
       return {
