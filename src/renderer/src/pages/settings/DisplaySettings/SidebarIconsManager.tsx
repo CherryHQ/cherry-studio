@@ -15,7 +15,8 @@ import {
   MessageSquareQuote,
   NotepadText,
   Palette,
-  Sparkle
+  Sparkle,
+  Wand2
 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
@@ -119,6 +120,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
         store: <Sparkle size={16} />,
         paintings: <Palette size={16} />,
         translate: <Languages size={16} />,
+        prompt: <Wand2 size={16} />,
         minapp: <LayoutGrid size={16} />,
         knowledge: <FileSearch size={16} />,
         files: <Folder size={16} />,

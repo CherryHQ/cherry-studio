@@ -1297,6 +1297,7 @@
     "backup": {
       "file_format": "Formato do arquivo de backup está incorreto"
     },
+    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Abrir o painel de depuração",
@@ -1377,6 +1378,8 @@
     "text": "texto",
     "toolInput": "ferramenta de entrada",
     "toolName": "Nome da ferramenta",
+    "truncated": "[to be translated]:Data truncated, original size",
+    "truncatedBadge": "[to be translated]:Truncated",
     "unknown": "Erro desconhecido",
     "usage": "dosagem",
     "user_message_not_found": "Não foi possível encontrar a mensagem original do usuário",
@@ -2605,6 +2608,71 @@
     "source": "Ver código-fonte",
     "zoom_in": "ampliar",
     "zoom_out": "reduzir"
+  },
+  "prompt": {
+    "button": {
+      "fix_variables": "[to be translated]:Fix Variables",
+      "generate": "[to be translated]:Generate",
+      "run_test": "[to be translated]:Run Test",
+      "test": "[to be translated]:Test Prompt"
+    },
+    "error": {
+      "empty_result": "[to be translated]:Generation result is empty",
+      "empty_task": "[to be translated]:Please enter a task description",
+      "fix_failed": "[to be translated]:Failed to fix floating variables",
+      "generate_failed": "[to be translated]:Generation failed",
+      "missing_variables": "[to be translated]:Please fill in values for: {{variables}}",
+      "no_metaprompt": "[to be translated]:Metaprompt is empty, please configure it in settings",
+      "no_model": "[to be translated]:Please select a model",
+      "reset_metaprompt_failed": "[to be translated]:Failed to reset Metaprompt",
+      "save_metaprompt_failed": "[to be translated]:Failed to save Metaprompt",
+      "test_failed": "[to be translated]:Test failed"
+    },
+    "info": {
+      "aborted": "[to be translated]:Generation aborted"
+    },
+    "input": {
+      "placeholder": "[to be translated]:Describe the task you want to accomplish...\nFor example: Help me write an email to respond to a customer complaint"
+    },
+    "output": {
+      "placeholder": "[to be translated]:The generated structured prompt template will appear here..."
+    },
+    "settings": {
+      "metaprompt_description": "[to be translated]:Metaprompt is the system prompt used to generate structured prompt templates. You can customize it to adjust the style of generated templates.",
+      "metaprompt_label": "[to be translated]:Metaprompt (System Prompt)",
+      "metaprompt_placeholder": "[to be translated]:Enter Metaprompt...",
+      "reset_to_default": "[to be translated]:Reset to Default",
+      "title": "[to be translated]:Prompt Settings"
+    },
+    "success": {
+      "fixed": "[to be translated]:Floating variables fixed",
+      "generated": "[to be translated]:Prompt generated successfully",
+      "metaprompt_reset": "[to be translated]:Reset to default Metaprompt",
+      "metaprompt_saved": "[to be translated]:Metaprompt saved successfully",
+      "tested": "[to be translated]:Test completed"
+    },
+    "tab": {
+      "generated": "[to be translated]:Generated",
+      "test": "[to be translated]:Test"
+    },
+    "test": {
+      "modal_title": "[to be translated]:Test Prompt",
+      "no_variables": "[to be translated]:This prompt template has no variables",
+      "result_placeholder": "[to be translated]:Test results will appear here...",
+      "result_title": "[to be translated]:Test Result",
+      "variable_placeholder": "[to be translated]:Enter value for {{variable}}...",
+      "variables_title": "[to be translated]:Variable Values"
+    },
+    "title": "[to be translated]:Prompts",
+    "tooltip": {
+      "fix_floating_variables": "[to be translated]:Floating variables detected, click to auto-fix with AI",
+      "newline": "[to be translated]:New line",
+      "test_prompt": "[to be translated]:Test the generated prompt template"
+    },
+    "variables": {
+      "floating_warning": "[to be translated]:Floating variables detected, fix recommended",
+      "title": "[to be translated]:Variables"
+    }
   },
   "prompts": {
     "explanation": "Ajude-me a explicar este conceito",
@@ -4930,6 +4998,7 @@
     "memories": "Memórias",
     "notes": "Notas",
     "paintings": "Pinturas",
+    "prompt": "[to be translated]:Prompts",
     "settings": "Configurações",
     "store": "Biblioteca de assistentes",
     "translate": "Traduzir"

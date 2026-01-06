@@ -146,6 +146,7 @@ const titleKeyMap = {
   memories: 'title.memories',
   notes: 'title.notes',
   paintings: 'title.paintings',
+  prompt: 'title.prompt',
   settings: 'title.settings',
   translate: 'title.translate'
 } as const
@@ -181,6 +182,7 @@ const sidebarIconKeyMap = {
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
+  prompt: 'prompt.title',
   minapp: 'minapp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
