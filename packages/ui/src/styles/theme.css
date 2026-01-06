@@ -254,8 +254,6 @@
   --color-rose-800: oklch(0.46 0.173 13);
   --color-rose-900: oklch(0.41 0.148 11);
   --color-rose-950: oklch(0.27 0.102 12);
-  --color-black: oklch(0 0 0);
-  --color-white: oklch(1 0 0);
   --color-brand-50: oklch(0.98 0.015 152);
   --color-brand-100: oklch(0.96 0.034 151);
   --color-brand-200: oklch(0.91 0.073 151);

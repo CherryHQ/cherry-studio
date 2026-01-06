@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@cherrystudio/ui/utils'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import * as ContextMenuPrimitive from '@radix-ui/react-context-menu'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronRight } from 'lucide-react'
@@ -10,14 +10,12 @@ import * as React from 'react'
 /*                                  Variants                                   */
 /* -------------------------------------------------------------------------- */
 
-const menuContentVariants = cva(
-  cn(
-    'bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-hidden rounded-xs p-2',
-    'shadow-[0px_2px_5px_rgba(0,0,0,0.04),0px_10px_10px_rgba(0,0,0,0.04),0px_22px_13px_rgba(0,0,0,0.02),0px_39px_16px_rgba(0,0,0,0.01),inset_0px_-1px_1.3px_rgba(0,0,0,0.2)]',
-    'data-[state=open]:animate-in data-[state=closed]:animate-out',
-    'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-    'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
-  )
+const menuContentStyles = cn(
+  'bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-hidden rounded-xs p-2',
+  'shadow-[0px_2px_5px_rgba(0,0,0,0.04),0px_10px_10px_rgba(0,0,0,0.04),0px_22px_13px_rgba(0,0,0,0.02),0px_39px_16px_rgba(0,0,0,0.01),inset_0px_-1px_1.3px_rgba(0,0,0,0.2)]',
+  'data-[state=open]:animate-in data-[state=closed]:animate-out',
+  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+  'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
 )
 
 const menuItemVariants = cva(
@@ -99,7 +97,7 @@ function ContextMenuSubContent({ className, ...props }: React.ComponentProps<typ
     <ContextMenuPrimitive.SubContent
       data-slot="context-menu-sub-content"
       className={cn(
-        menuContentVariants(),
+        menuContentStyles,
         'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2',
         'data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
         className
@@ -114,7 +112,7 @@ function ContextMenuContent({ className, ...props }: React.ComponentProps<typeof
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
         data-slot="context-menu-content"
-        className={cn(menuContentVariants(), className)}
+        className={cn(menuContentStyles, className)}
         {...props}
       />
     </ContextMenuPrimitive.Portal>
