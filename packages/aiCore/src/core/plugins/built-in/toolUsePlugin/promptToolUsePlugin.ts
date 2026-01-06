@@ -154,7 +154,8 @@ User: <tool_use_result>
   <name>search</name>
   <result>26 million (2019)</result>
 </tool_use_result>
-Assistant: The population of Shanghai is 26 million, while Guangzhou has a population of 15 million. Therefore, Shanghai has the highest population.`
+
+A: The population of Shanghai is 26 million, while Guangzhou has a population of 15 million. Therefore, Shanghai has the highest population.`
 
 /**
  * 构建可用工具部分（提取自 Cherry Studio）
