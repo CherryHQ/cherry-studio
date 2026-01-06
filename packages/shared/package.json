@@ -1,0 +1,16 @@
+{
+  "name": "@cherrystudio/shared",
+  "version": "1.0.0",
+  "description": "Cherry Studio Shared Utilities",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {},
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": "./index.ts",
+    "./mcp": "./mcp.ts",
+    "./utils": "./utils.ts",
+    "./prompts": "./prompts/index.ts"
+  }
+}

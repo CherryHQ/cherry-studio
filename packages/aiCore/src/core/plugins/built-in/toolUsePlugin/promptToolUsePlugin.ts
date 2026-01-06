@@ -3,6 +3,7 @@
  * 为不支持原生 Function Call 的模型提供 prompt 方式的工具调用
  * 内置默认逻辑，支持自定义覆盖
  */
+import { getHubModeSystemPrompt, type ToolInfo } from '@cherrystudio/shared/prompts'
 import type { TextStreamPart, ToolSet } from 'ai'
 
 import { definePlugin } from '../../index'
@@ -11,6 +12,16 @@ import { StreamEventManager } from './StreamEventManager'
 import { type TagConfig, TagExtractor } from './tagExtraction'
 import { ToolExecutor } from './ToolExecutor'
 import type { PromptToolUseConfig, ToolUseResult } from './type'
+
+/**
+ * Convert ToolSet to ToolInfo array for hub mode system prompt
+ */
+function toolSetToToolInfoArray(tools: ToolSet): ToolInfo[] {
+  return Object.entries(tools).map(([name, tool]) => ({
+    name,
+    description: tool.description || ''
+  }))
+}
 
 /**
  * 工具使用标签配置
@@ -182,7 +193,8 @@ function defaultBuildSystemPrompt(userSystemPrompt: string, tools: ToolSet, mcpM
   if (availableTools === null) return userSystemPrompt
 
   if (mcpMode == 'auto') {
-    return DEFAULT_SYSTEM_PROMPT.replace('{{ TOOLS_INFO }}', getHubModeSystemPrompt(tools)).replace(
+    const toolInfoArray = toolSetToToolInfoArray(tools)
+    return DEFAULT_SYSTEM_PROMPT.replace('{{ TOOLS_INFO }}', getHubModeSystemPrompt(toolInfoArray)).replace(
       '{{ USER_SYSTEM_PROMPT }}',
       userSystemPrompt || ''
     )
