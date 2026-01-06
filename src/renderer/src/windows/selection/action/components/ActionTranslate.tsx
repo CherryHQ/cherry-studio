@@ -197,12 +197,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       case AssistantMessageStatus.PENDING:
       case AssistantMessageStatus.SEARCHING:
         setStatus('streaming')
+        break
       case AssistantMessageStatus.PAUSED:
       case AssistantMessageStatus.ERROR:
       case AssistantMessageStatus.SUCCESS:
         setStatus('finished')
+        break
       case undefined:
-        return
+        break
       default:
         logger.warn('Unexpected assistant message status:', { status: currentAssistantMessage?.status })
     }
