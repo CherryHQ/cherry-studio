@@ -48,9 +48,8 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install corepack
-        shell: bash
-        run: corepack enable && corepack prepare yarn@4.9.1 --activate
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Clean node_modules
         if: ${{ github.event.inputs.clean == 'true' }}
@@ -59,11 +58,11 @@ jobs:
 
       - name: Install Dependencies
         shell: bash
-        run: yarn install
+        run: pnpm install
 
       - name: Build Windows with code signing
         shell: bash
-        run: yarn build:win
+        run: pnpm build:win
         env:
           WIN_SIGN: true
           CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}

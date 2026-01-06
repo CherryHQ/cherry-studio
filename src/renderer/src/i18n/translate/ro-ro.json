@@ -3165,6 +3165,7 @@
         "label": "Date aplicație",
         "migration_title": "Migrare date",
         "new_path": "Cale nouă",
+        "open": "Director Deschis",
         "original_path": "Cale originală",
         "path_change_failed": "Schimbarea directorului de date a eșuat",
         "path_changed_without_copy": "Calea a fost schimbată cu succes",
@@ -4867,7 +4868,7 @@
       "custom": {
         "delete": {
           "description": "Ești sigur că vrei să ștergi?",
-          "title": "Șterge limbă personalizată"
+          "title": "Șterge limba personalizată"
         },
         "error": {
           "add": "Adăugarea a eșuat",

@@ -212,6 +212,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.302.ai',
+    anthropicApiHost: 'https://api.302.ai',
     models: SYSTEM_MODELS['302ai'],
     isSystem: true,
     enabled: false
