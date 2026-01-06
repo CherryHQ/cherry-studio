@@ -228,6 +228,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       abortCompletion(askId.current)
     }
   }
+  if (topicRef.current?.id) {
+    pauseTrace(topicRef.current.id)
+  }
 
   const handleRegenerate = () => {
     setContentToCopy('')
