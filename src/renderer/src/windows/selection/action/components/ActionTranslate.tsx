@@ -182,10 +182,12 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   const allMessages = useTopicMessages(topicRef.current?.id || '')
 
-  const messageContent = useMemo(() => {
+  const lastAssistantMessage = useMemo(() => {
     const assistantMessages = allMessages.filter((message) => message.role === 'assistant')
-    const lastAssistantMessage = assistantMessages[assistantMessages.length - 1]
-    return lastAssistantMessage ? <MessageContent key={lastAssistantMessage.id} message={lastAssistantMessage} /> : null
+    if (assistantMessages.length === 0) {
+      return null
+    }
+    return assistantMessages[assistantMessages.length - 1]
   }, [allMessages])
 
   const handleChangeLanguage = (targetLanguage: TranslateLanguage, alterLanguage: TranslateLanguage) => {
@@ -268,7 +270,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         )}
         <Result>
           {!isContented && isLoading && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {messageContent}
+          {lastAssistantMessage && <MessageContent key={lastAssistantMessage.id} message={lastAssistantMessage} />}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
