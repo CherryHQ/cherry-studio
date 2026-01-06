@@ -51,7 +51,8 @@
       "!*.json",
       "!src/main/integration/**",
       "!**/tailwind.css",
-      "!**/package.json"
+      "!**/package.json",
+      "!.zed/**"
     ],
     "indentStyle": "space",
     "indentWidth": 2,

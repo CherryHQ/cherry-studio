@@ -9,7 +9,7 @@ index 48e2f6263c6ee4c75d7e5c28733e64f6ebe92200..00d0729c4a3cbf9a48e8e1e962c7e2b2
 +    sendReasoning: z.ZodOptional<z.ZodBoolean>;
  }, z.core.$strip>;
  type OpenAICompatibleProviderOptions = z.infer<typeof openaiCompatibleProviderOptions>;
- 
+
 diff --git a/dist/index.js b/dist/index.js
 index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..b3060fbaf010e30b64df55302807828e5bfe0f9a 100644
 --- a/dist/index.js
@@ -48,7 +48,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..b3060fbaf010e30b64df55302807828e
          messages.push({
            role: "assistant",
            content: text,
-+          reasoning_content: reasoning_text ?? undefined,
++          reasoning_content: reasoning_text || undefined,
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
@@ -60,7 +60,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..b3060fbaf010e30b64df55302807828e
 +  textVerbosity: import_v4.z.string().optional(),
 +  sendReasoning: import_v4.z.boolean().optional()
  });
- 
+
  // src/openai-compatible-error.ts
 @@ -378,7 +387,7 @@ var OpenAICompatibleChatLanguageModel = class {
          reasoning_effort: compatibleOptions.reasoningEffort,
@@ -175,7 +175,7 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..565b605eeacd9830b2b0e817e58ad0c5
          messages.push({
            role: "assistant",
            content: text,
-+          reasoning_content: reasoning_text ?? undefined,
++          reasoning_content: reasoning_text || undefined,
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
@@ -187,7 +187,7 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..565b605eeacd9830b2b0e817e58ad0c5
 +  textVerbosity: z.string().optional(),
 +  sendReasoning: z.boolean().optional()
  });
- 
+
  // src/openai-compatible-error.ts
 @@ -362,7 +371,7 @@ var OpenAICompatibleChatLanguageModel = class {
          reasoning_effort: compatibleOptions.reasoningEffort,
