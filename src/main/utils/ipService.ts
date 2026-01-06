@@ -13,18 +13,13 @@ export async function getIpCountry(): Promise<string> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-    const ipinfo = await net.fetch('https://ipinfo.io/json', {
-      signal: controller.signal,
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9'
-      }
+    const ipinfo = await net.fetch(`https://api.ipinfo.io/lite/me?token=2a42580355dae4`, {
+      signal: controller.signal
     })
 
     clearTimeout(timeoutId)
     const data = await ipinfo.json()
-    const country = data.country || 'CN'
+    const country = data.country_code || 'CN'
     logger.info(`Detected user IP address country: ${country}`)
     return country
   } catch (error) {
