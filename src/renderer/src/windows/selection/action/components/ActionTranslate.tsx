@@ -230,9 +230,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     if (askId.current) {
       abortCompletion(askId.current)
     }
-  }
-  if (topicRef.current?.id) {
-    pauseTrace(topicRef.current.id)
+    if (topicRef.current?.id) {
+      pauseTrace(topicRef.current.id)
+    }
   }
 
   const handleRegenerate = () => {
