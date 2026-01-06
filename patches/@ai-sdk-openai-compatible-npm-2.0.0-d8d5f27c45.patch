@@ -23,7 +23,7 @@ index 332ebc005dbfca852aa18970aebda3127142a8a0..fc0f7b56991c4b9e3fbd250f8fd526ae
  type OpenAICompatibleProviderOptions = z.infer<typeof openaiCompatibleProviderOptions>;
  
 diff --git a/dist/index.js b/dist/index.js
-index 045e2e85625fe8a9e8557778a6e6fc0a07135198..dee8b6f2e65deda9fb16d83fc049c5dae2fb2bd0 100644
+index 045e2e85625fe8a9e8557778a6e6fc0a07135198..90a6848909fbb263ff31d242aa5afc8cce0a7beb 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -98,7 +98,7 @@ function getOpenAIMetadata(message) {
@@ -149,8 +149,26 @@ index 045e2e85625fe8a9e8557778a6e6fc0a07135198..dee8b6f2e65deda9fb16d83fc049c5da
        }).nullish(),
        finish_reason: import_v43.z.string().nullish()
      })
+@@ -1421,7 +1466,7 @@ var OpenAICompatibleImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.map((item) => item.b64_json ?? item.url),
+         warnings,
+         response: {
+           timestamp: currentDate,
+@@ -1465,7 +1510,7 @@ var OpenAICompatibleImageModel = class {
+   }
+ };
+ var openaiCompatibleImageResponseSchema = import_v48.z.object({
+-  data: import_v48.z.array(import_v48.z.object({ b64_json: import_v48.z.string() }))
++  data: import_v48.z.array(import_v48.z.union([import_v48.z.object({ b64_json: import_v48.z.string() }), import_v48.z.object({ url: import_v48.z.string() })]))
+ });
+ async function fileToBlob(file) {
+   if (file.type === "url") {
 diff --git a/dist/index.mjs b/dist/index.mjs
-index e03379447a27c5801526e327a0cc8bf95767aafb..b70f276bda7e595f13bcaa99d3a2b026ac847990 100644
+index e03379447a27c5801526e327a0cc8bf95767aafb..f1916ba43859c811b3b03fe5ec7d5c829d9f1aea 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -80,7 +80,7 @@ function getOpenAIMetadata(message) {
@@ -259,3 +277,21 @@ index e03379447a27c5801526e327a0cc8bf95767aafb..b70f276bda7e595f13bcaa99d3a2b026
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
+@@ -1465,7 +1502,7 @@ var OpenAICompatibleImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.map((item) => item.b64_json ?? item.url),
+       warnings,
+       response: {
+         timestamp: currentDate,
+@@ -1476,7 +1513,7 @@ var OpenAICompatibleImageModel = class {
+   }
+ };
+ var openaiCompatibleImageResponseSchema = z8.object({
+-  data: z8.array(z8.object({ b64_json: z8.string() }))
++  data: z8.array(z8.union([z8.object({ b64_json: z8.string() }), z8.object({ url: z8.string() })]))
+ });
+ async function fileToBlob(file) {
+   if (file.type === "url") {

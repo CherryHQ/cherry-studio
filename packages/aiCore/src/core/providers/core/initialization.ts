@@ -164,7 +164,8 @@ const OpenRouterExtension = ProviderExtension.create({
   name: 'openrouter',
   // TODO: 实现注册后修改拓展配置
   aliases: ['tokenflux'] as const,
-  supportsImageGeneration: true,
+  // OpenRouter 没有原生图像生成 API，图像模型通过 chat completions 处理
+  supportsImageGeneration: false,
   create: (options?: OpenRouterProviderSettings) => {
     const provider = createOpenRouter(options)
     return wrapProvider({ provider, languageModelMiddleware: [] })

@@ -29,3 +29,11 @@ export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = String
 
 export type { AppProviderId, AppProviderSettingsMap, AppRuntimeConfig } from './merged'
 export { appProviderIds, getAllProviderIds, isRegisteredProviderId } from './merged'
+
+/**
+ * Result of completions operation
+ * Simple interface with getText method to retrieve the generated text
+ */
+export type CompletionsResult = {
+  getText: () => string
+}
