@@ -21,9 +21,6 @@ const TOOL_USE_TAG_CONFIG: TagConfig = {
   separator: '\n'
 }
 
-/**
- * 默认系统提示符模板
- */
 export const DEFAULT_SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \
 You can use one or more tools per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
@@ -59,13 +56,6 @@ For example, if the result of the tool use is an image file, you can use it in t
 
 Always adhere to this format for the tool use to ensure proper parsing and execution.
 
-## Tool Use Examples
-{{ TOOL_USE_EXAMPLES }}
-
-## Tool Use Available Tools
-Above example were using notional tools that might not exist for you. You only have access to these tools:
-{{ AVAILABLE_TOOLS }}
-
 ## Tool Use Rules
 Here are the rules you should always follow to solve your task:
 1. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
@@ -73,6 +63,9 @@ Here are the rules you should always follow to solve your task:
 3. If no tool call is needed, just answer the question directly.
 4. Never re-do a tool call that you previously did with the exact same parameters.
 5. For tool use, MAKE SURE use XML tag format as shown in the examples above. Do not use any other format.
+
+## Tool Use Examples
+{{ TOOLS_INFO }}
 
 ## Response rules
 
@@ -184,13 +177,29 @@ ${result}
 /**
  * 默认的系统提示符构建函数（提取自 Cherry Studio）
  */
-function defaultBuildSystemPrompt(userSystemPrompt: string, tools: ToolSet): string {
+function defaultBuildSystemPrompt(userSystemPrompt: string, tools: ToolSet, mcpMode?: string): string {
   const availableTools = buildAvailableTools(tools)
   if (availableTools === null) return userSystemPrompt
 
-  const fullPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{ TOOL_USE_EXAMPLES }}', DEFAULT_TOOL_USE_EXAMPLES)
+  if (mcpMode == 'auto') {
+    return DEFAULT_SYSTEM_PROMPT.replace('{{ TOOLS_INFO }}', getHubModeSystemPrompt(tools)).replace(
+      '{{ USER_SYSTEM_PROMPT }}',
+      userSystemPrompt || ''
+    )
+  }
+  const toolsInfo = `## Tool Use Examples
+  {{ TOOL_USE_EXAMPLES }}
+
+  ## Tool Use Available Tools
+  Above example were using notional tools that might not exist for you. You only have access to these tools:
+  {{ AVAILABLE_TOOLS }}`
+    .replace('{{ TOOL_USE_EXAMPLES }}', DEFAULT_TOOL_USE_EXAMPLES)
     .replace('{{ AVAILABLE_TOOLS }}', availableTools)
-    .replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt || '')
+
+  const fullPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{ TOOLS_INFO }}', toolsInfo).replace(
+    '{{ USER_SYSTEM_PROMPT }}',
+    userSystemPrompt || ''
+  )
 
   return fullPrompt
 }
@@ -255,7 +264,12 @@ function defaultParseToolUse(content: string, tools: ToolSet): { results: ToolUs
 }
 
 export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
-  const { enabled = true, buildSystemPrompt = defaultBuildSystemPrompt, parseToolUse = defaultParseToolUse } = config
+  const {
+    enabled = true,
+    buildSystemPrompt = defaultBuildSystemPrompt,
+    parseToolUse = defaultParseToolUse,
+    mcpMode
+  } = config
 
   return definePlugin({
     name: 'built-in:prompt-tool-use',
@@ -285,7 +299,7 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
 
       // 构建系统提示符（只包含非 provider-defined 工具）
       const userSystemPrompt = typeof params.system === 'string' ? params.system : ''
-      const systemPrompt = buildSystemPrompt(userSystemPrompt, promptTools)
+      const systemPrompt = buildSystemPrompt(userSystemPrompt, promptTools, mcpMode)
       let systemMessage: string | null = systemPrompt
       if (config.createSystemMessage) {
         // 🎯 如果用户提供了自定义处理函数，使用它

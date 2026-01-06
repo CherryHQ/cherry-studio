@@ -26,7 +26,7 @@ import {
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { getAutoModeSystemPrompt } from '@renderer/config/prompts-code-mode'
+import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
 import { fetchAllActiveServerTools } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
@@ -249,7 +249,7 @@ export async function buildStreamTextParams(
 
   if (getEffectiveMcpMode(assistant) === 'auto') {
     const allActiveTools = await fetchAllActiveServerTools()
-    const autoModePrompt = getAutoModeSystemPrompt(allActiveTools)
+    const autoModePrompt = getHubModeSystemPrompt(allActiveTools)
     if (autoModePrompt) {
       systemPrompt = systemPrompt ? `${systemPrompt}\n\n${autoModePrompt}` : autoModePrompt
     }

@@ -245,6 +245,7 @@ export async function fetchChatCompletion({
   const usePromptToolUse =
     isPromptToolUse(assistant) || (isToolUseModeFunction(assistant) && !isFunctionCallingModel(assistant.model))
 
+  const mcpMode = getEffectiveMcpMode(assistant)
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
@@ -257,6 +258,7 @@ export async function fetchChatCompletion({
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
     enableUrlContext: capabilities.enableUrlContext,
+    mcpMode,
     mcpTools,
     uiMessages,
     knowledgeRecognition: assistant.knowledgeRecognition

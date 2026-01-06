@@ -132,94 +132,6 @@ await parallel(ToolA(), ToolB())  // Correct: runs in parallel
 - Treat \`console.*\` as debugging only, never as the primary result.
 `
 
-/**
- * Auto Mode System Prompt - For XML tool_use format
- * Used when model needs explicit XML format to invoke tools
- * Only teaches search and exec tools
- */
-const AUTO_MODE_SYSTEM_PROMPT_BASE = `
-You can discover and invoke MCP tools through a hub using TWO meta-tools: \`search\` and \`exec\`.
-
-## Tool Invocation Format
-
-When you want to call a tool, output exactly one XML block:
-
-<tool_use>
-  <name>{tool_name}</name>
-  <arguments>{json_arguments}</arguments>
-</tool_use>
-
-Rules:
-- \`{tool_name}\` MUST be either \`search\` or \`exec\`
-- \`<arguments>\` MUST contain valid JSON (no comments, no trailing commas)
-- Do NOT include extra text before or after the \`<tool_use>\` block
-
-## Available Tools
-
-1. **search** - Discover MCP tools by keyword
-   \`\`\`json
-   { "query": "keyword1,keyword2", "limit": 10 }
-   \`\`\`
-   Returns JavaScript function declarations with JSDoc showing names, parameters, and return types.
-
-2. **exec** - Execute JavaScript that calls discovered tools
-   \`\`\`json
-   { "code": "const r = await ToolName({...}); return r;" }
-   \`\`\`
-   **CRITICAL:** You MUST \`return\` the final value, or result will be \`undefined\`.
-
-## Workflow
-
-1. Call \`search\` with keywords to discover tools
-2. Read the returned function signatures carefully
-3. Call \`exec\` with JavaScript code that:
-   - Uses ONLY functions returned by \`search\`
-   - Calls them with \`await\`
-   - Ends with explicit \`return\`
-4. Answer the user based on the result
-
-## Example
-
-User: "Calculate 15 * 7"
-
-Assistant calls search:
-<tool_use>
-  <name>search</name>
-  <arguments>{"query": "python,calculator"}</arguments>
-</tool_use>
-
-Hub returns function signature:
-\`\`\`js
-async function CherryPython_pythonExecute(params: { code: string }): Promise<unknown>
-\`\`\`
-
-Assistant calls exec:
-<tool_use>
-  <name>exec</name>
-  <arguments>{"code": "const result = await CherryPython_pythonExecute({ code: '15 * 7' }); return result;"}</arguments>
-</tool_use>
-
-Hub returns: { "result": 105 }
-
-Assistant answers: "15 × 7 = 105"
-
-## Common Mistakes
-
-❌ Forgetting to return (result will be undefined):
-\`\`\`js
-await SomeTool({ id: "123" })
-\`\`\`
-
-✅ Always return:
-\`\`\`js
-const data = await SomeTool({ id: "123" }); return data;
-\`\`\`
-
-❌ Calling exec before search - you must discover tools first
-
-❌ Using functions not returned by search
-`
-
 function buildToolsSection(tools: ToolInfo[]): string {
   const existingNames = new Set<string>()
   return tools
@@ -233,9 +145,6 @@ function buildToolsSection(tools: ToolInfo[]): string {
     .join('\n')
 }
 
-/**
- * Get system prompt for Hub Mode (native MCP tool calling)
- */
 export function getHubModeSystemPrompt(tools: ToolInfo[] = []): string {
   if (tools.length === 0) {
     return ''
@@ -244,22 +153,6 @@ export function getHubModeSystemPrompt(tools: ToolInfo[] = []): string {
   const toolsSection = buildToolsSection(tools)
 
   return `${HUB_MODE_SYSTEM_PROMPT_BASE}
-### Available Tools
-${toolsSection}
-`
-}
-
-/**
- * Get system prompt for Auto Mode (XML tool_use format)
- */
-export function getAutoModeSystemPrompt(tools: ToolInfo[] = []): string {
-  if (tools.length === 0) {
-    return ''
-  }
-
-  const toolsSection = buildToolsSection(tools)
-
-  return `${AUTO_MODE_SYSTEM_PROMPT_BASE}
 ## Discoverable Tools (use search to get full signatures)
 ${toolsSection}
 `
