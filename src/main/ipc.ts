@@ -59,7 +59,7 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
-import { ovmsManager } from './services/OvmsManager'
+import { isOvmsSupported } from './services/OvmsManager'
 import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
@@ -97,6 +97,7 @@ import {
   untildify
 } from './utils/file'
 import { updateAppDataConfig } from './utils/init'
+import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
@@ -120,7 +121,7 @@ function extractPluginError(error: unknown): PluginError | null {
   return null
 }
 
-export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
+export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
   const notificationService = new NotificationService()
 
@@ -498,9 +499,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
 
   // system
-  ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
-  ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
-  ipcMain.handle(IpcChannel.System_GetCpuName, () => require('os').cpus()[0].model)
+  ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
+  ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
+  ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
   ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
     if (!isWin) {
       return true // Non-Windows systems don't need Git Bash
@@ -974,15 +975,36 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
 
   // OVMS
-  ipcMain.handle(IpcChannel.Ovms_AddModel, (_, modelName: string, modelId: string, modelSource: string, task: string) =>
-    ovmsManager.addModel(modelName, modelId, modelSource, task)
-  )
-  ipcMain.handle(IpcChannel.Ovms_StopAddModel, () => ovmsManager.stopAddModel())
-  ipcMain.handle(IpcChannel.Ovms_GetModels, () => ovmsManager.getModels())
-  ipcMain.handle(IpcChannel.Ovms_IsRunning, () => ovmsManager.initializeOvms())
-  ipcMain.handle(IpcChannel.Ovms_GetStatus, () => ovmsManager.getOvmsStatus())
-  ipcMain.handle(IpcChannel.Ovms_RunOVMS, () => ovmsManager.runOvms())
-  ipcMain.handle(IpcChannel.Ovms_StopOVMS, () => ovmsManager.stopOvms())
+  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isOvmsSupported)
+  if (isOvmsSupported) {
+    const { ovmsManager } = await import('./services/OvmsManager')
+    if (ovmsManager) {
+      ipcMain.handle(
+        IpcChannel.Ovms_AddModel,
+        (_, modelName: string, modelId: string, modelSource: string, task: string) =>
+          ovmsManager.addModel(modelName, modelId, modelSource, task)
+      )
+      ipcMain.handle(IpcChannel.Ovms_StopAddModel, () => ovmsManager.stopAddModel())
+      ipcMain.handle(IpcChannel.Ovms_GetModels, () => ovmsManager.getModels())
+      ipcMain.handle(IpcChannel.Ovms_IsRunning, () => ovmsManager.initializeOvms())
+      ipcMain.handle(IpcChannel.Ovms_GetStatus, () => ovmsManager.getOvmsStatus())
+      ipcMain.handle(IpcChannel.Ovms_RunOVMS, () => ovmsManager.runOvms())
+      ipcMain.handle(IpcChannel.Ovms_StopOVMS, () => ovmsManager.stopOvms())
+    } else {
+      logger.error('Unexpected behavior: undefined ovmsManager, but OVMS should be supported.')
+    }
+  } else {
+    const fallback = () => {
+      throw new Error('OVMS is only supported on Windows with intel CPU.')
+    }
+    ipcMain.handle(IpcChannel.Ovms_AddModel, fallback)
+    ipcMain.handle(IpcChannel.Ovms_StopAddModel, fallback)
+    ipcMain.handle(IpcChannel.Ovms_GetModels, fallback)
+    ipcMain.handle(IpcChannel.Ovms_IsRunning, fallback)
+    ipcMain.handle(IpcChannel.Ovms_GetStatus, fallback)
+    ipcMain.handle(IpcChannel.Ovms_RunOVMS, fallback)
+    ipcMain.handle(IpcChannel.Ovms_StopOVMS, fallback)
+  }
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
@@ -1039,12 +1061,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     } catch (error) {
       const pluginError = extractPluginError(error)
       if (pluginError) {
-        logger.error('Failed to list installed plugins', { agentId, error: pluginError })
+        logger.error('Failed to list installed plugins', {
+          agentId,
+          error: pluginError
+        })
         return { success: false, error: pluginError }
       }
 
       const err = normalizeError(error)
-      logger.error('Failed to list installed plugins', { agentId, error: err })
+      logger.error('Failed to list installed plugins', {
+        agentId,
+        error: err
+      })
       return {
         success: false,
         error: {

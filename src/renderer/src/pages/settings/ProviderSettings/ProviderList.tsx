@@ -21,6 +21,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from 'react
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
+import useSWRImmutable from 'swr/immutable'
 
 import AddProviderPopup from './AddProviderPopup'
 import ModelNotesPopup from './ModelNotesPopup'
@@ -30,8 +31,16 @@ import UrlSchemaInfoPopup from './UrlSchemaInfoPopup'
 const logger = loggerService.withContext('ProviderList')
 
 const BUTTON_WRAPPER_HEIGHT = 50
-const systemType = await window.api.system.getDeviceType()
-const cpuName = await window.api.system.getCpuName()
+
+const getIsOvmsSupported = async (): Promise<boolean> => {
+  try {
+    const result = await window.api.ovms.isSupported()
+    return result
+  } catch (e) {
+    logger.warn('Fetching isOvmsSupported failed. Fallback to false.', e as Error)
+    return false
+  }
+}
 
 const ProviderList: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -44,6 +53,8 @@ const ProviderList: FC = () => {
   const [dragging, setDragging] = useState(false)
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
   const listRef = useRef<DraggableVirtualListRef>(null)
+
+  const { data: isOvmsSupported } = useSWRImmutable('ovms/isSupported', getIsOvmsSupported)
 
   const setSelectedProvider = useCallback((provider: Provider) => {
     startTransition(() => _setSelectedProvider(provider))
@@ -278,7 +289,8 @@ const ProviderList: FC = () => {
   }
 
   const filteredProviders = providers.filter((provider) => {
-    if (provider.id === 'ovms' && (systemType !== 'windows' || !cpuName.toLowerCase().includes('intel'))) {
+    // don't show it when isOvmsSupported is loading
+    if (provider.id === 'ovms' && !isOvmsSupported) {
       return false
     }
 

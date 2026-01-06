@@ -771,7 +771,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   doubao: [
     {
-      id: 'doubao-seed-1-8-251215',
+      id: 'doubao-seed-1-8-251228',
       provider: 'doubao',
       name: 'Doubao-Seed-1.8',
       group: 'Doubao-Seed-1.8'

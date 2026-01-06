@@ -233,6 +233,7 @@ const Chat: FC<Props> = (props) => {
                     ) : (
                       <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
                     )}
+                    {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
                     <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
                   </>
                 )}
