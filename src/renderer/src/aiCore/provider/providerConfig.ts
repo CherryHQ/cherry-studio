@@ -1,5 +1,5 @@
 import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
-import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
+import { isOpenAIChatCompletionOnlyModel, isOpenAIReasoningModel } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockApiKey,
@@ -29,6 +29,7 @@ import {
   isNewApiProvider,
   isOllamaProvider,
   isPerplexityProvider,
+  isSupportDeveloperRoleProvider,
   isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
@@ -264,6 +265,14 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     }
   }
 
+  // Apply developer-to-system role conversion for providers that don't support developer role
+  // bug: https://github.com/vercel/ai/issues/10982
+  // fixPR: https://github.com/vercel/ai/pull/11127
+  // TODO: but the PR don't backport to v5, the code will be removed when upgrading to v6
+  if (!isSupportDeveloperRoleProvider(actualProvider) || !isOpenAIReasoningModel(model)) {
+    extraOptions.fetch = createDeveloperToSystemFetch(extraOptions.fetch)
+  }
+
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {
@@ -300,6 +309,44 @@ export function isModernSdkSupported(provider: Provider): boolean {
 
   // 如果映射到了支持的provider，则支持现代SDK
   return hasProviderConfig(aiSdkProviderId)
+}
+
+/**
+ * Creates a custom fetch wrapper that converts 'developer' role to 'system' role in request body.
+ * This is needed for providers that don't support the 'developer' role (e.g., Azure DeepSeek R1).
+ *
+ * @param originalFetch - Optional original fetch function to wrap
+ * @returns A fetch function that transforms the request body
+ */
+function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetch {
+  const baseFetch = originalFetch ?? fetch
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    let options = init
+    if (options?.body && typeof options.body === 'string') {
+      try {
+        const body = JSON.parse(options.body)
+        if (body.messages && Array.isArray(body.messages)) {
+          let hasChanges = false
+          body.messages = body.messages.map((msg: { role: string }) => {
+            if (msg.role === 'developer') {
+              hasChanges = true
+              return { ...msg, role: 'system' }
+            }
+            return msg
+          })
+          if (hasChanges) {
+            options = {
+              ...options,
+              body: JSON.stringify(body)
+            }
+          }
+        }
+      } catch {
+        // If parsing fails, just use original body
+      }
+    }
+    return baseFetch(input, options)
+  }
 }
 
 /**
@@ -360,5 +407,6 @@ export async function prepareSpecialProviderConfig(
       }
     }
   }
+
   return config
 }
