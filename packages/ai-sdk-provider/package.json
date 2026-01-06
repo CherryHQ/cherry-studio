@@ -41,7 +41,7 @@
     "ai": "^5.0.26"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "patch:@ai-sdk/openai-compatible@npm%3A2.0.0#~/.yarn/patches/@ai-sdk-openai-compatible-npm-2.0.0-d8d5f27c45.patch",
+    "@ai-sdk/openai-compatible": "2.0.0",
     "@ai-sdk/provider": "^3.0.0",
     "@ai-sdk/provider-utils": "^4.0.0"
   },
