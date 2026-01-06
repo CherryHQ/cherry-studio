@@ -1,5 +1,4 @@
 import type * as CacheValueTypes from './cacheValueTypes'
-import type { TabsState } from './cacheValueTypes'
 
 /**
  * Cache Schema Definitions
@@ -226,7 +225,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'ui.tab.state': TabsState
+  'ui.tab.state': CacheValueTypes.TabsState
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
