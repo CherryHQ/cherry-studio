@@ -134,38 +134,44 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.8 - Bug Fixes & Performance Improvements
+    Cherry Studio 1.7.9 - New Features & Bug Fixes
 
-    This release focuses on bug fixes and performance optimizations.
-
-    ⚡ Performance
-    - [ModelList] Improve model list loading performance
+    ✨ New Features
+    - [Agent] Add 302.AI provider support
+    - [Browser] Browser data now persists and supports multiple tabs
+    - [Language] Add Romanian language support
+    - [Search] Add fuzzy search for file list
+    - [Models] Add latest Zhipu models
+    - [Image] Improve text-to-image functionality
 
     🐛 Bug Fixes
-    - [Ollama] Fix new users unable to use Ollama models
-    - [Ollama] Improve reasoningEffort handling
-    - [Assistants] Prevent deleting last assistant and add error message
-    - [Shortcut] Fix shortcut icons sorting disorder
-    - [Memory] Fix global memory settings submit failure
-    - [Windows] Fix remember size not working for SelectionAction window
-    - [Anthropic] Fix API base URL handling
-    - [Files] Allow more file extensions
+    - [Mac] Fix mini window unexpected closing issue
+    - [Preview] Fix HTML preview controls not working in fullscreen
+    - [Translate] Fix translation duplicate execution issue
+    - [Zoom] Fix page zoom reset issue during navigation
+    - [Agent] Fix crash when switching between agent and assistant
+    - [Agent] Fix navigation in agent mode
+    - [Copy] Fix markdown copy button issue
+    - [Windows] Fix compatibility issues on non-Windows systems
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.8 - 问题修复与性能优化
+    Cherry Studio 1.7.9 - 新功能与问题修复
 
-    本次更新专注于问题修复和性能优化。
-
-    ⚡ 性能优化
-    - [模型列表] 提升模型列表加载性能
+    ✨ 新功能
+    - [Agent] 新增 302.AI 服务商支持
+    - [浏览器] 浏览器数据现在可以保存，支持多标签页
+    - [语言] 新增罗马尼亚语支持
+    - [搜索] 文件列表新增模糊搜索功能
+    - [模型] 新增最新智谱模型
+    - [图片] 优化文生图功能
 
     🐛 问题修复
-    - [Ollama] 修复新用户无法使用 Ollama 模型的问题
-    - [Ollama] 改进推理参数处理
-    - [助手] 防止删除最后一个助手并添加错误提示
-    - [快捷方式] 修复快捷方式图标排序混乱
-    - [记忆] 修复全局记忆设置提交失败
-    - [窗口] 修复 SelectionAction 窗口记住尺寸不生效
-    - [Anthropic] 修复 API 地址处理
-    - [文件] 允许更多文件扩展名
+    - [Mac] 修复迷你窗口意外关闭的问题
+    - [预览] 修复全屏模式下 HTML 预览控件无法使用的问题
+    - [翻译] 修复翻译重复执行的问题
+    - [缩放] 修复页面导航时缩放被重置的问题
+    - [智能体] 修复在智能体和助手间切换时崩溃的问题
+    - [智能体] 修复智能体模式下的导航问题
+    - [复制] 修复 Markdown 复制按钮问题
+    - [兼容性] 修复非 Windows 系统的兼容性问题
     <!--LANG:END-->

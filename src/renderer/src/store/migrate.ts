@@ -3155,6 +3155,21 @@ const migrateConfig = {
   },
   '192': (state: RootState) => {
     try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === '302ai') {
+          provider.anthropicApiHost = 'https://api.302.ai'
+        }
+      })
+      state.settings.readClipboardAtStartup = false
+      logger.info('migrate 192 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 192 error', error as Error)
+      return state
+    }
+  },
+  '193': (state: RootState) => {
+    try {
       // Add API Gateway fields to existing apiServer config
       if (state.settings.apiServer) {
         const apiServer = state.settings.apiServer as any
@@ -3162,9 +3177,8 @@ const migrateConfig = {
         if (!Array.isArray(apiServer.modelGroups)) {
           apiServer.modelGroups = []
         }
-        // Add enabledEndpoints (exclude /v1/models as it's always enabled)
         if (!Array.isArray(apiServer.enabledEndpoints)) {
-          apiServer.enabledEndpoints = ['/v1/chat/completions', '/v1/messages']
+          apiServer.enabledEndpoints = ['/v1/chat/completions', '/v1/messages', '/v1/responses']
         } else {
           apiServer.enabledEndpoints = apiServer.enabledEndpoints.filter((e: string) => e !== '/v1/models')
         }
@@ -3176,10 +3190,10 @@ const migrateConfig = {
         delete apiServer.defaultProviderId
         delete apiServer.defaultModelId
       }
-      logger.info('migrate 192 success')
+      logger.info('migrate 193 success')
       return state
     } catch (error) {
-      logger.error('migrate 192 error', error as Error)
+      logger.error('migrate 193 error', error as Error)
       return state
     }
   }
