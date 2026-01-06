@@ -181,6 +181,47 @@ describe('fetch', () => {
 
       consoleSpy.mockRestore()
     })
+
+    it('should throttle requests to the same domain', async () => {
+      const fetchCallTimes: number[] = []
+      vi.mocked(global.fetch).mockImplementation(async () => {
+        fetchCallTimes.push(Date.now())
+        return createMockResponse()
+      })
+
+      // 3 URLs from the same domain
+      const urls = ['https://zhihu.com/a', 'https://zhihu.com/b', 'https://zhihu.com/c']
+      await fetchWebContents(urls)
+
+      expect(fetchCallTimes).toHaveLength(3)
+      // Verify that requests are spaced out (at least 400ms apart due to 500ms interval)
+      if (fetchCallTimes.length >= 2) {
+        const timeDiff1 = fetchCallTimes[1] - fetchCallTimes[0]
+        expect(timeDiff1).toBeGreaterThanOrEqual(400)
+      }
+      if (fetchCallTimes.length >= 3) {
+        const timeDiff2 = fetchCallTimes[2] - fetchCallTimes[1]
+        expect(timeDiff2).toBeGreaterThanOrEqual(400)
+      }
+    })
+
+    it('should allow parallel requests to different domains', async () => {
+      const fetchCallTimes: Map<string, number> = new Map()
+      vi.mocked(global.fetch).mockImplementation(async (url) => {
+        fetchCallTimes.set(url as string, Date.now())
+        return createMockResponse()
+      })
+
+      // URLs from different domains
+      const urls = ['https://zhihu.com/a', 'https://douban.com/b', 'https://github.com/c']
+      await fetchWebContents(urls)
+
+      expect(fetchCallTimes.size).toBe(3)
+      // Different domains should start nearly simultaneously (within 100ms)
+      const times = Array.from(fetchCallTimes.values())
+      const maxDiff = Math.max(...times) - Math.min(...times)
+      expect(maxDiff).toBeLessThan(100)
+    })
   })
 
   describe('fetchRedirectUrl', () => {
