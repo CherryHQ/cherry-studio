@@ -32,7 +32,7 @@ export const createMockCacheService = (
   const persistCache = new Map<RendererPersistCacheKey, any>(options.initialPersistCache || [])
 
   // Active hooks tracking
-  const activeHooks = new Set<string>()
+  const activeHookCounts = new Map<string, number>()
 
   // Mock subscribers
   const subscribers = new Map<string, Set<CacheSubscriber>>()
@@ -102,7 +102,7 @@ export const createMockCacheService = (
     }),
 
     delete: vi.fn(<K extends UseCacheKey>(key: K): boolean => {
-      if (activeHooks.has(key)) {
+      if (activeHookCounts.get(key)) {
         console.error(`Cannot delete key "${key}" as it's being used by useCache hook`)
         return false
       }
@@ -157,7 +157,7 @@ export const createMockCacheService = (
     }),
 
     deleteCasual: vi.fn((key: string): boolean => {
-      if (activeHooks.has(key)) {
+      if (activeHookCounts.get(key)) {
         console.error(`Cannot delete key "${key}" as it's being used by useCache hook`)
         return false
       }
@@ -212,7 +212,7 @@ export const createMockCacheService = (
     }),
 
     deleteShared: vi.fn(<K extends SharedCacheKey>(key: K): boolean => {
-      if (activeHooks.has(key)) {
+      if (activeHookCounts.get(key)) {
         console.error(`Cannot delete key "${key}" as it's being used by useSharedCache hook`)
         return false
       }
@@ -267,7 +267,7 @@ export const createMockCacheService = (
     }),
 
     deleteSharedCasual: vi.fn((key: string): boolean => {
-      if (activeHooks.has(key)) {
+      if (activeHookCounts.get(key)) {
         console.error(`Cannot delete key "${key}" as it's being used by useSharedCache hook`)
         return false
       }
@@ -305,11 +305,20 @@ export const createMockCacheService = (
     // ============ Hook Reference Management ============
 
     registerHook: vi.fn((key: string): void => {
-      activeHooks.add(key)
+      const currentCount = activeHookCounts.get(key) ?? 0
+      activeHookCounts.set(key, currentCount + 1)
     }),
 
     unregisterHook: vi.fn((key: string): void => {
-      activeHooks.delete(key)
+      const currentCount = activeHookCounts.get(key)
+      if (!currentCount) {
+        return
+      }
+      if (currentCount === 1) {
+        activeHookCounts.delete(key)
+        return
+      }
+      activeHookCounts.set(key, currentCount - 1)
     }),
 
     // ============ Shared Cache Ready State ============
@@ -362,7 +371,7 @@ export const createMockCacheService = (
       memoryCache.clear()
       sharedCache.clear()
       persistCache.clear()
-      activeHooks.clear()
+      activeHookCounts.clear()
       subscribers.clear()
     }),
 
@@ -372,7 +381,7 @@ export const createMockCacheService = (
       memoryCache: new Map(memoryCache),
       sharedCache: new Map(sharedCache),
       persistCache: new Map(persistCache),
-      activeHooks: new Set(activeHooks),
+      activeHookCounts: new Map(activeHookCounts),
       subscribers: new Map(subscribers),
       sharedCacheReady
     }),
@@ -381,7 +390,7 @@ export const createMockCacheService = (
       memoryCache.clear()
       sharedCache.clear()
       persistCache.clear()
-      activeHooks.clear()
+      activeHookCounts.clear()
       subscribers.clear()
       sharedCacheReady = true
     },
