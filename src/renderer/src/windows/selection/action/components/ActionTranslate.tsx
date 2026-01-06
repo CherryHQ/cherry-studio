@@ -10,6 +10,7 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
@@ -105,6 +106,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     // Initialize language pair.
     // It will update targetLangRef, so we could get latest target language in the following code
     await updateLanguagePair()
+    logger.silly('[initialize] UpdateLanguagePair completed.')
 
     // Initialize assistant
     const currentAssistant = getDefaultTranslateAssistant(targetLangRef.current, action.selectedText)
@@ -187,6 +189,24 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     return assistantMessages[assistantMessages.length - 1]
   }, [allMessages])
 
+  useEffect(() => {
+    // Sync message status
+    switch (currentAssistantMessage?.status) {
+      case AssistantMessageStatus.PROCESSING:
+      case AssistantMessageStatus.PENDING:
+      case AssistantMessageStatus.SEARCHING:
+        setStatus('streaming')
+      case AssistantMessageStatus.PAUSED:
+      case AssistantMessageStatus.ERROR:
+      case AssistantMessageStatus.SUCCESS:
+        setStatus('finished')
+      case undefined:
+        return
+      default:
+        logger.warn('Unexpected assistant message status:', { status: currentAssistantMessage?.status })
+    }
+  }, [currentAssistantMessage?.status])
+
   const isPreparing = status === 'preparing'
   const isStreaming = status === 'streaming'
 
@@ -202,6 +222,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   }
 
   const handlePause = () => {
+    // FIXME: It doesn't work because abort signal is not set.
+    logger.silly('Try to pause: ', { id: askId.current })
     if (askId.current) {
       abortCompletion(askId.current)
     }
