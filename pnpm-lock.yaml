@@ -1315,6 +1315,9 @@ importers:
       '@storybook/addon-themes':
         specifier: ^10.0.5
         version: 10.1.11(storybook@10.1.11(@testing-library/dom@10.4.1)(prettier@2.8.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))
+      '@storybook/react':
+        specifier: ^10.1.11
+        version: 10.1.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(storybook@10.1.11(@testing-library/dom@10.4.1)(prettier@2.8.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.8.3)
       '@storybook/react-vite':
         specifier: ^10.0.5
         version: 10.1.11(esbuild@0.25.12)(msw@2.12.7(@types/node@24.10.4)(typescript@5.8.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rolldown-vite@7.3.0(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2))(rollup@4.55.1)(storybook@10.1.11(@testing-library/dom@10.4.1)(prettier@2.8.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(typescript@5.8.3)

@@ -71,6 +71,7 @@
     "@heroui/react": "^2.8.4",
     "@storybook/addon-docs": "^10.0.5",
     "@storybook/addon-themes": "^10.0.5",
+    "@storybook/react": "^10.1.11",
     "@storybook/react-vite": "^10.0.5",
     "@svgr/core": "^8.1.0",
     "@svgr/plugin-jsx": "^8.1.0",
