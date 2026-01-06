@@ -106,11 +106,7 @@ export class WindowService {
 
     this.setupMainWindow(this.mainWindow, mainWindowState)
 
-    //preload miniWindow to resolve series of issues about miniWindow in Mac
-    const enableQuickAssistant = configManager.getEnableQuickAssistant()
-    if (enableQuickAssistant && !this.miniWindow) {
-      this.miniWindow = this.createMiniWindow(true)
-    }
+    // 不在启动阶段预加载 miniWindow：避免创建置顶/全工作区窗口影响第三方 Alt-Tab 切换工具
 
     //init the MinApp webviews' useragent
     initSessionUserAgent()

@@ -77,7 +77,6 @@ export class SelectionService {
   private toolbarWindow: BrowserWindow | null = null
   private actionWindows = new Set<BrowserWindow>()
   private preloadedActionWindows: BrowserWindow[] = []
-  private readonly PRELOAD_ACTION_WINDOW_COUNT = 1
 
   private isHideByMouseKeyListenerActive: boolean = false
   private isCtrlkeyListenerActive: boolean = false
@@ -340,10 +339,7 @@ export class SelectionService {
     }
 
     try {
-      //make sure the toolbar window is ready
-      this.createToolbarWindow()
-      // Initialize preloaded windows
-      void this.initPreloadedActionWindows()
+      // 不在启动阶段预创建 toolbar/actionWindow：仅在实际触发选择/动作时按需创建，避免置顶/全工作区窗口干扰第三方 Alt-Tab 切换工具
       // Handle errors
       this.selectionHook.on('error', (error: { message: string }) => {
         this.logError('Error in SelectionHook:', error as Error)
@@ -1219,21 +1215,6 @@ export class SelectionService {
     }
 
     return preloadedActionWindow
-  }
-
-  /**
-   * Initialize preloaded action windows
-   * Creates a pool of windows at startup for faster response
-   */
-  private async initPreloadedActionWindows(): Promise<void> {
-    try {
-      // Create initial pool of preloaded windows
-      for (let i = 0; i < this.PRELOAD_ACTION_WINDOW_COUNT; i++) {
-        await this.pushNewActionWindow()
-      }
-    } catch (error) {
-      this.logError('Failed to initialize preloaded windows:', error as Error)
-    }
   }
 
   /**
