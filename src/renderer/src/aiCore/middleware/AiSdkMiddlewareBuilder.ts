@@ -183,13 +183,12 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
       break
     case 'openai':
     case 'azure-openai': {
-      if (config.enableReasoning) {
-        const tagName = getReasoningTagName(config.model?.id.toLowerCase())
-        builder.add({
-          name: 'thinking-tag-extraction',
-          middleware: extractReasoningMiddleware({ tagName })
-        })
-      }
+      // 就算这里不传参数也有可能调用推理
+      const tagName = getReasoningTagName(config.model?.id.toLowerCase())
+      builder.add({
+        name: 'thinking-tag-extraction',
+        middleware: extractReasoningMiddleware({ tagName })
+      })
       break
     }
     case 'gemini':
