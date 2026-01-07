@@ -353,6 +353,13 @@
         "description": "创建具有唯一 URL 的模型分组，用于不同的提供商/模型组合",
         "empty": "尚未配置模型分组。点击「添加分组」创建一个。",
         "label": "模型分组",
+        "mode": {
+          "assistant": "助手预设",
+          "assistantHint": "助手预设会覆盖请求参数。",
+          "assistantPlaceholder": "选择助手",
+          "label": "模式",
+          "model": "直接模型"
+        },
         "namePlaceholder": "分组名称"
       },
       "networkAccess": {

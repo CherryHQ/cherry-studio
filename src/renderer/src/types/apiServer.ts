@@ -12,6 +12,8 @@ export type ModelGroup = {
   name: string // display name
   providerId: string
   modelId: string
+  mode?: 'model' | 'assistant'
+  assistantId?: string
   createdAt: number
 }
 

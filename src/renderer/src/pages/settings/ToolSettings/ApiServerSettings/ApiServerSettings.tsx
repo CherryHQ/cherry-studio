@@ -46,6 +46,7 @@ const ApiServerSettings: FC = () => {
 
   // API Gateway state with proper defaults
   const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
+  const assistants = useSelector((state: RootState) => state.assistants.assistants)
   const { apiServerRunning, apiServerLoading, startApiServer, stopApiServer, restartApiServer, setApiServerEnabled } =
     useApiServer()
 
@@ -108,6 +109,8 @@ const ApiServerSettings: FC = () => {
       name: `group-${apiServerConfig.modelGroups.length + 1}`, // URL-safe name
       providerId: '',
       modelId: '',
+      mode: 'model',
+      assistantId: '',
       createdAt: Date.now()
     }
     dispatch(addApiGatewayModelGroup(newGroup))
@@ -266,7 +269,13 @@ const ApiServerSettings: FC = () => {
         ) : (
           <ModelGroupList>
             {apiServerConfig.modelGroups.map((group) => (
-              <ModelGroupCard key={group.id} group={group} onUpdate={updateModelGroup} onDelete={deleteModelGroup} />
+              <ModelGroupCard
+                key={group.id}
+                group={group}
+                assistants={assistants}
+                onUpdate={updateModelGroup}
+                onDelete={deleteModelGroup}
+              />
             ))}
           </ModelGroupList>
         )}
@@ -295,6 +304,7 @@ const ApiServerSettings: FC = () => {
 // Model Group Card Component
 interface ModelGroupCardProps {
   group: ModelGroup
+  assistants: RootState['assistants']['assistants']
   onUpdate: (group: ModelGroup) => void
   onDelete: (groupId: string) => void
 }
@@ -305,11 +315,12 @@ const ENV_FORMAT_TO_ENDPOINT: Record<EnvFormat, GatewayEndpoint> = {
   responses: '/v1/responses'
 }
 
-const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) => {
+const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, assistants, onUpdate, onDelete }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
   const [envFormat, setEnvFormat] = useState<EnvFormat>('openai')
+  const mode = group.mode ?? 'model'
 
   // Reset envFormat when selected endpoint is disabled
   useEffect(() => {
@@ -398,7 +409,36 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) 
     })
   }
 
-  const isConfigured = group.providerId && group.modelId
+  const handleModeChange = (nextMode: 'model' | 'assistant') => {
+    if (nextMode === mode) return
+    onUpdate({
+      ...group,
+      mode: nextMode,
+      assistantId: nextMode === 'assistant' ? group.assistantId || '' : '',
+      providerId: nextMode === 'model' ? group.providerId : '',
+      modelId: nextMode === 'model' ? group.modelId : ''
+    })
+  }
+
+  const handleAssistantChange = (assistantId: string | null) => {
+    onUpdate({
+      ...group,
+      assistantId: assistantId || ''
+    })
+  }
+
+  const selectedAssistant = useMemo(() => {
+    if (!group.assistantId) return undefined
+    return assistants.find((assistant) => assistant.id === group.assistantId)
+  }, [assistants, group.assistantId])
+
+  const assistantModelLabel = useMemo(() => {
+    const model = selectedAssistant?.model ?? selectedAssistant?.defaultModel
+    if (!model) return undefined
+    return model.name || model.id
+  }, [selectedAssistant])
+
+  const isConfigured = mode === 'assistant' ? !!group.assistantId : !!(group.providerId && group.modelId)
 
   return (
     <GroupCard $configured={!!isConfigured}>
@@ -427,35 +467,71 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, onUpdate, onDelete }) 
       </GroupHeader>
 
       <GroupContent>
+        <ModeRow>
+          <ModeLabel>{t('apiGateway.fields.modelGroups.mode.label', 'Mode')}</ModeLabel>
+          <Segmented
+            size="small"
+            value={mode}
+            onChange={(value) => handleModeChange(value as 'model' | 'assistant')}
+            options={[
+              { label: t('apiGateway.fields.modelGroups.mode.model', 'Direct Model'), value: 'model' },
+              { label: t('apiGateway.fields.modelGroups.mode.assistant', 'Assistant Preset'), value: 'assistant' }
+            ]}
+          />
+        </ModeRow>
         <SelectRow>
-          <StyledSelect
-            value={group.providerId || undefined}
-            onChange={(value) => handleProviderChange((value as string) || null)}
-            placeholder={t('apiGateway.fields.defaultModel.providerPlaceholder')}
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            style={{ flex: 1 }}
-            options={providers.map((p) => ({
-              value: p.id,
-              label: p.isSystem ? getProviderLabel(p.id) : p.name
-            }))}
-          />
-          <StyledSelect
-            value={group.modelId || undefined}
-            onChange={(value) => handleModelChange((value as string) || null)}
-            placeholder={t('apiGateway.fields.defaultModel.modelPlaceholder')}
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            disabled={!group.providerId}
-            style={{ flex: 1 }}
-            options={models.map((m) => ({
-              value: m.id,
-              label: m.name || m.id
-            }))}
-          />
+          {mode === 'assistant' ? (
+            <StyledSelect
+              value={group.assistantId || undefined}
+              onChange={(value) => handleAssistantChange((value as string) || null)}
+              placeholder={t('apiGateway.fields.modelGroups.mode.assistantPlaceholder', 'Select assistant')}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              style={{ flex: 1 }}
+              options={assistants.map((assistant) => ({
+                value: assistant.id,
+                label: assistant.name
+              }))}
+            />
+          ) : (
+            <>
+              <StyledSelect
+                value={group.providerId || undefined}
+                onChange={(value) => handleProviderChange((value as string) || null)}
+                placeholder={t('apiGateway.fields.defaultModel.providerPlaceholder')}
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                style={{ flex: 1 }}
+                options={providers.map((p) => ({
+                  value: p.id,
+                  label: p.isSystem ? getProviderLabel(p.id) : p.name
+                }))}
+              />
+              <StyledSelect
+                value={group.modelId || undefined}
+                onChange={(value) => handleModelChange((value as string) || null)}
+                placeholder={t('apiGateway.fields.defaultModel.modelPlaceholder')}
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                disabled={!group.providerId}
+                style={{ flex: 1 }}
+                options={models.map((m) => ({
+                  value: m.id,
+                  label: m.name || m.id
+                }))}
+              />
+            </>
+          )}
         </SelectRow>
+        {mode === 'assistant' && (
+          <ModeHint>
+            {t('apiGateway.fields.modelGroups.mode.assistantHint', 'Assistant preset overrides request parameters.')}
+            {assistantModelLabel ? ` (${assistantModelLabel})` : ''}
+          </ModeHint>
+        )}
 
         {isConfigured && (
           <GroupUrlSection>
@@ -817,6 +893,23 @@ const GroupContent = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
+`
+
+const ModeRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`
+
+const ModeLabel = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const ModeHint = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
 `
 
 const GroupUrlSection = styled.div`
