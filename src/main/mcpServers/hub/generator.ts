@@ -79,7 +79,7 @@ function generateJSDoc(tool: MCPTool, inputSchema: InputSchema | undefined, retu
   const lines: string[] = ['/**']
 
   if (tool.description) {
-    const desc = tool.description.split('\n')[0].slice(0, 100)
+    const desc = tool.description.split('\n')[0]
     lines.push(` * ${desc}`)
   }
 
@@ -92,7 +92,7 @@ function generateJSDoc(tool: MCPTool, inputSchema: InputSchema | undefined, retu
       const isReq = required.includes(name)
       const type = schemaTypeToTS(prop)
       const paramName = isReq ? `params.${name}` : `[params.${name}]`
-      const desc = (prop.description as string)?.split('\n')[0]?.slice(0, 60) || ''
+      const desc = (prop.description as string)?.split('\n')[0] || ''
       lines.push(` * @param {${type}} ${paramName} ${desc}`)
     }
   }
