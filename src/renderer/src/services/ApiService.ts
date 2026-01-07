@@ -601,6 +601,13 @@ export function checkApiProvider(provider: Provider): void {
   }
 }
 
+/**
+ * Validates that a provider/model pair is working by sending a minimal request.
+ * @param provider - The provider configuration to test.
+ * @param model - The model to use for the validation request (chat or embeddings).
+ * @param timeout - Maximum time (ms) to wait for the request to complete. Defaults to 15000 ms.
+ * @throws {Error} If the request fails or times out, indicating the API is not usable.
+ */
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
@@ -611,7 +618,6 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
 
   if (isEmbeddingModel(model)) {
-    // race 超时 15s
     logger.silly("it's a embedding model")
     const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
     await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
