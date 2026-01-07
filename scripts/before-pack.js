@@ -82,23 +82,30 @@ exports.default = async function (context) {
 
   const arm64Filters = Object.keys(allArm64).map((f) => '!node_modules/' + f + '/**')
   const x64Filters = Object.keys(allX64).map((f) => '!node_modules/' + f + '/*')
-  const excludeClaudeCodeRipgrepFilters = claudeCodeVenders
-    .filter((f) => f !== `${archType}-${platformToArch[platform]}`)
-    .map((f) => '!node_modules/' + claudeCodeVenderPath + '/ripgrep/' + f + '/**')
-  const excludeClaudeCodeJBPlutins = ['!node_modules/' + claudeCodeVenderPath + '/' + 'claude-code-jetbrains-plugin']
 
-  const includeClaudeCodeFilters = [
-    '!node_modules/' + claudeCodeVenderPath + '/ripgrep/' + `${archType}-${platformToArch[platform]}/**`
-  ]
+  // Determine which claudeCodeVenders to include
+  // For Windows ARM64, also include x64-win32 for compatibility
+  const includedClaudeCodeVenders = [`${archType}-${platformToArch[platform]}`]
+  if (platform === 'windows' && arch === Arch.arm64) {
+    includedClaudeCodeVenders.push('x64-win32')
+  }
+
+  const excludeClaudeCodeRipgrepFilters = claudeCodeVenders
+    .filter((f) => !includedClaudeCodeVenders.includes(f))
+    .map((f) => '!node_modules/' + claudeCodeVenderPath + '/ripgrep/' + f + '/**')
+
+  const includeClaudeCodeFilters = includedClaudeCodeVenders.map(
+    (f) => '!node_modules/' + claudeCodeVenderPath + '/ripgrep/' + f + '/**'
+  )
 
   if (arch === Arch.arm64) {
     await changeFilters(
-      [...x64Filters, ...excludeClaudeCodeRipgrepFilters, ...excludeClaudeCodeJBPlutins],
+      [...x64Filters, ...excludeClaudeCodeRipgrepFilters],
       [...arm64Filters, ...includeClaudeCodeFilters]
     )
   } else {
     await changeFilters(
-      [...arm64Filters, ...excludeClaudeCodeRipgrepFilters, ...excludeClaudeCodeJBPlutins],
+      [...arm64Filters, ...excludeClaudeCodeRipgrepFilters],
       [...x64Filters, ...includeClaudeCodeFilters]
     )
   }
