@@ -17,7 +17,7 @@ const extraProviderConfig = <P extends MinimalProvider>(provider: P) => {
   }
 }
 
-function isOpenAILLMModel<M extends MinimalModel>(model: M): boolean {
+export function isOpenAILLMModel<M extends MinimalModel>(model: M): boolean {
   const modelId = getLowerBaseModelName(model.id)
   const reasonings = ['o1', 'o3', 'o4', 'gpt-oss']
   if (reasonings.some((r) => modelId.includes(r))) {

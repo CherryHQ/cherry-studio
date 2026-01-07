@@ -1,4 +1,4 @@
-import type { ModelValidationError } from '@main/apiServer/utils'
+import type { ModelValidationError } from '@main/apiGateway/utils'
 import type { AgentType } from '@types'
 
 export type AgentModelField = 'model' | 'plan_model' | 'small_model'

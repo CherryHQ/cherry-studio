@@ -36,7 +36,7 @@ import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
-import { ApiServerSettings } from './ToolSettings/ApiServerSettings'
+import { ApiGatewaySettings } from './ToolSettings/ApiGatewaySettings'
 import WebSearchSettings from './WebSearchSettings'
 
 const SettingsPage: FC = () => {
@@ -105,7 +105,7 @@ const SettingsPage: FC = () => {
           <MenuItemLink to="/settings/api-server">
             <MenuItem className={isRoute('/settings/api-server')}>
               <Server size={18} />
-              {t('apiServer.title')}
+              {t('apiGateway.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/docprocess">
@@ -152,7 +152,7 @@ const SettingsPage: FC = () => {
             <Route path="provider" element={<ProviderList />} />
             <Route path="model" element={<ModelSettings />} />
             <Route path="websearch/*" element={<WebSearchSettings />} />
-            <Route path="api-server" element={<ApiServerSettings />} />
+            <Route path="api-server" element={<ApiGatewaySettings />} />
             <Route path="docprocess" element={<DocProcessSettings />} />
             <Route path="quickphrase" element={<QuickPhraseSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />

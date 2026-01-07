@@ -317,7 +317,7 @@
       "enable_server": "Ενεργοποίηση του διακομιστή API για χρήση πρακτόρων."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Αντιγραφή",
       "regenerate": "Αναδημιουργία",
@@ -1297,6 +1297,7 @@
     "backup": {
       "file_format": "Λάθος μορφή αρχείου που επιστρέφεται"
     },
+    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Άνοιγμα πίνακα αποσφαλμάτωσης",
@@ -1377,6 +1378,8 @@
     "text": "κείμενο",
     "toolInput": "εισαγωγή εργαλείου",
     "toolName": "Όνομα εργαλείου",
+    "truncated": "[to be translated]:Data truncated, original size",
+    "truncatedBadge": "[to be translated]:Truncated",
     "unknown": "Άγνωστο σφάλμα",
     "usage": "δοσολογία",
     "user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη",
