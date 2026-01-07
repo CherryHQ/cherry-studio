@@ -54,7 +54,7 @@ import {
   isSupportDeveloperRoleProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/utils/provider'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+import { API_GATEWAY_DEFAULTS } from '@shared/config/constant'
 import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
@@ -2052,11 +2052,11 @@ const migrateConfig = {
   '125': (state: RootState) => {
     try {
       // Initialize API server configuration if not present
-      if (!state.settings.apiServer) {
-        state.settings.apiServer = {
+      if (!state.settings.apiGateway) {
+        state.settings.apiGateway = {
           enabled: false,
-          host: API_SERVER_DEFAULTS.HOST,
-          port: API_SERVER_DEFAULTS.PORT,
+          host: API_GATEWAY_DEFAULTS.HOST,
+          port: API_GATEWAY_DEFAULTS.PORT,
           apiKey: `cs-sk-${uuid()}`,
           modelGroups: [],
           enabledEndpoints: ['/v1/chat/completions', '/v1/messages'],
@@ -3041,8 +3041,8 @@ const migrateConfig = {
   },
   '186': (state: RootState) => {
     try {
-      if (state.settings.apiServer) {
-        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
+      if (state.settings.apiGateway) {
+        state.settings.apiGateway.host = API_GATEWAY_DEFAULTS.HOST
       }
       // @ts-expect-error
       if (state.settings.openAI.summaryText === 'undefined') {
@@ -3170,25 +3170,28 @@ const migrateConfig = {
   },
   '193': (state: RootState) => {
     try {
-      // Add API Gateway fields to existing apiServer config
+      // Migrate apiServer to apiGateway (rename)
+      // @ts-ignore - apiServer is the old key name
       if (state.settings.apiServer) {
-        const apiServer = state.settings.apiServer as any
-        // Initialize modelGroups array
-        if (!Array.isArray(apiServer.modelGroups)) {
-          apiServer.modelGroups = []
+        // @ts-ignore
+        state.settings.apiGateway = state.settings.apiServer
+        // @ts-ignore
+        delete state.settings.apiServer
+      }
+
+      if (state.settings.apiGateway) {
+        const apiGateway = state.settings.apiGateway
+        if (!Array.isArray(apiGateway.modelGroups)) {
+          apiGateway.modelGroups = []
         }
-        if (!Array.isArray(apiServer.enabledEndpoints)) {
-          apiServer.enabledEndpoints = ['/v1/chat/completions', '/v1/messages', '/v1/responses']
+        if (!Array.isArray(apiGateway.enabledEndpoints)) {
+          apiGateway.enabledEndpoints = ['/v1/chat/completions', '/v1/messages', '/v1/responses']
         } else {
-          apiServer.enabledEndpoints = apiServer.enabledEndpoints.filter((e: string) => e !== '/v1/models')
+          apiGateway.enabledEndpoints = apiGateway.enabledEndpoints.filter((e: string) => e !== '/v1/models')
         }
-        // Add exposeToNetwork
-        if (apiServer.exposeToNetwork === undefined) {
-          apiServer.exposeToNetwork = false
+        if (apiGateway.exposeToNetwork === undefined) {
+          apiGateway.exposeToNetwork = false
         }
-        // Clean up deprecated fields
-        delete apiServer.defaultProviderId
-        delete apiServer.defaultModelId
       }
       logger.info('migrate 193 success')
       return state

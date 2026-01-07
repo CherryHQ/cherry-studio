@@ -5,7 +5,7 @@ import { isOpenAILLMModel } from '@shared/aiCore/config/aihubmix'
 import { isPpioAnthropicCompatibleModel, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider } from '@types'
 
-const logger = loggerService.withContext('ApiServerUtils')
+const logger = loggerService.withContext('ApiGatewayUtils')
 
 // Cache configuration
 const PROVIDERS_CACHE_KEY = 'api-server:providers'

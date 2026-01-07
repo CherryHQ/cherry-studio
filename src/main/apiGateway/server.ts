@@ -7,13 +7,13 @@ import { windowService } from '../services/WindowService'
 import { app } from './app'
 import { config } from './config'
 
-const logger = loggerService.withContext('ApiServer')
+const logger = loggerService.withContext('ApiGateway')
 
 const GLOBAL_REQUEST_TIMEOUT_MS = 5 * 60_000
 const GLOBAL_HEADERS_TIMEOUT_MS = GLOBAL_REQUEST_TIMEOUT_MS + 5_000
 const GLOBAL_KEEPALIVE_TIMEOUT_MS = 60_000
 
-export class ApiServer {
+export class ApiGateway {
   private server: ReturnType<typeof createServer> | null = null
 
   async start(): Promise<void> {
@@ -43,7 +43,7 @@ export class ApiServer {
         // Notify renderer that API server is ready
         const mainWindow = windowService.getMainWindow()
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IpcChannel.ApiServer_Ready)
+          mainWindow.webContents.send(IpcChannel.ApiGateway_Ready)
         }
 
         resolve()
@@ -93,4 +93,4 @@ export class ApiServer {
   }
 }
 
-export const apiServer = new ApiServer()
+export const apiGateway = new ApiGateway()

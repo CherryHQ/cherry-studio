@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express'
 
 import { loggerService } from '../../services/LoggerService'
 
-const logger = loggerService.withContext('ApiServerErrorHandler')
+const logger = loggerService.withContext('ApiGatewayErrorHandler')
 
 // oxlint-disable-next-line @typescript-eslint/no-unused-vars
 export const errorHandler = (err: Error, _req: Request, res: Response, _next: NextFunction) => {

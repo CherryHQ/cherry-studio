@@ -53,7 +53,7 @@ const Chat: FC<Props> = (props) => {
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId, activeSessionIdMap } = chat
   const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
-  const { apiServer } = useSettings()
+  const { apiGateway } = useSettings()
   const sessionAgentId = activeTopicOrSession === 'session' ? activeAgentId : null
   const { createDefaultSession } = useCreateDefaultSession(sessionAgentId)
 
@@ -228,7 +228,7 @@ const Chat: FC<Props> = (props) => {
                 {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
                 {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
                   <>
-                    {!apiServer.enabled ? (
+                    {!apiGateway.enabled ? (
                       <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
                     ) : (
                       <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />

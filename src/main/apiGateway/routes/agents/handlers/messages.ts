@@ -1,14 +1,14 @@
 import { loggerService } from '@logger'
-import { MESSAGE_STREAM_TIMEOUT_MS } from '@main/apiServer/config/timeouts'
+import { MESSAGE_STREAM_TIMEOUT_MS } from '@main/apiGateway/config/timeouts'
 import {
   createStreamAbortController,
   STREAM_TIMEOUT_REASON,
   type StreamAbortController
-} from '@main/apiServer/utils/createStreamAbortController'
+} from '@main/apiGateway/utils/createStreamAbortController'
 import { agentService, sessionMessageService, sessionService } from '@main/services/agents'
 import type { Request, Response } from 'express'
 
-const logger = loggerService.withContext('ApiServerMessagesHandlers')
+const logger = loggerService.withContext('ApiGatewayMessagesHandlers')
 
 // Helper function to verify agent and session exist and belong together
 const verifyAgentAndSession = async (agentId: string, sessionId: string) => {

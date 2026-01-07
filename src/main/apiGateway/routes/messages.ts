@@ -39,7 +39,7 @@ function shouldUseDirectAnthropic(provider: Provider, modelId: string): boolean 
   return isModelAnthropicCompatible(provider, modelId)
 }
 
-const logger = loggerService.withContext('ApiServerMessagesRoutes')
+const logger = loggerService.withContext('ApiGatewayMessagesRoutes')
 
 const router = express.Router()
 const providerRouter = express.Router({ mergeParams: true })

@@ -28,7 +28,7 @@ import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
-import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
+import { type ApiGatewayConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
 import type { AgentSessionEntity, GetAgentSessionResponse } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
@@ -131,10 +131,10 @@ const findExistingAgentSessionContext = (
   }
 }
 
-const buildAgentBaseURL = (apiServer: ApiServerConfig) => {
-  const hasProtocol = apiServer.host.startsWith('http://') || apiServer.host.startsWith('https://')
-  const baseHost = hasProtocol ? apiServer.host : `http://${apiServer.host}`
-  const portSegment = apiServer.port ? `:${apiServer.port}` : ''
+const buildAgentBaseURL = (apiGateway: ApiGatewayConfig) => {
+  const hasProtocol = apiGateway.host.startsWith('http://') || apiGateway.host.startsWith('https://')
+  const baseHost = hasProtocol ? apiGateway.host : `http://${apiGateway.host}`
+  const portSegment = apiGateway.port ? `:${apiGateway.port}` : ''
   return `${baseHost}${portSegment}`
 }
 
@@ -151,8 +151,8 @@ export const renameAgentSessionIfNeeded = async (
 
   try {
     const state = getState()
-    const apiServer = state.settings.apiServer
-    if (!apiServer?.apiKey) {
+    const apiGateway = state.settings.apiGateway
+    if (!apiGateway?.apiKey) {
       return
     }
 
@@ -167,11 +167,11 @@ export const renameAgentSessionIfNeeded = async (
       return
     }
 
-    const baseURL = buildAgentBaseURL(apiServer)
+    const baseURL = buildAgentBaseURL(apiGateway)
     const client = new AgentApiClient({
       baseURL,
       headers: {
-        Authorization: `Bearer ${apiServer.apiKey}`
+        Authorization: `Bearer ${apiGateway.apiKey}`
       }
     })
 
@@ -328,22 +328,22 @@ const createSSEReadableStream = (
 }
 
 const createAgentMessageStream = async (
-  apiServer: ApiServerConfig,
+  apiGateway: ApiGatewayConfig,
   agentSession: AgentSessionContext,
   content: string,
   signal: AbortSignal
 ): Promise<ReadableStream<TextStreamPart<Record<string, any>>>> => {
-  if (!apiServer.enabled) {
+  if (!apiGateway.enabled) {
     throw new Error('Agent API server is disabled')
   }
 
-  const baseURL = buildAgentBaseURL(apiServer)
+  const baseURL = buildAgentBaseURL(apiGateway)
   const url = `${baseURL}/v1/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}/messages`
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiServer.apiKey}`,
+      Authorization: `Bearer ${apiGateway.apiKey}`,
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
       'Cache-Control': 'no-cache'
@@ -586,7 +586,7 @@ const fetchAndProcessAgentResponseImpl = async (
     addAbortController(userMessageId, () => abortController.abort())
 
     const stream = await createAgentMessageStream(
-      state.settings.apiServer,
+      state.settings.apiGateway,
       agentSession,
       userContent,
       abortController.signal
@@ -648,13 +648,13 @@ const fetchAndProcessAgentResponseImpl = async (
 
         // Refresh session data to get updated slash_commands from backend
         // This happens after the SDK init message updates the session in the database
-        const apiServer = stateAfterUpdate.settings.apiServer
-        if (apiServer?.apiKey) {
-          const baseURL = buildAgentBaseURL(apiServer)
+        const apiGateway = stateAfterUpdate.settings.apiGateway
+        if (apiGateway?.apiKey) {
+          const baseURL = buildAgentBaseURL(apiGateway)
           const client = new AgentApiClient({
             baseURL,
             headers: {
-              Authorization: `Bearer ${apiServer.apiKey}`
+              Authorization: `Bearer ${apiGateway.apiKey}`
             }
           })
           const paths = client.getSessionPaths(agentSession.agentId)

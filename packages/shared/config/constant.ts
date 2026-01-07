@@ -7,7 +7,7 @@ export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', 
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
 
-export const API_SERVER_DEFAULTS = {
+export const API_GATEWAY_DEFAULTS = {
   HOST: '127.0.0.1',
   PORT: 23333
 }

@@ -3,7 +3,7 @@ import type { Request, Response } from 'express'
 import { agentService } from '../../../../services/agents'
 import { loggerService } from '../../../../services/LoggerService'
 
-const logger = loggerService.withContext('ApiServerMiddleware')
+const logger = loggerService.withContext('ApiGatewayMiddleware')
 
 // Since Zod validators handle their own errors, this is now a pass-through
 export const handleValidationErrors = (_req: Request, _res: Response, next: any): void => {

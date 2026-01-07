@@ -4,7 +4,7 @@ import express from 'express'
 import { loggerService } from '../../services/LoggerService'
 import { mcpApiService } from '../services/mcp'
 
-const logger = loggerService.withContext('ApiServerMCPRoutes')
+const logger = loggerService.withContext('ApiGatewayMCPRoutes')
 
 const router = express.Router()
 

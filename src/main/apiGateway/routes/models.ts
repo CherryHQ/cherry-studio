@@ -6,7 +6,7 @@ import express from 'express'
 import { loggerService } from '../../services/LoggerService'
 import { modelsService } from '../services/models'
 
-const logger = loggerService.withContext('ApiServerModelsRoutes')
+const logger = loggerService.withContext('ApiGatewayModelsRoutes')
 
 const router = express
   .Router()

@@ -13,7 +13,7 @@ import { isModelOpenAIResponsesCompatible, validateModelId } from '../utils'
 // Use SDK namespace types
 type ResponseCreateParams = OpenAI.Responses.ResponseCreateParams
 
-const logger = loggerService.withContext('ApiServerResponsesRoutes')
+const logger = loggerService.withContext('ApiGatewayResponsesRoutes')
 
 const router = express.Router()
 

@@ -5,7 +5,7 @@
  * This includes Google Gemini's thought signatures and OpenRouter's reasoning details.
  */
 
-import type { ReasoningDetailUnion } from '@main/apiServer/adapters/openrouter'
+import type { ReasoningDetailUnion } from '@main/apiGateway/adapters/openrouter'
 import { CacheService } from '@main/services/CacheService'
 
 /**

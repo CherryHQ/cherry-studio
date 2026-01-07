@@ -1,4 +1,4 @@
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+import { API_GATEWAY_DEFAULTS } from '@shared/config/constant'
 import type { ApiGatewayConfig, GatewayEndpoint } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -19,19 +19,19 @@ class ConfigManager {
   async load(): Promise<ApiGatewayConfig> {
     try {
       const settings = await reduxService.select('state.settings')
-      const serverSettings = settings?.apiServer
+      const serverSettings = settings?.apiGateway
       let apiKey = serverSettings?.apiKey
       if (!apiKey || apiKey.trim() === '') {
         apiKey = this.generateApiKey()
         await reduxService.dispatch({
-          type: 'settings/setApiServerApiKey',
+          type: 'settings/setApiGatewayApiKey',
           payload: apiKey
         })
       }
       this._config = {
         enabled: serverSettings?.enabled ?? false,
-        port: serverSettings?.port ?? API_SERVER_DEFAULTS.PORT,
-        host: serverSettings?.host ?? API_SERVER_DEFAULTS.HOST,
+        port: serverSettings?.port ?? API_GATEWAY_DEFAULTS.PORT,
+        host: serverSettings?.host ?? API_GATEWAY_DEFAULTS.HOST,
         apiKey: apiKey,
         modelGroups: serverSettings?.modelGroups ?? [],
         enabledEndpoints: serverSettings?.enabledEndpoints ?? DEFAULT_ENABLED_ENDPOINTS,
@@ -42,8 +42,8 @@ class ConfigManager {
       logger.warn('Failed to load config from Redux, using defaults', { error })
       this._config = {
         enabled: false,
-        port: API_SERVER_DEFAULTS.PORT,
-        host: API_SERVER_DEFAULTS.HOST,
+        port: API_GATEWAY_DEFAULTS.PORT,
+        host: API_GATEWAY_DEFAULTS.HOST,
         apiKey: this.generateApiKey(),
         modelGroups: [],
         enabledEndpoints: DEFAULT_ENABLED_ENDPOINTS,
