@@ -1,6 +1,6 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
-import { isGemini3Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
+import { isAnthropicModel, isGemini3Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
 import type { McpMode, MCPTool } from '@renderer/types'
 import { type Assistant, type Message, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
@@ -10,6 +10,7 @@ import { extractReasoningMiddleware, simulateStreamingMiddleware } from 'ai'
 
 import { getAiSdkProviderId } from '../provider/factory'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
+import { anthropicCacheMiddleware } from './anthropicCacheMiddleware'
 import { noThinkMiddleware } from './noThinkMiddleware'
 import { openrouterGenerateImageMiddleware } from './openrouterGenerateImageMiddleware'
 import { openrouterReasoningMiddleware } from './openrouterReasoningMiddleware'
@@ -179,7 +180,12 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
   // 根据不同provider添加特定中间件
   switch (config.provider.type) {
     case 'anthropic':
-      // Anthropic特定中间件
+      if (isAnthropicModel(config.model) && config.provider.anthropicCacheControl?.tokenThreshold) {
+        builder.add({
+          name: 'anthropic-cache',
+          middleware: anthropicCacheMiddleware(config.provider)
+        })
+      }
       break
     case 'openai':
     case 'azure-openai': {

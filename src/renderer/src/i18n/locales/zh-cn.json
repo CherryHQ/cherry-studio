@@ -4475,6 +4475,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "缓存最后 N 条消息",
+            "cache_last_n_help": "缓存最后的 N 条对话消息（不含系统消息）",
+            "cache_system": "缓存系统消息",
+            "cache_system_help": "是否缓存系统提示词",
+            "token_threshold": "缓存 Token 阈值",
+            "token_threshold_help": "消息超过此 Token 数才会被缓存，设为 0 禁用缓存"
+          },
           "array_content": {
             "help": "该提供商是否支持 message 的 content 字段为 array 类型",
             "label": "支持数组格式的 message content"

@@ -4475,6 +4475,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "Cache Last N Messages",
+            "cache_last_n_help": "Cache the last N conversation messages (excluding system messages)",
+            "cache_system": "Cache System Message",
+            "cache_system_help": "Whether to cache the system prompt",
+            "token_threshold": "Cache Token Threshold",
+            "token_threshold_help": "Messages exceeding this token count will be cached. Set to 0 to disable caching."
+          },
           "array_content": {
             "help": "Does the provider support the content field of the message being of array type?",
             "label": "Supports array format message content"

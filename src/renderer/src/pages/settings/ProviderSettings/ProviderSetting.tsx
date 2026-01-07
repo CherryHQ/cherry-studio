@@ -31,6 +31,7 @@ import {
   isOllamaProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider,
+  isSupportAnthropicPromptCacheProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
@@ -400,7 +401,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
-          {!isSystemProvider(provider) && (
+          {(!isSystemProvider(provider) || isSupportAnthropicPromptCacheProvider(provider)) && (
             <Tooltip title={t('settings.provider.api.options.label')}>
               <Button
                 type="text"
