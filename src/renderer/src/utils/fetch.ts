@@ -4,6 +4,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { WebSearchProviderResult } from '@renderer/types'
 import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
+import PQueue from 'p-queue'
 import TurndownService from 'turndown'
 
 const logger = loggerService.withContext('Utils:fetch')
@@ -12,6 +13,33 @@ const turndownService = new TurndownService()
 export const noContent = 'No content found'
 
 type ResponseFormat = 'markdown' | 'html' | 'text'
+
+// Domain queue management for throttling requests to the same domain
+const domainQueues = new Map<string, PQueue>()
+const DOMAIN_CONCURRENCY = 1
+const DOMAIN_INTERVAL = 500 // ms between requests to the same domain
+
+function getDomainQueue(domain: string): PQueue {
+  if (!domainQueues.has(domain)) {
+    domainQueues.set(
+      domain,
+      new PQueue({
+        concurrency: DOMAIN_CONCURRENCY,
+        interval: DOMAIN_INTERVAL,
+        intervalCap: 1
+      })
+    )
+  }
+  return domainQueues.get(domain)!
+}
+
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return 'unknown'
+  }
+}
 
 /**
  * Validates if the string is a properly formatted URL
@@ -31,10 +59,15 @@ export async function fetchWebContents(
   usingBrowser: boolean = false,
   httpOptions: RequestInit = {}
 ): Promise<WebSearchProviderResult[]> {
-  // parallel using fetchWebContent
-  const results = await Promise.allSettled(urls.map((url) => fetchWebContent(url, format, usingBrowser, httpOptions)))
+  const results = await Promise.allSettled(
+    urls.map((url) => {
+      const domain = getDomain(url)
+      const queue = getDomainQueue(domain)
+      return queue.add(() => fetchWebContent(url, format, usingBrowser, httpOptions), { throwOnTimeout: true })
+    })
+  )
   return results.map((result, index) => {
-    if (result.status === 'fulfilled') {
+    if (result.status === 'fulfilled' && result.value) {
       return result.value
     } else {
       return {
