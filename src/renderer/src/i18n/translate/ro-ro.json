@@ -544,6 +544,20 @@
         "description": "Servere MCP activate implicit",
         "enableFirst": "Activează mai întâi acest server în setările MCP",
         "label": "Servere MCP",
+        "mode": {
+          "auto": {
+            "description": "AI descoperă și folosește instrumente automat",
+            "label": "Auto"
+          },
+          "disabled": {
+            "description": "Niciun instrument MCP",
+            "label": "Dezactivat"
+          },
+          "manual": {
+            "description": "Selectați servere MCP specifice",
+            "label": "Manual"
+          }
+        },
         "noServersAvailable": "Nu există servere MCP disponibile. Adaugă servere în setări",
         "title": "Setări MCP"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "Eroare format fișier backup"
     },
+    "base64DataTruncated": "Datele imagine Base64 sunt trunchiate, dimensiunea",
     "boundary": {
       "default": {
         "devtools": "Deschide panoul de depanare",
@@ -1377,6 +1392,8 @@
     "text": "Text",
     "toolInput": "Intrare instrument",
     "toolName": "Nume instrument",
+    "truncated": "Date trunchiate, dimensiunea originală",
+    "truncatedBadge": "Trunchiat",
     "unknown": "Eroare necunoscută",
     "usage": "Utilizare",
     "user_message_not_found": "Nu se poate găsi mesajul original al utilizatorului pentru a retrimite",

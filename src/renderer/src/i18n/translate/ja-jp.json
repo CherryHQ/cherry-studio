@@ -544,6 +544,20 @@
         "description": "デフォルトで有効な MCP サーバー",
         "enableFirst": "まず MCP 設定でこのサーバーを有効にしてください",
         "label": "MCP サーバー",
+        "mode": {
+          "auto": {
+            "description": "AIはツールを自動的に発見し、使用する",
+            "label": "オート"
+          },
+          "disabled": {
+            "description": "MCPツールなし",
+            "label": "無効"
+          },
+          "manual": {
+            "description": "特定のMCPサーバーを選択",
+            "label": "マニュアル"
+          }
+        },
         "noServersAvailable": "利用可能な MCP サーバーがありません。設定でサーバーを追加してください",
         "title": "MCP 設定"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "バックアップファイルの形式エラー"
     },
+    "base64DataTruncated": "Base64画像データが切り捨てられています、サイズ",
     "boundary": {
       "default": {
         "devtools": "デバッグパネルを開く",
@@ -1377,6 +1392,8 @@
     "text": "テキスト",
     "toolInput": "ツール入力",
     "toolName": "ツール名",
+    "truncated": "データが切り捨てられました、元のサイズ",
+    "truncatedBadge": "切り捨て",
     "unknown": "不明なエラー",
     "usage": "用量",
     "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",

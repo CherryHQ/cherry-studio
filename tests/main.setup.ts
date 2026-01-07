@@ -10,59 +10,69 @@ vi.mock('@logger', async () => {
 })
 
 // Mock electron modules that are commonly used in main process
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn((key: string) => {
-      switch (key) {
-        case 'userData':
-          return '/mock/userData'
-        case 'temp':
-          return '/mock/temp'
-        case 'logs':
-          return '/mock/logs'
-        default:
-          return '/mock/unknown'
+vi.mock('electron', () => {
+  const mock = {
+    app: {
+      getPath: vi.fn((key: string) => {
+        switch (key) {
+          case 'userData':
+            return '/mock/userData'
+          case 'temp':
+            return '/mock/temp'
+          case 'logs':
+            return '/mock/logs'
+          default:
+            return '/mock/unknown'
+        }
+      }),
+      getVersion: vi.fn(() => '1.0.0')
+    },
+    ipcMain: {
+      handle: vi.fn(),
+      on: vi.fn(),
+      once: vi.fn(),
+      removeHandler: vi.fn(),
+      removeAllListeners: vi.fn()
+    },
+    BrowserWindow: vi.fn(),
+    dialog: {
+      showErrorBox: vi.fn(),
+      showMessageBox: vi.fn(),
+      showOpenDialog: vi.fn(),
+      showSaveDialog: vi.fn()
+    },
+    shell: {
+      openExternal: vi.fn(),
+      showItemInFolder: vi.fn()
+    },
+    session: {
+      defaultSession: {
+        clearCache: vi.fn(),
+        clearStorageData: vi.fn()
       }
-    }),
-    getVersion: vi.fn(() => '1.0.0')
-  },
-  ipcMain: {
-    handle: vi.fn(),
-    on: vi.fn(),
-    once: vi.fn(),
-    removeHandler: vi.fn(),
-    removeAllListeners: vi.fn()
-  },
-  BrowserWindow: vi.fn(),
-  dialog: {
-    showErrorBox: vi.fn(),
-    showMessageBox: vi.fn(),
-    showOpenDialog: vi.fn(),
-    showSaveDialog: vi.fn()
-  },
-  shell: {
-    openExternal: vi.fn(),
-    showItemInFolder: vi.fn()
-  },
-  session: {
-    defaultSession: {
-      clearCache: vi.fn(),
-      clearStorageData: vi.fn()
-    }
-  },
-  webContents: {
-    getAllWebContents: vi.fn(() => [])
-  },
-  systemPreferences: {
-    getMediaAccessStatus: vi.fn(),
-    askForMediaAccess: vi.fn()
-  },
-  screen: {
-    getPrimaryDisplay: vi.fn(),
-    getAllDisplays: vi.fn()
-  },
-  Notification: vi.fn()
-}))
+    },
+    webContents: {
+      getAllWebContents: vi.fn(() => [])
+    },
+    systemPreferences: {
+      getMediaAccessStatus: vi.fn(),
+      askForMediaAccess: vi.fn()
+    },
+    nativeTheme: {
+      themeSource: 'system',
+      shouldUseDarkColors: false,
+      on: vi.fn(),
+      removeListener: vi.fn()
+    },
+    screen: {
+      getPrimaryDisplay: vi.fn(),
+      getAllDisplays: vi.fn()
+    },
+    Notification: vi.fn()
+  }
+
+  return { __esModule: true, ...mock, default: mock }
+})
 
 // Mock Winston for LoggerService dependencies
 vi.mock('winston', () => ({
@@ -98,13 +108,17 @@ vi.mock('winston-daily-rotate-file', () => {
 })
 
 // Mock Node.js modules
-vi.mock('node:os', () => ({
-  platform: vi.fn(() => 'darwin'),
-  arch: vi.fn(() => 'x64'),
-  version: vi.fn(() => '20.0.0'),
-  cpus: vi.fn(() => [{ model: 'Mock CPU' }]),
-  totalmem: vi.fn(() => 8 * 1024 * 1024 * 1024) // 8GB
-}))
+vi.mock('node:os', () => {
+  const mock = {
+    platform: vi.fn(() => 'darwin'),
+    arch: vi.fn(() => 'x64'),
+    version: vi.fn(() => '20.0.0'),
+    cpus: vi.fn(() => [{ model: 'Mock CPU' }]),
+    homedir: vi.fn(() => '/mock/home'),
+    totalmem: vi.fn(() => 8 * 1024 * 1024 * 1024) // 8GB
+  }
+  return { ...mock, default: mock }
+})
 
 vi.mock('node:path', async () => {
   const actual = await vi.importActual('node:path')
@@ -115,25 +129,29 @@ vi.mock('node:path', async () => {
   }
 })
 
-vi.mock('node:fs', () => ({
-  promises: {
-    access: vi.fn(),
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-    mkdir: vi.fn(),
-    readdir: vi.fn(),
-    stat: vi.fn(),
-    unlink: vi.fn(),
-    rmdir: vi.fn()
-  },
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  readdirSync: vi.fn(),
-  statSync: vi.fn(),
-  unlinkSync: vi.fn(),
-  rmdirSync: vi.fn(),
-  createReadStream: vi.fn(),
-  createWriteStream: vi.fn()
-}))
+vi.mock('node:fs', () => {
+  const mock = {
+    promises: {
+      access: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      mkdir: vi.fn(),
+      readdir: vi.fn(),
+      stat: vi.fn(),
+      unlink: vi.fn(),
+      rmdir: vi.fn()
+    },
+    existsSync: vi.fn(),
+    readFileSync: vi.fn(),
+    writeFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
+    readdirSync: vi.fn(),
+    statSync: vi.fn(),
+    unlinkSync: vi.fn(),
+    rmdirSync: vi.fn(),
+    createReadStream: vi.fn(),
+    createWriteStream: vi.fn()
+  }
+
+  return { ...mock, default: mock }
+})

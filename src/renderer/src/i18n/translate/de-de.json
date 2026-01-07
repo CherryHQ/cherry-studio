@@ -544,6 +544,20 @@
         "description": "Standardmäßig aktivierte MCP-Server",
         "enableFirst": "Bitte aktivieren Sie diesen Server zuerst in den MCP-Einstellungen",
         "label": "MCP-Server",
+        "mode": {
+          "auto": {
+            "description": "KI entdeckt und nutzt Werkzeuge automatisch",
+            "label": "Auto"
+          },
+          "disabled": {
+            "description": "Keine MCP-Tools",
+            "label": "Deaktiviert"
+          },
+          "manual": {
+            "description": "Wählen Sie spezifische MCP-Server",
+            "label": "Handbuch"
+          }
+        },
         "noServersAvailable": "Keine MCP-Server verfügbar. Bitte fügen Sie Server in den Einstellungen hinzu",
         "title": "MCP-Server"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "Backup-Dateiformat fehlerhaft"
     },
+    "base64DataTruncated": "Base64-Bilddaten abgeschnitten, Größe",
     "boundary": {
       "default": {
         "devtools": "Debug-Panel öffnen",
@@ -1377,6 +1392,8 @@
     "text": "Text",
     "toolInput": "Tool-Eingabe",
     "toolName": "Tool-Name",
+    "truncated": "Daten wurden gekürzt, Originalgröße",
+    "truncatedBadge": "Abgeschnitten",
     "unknown": "Unbekannter Fehler",
     "usage": "Nutzung",
     "user_message_not_found": "Ursprüngliche Benutzernachricht nicht gefunden",

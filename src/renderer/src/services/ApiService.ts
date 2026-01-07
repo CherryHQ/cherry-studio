@@ -8,8 +8,9 @@ import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingMod
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
+import { hubMCPServer } from '@renderer/store/mcp'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
-import { type FetchChatCompletionParams, isSystemProvider } from '@renderer/types'
+import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message, ResponseError } from '@renderer/types/newMessage'
@@ -51,14 +52,60 @@ import type { StreamProcessorCallbacks } from './StreamProcessingService'
 
 const logger = loggerService.withContext('ApiService')
 
-export async function fetchMcpTools(assistant: Assistant) {
-  // Get MCP tools (Fix duplicate declaration)
-  let mcpTools: MCPTool[] = [] // Initialize as empty array
+/**
+ * Get the MCP servers to use based on the assistant's MCP mode.
+ */
+export function getMcpServersForAssistant(assistant: Assistant): MCPServer[] {
+  const mode = getEffectiveMcpMode(assistant)
   const allMcpServers = store.getState().mcp.servers || []
   const activedMcpServers = allMcpServers.filter((s) => s.isActive)
-  const assistantMcpServers = assistant.mcpServers || []
 
-  const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+  switch (mode) {
+    case 'disabled':
+      return []
+    case 'auto':
+      return [hubMCPServer]
+    case 'manual': {
+      const assistantMcpServers = assistant.mcpServers || []
+      return activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+    }
+    default:
+      return []
+  }
+}
+
+export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
+  const allMcpServers = store.getState().mcp.servers || []
+  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+
+  if (activedMcpServers.length === 0) {
+    return []
+  }
+
+  try {
+    const toolPromises = activedMcpServers.map(async (mcpServer: MCPServer) => {
+      try {
+        const tools = await window.api.mcp.listTools(mcpServer)
+        return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+      } catch (error) {
+        logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
+        return []
+      }
+    })
+    const results = await Promise.allSettled(toolPromises)
+    return results
+      .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+      .map((result) => result.value)
+      .flat()
+  } catch (toolError) {
+    logger.error('Error fetching all active server tools:', toolError as Error)
+    return []
+  }
+}
+
+export async function fetchMcpTools(assistant: Assistant) {
+  let mcpTools: MCPTool[] = []
+  const enabledMCPs = getMcpServersForAssistant(assistant)
 
   if (enabledMCPs && enabledMCPs.length > 0) {
     try {
@@ -198,6 +245,7 @@ export async function fetchChatCompletion({
   const usePromptToolUse =
     isPromptToolUse(assistant) || (isToolUseModeFunction(assistant) && !isFunctionCallingModel(assistant.model))
 
+  const mcpMode = getEffectiveMcpMode(assistant)
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
@@ -210,6 +258,7 @@ export async function fetchChatCompletion({
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
     enableUrlContext: capabilities.enableUrlContext,
+    mcpMode,
     mcpTools,
     uiMessages,
     knowledgeRecognition: assistant.knowledgeRecognition

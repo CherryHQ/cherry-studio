@@ -1,7 +1,7 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import { isGemini3Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
-import type { MCPTool } from '@renderer/types'
+import type { McpMode, MCPTool } from '@renderer/types'
 import { type Assistant, type Message, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
@@ -38,6 +38,7 @@ export interface AiSdkMiddlewareConfig {
   enableWebSearch: boolean
   enableGenerateImage: boolean
   enableUrlContext: boolean
+  mcpMode?: McpMode
   mcpTools?: MCPTool[]
   uiMessages?: Message[]
   // 内置搜索配置
