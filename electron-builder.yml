@@ -96,6 +96,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
+  differentialPackage: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
@@ -111,6 +112,8 @@ mac:
   target:
     - target: dmg
     - target: zip
+dmg:
+  writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   target:
