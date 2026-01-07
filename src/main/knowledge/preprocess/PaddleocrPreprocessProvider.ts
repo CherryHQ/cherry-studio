@@ -182,39 +182,23 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
   }
 
   private createProcessedFileInfo(file: FileMetadata, outputDir: string): FileMetadata {
-    // Locate the main extracted file
-    let finalPath = ''
-    let finalName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
+    const expectedMdFileName = `${file.id}.md`
+    const expectedMdPath = path.join(outputDir, expectedMdFileName)
 
-    try {
-      const files = fs.readdirSync(outputDir)
+    // 不再检查 existsSync —— 由 saveResults 保证文件已写入
+    let finalPath = expectedMdPath
 
-      const mdFile = files.find((f) => f.endsWith('.md'))
-      if (mdFile) {
-        const originalMdPath = path.join(outputDir, mdFile)
-        const newMdPath = path.join(outputDir, finalName)
+    const finalName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
+    const newMdPath = path.join(outputDir, finalName)
 
-        // Rename the file to match the original name
-        try {
-          fs.renameSync(originalMdPath, newMdPath)
-          finalPath = newMdPath
-          logger.info(`Renamed markdown file from ${mdFile} to ${finalName}`)
-        } catch (renameError) {
-          logger.warn(`Failed to rename file ${mdFile} to ${finalName}: ${renameError}`)
-          // If renaming fails, fall back to the original file
-          finalPath = originalMdPath
-          finalName = mdFile
-        }
+    if (newMdPath !== expectedMdPath) {
+      try {
+        fs.renameSync(expectedMdPath, newMdPath)
+        finalPath = newMdPath
+        logger.info(`Renamed markdown file to match original name: ${finalName}`)
+      } catch (error) {
+        logger.warn(`Failed to rename markdown file to ${finalName}: ${getErrorMessage(error)}`)
       }
-    } catch (error) {
-      logger.warn(`Failed to read output directory ${outputDir}: ${error}`)
-      finalPath = path.join(outputDir, `${file.id}.md`)
-    }
-
-    if (!fs.existsSync(finalPath)) {
-      const errorMsg = `Final processed file does not exist at path: ${finalPath}`
-      logger.error(errorMsg)
-      throw new Error(errorMsg)
     }
 
     const ext = path.extname(finalPath)
@@ -279,10 +263,11 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
   private async saveResults(result: ApiResponse['result'], file: FileMetadata): Promise<string> {
     const outputDir = path.join(this.storageDir, file.id)
 
-    // 确保输出目录存在
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true })
+    // 确保输出目录存在且为空
+    if (fs.existsSync(outputDir)) {
+      fs.rmSync(outputDir, { recursive: true, force: true })
     }
+    fs.mkdirSync(outputDir, { recursive: true })
 
     // 处理 result 为 undefined 的场景（API 无解析结果）
     if (!result) {
