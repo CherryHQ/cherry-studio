@@ -6,14 +6,8 @@ import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
-import type { OcrProvider } from '@types'
-import {
-  BuiltinOcrProviderIds,
-  type FileMetadata,
-  isImageFileMetadata,
-  isImageOcrProvider,
-  type KnowledgeBaseParams
-} from '@types'
+import type { OcrProvider, OcrTesseractProvider } from '@types'
+import { type FileMetadata, isImageFileMetadata, isImageOcrProvider, type KnowledgeBaseParams } from '@types'
 
 import { DraftsExportLoader } from './draftsExportLoader'
 import { EpubLoader } from './epubLoader'
@@ -198,13 +192,7 @@ async function getImageOcrProvider(): Promise<OcrProvider> {
   try {
     const ocrState = await reduxService.select<{ providers?: OcrProvider[]; imageProviderId?: string }>('state.ocr')
     if (!ocrState) {
-      return {
-        id: BuiltinOcrProviderIds.tesseract,
-        name: 'Tesseract',
-        capabilities: {
-          image: true
-        }
-      }
+      return tesseractOcrProvider
     }
     const { providers = [], imageProviderId } = ocrState
     if (imageProviderId && providers.length > 0) {
@@ -222,11 +210,20 @@ async function getImageOcrProvider(): Promise<OcrProvider> {
   } catch (error) {
     logger.error('Failed to get OCR provider from Redux store, using fallback', error as Error)
   }
-  return {
-    id: BuiltinOcrProviderIds.tesseract,
-    name: 'Tesseract',
-    capabilities: {
-      image: true
+  return tesseractOcrProvider
+}
+
+const tesseractOcrProvider: OcrTesseractProvider = {
+  id: 'tesseract',
+  name: 'Tesseract',
+  capabilities: {
+    image: true
+  },
+  config: {
+    langs: {
+      chi_sim: true,
+      chi_tra: true,
+      eng: true
     }
   }
-}
+} as const
