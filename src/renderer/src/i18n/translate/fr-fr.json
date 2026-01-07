@@ -1297,6 +1297,7 @@
     "backup": {
       "file_format": "Le format du fichier de sauvegarde est incorrect"
     },
+    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Ouvrir le panneau de débogage",
@@ -1377,6 +1378,8 @@
     "text": "texte",
     "toolInput": "entrée de l'outil",
     "toolName": "Nom de l'outil",
+    "truncated": "[to be translated]:Data truncated, original size",
+    "truncatedBadge": "[to be translated]:Truncated",
     "unknown": "Неизвестная ошибка",
     "usage": "Quantité",
     "user_message_not_found": "Impossible de trouver le message d'utilisateur original",
@@ -4458,6 +4461,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "[to be translated]:Cache Last N Messages",
+            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
+            "cache_system": "[to be translated]:Cache System Message",
+            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
+            "token_threshold": "[to be translated]:Cache Token Threshold",
+            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+          },
           "array_content": {
             "help": "Ce fournisseur prend-il en charge le champ content du message sous forme de tableau ?",
             "label": "Prise en charge du format de tableau pour le contenu du message"

@@ -1297,6 +1297,7 @@
     "backup": {
       "file_format": "Ошибка формата файла резервной копии"
     },
+    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Открыть панель отладки",
@@ -1377,6 +1378,8 @@
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
+    "truncated": "[to be translated]:Data truncated, original size",
+    "truncatedBadge": "[to be translated]:Truncated",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",
     "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
@@ -4458,6 +4461,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "[to be translated]:Cache Last N Messages",
+            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
+            "cache_system": "[to be translated]:Cache System Message",
+            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
+            "token_threshold": "[to be translated]:Cache Token Threshold",
+            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+          },
           "array_content": {
             "help": "Поддерживает ли данный провайдер тип массива для поля content в сообщении",
             "label": "поддержка формата массива для содержимого сообщения"
