@@ -10,6 +10,7 @@ import { extractReasoningMiddleware, simulateStreamingMiddleware } from 'ai'
 
 import { getAiSdkProviderId } from '../provider/factory'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
+import { anthropicCacheMiddleware } from './anthropicCacheMiddleware'
 import { noThinkMiddleware } from './noThinkMiddleware'
 import { openrouterGenerateImageMiddleware } from './openrouterGenerateImageMiddleware'
 import { openrouterReasoningMiddleware } from './openrouterReasoningMiddleware'
@@ -178,7 +179,12 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
   // 根据不同provider添加特定中间件
   switch (config.provider.type) {
     case 'anthropic':
-      // Anthropic特定中间件
+      if (config.provider.anthropicCacheControl?.tokenThreshold) {
+        builder.add({
+          name: 'anthropic-cache',
+          middleware: anthropicCacheMiddleware(config.provider)
+        })
+      }
       break
     case 'openai':
     case 'azure-openai': {

@@ -397,7 +397,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
-          {!isSystemProvider(provider) && (
+          {(!isSystemProvider(provider) || provider.type === 'anthropic') && (
             <Tooltip title={t('settings.provider.api.options.label')}>
               <Button
                 type="text"
