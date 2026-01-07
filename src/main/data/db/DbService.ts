@@ -6,7 +6,7 @@ import { app } from 'electron'
 import path from 'path'
 import { pathToFileURL } from 'url'
 
-import { CUSTOM_SQL_STATEMENTS } from './customSql'
+import { CUSTOM_SQL_STATEMENTS } from './customSqls'
 import Seeding from './seeding'
 import type { DbType } from './types'
 
