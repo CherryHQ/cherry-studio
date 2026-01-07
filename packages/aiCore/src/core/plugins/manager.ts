@@ -3,17 +3,17 @@ import type { AiPlugin, AiRequestContext } from './types'
 /**
  * 插件管理器
  */
-export class PluginManager {
-  private plugins: AiPlugin[] = []
+export class PluginManager<TParams = unknown, TResult = unknown> {
+  private plugins: AiPlugin<TParams, TResult>[] = []
 
-  constructor(plugins: AiPlugin[] = []) {
+  constructor(plugins: AiPlugin<TParams, TResult>[] = []) {
     this.plugins = this.sortPlugins(plugins)
   }
 
   /**
    * 添加插件
    */
-  use(plugin: AiPlugin): this {
+  use(plugin: AiPlugin<TParams, TResult>): this {
     this.plugins = this.sortPlugins([...this.plugins, plugin])
     return this
   }
@@ -29,10 +29,10 @@ export class PluginManager {
   /**
    * 插件排序：pre -> normal -> post
    */
-  private sortPlugins(plugins: AiPlugin[]): AiPlugin[] {
-    const pre: AiPlugin[] = []
-    const normal: AiPlugin[] = []
-    const post: AiPlugin[] = []
+  private sortPlugins(plugins: AiPlugin<TParams, TResult>[]): AiPlugin<TParams, TResult>[] {
+    const pre: AiPlugin<TParams, TResult>[] = []
+    const normal: AiPlugin<TParams, TResult>[] = []
+    const post: AiPlugin<TParams, TResult>[] = []
 
     plugins.forEach((plugin) => {
       if (plugin.enforce === 'pre') {
@@ -53,7 +53,7 @@ export class PluginManager {
   async executeFirst<T>(
     hookName: 'resolveModel' | 'loadTemplate',
     arg: any,
-    context: AiRequestContext
+    context: AiRequestContext<TParams, TResult>
   ): Promise<T | null> {
     for (const plugin of this.plugins) {
       const hook = plugin[hookName]
@@ -68,19 +68,36 @@ export class PluginManager {
   }
 
   /**
-   * 执行 Sequential 钩子 - 链式数据转换
+   * 执行 transformParams 钩子 - 链式参数转换
+   * 每个插件返回 Partial<TParams>，逐步合并到原始参数
    */
-  async executeSequential<T>(
-    hookName: 'transformParams' | 'transformResult',
-    initialValue: T,
-    context: AiRequestContext
-  ): Promise<T> {
+  async executeTransformParams(initialValue: TParams, context: AiRequestContext<TParams, TResult>): Promise<TParams> {
     let result = initialValue
 
     for (const plugin of this.plugins) {
-      const hook = plugin[hookName]
-      if (hook) {
-        result = await hook<T>(result, context)
+      if (plugin.transformParams) {
+        const partial = await plugin.transformParams(result, context)
+        // 合并 Partial 到现有参数
+        result = { ...result, ...partial }
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * 执行 transformResult 钩子 - 链式结果转换
+   * 每个插件接收并返回完整的 TResult
+   */
+  async executeTransformResult(initialValue: TResult, context: AiRequestContext<TParams, TResult>): Promise<TResult> {
+    let result = initialValue
+
+    for (const plugin of this.plugins) {
+      if (plugin.transformResult) {
+        // SAFETY: transformResult 的契约保证返回 TResult
+        // 由于插件接口定义，这个类型断言是安全的
+        const transformed = await plugin.transformResult(result, context)
+        result = transformed as TResult
       }
     }
 
@@ -90,7 +107,7 @@ export class PluginManager {
   /**
    * 执行 ConfigureContext 钩子 - 串行配置上下文
    */
-  async executeConfigureContext(context: AiRequestContext): Promise<void> {
+  async executeConfigureContext(context: AiRequestContext<TParams, TResult>): Promise<void> {
     for (const plugin of this.plugins) {
       const hook = plugin.configureContext
       if (hook) {
@@ -104,8 +121,8 @@ export class PluginManager {
    */
   async executeParallel(
     hookName: 'onRequestStart' | 'onRequestEnd' | 'onError',
-    context: AiRequestContext,
-    result?: any,
+    context: AiRequestContext<TParams, TResult>,
+    result?: TResult,
     error?: Error
   ): Promise<void> {
     const promises = this.plugins
@@ -113,12 +130,12 @@ export class PluginManager {
         const hook = plugin[hookName]
         if (!hook) return null
 
-        if (hookName === 'onError' && error) {
-          return (hook as any)(error, context)
+        if (hookName === 'onError' && error !== undefined) {
+          return (hook as NonNullable<typeof plugin.onError>)(error, context)
         } else if (hookName === 'onRequestEnd' && result !== undefined) {
-          return (hook as any)(context, result)
+          return (hook as NonNullable<typeof plugin.onRequestEnd>)(context, result)
         } else if (hookName === 'onRequestStart') {
-          return (hook as any)(context)
+          return (hook as NonNullable<typeof plugin.onRequestStart>)(context)
         }
         return null
       })
@@ -131,7 +148,7 @@ export class PluginManager {
   /**
    * 收集所有流转换器（返回数组，AI SDK 原生支持）
    */
-  collectStreamTransforms(params: any, context: AiRequestContext) {
+  collectStreamTransforms(params: TParams, context: AiRequestContext<TParams, TResult>) {
     return this.plugins
       .filter((plugin) => plugin.transformStream)
       .map((plugin) => plugin.transformStream?.(params, context))
@@ -140,7 +157,7 @@ export class PluginManager {
   /**
    * 获取所有插件信息
    */
-  getPlugins(): AiPlugin[] {
+  getPlugins(): AiPlugin<TParams, TResult>[] {
     return [...this.plugins]
   }
 

@@ -1,3 +1,4 @@
+import { definePlugin } from '@cherrystudio/ai-core'
 import type { LanguageModelMiddleware } from 'ai'
 
 /**
@@ -8,10 +9,10 @@ import type { LanguageModelMiddleware } from 'ai'
  * @param aiSdkId AI SDK Provider ID
  * @returns LanguageModelMiddleware
  */
-export function skipGeminiThoughtSignatureMiddleware(aiSdkId: string): LanguageModelMiddleware {
+function createSkipGeminiThoughtSignatureMiddleware(aiSdkId: string): LanguageModelMiddleware {
   const MAGIC_STRING = 'skip_thought_signature_validator'
   return {
-    middlewareVersion: 'v2',
+    specificationVersion: 'v3',
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }
@@ -34,3 +35,14 @@ export function skipGeminiThoughtSignatureMiddleware(aiSdkId: string): LanguageM
     }
   }
 }
+
+export const createSkipGeminiThoughtSignaturePlugin = (aiSdkId: string) =>
+  definePlugin({
+    name: 'skipGeminiThoughtSignature',
+    enforce: 'pre',
+
+    configureContext: (context) => {
+      context.middlewares = context.middlewares || []
+      context.middlewares.push(createSkipGeminiThoughtSignatureMiddleware(aiSdkId))
+    }
+  })
