@@ -34,9 +34,6 @@ patchedDependencies:
   '@ai-sdk/openai@2.0.85':
     hash: f2077f4759520d1de69b164dfd8adca1a9ace9de667e35cb0e55e812ce2ac13b
     path: patches/@ai-sdk-openai-npm-2.0.85-27483d1d6a.patch
-  '@anthropic-ai/claude-agent-sdk@0.1.62':
-    hash: 61ed4549b423c717cbfef526e3ed5b0329c2de2de88c9ef772188668f7dc26e8
-    path: patches/@anthropic-ai-claude-agent-sdk-npm-0.1.62-23ae56f8c8.patch
   '@anthropic-ai/vertex-sdk@0.11.4':
     hash: 12e3275df5632dfe717d4db64df70e9b0128dfac86195da27722effe4749662f
     path: patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch
@@ -88,8 +85,8 @@ importers:
   .:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.1.62
-        version: 0.1.62(patch_hash=61ed4549b423c717cbfef526e3ed5b0329c2de2de88c9ef772188668f7dc26e8)(zod@4.3.4)
+        specifier: 0.1.76
+        version: 0.1.76(zod@4.3.4)
       '@libsql/client':
         specifier: 0.14.0
         version: 0.14.0
@@ -1459,11 +1456,11 @@ packages:
   '@antfu/install-pkg@1.1.0':
     resolution: {integrity: sha512-MGQsmw10ZyI+EJo45CdSER4zEb+p31LpDAFp2Z3gkSd1yqVZGi0Ebx++YTEMonJy4oChEMLsxZ64j8FH6sSqtQ==}
 
-  '@anthropic-ai/claude-agent-sdk@0.1.62':
-    resolution: {integrity: sha512-KoJAQ0kdrbOukh4r0CFvFZgSKlAGAVJf8baeK2jpFCxbUhqr99Ier88v1L2iehWSWkXR6oVaThCYozN74Q3jUw==}
+  '@anthropic-ai/claude-agent-sdk@0.1.76':
+    resolution: {integrity: sha512-s7RvpXoFaLXLG7A1cJBAPD8ilwOhhc/12fb5mJXRuD561o4FmPtQ+WRfuy9akMmrFRfLsKv8Ornw3ClGAPL2fw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      zod: ^3.24.1
+      zod: ^3.24.1 || ^4.0.0
 
   '@anthropic-ai/sdk@0.27.3':
     resolution: {integrity: sha512-IjLt0gd3L4jlOfilxVXTifn42FnVffMgDC04RJK1KDZpmkBWLv0XC92MVVmkxrFZNS/7l3xWgP/I3nqtX1sQHw==}
@@ -12415,7 +12412,7 @@ snapshots:
       package-manager-detector: 1.6.0
       tinyexec: 1.0.2
 
-  '@anthropic-ai/claude-agent-sdk@0.1.62(patch_hash=61ed4549b423c717cbfef526e3ed5b0329c2de2de88c9ef772188668f7dc26e8)(zod@4.3.4)':
+  '@anthropic-ai/claude-agent-sdk@0.1.76(zod@4.3.4)':
     dependencies:
       zod: 4.3.4
     optionalDependencies:

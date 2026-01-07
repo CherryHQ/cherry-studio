@@ -67,7 +67,7 @@
     "release:ai-sdk-provider": "pnpm --filter @cherrystudio/ai-sdk-provider version patch && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-sdk-provider publish --access public"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.1.62",
+    "@anthropic-ai/claude-agent-sdk": "0.1.76",
     "@libsql/client": "0.14.0",
     "@napi-rs/system-ocr": "1.0.2",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
@@ -435,7 +435,6 @@
       "@ai-sdk/openai-compatible@1.0.27": "1.0.28"
     },
     "patchedDependencies": {
-      "@anthropic-ai/claude-agent-sdk@0.1.62": "patches/@anthropic-ai-claude-agent-sdk-npm-0.1.62-23ae56f8c8.patch",
       "@napi-rs/system-ocr@1.0.2": "patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",
       "tesseract.js@6.0.1": "patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
       "@ai-sdk/google@2.0.49": "patches/@ai-sdk-google-npm-2.0.49-84720f41bd.patch",
