@@ -1,7 +1,8 @@
 import { HStack } from '@renderer/components/Layout'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useProvider } from '@renderer/hooks/useProvider'
-import type { AnthropicCacheControlSettings, Provider } from '@renderer/types'
+import { type AnthropicCacheControlSettings, type Provider } from '@renderer/types'
+import { isSupportAnthropicPromptCacheProvider } from '@renderer/utils/provider'
 import { Divider, Flex, InputNumber, Switch } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -114,7 +115,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
     return items
   }, [openAIOptions, provider.apiOptions, provider.type, t, updateProviderTransition])
 
-  const isAnthropicProvider = provider.type === 'anthropic'
+  const isSupportAnthropicPromptCache = isSupportAnthropicPromptCacheProvider(provider)
 
   const cacheSettings = useMemo(
     () =>
@@ -149,7 +150,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         </HStack>
       ))}
 
-      {isAnthropicProvider && (
+      {isSupportAnthropicPromptCache && (
         <>
           <Divider style={{ margin: '8px 0' }} />
           <HStack justifyContent="space-between">
