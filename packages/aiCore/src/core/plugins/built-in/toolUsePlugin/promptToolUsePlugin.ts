@@ -35,9 +35,15 @@ Tool use is formatted using XML-style tags. The tool name is enclosed in opening
 
 The tool name should be the exact name of the tool you are using, and the arguments should be a JSON object containing the parameters required by that tool. For example:
 <tool_use>
-  <name>python_interpreter</name>
-  <arguments>{"code": "5 + 3 + 1294.678"}</arguments>
+  <name>search</name>
+  <arguments>{ "query": "browser,fetch" }</arguments>
 </tool_use>
+
+<tool_use>
+  <name>exec</name>
+  <arguments>{ "code": "const page = await CherryBrowser_fetch({ url: \"https://example.com\" })\nreturn page" }</arguments>
+</tool_use>
+
 
 The user will respond with the result of the tool use, which should be formatted as follows:
 

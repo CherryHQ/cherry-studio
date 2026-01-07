@@ -13,15 +13,26 @@ export interface ToolInfo {
 const HUB_MODE_SYSTEM_PROMPT_BASE = `
 ## Hub MCP Tools – Code Execution Mode
 
-You can discover and call MCP tools through the hub server using two meta-tools: **search** and **exec**.
+You can discover and call MCP tools through the hub server using **ONLY two meta-tools**: **search** and **exec**.
+
+### ⚠️ IMPORTANT: You can ONLY call these two tools directly
+
+| Tool | Purpose |
+|------|---------|
+| \`search\` | Discover available tools and their signatures |
+| \`exec\` | Execute JavaScript code that calls the discovered tools |
+
+**All other tools (listed in "Discoverable Tools" below) can ONLY be called from INSIDE \`exec\` code.**
+You CANNOT call them directly as tool calls. They are async functions available within the \`exec\` runtime.
 
 ### Critical Rules (Read First)
 
-1. You MUST explicitly \`return\` the final value from your \`exec\` code. If you do not return a value, the result will be \`undefined\`.
-2. All MCP tools are async functions. Always call them as \`await ToolName(params)\`.
-3. Use the exact function names and parameter shapes returned by \`search\`.
-4. You CANNOT call \`search\` or \`exec\` from inside \`exec\` code—use them only as MCP tools.
-5. \`console.log\` output is NOT the result. Logs are separate; the final answer must come from \`return\`.
+1. **ONLY \`search\` and \`exec\` are callable as tools.** All other tools must be used inside \`exec\` code.
+2. You MUST explicitly \`return\` the final value from your \`exec\` code. If you do not return a value, the result will be \`undefined\`.
+3. All MCP tools inside \`exec\` are async functions. Always call them as \`await ToolName(params)\`.
+4. Use the exact function names and parameter shapes returned by \`search\`.
+5. You CANNOT call \`search\` or \`exec\` from inside \`exec\` code—use them only as direct tool calls.
+6. \`console.log\` output is NOT the result. Logs are separate; the final answer must come from \`return\`.
 
 ### Workflow
 
@@ -153,7 +164,11 @@ export function getHubModeSystemPrompt(tools: ToolInfo[] = []): string {
   const toolsSection = buildToolsSection(tools)
 
   return `${HUB_MODE_SYSTEM_PROMPT_BASE}
-## Discoverable Tools (use search to get full signatures)
+## Discoverable Tools (ONLY usable inside \`exec\` code, NOT as direct tool calls)
+
+The following tools are available inside \`exec\`. Use \`search\` to get their full signatures.
+Do NOT call these directly—wrap them in \`exec\` code.
+
 ${toolsSection}
 `
 }
