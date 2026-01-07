@@ -129,17 +129,20 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     checking: false
   })
 
-  const updateWebSearchProviderKey = ({ apiKey }: { apiKey: string }) => {
-    provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
-  }
+  const updateWebSearchProviderKey = useCallback(
+    ({ apiKey }: { apiKey: string }) => {
+      provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+    },
+    [dispatch, provider.id]
+  )
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedUpdateApiKey = useCallback(
-    debounce((value) => {
-      updateProvider({ apiKey: formatApiKeys(value) })
-      updateWebSearchProviderKey({ apiKey: formatApiKeys(value) })
-    }, 150),
-    []
+  const debouncedUpdateApiKey = useMemo(
+    () =>
+      debounce((value: string) => {
+        updateProvider({ apiKey: formatApiKeys(value) })
+        updateWebSearchProviderKey({ apiKey: formatApiKeys(value) })
+      }, 150),
+    [updateProvider, updateWebSearchProviderKey]
   )
 
   // 同步 provider.apiKey 到 localApiKey
