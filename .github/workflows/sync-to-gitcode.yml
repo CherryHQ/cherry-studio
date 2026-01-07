@@ -79,7 +79,7 @@ jobs:
         shell: bash
         run: |
           echo "Built Windows artifacts:"
-          ls -la dist/*.exe dist/*.blockmap dist/latest*.yml
+          ls -la dist/*.exe dist/latest*.yml
 
       - name: Download GitHub release assets
         shell: bash
@@ -112,12 +112,10 @@ jobs:
           fi
 
           # Remove unsigned Windows files from downloaded assets
-          # *.exe, *.exe.blockmap, latest.yml (Windows only)
-          rm -f release-assets/*.exe release-assets/*.exe.blockmap release-assets/latest.yml 2>/dev/null || true
+          rm -f release-assets/*.exe release-assets/latest.yml 2>/dev/null || true
 
           # Copy signed Windows files with error checking
           cp dist/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
-          cp dist/*.exe.blockmap release-assets/ || { echo "ERROR: Failed to copy .blockmap files"; exit 1; }
           cp dist/latest.yml release-assets/ || { echo "ERROR: Failed to copy latest.yml"; exit 1; }
 
           echo "Final release assets:"
