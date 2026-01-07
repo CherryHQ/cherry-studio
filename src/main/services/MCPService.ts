@@ -172,21 +172,27 @@ class McpService {
    */
   public async listAllActiveServerTools(): Promise<MCPTool[]> {
     const servers = await getMCPServersFromRedux()
-    const allTools: MCPTool[] = []
+    const activeServers = servers.filter((server) => server.isActive)
 
-    for (const server of servers) {
-      if (!server.isActive) {
-        continue
-      }
-      try {
+    const results = await Promise.allSettled(
+      activeServers.map(async (server) => {
         const tools = await this.listToolsImpl(server)
         const disabledTools = new Set(server.disabledTools ?? [])
-        const enabledTools = disabledTools.size > 0 ? tools.filter((tool) => !disabledTools.has(tool.name)) : tools
-        allTools.push(...enabledTools)
-      } catch (error) {
-        logger.error(`[listAllActiveServerTools] Failed to list tools from ${server.name}:`, error as Error)
+        return disabledTools.size > 0 ? tools.filter((tool) => !disabledTools.has(tool.name)) : tools
+      })
+    )
+
+    const allTools: MCPTool[] = []
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        allTools.push(...result.value)
+      } else {
+        logger.error(
+          `[listAllActiveServerTools] Failed to list tools from ${activeServers[index].name}:`,
+          result.reason as Error
+        )
       }
-    }
+    })
 
     return allTools
   }
