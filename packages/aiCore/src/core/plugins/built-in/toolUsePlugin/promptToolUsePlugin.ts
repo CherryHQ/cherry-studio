@@ -233,7 +233,17 @@ function defaultParseToolUse(content: string, tools: ToolSet): { results: ToolUs
   // Find all tool use blocks
   while ((match = toolUsePattern.exec(contentToProcess)) !== null) {
     const fullMatch = match[0]
-    const toolName = match[2].trim()
+    let toolName = match[2].trim()
+    switch (toolName.toLowerCase()) {
+      case 'search':
+        toolName = 'mcp__CherryHub__search'
+        break
+      case 'exec':
+        toolName = 'mcp__CherryHub__exec'
+        break
+      default:
+        break
+    }
     const toolArgs = match[4].trim()
 
     // Try to parse the arguments as JSON
