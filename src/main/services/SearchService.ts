@@ -23,7 +23,7 @@ export class SearchService {
         nodeIntegration: true,
         contextIsolation: false,
         devTools: is.dev,
-        offscreen: true // 启用离屏渲染
+        offscreen: !show // 根据传递进来的 show 控制是否开启离屏幕渲染
       }
     })
 
