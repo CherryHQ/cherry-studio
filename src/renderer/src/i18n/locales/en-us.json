@@ -4741,6 +4741,7 @@
         }
       }
     },
+    "search_placeholder": "Search settings",
     "title": "Settings",
     "tool": {
       "ocr": {

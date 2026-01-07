@@ -4741,6 +4741,7 @@
         }
       }
     },
+    "search_placeholder": "搜索设置",
     "title": "设置",
     "tool": {
       "ocr": {

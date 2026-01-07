@@ -35,12 +35,15 @@ import { ProviderList } from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
+import { SettingsSearch } from './SettingsSearch'
+import { useHighlightSetting } from './SettingsSearchHighlightHook'
 import ShortcutSettings from './ShortcutSettings'
 import { ApiServerSettings } from './ToolSettings/ApiServerSettings'
 import WebSearchSettings from './WebSearchSettings'
 
 const SettingsPage: FC = () => {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
+  useHighlightSetting(search)
   const { t } = useTranslation()
 
   const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
@@ -52,6 +55,7 @@ const SettingsPage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <SettingMenus>
+          <SettingsSearch />
           <MenuItemLink to="/settings/provider">
             <MenuItem className={isRoute('/settings/provider')}>
               <Cloud size={18} />

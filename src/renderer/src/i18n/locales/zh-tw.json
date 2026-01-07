@@ -4741,6 +4741,7 @@
         }
       }
     },
+    "search_placeholder": "搜尋設定",
     "title": "設定",
     "tool": {
       "ocr": {
