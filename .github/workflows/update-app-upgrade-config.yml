@@ -154,9 +154,10 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install pnpm
+      - name: Enable corepack
         if: steps.check.outputs.should_run == 'true'
-        uses: pnpm/action-setup@v4
+        working-directory: main
+        run: corepack enable pnpm
 
       - name: Install dependencies
         if: steps.check.outputs.should_run == 'true'
