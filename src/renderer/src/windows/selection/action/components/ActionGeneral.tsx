@@ -12,6 +12,7 @@ import {
 } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import type { Assistant, Topic } from '@renderer/types'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { ChevronDown } from 'lucide-react'
@@ -34,8 +35,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { language } = useSettings()
   const [error, setError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
-  const [isContented, setIsContented] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
   const [contentToCopy, setContentToCopy] = useState('')
   const initialized = useRef(false)
 
@@ -96,19 +96,24 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   }, [action, language])
 
   const fetchResult = useCallback(() => {
+    if (!initialized.current) {
+      return
+    }
+    setStatus('preparing')
+
     const setAskId = (id: string) => {
       askId.current = id
     }
     const onStream = () => {
-      setIsContented(true)
+      setStatus('streaming')
       scrollToBottom?.()
     }
     const onFinish = (content: string) => {
+      setStatus('finished')
       setContentToCopy(content)
-      setIsLoading(false)
     }
     const onError = (error: Error) => {
-      setIsLoading(false)
+      setStatus('finished')
       setError(error.message)
     }
 
@@ -131,17 +136,40 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const allMessages = useTopicMessages(topicRef.current?.id || '')
 
-  // Memoize the messages to prevent unnecessary re-renders
-  const messageContent = useMemo(() => {
+  const currentAssistantMessage = useMemo(() => {
     const assistantMessages = allMessages.filter((message) => message.role === 'assistant')
-    const lastAssistantMessage = assistantMessages[assistantMessages.length - 1]
-    return lastAssistantMessage ? <MessageContent key={lastAssistantMessage.id} message={lastAssistantMessage} /> : null
+    if (assistantMessages.length === 0) {
+      return null
+    }
+    return assistantMessages[assistantMessages.length - 1]
   }, [allMessages])
+
+  useEffect(() => {
+    // Sync message status
+    switch (currentAssistantMessage?.status) {
+      case AssistantMessageStatus.PROCESSING:
+      case AssistantMessageStatus.PENDING:
+      case AssistantMessageStatus.SEARCHING:
+        setStatus('streaming')
+        break
+      case AssistantMessageStatus.PAUSED:
+      case AssistantMessageStatus.ERROR:
+      case AssistantMessageStatus.SUCCESS:
+        setStatus('finished')
+        break
+      case undefined:
+        break
+      default:
+        logger.warn('Unexpected assistant message status:', { status: currentAssistantMessage?.status })
+    }
+  }, [currentAssistantMessage?.status])
+
+  const isPreparing = status === 'preparing'
+  const isStreaming = status === 'streaming'
 
   const handlePause = () => {
     if (askId.current) {
       abortCompletion(askId.current)
-      setIsLoading(false)
     }
     if (topicRef.current?.id) {
       pauseTrace(topicRef.current.id)
@@ -150,7 +178,6 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const handleRegenerate = () => {
     setContentToCopy('')
-    setIsLoading(true)
     fetchResult()
   }
 
@@ -178,13 +205,20 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
-          {!isContented && isLoading && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {messageContent}
+          {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
+          {!isPreparing && currentAssistantMessage && (
+            <MessageContent key={currentAssistantMessage.id} message={currentAssistantMessage} />
+          )}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter loading={isLoading} onPause={handlePause} onRegenerate={handleRegenerate} content={contentToCopy} />
+      <WindowFooter
+        loading={isStreaming}
+        onPause={handlePause}
+        onRegenerate={handleRegenerate}
+        content={contentToCopy}
+      />
     </>
   )
 })
