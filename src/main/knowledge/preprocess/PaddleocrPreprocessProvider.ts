@@ -121,13 +121,13 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       }
 
       // 4. 保存markdown文本
-      const outputPath = await this.saveResults(apiResponse.result, file)
+      const outputDir = await this.saveResults(apiResponse.result, file)
 
       await this.sendPreprocessProgress(sourceId, 100)
 
       // 5. 创建处理后数据
       return {
-        processedFile: this.createProcessedFileInfo(file, outputPath),
+        processedFile: this.createProcessedFileInfo(file, outputDir),
         quota: 0
       }
     } catch (error: unknown) {
@@ -181,18 +181,18 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / MB)}MB`)
   }
 
-  private createProcessedFileInfo(file: FileMetadata, outputPath: string): FileMetadata {
+  private createProcessedFileInfo(file: FileMetadata, outputDir: string): FileMetadata {
     // Locate the main extracted file
     let finalPath = ''
     let finalName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
 
     try {
-      const files = fs.readdirSync(outputPath)
+      const files = fs.readdirSync(outputDir)
 
       const mdFile = files.find((f) => f.endsWith('.md'))
       if (mdFile) {
-        const originalMdPath = path.join(outputPath, mdFile)
-        const newMdPath = path.join(outputPath, finalName)
+        const originalMdPath = path.join(outputDir, mdFile)
+        const newMdPath = path.join(outputDir, finalName)
 
         // Rename the file to match the original name
         try {
@@ -207,8 +207,8 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
         }
       }
     } catch (error) {
-      logger.warn(`Failed to read output directory ${outputPath}: ${error}`)
-      finalPath = path.join(outputPath, `${file.id}.md`)
+      logger.warn(`Failed to read output directory ${outputDir}: ${error}`)
+      finalPath = path.join(outputDir, `${file.id}.md`)
     }
 
     if (!fs.existsSync(finalPath)) {
@@ -251,6 +251,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Client-Platform': 'cherry-studio',
           Authorization: `token ${this.provider.apiKey}`
         },
         body: JSON.stringify(payload)
@@ -285,10 +286,11 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
 
     // 处理 result 为 undefined 的场景（API 无解析结果）
     if (!result) {
-      logger.warn('No valid parsing result from PaddleOCR API, creating empty markdown file')
-      const emptyMdPath = path.join(outputDir, `${file.id}.md`)
-      fs.writeFileSync(emptyMdPath, '# No content extracted from PDF\n', 'utf-8')
-      return outputDir
+      const errorMsg = `Parsing failed: No valid parsing result from PaddleOCR API for file [ID: ${file.id}]`
+      // Keep warning log for troubleshooting
+      logger.warn(errorMsg)
+      // Throw exception to interrupt function execution (no empty file created)
+      throw new Error(errorMsg)
     }
 
     // Zod 保证：result 存在时，layoutParsingResults 必是非空数组
