@@ -2,8 +2,10 @@ import type Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import anthropicService from '@main/services/AnthropicService'
-import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
+import { buildClaudeCodeSystemMessage, getSdkClient, sanitizeToolsForAnthropic } from '@shared/anthropic'
 import type { Provider } from '@types'
+import { APICallError, RetryError } from 'ai'
+import { net } from 'electron'
 import type { Response } from 'express'
 
 const logger = loggerService.withContext('MessagesService')
@@ -98,11 +100,30 @@ export class MessagesService {
 
   async getClient(provider: Provider, extraHeaders?: Record<string, string | string[]>): Promise<Anthropic> {
     // Create Anthropic client for the provider
+    // Wrap net.fetch to handle compatibility issues:
+    // 1. net.fetch expects string URLs, not Request objects
+    // 2. net.fetch doesn't support 'agent' option from Node.js http module
+    const electronFetch: typeof globalThis.fetch = async (input: URL | RequestInfo, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      // Remove unsupported options for Electron's net.fetch
+      if (init) {
+        const initWithAgent = init as RequestInit & { agent?: unknown }
+        delete initWithAgent.agent
+        const headers = new Headers(initWithAgent.headers)
+        if (headers.has('content-length')) {
+          headers.delete('content-length')
+        }
+        initWithAgent.headers = headers
+        return net.fetch(url, initWithAgent)
+      }
+      return net.fetch(url)
+    }
+    const context = { fetch: electronFetch }
     if (provider.authType === 'oauth') {
       const oauthToken = await anthropicService.getValidAccessToken()
-      return getSdkClient(provider, oauthToken, extraHeaders)
+      return getSdkClient(provider, oauthToken, extraHeaders, context)
     }
-    return getSdkClient(provider, null, extraHeaders)
+    return getSdkClient(provider, null, extraHeaders, context)
   }
 
   prepareHeaders(headers: Record<string, string | string[] | undefined>): Record<string, string | string[]> {
@@ -127,7 +148,8 @@ export class MessagesService {
   createAnthropicRequest(request: MessageCreateParams, provider: Provider, modelId?: string): MessageCreateParams {
     const anthropicRequest: MessageCreateParams = {
       ...request,
-      stream: !!request.stream
+      stream: !!request.stream,
+      tools: sanitizeToolsForAnthropic(request.tools)
     }
 
     // Override model if provided
@@ -233,9 +255,71 @@ export class MessagesService {
   }
 
   transformError(error: any): { statusCode: number; errorResponse: ErrorResponse } {
-    let statusCode = 500
-    let errorType = 'api_error'
-    let errorMessage = 'Internal server error'
+    let statusCode: number | undefined = undefined
+    let errorType: string | undefined = undefined
+    let errorMessage: string | undefined = undefined
+
+    const errorMap: Record<number, string> = {
+      400: 'invalid_request_error',
+      401: 'authentication_error',
+      403: 'forbidden_error',
+      404: 'not_found_error',
+      429: 'rate_limit_error',
+      500: 'internal_server_error'
+    }
+
+    // Handle AI SDK RetryError - extract the last error for better error messages
+    if (RetryError.isInstance(error)) {
+      const lastError = error.lastError
+      // If the last error is an APICallError, extract its details
+      if (APICallError.isInstance(lastError)) {
+        statusCode = lastError.statusCode || 502
+        errorMessage = lastError.message
+        return {
+          statusCode,
+          errorResponse: {
+            type: 'error',
+            error: {
+              type: errorMap[statusCode] || 'api_error',
+              message: `${error.reason}: ${errorMessage}`,
+              requestId: lastError.name
+            }
+          }
+        }
+      }
+      // Fallback for other retry errors
+      errorMessage = error.message
+      statusCode = 502
+      return {
+        statusCode,
+        errorResponse: {
+          type: 'error',
+          error: {
+            type: 'api_error',
+            message: errorMessage,
+            requestId: error.name
+          }
+        }
+      }
+    }
+
+    if (APICallError.isInstance(error)) {
+      statusCode = error.statusCode
+      errorMessage = error.message
+      if (statusCode) {
+        return {
+          statusCode,
+          errorResponse: {
+            type: 'error',
+            error: {
+              type: errorMap[statusCode] || 'api_error',
+              message: errorMessage,
+              requestId: error.name
+            }
+          }
+        }
+      }
+    }
 
     const anthropicStatus = typeof error?.status === 'number' ? error.status : undefined
     const anthropicError = error?.error
@@ -277,11 +361,11 @@ export class MessagesService {
       typeof errorMessage === 'string' && errorMessage.length > 0 ? errorMessage : 'Internal server error'
 
     return {
-      statusCode,
+      statusCode: statusCode ?? 500,
       errorResponse: {
         type: 'error',
         error: {
-          type: errorType,
+          type: errorType || 'api_error',
           message: safeErrorMessage,
           requestId: error?.request_id
         }

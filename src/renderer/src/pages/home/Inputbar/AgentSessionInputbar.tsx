@@ -23,6 +23,7 @@ import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
+import { parseModelId } from '@renderer/utils/model'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -67,8 +68,9 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
     if (!session) return null
 
     // Extract model info
-    const [providerId, actualModelId] = session.model?.split(':') ?? [undefined, undefined]
-    const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
+    // Use parseModelId to handle model IDs with colons (e.g., "openrouter:anthropic/claude:free")
+    const parsed = parseModelId(session.model)
+    const actualModel = parsed ? getModel(parsed.modelId, parsed.providerId) : undefined
 
     const model: Model | undefined = actualModel
       ? {

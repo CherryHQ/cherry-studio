@@ -5,6 +5,7 @@ import type { MCPTool } from '@renderer/types'
 import { type Assistant, type Message, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
+import { openrouterReasoningMiddleware, skipGeminiThoughtSignatureMiddleware } from '@shared/aiCore/middlewares'
 import type { LanguageModelMiddleware } from 'ai'
 import { extractReasoningMiddleware, simulateStreamingMiddleware } from 'ai'
 
@@ -12,9 +13,7 @@ import { getAiSdkProviderId } from '../provider/factory'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { noThinkMiddleware } from './noThinkMiddleware'
 import { openrouterGenerateImageMiddleware } from './openrouterGenerateImageMiddleware'
-import { openrouterReasoningMiddleware } from './openrouterReasoningMiddleware'
 import { qwenThinkingMiddleware } from './qwenThinkingMiddleware'
-import { skipGeminiThoughtSignatureMiddleware } from './skipGeminiThoughtSignatureMiddleware'
 
 const logger = loggerService.withContext('AiSdkMiddlewareBuilder')
 

@@ -37,7 +37,7 @@ vi.mock('@renderer/utils/api', () => ({
     if (isSupportedAPIVersion === false) {
       return host // Return host as-is when isSupportedAPIVersion is false
     }
-    return `${host}/v1` // Default behavior when isSupportedAPIVersion is true
+    return host ? `${host}/v1` : '' // Default behavior when isSupportedAPIVersion is true
   }),
   routeToEndpoint: vi.fn((host) => ({
     baseURL: host,
@@ -45,6 +45,20 @@ vi.mock('@renderer/utils/api', () => ({
   })),
   isWithTrailingSharp: vi.fn((host) => host?.endsWith('#') || false)
 }))
+
+// Also mock @shared/utils/url since formatProviderApiHost uses it directly
+vi.mock('@shared/utils/url', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  return {
+    ...actual,
+    formatApiHost: vi.fn((host, isSupportedAPIVersion = true) => {
+      if (isSupportedAPIVersion === false) {
+        return host || '' // Return host as-is when isSupportedAPIVersion is false
+      }
+      return host ? `${host}/v1` : '' // Default behavior when isSupportedAPIVersion is true
+    })
+  }
+})
 
 vi.mock('@renderer/utils/provider', async (importOriginal) => {
   const actual = (await importOriginal()) as any
@@ -78,8 +92,8 @@ vi.mock('@renderer/services/AssistantService', () => ({
 
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model, Provider } from '@renderer/types'
-import { formatApiHost } from '@renderer/utils/api'
 import { isAzureOpenAIProvider, isCherryAIProvider, isPerplexityProvider } from '@renderer/utils/provider'
+import { formatApiHost } from '@shared/utils/url'
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'
@@ -95,6 +109,31 @@ const createWindowKeyv = () => {
     }
   }
 }
+
+/**
+ * 创建默认的 mock state，包含所有必需的字段
+ */
+const createDefaultMockState = (overrides?: {
+  includeUsage?: boolean | undefined
+  copilotHeaders?: Record<string, string>
+}) => ({
+  copilot: { defaultHeaders: overrides?.copilotHeaders ?? {} },
+  settings: {
+    openAI: {
+      streamOptions: {
+        includeUsage: overrides?.includeUsage
+      }
+    }
+  },
+  llm: {
+    settings: {
+      vertexai: {
+        projectId: '',
+        location: ''
+      }
+    }
+  }
+})
 
 const createCopilotProvider = (): Provider => ({
   id: 'copilot',
@@ -150,16 +189,7 @@ describe('Copilot responses routing', () => {
       ...(globalThis as any).window,
       keyv: createWindowKeyv()
     }
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState())
   })
 
   it('detects official GPT-5 Codex identifiers case-insensitively', () => {
@@ -195,16 +225,7 @@ describe('CherryAI provider configuration', () => {
       ...(globalThis as any).window,
       keyv: createWindowKeyv()
     }
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState())
     vi.clearAllMocks()
   })
 
@@ -276,16 +297,7 @@ describe('Perplexity provider configuration', () => {
       ...(globalThis as any).window,
       keyv: createWindowKeyv()
     }
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState())
     vi.clearAllMocks()
   })
 
@@ -360,6 +372,7 @@ describe('Stream options includeUsage configuration', () => {
       ...(globalThis as any).window,
       keyv: createWindowKeyv()
     }
+    mockGetState.mockReturnValue(createDefaultMockState())
     vi.clearAllMocks()
   })
 
@@ -374,16 +387,7 @@ describe('Stream options includeUsage configuration', () => {
   })
 
   it('uses includeUsage from settings when undefined', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState({ includeUsage: undefined }))
 
     const provider = createOpenAIProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'openai'))
@@ -392,16 +396,7 @@ describe('Stream options includeUsage configuration', () => {
   })
 
   it('uses includeUsage from settings when set to true', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: true
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState({ includeUsage: true }))
 
     const provider = createOpenAIProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'openai'))
@@ -410,16 +405,7 @@ describe('Stream options includeUsage configuration', () => {
   })
 
   it('uses includeUsage from settings when set to false', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: false
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState({ includeUsage: false }))
 
     const provider = createOpenAIProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'openai'))
@@ -428,16 +414,7 @@ describe('Stream options includeUsage configuration', () => {
   })
 
   it('respects includeUsage setting for non-supporting providers', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: true
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState({ includeUsage: true }))
 
     const testProvider: Provider = {
       id: 'test',
@@ -459,16 +436,7 @@ describe('Stream options includeUsage configuration', () => {
   })
 
   it('uses includeUsage from settings for Copilot provider when set to false', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: false
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState({ includeUsage: false }))
 
     const provider = createCopilotProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
@@ -478,16 +446,7 @@ describe('Stream options includeUsage configuration', () => {
   })
 
   it('uses includeUsage from settings for Copilot provider when set to true', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: true
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState({ includeUsage: true }))
 
     const provider = createCopilotProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
@@ -497,16 +456,7 @@ describe('Stream options includeUsage configuration', () => {
   })
 
   it('uses includeUsage from settings for Copilot provider when undefined', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
+    mockGetState.mockReturnValue(createDefaultMockState({ includeUsage: undefined }))
 
     const provider = createCopilotProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))

@@ -1,6 +1,8 @@
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model } from '@renderer/types'
 import { isSystemProviderId } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
+import { isAzureOpenAIProvider } from '@shared/utils/provider'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isDeepSeekHybridInferenceModel } from './reasoning'
@@ -56,6 +58,13 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
   'i'
 )
 
+const AZURE_FUNCTION_CALLING_EXCLUDED_MODELS = [
+  '(?:Meta-)?Llama-3(?:\\.\\d+)?-[\\w-]+',
+  'Phi-[34](?:\\.[\\w-]+)?(?:-[\\w-]+)?',
+  'DeepSeek-(?:R1|V3)',
+  'Codestral-2501'
+]
+
 export function isFunctionCallingModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -69,6 +78,15 @@ export function isFunctionCallingModel(model?: Model): boolean {
 
   if (model.provider === 'doubao' || modelId.includes('doubao')) {
     return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (isAzureOpenAIProvider(provider)) {
+    const azureExcludedRegex = new RegExp(`\\b(?:${AZURE_FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b`, 'i')
+    if (azureExcludedRegex.test(modelId)) {
+      return false
+    }
   }
 
   // 2025/08/26 百炼与火山引擎均不支持 v3.1 函数调用
