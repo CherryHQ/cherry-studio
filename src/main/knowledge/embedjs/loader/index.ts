@@ -6,13 +6,13 @@ import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
+import type { OcrProvider } from '@types'
 import {
   BuiltinOcrProviderIds,
   type FileMetadata,
-  type ImageFileMetadata,
+  isImageFileMetadata,
   isImageOcrProvider,
-  type KnowledgeBaseParams,
-  OcrProvider
+  type KnowledgeBaseParams
 } from '@types'
 
 import { DraftsExportLoader } from './draftsExportLoader'
@@ -131,10 +131,12 @@ export async function addFileLoader(
       loaderReturn = await ragApplication.addLoader(new DraftsExportLoader(filePath), forceReload)
       break
     case 'image':
-      // 图片类型处理
+      if (!isImageFileMetadata(file)) {
+        throw new Error('File is not an image file metadata')
+      }
       loaderReturn = await ragApplication.addLoader(
         new ImageLoader({
-          file: file as ImageFileMetadata,
+          file: file,
           ocrProvider: await getImageOcrProvider(),
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap
