@@ -143,13 +143,12 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.10 - New Features & Bug Fixes
+    Cherry Studio 1.7.11 - New Features & Bug Fixes
 
     ✨ New Features
     - [MCP] Add MCP Hub with Auto mode for intelligent multi-server tool orchestration
 
     🐛 Bug Fixes
-    - [Search] Fix Bing, Baidu, and Google search results not retrieving
     - [Chat] Fix reasoning process not displaying correctly for some proxy models
     - [Chat] Fix duplicate loading spinners on action buttons
     - [Editor] Fix paragraph handle and plus button not clickable
@@ -160,13 +159,12 @@ releaseInfo:
     - [Chat] Fix thinking time display when stopping generation
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.10 - 新功能与问题修复
+    Cherry Studio 1.7.11 - 新功能与问题修复
 
     ✨ 新功能
     - [MCP] 新增 MCP Hub 智能模式，可自动管理和调用多个 MCP 服务器工具
 
     🐛 问题修复
-    - [搜索] 修复必应、百度、谷歌搜索无法获取结果的问题
     - [对话] 修复部分代理模型的推理过程无法正确显示的问题
     - [对话] 修复操作按钮重复显示加载状态的问题
     - [编辑器] 修复段落手柄和加号按钮无法点击的问题
