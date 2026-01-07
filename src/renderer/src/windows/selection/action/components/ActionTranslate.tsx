@@ -115,7 +115,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     // Initialize topic
     topicRef.current = getDefaultTopic(currentAssistant.id)
     setInitialized(true)
-  }, [action.selectedText, isLanguagesLoaded, updateLanguagePair])
+  }, [action.selectedText, initialized, isLanguagesLoaded, updateLanguagePair])
 
   // Try to initialize when:
   // 1. action.selectedText change (generally will not)
