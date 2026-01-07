@@ -81,7 +81,7 @@ export class HubServer {
                 code: {
                   type: 'string',
                   description:
-                    'JavaScript code wrapped as `(async () => { your code })()`. All discovered tools are async functions (call as `await ToolName(params)`). Helpers: `parallel(...promises)`, `settle(...promises)`, `console.*`. You MUST `return` the final value. Examples: `const r = await Tool({ id: "1" }); return r` or `return await Tool({ x: 1 })`'
+                    'JavaScript code to execute. The code runs inside an async context, so use `await` directly. Do NOT wrap your code in `(async () => { ... })()` - this causes double-wrapping and returns undefined. All discovered tools are async functions (call as `await ToolName(params)`). Helpers: `parallel(...promises)`, `settle(...promises)`, `console.*`. You MUST `return` the final value. Examples: `const r = await Tool({ id: "1" }); return r` or `return await Tool({ x: 1 })`'
                 }
               },
               required: ['code']

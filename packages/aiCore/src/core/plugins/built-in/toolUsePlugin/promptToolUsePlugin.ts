@@ -41,7 +41,7 @@ The tool name should be the exact name of the tool you are using, and the argume
 
 <tool_use>
   <name>exec</name>
-  <arguments>{ "code": "const page = await CherryBrowser_fetch({ url: \"https://example.com\" })\nreturn page" }</arguments>
+  <arguments>{ "code": "const page = await CherryBrowser_fetch({ url: "https://example.com" })\nreturn page" }</arguments>
 </tool_use>
 
 
