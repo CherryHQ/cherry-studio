@@ -544,6 +544,20 @@
         "description": "Серверы MCP, включенные по умолчанию",
         "enableFirst": "Сначала включите этот сервер в настройках MCP",
         "label": "Серверы MCP",
+        "mode": {
+          "auto": {
+            "description": "ИИ самостоятельно обнаруживает и использует инструменты",
+            "label": "Авто"
+          },
+          "disabled": {
+            "description": "Нет инструментов MCP",
+            "label": "Отключено"
+          },
+          "manual": {
+            "description": "Выберите конкретные MCP-серверы",
+            "label": "Руководство"
+          }
+        },
         "noServersAvailable": "Нет доступных серверов MCP. Добавьте серверы в настройках",
         "title": "Настройки MCP"
       },
@@ -1298,6 +1312,7 @@
       "file_format": "Ошибка формата файла резервной копии"
     },
     "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
+    "base64DataTruncated": "Данные изображения в формате Base64 усечены, размер",
     "boundary": {
       "default": {
         "devtools": "Открыть панель отладки",
@@ -1379,7 +1394,9 @@
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
     "truncated": "[to be translated]:Data truncated, original size",
+    "truncated": "Данные усечены, исходный размер",
     "truncatedBadge": "[to be translated]:Truncated",
+    "truncatedBadge": "Усечённый",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",
     "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
