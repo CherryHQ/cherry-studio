@@ -2609,6 +2609,71 @@
     "zoom_in": "放大",
     "zoom_out": "缩小"
   },
+  "prompt": {
+    "button": {
+      "fix_variables": "修复变量",
+      "generate": "生成",
+      "run_test": "运行测试",
+      "test": "测试"
+    },
+    "error": {
+      "empty_result": "生成结果为空",
+      "empty_task": "请输入任务描述",
+      "fix_failed": "修复浮动变量失败",
+      "generate_failed": "生成失败",
+      "missing_variables": "请为以下变量填写值：{{variables}}",
+      "no_metaprompt": "Metaprompt 为空，请在设置中配置",
+      "no_model": "请选择一个模型",
+      "reset_metaprompt_failed": "重置 Metaprompt 失败",
+      "save_metaprompt_failed": "保存 Metaprompt 失败",
+      "test_failed": "测试失败"
+    },
+    "info": {
+      "aborted": "生成已中止"
+    },
+    "input": {
+      "placeholder": "描述您想要完成的任务...\n例如：帮我写一个回复客户投诉的邮件"
+    },
+    "output": {
+      "placeholder": "生成的结构化提示词模板将显示在这里..."
+    },
+    "settings": {
+      "metaprompt_description": "Metaprompt 是用于生成结构化提示词模板的系统提示词。您可以自定义它来调整生成的模板风格。",
+      "metaprompt_label": "Metaprompt (系统提示词)",
+      "metaprompt_placeholder": "输入 Metaprompt...",
+      "reset_to_default": "重置为默认",
+      "title": "提示词设置"
+    },
+    "success": {
+      "fixed": "浮动变量已修复",
+      "generated": "提示词生成成功",
+      "metaprompt_reset": "已重置为默认 Metaprompt",
+      "metaprompt_saved": "Metaprompt 保存成功",
+      "tested": "测试完成"
+    },
+    "tab": {
+      "generated": "生成结果",
+      "test": "测试"
+    },
+    "test": {
+      "modal_title": "测试提示词",
+      "no_variables": "此提示词模板没有变量",
+      "result_placeholder": "测试结果将显示在这里...",
+      "result_title": "测试结果",
+      "variable_placeholder": "输入 {{variable}} 的值...",
+      "variables_title": "变量值"
+    },
+    "title": "提示词",
+    "tooltip": {
+      "fix_floating_variables": "检测到浮动变量，点击使用AI自动修复",
+      "newline": "换行",
+      "test_prompt": "测试生成的提示词模板"
+    },
+    "variables": {
+      "floating_warning": "检测到浮动变量，建议修复",
+      "title": "变量"
+    }
+  },
   "prompts": {
     "explanation": "帮我解释一下这个概念",
     "summarize": "帮我总结一下这段话",
@@ -4933,6 +4998,7 @@
     "memories": "记忆",
     "notes": "笔记",
     "paintings": "绘画",
+    "prompt": "提示词",
     "settings": "设置",
     "store": "助手库",
     "translate": "翻译"
