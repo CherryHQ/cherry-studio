@@ -1,3 +1,13 @@
+/**
+ * TODO [v2 refactor] 此文件存在以下架构问题，需要在 v2 重构中解决：
+ *
+ * 1. 文件过大 - 1100+ 行，难以维护
+ * 2. 职责混乱 - 类型定义、运行时常量、工具函数混在一起，违反单一职责原则
+ * 3. 工具函数不属于类型文件 - objectKeys, objectEntries, strip 等应移至 utils/
+ * 4. 运行时常量不属于类型文件 - EFFORT_RATIO, WebSearchProviderIds, BuiltinMCPServerNames 等应移至 constants/
+ * 5. 类型守卫应分离 - isThinkModelType, isWebSearchProviderId 等函数应独立到 typeGuards 文件
+ * 6. 部分类型应迁移到 packages/shared/data/types/ 以便 main/renderer 进程共享
+ */
 import type { LanguageModelV2Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
