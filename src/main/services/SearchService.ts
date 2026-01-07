@@ -69,8 +69,7 @@ export class SearchService {
     // Wait for the page to fully load before getting the content
     await new Promise<void>((resolve) => {
       const loadTimeout = setTimeout(() => resolve(), 10000) // 10 second timeout
-      window.once('ready-to-show', () => {
-        //让网页加载完成后执行，原来的.webContents.once('did-finish-load'会导致网页抖动
+      window.webContents.once('did-finish-load', () => {
         clearTimeout(loadTimeout)
         // Small delay to ensure JavaScript has executed
         setTimeout(resolve, 500)
@@ -78,9 +77,7 @@ export class SearchService {
     })
 
     // Get the page content after ensuring it's fully loaded
-    const executeJavaScript = await window.webContents.executeJavaScript('document.documentElement.outerHTML')
-    // logger.info(executeJavaScript)
-    return executeJavaScript
+    return await window.webContents.executeJavaScript('document.documentElement.outerHTML')
   }
 }
 
