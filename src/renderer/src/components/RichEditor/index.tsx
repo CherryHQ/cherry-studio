@@ -580,7 +580,7 @@ const RichEditor = ({
               <GripVertical />
             </Tooltip>
           </DragHandle>
-          <EditorContent style={{ height: '100%' }} editor={editor} />
+          <EditorContent style={{ minHeight: '100%' }} editor={editor} />
         </StyledEditorContent>
       </Scrollbar>
       {enableContentSearch && (
