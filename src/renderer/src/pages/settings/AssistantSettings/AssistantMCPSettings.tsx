@@ -143,7 +143,7 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
-  overflow: hidden;
+  min-height: 0;
 `
 
 const HeaderContainer = styled.div`
