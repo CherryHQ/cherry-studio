@@ -64,7 +64,6 @@ Here are the rules you should always follow to solve your task:
 4. Never re-do a tool call that you previously did with the exact same parameters.
 5. For tool use, MAKE SURE use XML tag format as shown in the examples above. Do not use any other format.
 
-## Tool Use Examples
 {{ TOOLS_INFO }}
 
 ## Response rules
@@ -182,17 +181,18 @@ function defaultBuildSystemPrompt(userSystemPrompt: string, tools: ToolSet, mcpM
   if (availableTools === null) return userSystemPrompt
 
   if (mcpMode == 'auto') {
-    return DEFAULT_SYSTEM_PROMPT.replace('{{ TOOLS_INFO }}', getHubModeSystemPrompt(tools)).replace(
+    return DEFAULT_SYSTEM_PROMPT.replace('{{ TOOLS_INFO }}', '').replace(
       '{{ USER_SYSTEM_PROMPT }}',
       userSystemPrompt || ''
     )
   }
-  const toolsInfo = `## Tool Use Examples
-  {{ TOOL_USE_EXAMPLES }}
+  const toolsInfo = `
+## Tool Use Examples
+{{ TOOL_USE_EXAMPLES }}
 
-  ## Tool Use Available Tools
-  Above example were using notional tools that might not exist for you. You only have access to these tools:
-  {{ AVAILABLE_TOOLS }}`
+## Tool Use Available Tools
+Above example were using notional tools that might not exist for you. You only have access to these tools:
+{{ AVAILABLE_TOOLS }}`
     .replace('{{ TOOL_USE_EXAMPLES }}', DEFAULT_TOOL_USE_EXAMPLES)
     .replace('{{ AVAILABLE_TOOLS }}', availableTools)
 
