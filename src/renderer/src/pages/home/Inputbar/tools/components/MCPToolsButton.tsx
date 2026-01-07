@@ -245,6 +245,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
       isSelected: currentMode === 'manual',
       isMenu: true,
       action: () => {
+        handleModeChange('manual')
         openManualModePanel()
       }
     })
