@@ -27,6 +27,8 @@ export * from './ocr'
 export * from './plugin'
 export * from './provider'
 
+export type McpMode = 'disabled' | 'auto' | 'manual'
+
 export type Assistant = {
   id: string
   name: string
@@ -47,6 +49,8 @@ export type Assistant = {
   // enableUrlContext 是 Gemini/Anthropic 的特有功能
   enableUrlContext?: boolean
   enableGenerateImage?: boolean
+  /** MCP mode: 'disabled' (no MCP), 'auto' (hub server only), 'manual' (user selects servers) */
+  mcpMode?: McpMode
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
@@ -55,6 +59,15 @@ export type Assistant = {
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
+}
+
+/**
+ * Get the effective MCP mode for an assistant with backward compatibility.
+ * Legacy assistants without mcpMode default based on mcpServers presence.
+ */
+export function getEffectiveMcpMode(assistant: Assistant): McpMode {
+  if (assistant.mcpMode) return assistant.mcpMode
+  return (assistant.mcpServers?.length ?? 0) > 0 ? 'manual' : 'disabled'
 }
 
 export type TranslateAssistant = Assistant & {
@@ -757,7 +770,8 @@ export const BuiltinMCPServerNames = {
   python: '@cherry/python',
   didiMCP: '@cherry/didi-mcp',
   browser: '@cherry/browser',
-  nowledgeMem: '@cherry/nowledge-mem'
+  nowledgeMem: '@cherry/nowledge-mem',
+  hub: '@cherry/hub'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]

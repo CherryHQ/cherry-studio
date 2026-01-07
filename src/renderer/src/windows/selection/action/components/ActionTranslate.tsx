@@ -51,9 +51,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [isContented, setIsContented] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [contentToCopy, setContentToCopy] = useState('')
+  const [initialized, setInitialized] = useState(false)
 
   // Use useRef for values that shouldn't trigger re-renders
-  const initialized = useRef(false)
   const assistantRef = useRef<Assistant | null>(null)
   const topicRef = useRef<Topic | null>(null)
   const askId = useRef('')
@@ -85,7 +85,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   // Initialize values only once
   const initialize = useCallback(async () => {
-    if (initialized.current) {
+    if (initialized) {
       logger.silly('[initialize] Already initialized.')
       return
     }
@@ -114,8 +114,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     // Initialize topic
     topicRef.current = getDefaultTopic(currentAssistant.id)
-    initialized.current = true
-  }, [action.selectedText, isLanguagesLoaded, updateLanguagePair])
+    setInitialized(true)
+  }, [action.selectedText, initialized, isLanguagesLoaded, updateLanguagePair])
 
   // Try to initialize when:
   // 1. action.selectedText change (generally will not)
@@ -126,7 +126,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   }, [initialize])
 
   const fetchResult = useCallback(async () => {
-    if (!assistantRef.current || !topicRef.current || !action.selectedText || !initialized.current) return
+    if (!assistantRef.current || !topicRef.current || !action.selectedText || !initialized) return
 
     const setAskId = (id: string) => {
       askId.current = id
@@ -174,7 +174,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     assistantRef.current = assistant
     logger.debug('process once')
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
-  }, [action, targetLanguage, alterLanguage, scrollToBottom])
+  }, [action, targetLanguage, alterLanguage, scrollToBottom, initialized])
 
   useEffect(() => {
     fetchResult()
@@ -189,7 +189,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   }, [allMessages])
 
   const handleChangeLanguage = (targetLanguage: TranslateLanguage, alterLanguage: TranslateLanguage) => {
-    if (!initialized.current) {
+    if (!initialized) {
       return
     }
     setTargetLanguage(targetLanguage)
