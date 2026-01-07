@@ -70,6 +70,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.1.76",
     "@libsql/client": "0.14.0",
     "@napi-rs/system-ocr": "1.0.2",
+    "@strongtz/win32-arm64-msvc": "0.4.7",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
     "express": "5.1.0",
     "font-list": "2.0.0",
