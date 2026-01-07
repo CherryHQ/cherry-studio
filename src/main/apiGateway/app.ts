@@ -15,7 +15,7 @@ import { messagesProviderRoutes, messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
 import { responsesRoutes } from './routes/responses'
 
-const logger = loggerService.withContext('ApiServer')
+const logger = loggerService.withContext('ApiGateway')
 
 const extendMessagesTimeout: express.RequestHandler = (req, res, next) => {
   req.setTimeout(LONG_POLL_TIMEOUT_MS)

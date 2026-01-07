@@ -6,7 +6,7 @@ import type { ExtendedChatCompletionCreateParams } from '../adapters'
 import { processMessage } from '../services/ProxyStreamService'
 import { validateModelId } from '../utils'
 
-const logger = loggerService.withContext('ApiServerChatRoutes')
+const logger = loggerService.withContext('ApiGatewayChatRoutes')
 
 const router = express.Router()
 

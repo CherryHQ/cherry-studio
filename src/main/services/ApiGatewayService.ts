@@ -1,26 +1,26 @@
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
-  ApiServerConfig,
-  GetApiServerStatusResult,
-  RestartApiServerStatusResult,
-  StartApiServerStatusResult,
-  StopApiServerStatusResult
+  ApiGatewayConfig,
+  GetApiGatewayStatusResult,
+  RestartApiGatewayStatusResult,
+  StartApiGatewayStatusResult,
+  StopApiGatewayStatusResult
 } from '@types'
 import { ipcMain } from 'electron'
 
-import { apiServer } from '../apiServer'
-import { config } from '../apiServer/config'
+import { apiGateway } from '../apiGateway'
+import { config } from '../apiGateway/config'
 import { loggerService } from './LoggerService'
-const logger = loggerService.withContext('ApiServerService')
+const logger = loggerService.withContext('ApiGatewayService')
 
-export class ApiServerService {
+export class ApiGatewayService {
   constructor() {
     // Use the new clean implementation
   }
 
   async start(): Promise<void> {
     try {
-      await apiServer.start()
+      await apiGateway.start()
       logger.info('API Server started successfully')
     } catch (error: any) {
       logger.error('Failed to start API Server:', error)
@@ -30,7 +30,7 @@ export class ApiServerService {
 
   async stop(): Promise<void> {
     try {
-      await apiServer.stop()
+      await apiGateway.stop()
       logger.info('API Server stopped successfully')
     } catch (error: any) {
       logger.error('Failed to stop API Server:', error)
@@ -40,7 +40,7 @@ export class ApiServerService {
 
   async restart(): Promise<void> {
     try {
-      await apiServer.restart()
+      await apiGateway.restart()
       logger.info('API Server restarted successfully')
     } catch (error: any) {
       logger.error('Failed to restart API Server:', error)
@@ -49,16 +49,16 @@ export class ApiServerService {
   }
 
   isRunning(): boolean {
-    return apiServer.isRunning()
+    return apiGateway.isRunning()
   }
 
-  async getCurrentConfig(): Promise<ApiServerConfig> {
+  async getCurrentConfig(): Promise<ApiGatewayConfig> {
     return config.get()
   }
 
   registerIpcHandlers(): void {
     // API Server
-    ipcMain.handle(IpcChannel.ApiServer_Start, async (): Promise<StartApiServerStatusResult> => {
+    ipcMain.handle(IpcChannel.ApiGateway_Start, async (): Promise<StartApiGatewayStatusResult> => {
       try {
         await this.start()
         return { success: true }
@@ -67,7 +67,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_Stop, async (): Promise<StopApiServerStatusResult> => {
+    ipcMain.handle(IpcChannel.ApiGateway_Stop, async (): Promise<StopApiGatewayStatusResult> => {
       try {
         await this.stop()
         return { success: true }
@@ -76,7 +76,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_Restart, async (): Promise<RestartApiServerStatusResult> => {
+    ipcMain.handle(IpcChannel.ApiGateway_Restart, async (): Promise<RestartApiGatewayStatusResult> => {
       try {
         await this.restart()
         return { success: true }
@@ -85,7 +85,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetStatus, async (): Promise<GetApiServerStatusResult> => {
+    ipcMain.handle(IpcChannel.ApiGateway_GetStatus, async (): Promise<GetApiGatewayStatusResult> => {
       try {
         const config = await this.getCurrentConfig()
         return {
@@ -100,7 +100,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetConfig, async () => {
+    ipcMain.handle(IpcChannel.ApiGateway_GetConfig, async () => {
       try {
         return this.getCurrentConfig()
       } catch (error: any) {
@@ -111,4 +111,4 @@ export class ApiServerService {
 }
 
 // Export singleton instance
-export const apiServerService = new ApiServerService()
+export const apiGatewayService = new ApiGatewayService()

@@ -33,17 +33,12 @@ export type ApiGatewayConfig = {
   exposeToNetwork: boolean // true = 0.0.0.0, false = 127.0.0.1
 }
 
-/**
- * @deprecated Use ApiGatewayConfig instead
- */
-export type ApiServerConfig = ApiGatewayConfig
-
-export type GetApiServerStatusResult = {
+export type GetApiGatewayStatusResult = {
   running: boolean
   config: ApiGatewayConfig | null
 }
 
-export type StartApiServerStatusResult =
+export type StartApiGatewayStatusResult =
   | {
       success: true
     }
@@ -52,7 +47,7 @@ export type StartApiServerStatusResult =
       error: string
     }
 
-export type RestartApiServerStatusResult =
+export type RestartApiGatewayStatusResult =
   | {
       success: true
     }
@@ -61,7 +56,7 @@ export type RestartApiServerStatusResult =
       error: string
     }
 
-export type StopApiServerStatusResult =
+export type StopApiGatewayStatusResult =
   | {
       success: true
     }

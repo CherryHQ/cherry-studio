@@ -377,7 +377,7 @@
     },
     "title": "API Gateway"
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Copy",
       "regenerate": "Regenerate",

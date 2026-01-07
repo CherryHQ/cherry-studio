@@ -1,5 +1,5 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useApiServer } from '@renderer/hooks/useApiServer'
+import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -8,15 +8,15 @@ import { useAppDispatch } from '@renderer/store'
 import {
   addApiGatewayModelGroup,
   removeApiGatewayModelGroup,
+  setApiGatewayApiKey,
   setApiGatewayEnabledEndpoints,
   setApiGatewayExposeToNetwork,
-  setApiServerApiKey,
-  setApiServerPort,
+  setApiGatewayPort,
   updateApiGatewayModelGroup
 } from '@renderer/store/settings'
 import type { GatewayEndpoint, ModelGroup } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+import { API_GATEWAY_DEFAULTS } from '@shared/config/constant'
 import { validators } from '@shared/utils'
 import { Alert, Button, Checkbox, Input, InputNumber, Segmented, Select, Switch, Tooltip, Typography } from 'antd'
 import { AlertTriangle, Copy, ExternalLink, Play, Plus, RotateCcw, Square, Trash2 } from 'lucide-react'
@@ -39,50 +39,56 @@ const GATEWAY_ENDPOINTS: { value: GatewayEndpoint; labelKey: string }[] = [
 
 type EnvFormat = 'openai' | 'anthropic' | 'responses'
 
-const ApiServerSettings: FC = () => {
+const ApiGatewaySettings: FC = () => {
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
   // API Gateway state with proper defaults
-  const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
+  const apiGatewayConfig = useSelector((state: RootState) => state.settings.apiGateway)
   const assistants = useSelector((state: RootState) => state.assistants.assistants)
-  const { apiServerRunning, apiServerLoading, startApiServer, stopApiServer, restartApiServer, setApiServerEnabled } =
-    useApiServer()
+  const {
+    apiGatewayRunning,
+    apiGatewayLoading,
+    startApiGateway,
+    stopApiGateway,
+    restartApiGateway,
+    setApiGatewayEnabled
+  } = useApiGateway()
 
-  const handleApiServerToggle = async (enabled: boolean) => {
+  const handleApiGatewayToggle = async (enabled: boolean) => {
     try {
       if (enabled) {
-        await startApiServer()
+        await startApiGateway()
       } else {
-        await stopApiServer()
+        await stopApiGateway()
       }
     } catch (error) {
-      window.toast.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
+      window.toast.error(t('apiGateway.messages.operationFailed') + formatErrorMessage(error))
     } finally {
-      setApiServerEnabled(enabled)
+      setApiGatewayEnabled(enabled)
     }
   }
 
-  const handleApiServerRestart = async () => {
-    await restartApiServer()
+  const handleApiGatewayRestart = async () => {
+    await restartApiGateway()
   }
 
   const copyApiKey = () => {
-    navigator.clipboard.writeText(apiServerConfig.apiKey)
-    window.toast.success(t('apiServer.messages.apiKeyCopied'))
+    navigator.clipboard.writeText(apiGatewayConfig.apiKey)
+    window.toast.success(t('apiGateway.messages.apiKeyCopied'))
   }
 
   const regenerateApiKey = () => {
     const newApiKey = `cs-sk-${uuidv4()}`
-    dispatch(setApiServerApiKey(newApiKey))
-    window.toast.success(t('apiServer.messages.apiKeyRegenerated'))
+    dispatch(setApiGatewayApiKey(newApiKey))
+    window.toast.success(t('apiGateway.messages.apiKeyRegenerated'))
   }
 
   const handlePortChange = (value: string) => {
-    const port = parseInt(value) || API_SERVER_DEFAULTS.PORT
+    const port = parseInt(value) || API_GATEWAY_DEFAULTS.PORT
     if (port >= 1000 && port <= 65535) {
-      dispatch(setApiServerPort(port))
+      dispatch(setApiGatewayPort(port))
     }
   }
 
@@ -95,9 +101,9 @@ const ApiServerSettings: FC = () => {
   }
 
   const openApiDocs = () => {
-    if (apiServerRunning) {
-      const host = apiServerConfig.host || API_SERVER_DEFAULTS.HOST
-      const port = apiServerConfig.port || API_SERVER_DEFAULTS.PORT
+    if (apiGatewayRunning) {
+      const host = apiGatewayConfig.host || API_GATEWAY_DEFAULTS.HOST
+      const port = apiGatewayConfig.port || API_GATEWAY_DEFAULTS.PORT
       window.open(`http://${host}:${port}/api-docs`, '_blank')
     }
   }
@@ -106,7 +112,7 @@ const ApiServerSettings: FC = () => {
   const addModelGroup = () => {
     const newGroup: ModelGroup = {
       id: uuidv4().slice(0, 8), // Internal identifier
-      name: `group-${apiServerConfig.modelGroups.length + 1}`, // URL-safe name
+      name: `group-${apiGatewayConfig.modelGroups.length + 1}`, // URL-safe name
       providerId: '',
       modelId: '',
       mode: 'model',
@@ -134,69 +140,69 @@ const ApiServerSettings: FC = () => {
           </Title>
           <Text type="secondary">{t('apiGateway.description')}</Text>
         </HeaderContent>
-        {apiServerRunning && (
+        {apiGatewayRunning && (
           <Button type="primary" icon={<ExternalLink size={14} />} onClick={openApiDocs}>
-            {t('apiServer.documentation.title')}
+            {t('apiGateway.documentation.title')}
           </Button>
         )}
       </HeaderSection>
 
-      {!apiServerRunning && (
+      {!apiGatewayRunning && (
         <Alert type="warning" message={t('agent.warning.enable_server')} style={{ marginBottom: 10 }} showIcon />
       )}
 
       {/* Server Control Panel with integrated configuration */}
-      <ServerControlPanel $status={apiServerRunning}>
+      <ServerControlPanel $status={apiGatewayRunning}>
         <StatusSection>
-          <StatusIndicator $status={apiServerRunning} />
+          <StatusIndicator $status={apiGatewayRunning} />
           <StatusContent>
-            <StatusText $status={apiServerRunning}>
-              {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
+            <StatusText $status={apiGatewayRunning}>
+              {apiGatewayRunning ? t('apiGateway.status.running') : t('apiGateway.status.stopped')}
             </StatusText>
             <StatusSubtext>
-              {apiServerRunning
-                ? `http://${apiServerConfig.host || API_SERVER_DEFAULTS.HOST}:${apiServerConfig.port || API_SERVER_DEFAULTS.PORT}`
-                : t('apiServer.fields.port.description')}
+              {apiGatewayRunning
+                ? `http://${apiGatewayConfig.host || API_GATEWAY_DEFAULTS.HOST}:${apiGatewayConfig.port || API_GATEWAY_DEFAULTS.PORT}`
+                : t('apiGateway.fields.port.description')}
             </StatusSubtext>
           </StatusContent>
         </StatusSection>
 
         <ControlSection>
-          {apiServerRunning && (
-            <Tooltip title={t('apiServer.actions.restart.tooltip')}>
+          {apiGatewayRunning && (
+            <Tooltip title={t('apiGateway.actions.restart.tooltip')}>
               <RestartButton
-                $loading={apiServerLoading}
-                onClick={apiServerLoading ? undefined : handleApiServerRestart}>
+                $loading={apiGatewayLoading}
+                onClick={apiGatewayLoading ? undefined : handleApiGatewayRestart}>
                 <RotateCcw size={14} />
-                <span>{t('apiServer.actions.restart.button')}</span>
+                <span>{t('apiGateway.actions.restart.button')}</span>
               </RestartButton>
             </Tooltip>
           )}
 
           {/* Port input when server is stopped */}
-          {!apiServerRunning && (
+          {!apiGatewayRunning && (
             <StyledInputNumber
-              value={apiServerConfig.port}
-              onChange={(value) => handlePortChange(String(value || API_SERVER_DEFAULTS.PORT))}
+              value={apiGatewayConfig.port}
+              onChange={(value) => handlePortChange(String(value || API_GATEWAY_DEFAULTS.PORT))}
               min={1000}
               max={65535}
-              disabled={apiServerRunning}
-              placeholder={String(API_SERVER_DEFAULTS.PORT)}
+              disabled={apiGatewayRunning}
+              placeholder={String(API_GATEWAY_DEFAULTS.PORT)}
               size="middle"
             />
           )}
 
-          <Tooltip title={apiServerRunning ? t('apiServer.actions.stop') : t('apiServer.actions.start')}>
-            {apiServerRunning ? (
+          <Tooltip title={apiGatewayRunning ? t('apiGateway.actions.stop') : t('apiGateway.actions.start')}>
+            {apiGatewayRunning ? (
               <StopButton
-                $loading={apiServerLoading}
-                onClick={apiServerLoading ? undefined : () => handleApiServerToggle(false)}>
+                $loading={apiGatewayLoading}
+                onClick={apiGatewayLoading ? undefined : () => handleApiGatewayToggle(false)}>
                 <Square size={20} style={{ color: 'var(--color-status-error)' }} />
               </StopButton>
             ) : (
               <StartButton
-                $loading={apiServerLoading}
-                onClick={apiServerLoading ? undefined : () => handleApiServerToggle(true)}>
+                $loading={apiGatewayLoading}
+                onClick={apiGatewayLoading ? undefined : () => handleApiGatewayToggle(true)}>
                 <Play size={20} style={{ color: 'var(--color-status-success)' }} />
               </StartButton>
             )}
@@ -206,23 +212,23 @@ const ApiServerSettings: FC = () => {
 
       {/* API Key Configuration - moved to top */}
       <ConfigurationField>
-        <FieldLabel>{t('apiServer.fields.apiKey.label')}</FieldLabel>
-        <FieldDescription>{t('apiServer.fields.apiKey.description')}</FieldDescription>
+        <FieldLabel>{t('apiGateway.fields.apiKey.label')}</FieldLabel>
+        <FieldDescription>{t('apiGateway.fields.apiKey.description')}</FieldDescription>
 
         <StyledInput
-          value={apiServerConfig.apiKey}
+          value={apiGatewayConfig.apiKey}
           readOnly
-          placeholder={t('apiServer.fields.apiKey.placeholder')}
+          placeholder={t('apiGateway.fields.apiKey.placeholder')}
           size="middle"
           suffix={
             <InputButtonContainer>
-              {!apiServerRunning && (
-                <RegenerateButton onClick={regenerateApiKey} disabled={apiServerRunning} type="link">
-                  {t('apiServer.actions.regenerate')}
+              {!apiGatewayRunning && (
+                <RegenerateButton onClick={regenerateApiKey} disabled={apiGatewayRunning} type="link">
+                  {t('apiGateway.actions.regenerate')}
                 </RegenerateButton>
               )}
-              <Tooltip title={t('apiServer.fields.apiKey.copyTooltip')}>
-                <InputButton icon={<Copy size={14} />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey} />
+              <Tooltip title={t('apiGateway.fields.apiKey.copyTooltip')}>
+                <InputButton icon={<Copy size={14} />} onClick={copyApiKey} disabled={!apiGatewayConfig.apiKey} />
               </Tooltip>
             </InputButtonContainer>
           }
@@ -235,7 +241,7 @@ const ApiServerSettings: FC = () => {
         <FieldDescription>{t('apiGateway.fields.enabledEndpoints.description')}</FieldDescription>
 
         <Checkbox.Group
-          value={apiServerConfig.enabledEndpoints}
+          value={apiGatewayConfig.enabledEndpoints}
           onChange={(values) => handleEndpointsChange(values as GatewayEndpoint[])}>
           <EndpointList>
             {GATEWAY_ENDPOINTS.map((endpoint) => (
@@ -262,13 +268,13 @@ const ApiServerSettings: FC = () => {
           </Button>
         </FieldHeader>
 
-        {apiServerConfig.modelGroups.length === 0 ? (
+        {apiGatewayConfig.modelGroups.length === 0 ? (
           <EmptyState>
             <Text type="secondary">{t('apiGateway.fields.modelGroups.empty')}</Text>
           </EmptyState>
         ) : (
           <ModelGroupList>
-            {apiServerConfig.modelGroups.map((group) => (
+            {apiGatewayConfig.modelGroups.map((group) => (
               <ModelGroupCard
                 key={group.id}
                 group={group}
@@ -288,9 +294,9 @@ const ApiServerSettings: FC = () => {
             <FieldLabel>{t('apiGateway.fields.networkAccess.label')}</FieldLabel>
             <FieldDescription>{t('apiGateway.fields.networkAccess.description')}</FieldDescription>
           </div>
-          <Switch checked={apiServerConfig.exposeToNetwork} onChange={handleExposeToNetworkChange} />
+          <Switch checked={apiGatewayConfig.exposeToNetwork} onChange={handleExposeToNetworkChange} />
         </NetworkAccessRow>
-        {apiServerConfig.exposeToNetwork && (
+        {apiGatewayConfig.exposeToNetwork && (
           <WarningBox>
             <AlertTriangle size={16} />
             <span>{t('apiGateway.fields.networkAccess.warning')}</span>
@@ -318,29 +324,29 @@ const ENV_FORMAT_TO_ENDPOINT: Record<EnvFormat, GatewayEndpoint> = {
 const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, assistants, onUpdate, onDelete }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
+  const apiGatewayConfig = useSelector((state: RootState) => state.settings.apiGateway)
   const [envFormat, setEnvFormat] = useState<EnvFormat>('openai')
   const mode = group.mode ?? 'model'
 
   // Reset envFormat when selected endpoint is disabled
   useEffect(() => {
-    const isCurrentFormatEnabled = apiServerConfig.enabledEndpoints.includes(ENV_FORMAT_TO_ENDPOINT[envFormat])
+    const isCurrentFormatEnabled = apiGatewayConfig.enabledEndpoints.includes(ENV_FORMAT_TO_ENDPOINT[envFormat])
     if (!isCurrentFormatEnabled) {
       // Find first enabled format
       const firstEnabledFormat = (['openai', 'anthropic', 'responses'] as EnvFormat[]).find((fmt) =>
-        apiServerConfig.enabledEndpoints.includes(ENV_FORMAT_TO_ENDPOINT[fmt])
+        apiGatewayConfig.enabledEndpoints.includes(ENV_FORMAT_TO_ENDPOINT[fmt])
       )
       if (firstEnabledFormat) {
         setEnvFormat(firstEnabledFormat)
       }
     }
-  }, [apiServerConfig.enabledEndpoints, envFormat])
+  }, [apiGatewayConfig.enabledEndpoints, envFormat])
 
   // In-place edit for group name (which is also the URL path)
   const { isEditing, startEdit, inputProps, validationError } = useInPlaceEdit({
     onSave: async (name) => {
       // Check for duplicate name
-      const isDuplicate = apiServerConfig.modelGroups.some((g) => g.name === name && g.id !== group.id)
+      const isDuplicate = apiGatewayConfig.modelGroups.some((g) => g.name === name && g.id !== group.id)
       if (isDuplicate) {
         throw new Error(t('apiGateway.messages.nameDuplicate'))
       }
@@ -363,8 +369,8 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, assistants, onUpdate, 
   }, [selectedProvider])
 
   const getBaseUrl = () => {
-    const host = apiServerConfig.exposeToNetwork ? '0.0.0.0' : apiServerConfig.host || API_SERVER_DEFAULTS.HOST
-    const port = apiServerConfig.port || API_SERVER_DEFAULTS.PORT
+    const host = apiGatewayConfig.exposeToNetwork ? '0.0.0.0' : apiGatewayConfig.host || API_GATEWAY_DEFAULTS.HOST
+    const port = apiGatewayConfig.port || API_GATEWAY_DEFAULTS.PORT
     return `http://${host}:${port}`
   }
 
@@ -384,7 +390,7 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, assistants, onUpdate, 
 
   const copyGroupEnvVars = () => {
     const baseUrl = getGroupUrl()
-    const apiKey = apiServerConfig.apiKey
+    const apiKey = apiGatewayConfig.apiKey
     // Responses API uses OpenAI SDK format
     const prefix = envFormat === 'anthropic' ? 'ANTHROPIC' : 'OPENAI'
     // OpenAI SDK expects /v1 in the base URL, Anthropic doesn't
@@ -545,7 +551,7 @@ const ModelGroupCard: FC<ModelGroupCardProps> = ({ group, assistants, onUpdate, 
                   { label: 'Anthropic', value: 'anthropic' },
                   { label: 'Responses', value: 'responses' }
                 ].filter((opt) =>
-                  apiServerConfig.enabledEndpoints.includes(ENV_FORMAT_TO_ENDPOINT[opt.value as EnvFormat])
+                  apiGatewayConfig.enabledEndpoints.includes(ENV_FORMAT_TO_ENDPOINT[opt.value as EnvFormat])
                 )}
               />
             </ButtonGroup>
@@ -943,4 +949,4 @@ const ButtonGroup = styled.div`
   align-items: center;
 `
 
-export default ApiServerSettings
+export default ApiGatewaySettings

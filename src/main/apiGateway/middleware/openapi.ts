@@ -182,11 +182,11 @@ const swaggerOptions: swaggerJSDoc.Options = {
   },
   // Only include gateway/external API routes (exclude internal APIs like agents)
   apis: [
-    './src/main/apiServer/routes/chat.ts',
-    './src/main/apiServer/routes/messages.ts',
-    './src/main/apiServer/routes/models.ts',
-    './src/main/apiServer/routes/mcp.ts',
-    './src/main/apiServer/app.ts'
+    './src/main/apiGateway/routes/chat.ts',
+    './src/main/apiGateway/routes/messages.ts',
+    './src/main/apiGateway/routes/models.ts',
+    './src/main/apiGateway/routes/mcp.ts',
+    './src/main/apiGateway/app.ts'
   ]
 }
 

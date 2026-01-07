@@ -319,66 +319,6 @@
   },
   "apiGateway": {
     "actions": {
-      "addGroup": "添加分组",
-      "copyEnvVars": "复制为环境变量"
-    },
-    "description": "通过统一的 API 网关暴露 Cherry Studio 的 AI 功能",
-    "endpoints": {
-      "chatCompletions": "OpenAI 兼容的聊天补全接口",
-      "messages": "Anthropic 兼容的消息接口",
-      "responses": "OpenAI Responses API（新格式）"
-    },
-    "fields": {
-      "baseUrl": {
-        "copyTooltip": "复制 Base URL",
-        "description": "在外部应用程序中使用此 URL 作为 API 基础地址",
-        "label": "基础 URL"
-      },
-      "copyAsEnv": {
-        "description": "复制为环境变量格式，便于集成",
-        "format": "格式",
-        "label": "环境变量"
-      },
-      "defaultModel": {
-        "description": "为外部应用程序选择默认的提供商和模型",
-        "label": "默认模型",
-        "modelPlaceholder": "选择模型",
-        "providerPlaceholder": "选择提供商"
-      },
-      "enabledEndpoints": {
-        "description": "选择每个模型分组要暴露的 API 端点",
-        "label": "启用的端点"
-      },
-      "modelGroups": {
-        "description": "创建具有唯一 URL 的模型分组，用于不同的提供商/模型组合",
-        "empty": "尚未配置模型分组。点击「添加分组」创建一个。",
-        "label": "模型分组",
-        "mode": {
-          "assistant": "助手预设",
-          "assistantHint": "助手预设会覆盖请求参数。",
-          "assistantPlaceholder": "选择助手",
-          "label": "模式",
-          "model": "直接模型"
-        },
-        "namePlaceholder": "分组名称"
-      },
-      "networkAccess": {
-        "description": "允许网络上的其他设备连接",
-        "label": "暴露到网络",
-        "warning": "警告：这将使 API 可从网络上的其他设备访问。仅在您信任网络时启用。"
-      }
-    },
-    "messages": {
-      "baseUrlCopied": "基础 URL 已复制到剪贴板",
-      "envVarsCopied": "环境变量已复制到剪贴板",
-      "nameDuplicate": "已存在相同 URL 路径的分组",
-      "nameRequired": "分组名称不能为空",
-      "nameUpdated": "分组名称已更新"
-    },
-    "title": "API 网关"
-  },
-  "apiServer": {
-    "actions": {
       "copy": "复制",
       "regenerate": "重新生成",
       "restart": {

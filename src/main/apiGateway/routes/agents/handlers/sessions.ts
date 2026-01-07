@@ -6,7 +6,7 @@ import type { Request, Response } from 'express'
 
 import type { ValidationRequest } from '../validators/zodValidator'
 
-const logger = loggerService.withContext('ApiServerSessionsHandlers')
+const logger = loggerService.withContext('ApiGatewaySessionsHandlers')
 
 const modelValidationErrorBody = (error: AgentModelValidationError) => ({
   error: {
