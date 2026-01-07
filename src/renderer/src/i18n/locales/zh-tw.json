@@ -353,6 +353,13 @@
         "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
         "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
         "label": "[to be translated]:Model Groups",
+        "mode": {
+          "assistant": "[to be translated]:Assistant Preset",
+          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
+          "assistantPlaceholder": "[to be translated]:Select assistant",
+          "label": "[to be translated]:Mode",
+          "model": "[to be translated]:Direct Model"
+        },
         "namePlaceholder": "[to be translated]:Group name"
       },
       "networkAccess": {

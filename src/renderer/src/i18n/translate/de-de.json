@@ -353,6 +353,13 @@
         "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
         "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
         "label": "[to be translated]:Model Groups",
+        "mode": {
+          "assistant": "[to be translated]:Assistant Preset",
+          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
+          "assistantPlaceholder": "[to be translated]:Select assistant",
+          "label": "[to be translated]:Mode",
+          "model": "[to be translated]:Direct Model"
+        },
         "namePlaceholder": "[to be translated]:Group name"
       },
       "networkAccess": {
@@ -1350,6 +1357,7 @@
     "backup": {
       "file_format": "Backup-Dateiformat fehlerhaft"
     },
+    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Debug-Panel öffnen",
@@ -1430,6 +1438,8 @@
     "text": "Text",
     "toolInput": "Tool-Eingabe",
     "toolName": "Tool-Name",
+    "truncated": "[to be translated]:Data truncated, original size",
+    "truncatedBadge": "[to be translated]:Truncated",
     "unknown": "Unbekannter Fehler",
     "usage": "Nutzung",
     "user_message_not_found": "Ursprüngliche Benutzernachricht nicht gefunden",
