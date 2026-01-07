@@ -133,7 +133,26 @@ setupOpenAPIDocumentation(app)
 // Provider-specific messages route requires authentication
 app.use('/:provider/v1/messages', authMiddleware, extendMessagesTimeout, messagesProviderRoutes)
 
+// Internal API routes (auth only, no gateway endpoint restrictions)
+// Must be before /:groupId to prevent '/v1' being matched as groupId
+const internalRouter = express.Router()
+internalRouter.use(authMiddleware)
+internalRouter.use('/mcps', mcpRoutes)
+internalRouter.use('/agents', agentsRoutes)
+app.use('/v1', internalRouter)
+
+// External API routes (auth + gateway endpoint restrictions)
+const apiRouter = express.Router()
+apiRouter.use(authMiddleware)
+apiRouter.use(gatewayMiddleware)
+apiRouter.use('/chat', chatRoutes)
+apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
+apiRouter.use('/models', modelsRoutes)
+apiRouter.use('/responses', extendMessagesTimeout, responsesRoutes)
+app.use('/v1', apiRouter)
+
 // Model group routes: /{groupId}/v1/... - uses the group's configured model
+// Must be after /v1 routes to prevent 'v1' being matched as groupId
 const groupRouter = express.Router({ mergeParams: true })
 groupRouter.use(authMiddleware)
 groupRouter.use(gatewayMiddleware)
@@ -141,19 +160,6 @@ groupRouter.use('/v1/chat', chatRoutes)
 groupRouter.use('/v1/messages', extendMessagesTimeout, messagesRoutes)
 groupRouter.use('/v1/responses', extendMessagesTimeout, responsesRoutes)
 app.use('/:groupId', groupRouter)
-
-// API v1 routes with auth and gateway
-const apiRouter = express.Router()
-apiRouter.use(authMiddleware)
-apiRouter.use(gatewayMiddleware)
-// Mount routes
-apiRouter.use('/chat', chatRoutes)
-apiRouter.use('/mcps', mcpRoutes)
-apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
-apiRouter.use('/models', modelsRoutes) // Always enabled
-apiRouter.use('/agents', agentsRoutes)
-apiRouter.use('/responses', extendMessagesTimeout, responsesRoutes)
-app.use('/v1', apiRouter)
 
 // Error handling (must be last)
 app.use(errorHandler)
