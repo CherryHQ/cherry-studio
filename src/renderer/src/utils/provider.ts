@@ -201,5 +201,10 @@ export const NOT_SUPPORT_API_KEY_PROVIDER_TYPES: readonly ProviderType[] = ['ver
 
 // https://platform.claude.com/docs/en/build-with-claude/prompt-caching#1-hour-cache-duration
 export const isSupportAnthropicPromptCacheProvider = (provider: Provider) => {
-  return provider.type === 'anthropic' || isNewApiProvider(provider) || provider.id === SystemProviderIds.aihubmix
+  return (
+    provider.type === 'anthropic' ||
+    isNewApiProvider(provider) ||
+    provider.id === SystemProviderIds.aihubmix ||
+    isAzureOpenAIProvider(provider)
+  )
 }
