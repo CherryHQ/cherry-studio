@@ -8,6 +8,55 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DxtService')
 
+/**
+ * Sanitize a name to prevent path traversal attacks.
+ * Removes or replaces dangerous characters including:
+ * - Forward slash (/) and backslash (\) - path separators
+ * - Dot sequences (..) - directory traversal
+ * - Null bytes - string termination attacks
+ * - Other potentially dangerous characters
+ *
+ * @param name - The name to sanitize
+ * @returns A safe name containing only alphanumeric characters, hyphens, underscores, and single dots
+ */
+export function sanitizeName(name: string): string {
+  if (!name || typeof name !== 'string') {
+    throw new Error('Invalid name: name must be a non-empty string')
+  }
+
+  const sanitized = name
+    // Remove null bytes
+    .replace(/\0/g, '')
+    // Replace backslashes with hyphens (Windows path separator)
+    .replace(/\\/g, '-')
+    // Replace forward slashes with hyphens (Unix path separator)
+    .replace(/\//g, '-')
+    // Remove colon (Windows drive letter separator, e.g., C:)
+    .replace(/:/g, '-')
+    // Remove other potentially dangerous characters
+    .replace(/[<>"|?*]/g, '-')
+    // Replace multiple consecutive dots with a single dot (prevent .. traversal)
+    .replace(/\.{2,}/g, '.')
+    // Remove leading/trailing dots and spaces
+    .replace(/^[\s.]+|[\s.]+$/g, '')
+    // Replace multiple consecutive hyphens with a single hyphen
+    .replace(/-{2,}/g, '-')
+    // Remove leading/trailing hyphens
+    .replace(/^-+|-+$/g, '')
+
+  // Final validation: ensure the result is not empty and doesn't contain path separators
+  if (!sanitized) {
+    throw new Error('Invalid name: name contains only invalid characters')
+  }
+
+  // Additional safety check: verify no path separators remain
+  if (sanitized.includes('/') || sanitized.includes('\\') || sanitized.includes('..')) {
+    throw new Error('Invalid name: contains path traversal characters')
+  }
+
+  return sanitized
+}
+
 // Type definitions
 export interface DxtManifest {
   dxt_version: string
@@ -66,6 +115,76 @@ export interface DxtUploadResult {
     extractDir: string
   }
   error?: string
+}
+
+/**
+ * Validate and sanitize a command to prevent path traversal attacks.
+ * Commands should be either:
+ * 1. Simple command names (e.g., "node", "python", "npx") - looked up in PATH
+ * 2. Absolute paths (e.g., "/usr/bin/node", "C:\\Program Files\\node\\node.exe")
+ * 3. Relative paths starting with ./ or .\ (relative to extractDir)
+ *
+ * Rejects commands containing path traversal sequences (..)
+ *
+ * @param command - The command to validate
+ * @returns The validated command
+ * @throws Error if command contains path traversal or is invalid
+ */
+export function validateCommand(command: string): string {
+  if (!command || typeof command !== 'string') {
+    throw new Error('Invalid command: command must be a non-empty string')
+  }
+
+  const trimmed = command.trim()
+  if (!trimmed) {
+    throw new Error('Invalid command: command cannot be empty')
+  }
+
+  // Check for path traversal sequences
+  // This catches: .., ../, ..\, /../, \..\, etc.
+  if (/(?:^|[/\\])\.\.(?:[/\\]|$)/.test(trimmed) || trimmed === '..') {
+    throw new Error(`Invalid command: path traversal detected in "${command}"`)
+  }
+
+  // Check for null bytes
+  if (trimmed.includes('\0')) {
+    throw new Error('Invalid command: null byte detected')
+  }
+
+  return trimmed
+}
+
+/**
+ * Validate command arguments to prevent injection attacks.
+ * Rejects arguments containing path traversal sequences.
+ *
+ * @param args - The arguments array to validate
+ * @returns The validated arguments array
+ * @throws Error if any argument contains path traversal
+ */
+export function validateArgs(args: string[]): string[] {
+  if (!Array.isArray(args)) {
+    throw new Error('Invalid args: must be an array')
+  }
+
+  return args.map((arg, index) => {
+    if (typeof arg !== 'string') {
+      throw new Error(`Invalid args: argument at index ${index} must be a string`)
+    }
+
+    // Check for null bytes
+    if (arg.includes('\0')) {
+      throw new Error(`Invalid args: null byte detected in argument at index ${index}`)
+    }
+
+    // Check for path traversal in arguments that look like paths
+    // Only validate if the arg contains path separators (indicating it's meant to be a path)
+    if ((arg.includes('/') || arg.includes('\\')) && /(?:^|[/\\])\.\.(?:[/\\]|$)/.test(arg)) {
+      throw new Error(`Invalid args: path traversal detected in argument at index ${index}`)
+    }
+
+    return arg
+  })
 }
 
 export function performVariableSubstitution(
@@ -134,12 +253,16 @@ export function applyPlatformOverrides(mcpConfig: any, extractDir: string, userC
   // Apply variable substitution to all string values
   if (resolvedConfig.command) {
     resolvedConfig.command = performVariableSubstitution(resolvedConfig.command, extractDir, userConfig)
+    // Validate command after substitution to prevent path traversal attacks
+    resolvedConfig.command = validateCommand(resolvedConfig.command)
   }
 
   if (resolvedConfig.args) {
     resolvedConfig.args = resolvedConfig.args.map((arg: string) =>
       performVariableSubstitution(arg, extractDir, userConfig)
     )
+    // Validate args after substitution to prevent path traversal attacks
+    resolvedConfig.args = validateArgs(resolvedConfig.args)
   }
 
   if (resolvedConfig.env) {
@@ -271,8 +394,8 @@ class DxtService {
       }
 
       // Use server name as the final extract directory for automatic version management
-      // Sanitize the name to prevent creating subdirectories
-      const sanitizedName = manifest.name.replace(/\//g, '-')
+      // Sanitize the name to prevent path traversal attacks (CVE fix)
+      const sanitizedName = sanitizeName(manifest.name)
       const serverDirName = `server-${sanitizedName}`
       const finalExtractDir = path.join(this.mcpDir, serverDirName)
 
@@ -354,24 +477,14 @@ class DxtService {
 
   public cleanupDxtServer(serverName: string): boolean {
     try {
-      // Handle server names that might contain slashes (e.g., "anthropic/sequential-thinking")
-      // by replacing slashes with the same separator used during installation
-      const sanitizedName = serverName.replace(/\//g, '-')
+      // Sanitize server name to prevent path traversal attacks (CVE fix)
+      const sanitizedName = sanitizeName(serverName)
       const serverDirName = `server-${sanitizedName}`
       const serverDir = path.join(this.mcpDir, serverDirName)
 
-      // First try the sanitized path
       if (fs.existsSync(serverDir)) {
         logger.debug(`Removing DXT server directory: ${serverDir}`)
         fs.rmSync(serverDir, { recursive: true, force: true })
-        return true
-      }
-
-      // Fallback: try with original name in case it was stored differently
-      const originalServerDir = path.join(this.mcpDir, `server-${serverName}`)
-      if (fs.existsSync(originalServerDir)) {
-        logger.debug(`Removing DXT server directory: ${originalServerDir}`)
-        fs.rmSync(originalServerDir, { recursive: true, force: true })
         return true
       }
 
