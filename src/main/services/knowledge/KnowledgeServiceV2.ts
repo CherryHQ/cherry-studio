@@ -1,35 +1,74 @@
+/**
+ * KnowledgeServiceV2 - Complete Knowledge Base Service
+ *
+ * This service manages knowledge bases using vectorstores for RAG (Retrieval-Augmented Generation).
+ * It supports multiple content types: file, directory, url, sitemap, and note.
+ *
+ * Features:
+ * - Concurrent task processing with workload management
+ * - Multiple data source support via loader registry
+ * - Vector database integration using LibSQLVectorStore
+ * - Support for vector, BM25, and hybrid search modes
+ */
+
 import * as fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
-import type { FileMetadata, KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
-import {
-  DEFAULT_CHUNK_OVERLAP,
-  DEFAULT_CHUNK_SIZE,
-  MetadataMode,
-  SentenceSplitter,
-  type VectorStoreQueryResult
-} from '@vectorstores/core'
+import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchResult } from '@types'
+import type { VectorStoreQueryResult } from '@vectorstores/core'
+import { MetadataMode, SentenceSplitter } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 import md5 from 'md5'
 
 import Embeddings from './embedjs/embeddings/Embeddings'
+import PreprocessProvider from './preprocess/PreprocessProvider'
+import Reranker from './reranker/Reranker'
 import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
-import { loadMarkdownDocuments } from './vectorstores/loader'
+import { embedNodes } from './vectorstores/EmbeddingPipeline'
+import { estimateWorkload, getLoader, loadMarkdownDocuments } from './vectorstores/loader'
+import { TaskQueueManager } from './vectorstores/TaskQueueManager'
+import {
+  DEFAULT_CHUNK_OVERLAP,
+  DEFAULT_CHUNK_SIZE,
+  type KnowledgeBaseAddItemOptions,
+  type KnowledgeBaseRemoveOptions,
+  type KnowledgeItemType,
+  type LoaderContext,
+  type RerankOptions,
+  type SearchOptions
+} from './vectorstores/types'
 
 const logger = loggerService.withContext('KnowledgeServiceV2')
 
 /**
- * KnowledgeServiceV2 负责知识库的向量搜索、嵌入和管理
+ * Error return template for failed operations
+ */
+const ERROR_LOADER_RETURN: LoaderReturn = {
+  entriesAdded: 0,
+  uniqueId: '',
+  uniqueIds: [''],
+  loaderType: '',
+  status: 'failed'
+}
+
+/**
+ * KnowledgeServiceV2 manages knowledge bases with vectorstores backend
  */
 class KnowledgeServiceV2 {
   private storageDir = path.join(getDataPath(), 'KnowledgeBase')
+  private pendingDeleteFile = path.join(this.storageDir, 'knowledge_pending_delete_v2.json')
+  private storeCache: Map<string, LibSQLVectorStore> = new Map()
+  private taskQueue: TaskQueueManager
 
   constructor() {
     this.initStorageDir()
+    this.cleanupOnStartup()
+    this.taskQueue = new TaskQueueManager()
   }
 
   private initStorageDir(): void {
@@ -39,73 +78,349 @@ class KnowledgeServiceV2 {
   }
 
   /**
-   * 获取数据库文件路径
+   * Get database file path for a knowledge base
    */
   private getDbPath(id: string): string {
     return path.join(this.storageDir, sanitizeFilename(id, '_'))
   }
 
-  public create = async (_: Electron.IpcMainInvokeEvent | undefined, base: KnowledgeBaseParams): Promise<void> => {
-    logger.info(`[KnowledgeV2] Create called for base ${base.id}`)
-  }
-
-  public search = async (
-    _: Electron.IpcMainInvokeEvent | undefined,
-    { search, base }: { search: string; base: KnowledgeBaseParams }
-  ): Promise<KnowledgeSearchResult[]> => {
-    const dbPath = this.getDbPath(base.id)
-
-    if (!fs.existsSync(dbPath)) {
-      logger.warn(`[KnowledgeV2] Search skipped: db not found: ${dbPath}`)
-      return []
+  /**
+   * Get or create a LibSQLVectorStore for a knowledge base
+   */
+  private async getOrCreateStore(base: KnowledgeBaseParams): Promise<LibSQLVectorStore> {
+    if (this.storeCache.has(base.id)) {
+      return this.storeCache.get(base.id)!
     }
 
+    const dbPath = this.getDbPath(base.id)
+    const store = new LibSQLVectorStore({
+      clientConfig: { url: `file:${dbPath}` },
+      dimensions: base.dimensions,
+      collection: ''
+    })
+
+    this.storeCache.set(base.id, store)
+    return store
+  }
+
+  /**
+   * Clean up store from cache
+   */
+  private cleanupStoreCache(id: string): void {
+    if (this.storeCache.has(id)) {
+      this.storeCache.delete(id)
+      logger.debug(`Cleaned up store cache for id: ${id}`)
+    }
+  }
+
+  // ============================================================================
+  // Pending Delete Management
+  // ============================================================================
+
+  private pendingDeleteManager = {
+    load: (): string[] => {
+      try {
+        if (fs.existsSync(this.pendingDeleteFile)) {
+          return JSON.parse(fs.readFileSync(this.pendingDeleteFile, 'utf-8')) as string[]
+        }
+      } catch (error) {
+        logger.warn('Failed to load pending delete IDs:', error as Error)
+      }
+      return []
+    },
+
+    save: (ids: string[]): void => {
+      try {
+        fs.writeFileSync(this.pendingDeleteFile, JSON.stringify(ids, null, 2))
+        logger.debug(`Total ${ids.length} knowledge bases pending delete`)
+      } catch (error) {
+        logger.warn('Failed to save pending delete IDs:', error as Error)
+      }
+    },
+
+    add: (id: string): void => {
+      const existingIds = this.pendingDeleteManager.load()
+      const allIds = [...new Set([...existingIds, id])]
+      this.pendingDeleteManager.save(allIds)
+    },
+
+    clear: (): void => {
+      try {
+        if (fs.existsSync(this.pendingDeleteFile)) {
+          fs.unlinkSync(this.pendingDeleteFile)
+        }
+      } catch (error) {
+        logger.warn('Failed to clear pending delete file:', error as Error)
+      }
+    }
+  }
+
+  /**
+   * Delete knowledge base file
+   */
+  private deleteKnowledgeFile(id: string): boolean {
+    const dbPath = this.getDbPath(id)
+    if (fs.existsSync(dbPath)) {
+      try {
+        fs.rmSync(dbPath, { recursive: true })
+        logger.debug(`Deleted knowledge base file with id: ${id}`)
+        return true
+      } catch (error) {
+        logger.warn(`Failed to delete knowledge base file with id: ${id}: ${error}`)
+        return false
+      }
+    }
+    return true
+  }
+
+  /**
+   * Clean up databases marked for deletion on startup
+   */
+  private cleanupOnStartup(): void {
+    const pendingDeleteIds = this.pendingDeleteManager.load()
+    if (pendingDeleteIds.length === 0) return
+
+    logger.info(`Found ${pendingDeleteIds.length} knowledge bases pending deletion from previous session`)
+
+    let deletedCount = 0
+    pendingDeleteIds.forEach((id) => {
+      if (this.deleteKnowledgeFile(id)) {
+        deletedCount++
+      } else {
+        logger.warn(`Failed to delete knowledge base ${id}, please delete it manually`)
+      }
+    })
+
+    this.pendingDeleteManager.clear()
+    logger.info(`Startup cleanup completed: ${deletedCount}/${pendingDeleteIds.length} knowledge bases deleted`)
+  }
+
+  // ============================================================================
+  // Lifecycle Methods
+  // ============================================================================
+
+  /**
+   * Create/initialize a knowledge base
+   */
+  public create = async (_: Electron.IpcMainInvokeEvent | undefined, base: KnowledgeBaseParams): Promise<void> => {
+    logger.info(`[KnowledgeV2] Create called for base ${base.id}`)
+    await this.getOrCreateStore(base)
+  }
+
+  /**
+   * Reset a knowledge base (clear all data)
+   */
+  public reset = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
+    logger.info(`[KnowledgeV2] Reset called for base ${base.id}`)
+    const store = await this.getOrCreateStore(base)
+    await store.clearCollection()
+    logger.info(`[KnowledgeV2] Reset completed for base ${base.id}`)
+  }
+
+  /**
+   * Delete a knowledge base entirely
+   */
+  public delete = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+    logger.info(`[KnowledgeV2] Delete called for id: ${id}`)
+
+    this.cleanupStoreCache(id)
+
+    // Small delay to ensure connections are closed
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    if (!this.deleteKnowledgeFile(id)) {
+      logger.debug(`Will delete knowledge base ${id} on next startup`)
+      this.pendingDeleteManager.add(id)
+    }
+  }
+
+  // ============================================================================
+  // Content Management
+  // ============================================================================
+
+  /**
+   * Add content to knowledge base
+   * This is the main entry point for adding any type of content
+   */
+  public add = async (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
+    const { base, item, forceReload = false, userId = '' } = options
+    const itemType = item.type as KnowledgeItemType
+
+    logger.info(`[KnowledgeV2] Add called: type=${itemType}, base=${base.id}, item=${item.id}`)
+
+    // Check if loader exists for this type
+    const loader = getLoader(itemType)
+    if (!loader) {
+      logger.warn(`[KnowledgeV2] No loader for type: ${itemType}`)
+      return {
+        ...ERROR_LOADER_RETURN,
+        message: `Unsupported item type: ${itemType}`,
+        messageSource: 'validation'
+      }
+    }
+
+    // Create loader context
+    const context: LoaderContext = {
+      base,
+      item,
+      itemId: item.id,
+      forceReload,
+      userId
+    }
+
+    // Estimate workload
+    const workload = estimateWorkload(context)
+
+    // Create task function
+    const taskFn = async (): Promise<LoaderReturn> => {
+      return this.processAddTask(context)
+    }
+
+    // Enqueue task and wait for completion
     try {
-      logger.info(`[KnowledgeV2] Search starting for base ${base.id}`)
-
-      // 1. Embed the query
-      const embeddingsClient = new Embeddings({
-        embedApiClient: base.embedApiClient,
-        dimensions: base.dimensions
-      })
-      const queryEmbedding = await embeddingsClient.embedQuery(search)
-
-      // 2. Perform vector search
-      const dimensions = base.dimensions ?? queryEmbedding.length
-      const store = new LibSQLVectorStore({
-        clientConfig: { url: `file:${dbPath}` },
-        dimensions,
-        collection: ''
-      })
-
-      const topK = base.documentCount ?? DEFAULT_DOCUMENT_COUNT
-      const queryResult = await store.query({
-        queryEmbedding,
-        similarityTopK: topK,
-        mode: 'default'
-      })
-
-      logger.info(`[KnowledgeV2] Search completed: ${queryResult.nodes?.length ?? 0} results`)
-
-      // 3. Map to KnowledgeSearchResult[]
-      return this.mapQueryResultToSearchResults(queryResult)
+      return await this.taskQueue.enqueue(item.id, taskFn, workload)
     } catch (error) {
-      logger.error(`[KnowledgeV2] Search failed for base ${base.id}:`, error as Error)
+      logger.error(`[KnowledgeV2] Add task failed for item ${item.id}:`, error as Error)
+      return {
+        ...ERROR_LOADER_RETURN,
+        message: error instanceof Error ? error.message : String(error),
+        messageSource: 'embedding'
+      }
+    }
+  }
+
+  /**
+   * Process add task (called by queue)
+   */
+  private async processAddTask(context: LoaderContext): Promise<LoaderReturn> {
+    const { base, item, userId } = context
+    const itemType = item.type as KnowledgeItemType
+
+    try {
+      // Step 1: Preprocessing (for PDF files)
+      let processedItem = item
+      if (itemType === 'file') {
+        processedItem = await this.preprocessIfNeeded(item, base, userId)
+      }
+
+      // Update context with processed item
+      const processedContext: LoaderContext = {
+        ...context,
+        item: processedItem
+      }
+
+      // Step 2: Load content using appropriate loader
+      const loader = getLoader(itemType)!
+      const loaderResult = await loader.load(processedContext)
+
+      if (loaderResult.nodes.length === 0) {
+        logger.warn(`[KnowledgeV2] No content loaded for item ${item.id}`)
+        return {
+          entriesAdded: 0,
+          uniqueId: loaderResult.uniqueId,
+          uniqueIds: [loaderResult.uniqueId],
+          loaderType: loaderResult.loaderType
+        }
+      }
+
+      // Step 3: Embed nodes
+      logger.info(`[KnowledgeV2] Embedding ${loaderResult.nodes.length} nodes for item ${item.id}`)
+      const embeddedNodes = await embedNodes(loaderResult.nodes, base)
+
+      // Step 4: Store in vector database
+      const store = await this.getOrCreateStore(base)
+      const insertedIds = await store.add(embeddedNodes)
+
+      logger.info(`[KnowledgeV2] Add completed: item=${item.id}, nodes=${insertedIds.length}`)
+
+      return {
+        entriesAdded: insertedIds.length,
+        uniqueId: loaderResult.uniqueId,
+        uniqueIds: [loaderResult.uniqueId],
+        loaderType: loaderResult.loaderType
+      }
+    } catch (error) {
+      logger.error(`[KnowledgeV2] Process add task failed for item ${item.id}:`, error as Error)
       throw error
     }
   }
 
-  private mapQueryResultToSearchResults(queryResult: VectorStoreQueryResult): KnowledgeSearchResult[] {
-    const nodes = queryResult.nodes ?? []
-    const similarities = queryResult.similarities ?? []
+  /**
+   * Preprocess file if needed (e.g., PDF preprocessing)
+   */
+  private async preprocessIfNeeded(
+    item: KnowledgeItem,
+    base: KnowledgeBaseParams,
+    userId?: string
+  ): Promise<KnowledgeItem> {
+    const file = item.content as FileMetadata
 
-    return nodes.map((node, index) => ({
-      pageContent: node.getContent(MetadataMode.NONE),
-      score: similarities[index] ?? 0,
-      metadata: node.metadata ?? {}
-    }))
+    if (!base.preprocessProvider || file.ext.toLowerCase() !== '.pdf') {
+      return item
+    }
+
+    try {
+      const provider = new PreprocessProvider(base.preprocessProvider.provider, userId ?? '')
+      const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
+
+      if (alreadyProcessed) {
+        logger.debug(`File already preprocessed, using cached result: ${file.path}`)
+        return {
+          ...item,
+          content: alreadyProcessed
+        }
+      }
+
+      logger.debug(`Starting preprocessing for PDF: ${file.path}`)
+      const { processedFile, quota } = await provider.parseFile(item.id, file)
+
+      // Notify renderer of preprocessing completion
+      const mainWindow = windowService.getMainWindow()
+      mainWindow?.webContents.send('file-preprocess-finished', {
+        itemId: item.id,
+        quota
+      })
+
+      return {
+        ...item,
+        content: processedFile
+      }
+    } catch (error) {
+      logger.error(`Preprocessing failed for ${file.path}:`, error as Error)
+      throw new Error(`Preprocessing failed: ${error}`)
+    }
   }
 
+  /**
+   * Remove content from knowledge base
+   */
+  public remove = async (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseRemoveOptions): Promise<void> => {
+    const { uniqueId, uniqueIds, base, externalId } = options
+
+    logger.info(`[KnowledgeV2] Remove called: uniqueId=${uniqueId}, externalId=${externalId}`)
+
+    // Use external_id based deletion if available
+    if (externalId) {
+      await this.removeByExternalId({ base, externalId })
+      return
+    }
+
+    // Fall back to uniqueId based deletion (v1 compatibility)
+    if (uniqueIds && uniqueIds.length > 0) {
+      const store = await this.getOrCreateStore(base)
+      for (const id of uniqueIds) {
+        try {
+          await store.delete(id)
+        } catch (error) {
+          logger.warn(`Failed to delete by uniqueId ${id}:`, error as Error)
+        }
+      }
+    }
+  }
+
+  /**
+   * Remove content by external_id
+   */
   public async removeByExternalId({
     base,
     externalId
@@ -120,12 +435,7 @@ class KnowledgeServiceV2 {
     }
 
     try {
-      const store = new LibSQLVectorStore({
-        clientConfig: { url: `file:${dbPath}` },
-        dimensions: base.dimensions,
-        collection: ''
-      })
-
+      const store = await this.getOrCreateStore(base)
       const deleted = await store.deleteByExternalId(externalId)
       logger.info(`[KnowledgeV2] Remove completed: external_id=${externalId}, rows=${deleted}`)
       return deleted
@@ -135,6 +445,139 @@ class KnowledgeServiceV2 {
     }
   }
 
+  // ============================================================================
+  // Search & Retrieval
+  // ============================================================================
+
+  /**
+   * Search the knowledge base
+   */
+  public search = async (
+    _: Electron.IpcMainInvokeEvent | undefined,
+    options: SearchOptions | { search: string; base: KnowledgeBaseParams }
+  ): Promise<KnowledgeSearchResult[]> => {
+    const { search, base } = options
+    const mode = 'mode' in options ? options.mode : 'default'
+    const alpha = 'alpha' in options ? options.alpha : 0.5
+
+    const dbPath = this.getDbPath(base.id)
+
+    if (!fs.existsSync(dbPath)) {
+      logger.warn(`[KnowledgeV2] Search skipped: db not found: ${dbPath}`)
+      return []
+    }
+
+    try {
+      logger.info(`[KnowledgeV2] Search starting for base ${base.id}, mode=${mode}`)
+
+      // Embed the query
+      const embeddingsClient = new Embeddings({
+        embedApiClient: base.embedApiClient,
+        dimensions: base.dimensions
+      })
+      const queryEmbedding = await embeddingsClient.embedQuery(search)
+
+      // Perform search
+      const dimensions = base.dimensions ?? queryEmbedding.length
+      const store = new LibSQLVectorStore({
+        clientConfig: { url: `file:${dbPath}` },
+        dimensions,
+        collection: ''
+      })
+
+      const topK = base.documentCount ?? DEFAULT_DOCUMENT_COUNT
+      const queryResult = await store.query({
+        queryEmbedding,
+        queryStr: search,
+        similarityTopK: topK,
+        mode: mode ?? 'default',
+        alpha
+      })
+
+      logger.info(`[KnowledgeV2] Search completed: ${queryResult.nodes?.length ?? 0} results`)
+
+      return this.mapQueryResultToSearchResults(queryResult)
+    } catch (error) {
+      logger.error(`[KnowledgeV2] Search failed for base ${base.id}:`, error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * Map VectorStoreQueryResult to KnowledgeSearchResult[]
+   */
+  private mapQueryResultToSearchResults(queryResult: VectorStoreQueryResult): KnowledgeSearchResult[] {
+    const nodes = queryResult.nodes ?? []
+    const similarities = queryResult.similarities ?? []
+
+    return nodes.map((node, index) => ({
+      pageContent: node.getContent(MetadataMode.NONE),
+      score: similarities[index] ?? 0,
+      metadata: node.metadata ?? {}
+    }))
+  }
+
+  /**
+   * Rerank search results
+   */
+  public rerank = async (
+    _: Electron.IpcMainInvokeEvent,
+    options: RerankOptions | { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] }
+  ): Promise<KnowledgeSearchResult[]> => {
+    const { search, base, results } = options
+
+    if (results.length === 0) {
+      return results
+    }
+
+    return new Reranker(base).rerank(search, results)
+  }
+
+  // ============================================================================
+  // Utilities
+  // ============================================================================
+
+  /**
+   * Check preprocessing quota
+   */
+  public checkQuota = async (
+    _: Electron.IpcMainInvokeEvent,
+    base: KnowledgeBaseParams,
+    userId: string
+  ): Promise<number> => {
+    try {
+      if (base.preprocessProvider && base.preprocessProvider.type === 'preprocess') {
+        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
+        return await provider.checkQuota()
+      }
+      throw new Error('No preprocess provider configured')
+    } catch (err) {
+      logger.error(`Failed to check quota: ${err}`)
+      throw new Error(`Failed to check quota: ${err}`)
+    }
+  }
+
+  /**
+   * Get storage directory path
+   */
+  public getStorageDir = (): string => {
+    return this.storageDir
+  }
+
+  /**
+   * Get queue status
+   */
+  public getQueueStatus(): { queueSize: number; processingCount: number; currentWorkload: number } {
+    return this.taskQueue.getStatus()
+  }
+
+  // ============================================================================
+  // Legacy Methods (for backward compatibility)
+  // ============================================================================
+
+  /**
+   * Add markdown file (legacy method, kept for backward compatibility)
+   */
   public async addMarkdownFile({
     base,
     file,

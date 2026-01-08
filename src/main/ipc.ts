@@ -52,7 +52,6 @@ import { ExportService } from './services/ExportService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { knowledgeMigrateService, knowledgeServiceV2 } from './services/knowledge'
-import KnowledgeService from './services/knowledge/KnowledgeService'
 import { lanTransferClientService } from './services/lanTransfer'
 import { localTransferService } from './services/LocalTransferService'
 import mcpService from './services/MCPService'
@@ -680,13 +679,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeServiceV2.create.bind(knowledgeServiceV2))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, KnowledgeService.reset.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, KnowledgeService.delete.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, KnowledgeService.add.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, KnowledgeService.remove.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, knowledgeServiceV2.reset.bind(knowledgeServiceV2))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeServiceV2.delete.bind(knowledgeServiceV2))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Add, knowledgeServiceV2.add.bind(knowledgeServiceV2))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, knowledgeServiceV2.remove.bind(knowledgeServiceV2))
   ipcMain.handle(IpcChannel.KnowledgeBase_Search, knowledgeServiceV2.search.bind(knowledgeServiceV2))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, KnowledgeService.checkQuota.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeServiceV2.rerank.bind(knowledgeServiceV2))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, knowledgeServiceV2.checkQuota.bind(knowledgeServiceV2))
   ipcMain.handle(IpcChannel.KnowledgeBase_MigrateV2, (_, base: KnowledgeBase) => knowledgeMigrateService.migrate(base))
 
   // memory
