@@ -378,7 +378,7 @@ function toast(props: ToastProps) {
       props.classNames?.actionButton
     ),
     icon: cn('size-6 min-w-6', props.description && 'self-start'),
-    loader: cn('!static ![--size:24px]'),
+    loader: cn('static! [--size:24px]!'),
     closeButton: cn('absolute size-5 min-w-5 top-[5px] right-1.5 [&_svg]:size-5')
   }
   const { classNames: externalClassNames, ...rest } = props
