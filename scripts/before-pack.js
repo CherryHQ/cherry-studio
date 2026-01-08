@@ -66,8 +66,11 @@ exports.default = async function (context) {
     }
 
     if (packagesToInstall.length > 0) {
-      console.log('Installing:', packagesToInstall.join(' '))
-      execSync(`pnpm install ${packagesToInstall.join(' ')}`, { stdio: 'inherit' })
+      const targetPlatform = platformToArch[platform]
+      console.log(`Installing for platform=${targetPlatform} arch=${archType}:`, packagesToInstall.join(' '))
+      execSync(`npm_config_platform=${targetPlatform} npm_config_arch=${archType} pnpm add ${packagesToInstall.join(' ')}`, {
+        stdio: 'inherit'
+      })
     }
   }
 
