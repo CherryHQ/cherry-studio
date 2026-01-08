@@ -1,4 +1,5 @@
 export { default as Embeddings } from './embedjs/embeddings/Embeddings'
+export { knowledgeMigrateService, type MigrationResult } from './KnowledgeMigrateService'
 export { default as KnowledgeService } from './KnowledgeService'
 export { knowledgeServiceV2 } from './KnowledgeServiceV2'
 export { default as PreprocessProvider } from './preprocess/PreprocessProvider'

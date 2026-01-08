@@ -51,8 +51,8 @@ import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
+import { knowledgeMigrateService, knowledgeServiceV2 } from './services/knowledge'
 import KnowledgeService from './services/knowledge/KnowledgeService'
-import { knowledgeServiceV2 } from './services/knowledge/KnowledgeServiceV2'
 import { lanTransferClientService } from './services/lanTransfer'
 import { localTransferService } from './services/LocalTransferService'
 import mcpService from './services/MCPService'
@@ -687,7 +687,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.KnowledgeBase_Search, knowledgeServiceV2.search.bind(knowledgeServiceV2))
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, KnowledgeService.checkQuota.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_MigrateV2, (_, base: KnowledgeBase) => knowledgeServiceV2.migrate(base))
+  ipcMain.handle(IpcChannel.KnowledgeBase_MigrateV2, (_, base: KnowledgeBase) => knowledgeMigrateService.migrate(base))
 
   // memory
   ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))
