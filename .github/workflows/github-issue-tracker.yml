@@ -58,6 +58,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install dependencies
+        if: steps.check_time.outputs.should_delay == 'false'
+        run: pnpm install
+
       - name: Process issue with Claude
         if: steps.check_time.outputs.should_delay == 'false'
         uses: anthropics/claude-code-action@main
@@ -65,7 +69,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_non_write_users: "*"
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
-          claude_args: "--allowed-tools Bash(gh issue:*),Bash(node scripts/feishu-notify.js)"
+          claude_args: "--allowed-tools Bash(gh issue:*),Bash(pnpm tsx scripts/feishu-notify.ts issue:*),Bash(pnpm tsx scripts/feishu-notify.ts --help),Bash(pnpm tsx scripts/feishu-notify.ts issue --help)"
           prompt: |
             你是一个GitHub Issue自动化处理助手。请完成以下任务：
 
@@ -86,20 +90,21 @@ jobs:
                - 重要的技术细节
 
             2. **发送飞书通知**
-               使用以下命令发送飞书通知（注意：ISSUE_SUMMARY需要用引号包裹）：
+               使用CLI工具发送飞书通知，运行 `pnpm tsx scripts/feishu-notify.ts issue --help` 查看参数说明。
+               示例：
                ```bash
-               ISSUE_URL="${{ github.event.issue.html_url }}" \
-               ISSUE_NUMBER="${{ github.event.issue.number }}" \
-               ISSUE_TITLE="${{ github.event.issue.title }}" \
-               ISSUE_AUTHOR="${{ github.event.issue.user.login }}" \
-               ISSUE_LABELS="${{ join(github.event.issue.labels.*.name, ',') }}" \
-               ISSUE_SUMMARY="<你生成的中文总结>" \
-               node scripts/feishu-notify.js
+               pnpm tsx scripts/feishu-notify.ts issue \
+                 -u "${{ github.event.issue.html_url }}" \
+                 -n "${{ github.event.issue.number }}" \
+                 -t "${{ github.event.issue.title }}" \
+                 -a "${{ github.event.issue.user.login }}" \
+                 -l "${{ join(github.event.issue.labels.*.name, ',') }}" \
+                 -m "<你生成的中文总结>"
                ```
 
             ## 注意事项
             - 总结必须使用简体中文
-            - ISSUE_SUMMARY 在传递给 node 命令时需要正确转义特殊字符
+            - 命令行参数需要正确转义特殊字符
             - 如果issue内容为空，也要提供一个简短的说明
 
             请开始执行任务！
@@ -125,13 +130,16 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install dependencies
+        run: pnpm install
+
       - name: Process pending issues with Claude
         uses: anthropics/claude-code-action@main
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           allowed_non_write_users: "*"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: "--allowed-tools Bash(gh issue:*),Bash(gh api:*),Bash(node scripts/feishu-notify.js)"
+          claude_args: "--allowed-tools Bash(gh issue:*),Bash(gh api:*),Bash(pnpm tsx scripts/feishu-notify.ts issue:*),Bash(pnpm tsx scripts/feishu-notify.ts --help),Bash(pnpm tsx scripts/feishu-notify.ts issue --help)"
           prompt: |
             你是一个GitHub Issue自动化处理助手。请完成以下任务：
 
@@ -153,15 +161,16 @@ jobs:
                - 重要的技术细节
 
             3. **发送飞书通知**
-               对于每个issue，使用以下命令发送飞书通知：
+               使用CLI工具发送飞书通知，运行 `pnpm tsx scripts/feishu-notify.ts issue --help` 查看参数说明。
+               示例：
                ```bash
-               ISSUE_URL="<issue的html_url>" \
-               ISSUE_NUMBER="<issue编号>" \
-               ISSUE_TITLE="<issue标题>" \
-               ISSUE_AUTHOR="<issue作者>" \
-               ISSUE_LABELS="<逗号分隔的标签列表，排除pending-feishu-notification>" \
-               ISSUE_SUMMARY="<你生成的中文总结>" \
-               node scripts/feishu-notify.js
+               pnpm tsx scripts/feishu-notify.ts issue \
+                 -u "<issue的html_url>" \
+                 -n "<issue编号>" \
+                 -t "<issue标题>" \
+                 -a "<issue作者>" \
+                 -l "<逗号分隔的标签列表，排除pending-feishu-notification>" \
+                 -m "<你生成的中文总结>"
                ```
 
             4. **移除标签**
