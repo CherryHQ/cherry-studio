@@ -58,7 +58,11 @@ const AnimatedBlockWrapper: React.FC<AnimatedBlockWrapperProps> = ({ children, e
 }
 
 interface Props {
-  blocks: string[] // 可以接收块ID数组或MessageBlock数组
+  // NOTE: [v2 Migration] Supports two formats for phased Redux removal:
+  // - string[]: Block IDs for Redux path (Agent Sessions, legacy code)
+  // - MessageBlock[]: Direct block objects for DataApi/Streaming path
+  // TODO: [v2] Remove string[] support after Agent Session migration
+  blocks: string[] | MessageBlock[]
   messageStatus?: Message['status']
   message: Message
 }
@@ -102,10 +106,28 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
 }
 
 const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
-  // 始终调用useSelector，避免条件调用Hook
+  // Keep Redux selector at top level (required by Hooks rules)
+  // TODO: [v2] Remove this selector after Agent Session migration
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
-  // 根据blocks类型处理渲染数据
-  const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
+
+  // TRADEOFF: Phased Redux removal
+  // - New path (DataApi/Streaming): Receives MessageBlock[], uses directly
+  // - Old path (Agent Sessions): Receives string[], fetches from Redux
+  // This allows incremental migration without breaking existing functionality
+  const renderedBlocks = useMemo(() => {
+    if (blocks.length === 0) return []
+
+    // Check first element to determine path
+    if (typeof blocks[0] === 'object') {
+      // New path: MessageBlock[] - use directly, no Redux
+      return blocks as MessageBlock[]
+    }
+
+    // Old path: string[] - fetch from Redux store
+    // TODO: [v2] Remove this branch after Agent Session migration
+    return (blocks as string[]).map((blockId) => blockEntities[blockId]).filter(Boolean) as MessageBlock[]
+  }, [blocks, blockEntities])
+
   const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
 
   // Check if message is still processing

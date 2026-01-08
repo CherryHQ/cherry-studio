@@ -544,6 +544,20 @@
         "description": "預設啟用的 MCP 伺服器",
         "enableFirst": "請先在 MCP 設定中啟用此伺服器",
         "label": "MCP 伺服器",
+        "mode": {
+          "auto": {
+            "description": "AI 自動發現和使用工具",
+            "label": "自動"
+          },
+          "disabled": {
+            "description": "不使用 MCP 工具",
+            "label": "停用"
+          },
+          "manual": {
+            "description": "選擇特定的 MCP 伺服器",
+            "label": "手動"
+          }
+        },
         "noServersAvailable": "無可用 MCP 伺服器。請在設定中新增伺服器",
         "title": "MCP 設定"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "備份檔案格式錯誤"
     },
+    "base64DataTruncated": "Base64 圖片資料已截斷，大小",
     "boundary": {
       "default": {
         "devtools": "開啟除錯面板",
@@ -1377,6 +1392,8 @@
     "text": "文字",
     "toolInput": "工具輸入",
     "toolName": "工具名稱",
+    "truncated": "資料已截斷，原始大小",
+    "truncatedBadge": "已截斷",
     "unknown": "未知錯誤",
     "usage": "用量",
     "user_message_not_found": "無法找到原始使用者訊息",
@@ -4918,6 +4935,9 @@
       "reset": "重設",
       "title": "縮放"
     }
+  },
+  "tab": {
+    "new": "新標籤頁"
   },
   "title": {
     "apps": "小程式",

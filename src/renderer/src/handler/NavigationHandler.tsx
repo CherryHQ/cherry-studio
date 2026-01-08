@@ -1,8 +1,8 @@
 import { useAppSelector } from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { useLocation, useNavigate } from 'react-router-dom'
 
 const NavigationHandler: React.FC = () => {
   const location = useLocation()
@@ -17,7 +17,7 @@ const NavigationHandler: React.FC = () => {
       if (location.pathname.startsWith('/settings')) {
         return
       }
-      navigate('/settings/provider')
+      navigate({ to: '/settings/provider' })
     },
     {
       splitKey: '!',
@@ -30,7 +30,7 @@ const NavigationHandler: React.FC = () => {
   // Listen for navigate to About page event from macOS menu
   useEffect(() => {
     const handleNavigateToAbout = () => {
-      navigate('/settings/about')
+      navigate({ to: '/settings/about' })
     }
 
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.Windows_NavigateToAbout, handleNavigateToAbout)

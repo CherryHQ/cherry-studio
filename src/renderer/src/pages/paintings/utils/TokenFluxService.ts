@@ -6,6 +6,9 @@ import type { TokenFluxModel } from '../config/tokenFluxConfig'
 
 const logger = loggerService.withContext('TokenFluxService')
 
+// 图片 API 使用固定的基础地址，独立于 provider.apiHost（后者是 OpenAI 兼容的聊天 API 地址）
+const TOKENFLUX_IMAGE_API_HOST = 'https://api.tokenflux.ai'
+
 export interface TokenFluxGenerationRequest {
   model: string
   input: {
@@ -66,7 +69,7 @@ export class TokenFluxService {
       return cachedModels
     }
 
-    const response = await fetch(`${this.apiHost}/v1/images/models`, {
+    const response = await fetch(`${TOKENFLUX_IMAGE_API_HOST}/v1/images/models`, {
       headers: {
         Authorization: `Bearer ${this.apiKey}`
       }
@@ -88,7 +91,7 @@ export class TokenFluxService {
    * Create a new image generation request
    */
   async createGeneration(request: TokenFluxGenerationRequest, signal?: AbortSignal): Promise<string> {
-    const response = await fetch(`${this.apiHost}/v1/images/generations`, {
+    const response = await fetch(`${TOKENFLUX_IMAGE_API_HOST}/v1/images/generations`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(request),
@@ -108,7 +111,7 @@ export class TokenFluxService {
    * Get the status and result of a generation
    */
   async getGenerationResult(generationId: string): Promise<TokenFluxGenerationResponse['data']> {
-    const response = await fetch(`${this.apiHost}/v1/images/generations/${generationId}`, {
+    const response = await fetch(`${TOKENFLUX_IMAGE_API_HOST}/v1/images/generations/${generationId}`, {
       headers: {
         Authorization: `Bearer ${this.apiKey}`
       }

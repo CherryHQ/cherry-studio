@@ -544,6 +544,20 @@
         "description": "默认启用的 MCP 服务器",
         "enableFirst": "请先在 MCP 设置中启用此服务器",
         "label": "MCP 服务器",
+        "mode": {
+          "auto": {
+            "description": "AI 自动发现和使用工具",
+            "label": "自动"
+          },
+          "disabled": {
+            "description": "不使用 MCP 工具",
+            "label": "禁用"
+          },
+          "manual": {
+            "description": "选择特定的 MCP 服务器",
+            "label": "手动"
+          }
+        },
         "noServersAvailable": "无可用 MCP 服务器。请在设置中添加服务器",
         "title": "MCP 服务器"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "备份文件格式错误"
     },
+    "base64DataTruncated": "Base64 图片数据已截断，大小",
     "boundary": {
       "default": {
         "devtools": "打开调试面板",
@@ -1377,6 +1392,8 @@
     "text": "文本",
     "toolInput": "工具输入",
     "toolName": "工具名",
+    "truncated": "数据已截断，原始大小",
+    "truncatedBadge": "已截断",
     "unknown": "未知错误",
     "usage": "用量",
     "user_message_not_found": "无法找到原始用户消息",
@@ -4918,6 +4935,9 @@
       "reset": "重置",
       "title": "缩放"
     }
+  },
+  "tab": {
+    "new": "新标签页"
   },
   "title": {
     "apps": "小程序",

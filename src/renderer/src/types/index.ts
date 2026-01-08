@@ -1,3 +1,13 @@
+/**
+ * TODO [v2 refactor] 此文件存在以下架构问题，需要在 v2 重构中解决：
+ *
+ * 1. 文件过大 - 1100+ 行，难以维护
+ * 2. 职责混乱 - 类型定义、运行时常量、工具函数混在一起，违反单一职责原则
+ * 3. 工具函数不属于类型文件 - objectKeys, objectEntries, strip 等应移至 utils/
+ * 4. 运行时常量不属于类型文件 - EFFORT_RATIO, WebSearchProviderIds, BuiltinMCPServerNames 等应移至 constants/
+ * 5. 类型守卫应分离 - isThinkModelType, isWebSearchProviderId 等函数应独立到 typeGuards 文件
+ * 6. 部分类型应迁移到 packages/shared/data/types/ 以便 main/renderer 进程共享
+ */
 import type { LanguageModelV2Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
@@ -27,6 +37,8 @@ export * from './ocr'
 export * from './plugin'
 export * from './provider'
 
+export type McpMode = 'disabled' | 'auto' | 'manual'
+
 export type Assistant = {
   id: string
   name: string
@@ -47,6 +59,8 @@ export type Assistant = {
   // enableUrlContext 是 Gemini/Anthropic 的特有功能
   enableUrlContext?: boolean
   enableGenerateImage?: boolean
+  /** MCP mode: 'disabled' (no MCP), 'auto' (hub server only), 'manual' (user selects servers) */
+  mcpMode?: McpMode
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
@@ -55,6 +69,15 @@ export type Assistant = {
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
+}
+
+/**
+ * Get the effective MCP mode for an assistant with backward compatibility.
+ * Legacy assistants without mcpMode default based on mcpServers presence.
+ */
+export function getEffectiveMcpMode(assistant: Assistant): McpMode {
+  if (assistant.mcpMode) return assistant.mcpMode
+  return (assistant.mcpServers?.length ?? 0) > 0 ? 'manual' : 'disabled'
 }
 
 export type TranslateAssistant = Assistant & {
@@ -752,7 +775,8 @@ export const BuiltinMCPServerNames = {
   python: '@cherry/python',
   didiMCP: '@cherry/didi-mcp',
   browser: '@cherry/browser',
-  nowledgeMem: '@cherry/nowledge-mem'
+  nowledgeMem: '@cherry/nowledge-mem',
+  hub: '@cherry/hub'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]

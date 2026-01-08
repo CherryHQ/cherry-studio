@@ -1,6 +1,6 @@
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './columnHelpers'
+import { createUpdateTimestamps } from './_columnHelpers'
 
 export const appStateTable = sqliteTable('app_state', {
   key: text().primaryKey(),
