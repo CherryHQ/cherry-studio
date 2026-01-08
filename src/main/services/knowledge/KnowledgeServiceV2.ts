@@ -3,8 +3,6 @@ import path from 'node:path'
 
 import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
-import { loadMarkdownDocuments } from '@main/knowledge/vectorstores/loader'
 import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
@@ -12,6 +10,9 @@ import type { FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeItem } 
 import { DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE, MetadataMode, SentenceSplitter, TextNode } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 import md5 from 'md5'
+
+import Embeddings from './embedjs/embeddings/Embeddings'
+import { loadMarkdownDocuments } from './vectorstores/loader'
 
 const logger = loggerService.withContext('KnowledgeServiceV2')
 

@@ -1,7 +1,8 @@
-import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import { loggerService } from '@main/services/LoggerService'
 import { windowService } from '@main/services/WindowService'
 import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
+
+import PreprocessProvider from './PreprocessProvider'
 
 const logger = loggerService.withContext('PreprocessingService')
 

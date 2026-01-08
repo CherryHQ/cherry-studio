@@ -1,6 +1,6 @@
-import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
 import type { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 
+import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '../utils/knowledge'
 import type { MultiModalDocument, RerankStrategy } from './strategies/RerankStrategy'
 import { StrategyFactory } from './strategies/StrategyFactory'
 
