@@ -480,6 +480,93 @@ export const PromiseExample: Story = {
   }
 }
 
+// Promise with Success/Error Callbacks
+export const PromiseWithCallbacks: Story = {
+  render: () => {
+    const handleSuccessCase = () => {
+      const promise = new Promise<{ name: string }>((resolve) => {
+        setTimeout(() => resolve({ name: 'John Doe' }), 2000)
+      })
+
+      toast.loading('Loading user data...', {
+        description: 'Please wait...',
+        promise
+      })
+
+      promise.then((data) => {
+        toast.success('Data loaded successfully', {
+          description: `Welcome back, ${data.name}!`
+        })
+      })
+    }
+
+    const handleErrorCase = () => {
+      const promise = new Promise<void>((_, reject) => {
+        setTimeout(() => reject(new Error('Network error')), 2000)
+      })
+
+      toast.loading('Connecting to server...', {
+        description: 'Please wait...',
+        promise
+      })
+
+      promise.catch((error: Error) => {
+        toast.error('Connection failed', {
+          description: error.message,
+          button: {
+            label: 'Retry',
+            onClick: () => handleErrorCase()
+          }
+        })
+      })
+    }
+
+    const handleRandomCase = () => {
+      const promise = new Promise<{ message: string }>((resolve, reject) => {
+        setTimeout(() => {
+          Math.random() > 0.5 ? resolve({ message: 'Operation completed' }) : reject(new Error('Something went wrong'))
+        }, 2000)
+      })
+
+      toast.loading('Processing...', {
+        description: 'This may take a moment.',
+        promise
+      })
+
+      promise
+        .then((data) => {
+          toast.success('Success!', {
+            description: data.message,
+            colored: true
+          })
+        })
+        .catch((error: Error) => {
+          toast.error('Failed!', {
+            description: error.message,
+            colored: true,
+            button: {
+              label: 'Try Again',
+              onClick: () => handleRandomCase()
+            }
+          })
+        })
+    }
+
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="text-sm text-muted-foreground max-w-md">
+          Demonstrates how to show success or error toasts after a promise resolves or rejects.
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={handleSuccessCase}>Always Success</Button>
+          <Button onClick={handleErrorCase}>Always Error</Button>
+          <Button onClick={handleRandomCase}>Random Result</Button>
+        </div>
+      </div>
+    )
+  }
+}
+
 // Real World Examples
 export const RealWorldExamples: Story = {
   render: () => {
