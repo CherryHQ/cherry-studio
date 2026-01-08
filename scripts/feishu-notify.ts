@@ -14,7 +14,12 @@
 
 import { Command } from 'commander'
 import crypto from 'crypto'
+import dotenv from 'dotenv'
 import https from 'https'
+import * as z from 'zod'
+
+// Load environment variables from .env file
+dotenv.config()
 
 /** CLI tool version */
 const VERSION = '1.0.0'
@@ -66,21 +71,25 @@ interface FeishuActionElement {
 /** Feishu card element union type */
 type FeishuCardElement = FeishuTextElement | FeishuHrElement | FeishuActionElement
 
-/** Feishu card header color template */
-type FeishuHeaderTemplate =
-  | 'blue'
-  | 'wathet'
-  | 'turquoise'
-  | 'green'
-  | 'yellow'
-  | 'orange'
-  | 'red'
-  | 'carmine'
-  | 'violet'
-  | 'purple'
-  | 'indigo'
-  | 'grey'
-  | 'default'
+/** Zod schema for Feishu header color template */
+const FeishuHeaderTemplateSchema = z.enum([
+  'blue',
+  'wathet',
+  'turquoise',
+  'green',
+  'yellow',
+  'orange',
+  'red',
+  'carmine',
+  'violet',
+  'purple',
+  'indigo',
+  'grey',
+  'default'
+])
+
+/** Feishu card header color template (inferred from schema) */
+type FeishuHeaderTemplate = z.infer<typeof FeishuHeaderTemplateSchema>
 
 /** Feishu interactive card structure */
 interface FeishuCard {
@@ -110,6 +119,13 @@ interface IssueOptions {
   summary: string
   author?: string
   labels?: string
+}
+
+/** Send subcommand options */
+interface SendOptions {
+  title: string
+  description: string
+  color?: string
 }
 
 /**
@@ -248,6 +264,34 @@ function createIssueCard(issueData: IssueData): FeishuCard {
 }
 
 /**
+ * Create a simple Feishu card message
+ * @param title - Card title
+ * @param description - Card description content
+ * @param color - Header color template (default: 'turquoise')
+ * @returns Feishu card content
+ */
+function createSimpleCard(title: string, description: string, color: FeishuHeaderTemplate = 'turquoise'): FeishuCard {
+  return {
+    elements: [
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: description
+        }
+      }
+    ],
+    header: {
+      template: color,
+      title: {
+        tag: 'plain_text',
+        content: title
+      }
+    }
+  }
+}
+
+/**
  * Get Feishu credentials from environment variables
  */
 function getCredentials(): { webhookUrl: string; secret: string } {
@@ -264,6 +308,31 @@ function getCredentials(): { webhookUrl: string; secret: string } {
   }
 
   return { webhookUrl, secret }
+}
+
+/**
+ * Handle send subcommand
+ */
+async function handleSendCommand(options: SendOptions): Promise<void> {
+  const { webhookUrl, secret } = getCredentials()
+
+  const { title, description, color = 'turquoise' } = options
+
+  // Validate color parameter
+  const colorValidation = FeishuHeaderTemplateSchema.safeParse(color)
+  if (!colorValidation.success) {
+    console.error(`Error: Invalid color "${color}". Valid colors: ${FeishuHeaderTemplateSchema.options.join(', ')}`)
+    process.exit(1)
+  }
+
+  const card = createSimpleCard(title, description, colorValidation.data)
+
+  console.log('Sending notification to Feishu...')
+  console.log(`Title: ${title}`)
+
+  await sendToFeishu(webhookUrl, secret, card)
+
+  console.log('Notification sent successfully!')
 }
 
 /**
@@ -309,6 +378,26 @@ async function handleIssueCommand(options: IssueOptions): Promise<void> {
 const program = new Command()
 
 program.name('feishu-notify').description('Send notifications to Feishu webhook').version(VERSION)
+
+// Send subcommand (generic)
+program
+  .command('send')
+  .description('Send a simple notification to Feishu')
+  .requiredOption('-t, --title <title>', 'Card title')
+  .requiredOption('-d, --description <description>', 'Card description (supports markdown)')
+  .option(
+    '-c, --color <color>',
+    `Header color template (default: turquoise). Options: ${FeishuHeaderTemplateSchema.options.join(', ')}`,
+    'turquoise'
+  )
+  .action(async (options: SendOptions) => {
+    try {
+      await handleSendCommand(options)
+    } catch (error) {
+      console.error('Error:', error instanceof Error ? error.message : error)
+      process.exit(1)
+    }
+  })
 
 // Issue subcommand
 program

@@ -33,6 +33,42 @@ pnpm tsx scripts/feishu-notify.ts [command] [options]
 
 ## Commands
 
+### `send` - Send Simple Notification
+
+Send a generic notification without business-specific logic.
+
+```bash
+pnpm tsx scripts/feishu-notify.ts send [options]
+```
+
+| Option | Short | Description | Required |
+|--------|-------|-------------|----------|
+| `--title` | `-t` | Card title | Yes |
+| `--description` | `-d` | Card description (supports markdown) | Yes |
+| `--color` | `-c` | Header color template | No (default: turquoise) |
+
+**Available colors:** `blue`, `wathet`, `turquoise`, `green`, `yellow`, `orange`, `red`, `carmine`, `violet`, `purple`, `indigo`, `grey`, `default`
+
+#### Example
+
+```bash
+# Use $'...' syntax for proper newlines
+pnpm tsx scripts/feishu-notify.ts send \
+  -t "Deployment Completed" \
+  -d $'**Status:** Success\n\n**Environment:** Production\n\n**Version:** v1.2.3' \
+  -c green
+```
+
+```bash
+# Send an error alert (red color)
+pnpm tsx scripts/feishu-notify.ts send \
+  -t "Error Alert" \
+  -d $'**Error Type:** Connection failed\n\n**Severity:** High\n\nPlease check the system status' \
+  -c red
+```
+
+**Note:** For proper newlines in the description, use bash's `$'...'` syntax. Do not use literal `\n` in double quotes, as it will be displayed as-is in the Feishu card.
+
 ### `issue` - Send GitHub Issue Notification
 
 ```bash
