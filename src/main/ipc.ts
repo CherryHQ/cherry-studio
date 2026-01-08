@@ -25,6 +25,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AgentPersistedMessage,
   FileMetadata,
+  KnowledgeBase,
   Notification,
   OcrProvider,
   PluginError,
@@ -51,6 +52,7 @@ import { ExportService } from './services/ExportService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import KnowledgeService from './services/KnowledgeService'
+import { knowledgeServiceV2 } from './services/KnowledgeServiceV2'
 import { lanTransferClientService } from './services/lanTransfer'
 import { localTransferService } from './services/LocalTransferService'
 import mcpService from './services/MCPService'
@@ -677,7 +679,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  ipcMain.handle(IpcChannel.KnowledgeBase_Create, KnowledgeService.create.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeServiceV2.create.bind(knowledgeServiceV2))
   ipcMain.handle(IpcChannel.KnowledgeBase_Reset, KnowledgeService.reset.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Delete, KnowledgeService.delete.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Add, KnowledgeService.add.bind(KnowledgeService))
@@ -685,6 +687,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.KnowledgeBase_Search, KnowledgeService.search.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, KnowledgeService.checkQuota.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_MigrateV2, (_, base: KnowledgeBase) => knowledgeServiceV2.migrate(base))
 
   // memory
   ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))

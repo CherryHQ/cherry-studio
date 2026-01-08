@@ -157,6 +157,7 @@ export enum IpcChannel {
   KnowledgeBase_Search = 'knowledge-base:search',
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
   KnowledgeBase_Check_Quota = 'knowledge-base:check-quota',
+  KnowledgeBase_MigrateV2 = 'knowledge-base:migrate-v2',
 
   //file
   File_Open = 'file:open',

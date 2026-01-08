@@ -7,9 +7,9 @@ import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
 import { Empty, Tabs, Tag } from 'antd'
-import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
+import { Book, Folder, Globe, Link, Notebook, RefreshCw, Search, Settings, Video } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,6 +39,21 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
 
   const providerName = getProviderName(base?.model)
+
+  const handleMigrateV2 = useCallback(async () => {
+    if (!base) return
+    try {
+      const result = await window.api.knowledgeBase.migrateV2(base)
+      if (result.success) {
+        window.toast.success(t('knowledge.migrate_v2_success'))
+      } else {
+        window.toast.error(result.error || t('knowledge.migrate_v2_failed'))
+      }
+    } catch (error) {
+      window.toast.error(t('knowledge.migrate_v2_failed'))
+      logger.error('Migration failed:', error as Error)
+    }
+  }, [base, t])
 
   useEffect(() => {
     const handlers = [
@@ -163,6 +178,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </div>
         </ModelInfo>
         <RowFlex className="items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleMigrateV2}>
+            <RefreshCw size={14} />
+            {t('knowledge.migrate_v2')}
+          </Button>
           {/* 使用selected base导致修改设置后没有响应式更新 */}
           <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
             <Search size={18} />

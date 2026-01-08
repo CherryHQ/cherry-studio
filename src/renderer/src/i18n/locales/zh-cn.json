@@ -1589,6 +1589,7 @@
       "target_dimensions": "目标维度",
       "target_model": "目标模型"
     },
+    "migrate_v2": "迁移 V2",
     "model_info": "模型信息",
     "name_required": "知识库名称为必填项",
     "no_bases": "暂无知识库",

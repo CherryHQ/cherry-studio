@@ -120,10 +120,17 @@ export const useKnowledge = (baseId: string) => {
       return
     }
 
+    const fileExt =
+      isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)
+        ? item.content.ext
+        : undefined
     const removalParams = {
       uniqueId: item.uniqueId,
       uniqueIds: item.uniqueIds,
-      base: getKnowledgeBaseParams(base)
+      base: getKnowledgeBaseParams(base),
+      externalId: item.id,
+      itemType: item.type,
+      fileExt
     }
 
     await window.api.knowledgeBase.remove(removalParams)
@@ -155,7 +162,13 @@ export const useKnowledge = (baseId: string) => {
       await window.api.knowledgeBase.remove({
         uniqueId: item.uniqueId,
         uniqueIds: item.uniqueIds,
-        base: getKnowledgeBaseParams(base)
+        base: getKnowledgeBaseParams(base),
+        externalId: item.id,
+        itemType: item.type,
+        fileExt:
+          isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)
+            ? item.content.ext
+            : undefined
       })
       updateItem({
         ...item,
@@ -172,7 +185,13 @@ export const useKnowledge = (baseId: string) => {
     const removalParams = {
       uniqueId: item.uniqueId,
       uniqueIds: item.uniqueIds,
-      base: getKnowledgeBaseParams(base)
+      base: getKnowledgeBaseParams(base),
+      externalId: item.id,
+      itemType: item.type,
+      fileExt:
+        isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)
+          ? item.content.ext
+          : undefined
     }
 
     await window.api.knowledgeBase.remove(removalParams)

@@ -28,6 +28,7 @@ import { NoteLoader } from '@main/knowledge/embedjs/loader/noteLoader'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import Reranker from '@main/knowledge/reranker/Reranker'
 import { fileStorage } from '@main/services/FileStorage'
+import { knowledgeServiceV2 } from '@main/services/KnowledgeServiceV2'
 import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { getAllFiles, sanitizeFilename } from '@main/utils/file'
@@ -316,6 +317,26 @@ class KnowledgeService {
               const fileToProcess: FileMetadata = await this.preprocessing(file, base, item, userId)
 
               // Use processed file for loading
+              const useV2Markdown = fileToProcess.ext.toLowerCase() === '.md'
+              if (useV2Markdown) {
+                return knowledgeServiceV2
+                  .addMarkdownFile({ base, file: fileToProcess, itemId: item.id })
+                  .then((result) => {
+                    loaderTask.loaderDoneReturn = result
+                    return result
+                  })
+                  .catch((e) => {
+                    logger.error(`Error in addMarkdownFile for ${file.name}: ${e}`)
+                    const errorResult: LoaderReturn = {
+                      ...KnowledgeService.ERROR_LOADER_RETURN,
+                      message: e.message,
+                      messageSource: 'embedding'
+                    }
+                    loaderTask.loaderDoneReturn = errorResult
+                    return errorResult
+                  })
+              }
+
               return addFileLoader(ragApplication, fileToProcess, base, forceReload)
                 .then((result) => {
                   loaderTask.loaderDoneReturn = result
@@ -378,8 +399,13 @@ class KnowledgeService {
     for (const file of files) {
       loaderTasks.push({
         state: LoaderTaskItemState.PENDING,
-        task: () =>
-          addFileLoader(ragApplication, file, base, forceReload)
+        task: () => {
+          const useV2Markdown = file.ext.toLowerCase() === '.md'
+          const addPromise = useV2Markdown
+            ? knowledgeServiceV2.addMarkdownFile({ base, file, itemId: item.id })
+            : addFileLoader(ragApplication, file, base, forceReload)
+
+          return addPromise
             .then((result) => {
               loaderDoneReturn.entriesAdded += 1
               processedFiles += 1
@@ -394,7 +420,8 @@ class KnowledgeService {
                 message: `Failed to add dir loader: ${err.message}`,
                 messageSource: 'embedding'
               }
-            }),
+            })
+        },
         evaluateTaskWorkload: { workload: file.size }
       })
     }
@@ -653,8 +680,35 @@ class KnowledgeService {
   @TraceMethod({ spanName: 'remove', tag: 'Knowledge' })
   public async remove(
     _: Electron.IpcMainInvokeEvent,
-    { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
+    {
+      uniqueId,
+      uniqueIds,
+      base,
+      externalId,
+      itemType
+    }: {
+      uniqueId: string
+      uniqueIds: string[]
+      base: KnowledgeBaseParams
+      externalId?: string
+      itemType?: KnowledgeItem['type']
+    }
   ): Promise<void> {
+    const isFile = itemType === 'file'
+    const wantsV2Delete = (isFile || itemType === 'directory') && !!externalId
+
+    if (wantsV2Delete) {
+      await knowledgeServiceV2.removeByExternalId({ base, externalId: externalId! })
+    } else if ((isFile || itemType === 'directory') && !externalId) {
+      logger.warn(`[KnowledgeService] Skip V2 delete: missing external_id for ${uniqueId}`)
+    }
+
+    const shouldUseV1Delete = !isFile || !externalId
+    if (!shouldUseV1Delete) {
+      logger.debug(`Skip V1 delete for file item ${uniqueId}`)
+      return
+    }
+
     const ragApplication = await this.getRagApplication(base)
     logger.debug(`Remove Item UniqueId: ${uniqueId}`)
     for (const id of uniqueIds) {
