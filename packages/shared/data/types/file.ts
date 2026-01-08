@@ -2,6 +2,13 @@
 
 import type OpenAI from '@cherrystudio/openai'
 
+// ============================================================================
+// File Types
+// ============================================================================
+
+/**
+ * Supported file type categories
+ */
 export enum FileTypes {
   IMAGE = 'image',
   VIDEO = 'video',
@@ -11,53 +18,34 @@ export enum FileTypes {
   OTHER = 'other'
 }
 
+// ============================================================================
+// File Metadata
+// ============================================================================
+
 /**
- * @interface
- * @description 文件元数据接口
+ * File metadata interface
  */
 export interface FileMetadata {
-  /**
-   * 文件的唯一标识符
-   */
+  /** Unique file identifier */
   id: string
-  /**
-   * 文件名
-   */
+  /** File name (stored name) */
   name: string
-  /**
-   * 文件的原始名称（展示名称）
-   */
+  /** Original file name (display name) */
   origin_name: string
-  /**
-   * 文件路径
-   */
+  /** File path */
   path: string
-  /**
-   * 文件大小，单位为字节
-   */
+  /** File size in bytes */
   size: number
-  /**
-   * 文件扩展名（包含.）
-   */
+  /** File extension (including dot) */
   ext: string
-  /**
-   * 文件类型
-   */
+  /** File type category */
   type: FileTypes
-  /**
-   * 文件创建时间的ISO字符串
-   */
+  /** File creation timestamp (ISO string) */
   created_at: string
-  /**
-   * 文件计数
-   */
+  /** File reference count */
   count: number
-  /**
-   * 该文件预计的token大小 (可选)
-   */
+  /** Estimated token count (optional) */
   tokens?: number
-  /**
-   * 该文件的用途
-   */
+  /** File purpose for API usage */
   purpose?: OpenAI.FilePurpose
 }

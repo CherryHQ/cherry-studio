@@ -48,9 +48,9 @@
 | `rerankModel: Model`                     | `rerankModelId` + `rerankModelMeta`       | 同上                                          |
 | `preprocessProvider: { type, provider }` | `preprocessProviderId`                    | 简化为 ID，通过查询 preprocessProvider 表获取 |
 | `dimensions`                             | 移除                                      | 可存入 `embeddingModelMeta`                   |
-| `chunkSize`                              | → `config.chunkSize`                      | 合并到 config                                 |
-| `chunkOverlap`                           | → `config.chunkOverlap`                   | 合并到 config                                 |
-| `threshold`                              | → `config.similarityThreshold`            | 合并到 config                                 |
+| `chunkSize`                              | `chunkSize`                               | Separate column (not JSON)                    |
+| `chunkOverlap`                           | `chunkOverlap`                            | Separate column (not JSON)                    |
+| `threshold`                              | `threshold`                               | Separate column (not JSON)                    |
 | `documentCount`                          | 移除                                      | 合不再需要                                    |
 | `items: KnowledgeItem[]`                 | **移除**                                  | 通过外键关联，不内嵌                          |
 | `version`                                | **移除**                                  | 不再需要                                      |
@@ -60,17 +60,16 @@
 
 | v1 字段                                             | v2 字段                   | 变化说明                           |
 | --------------------------------------------------- | ------------------------- | ---------------------------------- |
-| `id`                                                | `id`                      | 改用 `uuidPrimaryKeyOrdered()`     |
+| `id`                                                | `id`                      | 使用 `uuidPrimaryKey()`            |
 | `baseId?`                                           | `baseId` (必填 + FK)      | 强制关联 + 级联删除                |
 | `type`                                              | `type`                    | 不变                               |
 | `content: string \| FileMetadata \| FileMetadata[]` | `data: KnowledgeItemData` | 统一为类型安全的 JSON              |
-| `processingStatus`                                  | `status`                  |                                    |
-| `processingProgress`                                | `progress`                |                                    |
-| `processingError`                                   | `error`                   |                                    |
-| —                                                   | `stage`                   | **新增**：处理阶段                 |
+| `processingStatus`                                  | `status`                  | 合并 status 和 stage               |
+| `processingProgress`                                | **移除**                  | 进度通过 IPC 事件推送，不持久化    |
+| —                                                   | ~~`stage`~~               | **移除**：合并到 status            |
 | `uniqueId` / `uniqueIds`                            | **移除**                  | 不再需要                           |
 | `remark`                                            | **移除**                  | 重构为 url 和 website 的 name 字段 |
-| `retryCount`                                        | **移除**                  | 不再需要理                         |
+| `retryCount`                                        | **移除**                  | 不再需要                           |
 | `isPreprocessed`                                    | **移除**                  | 不再需要                           |
 
 ### 类型支持对比
@@ -83,68 +82,63 @@
 | `sitemap`   | `sitemap`   | ✅   |
 | `directory` | `directory` | ✅   |
 
-## 数据库 Schema 设计
+## Database Schema Design
 
-### knowledge_base 表
+### knowledge_base table
 
 ```typescript
-export const knowledgeBaseTable = sqliteTable(
-  "knowledge_base",
-  {
-    id: uuidPrimaryKey(),
-    name: text().notNull(),
-    description: text(),
+export const knowledgeBaseTable = sqliteTable("knowledge_base", {
+  id: uuidPrimaryKey(),
+  name: text().notNull(),
+  description: text(),
 
-    // 嵌入模型配置
-    embeddingModelId: text().notNull(), // 嵌入模型 ID
-    embeddingModelMeta: text({ mode: "json" }).$type<EmbeddingModelMeta>(), // 嵌入模型元数据
+  // Embedding model configuration
+  embeddingModelId: text().notNull(),
+  embeddingModelMeta: text({ mode: "json" }).$type<EmbeddingModelMeta>(),
 
-    // 重排模型配置
-    rerankModelId: text(), // 重排序模型 ID
-    rerankModelMeta: text({ mode: "json" }).$type<ModelMeta>(), // 重排序模型元数据
+  // Rerank model configuration
+  rerankModelId: text(),
+  rerankModelMeta: text({ mode: "json" }).$type<ModelMeta>(),
 
-    preprocessProviderId: text(), // 预处理提供者 ID
+  // Preprocessing provider ID
+  preprocessProviderId: text(),
 
-    config: text({ mode: "json" }).$type<KnowledgeBaseConfig>(), // 配置(分块，相似度阈值等)
+  // Configuration (separate columns, not JSON)
+  chunkSize: integer(),
+  chunkOverlap: integer(),
+  threshold: real(),
 
-    ...createUpdateTimestamps,
-  },
-  (t) => [index("knowledge_base_updated_at_idx").on(t.updatedAt)]
-);
+  ...createUpdateTimestamps,
+});
 ```
 
-### knowledge_item 表
+### knowledge_item table
 
 ```typescript
 export const knowledgeItemTable = sqliteTable(
   "knowledge_item",
   {
-    id: uuidPrimaryKeyOrdered(),
+    id: uuidPrimaryKey(),
     baseId: text()
       .notNull()
       .references(() => knowledgeBaseTable.id, { onDelete: "cascade" }),
 
-    // 类型
-    type: text().$type<KnowledgeItemType>().notNull(), // 'file' | 'url' | 'note' | 'sitemap' | 'directory'
+    // Type: 'file' | 'url' | 'note' | 'sitemap' | 'directory'
+    type: text().$type<KnowledgeItemType>().notNull(),
 
-    // 统一的 data 字段
+    // Unified data field (Discriminated Union)
     data: text({ mode: "json" }).$type<KnowledgeItemData>().notNull(),
 
-    // 处理状态 (混合方案：顶层状态可索引 + 阶段详情)
-    status: text().$type<ItemStatus>().default("pending"), // 'pending' | 'processing' | 'completed' | 'failed'
-    stage: text().$type<ProcessingStage>(), // 'preprocessing' | 'embedding' | null
-    progress: integer(), // 0-100, null when idle
-    error: text(), // 错误信息
+    // Processing status (merged with stage, progress via IPC events)
+    status: text().$type<ItemStatus>().default("idle"),
+    error: text(),
 
     ...createUpdateTimestamps,
   },
   (t) => [
-    index("knowledge_item_base_id_idx").on(t.baseId),
-    index("knowledge_item_status_idx").on(t.status),
-    index("knowledge_item_base_updated_idx").on(t.baseId, t.updatedAt),
     check(
       "knowledge_item_status_check",
-      sql`${t.status} IN ('idle', 'pending', 'processing', 'completed', 'failed')`
+      sql`${t.status} IN ('idle', 'pending', 'preprocessing', 'embedding', 'completed', 'failed')`
     ),
     check(
       "knowledge_item_type_check",
@@ -153,14 +147,14 @@ export const knowledgeItemTable = sqliteTable(
   ]
 );
 
-// 状态类型定义
+// Status type definition
 export type ItemStatus =
   | "idle"
   | "pending"
-  | "processing"
+  | "preprocessing"
+  | "embedding"
   | "completed"
   | "failed";
-export type ProcessingStage = "preprocessing" | "embedding";
 ```
 
 ### KnowledgeItemData 类型定义
