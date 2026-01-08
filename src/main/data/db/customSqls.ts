@@ -14,7 +14,7 @@
  * 2. Import and spread them into CUSTOM_SQL_STATEMENTS below
  */
 
-import { MESSAGE_FTS_STATEMENTS } from './schemas/messageFts'
+import { MESSAGE_FTS_STATEMENTS } from './schemas/message'
 
 /**
  * All custom SQL statements to run after migrations

@@ -871,6 +871,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
     const abortController = new AbortController()
+    logger.silly('Add Abort Controller', { id: userMessageId })
     addAbortController(userMessageId!, () => abortController.abort())
 
     await transformMessagesAndFetch(

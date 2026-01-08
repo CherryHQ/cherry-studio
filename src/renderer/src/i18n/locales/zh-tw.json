@@ -544,6 +544,20 @@
         "description": "預設啟用的 MCP 伺服器",
         "enableFirst": "請先在 MCP 設定中啟用此伺服器",
         "label": "MCP 伺服器",
+        "mode": {
+          "auto": {
+            "description": "AI 自動發現和使用工具",
+            "label": "自動"
+          },
+          "disabled": {
+            "description": "不使用 MCP 工具",
+            "label": "停用"
+          },
+          "manual": {
+            "description": "選擇特定的 MCP 伺服器",
+            "label": "手動"
+          }
+        },
         "noServersAvailable": "無可用 MCP 伺服器。請在設定中新增伺服器",
         "title": "MCP 設定"
       },

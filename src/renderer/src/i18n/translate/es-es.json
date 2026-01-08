@@ -544,6 +544,20 @@
         "description": "Servidor MCP habilitado por defecto",
         "enableFirst": "Habilite este servidor en la configuración de MCP primero",
         "label": "Servidor MCP",
+        "mode": {
+          "auto": {
+            "description": "La IA descubre y utiliza herramientas automáticamente",
+            "label": "Auto"
+          },
+          "disabled": {
+            "description": "Sin herramientas MCP",
+            "label": "Discapacitado"
+          },
+          "manual": {
+            "description": "Seleccionar servidores MCP específicos",
+            "label": "Manual"
+          }
+        },
         "noServersAvailable": "No hay servidores MCP disponibles. Agregue un servidor en la configuración",
         "title": "Configuración MCP"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto"
     },
+    "base64DataTruncated": "Datos de imagen Base64 truncados, tamaño",
     "boundary": {
       "default": {
         "devtools": "Abrir el panel de depuración",
@@ -1377,6 +1392,8 @@
     "text": "Texto",
     "toolInput": "Herramienta de entrada",
     "toolName": "Nombre de la herramienta",
+    "truncated": "Datos truncados, tamaño original",
+    "truncatedBadge": "Truncado",
     "unknown": "Error desconocido",
     "usage": "Cantidad de uso",
     "user_message_not_found": "No se pudo encontrar el mensaje original del usuario",

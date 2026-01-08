@@ -1,7 +1,7 @@
 import type { AssistantMeta } from '@shared/data/types/meta'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './columnHelpers'
+import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { groupTable } from './group'
 
 /**
