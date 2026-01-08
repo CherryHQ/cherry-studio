@@ -1829,5 +1829,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'mimo',
       group: 'Mimo'
     }
-  ]
+  ],
+  atlascloud: []
 }
