@@ -265,6 +265,7 @@
     "code-inspector-plugin": "^0.20.14",
     "codemirror-lang-mermaid": "0.5.0",
     "color": "^5.0.0",
+    "commander": "^14.0.2",
     "concurrently": "^9.2.1",
     "cors": "2.8.5",
     "country-flag-emoji-polyfill": "0.1.8",
