@@ -713,6 +713,30 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'baichuan',
       name: 'Baichuan3 Turbo 128k',
       group: 'Baichuan3'
+    },
+    {
+      id: 'Baichuan4-Turbo',
+      provider: 'baichuan',
+      name: 'Baichuan4 Turbo',
+      group: 'Baichuan4'
+    },
+    {
+      id: 'Baichuan4-Air',
+      provider: 'baichuan',
+      name: 'Baichuan4 Air',
+      group: 'Baichuan4'
+    },
+    {
+      id: 'Baichuan-M2',
+      provider: 'baichuan',
+      name: 'Baichuan M2',
+      group: 'Baichuan-M2'
+    },
+    {
+      id: 'Baichuan-M2-Plus',
+      provider: 'baichuan',
+      name: 'Baichuan M2 Plus',
+      group: 'Baichuan-M2'
     }
   ],
   modelscope: [
