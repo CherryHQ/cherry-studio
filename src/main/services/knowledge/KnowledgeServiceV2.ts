@@ -6,12 +6,20 @@ import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
-import type { FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeItem } from '@types'
-import { DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE, MetadataMode, SentenceSplitter, TextNode } from '@vectorstores/core'
+import type { FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchResult } from '@types'
+import {
+  DEFAULT_CHUNK_OVERLAP,
+  DEFAULT_CHUNK_SIZE,
+  MetadataMode,
+  SentenceSplitter,
+  TextNode,
+  type VectorStoreQueryResult
+} from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 import md5 from 'md5'
 
 import Embeddings from './embedjs/embeddings/Embeddings'
+import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
 import { loadMarkdownDocuments } from './vectorstores/loader'
 
 const logger = loggerService.withContext('KnowledgeServiceV2')
@@ -62,6 +70,63 @@ class KnowledgeServiceV2 {
 
   public create = async (_: Electron.IpcMainInvokeEvent | undefined, base: KnowledgeBaseParams): Promise<void> => {
     logger.info(`[KnowledgeV2] Create called for base ${base.id}`)
+  }
+
+  public search = async (
+    _: Electron.IpcMainInvokeEvent | undefined,
+    { search, base }: { search: string; base: KnowledgeBaseParams }
+  ): Promise<KnowledgeSearchResult[]> => {
+    const dbPath = this.getDbPath(base.id)
+
+    if (!fs.existsSync(dbPath)) {
+      logger.warn(`[KnowledgeV2] Search skipped: db not found: ${dbPath}`)
+      return []
+    }
+
+    try {
+      logger.info(`[KnowledgeV2] Search starting for base ${base.id}`)
+
+      // 1. Embed the query
+      const embeddingsClient = new Embeddings({
+        embedApiClient: base.embedApiClient,
+        dimensions: base.dimensions
+      })
+      const queryEmbedding = await embeddingsClient.embedQuery(search)
+
+      // 2. Perform vector search
+      const dimensions = base.dimensions ?? queryEmbedding.length
+      const store = new LibSQLVectorStore({
+        clientConfig: { url: `file:${dbPath}` },
+        dimensions,
+        collection: ''
+      })
+
+      const topK = base.documentCount ?? DEFAULT_DOCUMENT_COUNT
+      const queryResult = await store.query({
+        queryEmbedding,
+        similarityTopK: topK,
+        mode: 'default'
+      })
+
+      logger.info(`[KnowledgeV2] Search completed: ${queryResult.nodes?.length ?? 0} results`)
+
+      // 3. Map to KnowledgeSearchResult[]
+      return this.mapQueryResultToSearchResults(queryResult)
+    } catch (error) {
+      logger.error(`[KnowledgeV2] Search failed for base ${base.id}:`, error as Error)
+      throw error
+    }
+  }
+
+  private mapQueryResultToSearchResults(queryResult: VectorStoreQueryResult): KnowledgeSearchResult[] {
+    const nodes = queryResult.nodes ?? []
+    const similarities = queryResult.similarities ?? []
+
+    return nodes.map((node, index) => ({
+      pageContent: node.getContent(MetadataMode.NONE),
+      score: similarities[index] ?? 0,
+      metadata: node.metadata ?? {}
+    }))
   }
 
   public async removeByExternalId({
