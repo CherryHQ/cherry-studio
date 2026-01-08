@@ -544,6 +544,20 @@
         "description": "Серверы MCP, включенные по умолчанию",
         "enableFirst": "Сначала включите этот сервер в настройках MCP",
         "label": "Серверы MCP",
+        "mode": {
+          "auto": {
+            "description": "ИИ самостоятельно обнаруживает и использует инструменты",
+            "label": "Авто"
+          },
+          "disabled": {
+            "description": "Нет инструментов MCP",
+            "label": "Отключено"
+          },
+          "manual": {
+            "description": "Выберите конкретные MCP-серверы",
+            "label": "Руководство"
+          }
+        },
         "noServersAvailable": "Нет доступных серверов MCP. Добавьте серверы в настройках",
         "title": "Настройки MCP"
       },
@@ -1298,6 +1312,7 @@
       "file_format": "Ошибка формата файла резервной копии"
     },
     "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
+    "base64DataTruncated": "Данные изображения в формате Base64 усечены, размер",
     "boundary": {
       "default": {
         "devtools": "Открыть панель отладки",
@@ -1379,7 +1394,9 @@
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
     "truncated": "[to be translated]:Data truncated, original size",
+    "truncated": "Данные усечены, исходный размер",
     "truncatedBadge": "[to be translated]:Truncated",
+    "truncatedBadge": "Усечённый",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",
     "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
@@ -2608,71 +2625,6 @@
     "source": "Смотреть исходный код",
     "zoom_in": "Увеличить",
     "zoom_out": "Уменьшить"
-  },
-  "prompt": {
-    "button": {
-      "fix_variables": "[to be translated]:Fix Variables",
-      "generate": "[to be translated]:Generate",
-      "run_test": "[to be translated]:Run Test",
-      "test": "[to be translated]:Test Prompt"
-    },
-    "error": {
-      "empty_result": "[to be translated]:Generation result is empty",
-      "empty_task": "[to be translated]:Please enter a task description",
-      "fix_failed": "[to be translated]:Failed to fix floating variables",
-      "generate_failed": "[to be translated]:Generation failed",
-      "missing_variables": "[to be translated]:Please fill in values for: {{variables}}",
-      "no_metaprompt": "[to be translated]:Metaprompt is empty, please configure it in settings",
-      "no_model": "[to be translated]:Please select a model",
-      "reset_metaprompt_failed": "[to be translated]:Failed to reset Metaprompt",
-      "save_metaprompt_failed": "[to be translated]:Failed to save Metaprompt",
-      "test_failed": "[to be translated]:Test failed"
-    },
-    "info": {
-      "aborted": "[to be translated]:Generation aborted"
-    },
-    "input": {
-      "placeholder": "[to be translated]:Describe the task you want to accomplish...\nFor example: Help me write an email to respond to a customer complaint"
-    },
-    "output": {
-      "placeholder": "[to be translated]:The generated structured prompt template will appear here..."
-    },
-    "settings": {
-      "metaprompt_description": "[to be translated]:Metaprompt is the system prompt used to generate structured prompt templates. You can customize it to adjust the style of generated templates.",
-      "metaprompt_label": "[to be translated]:Metaprompt (System Prompt)",
-      "metaprompt_placeholder": "[to be translated]:Enter Metaprompt...",
-      "reset_to_default": "[to be translated]:Reset to Default",
-      "title": "[to be translated]:Prompt Settings"
-    },
-    "success": {
-      "fixed": "[to be translated]:Floating variables fixed",
-      "generated": "[to be translated]:Prompt generated successfully",
-      "metaprompt_reset": "[to be translated]:Reset to default Metaprompt",
-      "metaprompt_saved": "[to be translated]:Metaprompt saved successfully",
-      "tested": "[to be translated]:Test completed"
-    },
-    "tab": {
-      "generated": "[to be translated]:Generated",
-      "test": "[to be translated]:Test"
-    },
-    "test": {
-      "modal_title": "[to be translated]:Test Prompt",
-      "no_variables": "[to be translated]:This prompt template has no variables",
-      "result_placeholder": "[to be translated]:Test results will appear here...",
-      "result_title": "[to be translated]:Test Result",
-      "variable_placeholder": "[to be translated]:Enter value for {{variable}}...",
-      "variables_title": "[to be translated]:Variable Values"
-    },
-    "title": "[to be translated]:Prompts",
-    "tooltip": {
-      "fix_floating_variables": "[to be translated]:Floating variables detected, click to auto-fix with AI",
-      "newline": "[to be translated]:New line",
-      "test_prompt": "[to be translated]:Test the generated prompt template"
-    },
-    "variables": {
-      "floating_warning": "[to be translated]:Floating variables detected, fix recommended",
-      "title": "[to be translated]:Variables"
-    }
   },
   "prompts": {
     "explanation": "Объясните мне этот концепт",
@@ -4526,6 +4478,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "[to be translated]:Cache Last N Messages",
+            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
+            "cache_system": "[to be translated]:Cache System Message",
+            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
+            "token_threshold": "[to be translated]:Cache Token Threshold",
+            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+          },
           "array_content": {
             "help": "Поддерживает ли данный провайдер тип массива для поля content в сообщении",
             "label": "поддержка формата массива для содержимого сообщения"
@@ -4998,7 +4958,6 @@
     "memories": "Память",
     "notes": "заметки",
     "paintings": "Рисунки",
-    "prompt": "[to be translated]:Prompts",
     "settings": "Настройки",
     "store": "Библиотека помощников",
     "translate": "Перевод"

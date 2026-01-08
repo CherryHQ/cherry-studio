@@ -96,6 +96,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
+  differentialPackage: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
@@ -111,6 +112,8 @@ mac:
   target:
     - target: dmg
     - target: zip
+dmg:
+  writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   target:
@@ -140,44 +143,36 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.9 - New Features & Bug Fixes
+    Cherry Studio 1.7.12 - New Features & Bug Fixes
 
     ✨ New Features
-    - [Agent] Add 302.AI provider support
-    - [Browser] Browser data now persists and supports multiple tabs
-    - [Language] Add Romanian language support
-    - [Search] Add fuzzy search for file list
-    - [Models] Add latest Zhipu models
-    - [Image] Improve text-to-image functionality
+    - [MCP] Add MCP Hub with Auto mode for intelligent multi-server tool orchestration
 
     🐛 Bug Fixes
-    - [Mac] Fix mini window unexpected closing issue
-    - [Preview] Fix HTML preview controls not working in fullscreen
-    - [Translate] Fix translation duplicate execution issue
-    - [Zoom] Fix page zoom reset issue during navigation
-    - [Agent] Fix crash when switching between agent and assistant
-    - [Agent] Fix navigation in agent mode
-    - [Copy] Fix markdown copy button issue
-    - [Windows] Fix compatibility issues on non-Windows systems
+    - [Chat] Fix reasoning process not displaying correctly for some proxy models
+    - [Chat] Fix duplicate loading spinners on action buttons
+    - [Editor] Fix paragraph handle and plus button not clickable
+    - [Drawing] Fix TokenFlux models not showing in drawing panel
+    - [Translate] Fix translation stalling after initialization
+    - [Error] Fix app freeze when viewing error details with large images
+    - [Notes] Fix folder overlay blocking webview preview
+    - [Chat] Fix thinking time display when stopping generation
+    - [Providers] Add cache control options for Anthropic provider
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.9 - 新功能与问题修复
+    Cherry Studio 1.7.11 - 新功能与问题修复
 
     ✨ 新功能
-    - [Agent] 新增 302.AI 服务商支持
-    - [浏览器] 浏览器数据现在可以保存，支持多标签页
-    - [语言] 新增罗马尼亚语支持
-    - [搜索] 文件列表新增模糊搜索功能
-    - [模型] 新增最新智谱模型
-    - [图片] 优化文生图功能
+    - [MCP] 新增 MCP Hub 智能模式，可自动管理和调用多个 MCP 服务器工具
 
     🐛 问题修复
-    - [Mac] 修复迷你窗口意外关闭的问题
-    - [预览] 修复全屏模式下 HTML 预览控件无法使用的问题
-    - [翻译] 修复翻译重复执行的问题
-    - [缩放] 修复页面导航时缩放被重置的问题
-    - [智能体] 修复在智能体和助手间切换时崩溃的问题
-    - [智能体] 修复智能体模式下的导航问题
-    - [复制] 修复 Markdown 复制按钮问题
-    - [兼容性] 修复非 Windows 系统的兼容性问题
+    - [对话] 修复部分代理模型的推理过程无法正确显示的问题
+    - [对话] 修复操作按钮重复显示加载状态的问题
+    - [编辑器] 修复段落手柄和加号按钮无法点击的问题
+    - [绘图] 修复 TokenFlux 模型在绘图面板不显示的问题
+    - [翻译] 修复翻译功能初始化后卡住的问题
+    - [错误] 修复查看包含大图片的错误详情时应用卡死的问题
+    - [笔记] 修复文件夹遮挡网页预览的问题
+    - [对话] 修复停止生成时思考时间显示问题
+    - [服务商] Anthropic 服务商增加缓存控制选项
     <!--LANG:END-->
