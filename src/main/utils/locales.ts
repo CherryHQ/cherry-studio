@@ -7,6 +7,7 @@ import elGR from '../../renderer/src/i18n/translate/el-gr.json'
 import esES from '../../renderer/src/i18n/translate/es-es.json'
 import frFR from '../../renderer/src/i18n/translate/fr-fr.json'
 import JaJP from '../../renderer/src/i18n/translate/ja-jp.json'
+import koKR from '../../renderer/src/i18n/translate/ko-kr.json'
 import ptPT from '../../renderer/src/i18n/translate/pt-pt.json'
 import roRO from '../../renderer/src/i18n/translate/ro-ro.json'
 import RuRu from '../../renderer/src/i18n/translate/ru-ru.json'
@@ -17,6 +18,7 @@ const locales = Object.fromEntries(
     ['zh-CN', ZhCn],
     ['zh-TW', ZhTw],
     ['ja-JP', JaJP],
+    ['ko-KR', koKR],
     ['ru-RU', RuRu],
     ['de-DE', deDE],
     ['el-GR', elGR],

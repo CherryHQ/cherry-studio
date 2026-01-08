@@ -13,6 +13,7 @@ import elGR from './translate/el-gr.json'
 import esES from './translate/es-es.json'
 import frFR from './translate/fr-fr.json'
 import jaJP from './translate/ja-jp.json'
+import koKR from './translate/ko-kr.json'
 import ptPT from './translate/pt-pt.json'
 import roRO from './translate/ro-ro.json'
 import ruRU from './translate/ru-ru.json'
@@ -23,6 +24,7 @@ const resources = Object.fromEntries(
   [
     ['en-US', enUS],
     ['ja-JP', jaJP],
+    ['ko-KR', koKR],
     ['ru-RU', ruRU],
     ['zh-CN', zhCN],
     ['zh-TW', zhTW],
