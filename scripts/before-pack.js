@@ -1,5 +1,10 @@
 const { Arch } = require('electron-builder')
 const { execSync } = require('child_process')
+const fs = require('fs')
+const path = require('path')
+const yaml = require('js-yaml')
+
+const workspaceConfigPath = path.join(__dirname, '..', 'pnpm-workspace.yaml')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -49,28 +54,40 @@ exports.default = async function (context) {
   const archType = arch === Arch.arm64 ? 'arm64' : 'x64'
   const platform = context.packager.platform.name
 
-  const downloadPackages = async (packages) => {
-    // Skip if target architecture matches current system architecture
-    if (archType === process.arch) {
-      console.log(`Skipping install: target architecture (${archType}) matches current system`)
+  const downloadPackages = async () => {
+    const targetPlatform = platformToArch[platform]
+
+    // Skip if target platform and architecture match current system
+    if (targetPlatform === process.platform && archType === process.arch) {
+      console.log(`Skipping install: target (${targetPlatform}/${archType}) matches current system`)
       return
     }
 
-    console.log('Installing packages for target architecture...')
-    const packagesToInstall = []
+    console.log(`Installing packages for target platform=${targetPlatform} arch=${archType}...`)
 
-    for (const name of Object.keys(packages)) {
-      if (name.includes(`${platformToArch[platform]}`) && name.includes(`-${archType}`)) {
-        packagesToInstall.push(`${name}@${packages[name]}`)
-      }
+    // Backup and modify pnpm-workspace.yaml to add target platform support
+    const originalWorkspaceConfig = fs.readFileSync(workspaceConfigPath, 'utf-8')
+    const workspaceConfig = yaml.load(originalWorkspaceConfig)
+
+    // Add target platform to supportedArchitectures.os
+    if (!workspaceConfig.supportedArchitectures.os.includes(targetPlatform)) {
+      workspaceConfig.supportedArchitectures.os.push(targetPlatform)
     }
 
-    if (packagesToInstall.length > 0) {
-      const targetPlatform = platformToArch[platform]
-      console.log(`Installing for platform=${targetPlatform} arch=${archType}:`, packagesToInstall.join(' '))
-      execSync(`npm_config_platform=${targetPlatform} npm_config_arch=${archType} pnpm add ${packagesToInstall.join(' ')}`, {
-        stdio: 'inherit'
-      })
+    // Add target architecture to supportedArchitectures.cpu
+    if (!workspaceConfig.supportedArchitectures.cpu.includes(archType)) {
+      workspaceConfig.supportedArchitectures.cpu.push(archType)
+    }
+
+    const modifiedWorkspaceConfig = yaml.dump(workspaceConfig)
+    console.log('Modified workspace config:', modifiedWorkspaceConfig)
+    fs.writeFileSync(workspaceConfigPath, modifiedWorkspaceConfig)
+
+    try {
+      execSync(`pnpm install`, { stdio: 'inherit' })
+    } finally {
+      // Restore original pnpm-workspace.yaml
+      fs.writeFileSync(workspaceConfigPath, originalWorkspaceConfig)
     }
   }
 
@@ -85,7 +102,7 @@ exports.default = async function (context) {
     context.packager.config.files[0].filter = filters
   }
 
-  await downloadPackages(arch === Arch.arm64 ? allArm64 : allX64)
+  await downloadPackages()
 
   const arm64Filters = Object.keys(allArm64).map((f) => '!node_modules/' + f + '/**')
   const x64Filters = Object.keys(allX64).map((f) => '!node_modules/' + f + '/*')
