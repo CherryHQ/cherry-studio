@@ -1,5 +1,5 @@
 const { Arch } = require('electron-builder')
-const { downloadNpmPackage } = require('./utils')
+const { execSync } = require('child_process')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -50,21 +50,19 @@ exports.default = async function (context) {
   const platform = context.packager.platform.name
 
   const downloadPackages = async (packages) => {
-    console.log('downloading packages ......')
-    const downloadPromises = []
+    console.log('installing packages ......')
+    const packagesToInstall = []
 
     for (const name of Object.keys(packages)) {
       if (name.includes(`${platformToArch[platform]}`) && name.includes(`-${archType}`)) {
-        downloadPromises.push(
-          downloadNpmPackage(
-            name,
-            `https://registry.npmjs.org/${name}/-/${name.split('/').pop()}-${packages[name]}.tgz`
-          )
-        )
+        packagesToInstall.push(`${name}@${packages[name]}`)
       }
     }
 
-    await Promise.all(downloadPromises)
+    if (packagesToInstall.length > 0) {
+      console.log('Installing:', packagesToInstall.join(' '))
+      execSync(`pnpm install ${packagesToInstall.join(' ')}`, { stdio: 'inherit' })
+    }
   }
 
   const changeFilters = async (filtersToExclude, filtersToInclude) => {
