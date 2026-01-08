@@ -11,6 +11,7 @@
     "packages/extension-table-plus/**/*",
     "packages/mcp-trace/**/*",
     "packages/shared/**/*",
+    "packages/ui/**/*",
   ],
   "compilerOptions": {
     "composite": true,
