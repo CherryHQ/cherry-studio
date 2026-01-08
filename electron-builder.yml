@@ -143,7 +143,7 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.11 - New Features & Bug Fixes
+    Cherry Studio 1.7.12 - New Features & Bug Fixes
 
     ✨ New Features
     - [MCP] Add MCP Hub with Auto mode for intelligent multi-server tool orchestration
@@ -157,6 +157,7 @@ releaseInfo:
     - [Error] Fix app freeze when viewing error details with large images
     - [Notes] Fix folder overlay blocking webview preview
     - [Chat] Fix thinking time display when stopping generation
+    - [Providers] Add cache control options for Anthropic provider
 
     <!--LANG:zh-CN-->
     Cherry Studio 1.7.11 - 新功能与问题修复
@@ -173,4 +174,5 @@ releaseInfo:
     - [错误] 修复查看包含大图片的错误详情时应用卡死的问题
     - [笔记] 修复文件夹遮挡网页预览的问题
     - [对话] 修复停止生成时思考时间显示问题
+    - [服务商] Anthropic 服务商增加缓存控制选项
     <!--LANG:END-->
