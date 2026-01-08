@@ -1,0 +1,50 @@
+{
+  "name": "@vectorstores/libsql",
+  "description": "libSQL/Turso Storage for vectorstores",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "edge-light": {
+        "types": "./dist/index.edge-light.d.ts",
+        "default": "./dist/index.edge-light.js"
+      },
+      "workerd": {
+        "types": "./dist/index.edge-light.d.ts",
+        "default": "./dist/index.edge-light.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/schiesser/vectorstores.git",
+    "directory": "packages/providers/storage/libsql"
+  },
+  "scripts": {
+    "build": "bunchee",
+    "dev": "bunchee --watch",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "bunchee": "^6.9.3",
+    "vitest": "2.1.0"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.15",
+    "@vectorstores/core": "^0.1.8",
+    "@vectorstores/env": "^0.1.0"
+  }
+}
