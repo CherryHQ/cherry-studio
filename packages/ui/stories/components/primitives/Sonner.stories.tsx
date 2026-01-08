@@ -206,17 +206,15 @@ export const Warning: Story = {
 
 export const Loading: Story = {
   render: () => {
-    const mockPromise = new Promise((resolve) => {
-      setTimeout(() => resolve('Data loaded'), 2000)
-    })
-
     return (
       <div className="flex flex-col gap-3">
         <Button
           onClick={() =>
             toast.loading('Loading...', {
               description: 'Please wait while we process your request.',
-              promise: mockPromise
+              promise: new Promise((resolve) => {
+                setTimeout(() => resolve('Data loaded'), 2000)
+              })
             })
           }>
           Show Loading Toast
