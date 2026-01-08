@@ -29,8 +29,8 @@ const allX64 = {
   '@img/sharp-linux-x64': '0.34.3',
   '@img/sharp-win32-x64': '0.34.3',
 
-  '@img/sharp-libvips-darwin-x64': '1.2.4',
-  '@img/sharp-libvips-linux-x64': '1.2.4',
+  '@img/sharp-libvips-darwin-x64': '1.2.0',
+  '@img/sharp-libvips-linux-x64': '1.2.0',
 
   '@libsql/darwin-x64': '0.4.7',
   '@libsql/linux-x64-gnu': '0.4.7',
