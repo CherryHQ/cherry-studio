@@ -50,7 +50,13 @@ exports.default = async function (context) {
   const platform = context.packager.platform.name
 
   const downloadPackages = async (packages) => {
-    console.log('installing packages ......')
+    // Skip if target architecture matches current system architecture
+    if (archType === process.arch) {
+      console.log(`Skipping install: target architecture (${archType}) matches current system`)
+      return
+    }
+
+    console.log('Installing packages for target architecture...')
     const packagesToInstall = []
 
     for (const name of Object.keys(packages)) {
