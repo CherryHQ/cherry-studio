@@ -300,3 +300,31 @@ jobs:
         run: |
           rm -f /tmp/release_payload.json /tmp/upload_headers.txt release_body.txt
           rm -rf release-assets/
+
+      - name: Send failure notification to Feishu
+        if: always() && (failure() || cancelled())
+        shell: bash
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          TAG_NAME: ${{ steps.get-tag.outputs.tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          # Determine status and color
+          if [ "$JOB_STATUS" = "cancelled" ]; then
+            STATUS_TEXT="已取消"
+            COLOR="orange"
+          else
+            STATUS_TEXT="失败"
+            COLOR="red"
+          fi
+
+          # Build description using printf
+          DESCRIPTION=$(printf "**标签:** %s\n\n**状态:** %s\n\n**工作流:** [查看详情](%s)" "$TAG_NAME" "$STATUS_TEXT" "$RUN_URL")
+
+          # Send notification
+          pnpm tsx scripts/feishu-notify.ts send \
+            -t "GitCode 同步${STATUS_TEXT}" \
+            -d "$DESCRIPTION" \
+            -c "${COLOR}"
