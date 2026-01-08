@@ -1083,18 +1083,33 @@ export class SelectionService {
     this.lastCtrlkeyDownTime = -1
   }
 
-  //check if the key is ctrl key
+  // Check if the key is ctrl key
+  // Windows: VK_LCONTROL(162), VK_RCONTROL(163)
+  // macOS: kVK_Control(59), kVK_RightControl(62)
   private isCtrlkey(vkCode: number) {
+    if (isMac) {
+      return vkCode === 59 || vkCode === 62
+    }
     return vkCode === 162 || vkCode === 163
   }
 
-  //check if the key is shift key
+  // Check if the key is shift key
+  // Windows: VK_LSHIFT(160), VK_RSHIFT(161)
+  // macOS: kVK_Shift(56), kVK_RightShift(60)
   private isShiftkey(vkCode: number) {
+    if (isMac) {
+      return vkCode === 56 || vkCode === 60
+    }
     return vkCode === 160 || vkCode === 161
   }
 
-  //check if the key is alt key
+  // Check if the key is alt/option key
+  // Windows: VK_LMENU(164), VK_RMENU(165)
+  // macOS: kVK_Option(58), kVK_RightOption(61)
   private isAltkey(vkCode: number) {
+    if (isMac) {
+      return vkCode === 58 || vkCode === 61
+    }
     return vkCode === 164 || vkCode === 165
   }
 
