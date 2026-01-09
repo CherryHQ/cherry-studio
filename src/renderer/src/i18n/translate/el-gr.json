@@ -3115,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Προβολή",
+        "title": "Καριέρα"
+      },
       "checkUpdate": {
         "available": "Άμεση ενημέρωση",
         "label": "Έλεγχος ενημερώσεων"
@@ -4476,12 +4480,12 @@
         },
         "options": {
           "anthropic_cache": {
-            "cache_last_n": "[to be translated]:Cache Last N Messages",
-            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
-            "cache_system": "[to be translated]:Cache System Message",
-            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
-            "token_threshold": "[to be translated]:Cache Token Threshold",
-            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+            "cache_last_n": "Κρύψτε τα τελευταία N μηνύματα",
+            "cache_last_n_help": "Αποθηκεύστε στην κρυφή μνήμη τα τελευταία N μηνύματα της συνομιλίας (εξαιρουμένων των μηνυμάτων συστήματος)",
+            "cache_system": "Μήνυμα Συστήματος Κρυφής Μνήμης",
+            "cache_system_help": "Εάν θα αποθηκευτεί προσωρινά το σύστημα εντολών",
+            "token_threshold": "Κατώφλι Διακριτικού Κρυφής Μνήμης",
+            "token_threshold_help": "Μηνύματα που υπερβαίνουν αυτό το όριο token θα αποθηκεύονται στην cache. Ορίστε το σε 0 για να απενεργοποιήσετε την προσωρινή αποθήκευση."
           },
           "array_content": {
             "help": "Εάν ο πάροχος υποστηρίζει το πεδίο περιεχομένου του μηνύματος ως τύπο πίνακα",

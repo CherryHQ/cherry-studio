@@ -3115,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Vedere",
+        "title": "Carieră"
+      },
       "checkUpdate": {
         "available": "Actualizare",
         "label": "Verifică actualizări"
@@ -4476,12 +4480,12 @@
         },
         "options": {
           "anthropic_cache": {
-            "cache_last_n": "[to be translated]:Cache Last N Messages",
-            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
-            "cache_system": "[to be translated]:Cache System Message",
-            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
-            "token_threshold": "[to be translated]:Cache Token Threshold",
-            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+            "cache_last_n": "Cache Ultimelor N Mesaje",
+            "cache_last_n_help": "Stochează ultimele N mesaje din conversație (excluzând mesajele de sistem)",
+            "cache_system": "Mesaj de sistem Cache",
+            "cache_system_help": "Dacă să se memoreze în cache promptul de sistem",
+            "token_threshold": "Prag de Token Cache",
+            "token_threshold_help": "Mesajele care depășesc acest număr de tokeni vor fi memorate în cache. Setați la 0 pentru a dezactiva memorarea în cache."
           },
           "array_content": {
             "help": "Furnizorul acceptă ca câmpul content al mesajului să fie de tip array?",

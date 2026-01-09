@@ -3115,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Vista",
+        "title": "Carreras"
+      },
       "checkUpdate": {
         "available": "Actualizar ahora",
         "label": "Comprobar actualizaciones"
@@ -4476,12 +4480,12 @@
         },
         "options": {
           "anthropic_cache": {
-            "cache_last_n": "[to be translated]:Cache Last N Messages",
-            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
-            "cache_system": "[to be translated]:Cache System Message",
-            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
-            "token_threshold": "[to be translated]:Cache Token Threshold",
-            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+            "cache_last_n": "Caché de los últimos N mensajes",
+            "cache_last_n_help": "Almacenar en caché los últimos N mensajes de la conversación (excluyendo los mensajes del sistema)",
+            "cache_system": "Mensaje del Sistema de Caché",
+            "cache_system_help": "Si se debe almacenar en caché el mensaje del sistema",
+            "token_threshold": "Umbral de Token de Caché",
+            "token_threshold_help": "Los mensajes que superen este recuento de tokens se almacenarán en caché. Establecer en 0 para desactivar el almacenamiento en caché."
           },
           "array_content": {
             "help": "¿Admite el proveedor que el campo content del mensaje sea de tipo array?",

@@ -3115,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "表示",
+        "title": "キャリア"
+      },
       "checkUpdate": {
         "available": "今すぐ更新",
         "label": "更新を確認"
@@ -4476,12 +4480,12 @@
         },
         "options": {
           "anthropic_cache": {
-            "cache_last_n": "[to be translated]:Cache Last N Messages",
-            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
-            "cache_system": "[to be translated]:Cache System Message",
-            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
-            "token_threshold": "[to be translated]:Cache Token Threshold",
-            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+            "cache_last_n": "最後のN件のメッセージをキャッシュ",
+            "cache_last_n_help": "最後のN件の会話メッセージをキャッシュする（システムメッセージは除く）",
+            "cache_system": "キャッシュシステムメッセージ",
+            "cache_system_help": "システムプロンプトをキャッシュするかどうか",
+            "token_threshold": "キャッシュトークン閾値",
+            "token_threshold_help": "このトークン数を超えるメッセージはキャッシュされます。キャッシュを無効にするには0を設定してください。"
           },
           "array_content": {
             "help": "このプロバイダーは、message の content フィールドが配列型であることをサポートしていますか",

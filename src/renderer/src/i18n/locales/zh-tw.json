@@ -3115,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "查看",
+        "title": "加入我們"
+      },
       "checkUpdate": {
         "available": "立即更新",
         "label": "檢查更新"
@@ -4476,12 +4480,12 @@
         },
         "options": {
           "anthropic_cache": {
-            "cache_last_n": "[to be translated]:Cache Last N Messages",
-            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
-            "cache_system": "[to be translated]:Cache System Message",
-            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
-            "token_threshold": "[to be translated]:Cache Token Threshold",
-            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+            "cache_last_n": "快取最近 N 則訊息",
+            "cache_last_n_help": "快取最後 N 則對話訊息（排除系統訊息）",
+            "cache_system": "快取系統訊息",
+            "cache_system_help": "是否快取系統提示",
+            "token_threshold": "快取權杖閾值",
+            "token_threshold_help": "超過此標記數量的訊息將被快取。設為 0 以停用快取。"
           },
           "array_content": {
             "help": "該供應商是否支援 message 的 content 欄位為 array 類型",
