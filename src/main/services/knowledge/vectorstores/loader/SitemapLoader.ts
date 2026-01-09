@@ -2,13 +2,15 @@
  * Sitemap Loader for KnowledgeServiceV2
  *
  * Handles loading sitemap URLs and converting them to vectorstores nodes.
- * Reuses the embedjs SitemapLoader for content extraction.
+ * Uses sitemapper + fetch + HTMLReader for content extraction.
  */
 
-import { SitemapLoader as EmbedjsSitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { loggerService } from '@logger'
-import { Document, SentenceSplitter } from '@vectorstores/core'
+import type { Document } from '@vectorstores/core'
+import { SentenceSplitter } from '@vectorstores/core'
+import { HTMLReader } from '@vectorstores/readers/html'
 import md5 from 'md5'
+import Sitemapper from 'sitemapper'
 
 import {
   type ContentLoader,
@@ -51,27 +53,52 @@ export class SitemapLoader implements ContentLoader {
     const chunkOverlap = base.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
 
     try {
-      // Use embedjs SitemapLoader to fetch and parse the sitemap
-      const sitemapLoader = new EmbedjsSitemapLoader({
-        url,
-        chunkSize,
-        chunkOverlap
-      })
+      // 1. Parse sitemap and get all URLs
+      logger.info(`Fetching sitemap: ${url}`)
+      const sitemap = new Sitemapper({ url, timeout: 30000 })
+      const { sites } = await sitemap.fetch()
 
-      // Collect all chunks from the loader
+      logger.info(`Sitemap contains ${sites.length} URLs`)
+
+      if (sites.length === 0) {
+        logger.warn(`No URLs found in sitemap: ${url}`)
+        return {
+          nodes: [],
+          uniqueId,
+          loaderType: 'SitemapLoader'
+        }
+      }
+
+      // 2. Fetch and parse each URL
       const documents: Document[] = []
-      for await (const chunk of sitemapLoader.getUnfilteredChunks()) {
-        documents.push(
-          new Document({
-            text: chunk.pageContent,
-            metadata: {
-              ...chunk.metadata,
-              source: url,
+      const reader = new HTMLReader()
+
+      for (const siteUrl of sites) {
+        try {
+          logger.debug(`Fetching URL from sitemap: ${siteUrl}`)
+          const response = await fetch(siteUrl)
+          if (!response.ok) {
+            logger.warn(`Failed to fetch ${siteUrl}: HTTP ${response.status}`)
+            continue
+          }
+          const html = await response.text()
+
+          const docs = await reader.loadDataAsContent(new TextEncoder().encode(html))
+          docs.forEach((doc) => {
+            doc.metadata = {
+              ...doc.metadata,
+              source: siteUrl,
+              sitemapUrl: url,
               type: 'sitemap'
             }
           })
-        )
+          documents.push(...(docs.filter((d) => d.getText().trim().length > 0) as Document[]))
+        } catch (err) {
+          logger.warn(`Error processing ${siteUrl}:`, err as Error)
+        }
       }
+
+      logger.info(`Extracted ${documents.length} documents from sitemap ${url}`)
 
       if (documents.length === 0) {
         logger.warn(`No content extracted from sitemap: ${url}`)

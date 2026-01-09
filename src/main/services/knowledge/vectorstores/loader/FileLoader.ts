@@ -2,17 +2,22 @@
  * File Loader for KnowledgeServiceV2
  *
  * Handles loading various file types and converting them to vectorstores nodes.
- * Uses existing loaders from embedjs for non-markdown files.
+ * Uses @vectorstores/readers for structured file types.
  */
 
 import * as fs from 'node:fs'
 
-import { JsonLoader, LocalPathLoader, TextLoader } from '@cherrystudio/embedjs'
-import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
-import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import type { FileMetadata } from '@types'
-import { Document, SentenceSplitter } from '@vectorstores/core'
+import type { Document } from '@vectorstores/core'
+import { type FileReader, SentenceSplitter } from '@vectorstores/core'
+import { CSVReader } from '@vectorstores/readers/csv'
+import { DocxReader } from '@vectorstores/readers/docx'
+import { HTMLReader } from '@vectorstores/readers/html'
+import { JSONReader } from '@vectorstores/readers/json'
+import { MarkdownReader } from '@vectorstores/readers/markdown'
+import { PDFReader } from '@vectorstores/readers/pdf'
+import { TextFileReader } from '@vectorstores/readers/text'
 import md5 from 'md5'
 
 import {
@@ -22,35 +27,22 @@ import {
   type LoaderContext,
   type LoaderResult
 } from '../types'
-import { loadMarkdownDocuments } from './markdownLoader'
-import { EpubLoader } from './readers/epubLoader'
-import { OdLoader, OdType } from './readers/odLoader'
+import { EpubReader } from './readers/EpubReader'
 
 const logger = loggerService.withContext('FileLoader')
 
 // File extension to loader type mapping
 const FILE_LOADER_MAP: Record<string, string> = {
-  // Built-in types
-  '.pdf': 'common',
-  '.csv': 'common',
-  '.doc': 'common',
-  '.docx': 'common',
-  '.pptx': 'common',
-  '.xlsx': 'common',
-  // Markdown (uses native vectorstores loader)
-  '.md': 'markdown',
-  // OD types
-  '.odt': 'od',
-  '.ods': 'od',
-  '.odp': 'od',
-  // EPUB type
-  '.epub': 'epub',
-  // HTML type
-  '.html': 'html',
-  '.htm': 'html',
-  // JSON type
-  '.json': 'json'
-  // Other types default to text
+  // Use @vectorstores/readers
+  '.pdf': 'vectorstores',
+  '.csv': 'vectorstores',
+  '.docx': 'vectorstores',
+  '.json': 'vectorstores',
+  '.md': 'vectorstores',
+  '.epub': 'vectorstores',
+  '.html': 'vectorstores',
+  '.htm': 'vectorstores'
+  // Other types default to 'text' (using TextFileReader)
 }
 
 /**
@@ -88,51 +80,13 @@ export class FileLoader implements ContentLoader {
       let documents: Document[]
 
       switch (loaderType) {
-        case 'markdown':
-          documents = await loadMarkdownDocuments(file)
-          break
-
-        case 'common':
-          documents = await this.loadWithEmbedjs(LocalPathLoader, {
-            path: file.path,
-            chunkSize,
-            chunkOverlap
-          })
-          break
-
-        case 'od':
-          documents = await this.loadOdFile(file, chunkSize, chunkOverlap)
-          break
-
-        case 'epub':
-          documents = await this.loadWithEmbedjs(EpubLoader, {
-            filePath: file.path,
-            chunkSize,
-            chunkOverlap
-          })
-          break
-
-        case 'html':
-          const htmlContent = await readTextFileWithAutoEncoding(file.path)
-          documents = await this.loadWithEmbedjs(WebLoader, {
-            urlOrContent: htmlContent,
-            chunkSize,
-            chunkOverlap
-          })
-          break
-
-        case 'json':
-          documents = await this.loadJsonFile(file, chunkSize, chunkOverlap)
+        case 'vectorstores':
+          documents = await this.loadWithVectorstores(file)
           break
 
         default:
-          // Text type (default)
-          const textContent = await readTextFileWithAutoEncoding(file.path)
-          documents = await this.loadWithEmbedjs(TextLoader, {
-            text: textContent,
-            chunkSize,
-            chunkOverlap
-          })
+          // Use TextFileReader for all other file types
+          documents = await this.loadAsText(file)
           break
       }
 
@@ -164,69 +118,68 @@ export class FileLoader implements ContentLoader {
   }
 
   /**
-   * Load file using embedjs loader and convert to vectorstores documents
+   * Load file using @vectorstores/readers
    */
-  private async loadWithEmbedjs(
-    LoaderClass: new (
-      options: any
-    ) => { getUnfilteredChunks: () => AsyncGenerator<{ pageContent: string; metadata: any }> },
-    options: any
-  ): Promise<Document[]> {
-    const loader = new LoaderClass(options)
-    const documents: Document[] = []
+  private async loadWithVectorstores(file: FileMetadata): Promise<Document[]> {
+    const ext = file.ext.toLowerCase()
 
-    for await (const chunk of loader.getUnfilteredChunks()) {
-      documents.push(
-        new Document({
-          text: chunk.pageContent,
-          metadata: chunk.metadata || {}
-        })
-      )
+    const readerMap: Record<string, { name: string; create: () => FileReader }> = {
+      '.csv': { name: 'CSVReader', create: () => new CSVReader() },
+      '.docx': { name: 'DocxReader', create: () => new DocxReader() },
+      '.html': { name: 'HTMLReader', create: () => new HTMLReader() },
+      '.htm': { name: 'HTMLReader', create: () => new HTMLReader() },
+      '.json': { name: 'JSONReader', create: () => new JSONReader() },
+      '.md': { name: 'MarkdownReader', create: () => new MarkdownReader() },
+      '.pdf': { name: 'PDFReader', create: () => new PDFReader() },
+      '.epub': { name: 'EpubReader', create: () => new EpubReader() }
     }
+
+    const readerInfo = readerMap[ext]
+    if (!readerInfo) {
+      throw new Error(`No reader found for extension: ${ext}`)
+    }
+
+    logger.info(`Loading file with ${readerInfo.name}: ${file.path}`)
+
+    const reader = readerInfo.create()
+    const documents = await reader.loadData(file.path)
+
+    logger.info(`${readerInfo.name} loaded ${documents.length} documents from ${file.path}`)
+
+    // Normalize metadata and filter empty documents
+    return documents
+      .map((doc) => {
+        doc.metadata = {
+          ...doc.metadata,
+          source: file.path,
+          type: 'file'
+        }
+        return doc as Document
+      })
+      .filter((doc) => doc.getText().trim().length > 0)
+  }
+
+  /**
+   * Load file as plain text using TextFileReader
+   */
+  private async loadAsText(file: FileMetadata): Promise<Document[]> {
+    logger.info(`Loading file with TextFileReader: ${file.path}`)
+
+    const reader = new TextFileReader()
+    const documents = await reader.loadData(file.path)
+
+    logger.info(`TextFileReader loaded ${documents.length} documents from ${file.path}`)
 
     return documents
-  }
-
-  /**
-   * Load OD (OpenDocument) file
-   */
-  private async loadOdFile(file: FileMetadata, chunkSize: number, chunkOverlap: number): Promise<Document[]> {
-    const loaderMap: Record<string, OdType> = {
-      '.odt': OdType.OdtLoader,
-      '.ods': OdType.OdsLoader,
-      '.odp': OdType.OdpLoader
-    }
-    const odType = loaderMap[file.ext.toLowerCase()]
-    if (!odType) {
-      throw new Error(`Unknown OD type: ${file.ext}`)
-    }
-
-    return this.loadWithEmbedjs(OdLoader, {
-      odType,
-      filePath: file.path,
-      chunkSize,
-      chunkOverlap
-    })
-  }
-
-  /**
-   * Load JSON file
-   */
-  private async loadJsonFile(file: FileMetadata, chunkSize: number, chunkOverlap: number): Promise<Document[]> {
-    try {
-      const jsonContent = await readTextFileWithAutoEncoding(file.path)
-      const jsonObject = JSON.parse(jsonContent)
-      return this.loadWithEmbedjs(JsonLoader, { object: jsonObject })
-    } catch (error) {
-      // If JSON parsing fails, fall back to text loading
-      logger.warn(`Failed to parse JSON file ${file.path}, falling back to text:`, error as Error)
-      const textContent = await readTextFileWithAutoEncoding(file.path)
-      return this.loadWithEmbedjs(TextLoader, {
-        text: textContent,
-        chunkSize,
-        chunkOverlap
+      .map((doc) => {
+        doc.metadata = {
+          ...doc.metadata,
+          source: file.path,
+          type: 'file'
+        }
+        return doc as Document
       })
-    }
+      .filter((doc) => doc.getText().trim().length > 0)
   }
 
   /**

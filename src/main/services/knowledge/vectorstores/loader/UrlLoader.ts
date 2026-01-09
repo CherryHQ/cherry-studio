@@ -2,12 +2,13 @@
  * URL Loader for KnowledgeServiceV2
  *
  * Handles loading web URLs and converting them to vectorstores nodes.
- * Reuses the embedjs WebLoader for content extraction.
+ * Uses fetch + HTMLReader for content extraction.
  */
 
-import { WebLoader as EmbedjsWebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
-import { Document, SentenceSplitter } from '@vectorstores/core'
+import type { Document } from '@vectorstores/core'
+import { SentenceSplitter } from '@vectorstores/core'
+import { HTMLReader } from '@vectorstores/readers/html'
 import md5 from 'md5'
 
 import {
@@ -51,27 +52,32 @@ export class UrlLoader implements ContentLoader {
     const chunkOverlap = base.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
 
     try {
-      // Use embedjs WebLoader to fetch and parse the URL
-      const webLoader = new EmbedjsWebLoader({
-        urlOrContent: url,
-        chunkSize,
-        chunkOverlap
-      })
-
-      // Collect all chunks from the loader
-      const documents: Document[] = []
-      for await (const chunk of webLoader.getUnfilteredChunks()) {
-        documents.push(
-          new Document({
-            text: chunk.pageContent,
-            metadata: {
-              ...chunk.metadata,
-              source: url,
-              type: 'url'
-            }
-          })
-        )
+      // 1. Fetch URL content
+      logger.info(`Fetching URL: ${url}`)
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
+      const html = await response.text()
+
+      // 2. Parse HTML with HTMLReader
+      logger.info(`Parsing HTML content from URL: ${url}`)
+      const reader = new HTMLReader()
+      const rawDocuments = await reader.loadDataAsContent(new TextEncoder().encode(html))
+
+      // 3. Normalize documents
+      const documents = rawDocuments
+        .map((doc) => {
+          doc.metadata = {
+            ...doc.metadata,
+            source: url,
+            type: 'url'
+          }
+          return doc as Document
+        })
+        .filter((doc) => doc.getText().trim().length > 0)
+
+      logger.info(`HTMLReader extracted ${documents.length} documents from ${url}`)
 
       if (documents.length === 0) {
         logger.warn(`No content extracted from URL: ${url}`)

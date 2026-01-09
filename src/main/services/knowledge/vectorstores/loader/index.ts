@@ -11,10 +11,6 @@ import { NoteLoader } from './NoteLoader'
 import { SitemapLoader } from './SitemapLoader'
 import { UrlLoader } from './UrlLoader'
 
-// Re-export markdown loader utilities
-export type { MarkdownDocumentMetadata } from './markdownLoader'
-export { loadMarkdownDocuments } from './markdownLoader'
-
 // Re-export all loaders
 export { DirectoryLoader } from './DirectoryLoader'
 export { FileLoader } from './FileLoader'

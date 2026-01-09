@@ -20,9 +20,10 @@ import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
 import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchResult } from '@types'
-import type { VectorStoreQueryResult } from '@vectorstores/core'
+import type { Document, VectorStoreQueryResult } from '@vectorstores/core'
 import { MetadataMode, SentenceSplitter } from '@vectorstores/core'
-import { LibSQLVectorStore } from '@vectorstores/libsql'
+import { LIBSQL_TABLE, LibSQLVectorStore } from '@vectorstores/libsql'
+import { MarkdownReader } from '@vectorstores/readers/markdown'
 import md5 from 'md5'
 
 import Embeddings from './embedjs/embeddings/Embeddings'
@@ -30,7 +31,7 @@ import PreprocessProvider from './preprocess/PreprocessProvider'
 import Reranker from './reranker/Reranker'
 import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
 import { embedNodes } from './vectorstores/EmbeddingPipeline'
-import { estimateWorkload, getLoader, loadMarkdownDocuments } from './vectorstores/loader'
+import { estimateWorkload, getLoader } from './vectorstores/loader'
 import { TaskQueueManager } from './vectorstores/TaskQueueManager'
 import {
   DEFAULT_CHUNK_OVERLAP,
@@ -82,6 +83,37 @@ class KnowledgeServiceV2 {
    */
   private getDbPath(id: string): string {
     return path.join(this.storageDir, sanitizeFilename(id, '_'))
+  }
+
+  private async getEmbeddingSchemaInfo(
+    store: LibSQLVectorStore
+  ): Promise<{ dimensions: number | null; columnType: string | null }> {
+    try {
+      const result = await store.client().execute({
+        sql: `PRAGMA table_info(${LIBSQL_TABLE})`,
+        args: []
+      })
+      const embeddingRow = result.rows.find((row) => String(row.name) === 'embeddings')
+      if (!embeddingRow) {
+        return { dimensions: null, columnType: null }
+      }
+      const columnType = String(embeddingRow.type ?? '')
+      const match = /F32_BLOB\((\d+)\)/i.exec(columnType)
+      return { dimensions: match ? Number(match[1]) : null, columnType }
+    } catch (error) {
+      logger.debug('[KnowledgeV2] Failed to read embedding schema info', error as Error)
+      return { dimensions: null, columnType: null }
+    }
+  }
+
+  private async logEmbeddingSchemaInfo(store: LibSQLVectorStore, baseId: string, context: string): Promise<void> {
+    const { dimensions, columnType } = await this.getEmbeddingSchemaInfo(store)
+    logger.debug(`[KnowledgeV2] ${context} embedding schema`, {
+      baseId,
+      table: LIBSQL_TABLE,
+      dimensions: dimensions ?? 'unknown',
+      columnType: columnType ?? 'unknown'
+    })
   }
 
   /**
@@ -203,7 +235,11 @@ class KnowledgeServiceV2 {
    * Create/initialize a knowledge base
    */
   public create = async (_: Electron.IpcMainInvokeEvent | undefined, base: KnowledgeBaseParams): Promise<void> => {
-    logger.info(`[KnowledgeV2] Create called for base ${base.id}`)
+    logger.info(`[KnowledgeV2] Create called for base ${base.id}`, {
+      dimensions: base.dimensions ?? 'auto',
+      model: base.embedApiClient.model,
+      provider: base.embedApiClient.provider
+    })
     await this.getOrCreateStore(base)
   }
 
@@ -326,10 +362,17 @@ class KnowledgeServiceV2 {
       // Step 3: Embed nodes
       logger.info(`[KnowledgeV2] Embedding ${loaderResult.nodes.length} nodes for item ${item.id}`)
       const embeddedNodes = await embedNodes(loaderResult.nodes, base)
+      const embeddedDimensions = embeddedNodes[0]?.getEmbedding()?.length ?? 0
+      logger.debug('[KnowledgeV2] Embedding dimensions resolved', {
+        baseId: base.id,
+        baseDimensions: base.dimensions ?? 'auto',
+        embeddedDimensions
+      })
 
       // Step 4: Store in vector database
       const store = await this.getOrCreateStore(base)
       const insertedIds = await store.add(embeddedNodes)
+      await this.logEmbeddingSchemaInfo(store, base.id, 'Post-add')
 
       logger.info(`[KnowledgeV2] Add completed: item=${item.id}, nodes=${insertedIds.length}`)
 
@@ -476,6 +519,11 @@ class KnowledgeServiceV2 {
         dimensions: base.dimensions
       })
       const queryEmbedding = await embeddingsClient.embedQuery(search)
+      logger.debug('[KnowledgeV2] Search query embedding dimensions', {
+        baseId: base.id,
+        baseDimensions: base.dimensions ?? 'auto',
+        queryDimensions: queryEmbedding.length
+      })
 
       // Perform search
       const dimensions = base.dimensions ?? queryEmbedding.length
@@ -484,6 +532,7 @@ class KnowledgeServiceV2 {
         dimensions,
         collection: ''
       })
+      await this.logEmbeddingSchemaInfo(store, base.id, 'Pre-search')
 
       const topK = base.documentCount ?? DEFAULT_DOCUMENT_COUNT
       const queryResult = await store.query({
@@ -597,7 +646,21 @@ class KnowledgeServiceV2 {
         throw new Error(`File not found: ${file.path}`)
       }
 
-      const documents = await loadMarkdownDocuments(file)
+      const reader = new MarkdownReader()
+      const rawDocuments = await reader.loadData(file.path)
+
+      // Normalize metadata and filter empty documents
+      const documents = rawDocuments
+        .map((doc) => {
+          doc.metadata = {
+            ...doc.metadata,
+            source: file.path,
+            type: 'markdown'
+          }
+          return doc as Document
+        })
+        .filter((doc) => doc.getText().trim().length > 0)
+
       logger.info(`[KnowledgeV2] Markdown documents loaded: ${documents.length}`)
       if (documents.length === 0) {
         logger.warn(`[KnowledgeV2] Markdown ingest skipped: no content in ${file.path}`)
