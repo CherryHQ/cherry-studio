@@ -15,11 +15,10 @@ import * as fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
-import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchResult } from '@types'
+import type { FileMetadata, KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 import type { Document, VectorStoreQueryResult } from '@vectorstores/core'
 import { MetadataMode, SentenceSplitter } from '@vectorstores/core'
 import { LIBSQL_TABLE, LibSQLVectorStore } from '@vectorstores/libsql'
@@ -27,7 +26,6 @@ import { MarkdownReader } from '@vectorstores/readers/markdown'
 import md5 from 'md5'
 
 import Embeddings from './embedjs/embeddings/Embeddings'
-import PreprocessProvider from './preprocess/PreprocessProvider'
 import Reranker from './reranker/Reranker'
 import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
 import { embedNodes } from './vectorstores/EmbeddingPipeline'
@@ -329,25 +327,19 @@ class KnowledgeServiceV2 {
    * Process add task (called by queue)
    */
   private async processAddTask(context: ReaderContext): Promise<LoaderReturn> {
-    const { base, item, userId } = context
+    const { base, item } = context
     const itemType = item.type as KnowledgeItemType
 
     try {
-      // Step 1: Preprocessing (for PDF files)
-      let processedItem = item
-      if (itemType === 'file') {
-        processedItem = await this.preprocessIfNeeded(item, base, userId)
-      }
+      // TODO: Preprocessing integration point
+      // When PreprocessingService is ready, call it here for PDF files:
+      // if (itemType === 'file') {
+      //   processedItem = await preprocessingService.preprocessIfNeeded(item, base, userId)
+      // }
 
-      // Update context with processed item
-      const processedContext: ReaderContext = {
-        ...context,
-        item: processedItem
-      }
-
-      // Step 2: Read content using appropriate reader
+      // Read content using appropriate reader
       const reader = getReader(itemType)!
-      const readerResult = await reader.read(processedContext)
+      const readerResult = await reader.read(context)
 
       if (readerResult.nodes.length === 0) {
         logger.warn(`[KnowledgeV2] No content read for item ${item.id}`)
@@ -385,52 +377,6 @@ class KnowledgeServiceV2 {
     } catch (error) {
       logger.error(`[KnowledgeV2] Process add task failed for item ${item.id}:`, error as Error)
       throw error
-    }
-  }
-
-  /**
-   * Preprocess file if needed (e.g., PDF preprocessing)
-   */
-  private async preprocessIfNeeded(
-    item: KnowledgeItem,
-    base: KnowledgeBaseParams,
-    userId?: string
-  ): Promise<KnowledgeItem> {
-    const file = item.content as FileMetadata
-
-    if (!base.preprocessProvider || file.ext.toLowerCase() !== '.pdf') {
-      return item
-    }
-
-    try {
-      const provider = new PreprocessProvider(base.preprocessProvider.provider, userId ?? '')
-      const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
-
-      if (alreadyProcessed) {
-        logger.debug(`File already preprocessed, using cached result: ${file.path}`)
-        return {
-          ...item,
-          content: alreadyProcessed
-        }
-      }
-
-      logger.debug(`Starting preprocessing for PDF: ${file.path}`)
-      const { processedFile, quota } = await provider.parseFile(item.id, file)
-
-      // Notify renderer of preprocessing completion
-      const mainWindow = windowService.getMainWindow()
-      mainWindow?.webContents.send('file-preprocess-finished', {
-        itemId: item.id,
-        quota
-      })
-
-      return {
-        ...item,
-        content: processedFile
-      }
-    } catch (error) {
-      logger.error(`Preprocessing failed for ${file.path}:`, error as Error)
-      throw new Error(`Preprocessing failed: ${error}`)
     }
   }
 
@@ -583,28 +529,32 @@ class KnowledgeServiceV2 {
   }
 
   // ============================================================================
-  // Utilities
+  // Preprocessing Interface (To be implemented by separate PreprocessingService)
   // ============================================================================
 
   /**
-   * Check preprocessing quota
+   * Preprocessing will be extracted as a separate service.
+   * The following interfaces should be implemented:
+   *
+   * interface PreprocessingService {
+   *   // Parse file (e.g., convert PDF to markdown)
+   *   parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata; quota?: number }>
+   *
+   *   // Check preprocessing quota
+   *   checkQuota(userId: string): Promise<number>
+   *
+   *   // Check if file was already preprocessed (cache check)
+   *   checkIfAlreadyProcessed(file: FileMetadata): Promise<FileMetadata | null>
+   * }
+   *
+   * Events to emit:
+   * - 'file-preprocess-finished': { itemId: string, quota?: number }
+   * - 'file-preprocess-progress': { itemId: string, progress: number }
    */
-  public checkQuota = async (
-    _: Electron.IpcMainInvokeEvent,
-    base: KnowledgeBaseParams,
-    userId: string
-  ): Promise<number> => {
-    try {
-      if (base.preprocessProvider && base.preprocessProvider.type === 'preprocess') {
-        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
-        return await provider.checkQuota()
-      }
-      throw new Error('No preprocess provider configured')
-    } catch (err) {
-      logger.error(`Failed to check quota: ${err}`)
-      throw new Error(`Failed to check quota: ${err}`)
-    }
-  }
+
+  // ============================================================================
+  // Utilities
+  // ============================================================================
 
   /**
    * Get storage directory path

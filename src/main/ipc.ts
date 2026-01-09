@@ -685,7 +685,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.KnowledgeBase_Remove, knowledgeServiceV2.remove.bind(knowledgeServiceV2))
   ipcMain.handle(IpcChannel.KnowledgeBase_Search, knowledgeServiceV2.search.bind(knowledgeServiceV2))
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeServiceV2.rerank.bind(knowledgeServiceV2))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, knowledgeServiceV2.checkQuota.bind(knowledgeServiceV2))
   ipcMain.handle(IpcChannel.KnowledgeBase_MigrateV2, (_, base: KnowledgeBase) => knowledgeMigrateService.migrate(base))
 
   // memory
