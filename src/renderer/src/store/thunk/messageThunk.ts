@@ -566,9 +566,9 @@ const fetchAndProcessAgentResponseImpl = async (
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
-    // Initialize streaming session in StreamingService
+    // Initialize streaming task in StreamingService
     // NOTE: parentId is used internally; askId in renderer format is derived from parentId
-    streamingService.startSession(topicId, assistantMessage.id, {
+    streamingService.startTask(topicId, assistantMessage.id, {
       parentId: userMessageId,
       siblingsGroupId: 0,
       role: 'assistant',
@@ -809,7 +809,7 @@ const fetchAndProcessAssistantResponseImpl = async (
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
-    // Build context messages first (needed for startSession)
+    // Build context messages first (needed for startTask)
     const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
 
     let messagesForContext: Message[] = []
@@ -839,9 +839,9 @@ const fetchAndProcessAssistantResponseImpl = async (
       }
     }
 
-    // Initialize streaming session in StreamingService (includes context for usage estimation)
+    // Initialize streaming task in StreamingService (includes context for usage estimation)
     // NOTE: parentId is used internally; askId in renderer format is derived from parentId
-    streamingService.startSession(topicId, assistantMsgId, {
+    streamingService.startTask(topicId, assistantMsgId, {
       parentId: userMessageId!,
       siblingsGroupId,
       role: 'assistant',

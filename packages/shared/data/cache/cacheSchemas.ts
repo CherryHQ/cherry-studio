@@ -149,11 +149,11 @@ export type UseCacheSchema = {
   // TODO [v2]: Replace `any` with proper types after newMessage.ts types are
   // migrated to packages/shared/data/types/message.ts
   // Current types:
-  // - StreamingSession: defined locally in StreamingService.ts
+  // - StreamingTask: defined locally in StreamingService.ts
   // - Message: src/renderer/src/types/newMessage.ts (renderer format, not shared/Message)
   // - MessageBlock: src/renderer/src/types/newMessage.ts
-  'message.streaming.session.${messageId}': any // StreamingSession
-  'message.streaming.topic_sessions.${topicId}': string[]
+  'message.streaming.task.${messageId}': any // StreamingTask
+  'message.streaming.topic_tasks.${topicId}': string[]
   'message.streaming.content.${messageId}': any // Message (renderer format)
   'message.streaming.block.${blockId}': any // MessageBlock
   'message.streaming.siblings_counter.${topicId}': number
@@ -202,8 +202,8 @@ export const DefaultUseCache: UseCacheSchema = {
   'entity.cache.${type}_${id}': { loaded: false, data: null },
 
   // Message Streaming Cache
-  'message.streaming.session.${messageId}': null,
-  'message.streaming.topic_sessions.${topicId}': [],
+  'message.streaming.task.${messageId}': null,
+  'message.streaming.topic_tasks.${topicId}': [],
   'message.streaming.content.${messageId}': null,
   'message.streaming.block.${blockId}': null,
   'message.streaming.siblings_counter.${topicId}': 0
