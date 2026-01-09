@@ -1,7 +1,7 @@
 /**
- * Note Loader for KnowledgeServiceV2
+ * Note Reader for KnowledgeServiceV2
  *
- * Handles loading text notes and converting them to vectorstores nodes.
+ * Handles reading text notes and converting them to vectorstores nodes.
  */
 
 import { loggerService } from '@logger'
@@ -9,39 +9,39 @@ import { Document, SentenceSplitter } from '@vectorstores/core'
 import md5 from 'md5'
 
 import {
-  type ContentLoader,
+  type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
-  type LoaderContext,
-  type LoaderResult
+  type ReaderContext,
+  type ReaderResult
 } from '../types'
 
-const logger = loggerService.withContext('NoteLoader')
+const logger = loggerService.withContext('NoteReader')
 
 /**
- * Loader for text notes
+ * Reader for text notes
  */
-export class NoteLoader implements ContentLoader {
+export class NoteReader implements ContentReader {
   readonly type = 'note' as const
 
   /**
-   * Load note content and split into chunks
+   * Read note content and split into chunks
    */
-  async load(context: LoaderContext): Promise<LoaderResult> {
+  async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
     const content = item.content as string
     const sourceUrl = (item as { sourceUrl?: string }).sourceUrl
 
-    const uniqueId = `NoteLoader_${md5(content + (sourceUrl || ''))}`
+    const uniqueId = `NoteReader_${md5(content + (sourceUrl || ''))}`
 
-    logger.debug(`Loading note for item ${itemId}, content length: ${content.length}`)
+    logger.debug(`Reading note for item ${itemId}, content length: ${content.length}`)
 
     if (!content || content.trim().length === 0) {
       logger.warn(`Empty note content for item ${itemId}`)
       return {
         nodes: [],
         uniqueId,
-        loaderType: 'NoteLoader'
+        readerType: 'NoteReader'
       }
     }
 
@@ -74,14 +74,14 @@ export class NoteLoader implements ContentLoader {
     return {
       nodes,
       uniqueId,
-      loaderType: 'NoteLoader'
+      readerType: 'NoteReader'
     }
   }
 
   /**
    * Estimate workload based on content length
    */
-  estimateWorkload(context: LoaderContext): number {
+  estimateWorkload(context: ReaderContext): number {
     const content = context.item.content as string
     const encoder = new TextEncoder()
     return encoder.encode(content).length

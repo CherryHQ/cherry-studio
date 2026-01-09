@@ -1,7 +1,7 @@
 /**
- * Directory Loader for KnowledgeServiceV2
+ * Directory Reader for KnowledgeServiceV2
  *
- * Handles loading directories by scanning all files and loading each one.
+ * Handles reading directories by scanning all files and reading each one.
  * Uses SimpleDirectoryReader from @vectorstores/readers/directory.
  */
 
@@ -18,32 +18,32 @@ import { TextFileReader } from '@vectorstores/readers/text'
 import { v4 as uuidv4 } from 'uuid'
 
 import {
-  type ContentLoader,
+  type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
-  type LoaderContext,
-  type LoaderResult,
-  MB
+  MB,
+  type ReaderContext,
+  type ReaderResult
 } from '../types'
 
-const logger = loggerService.withContext('DirectoryLoader')
+const logger = loggerService.withContext('DirectoryReader')
 
 /**
- * Loader for directories using SimpleDirectoryReader
+ * Reader for directories using SimpleDirectoryReader
  */
-export class DirectoryLoader implements ContentLoader {
+export class DirectoryReader implements ContentReader {
   readonly type = 'directory' as const
 
   /**
-   * Load all files in directory using SimpleDirectoryReader
+   * Read all files in directory using SimpleDirectoryReader
    */
-  async load(context: LoaderContext): Promise<LoaderResult> {
+  async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
     const directoryPath = item.content as string
 
-    const uniqueId = `DirectoryLoader_${uuidv4()}`
+    const uniqueId = `DirectoryReader_${uuidv4()}`
 
-    logger.debug(`Loading directory ${directoryPath} for item ${itemId}`)
+    logger.debug(`Reading directory ${directoryPath} for item ${itemId}`)
 
     // Validate directory exists
     if (!fs.existsSync(directoryPath)) {
@@ -51,7 +51,7 @@ export class DirectoryLoader implements ContentLoader {
       return {
         nodes: [],
         uniqueId,
-        loaderType: 'DirectoryLoader'
+        readerType: 'DirectoryReader'
       }
     }
 
@@ -80,7 +80,7 @@ export class DirectoryLoader implements ContentLoader {
       return {
         nodes: [],
         uniqueId,
-        loaderType: 'DirectoryLoader'
+        readerType: 'DirectoryReader'
       }
     }
 
@@ -118,21 +118,19 @@ export class DirectoryLoader implements ContentLoader {
       }
     })
 
-    logger.debug(
-      `Directory ${directoryPath} loaded with ${nodes.length} total chunks from ${filteredDocs.length} files`
-    )
+    logger.debug(`Directory ${directoryPath} read with ${nodes.length} total chunks from ${filteredDocs.length} files`)
 
     return {
       nodes,
       uniqueId,
-      loaderType: 'DirectoryLoader'
+      readerType: 'DirectoryReader'
     }
   }
 
   /**
    * Estimate workload based on total file sizes in directory
    */
-  estimateWorkload(context: LoaderContext): number {
+  estimateWorkload(context: ReaderContext): number {
     const directoryPath = context.item.content as string
     try {
       return this.calculateDirectorySize(directoryPath)

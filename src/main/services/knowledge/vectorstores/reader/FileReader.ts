@@ -1,7 +1,7 @@
 /**
- * File Loader for KnowledgeServiceV2
+ * File Reader for KnowledgeServiceV2
  *
- * Handles loading various file types and converting them to vectorstores nodes.
+ * Handles reading various file types and converting them to vectorstores nodes.
  * Uses @vectorstores/readers for structured file types.
  */
 
@@ -10,7 +10,7 @@ import * as fs from 'node:fs'
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@types'
 import type { Document } from '@vectorstores/core'
-import { type FileReader, SentenceSplitter } from '@vectorstores/core'
+import { type FileReader as VectorstoreFileReader, SentenceSplitter } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
 import { DocxReader } from '@vectorstores/readers/docx'
 import { HTMLReader } from '@vectorstores/readers/html'
@@ -21,18 +21,18 @@ import { TextFileReader } from '@vectorstores/readers/text'
 import md5 from 'md5'
 
 import {
-  type ContentLoader,
+  type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
-  type LoaderContext,
-  type LoaderResult
+  type ReaderContext,
+  type ReaderResult
 } from '../types'
-import { EpubReader } from './readers/EpubReader'
+import { EpubReader } from './EpubReader'
 
-const logger = loggerService.withContext('FileLoader')
+const logger = loggerService.withContext('FileReader')
 
-// File extension to loader type mapping
-const FILE_LOADER_MAP: Record<string, string> = {
+// File extension to reader type mapping
+const FILE_READER_MAP: Record<string, string> = {
   // Use @vectorstores/readers
   '.pdf': 'vectorstores',
   '.csv': 'vectorstores',
@@ -46,47 +46,47 @@ const FILE_LOADER_MAP: Record<string, string> = {
 }
 
 /**
- * Loader for various file types
+ * Reader for various file types
  */
-export class FileLoader implements ContentLoader {
+export class FileReader implements ContentReader {
   readonly type = 'file' as const
 
   /**
-   * Load file content and split into chunks
+   * Read file content and split into chunks
    */
-  async load(context: LoaderContext): Promise<LoaderResult> {
+  async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
     const file = item.content as FileMetadata
     const ext = file.ext.toLowerCase()
 
-    const uniqueId = `FileLoader_${md5(file.path)}`
+    const uniqueId = `FileReader_${md5(file.path)}`
 
-    logger.debug(`Loading file ${file.path} (ext: ${ext}) for item ${itemId}`)
+    logger.debug(`Reading file ${file.path} (ext: ${ext}) for item ${itemId}`)
 
     if (!fs.existsSync(file.path)) {
       logger.warn(`File not found: ${file.path}`)
       return {
         nodes: [],
         uniqueId,
-        loaderType: 'FileLoader'
+        readerType: 'FileReader'
       }
     }
 
-    const loaderType = FILE_LOADER_MAP[ext] || 'text'
+    const readerType = FILE_READER_MAP[ext] || 'text'
     const chunkSize = base.chunkSize ?? DEFAULT_CHUNK_SIZE
     const chunkOverlap = base.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
 
     try {
       let documents: Document[]
 
-      switch (loaderType) {
+      switch (readerType) {
         case 'vectorstores':
-          documents = await this.loadWithVectorstores(file)
+          documents = await this.readWithVectorstores(file)
           break
 
         default:
           // Use TextFileReader for all other file types
-          documents = await this.loadAsText(file)
+          documents = await this.readAsText(file)
           break
       }
 
@@ -104,26 +104,26 @@ export class FileLoader implements ContentLoader {
         }
       })
 
-      logger.debug(`File ${file.path} loaded with ${nodes.length} chunks`)
+      logger.debug(`File ${file.path} read with ${nodes.length} chunks`)
 
       return {
         nodes,
         uniqueId,
-        loaderType: 'FileLoader'
+        readerType: 'FileReader'
       }
     } catch (error) {
-      logger.error(`Failed to load file ${file.path}:`, error as Error)
+      logger.error(`Failed to read file ${file.path}:`, error as Error)
       throw error
     }
   }
 
   /**
-   * Load file using @vectorstores/readers
+   * Read file using @vectorstores/readers
    */
-  private async loadWithVectorstores(file: FileMetadata): Promise<Document[]> {
+  private async readWithVectorstores(file: FileMetadata): Promise<Document[]> {
     const ext = file.ext.toLowerCase()
 
-    const readerMap: Record<string, { name: string; create: () => FileReader }> = {
+    const readerMap: Record<string, { name: string; create: () => VectorstoreFileReader }> = {
       '.csv': { name: 'CSVReader', create: () => new CSVReader() },
       '.docx': { name: 'DocxReader', create: () => new DocxReader() },
       '.html': { name: 'HTMLReader', create: () => new HTMLReader() },
@@ -139,12 +139,12 @@ export class FileLoader implements ContentLoader {
       throw new Error(`No reader found for extension: ${ext}`)
     }
 
-    logger.info(`Loading file with ${readerInfo.name}: ${file.path}`)
+    logger.info(`Reading file with ${readerInfo.name}: ${file.path}`)
 
     const reader = readerInfo.create()
     const documents = await reader.loadData(file.path)
 
-    logger.info(`${readerInfo.name} loaded ${documents.length} documents from ${file.path}`)
+    logger.info(`${readerInfo.name} read ${documents.length} documents from ${file.path}`)
 
     // Normalize metadata and filter empty documents
     return documents
@@ -160,15 +160,15 @@ export class FileLoader implements ContentLoader {
   }
 
   /**
-   * Load file as plain text using TextFileReader
+   * Read file as plain text using TextFileReader
    */
-  private async loadAsText(file: FileMetadata): Promise<Document[]> {
-    logger.info(`Loading file with TextFileReader: ${file.path}`)
+  private async readAsText(file: FileMetadata): Promise<Document[]> {
+    logger.info(`Reading file with TextFileReader: ${file.path}`)
 
     const reader = new TextFileReader()
     const documents = await reader.loadData(file.path)
 
-    logger.info(`TextFileReader loaded ${documents.length} documents from ${file.path}`)
+    logger.info(`TextFileReader read ${documents.length} documents from ${file.path}`)
 
     return documents
       .map((doc) => {
@@ -185,7 +185,7 @@ export class FileLoader implements ContentLoader {
   /**
    * Estimate workload based on file size
    */
-  estimateWorkload(context: LoaderContext): number {
+  estimateWorkload(context: ReaderContext): number {
     const file = context.item.content as FileMetadata
     return file.size
   }

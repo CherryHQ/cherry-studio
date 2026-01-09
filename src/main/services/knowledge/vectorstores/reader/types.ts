@@ -1,14 +1,14 @@
 /**
- * Loader interface types for vectorstores integration
+ * Reader interface types for vectorstores integration
  * Re-exports types from main types file for convenient imports
  */
 
 export type {
-  ContentLoader,
+  ContentReader,
   FileContent,
   ItemContent,
   KnowledgeItemType,
-  LoaderContext,
-  LoaderResult,
+  ReaderContext,
+  ReaderResult,
   StringContent
 } from '../types'

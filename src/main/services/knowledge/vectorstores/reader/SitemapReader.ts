@@ -1,7 +1,7 @@
 /**
- * Sitemap Loader for KnowledgeServiceV2
+ * Sitemap Reader for KnowledgeServiceV2
  *
- * Handles loading sitemap URLs and converting them to vectorstores nodes.
+ * Handles reading sitemap URLs and converting them to vectorstores nodes.
  * Uses sitemapper + fetch + HTMLReader for content extraction.
  */
 
@@ -13,39 +13,39 @@ import md5 from 'md5'
 import Sitemapper from 'sitemapper'
 
 import {
-  type ContentLoader,
+  type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
-  type LoaderContext,
-  type LoaderResult,
-  MB
+  MB,
+  type ReaderContext,
+  type ReaderResult
 } from '../types'
 
-const logger = loggerService.withContext('SitemapLoader')
+const logger = loggerService.withContext('SitemapReader')
 
 /**
- * Loader for sitemap URLs
+ * Reader for sitemap URLs
  */
-export class SitemapLoader implements ContentLoader {
+export class SitemapReader implements ContentReader {
   readonly type = 'sitemap' as const
 
   /**
-   * Load sitemap content and split into chunks
+   * Read sitemap content and split into chunks
    */
-  async load(context: LoaderContext): Promise<LoaderResult> {
+  async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
     const url = item.content as string
 
-    const uniqueId = `SitemapLoader_${md5(url)}`
+    const uniqueId = `SitemapReader_${md5(url)}`
 
-    logger.debug(`Loading sitemap ${url} for item ${itemId}`)
+    logger.debug(`Reading sitemap ${url} for item ${itemId}`)
 
     if (!url || !this.isValidUrl(url)) {
       logger.warn(`Invalid sitemap URL: ${url}`)
       return {
         nodes: [],
         uniqueId,
-        loaderType: 'SitemapLoader'
+        readerType: 'SitemapReader'
       }
     }
 
@@ -65,7 +65,7 @@ export class SitemapLoader implements ContentLoader {
         return {
           nodes: [],
           uniqueId,
-          loaderType: 'SitemapLoader'
+          readerType: 'SitemapReader'
         }
       }
 
@@ -105,7 +105,7 @@ export class SitemapLoader implements ContentLoader {
         return {
           nodes: [],
           uniqueId,
-          loaderType: 'SitemapLoader'
+          readerType: 'SitemapReader'
         }
       }
 
@@ -121,24 +121,24 @@ export class SitemapLoader implements ContentLoader {
         }
       })
 
-      logger.debug(`Sitemap ${url} loaded with ${nodes.length} chunks`)
+      logger.debug(`Sitemap ${url} read with ${nodes.length} chunks`)
 
       return {
         nodes,
         uniqueId,
-        loaderType: 'SitemapLoader'
+        readerType: 'SitemapReader'
       }
     } catch (error) {
-      logger.error(`Failed to load sitemap ${url}:`, error as Error)
+      logger.error(`Failed to read sitemap ${url}:`, error as Error)
       throw error
     }
   }
 
   /**
-   * Estimate workload for sitemap loading
+   * Estimate workload for sitemap reading
    * Sitemaps can contain many URLs, use a fixed estimate of 20MB
    */
-  estimateWorkload(_context: LoaderContext): number {
+  estimateWorkload(_context: ReaderContext): number {
     return 20 * MB
   }
 

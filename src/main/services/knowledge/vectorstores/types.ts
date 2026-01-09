@@ -7,33 +7,33 @@ import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchR
 import type { BaseNode, Metadata } from '@vectorstores/core'
 
 // ============================================================================
-// Loader Types
+// Reader Types
 // ============================================================================
 
 /**
- * Knowledge item type for loader selection
+ * Knowledge item type for reader selection
  */
 export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory'
 
 /**
- * Result returned by all content loaders
+ * Result returned by all content readers
  */
-export interface LoaderResult {
+export interface ReaderResult {
   /** Nodes ready for embedding (without embeddings yet) */
   nodes: BaseNode<Metadata>[]
-  /** Unique identifier for this load operation */
+  /** Unique identifier for this read operation */
   uniqueId: string
   /** Type name for debugging/logging */
-  loaderType: string
+  readerType: string
 }
 
 /**
- * Context passed to loaders containing all necessary information
+ * Context passed to readers containing all necessary information
  */
-export interface LoaderContext {
+export interface ReaderContext {
   /** Knowledge base configuration */
   base: KnowledgeBaseParams
-  /** Item being loaded */
+  /** Item being read */
   item: KnowledgeItem
   /** external_id for tracking (maps to item.id) */
   itemId: string
@@ -44,25 +44,25 @@ export interface LoaderContext {
 }
 
 /**
- * Base interface for all content loaders
+ * Base interface for all content readers
  */
-export interface ContentLoader {
-  /** Content type this loader handles */
+export interface ContentReader {
+  /** Content type this reader handles */
   readonly type: KnowledgeItemType
 
   /**
-   * Load content and return nodes (without embeddings)
-   * @param context Loader context with base, item, and other info
-   * @returns Promise resolving to LoaderResult with nodes
+   * Read content and return nodes (without embeddings)
+   * @param context Reader context with base, item, and other info
+   * @returns Promise resolving to ReaderResult with nodes
    */
-  load(context: LoaderContext): Promise<LoaderResult>
+  read(context: ReaderContext): Promise<ReaderResult>
 
   /**
    * Estimate workload in bytes (for queue management)
-   * @param context Loader context
+   * @param context Reader context
    * @returns Estimated workload in bytes
    */
-  estimateWorkload(context: LoaderContext): number
+  estimateWorkload(context: ReaderContext): number
 }
 
 // ============================================================================

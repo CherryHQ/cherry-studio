@@ -6,7 +6,7 @@
  *
  * Features:
  * - Concurrent task processing with workload management
- * - Multiple data source support via loader registry
+ * - Multiple data source support via reader registry
  * - Vector database integration using LibSQLVectorStore
  * - Support for vector, BM25, and hybrid search modes
  */
@@ -31,7 +31,7 @@ import PreprocessProvider from './preprocess/PreprocessProvider'
 import Reranker from './reranker/Reranker'
 import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
 import { embedNodes } from './vectorstores/EmbeddingPipeline'
-import { estimateWorkload, getLoader } from './vectorstores/loader'
+import { estimateWorkload, getReader } from './vectorstores/reader'
 import { TaskQueueManager } from './vectorstores/TaskQueueManager'
 import {
   DEFAULT_CHUNK_OVERLAP,
@@ -39,7 +39,7 @@ import {
   type KnowledgeBaseAddItemOptions,
   type KnowledgeBaseRemoveOptions,
   type KnowledgeItemType,
-  type LoaderContext,
+  type ReaderContext,
   type RerankOptions,
   type SearchOptions
 } from './vectorstores/types'
@@ -284,10 +284,10 @@ class KnowledgeServiceV2 {
 
     logger.info(`[KnowledgeV2] Add called: type=${itemType}, base=${base.id}, item=${item.id}`)
 
-    // Check if loader exists for this type
-    const loader = getLoader(itemType)
-    if (!loader) {
-      logger.warn(`[KnowledgeV2] No loader for type: ${itemType}`)
+    // Check if reader exists for this type
+    const reader = getReader(itemType)
+    if (!reader) {
+      logger.warn(`[KnowledgeV2] No reader for type: ${itemType}`)
       return {
         ...ERROR_LOADER_RETURN,
         message: `Unsupported item type: ${itemType}`,
@@ -295,8 +295,8 @@ class KnowledgeServiceV2 {
       }
     }
 
-    // Create loader context
-    const context: LoaderContext = {
+    // Create reader context
+    const context: ReaderContext = {
       base,
       item,
       itemId: item.id,
@@ -328,7 +328,7 @@ class KnowledgeServiceV2 {
   /**
    * Process add task (called by queue)
    */
-  private async processAddTask(context: LoaderContext): Promise<LoaderReturn> {
+  private async processAddTask(context: ReaderContext): Promise<LoaderReturn> {
     const { base, item, userId } = context
     const itemType = item.type as KnowledgeItemType
 
@@ -340,28 +340,28 @@ class KnowledgeServiceV2 {
       }
 
       // Update context with processed item
-      const processedContext: LoaderContext = {
+      const processedContext: ReaderContext = {
         ...context,
         item: processedItem
       }
 
-      // Step 2: Load content using appropriate loader
-      const loader = getLoader(itemType)!
-      const loaderResult = await loader.load(processedContext)
+      // Step 2: Read content using appropriate reader
+      const reader = getReader(itemType)!
+      const readerResult = await reader.read(processedContext)
 
-      if (loaderResult.nodes.length === 0) {
-        logger.warn(`[KnowledgeV2] No content loaded for item ${item.id}`)
+      if (readerResult.nodes.length === 0) {
+        logger.warn(`[KnowledgeV2] No content read for item ${item.id}`)
         return {
           entriesAdded: 0,
-          uniqueId: loaderResult.uniqueId,
-          uniqueIds: [loaderResult.uniqueId],
-          loaderType: loaderResult.loaderType
+          uniqueId: readerResult.uniqueId,
+          uniqueIds: [readerResult.uniqueId],
+          loaderType: readerResult.readerType
         }
       }
 
       // Step 3: Embed nodes
-      logger.info(`[KnowledgeV2] Embedding ${loaderResult.nodes.length} nodes for item ${item.id}`)
-      const embeddedNodes = await embedNodes(loaderResult.nodes, base)
+      logger.info(`[KnowledgeV2] Embedding ${readerResult.nodes.length} nodes for item ${item.id}`)
+      const embeddedNodes = await embedNodes(readerResult.nodes, base)
       const embeddedDimensions = embeddedNodes[0]?.getEmbedding()?.length ?? 0
       logger.debug('[KnowledgeV2] Embedding dimensions resolved', {
         baseId: base.id,
@@ -378,9 +378,9 @@ class KnowledgeServiceV2 {
 
       return {
         entriesAdded: insertedIds.length,
-        uniqueId: loaderResult.uniqueId,
-        uniqueIds: [loaderResult.uniqueId],
-        loaderType: loaderResult.loaderType
+        uniqueId: readerResult.uniqueId,
+        uniqueIds: [readerResult.uniqueId],
+        loaderType: readerResult.readerType
       }
     } catch (error) {
       logger.error(`[KnowledgeV2] Process add task failed for item ${item.id}:`, error as Error)

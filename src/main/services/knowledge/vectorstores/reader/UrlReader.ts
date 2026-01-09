@@ -1,7 +1,7 @@
 /**
- * URL Loader for KnowledgeServiceV2
+ * URL Reader for KnowledgeServiceV2
  *
- * Handles loading web URLs and converting them to vectorstores nodes.
+ * Handles reading web URLs and converting them to vectorstores nodes.
  * Uses fetch + HTMLReader for content extraction.
  */
 
@@ -12,39 +12,39 @@ import { HTMLReader } from '@vectorstores/readers/html'
 import md5 from 'md5'
 
 import {
-  type ContentLoader,
+  type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
-  type LoaderContext,
-  type LoaderResult,
-  MB
+  MB,
+  type ReaderContext,
+  type ReaderResult
 } from '../types'
 
-const logger = loggerService.withContext('UrlLoader')
+const logger = loggerService.withContext('UrlReader')
 
 /**
- * Loader for web URLs
+ * Reader for web URLs
  */
-export class UrlLoader implements ContentLoader {
+export class UrlReader implements ContentReader {
   readonly type = 'url' as const
 
   /**
-   * Load URL content and split into chunks
+   * Read URL content and split into chunks
    */
-  async load(context: LoaderContext): Promise<LoaderResult> {
+  async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
     const url = item.content as string
 
-    const uniqueId = `UrlLoader_${md5(url)}`
+    const uniqueId = `UrlReader_${md5(url)}`
 
-    logger.debug(`Loading URL ${url} for item ${itemId}`)
+    logger.debug(`Reading URL ${url} for item ${itemId}`)
 
     if (!url || !this.isValidUrl(url)) {
       logger.warn(`Invalid URL: ${url}`)
       return {
         nodes: [],
         uniqueId,
-        loaderType: 'UrlLoader'
+        readerType: 'UrlReader'
       }
     }
 
@@ -84,7 +84,7 @@ export class UrlLoader implements ContentLoader {
         return {
           nodes: [],
           uniqueId,
-          loaderType: 'UrlLoader'
+          readerType: 'UrlReader'
         }
       }
 
@@ -100,24 +100,24 @@ export class UrlLoader implements ContentLoader {
         }
       })
 
-      logger.debug(`URL ${url} loaded with ${nodes.length} chunks`)
+      logger.debug(`URL ${url} read with ${nodes.length} chunks`)
 
       return {
         nodes,
         uniqueId,
-        loaderType: 'UrlLoader'
+        readerType: 'UrlReader'
       }
     } catch (error) {
-      logger.error(`Failed to load URL ${url}:`, error as Error)
+      logger.error(`Failed to read URL ${url}:`, error as Error)
       throw error
     }
   }
 
   /**
-   * Estimate workload for URL loading
+   * Estimate workload for URL reading
    * URLs have variable content size, use a fixed estimate of 2MB
    */
-  estimateWorkload(_context: LoaderContext): number {
+  estimateWorkload(_context: ReaderContext): number {
     return 2 * MB
   }
 
