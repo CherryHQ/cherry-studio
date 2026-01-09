@@ -42,15 +42,15 @@ CREATE TABLE libsql_vectorstores_embedding (
 
 ## 字段映射
 
-| embedjs.vectors | vectorstores | 数据来源 |
-|-----------------|--------------|----------|
-| `id` | `id` | chunk 唯一 ID，直接复用 |
-| `uniqueLoaderId` | - | 用于查找对应的 Redux item |
-| - | `external_id` | Redux 中的 `item.id` |
-| `pageContent` | `document` | 文本内容 |
-| `vector` | `embeddings` | F32_BLOB 向量 |
-| `source` + `metadata` | `metadata` | 合并元数据 |
-| - | `collection` | 空字符串 |
+| embedjs.vectors       | vectorstores  | 数据来源                  |
+| --------------------- | ------------- | ------------------------- |
+| `id`                  | `id`          | chunk 唯一 ID，直接复用   |
+| `uniqueLoaderId`      | -             | 用于查找对应的 Redux item |
+| -                     | `external_id` | Redux 中的 `item.id`      |
+| `pageContent`         | `document`    | 文本内容                  |
+| `vector`              | `embeddings`  | F32_BLOB 向量             |
+| `source` + `metadata` | `metadata`    | 合并元数据                |
+| -                     | `collection`  | 空字符串                  |
 
 ## 数据关系
 
@@ -77,3 +77,22 @@ Redux KnowledgeItem:
 - **external_id**: 使用 Redux `item.id`，便于按 item 删除所有 chunks
 - **后续优化**: 可考虑将 `item.id` 与 `file.id` 统一，减少映射/传参成本
 - **dimensions**: 从现有向量数据推断，读取第一条向量获取实际长度
+
+## 支持的 Reader 类型
+
+- [x] CSVReader
+- [x] DocxReader
+- [x] HTMLReader
+- [x] JSONReader
+- [x] MarkdownReader
+- [x] PDFReader
+- [x] TextFileReader(除了特殊的 reader 以外都是通用的文本文件读取器)
+- [x] SitemapReader
+- [x] URLReader
+- [x] EPUBReader
+- [] DirectoryReader
+- [] ObsidianReader
+
+## 重要 tips
+
+- 创建知识库时需要先确定嵌入维度，以保证向量数据正确存储
