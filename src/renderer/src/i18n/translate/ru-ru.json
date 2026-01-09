@@ -1311,7 +1311,6 @@
     "backup": {
       "file_format": "Ошибка формата файла резервной копии"
     },
-    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "base64DataTruncated": "Данные изображения в формате Base64 усечены, размер",
     "boundary": {
       "default": {
@@ -1393,9 +1392,7 @@
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
-    "truncated": "[to be translated]:Data truncated, original size",
     "truncated": "Данные усечены, исходный размер",
-    "truncatedBadge": "[to be translated]:Truncated",
     "truncatedBadge": "Усечённый",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",
@@ -2229,14 +2226,18 @@
     "drop_markdown_hint": "Перетащите сюда файлы или папки .md для импорта",
     "empty": "заметок пока нет",
     "expand": "развернуть",
+    "exportToWord": "[to be translated]:Export to Word",
     "export_failed": "Экспорт в базу знаний не выполнен",
     "export_knowledge": "Экспортировать заметки в базу знаний",
     "export_success": "Успешно экспортировано в базу знаний",
+    "export_to_word_failed": "[to be translated]:Failed to export to Word",
     "folder": "папка",
     "new_folder": "Новая папка",
     "new_note": "Создать заметку",
     "no_content_to_copy": "Нет контента для копирования",
+    "no_content_to_export": "[to be translated]:No content to export",
     "no_file_selected": "Пожалуйста, выберите файл для загрузки",
+    "no_note_selected": "[to be translated]:Please select a note first",
     "no_valid_files": "Не загружен действительный файл",
     "open_folder": "Откройте внешнюю папку",
     "open_outside": "открыть снаружи",
