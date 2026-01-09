@@ -80,7 +80,7 @@ jobs:
 
       - name: Process issue with Claude
         if: steps.check_time.outputs.should_delay == 'false'
-        uses: anthropics/claude-code-action@main
+        uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_non_write_users: "*"
