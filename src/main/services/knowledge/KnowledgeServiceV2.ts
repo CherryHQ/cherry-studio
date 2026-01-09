@@ -18,12 +18,10 @@ import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
-import type { FileMetadata, KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
-import type { Document, VectorStoreQueryResult } from '@vectorstores/core'
-import { MetadataMode, SentenceSplitter } from '@vectorstores/core'
+import type { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
+import type { VectorStoreQueryResult } from '@vectorstores/core'
+import { MetadataMode } from '@vectorstores/core'
 import { LIBSQL_TABLE, LibSQLVectorStore } from '@vectorstores/libsql'
-import { MarkdownReader } from '@vectorstores/readers/markdown'
-import md5 from 'md5'
 
 import Embeddings from './embedjs/embeddings/Embeddings'
 import Reranker from './reranker/Reranker'
@@ -32,8 +30,6 @@ import { embedNodes } from './vectorstores/EmbeddingPipeline'
 import { estimateWorkload, getReader } from './vectorstores/reader'
 import { TaskQueueManager } from './vectorstores/TaskQueueManager'
 import {
-  DEFAULT_CHUNK_OVERLAP,
-  DEFAULT_CHUNK_SIZE,
   type KnowledgeBaseAddItemOptions,
   type KnowledgeBaseRemoveOptions,
   type KnowledgeItemType,
@@ -568,131 +564,6 @@ class KnowledgeServiceV2 {
    */
   public getQueueStatus(): { queueSize: number; processingCount: number; currentWorkload: number } {
     return this.taskQueue.getStatus()
-  }
-
-  // ============================================================================
-  // Legacy Methods (for backward compatibility)
-  // ============================================================================
-
-  /**
-   * Add markdown file (legacy method, kept for backward compatibility)
-   */
-  public async addMarkdownFile({
-    base,
-    file,
-    itemId
-  }: {
-    base: KnowledgeBaseParams
-    file: FileMetadata
-    itemId: string
-  }): Promise<LoaderReturn> {
-    const uniqueId = `MarkdownLoader_${md5(file.path)}`
-    const loaderType = 'MarkdownLoader'
-
-    try {
-      logger.info(`[KnowledgeV2] Markdown ingest start: ${file.path} (base: ${base.id}, item: ${itemId})`)
-      if (!fs.existsSync(file.path)) {
-        logger.warn(`[KnowledgeV2] Markdown ingest failed: file not found: ${file.path}`)
-        throw new Error(`File not found: ${file.path}`)
-      }
-
-      const reader = new MarkdownReader()
-      const rawDocuments = await reader.loadData(file.path)
-
-      // Normalize metadata and filter empty documents
-      const documents = rawDocuments
-        .map((doc) => {
-          doc.metadata = {
-            ...doc.metadata,
-            source: file.path,
-            type: 'markdown'
-          }
-          return doc as Document
-        })
-        .filter((doc) => doc.getText().trim().length > 0)
-
-      logger.info(`[KnowledgeV2] Markdown documents loaded: ${documents.length}`)
-      if (documents.length === 0) {
-        logger.warn(`[KnowledgeV2] Markdown ingest skipped: no content in ${file.path}`)
-        return {
-          entriesAdded: 0,
-          uniqueId,
-          uniqueIds: [uniqueId],
-          loaderType
-        }
-      }
-
-      const chunkSize = base.chunkSize ?? DEFAULT_CHUNK_SIZE
-      const chunkOverlap = base.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
-      const splitter = new SentenceSplitter({ chunkSize, chunkOverlap })
-      const nodes = splitter.getNodesFromDocuments(documents)
-      logger.info(`[KnowledgeV2] Markdown chunks created: ${nodes.length}`)
-      nodes.forEach((node) => {
-        node.metadata = {
-          ...node.metadata,
-          external_id: itemId
-        }
-      })
-
-      if (nodes.length === 0) {
-        logger.warn(`[KnowledgeV2] Markdown ingest skipped: no chunks for ${file.path}`)
-        return {
-          entriesAdded: 0,
-          uniqueId,
-          uniqueIds: [uniqueId],
-          loaderType
-        }
-      }
-
-      const embeddingsClient = new Embeddings({
-        embedApiClient: base.embedApiClient,
-        dimensions: base.dimensions
-      })
-      const nodeTexts = nodes.map((node) => node.getContent(MetadataMode.NONE))
-      logger.info(`[KnowledgeV2] Markdown embedding started: ${nodeTexts.length} chunks`)
-      const vectors = await embeddingsClient.embedDocuments(nodeTexts)
-
-      const dimensions = base.dimensions ?? vectors[0]?.length
-      if (!dimensions) {
-        throw new Error('Failed to resolve embedding dimensions')
-      }
-      logger.info(`[KnowledgeV2] Markdown embedding completed: ${vectors.length} vectors (dim: ${dimensions})`)
-
-      vectors.forEach((vector, index) => {
-        const node = nodes[index]
-        if (node) {
-          node.embedding = vector
-        }
-      })
-
-      const dbPath = this.getDbPath(base.id)
-      const store = new LibSQLVectorStore({
-        clientConfig: { url: `file:${dbPath}` },
-        dimensions,
-        collection: ''
-      })
-
-      const insertedIds = await store.add(nodes)
-      logger.info(`[KnowledgeV2] Markdown ingest completed: ${file.path}, nodes: ${insertedIds.length}`)
-
-      return {
-        entriesAdded: insertedIds.length,
-        uniqueId,
-        uniqueIds: [uniqueId],
-        loaderType
-      }
-    } catch (error) {
-      logger.error(`Markdown ingestion failed for ${file.path}:`, error as Error)
-      return {
-        entriesAdded: 0,
-        uniqueId,
-        uniqueIds: [uniqueId],
-        loaderType,
-        status: 'failed',
-        message: error instanceof Error ? error.message : String(error),
-        messageSource: 'embedding'
-      }
-    }
   }
 }
 
