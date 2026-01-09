@@ -94,8 +94,13 @@ jobs:
             - 标题：${{ github.event.issue.title }}
             - 作者：${{ github.event.issue.user.login }}
             - URL：${{ github.event.issue.html_url }}
-            - 内容：${{ github.event.issue.body }}
             - 标签：${{ join(github.event.issue.labels.*.name, ', ') }}
+
+            ### Issue body
+
+            `````md
+            ${{ github.event.issue.body }}
+            `````
 
             ## 任务步骤
 
