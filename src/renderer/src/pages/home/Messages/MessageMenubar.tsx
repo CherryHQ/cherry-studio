@@ -255,7 +255,8 @@ const MessageMenubar: FC<Props> = (props) => {
         message.topicId,
         message.traceId,
         true,
-        message.role === 'user' ? undefined : message.model?.name
+        message.role === 'user' ? undefined : message.model?.name,
+        message.role === 'user' ? undefined : message.id
       )
     }
   }, [message])

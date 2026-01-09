@@ -258,8 +258,9 @@ export function applyCompletionsMiddlewares<
       const traceParams = {
         name: `${params.assistant?.model?.name}.client`,
         tag: 'LLM',
-        topicId: params.topicId || '',
-        modelName: params.assistant?.model?.name
+        topicId: params.assistant.traceContext?.topicId || '',
+        modelName: params.assistant?.model?.name,
+        assistantMsgId: params.assistant.traceContext?.assistantMsgId
       }
 
       // Call the original SDK method with transformed parameters

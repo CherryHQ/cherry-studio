@@ -1,6 +1,7 @@
 import type { TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
+import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { SdkRawChunk } from '@renderer/types/sdk'
 
 export class AsyncIterableHandler {
@@ -9,11 +10,20 @@ export class AsyncIterableHandler {
   private topicId: string
   private usageToken: TokenUsage
   private modelName?: string
-  constructor(stream: AsyncIterable<SdkRawChunk>, span: Span, topicId: string, modelName?: string) {
+  private assistantMsgId?: string
+
+  constructor(
+    stream: AsyncIterable<SdkRawChunk>,
+    span: Span,
+    topicId: string,
+    modelName?: string,
+    assistantMsgId?: string
+  ) {
     this.stream = this.transformStream(stream)
     this.span = span
     this.topicId = topicId
     this.modelName = modelName
+    this.assistantMsgId = assistantMsgId
     this.usageToken = {
       completion_tokens: 0,
       prompt_tokens: 0,
@@ -66,11 +76,17 @@ export class AsyncIterableHandler {
 
   async finish() {
     window.api.trace.tokenUsage(this.span.spanContext().spanId, this.usageToken)
-    endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName })
+    endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName, assistantMsgId: this.assistantMsgId })
   }
 
   async handleError(err) {
-    endSpan({ topicId: this.topicId, error: err, span: this.span, modelName: this.modelName })
+    endSpan({
+      topicId: this.topicId,
+      error: err,
+      span: this.span,
+      modelName: this.modelName,
+      assistantMsgId: this.assistantMsgId
+    })
   }
 
   async *transformStream(stream: AsyncIterable<SdkRawChunk>) {
@@ -86,11 +102,11 @@ export class AsyncIterableHandler {
     this.finish()
   }
 
-  static handleStream(stream: AsyncIterable<SdkRawChunk>, span?: Span, topicId?: string, modelName?: string) {
-    if (!span || !topicId) {
+  static handleStream(stream: AsyncIterable<SdkRawChunk>, span?: Span, params?: StartSpanParams) {
+    if (!params || !span || !params.topicId) {
       return stream
     }
-    const handler = new AsyncIterableHandler(stream, span!, topicId, modelName)
+    const handler = new AsyncIterableHandler(stream, span!, params.topicId, params.modelName, params.assistantMsgId)
     return handler.stream
   }
 }
