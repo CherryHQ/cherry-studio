@@ -1,150 +1,60 @@
+import path from 'path'
 import { describe, expect, it } from 'vitest'
 
-import { sanitizeName, validateArgs, validateCommand } from '../DxtService'
+import { ensurePathWithin, validateArgs, validateCommand } from '../DxtService'
 
-describe('sanitizeName', () => {
-  describe('basic sanitization', () => {
-    it('should return valid names unchanged', () => {
-      expect(sanitizeName('my-server')).toBe('my-server')
-      expect(sanitizeName('my_server')).toBe('my_server')
-      expect(sanitizeName('myServer123')).toBe('myServer123')
-      expect(sanitizeName('server.name')).toBe('server.name')
+describe('ensurePathWithin', () => {
+  const baseDir = '/home/user/mcp'
+
+  describe('valid paths', () => {
+    it('should accept direct child paths', () => {
+      expect(ensurePathWithin(baseDir, '/home/user/mcp/server-test')).toBe('/home/user/mcp/server-test')
+      expect(ensurePathWithin(baseDir, '/home/user/mcp/my-server')).toBe('/home/user/mcp/my-server')
     })
 
-    it('should replace forward slashes with hyphens', () => {
-      expect(sanitizeName('anthropic/sequential-thinking')).toBe('anthropic-sequential-thinking')
-      expect(sanitizeName('org/repo/name')).toBe('org-repo-name')
-    })
-
-    it('should replace backslashes with hyphens', () => {
-      expect(sanitizeName('path\\to\\server')).toBe('path-to-server')
-      expect(sanitizeName('name\\\\double')).toBe('name-double')
+    it('should accept paths with unicode characters', () => {
+      expect(ensurePathWithin(baseDir, '/home/user/mcp/服务器')).toBe('/home/user/mcp/服务器')
+      expect(ensurePathWithin(baseDir, '/home/user/mcp/サーバー')).toBe('/home/user/mcp/サーバー')
     })
   })
 
   describe('path traversal prevention', () => {
-    it('should neutralize directory traversal with backslash', () => {
-      // Windows-style path traversal attack
-      const malicious =
-        '..\\..\\..\\Users\\victim\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\malware'
-      const result = sanitizeName(malicious)
-      expect(result).not.toContain('..')
-      expect(result).not.toContain('\\')
-      expect(result).not.toContain('/')
+    it('should reject paths that escape base directory', () => {
+      expect(() => ensurePathWithin(baseDir, '/home/user/mcp/../../../etc')).toThrow('Path traversal detected')
+      expect(() => ensurePathWithin(baseDir, '/etc/passwd')).toThrow('Path traversal detected')
+      expect(() => ensurePathWithin(baseDir, '/home/user')).toThrow('Path traversal detected')
     })
 
-    it('should neutralize directory traversal with forward slash', () => {
-      // Unix-style path traversal attack
-      const malicious = '../../../etc/passwd'
-      const result = sanitizeName(malicious)
-      expect(result).not.toContain('..')
-      expect(result).not.toContain('/')
+    it('should reject subdirectories', () => {
+      expect(() => ensurePathWithin(baseDir, '/home/user/mcp/sub/dir')).toThrow('Path traversal detected')
+      expect(() => ensurePathWithin(baseDir, '/home/user/mcp/a/b/c')).toThrow('Path traversal detected')
     })
 
-    it('should neutralize mixed path traversal', () => {
-      const malicious = '..\\../mixed/..\\attack'
-      const result = sanitizeName(malicious)
-      expect(result).not.toContain('..')
-      expect(result).not.toContain('\\')
-      expect(result).not.toContain('/')
+    it('should reject Windows-style path traversal', () => {
+      const winBase = 'C:\\Users\\user\\mcp'
+      expect(() => ensurePathWithin(winBase, 'C:\\Users\\user\\mcp\\..\\..\\Windows\\System32')).toThrow(
+        'Path traversal detected'
+      )
     })
 
-    it('should handle multiple consecutive dots', () => {
-      expect(sanitizeName('name...with....dots')).toBe('name.with.dots')
-      expect(sanitizeName('..hidden')).toBe('hidden')
-      expect(sanitizeName('name..')).toBe('name')
-    })
-  })
-
-  describe('Windows-specific dangerous characters', () => {
-    it('should remove colons (drive letter separator)', () => {
-      expect(sanitizeName('C:\\Windows\\System32')).toBe('C-Windows-System32')
-      expect(sanitizeName('name:value')).toBe('name-value')
+    it('should reject null byte attacks', () => {
+      const maliciousPath = path.join(baseDir, 'server\x00/../../../etc/passwd')
+      expect(() => ensurePathWithin(baseDir, maliciousPath)).toThrow('Path traversal detected')
     })
 
-    it('should remove other Windows forbidden characters', () => {
-      expect(sanitizeName('name<script>')).toBe('name-script')
-      expect(sanitizeName('file|pipe')).toBe('file-pipe')
-      expect(sanitizeName('query?param')).toBe('query-param')
-      expect(sanitizeName('wild*card')).toBe('wild-card')
-      expect(sanitizeName('"quoted"')).toBe('quoted')
-    })
-  })
-
-  describe('null byte injection', () => {
-    it('should remove null bytes', () => {
-      expect(sanitizeName('name\x00.exe')).toBe('name.exe')
-      expect(sanitizeName('server\0name')).toBe('servername')
+    it('should handle encoded traversal attempts', () => {
+      expect(() => ensurePathWithin(baseDir, '/home/user/mcp/../escape')).toThrow('Path traversal detected')
     })
   })
 
   describe('edge cases', () => {
-    it('should throw on empty string', () => {
-      expect(() => sanitizeName('')).toThrow('Invalid name: name must be a non-empty string')
+    it('should reject base directory itself', () => {
+      expect(() => ensurePathWithin(baseDir, '/home/user/mcp')).toThrow('Path traversal detected')
     })
 
-    it('should throw on non-string input', () => {
-      // @ts-expect-error - testing runtime behavior
-      expect(() => sanitizeName(null)).toThrow('Invalid name: name must be a non-empty string')
-      // @ts-expect-error - testing runtime behavior
-      expect(() => sanitizeName(undefined)).toThrow('Invalid name: name must be a non-empty string')
-      // @ts-expect-error - testing runtime behavior
-      expect(() => sanitizeName(123)).toThrow('Invalid name: name must be a non-empty string')
-    })
-
-    it('should throw when result is empty after sanitization', () => {
-      expect(() => sanitizeName('...')).toThrow('Invalid name: name contains only invalid characters')
-      expect(() => sanitizeName('///')).toThrow('Invalid name: name contains only invalid characters')
-      expect(() => sanitizeName('\\\\\\')).toThrow('Invalid name: name contains only invalid characters')
-    })
-
-    it('should handle leading/trailing spaces and dots', () => {
-      expect(sanitizeName('  name  ')).toBe('name')
-      expect(sanitizeName('..name..')).toBe('name')
-      expect(sanitizeName('.hidden')).toBe('hidden')
-    })
-
-    it('should collapse multiple consecutive hyphens', () => {
-      expect(sanitizeName('a--b---c')).toBe('a-b-c')
-      expect(sanitizeName('path///to///name')).toBe('path-to-name')
-    })
-
-    it('should remove leading/trailing hyphens', () => {
-      expect(sanitizeName('-name-')).toBe('name')
-      expect(sanitizeName('---name---')).toBe('name')
-    })
-  })
-
-  describe('real-world attack scenarios', () => {
-    it('should prevent Windows startup folder injection', () => {
-      const attack =
-        '..\\..\\..\\Users\\Public\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\evil'
-      const result = sanitizeName(attack)
-      expect(result).not.toContain('..')
-      expect(result).not.toContain('\\')
-      // Result should be a flat, safe name (may contain spaces from original path)
-      expect(result).toMatch(/^[a-zA-Z0-9._ -]+$/)
-    })
-
-    it('should prevent system32 injection', () => {
-      const attack = '..\\..\\Windows\\System32\\config\\SAM'
-      const result = sanitizeName(attack)
-      expect(result).not.toContain('..')
-      expect(result).not.toContain('\\')
-    })
-
-    it('should prevent Unix etc injection', () => {
-      const attack = '../../../etc/shadow'
-      const result = sanitizeName(attack)
-      expect(result).not.toContain('..')
-      expect(result).not.toContain('/')
-    })
-
-    it('should prevent home directory escape', () => {
-      const attack = '..\\..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\drivers\\etc\\hosts'
-      const result = sanitizeName(attack)
-      expect(result).not.toContain('..')
-      expect(result).not.toContain('\\')
+    it('should handle relative path construction', () => {
+      const target = path.join(baseDir, 'server-name')
+      expect(ensurePathWithin(baseDir, target)).toBe('/home/user/mcp/server-name')
     })
   })
 })

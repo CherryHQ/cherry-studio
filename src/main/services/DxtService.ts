@@ -9,52 +9,24 @@ import { v4 as uuidv4 } from 'uuid'
 const logger = loggerService.withContext('DxtService')
 
 /**
- * Sanitize a name to prevent path traversal attacks.
- * Removes or replaces dangerous characters including:
- * - Forward slash (/) and backslash (\) - path separators
- * - Dot sequences (..) - directory traversal
- * - Null bytes - string termination attacks
- * - Other potentially dangerous characters
+ * Ensure a target path is within the base directory to prevent path traversal attacks.
+ * This is the correct approach: validate the final resolved path rather than sanitizing input.
  *
- * @param name - The name to sanitize
- * @returns A safe name containing only alphanumeric characters, hyphens, underscores, and single dots
+ * @param basePath - The base directory that the target must be within
+ * @param targetPath - The target path to validate
+ * @returns The resolved target path if valid
+ * @throws Error if the target path escapes the base directory
  */
-export function sanitizeName(name: string): string {
-  if (!name || typeof name !== 'string') {
-    throw new Error('Invalid name: name must be a non-empty string')
+export function ensurePathWithin(basePath: string, targetPath: string): string {
+  const resolvedBase = path.resolve(basePath)
+  const resolvedTarget = path.resolve(path.normalize(targetPath))
+
+  // Must be direct child of base directory, no subdirectories allowed
+  if (path.dirname(resolvedTarget) !== resolvedBase) {
+    throw new Error('Path traversal detected: target path must be direct child of base directory')
   }
 
-  const sanitized = name
-    // Remove null bytes
-    .replace(/\0/g, '')
-    // Replace backslashes with hyphens (Windows path separator)
-    .replace(/\\/g, '-')
-    // Replace forward slashes with hyphens (Unix path separator)
-    .replace(/\//g, '-')
-    // Remove colon (Windows drive letter separator, e.g., C:)
-    .replace(/:/g, '-')
-    // Remove other potentially dangerous characters
-    .replace(/[<>"|?*]/g, '-')
-    // Replace multiple consecutive dots with a single dot (prevent .. traversal)
-    .replace(/\.{2,}/g, '.')
-    // Remove leading/trailing dots and spaces
-    .replace(/^[\s.]+|[\s.]+$/g, '')
-    // Replace multiple consecutive hyphens with a single hyphen
-    .replace(/-{2,}/g, '-')
-    // Remove leading/trailing hyphens
-    .replace(/^-+|-+$/g, '')
-
-  // Final validation: ensure the result is not empty and doesn't contain path separators
-  if (!sanitized) {
-    throw new Error('Invalid name: name contains only invalid characters')
-  }
-
-  // Additional safety check: verify no path separators remain
-  if (sanitized.includes('/') || sanitized.includes('\\') || sanitized.includes('..')) {
-    throw new Error('Invalid name: contains path traversal characters')
-  }
-
-  return sanitized
+  return resolvedTarget
 }
 
 // Type definitions
@@ -394,10 +366,8 @@ class DxtService {
       }
 
       // Use server name as the final extract directory for automatic version management
-      // Sanitize the name to prevent path traversal attacks (CVE fix)
-      const sanitizedName = sanitizeName(manifest.name)
-      const serverDirName = `server-${sanitizedName}`
-      const finalExtractDir = path.join(this.mcpDir, serverDirName)
+      const serverDirName = `server-${manifest.name}`
+      const finalExtractDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, serverDirName))
 
       // Clean up any existing version of this server
       if (fs.existsSync(finalExtractDir)) {
@@ -477,10 +447,8 @@ class DxtService {
 
   public cleanupDxtServer(serverName: string): boolean {
     try {
-      // Sanitize server name to prevent path traversal attacks (CVE fix)
-      const sanitizedName = sanitizeName(serverName)
-      const serverDirName = `server-${sanitizedName}`
-      const serverDir = path.join(this.mcpDir, serverDirName)
+      const serverDirName = `server-${serverName}`
+      const serverDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, serverDirName))
 
       if (fs.existsSync(serverDir)) {
         logger.debug(`Removing DXT server directory: ${serverDir}`)
