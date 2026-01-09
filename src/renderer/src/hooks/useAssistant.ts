@@ -83,7 +83,14 @@ export function useAssistant(id: string) {
     throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
   }
 
-  const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
+  const normalizedTopics = useMemo(
+    () => (Array.isArray(assistant?.topics) ? assistant.topics : []),
+    [assistant?.topics]
+  )
+  const assistantWithModel = useMemo(
+    () => ({ ...assistant, model, topics: normalizedTopics }),
+    [assistant, model, normalizedTopics]
+  )
 
   const settingsRef = useRef(assistant?.settings)
 

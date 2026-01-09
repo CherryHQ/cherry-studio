@@ -43,6 +43,8 @@ const initialState: AssistantsState = {
   unifiedListOrder: []
 }
 
+const normalizeTopics = (topics: unknown): Topic[] => (Array.isArray(topics) ? topics : [])
+
 const assistantsSlice = createSlice({
   name: 'assistants',
   initialState,
@@ -127,7 +129,7 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: uniqBy([topic, ...assistant.topics], 'id')
+              topics: uniqBy([topic, ...normalizeTopics(assistant.topics)], 'id')
             }
           : assistant
       )
@@ -137,7 +139,7 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: assistant.topics.filter(({ id }) => id !== action.payload.topic.id)
+              topics: normalizeTopics(assistant.topics).filter(({ id }) => id !== action.payload.topic.id)
             }
           : assistant
       )
@@ -149,7 +151,7 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: assistant.topics.map((topic) => {
+              topics: normalizeTopics(assistant.topics).map((topic) => {
                 const _topic = topic.id === newTopic.id ? newTopic : topic
                 _topic.messages = []
                 return _topic
@@ -173,7 +175,7 @@ const assistantsSlice = createSlice({
     removeAllTopics: (state, action: PayloadAction<{ assistantId: string }>) => {
       state.assistants = state.assistants.map((assistant) => {
         if (assistant.id === action.payload.assistantId) {
-          assistant.topics.forEach((topic) => TopicManager.removeTopic(topic.id))
+          normalizeTopics(assistant.topics).forEach((topic) => TopicManager.removeTopic(topic.id))
           return {
             ...assistant,
             topics: [getDefaultTopic(assistant.id)]
@@ -184,7 +186,7 @@ const assistantsSlice = createSlice({
     },
     updateTopicUpdatedAt: (state, action: PayloadAction<{ topicId: string }>) => {
       outer: for (const assistant of state.assistants) {
-        for (const topic of assistant.topics) {
+        for (const topic of normalizeTopics(assistant.topics)) {
           if (topic.id === action.payload.topicId) {
             topic.updatedAt = new Date().toISOString()
             break outer
@@ -268,7 +270,7 @@ export const {
 } = assistantsSlice.actions
 
 export const selectAllTopics = createSelector([(state: RootState) => state.assistants.assistants], (assistants) =>
-  assistants.flatMap((assistant: Assistant) => assistant.topics)
+  assistants.flatMap((assistant: Assistant) => normalizeTopics(assistant.topics))
 )
 
 export const selectTopicsMap = createSelector([selectAllTopics], (topics) => {
