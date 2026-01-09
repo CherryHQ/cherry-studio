@@ -1,0 +1,33 @@
+diff --git a/sdk.mjs b/sdk.mjs
+index 1e1c3e4e3f81db622fb2789d17f3d421f212306e..5d193cdb6a43c7799fd5eff2d8af80827bfbdf1e 100755
+--- a/sdk.mjs
++++ b/sdk.mjs
+@@ -11985,7 +11985,7 @@ function createAbortController(maxListeners = DEFAULT_MAX_LISTENERS) {
+ }
+ 
+ // ../src/transport/ProcessTransport.ts
+-import { spawn } from "child_process";
++import { fork } from "child_process";
+ import { createInterface } from "readline";
+ 
+ // ../src/utils/fsOperations.ts
+@@ -12999,14 +12999,14 @@ class ProcessTransport {
+     return isRunningWithBun() ? "bun" : "node";
+   }
+   spawnLocalProcess(spawnOptions) {
+-    const { command, args, cwd: cwd2, env, signal } = spawnOptions;
++    const { args, cwd: cwd2, env, signal } = spawnOptions;
+     const stderrMode = env.DEBUG_CLAUDE_AGENT_SDK || this.options.stderr ? "pipe" : "ignore";
+-    const childProcess = spawn(command, args, {
++    logForSdkDebugging(`Forking Claude Code Node.js process: ${args[0]} ${args.slice(1).join(" ")}`);
++    const childProcess = fork(args[0], args.slice(1), {
+       cwd: cwd2,
+-      stdio: ["pipe", "pipe", stderrMode],
++      stdio: stderrMode === "pipe" ? ["pipe", "pipe", "pipe", "ipc"] : ["pipe", "pipe", "ignore", "ipc"],
+       signal,
+-      env,
+-      windowsHide: true
++      env
+     });
+     if (env.DEBUG_CLAUDE_AGENT_SDK || this.options.stderr) {
+       childProcess.stderr.on("data", (data) => {

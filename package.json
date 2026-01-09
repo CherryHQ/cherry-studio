@@ -453,7 +453,8 @@
       "file-stream-rotator@0.6.1": "patches/file-stream-rotator-npm-0.6.1-eab45fb13d.patch",
       "libsql@0.4.7": "patches/libsql-npm-0.4.7-444e260fb1.patch",
       "pdf-parse@1.1.1": "patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
-      "@ai-sdk/openai-compatible@1.0.28": "patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch"
+      "@ai-sdk/openai-compatible@1.0.28": "patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch",
+      "@anthropic-ai/claude-agent-sdk@0.1.76": "patches/@anthropic-ai__claude-agent-sdk@0.1.76.patch"
     },
     "onlyBuiltDependencies": [
       "@kangfenmao/keyv-storage",

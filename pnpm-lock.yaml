@@ -34,6 +34,9 @@ patchedDependencies:
   '@ai-sdk/openai@2.0.85':
     hash: f2077f4759520d1de69b164dfd8adca1a9ace9de667e35cb0e55e812ce2ac13b
     path: patches/@ai-sdk-openai-npm-2.0.85-27483d1d6a.patch
+  '@anthropic-ai/claude-agent-sdk@0.1.76':
+    hash: e063a8ede82d78f452f7f1290b9d4d9323866159b5624679163caa8edd4928d5
+    path: patches/@anthropic-ai__claude-agent-sdk@0.1.76.patch
   '@anthropic-ai/vertex-sdk@0.11.4':
     hash: 12e3275df5632dfe717d4db64df70e9b0128dfac86195da27722effe4749662f
     path: patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch
@@ -86,7 +89,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.1.76
-        version: 0.1.76(zod@4.3.4)
+        version: 0.1.76(patch_hash=e063a8ede82d78f452f7f1290b9d4d9323866159b5624679163caa8edd4928d5)(zod@4.3.4)
       '@libsql/client':
         specifier: 0.14.0
         version: 0.14.0
@@ -12573,7 +12576,7 @@ snapshots:
       package-manager-detector: 1.6.0
       tinyexec: 1.0.2
 
-  '@anthropic-ai/claude-agent-sdk@0.1.76(zod@4.3.4)':
+  '@anthropic-ai/claude-agent-sdk@0.1.76(patch_hash=e063a8ede82d78f452f7f1290b9d4d9323866159b5624679163caa8edd4928d5)(zod@4.3.4)':
     dependencies:
       zod: 4.3.4
     optionalDependencies:
