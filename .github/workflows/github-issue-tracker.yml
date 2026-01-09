@@ -171,7 +171,7 @@ jobs:
         run: pnpm install
 
       - name: Process pending issues with Claude
-        uses: anthropics/claude-code-action@main
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           allowed_non_write_users: "*"
