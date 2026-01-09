@@ -15,12 +15,14 @@ interface KnowledgeBaseFormModalProps extends Omit<ModalProps, 'children' | 'foo
   panels: PanelConfig[]
   onMoreSettings?: () => void
   defaultExpandAdvanced?: boolean
+  confirmLoading?: boolean
 }
 
 const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
   panels,
   onMoreSettings,
   defaultExpandAdvanced = false,
+  confirmLoading,
   okText,
   onOk,
   onCancel,
@@ -46,7 +48,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <Button onClick={onCancel}>{t('common.cancel')}</Button>
-        <Button type="primary" onClick={onOk}>
+        <Button type="primary" onClick={onOk} loading={confirmLoading}>
           {okText || t('common.confirm')}
         </Button>
       </div>

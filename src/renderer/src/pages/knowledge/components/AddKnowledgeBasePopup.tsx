@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
+import AiProviderNew from '@renderer/aiCore/index_new'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import type { KnowledgeBase } from '@renderer/types'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { getErrorMessage } from '@renderer/utils'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,13 +28,14 @@ interface PopupContainerProps extends ShowParams {
 
 const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
   const [open, setOpen] = useState(true)
+  const [loading, setLoading] = useState(false)
   const { t } = useTranslation()
   const { addKnowledgeBase } = useKnowledgeBases()
   const {
     newBase,
     setNewBase,
     handlers,
-    providerData: { selectedDocPreprocessProvider, docPreprocessSelectOptions }
+    providerData: { providers, selectedDocPreprocessProvider, docPreprocessSelectOptions }
   } = useKnowledgeBaseForm()
 
   const onOk = async () => {
@@ -47,12 +49,47 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
       return
     }
 
+    setLoading(true)
+
     try {
+      let dimensions = newBase.dimensions
+
+      // Auto-fetch dimensions if not manually set
+      if (!dimensions) {
+        const provider = providers.find((p) => p.id === newBase.model.provider)
+
+        if (!provider) {
+          window.toast.error(t('knowledge.provider_not_found'))
+          setLoading(false)
+          return
+        }
+
+        try {
+          const aiProvider = new AiProviderNew(provider)
+          dimensions = await aiProvider.getEmbeddingDimensions(newBase.model)
+          logger.info('Auto-fetched embedding dimensions', { dimensions, modelId: newBase.model.id })
+        } catch (error) {
+          logger.error('Failed to get embedding dimensions', error as Error)
+          window.toast.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
+          setLoading(false)
+          return
+        }
+      }
+
       const _newBase: KnowledgeBase = {
         ...newBase,
+        dimensions,
         created_at: Date.now(),
         updated_at: Date.now()
       }
+
+      logger.info('Creating knowledge base', {
+        id: _newBase.id,
+        name: _newBase.name,
+        modelId: _newBase.model?.id,
+        provider: _newBase.model?.provider,
+        dimensions: _newBase.dimensions
+      })
 
       await window.api.knowledgeBase.create(getKnowledgeBaseParams(_newBase))
 
@@ -61,7 +98,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
       resolve(_newBase)
     } catch (error) {
       logger.error('KnowledgeBase creation failed:', error as Error)
-      window.toast.error(t('knowledge.error.failed_to_create') + formatErrorMessage(error))
+      window.toast.error(t('knowledge.error.failed_to_create') + getErrorMessage(error))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -97,6 +136,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
       onCancel={onCancel}
       afterClose={() => resolve(null)}
       panels={panelConfigs}
+      confirmLoading={loading}
     />
   )
 }
