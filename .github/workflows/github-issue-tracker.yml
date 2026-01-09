@@ -85,7 +85,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_non_write_users: "*"
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
-          claude_args: "--allowed-tools Bash(gh issue:*),Bash(pnpm tsx scripts/feishu-notify.ts issue:*),Bash(pnpm tsx scripts/feishu-notify.ts --help),Bash(pnpm tsx scripts/feishu-notify.ts issue --help)"
+          claude_args: "--allowed-tools Bash(gh issue:*),Bash(pnpm tsx scripts/feishu-notify.ts*)"
           prompt: |
             你是一个GitHub Issue自动化处理助手。请完成以下任务：
 
@@ -176,7 +176,7 @@ jobs:
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           allowed_non_write_users: "*"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: "--allowed-tools Bash(gh issue:*),Bash(gh api:*),Bash(pnpm tsx scripts/feishu-notify.ts issue:*),Bash(pnpm tsx scripts/feishu-notify.ts --help),Bash(pnpm tsx scripts/feishu-notify.ts issue --help)"
+          claude_args: "--allowed-tools Bash(gh issue:*),Bash(gh api:*),Bash(pnpm tsx scripts/feishu-notify.ts*)"
           prompt: |
             你是一个GitHub Issue自动化处理助手。请完成以下任务：
 
