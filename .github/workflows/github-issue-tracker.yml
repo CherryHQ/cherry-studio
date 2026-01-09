@@ -80,12 +80,12 @@ jobs:
 
       - name: Process issue with Claude
         if: steps.check_time.outputs.should_delay == 'false'
-        uses: anthropics/claude-code-action@main
+        uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_non_write_users: "*"
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
-          claude_args: "--allowed-tools Bash(gh issue:*),Bash(pnpm tsx scripts/feishu-notify.ts issue:*),Bash(pnpm tsx scripts/feishu-notify.ts --help),Bash(pnpm tsx scripts/feishu-notify.ts issue --help)"
+          claude_args: "--allowed-tools Bash(gh issue:*),Bash(pnpm tsx scripts/feishu-notify.ts*)"
           prompt: |
             你是一个GitHub Issue自动化处理助手。请完成以下任务：
 
@@ -94,8 +94,13 @@ jobs:
             - 标题：${{ github.event.issue.title }}
             - 作者：${{ github.event.issue.user.login }}
             - URL：${{ github.event.issue.html_url }}
-            - 内容：${{ github.event.issue.body }}
             - 标签：${{ join(github.event.issue.labels.*.name, ', ') }}
+
+            ### Issue body
+
+            `````md
+            ${{ github.event.issue.body }}
+            `````
 
             ## 任务步骤
 
@@ -106,8 +111,7 @@ jobs:
                - 重要的技术细节
 
             2. **发送飞书通知**
-               使用CLI工具发送飞书通知，运行 `pnpm tsx scripts/feishu-notify.ts issue --help` 查看参数说明。
-               示例：
+               使用CLI工具发送飞书通知，参考以下示例：
                ```bash
                pnpm tsx scripts/feishu-notify.ts issue \
                  -u "${{ github.event.issue.html_url }}" \
@@ -146,16 +150,32 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - name: Install dependencies
         run: pnpm install
 
       - name: Process pending issues with Claude
-        uses: anthropics/claude-code-action@main
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           allowed_non_write_users: "*"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: "--allowed-tools Bash(gh issue:*),Bash(gh api:*),Bash(pnpm tsx scripts/feishu-notify.ts issue:*),Bash(pnpm tsx scripts/feishu-notify.ts --help),Bash(pnpm tsx scripts/feishu-notify.ts issue --help)"
+          claude_args: "--allowed-tools Bash(gh issue:*),Bash(gh api:*),Bash(pnpm tsx scripts/feishu-notify.ts*)"
           prompt: |
             你是一个GitHub Issue自动化处理助手。请完成以下任务：
 
@@ -177,8 +197,7 @@ jobs:
                - 重要的技术细节
 
             3. **发送飞书通知**
-               使用CLI工具发送飞书通知，运行 `pnpm tsx scripts/feishu-notify.ts issue --help` 查看参数说明。
-               示例：
+               使用CLI工具发送飞书通知，参考以下示例：
                ```bash
                pnpm tsx scripts/feishu-notify.ts issue \
                  -u "<issue的html_url>" \
