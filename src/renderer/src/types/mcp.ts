@@ -123,7 +123,15 @@ export const McpServerConfigSchema = z
      * 请求超时时间
      * 可选。单位为秒，默认为60秒。
      */
-    timeout: z.number().optional().describe('Timeout in seconds for requests to this server'),
+    timeout: z
+      .preprocess((val) => {
+        if (typeof val === 'string' && val.trim() !== '') {
+          const parsed = Number(val)
+          return isNaN(parsed) ? val : parsed
+        }
+        return val
+      }, z.number().optional())
+      .describe('Timeout in seconds for requests to this server'),
     /**
      * DXT包版本号
      * 可选。用于标识DXT包的版本。
