@@ -16,7 +16,7 @@ import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTyp
 import { Link } from '@tanstack/react-router'
 import { Avatar, Progress, Radio, Row, Tag } from 'antd'
 import { debounce } from 'lodash'
-import { Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
+import { Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -322,6 +322,16 @@ const AboutSettings: FC = () => {
             {t('settings.about.contact.title')}
           </SettingRowTitle>
           <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            <Briefcase size={18} />
+            {t('settings.about.careers.title')}
+          </SettingRowTitle>
+          <Button onClick={() => onOpenWebsite('https://www.cherry-ai.com/careers')}>
+            {t('settings.about.careers.button')}
+          </Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
