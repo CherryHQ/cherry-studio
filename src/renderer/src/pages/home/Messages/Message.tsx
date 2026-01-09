@@ -32,7 +32,6 @@ import MessageOutline from './MessageOutline'
 
 interface Props {
   message: Message
-  blocks?: MessageBlock[] // NOTE: [v2 Migration] blocks prop allows passing block objects directly instead of relying on Redux. Used for DataApi and Streaming paths.
   topic: Topic
   assistant?: Assistant
   index?: number
@@ -60,7 +59,6 @@ const WrapperContainer = ({
 
 const MessageItem: FC<Props> = ({
   message,
-  blocks,
   topic,
   // assistant,
   index,
@@ -232,7 +230,7 @@ const MessageItem: FC<Props> = ({
                 overflowY: 'visible'
               }}>
               <MessageErrorBoundary>
-                <MessageContent message={message} blocks={blocks} />
+                <MessageContent message={message} />
               </MessageErrorBoundary>
             </MessageContentContainer>
             {showMenubar && (

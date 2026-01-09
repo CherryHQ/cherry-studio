@@ -22,7 +22,6 @@ import db from '@renderer/databases'
 import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
 import { dbService } from '@renderer/services/db'
 import { DbService } from '@renderer/services/db/DbService'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
@@ -933,7 +932,6 @@ export const sendMessage =
 
       const stateBeforeSend = getState()
       let activeAgentSession = agentSession ?? findExistingAgentSessionContext(stateBeforeSend, topicId, assistant.id)
-
       if (activeAgentSession) {
         const derivedSession = findExistingAgentSessionContext(stateBeforeSend, topicId, assistant.id)
         if (derivedSession?.agentSessionId && derivedSession.agentSessionId !== activeAgentSession.agentSessionId) {
@@ -953,13 +951,6 @@ export const sendMessage =
       } else {
         // Normal topic: use Data API, get server-generated message ID
         finalUserMessage = await streamingService.createUserMessage(topicId, userMessage, userMessageBlocks)
-
-        // NOTE: [v2 Migration] Emit event for Messages.tsx to optimistically update SWR cache
-        EventEmitter.emit(EVENT_NAMES.MESSAGE_CREATED, {
-          message: finalUserMessage,
-          blocks: userMessageBlocks,
-          topicId
-        })
       }
 
       dispatch(newMessagesActions.addMessage({ topicId, message: finalUserMessage }))
