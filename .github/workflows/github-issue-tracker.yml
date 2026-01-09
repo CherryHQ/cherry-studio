@@ -111,8 +111,7 @@ jobs:
                - 重要的技术细节
 
             2. **发送飞书通知**
-               使用CLI工具发送飞书通知，运行 `pnpm tsx scripts/feishu-notify.ts issue --help` 查看参数说明。
-               示例：
+               使用CLI工具发送飞书通知，参考以下示例：
                ```bash
                pnpm tsx scripts/feishu-notify.ts issue \
                  -u "${{ github.event.issue.html_url }}" \
@@ -198,8 +197,7 @@ jobs:
                - 重要的技术细节
 
             3. **发送飞书通知**
-               使用CLI工具发送飞书通知，运行 `pnpm tsx scripts/feishu-notify.ts issue --help` 查看参数说明。
-               示例：
+               使用CLI工具发送飞书通知，参考以下示例：
                ```bash
                pnpm tsx scripts/feishu-notify.ts issue \
                  -u "<issue的html_url>" \
