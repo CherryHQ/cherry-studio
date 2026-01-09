@@ -143,36 +143,30 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.12 - New Features & Bug Fixes
+    Cherry Studio 1.7.13 - Security & Bug Fixes
 
-    ✨ New Features
-    - [MCP] Add MCP Hub with Auto mode for intelligent multi-server tool orchestration
+    🔒 Security
+    - [Plugin] Fix security vulnerability in DXT plugin system on Windows
 
     🐛 Bug Fixes
-    - [Chat] Fix reasoning process not displaying correctly for some proxy models
-    - [Chat] Fix duplicate loading spinners on action buttons
-    - [Editor] Fix paragraph handle and plus button not clickable
-    - [Drawing] Fix TokenFlux models not showing in drawing panel
-    - [Translate] Fix translation stalling after initialization
-    - [Error] Fix app freeze when viewing error details with large images
-    - [Notes] Fix folder overlay blocking webview preview
-    - [Chat] Fix thinking time display when stopping generation
-    - [Providers] Add cache control options for Anthropic provider
+    - [Agent] Fix Agent not working when Node.js is not installed on system
+    - [Chat] Fix app crash when opening certain agents
+    - [Chat] Fix reasoning process not displaying correctly for some providers
+    - [Chat] Fix memory leak issue during streaming conversations
+    - [MCP] Fix timeout field not accepting string format in MCP configuration
+    - [Settings] Add careers section in About page
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.11 - 新功能与问题修复
+    Cherry Studio 1.7.13 - 安全与问题修复
 
-    ✨ 新功能
-    - [MCP] 新增 MCP Hub 智能模式，可自动管理和调用多个 MCP 服务器工具
+    🔒 安全修复
+    - [插件] 修复 Windows 系统 DXT 插件的安全漏洞
 
     🐛 问题修复
-    - [对话] 修复部分代理模型的推理过程无法正确显示的问题
-    - [对话] 修复操作按钮重复显示加载状态的问题
-    - [编辑器] 修复段落手柄和加号按钮无法点击的问题
-    - [绘图] 修复 TokenFlux 模型在绘图面板不显示的问题
-    - [翻译] 修复翻译功能初始化后卡住的问题
-    - [错误] 修复查看包含大图片的错误详情时应用卡死的问题
-    - [笔记] 修复文件夹遮挡网页预览的问题
-    - [对话] 修复停止生成时思考时间显示问题
-    - [服务商] Anthropic 服务商增加缓存控制选项
+    - [Agent] 修复系统未安装 Node.js 时 Agent 功能无法使用的问题
+    - [对话] 修复打开某些智能体时应用崩溃的问题
+    - [对话] 修复部分服务商推理过程无法正确显示的问题
+    - [对话] 修复流式对话时的内存泄漏问题
+    - [MCP] 修复 MCP 配置的 timeout 字段不支持字符串格式的问题
+    - [设置] 关于页面新增招聘入口
     <!--LANG:END-->
