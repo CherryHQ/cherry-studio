@@ -235,15 +235,15 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
             response?.usage?.prompt_tokens === 0 ||
             response?.usage?.completion_tokens === 0)
         ) {
-          // Use context from session for usage estimation
-          const session = streamingService.getSession(assistantMsgId)
-          if (session?.contextMessages && session.contextMessages.length > 0) {
+          // Use context from task for usage estimation
+          const task = streamingService.getTask(assistantMsgId)
+          if (task?.contextMessages && task.contextMessages.length > 0) {
             // Include the final assistant message in context for accurate estimation
-            const finalContextWithAssistant = [...session.contextMessages, finalAssistantMsg]
+            const finalContextWithAssistant = [...task.contextMessages, finalAssistantMsg]
             const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
             response.usage = usage
           } else {
-            logger.debug('Skipping usage estimation - contextMessages not available in session')
+            logger.debug('Skipping usage estimation - contextMessages not available in task')
           }
         }
       }

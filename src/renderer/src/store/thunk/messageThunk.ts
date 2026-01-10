@@ -22,7 +22,6 @@ import db from '@renderer/databases'
 import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
 import { dbService } from '@renderer/services/db'
 import { DbService } from '@renderer/services/db/DbService'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
@@ -567,9 +566,9 @@ const fetchAndProcessAgentResponseImpl = async (
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
-    // Initialize streaming session in StreamingService
+    // Initialize streaming task in StreamingService
     // NOTE: parentId is used internally; askId in renderer format is derived from parentId
-    streamingService.startSession(topicId, assistantMessage.id, {
+    streamingService.startTask(topicId, assistantMessage.id, {
       parentId: userMessageId,
       siblingsGroupId: 0,
       role: 'assistant',
@@ -810,7 +809,7 @@ const fetchAndProcessAssistantResponseImpl = async (
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
-    // Build context messages first (needed for startSession)
+    // Build context messages first (needed for startTask)
     const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
 
     let messagesForContext: Message[] = []
@@ -840,9 +839,9 @@ const fetchAndProcessAssistantResponseImpl = async (
       }
     }
 
-    // Initialize streaming session in StreamingService (includes context for usage estimation)
+    // Initialize streaming task in StreamingService (includes context for usage estimation)
     // NOTE: parentId is used internally; askId in renderer format is derived from parentId
-    streamingService.startSession(topicId, assistantMsgId, {
+    streamingService.startTask(topicId, assistantMsgId, {
       parentId: userMessageId!,
       siblingsGroupId,
       role: 'assistant',
@@ -933,7 +932,6 @@ export const sendMessage =
 
       const stateBeforeSend = getState()
       let activeAgentSession = agentSession ?? findExistingAgentSessionContext(stateBeforeSend, topicId, assistant.id)
-
       if (activeAgentSession) {
         const derivedSession = findExistingAgentSessionContext(stateBeforeSend, topicId, assistant.id)
         if (derivedSession?.agentSessionId && derivedSession.agentSessionId !== activeAgentSession.agentSessionId) {
@@ -953,13 +951,6 @@ export const sendMessage =
       } else {
         // Normal topic: use Data API, get server-generated message ID
         finalUserMessage = await streamingService.createUserMessage(topicId, userMessage, userMessageBlocks)
-
-        // NOTE: [v2 Migration] Emit event for Messages.tsx to optimistically update SWR cache
-        EventEmitter.emit(EVENT_NAMES.MESSAGE_CREATED, {
-          message: finalUserMessage,
-          blocks: userMessageBlocks,
-          topicId
-        })
       }
 
       dispatch(newMessagesActions.addMessage({ topicId, message: finalUserMessage }))

@@ -79,6 +79,12 @@ export function isGroqServiceTier(tier: string | undefined | null): tier is Groq
 
 export type ServiceTier = OpenAIServiceTier | GroqServiceTier
 
+export type AnthropicCacheControlSettings = {
+  tokenThreshold: number
+  cacheSystemMessage: boolean
+  cacheLastNMessages: number
+}
+
 export function isServiceTier(tier: string | null | undefined): tier is ServiceTier {
   return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
 }
@@ -127,6 +133,9 @@ export type Provider = {
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>
+
+  // Anthropic prompt caching settings
+  anthropicCacheControl?: AnthropicCacheControlSettings
 }
 
 export const SystemProviderIdSchema = z.enum([

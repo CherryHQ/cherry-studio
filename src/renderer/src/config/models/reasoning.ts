@@ -640,6 +640,16 @@ export const isMiniMaxReasoningModel = (model?: Model): boolean => {
   return (['minimax-m1', 'minimax-m2', 'minimax-m2.1'] as const).some((id) => modelId.includes(id))
 }
 
+export const isBaichuanReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+
+  // 只有 Baichuan-M2 是推理模型（注意：M2-Plus 不是推理模型）
+  return modelId.includes('baichuan-m2') && !modelId.includes('plus')
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -675,6 +685,7 @@ export function isReasoningModel(model?: Model): boolean {
     isLingReasoningModel(model) ||
     isMiniMaxReasoningModel(model) ||
     isMiMoReasoningModel(model) ||
+    isBaichuanReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
@@ -718,7 +729,10 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   '(?:anthropic\\.)?claude-opus-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
     min: 1024,
     max: 32_000
-  }
+  },
+
+  // Baichuan models
+  'baichuan-m2$': { min: 0, max: 30_000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
