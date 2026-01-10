@@ -54,7 +54,7 @@ patchedDependencies:
     hash: aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
     path: patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch
   '@openrouter/ai-sdk-provider':
-    hash: 1d971b6d3eec09113d155b5e01f095b2316d7bc5210298f0173560a52fdc072d
+    hash: 508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52
     path: patches/@openrouter__ai-sdk-provider.patch
   '@tiptap/extension-drag-handle@3.2.0':
     hash: 8432665d4553fb9ba8ff2a126a9181c3ccfee06ae57688aa14f65aa560e52fce
@@ -361,7 +361,7 @@ importers:
         version: 2.3.0(encoding@0.1.13)
       '@openrouter/ai-sdk-provider':
         specifier: ^1.2.8
-        version: 1.5.4(patch_hash=1d971b6d3eec09113d155b5e01f095b2316d7bc5210298f0173560a52fdc072d)(ai@5.0.117(zod@4.3.4))(zod@4.3.4)
+        version: 1.5.4(patch_hash=508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52)(ai@5.0.117(zod@4.3.4))(zod@4.3.4)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -15151,7 +15151,7 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@openrouter/ai-sdk-provider@1.5.4(patch_hash=1d971b6d3eec09113d155b5e01f095b2316d7bc5210298f0173560a52fdc072d)(ai@5.0.117(zod@4.3.4))(zod@4.3.4)':
+  '@openrouter/ai-sdk-provider@1.5.4(patch_hash=508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52)(ai@5.0.117(zod@4.3.4))(zod@4.3.4)':
     dependencies:
       '@openrouter/sdk': 0.1.27
       ai: 5.0.117(zod@4.3.4)
