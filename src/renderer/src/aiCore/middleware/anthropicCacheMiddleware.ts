@@ -64,9 +64,17 @@ export function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddl
 
       // Cache last N non-system messages (providerOptions on content parts)
       if (cacheLastNMessages > 0) {
+        const cumsumTokens = [] as Array<number>
+        let tokenSum = 0 as number
+        for (let i = 0; i < messages.length; i++) {
+          const msg = messages[i] as any
+          tokenSum += msg.role === 'system' ? 0 : estimateContentTokens(msg.content)
+          cumsumTokens.push(tokenSum)
+        }
+
         for (let i = messages.length - 1; i >= 0 && cachedCount < cacheLastNMessages; i--) {
           const msg = messages[i] as any
-          if (msg.role !== 'system' && estimateContentTokens(msg.content) >= tokenThreshold) {
+          if (msg.role !== 'system' && cumsumTokens[i] >= tokenThreshold) {
             messages[i] = { ...msg, content: addCacheToContentParts(msg.content) }
             cachedCount++
           }
