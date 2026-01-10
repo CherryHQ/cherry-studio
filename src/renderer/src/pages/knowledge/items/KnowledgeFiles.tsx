@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeFiles } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
 import FileManager from '@renderer/services/FileManager'
@@ -55,9 +56,10 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
   const { onSelectFile, selecting } = useFiles({ extensions: fileTypes })
 
-  const { base, fileItems, addFiles, refreshItem, removeItem, getProcessingStatus } = useKnowledge(
-    selectedBase.id || ''
-  )
+  const { base, fileItems, refreshItem, removeItem, getProcessingStatus } = useKnowledge(selectedBase.id || '')
+
+  // v2 Data API hook for adding files
+  const { addFiles } = useKnowledgeFiles(selectedBase.id || '')
 
   useEffect(() => {
     const handleResize = () => {
