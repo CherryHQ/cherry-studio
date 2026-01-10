@@ -781,7 +781,8 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     { id: 'text-embedding-v4', name: 'text-embedding-v4', provider: 'dashscope', group: 'qwen-text-embedding' },
     { id: 'text-embedding-v3', name: 'text-embedding-v3', provider: 'dashscope', group: 'qwen-text-embedding' },
     { id: 'text-embedding-v2', name: 'text-embedding-v2', provider: 'dashscope', group: 'qwen-text-embedding' },
-    { id: 'text-embedding-v1', name: 'text-embedding-v1', provider: 'dashscope', group: 'qwen-text-embedding' }
+    { id: 'text-embedding-v1', name: 'text-embedding-v1', provider: 'dashscope', group: 'qwen-text-embedding' },
+    { id: 'qwen3-rerank', name: 'qwen3-rerank', provider: 'dashscope', group: 'qwen-rerank' }
   ],
   stepfun: [
     {
