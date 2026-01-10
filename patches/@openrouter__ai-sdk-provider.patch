@@ -1,0 +1,68 @@
+diff --git a/dist/index.js b/dist/index.js
+index f33510a50d11a2cb92a90ea70cc0ac84c89f29b9..4e0a956399de40a5861ccdc7279e62b35afbd843 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1050,7 +1050,8 @@ var OpenRouterProviderMetadataSchema = import_v43.z.object({
+ var OpenRouterProviderOptionsSchema = import_v43.z.object({
+   openrouter: import_v43.z.object({
+     reasoning_details: import_v43.z.array(ReasoningDetailUnionSchema).optional(),
+-    annotations: import_v43.z.array(FileAnnotationSchema).optional()
++    annotations: import_v43.z.array(FileAnnotationSchema).optional(),
++    strictJsonSchema: import_v43.z.boolean().optional()
+   }).optional()
+ }).optional();
+ 
+@@ -1658,7 +1659,8 @@ var OpenRouterChatLanguageModel = class {
+     responseFormat,
+     topK,
+     tools,
+-    toolChoice
++    toolChoice,
++    providerOptions
+   }) {
+     var _a15;
+     const baseArgs = __spreadValues(__spreadValues({
+@@ -1712,7 +1714,8 @@ var OpenRouterChatLanguageModel = class {
+         function: {
+           name: tool.name,
+           description: tool.description,
+-          parameters: tool.inputSchema
++          parameters: tool.inputSchema,
++          strict: providerOptions?.openrouter?.strictJsonSchema
+         }
+       }));
+       return __spreadProps(__spreadValues({}, baseArgs), {
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 8a688331b88b4af738ee4ca8062b5f24124d3d81..2c94760051b6487565c474ad4f042d513ef05bd5 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1015,7 +1015,8 @@ var OpenRouterProviderMetadataSchema = z3.object({
+ var OpenRouterProviderOptionsSchema = z3.object({
+   openrouter: z3.object({
+     reasoning_details: z3.array(ReasoningDetailUnionSchema).optional(),
+-    annotations: z3.array(FileAnnotationSchema).optional()
++    annotations: z3.array(FileAnnotationSchema).optional(),
++    strictJsonSchema: z3.boolean().optional()
+   }).optional()
+ }).optional();
+ 
+@@ -1623,7 +1624,8 @@ var OpenRouterChatLanguageModel = class {
+     responseFormat,
+     topK,
+     tools,
+-    toolChoice
++    toolChoice,
++    providerOptions
+   }) {
+     var _a15;
+     const baseArgs = __spreadValues(__spreadValues({
+@@ -1677,7 +1679,8 @@ var OpenRouterChatLanguageModel = class {
+         function: {
+           name: tool.name,
+           description: tool.description,
+-          parameters: tool.inputSchema
++          parameters: tool.inputSchema,
++          strict: providerOptions?.openrouter?.strictJsonSchema
+         }
+       }));
+       return __spreadProps(__spreadValues({}, baseArgs), {
