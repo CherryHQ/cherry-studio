@@ -1140,10 +1140,22 @@ importers:
       '@img/sharp-libvips-linux-x64':
         specifier: 1.2.0
         version: 1.2.0
+      '@img/sharp-libvips-linuxmusl-arm64':
+        specifier: 1.2.0
+        version: 1.2.0
+      '@img/sharp-libvips-linuxmusl-x64':
+        specifier: 1.2.0
+        version: 1.2.0
       '@img/sharp-linux-arm64':
         specifier: 0.34.3
         version: 0.34.3
       '@img/sharp-linux-x64':
+        specifier: 0.34.3
+        version: 0.34.3
+      '@img/sharp-linuxmusl-arm64':
+        specifier: 0.34.3
+        version: 0.34.3
+      '@img/sharp-linuxmusl-x64':
         specifier: 0.34.3
         version: 0.34.3
       '@img/sharp-win32-arm64':
@@ -1161,7 +1173,13 @@ importers:
       '@libsql/linux-arm64-gnu':
         specifier: 0.4.7
         version: 0.4.7
+      '@libsql/linux-arm64-musl':
+        specifier: 0.4.7
+        version: 0.4.7
       '@libsql/linux-x64-gnu':
+        specifier: 0.4.7
+        version: 0.4.7
+      '@libsql/linux-x64-musl':
         specifier: 0.4.7
         version: 0.4.7
       '@libsql/win32-x64-msvc':
