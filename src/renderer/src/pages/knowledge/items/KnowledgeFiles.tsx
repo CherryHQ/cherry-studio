@@ -9,7 +9,7 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { isKnowledgeFileItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
-import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
+import { bookExts, documentExts, imageExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Button, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
@@ -42,7 +42,7 @@ interface KnowledgeContentProps {
   preprocessMap: Map<string, boolean>
 }
 
-const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
+const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts, ...imageExts]
 
 const getDisplayTime = (item: KnowledgeItem) => {
   const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
