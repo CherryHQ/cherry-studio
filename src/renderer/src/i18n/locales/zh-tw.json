@@ -2938,9 +2938,6 @@
         "summary": "總結",
         "translate": "翻譯"
       },
-      "translate": {
-        "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"
-      },
       "window": {
         "c_copy": "C 複製",
         "esc_close": "Esc 關閉",
@@ -4981,7 +4978,6 @@
     "traceWindow": "呼叫鏈視窗"
   },
   "translate": {
-    "alter_language": "備用語言",
     "any": {
       "language": "任意語言"
     },

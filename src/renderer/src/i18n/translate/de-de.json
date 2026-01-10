@@ -2938,9 +2938,6 @@
         "summary": "Zusammenfassen",
         "translate": "Übersetzen"
       },
-      "translate": {
-        "smart_translate_tips": "Intelligente Übersetzung: Inhalt wird bevorzugt in Zielsprache übersetzt; wenn Inhalt bereits in Zielsprache, Übersetzung in Alternativsprache"
-      },
       "window": {
         "c_copy": "C zum Kopieren",
         "esc_close": "Esc Schließen",
@@ -4981,7 +4978,6 @@
     "traceWindow": "Aufrufkette-Fenster"
   },
   "translate": {
-    "alter_language": "Alternative Sprache",
     "any": {
       "language": "Beliebige Sprache"
     },

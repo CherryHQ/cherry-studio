@@ -2938,9 +2938,6 @@
         "summary": "要約",
         "translate": "翻訳"
       },
-      "translate": {
-        "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
-      },
       "window": {
         "c_copy": "Cでコピー",
         "esc_close": "Escで閉じる",
@@ -4981,7 +4978,6 @@
     "traceWindow": "呼び出しチェーンウィンドウ"
   },
   "translate": {
-    "alter_language": "備用言語",
     "any": {
       "language": "任意の言語"
     },

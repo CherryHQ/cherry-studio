@@ -2938,9 +2938,6 @@
         "summary": "Summarize",
         "translate": "Translate"
       },
-      "translate": {
-        "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
-      },
       "window": {
         "c_copy": "C: Copy",
         "esc_close": "Esc: Close",
@@ -4981,7 +4978,6 @@
     "traceWindow": "Call Chain Window"
   },
   "translate": {
-    "alter_language": "Alternative Language",
     "any": {
       "language": "Any language"
     },

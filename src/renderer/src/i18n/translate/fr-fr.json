@@ -2938,9 +2938,6 @@
         "summary": "Résumé",
         "translate": "Traduire"
       },
-      "translate": {
-        "smart_translate_tips": "Traduction intelligente : le contenu sera d'abord traduit dans la langue cible ; si le contenu est déjà dans la langue cible, il sera traduit dans la langue secondaire"
-      },
       "window": {
         "c_copy": "C Copier",
         "esc_close": "Esc Fermer",
@@ -4981,7 +4978,6 @@
     "traceWindow": "Fenêtre de chaîne d'appel"
   },
   "translate": {
-    "alter_language": "Langue de secours",
     "any": {
       "language": "langue arbitraire"
     },

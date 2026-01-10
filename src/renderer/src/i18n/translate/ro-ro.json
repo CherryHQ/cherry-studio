@@ -2938,9 +2938,6 @@
         "summary": "Rezumat",
         "translate": "Tradu"
       },
-      "translate": {
-        "smart_translate_tips": "Traducere inteligentă: Conținutul va fi tradus mai întâi în limba țintă; conținutul aflat deja în limba țintă va fi tradus în limba alternativă"
-      },
       "window": {
         "c_copy": "C: Copiază",
         "esc_close": "Esc: Închide",
@@ -4981,7 +4978,6 @@
     "traceWindow": "Fereastră lanț de apelare"
   },
   "translate": {
-    "alter_language": "Limbă alternativă",
     "any": {
       "language": "Orice limbă"
     },
