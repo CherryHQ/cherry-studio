@@ -678,13 +678,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeServiceV2.create.bind(knowledgeServiceV2))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, knowledgeServiceV2.reset.bind(knowledgeServiceV2))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeServiceV2.delete.bind(knowledgeServiceV2))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, knowledgeServiceV2.add.bind(knowledgeServiceV2))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, knowledgeServiceV2.remove.bind(knowledgeServiceV2))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Search, knowledgeServiceV2.search.bind(knowledgeServiceV2))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeServiceV2.rerank.bind(knowledgeServiceV2))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Create, (_, base) => knowledgeServiceV2.create(base))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, (_, base) => knowledgeServiceV2.reset(base))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, (_, id) => knowledgeServiceV2.delete(id))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Add, (_, options) => knowledgeServiceV2.add(options))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, (_, options) => knowledgeServiceV2.remove(options))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Search, (_, options) => knowledgeServiceV2.search(options))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, (_, options) => knowledgeServiceV2.rerank(options))
   ipcMain.handle(IpcChannel.KnowledgeBase_MigrateV2, (_, base: KnowledgeBase) => knowledgeMigrateService.migrate(base))
 
   // memory

@@ -14,6 +14,13 @@
       "tag": "0001_futuristic_human_fly",
       "version": "6",
       "when": 1767455592181
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1768022622575,
+      "tag": "0002_mysterious_mongu",
+      "breakpoints": true
     }
   ],
   "version": "7"

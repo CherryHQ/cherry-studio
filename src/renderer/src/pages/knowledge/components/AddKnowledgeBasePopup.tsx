@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import AiProviderNew from '@renderer/aiCore/index_new'
 import { TopView } from '@renderer/components/TopView'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
-import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import type { KnowledgeBase } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
 import { useState } from 'react'
@@ -37,6 +37,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
     handlers,
     providerData: { providers, selectedDocPreprocessProvider, docPreprocessSelectOptions }
   } = useKnowledgeBaseForm()
+
+  // Data API mutation for creating knowledge base
+  const { trigger: createBaseApi } = useMutation('POST', '/knowledge-bases')
 
   const onOk = async () => {
     if (!newBase.name?.trim()) {
@@ -76,26 +79,60 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
         }
       }
 
-      const _newBase: KnowledgeBase = {
-        ...newBase,
-        dimensions,
-        created_at: Date.now(),
-        updated_at: Date.now()
-      }
-
-      logger.info('Creating knowledge base', {
-        id: _newBase.id,
-        name: _newBase.name,
-        modelId: _newBase.model?.id,
-        provider: _newBase.model?.provider,
-        dimensions: _newBase.dimensions
+      logger.info('Creating knowledge base via Data API', {
+        id: newBase.id,
+        name: newBase.name,
+        modelId: newBase.model?.id,
+        provider: newBase.model?.provider,
+        dimensions
       })
 
-      await window.api.knowledgeBase.create(getKnowledgeBaseParams(_newBase))
+      // Call Data API to create knowledge base
+      const newBaseV2 = await createBaseApi({
+        body: {
+          name: newBase.name,
+          description: newBase.description,
+          embeddingModelId: `${newBase.model.provider}:${newBase.model.id}`,
+          embeddingModelMeta: {
+            id: newBase.model.id,
+            provider: newBase.model.provider,
+            name: newBase.model.name,
+            dimensions
+          },
+          rerankModelId: newBase.rerankModel ? `${newBase.rerankModel.provider}:${newBase.rerankModel.id}` : undefined,
+          rerankModelMeta: newBase.rerankModel
+            ? { id: newBase.rerankModel.id, provider: newBase.rerankModel.provider, name: newBase.rerankModel.name }
+            : undefined,
+          preprocessProviderId: selectedDocPreprocessProvider?.id,
+          chunkSize: newBase.chunkSize,
+          chunkOverlap: newBase.chunkOverlap,
+          threshold: newBase.threshold
+        }
+      })
 
-      addKnowledgeBase(_newBase)
+      // Convert to v1 format and update Redux (for UI compatibility)
+      const newBaseV1: KnowledgeBase = {
+        id: newBaseV2.id,
+        name: newBaseV2.name,
+        description: newBaseV2.description,
+        model: newBase.model,
+        dimensions,
+        items: [],
+        created_at: Date.parse(newBaseV2.createdAt),
+        updated_at: Date.parse(newBaseV2.updatedAt),
+        version: 1,
+        chunkSize: newBaseV2.chunkSize,
+        chunkOverlap: newBaseV2.chunkOverlap,
+        threshold: newBaseV2.threshold,
+        rerankModel: newBase.rerankModel,
+        preprocessProvider: selectedDocPreprocessProvider
+          ? { type: 'preprocess', provider: selectedDocPreprocessProvider }
+          : undefined
+      }
+
+      addKnowledgeBase(newBaseV1)
       setOpen(false)
-      resolve(_newBase)
+      resolve(newBaseV1)
     } catch (error) {
       logger.error('KnowledgeBase creation failed:', error as Error)
       window.toast.error(t('knowledge.error.failed_to_create') + getErrorMessage(error))

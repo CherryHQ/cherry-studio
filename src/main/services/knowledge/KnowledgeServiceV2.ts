@@ -228,7 +228,7 @@ class KnowledgeServiceV2 {
   /**
    * Create/initialize a knowledge base
    */
-  public create = async (_: Electron.IpcMainInvokeEvent | undefined, base: KnowledgeBaseParams): Promise<void> => {
+  public create = async (base: KnowledgeBaseParams): Promise<void> => {
     logger.info(`[KnowledgeV2] Create called for base ${base.id}`, {
       dimensions: base.dimensions ?? 'auto',
       model: base.embedApiClient.model,
@@ -240,7 +240,7 @@ class KnowledgeServiceV2 {
   /**
    * Reset a knowledge base (clear all data)
    */
-  public reset = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
+  public reset = async (base: KnowledgeBaseParams): Promise<void> => {
     logger.info(`[KnowledgeV2] Reset called for base ${base.id}`)
     const store = await this.getOrCreateStore(base)
     await store.clearCollection()
@@ -250,7 +250,7 @@ class KnowledgeServiceV2 {
   /**
    * Delete a knowledge base entirely
    */
-  public delete = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+  public delete = async (id: string): Promise<void> => {
     logger.info(`[KnowledgeV2] Delete called for id: ${id}`)
 
     this.cleanupStoreCache(id)
@@ -272,7 +272,7 @@ class KnowledgeServiceV2 {
    * Add content to knowledge base
    * This is the main entry point for adding any type of content
    */
-  public add = async (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
+  public add = async (options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
     const { base, item, forceReload = false, userId = '' } = options
     const itemType = item.type as KnowledgeItemType
 
@@ -379,7 +379,7 @@ class KnowledgeServiceV2 {
   /**
    * Remove content from knowledge base
    */
-  public remove = async (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseRemoveOptions): Promise<void> => {
+  public remove = async (options: KnowledgeBaseRemoveOptions): Promise<void> => {
     const { uniqueId, uniqueIds, base, externalId } = options
 
     logger.info(`[KnowledgeV2] Remove called: uniqueId=${uniqueId}, externalId=${externalId}`)
@@ -401,6 +401,28 @@ class KnowledgeServiceV2 {
         }
       }
     }
+  }
+
+  /**
+   * Cancel a queued task if it has not started processing.
+   */
+  public cancel = async (itemId: string): Promise<{ status: 'cancelled' | 'ignored' }> => {
+    if (!itemId) {
+      return { status: 'ignored' }
+    }
+
+    if (this.taskQueue.remove(itemId)) {
+      logger.info(`[KnowledgeV2] Cancelled queued task for item ${itemId}`)
+      return { status: 'cancelled' }
+    }
+
+    if (this.taskQueue.isQueued(itemId) || this.taskQueue.isProcessing(itemId)) {
+      logger.debug(`[KnowledgeV2] Cancel ignored (already processing) for item ${itemId}`)
+      return { status: 'ignored' }
+    }
+
+    logger.debug(`[KnowledgeV2] Cancel ignored (not found) for item ${itemId}`)
+    return { status: 'ignored' }
   }
 
   /**
@@ -438,7 +460,6 @@ class KnowledgeServiceV2 {
    * Search the knowledge base
    */
   public search = async (
-    _: Electron.IpcMainInvokeEvent | undefined,
     options: SearchOptions | { search: string; base: KnowledgeBaseParams }
   ): Promise<KnowledgeSearchResult[]> => {
     const { search, base } = options
@@ -512,7 +533,6 @@ class KnowledgeServiceV2 {
    * Rerank search results
    */
   public rerank = async (
-    _: Electron.IpcMainInvokeEvent,
     options: RerankOptions | { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] }
   ): Promise<KnowledgeSearchResult[]> => {
     const { search, base, results } = options
