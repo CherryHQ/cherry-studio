@@ -4,6 +4,7 @@ import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeDirectories } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
@@ -41,9 +42,10 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progressMap }) => {
   const { t } = useTranslation()
 
-  const { base, directoryItems, refreshItem, removeItem, getProcessingStatus, addDirectory } = useKnowledge(
-    selectedBase.id || ''
-  )
+  const { base, directoryItems, refreshItem, removeItem, getProcessingStatus } = useKnowledge(selectedBase.id || '')
+
+  // v2 Data API hook for adding directories
+  const { addDirectory, isAddingDirectory } = useKnowledgeDirectories(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
@@ -56,7 +58,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
   }
 
   const handleAddDirectory = async () => {
-    if (disabled) {
+    if (disabled || isAddingDirectory) {
       return
     }
 
@@ -68,7 +70,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddDirectory} disabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddDirectory} disabled={disabled || isAddingDirectory}>
           <PlusIcon size={16} />
           {t('knowledge.add_directory')}
         </ResponsiveButton>

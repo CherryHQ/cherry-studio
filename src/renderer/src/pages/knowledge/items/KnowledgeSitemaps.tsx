@@ -5,6 +5,7 @@ import { DeleteIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeSitemaps } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
@@ -41,9 +42,10 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
-  const { base, sitemapItems, refreshItem, addSitemap, removeItem, getProcessingStatus } = useKnowledge(
-    selectedBase.id || ''
-  )
+  const { base, sitemapItems, refreshItem, removeItem, getProcessingStatus } = useKnowledge(selectedBase.id || '')
+
+  // v2 Data API hook for adding sitemaps
+  const { addSitemap, isAddingSitemap } = useKnowledgeSitemaps(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
@@ -56,7 +58,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   }
 
   const handleAddSitemap = async () => {
-    if (disabled) {
+    if (disabled || isAddingSitemap) {
       return
     }
 
@@ -87,7 +89,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddSitemap} disabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddSitemap} disabled={disabled || isAddingSitemap}>
           <PlusIcon size={16} />
           {t('knowledge.add_sitemap')}
         </ResponsiveButton>

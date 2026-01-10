@@ -4,6 +4,7 @@ import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeUrls } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
@@ -39,9 +40,12 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
-  const { base, urlItems, refreshItem, addUrl, removeItem, getProcessingStatus, updateItem } = useKnowledge(
+  const { base, urlItems, refreshItem, removeItem, getProcessingStatus, updateItem } = useKnowledge(
     selectedBase.id || ''
   )
+
+  // v2 Data API hook for adding URLs
+  const { addUrl, isAddingUrl } = useKnowledgeUrls(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
@@ -54,7 +58,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   }
 
   const handleAddUrl = async () => {
-    if (disabled) {
+    if (disabled || isAddingUrl) {
       return
     }
 
@@ -116,7 +120,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddUrl} disabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddUrl} disabled={disabled || isAddingUrl}>
           <PlusIcon size={16} />
           {t('knowledge.add_url')}
         </ResponsiveButton>
