@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 import { InstalledPluginsList } from './components/InstalledPluginsList'
 import { PluginBrowser } from './components/PluginBrowser'
+import { PluginZipUploader } from './components/PluginZipUploader'
 
 interface PluginSettingsProps {
   agentBase: GetAgentResponse | GetAgentSessionResponse
@@ -26,7 +27,10 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
   const { plugins, loading: loadingInstalled, error: errorInstalled, refresh } = useInstalledPlugins(agentBase.id)
 
   // Plugin actions
-  const { install, uninstall, installing, uninstalling } = usePluginActions(agentBase.id, refresh)
+  const { install, uninstall, uninstallPackage, installing, uninstalling, uninstallingPackage } = usePluginActions(
+    agentBase.id,
+    refresh
+  )
 
   // Handle install action
   const handleInstall = useCallback(
@@ -56,6 +60,23 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
     [uninstall, t]
   )
 
+  // Handle package uninstall action
+  const handleUninstallPackage = useCallback(
+    async (packageName: string) => {
+      const result = await uninstallPackage(packageName)
+
+      if (result.success) {
+        window.toast.success(
+          t('agent.settings.plugins.success.uninstall_package', { name: packageName }) ||
+            `Package "${packageName}" uninstalled successfully`
+        )
+      } else {
+        window.toast.error(t('agent.settings.plugins.error.uninstall') + (result.error ? ': ' + result.error : ''))
+      }
+    },
+    [uninstallPackage, t]
+  )
+
   const segmentOptions = useMemo(() => {
     return [
       {
@@ -73,6 +94,11 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
     if (activeTab === 'available') {
       return (
         <div className="flex h-full flex-col overflow-y-auto pt-4 pr-2">
+          <PluginZipUploader
+            agentId={agentBase.id}
+            onUploadSuccess={refresh}
+            disabled={loadingAvailable || installing}
+          />
           {errorAvailable ? (
             <Card variant="borderless">
               <p className="text-danger">
@@ -107,7 +133,9 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
           <InstalledPluginsList
             plugins={plugins}
             onUninstall={handleUninstall}
+            onUninstallPackage={handleUninstallPackage}
             loading={loadingInstalled || uninstalling}
+            uninstallingPackage={uninstallingPackage}
           />
         )}
       </div>
@@ -121,13 +149,16 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
     errorInstalled,
     handleInstall,
     handleUninstall,
+    handleUninstallPackage,
     installing,
     loadingAvailable,
     loadingInstalled,
     plugins,
+    refresh,
     skills,
     t,
-    uninstalling
+    uninstalling,
+    uninstallingPackage
   ])
 
   return (

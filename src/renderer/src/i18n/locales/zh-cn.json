@@ -165,13 +165,28 @@
           "title": "已安装插件"
         },
         "installing": "安装中...",
+        "plugin_upload": {
+          "all_failed": "全部 {{failed}} 个组件安装失败",
+          "error": "安装失败",
+          "format_hint": "支持插件包格式（.claude-plugin/plugin.json）",
+          "hint": "拖拽插件 ZIP 到此处，或点击选择文件",
+          "invalid_format": "请上传 ZIP 格式的文件",
+          "partial_success": "已安装 {{installed}} 个组件，{{failed}} 个失败",
+          "select_folder": "选择文件夹",
+          "select_folder_title": "选择插件文件夹",
+          "success": "插件 \"{{name}}\" 安装成功（{{count}} 个组件）",
+          "success_multi": "已从 {{packages}} 个插件包安装 {{count}} 个组件",
+          "uploading": "正在上传并安装..."
+        },
         "results": "找到 {{count}} 个插件",
         "search": {
           "placeholder": "搜索插件..."
         },
+        "standalone_plugins": "独立插件",
         "success": {
           "install": "插件安装成功",
-          "uninstall": "插件卸载成功"
+          "uninstall": "插件卸载成功",
+          "uninstall_package": "插件包 \"{{name}}\" 卸载成功"
         },
         "tab": "插件",
         "type": {
@@ -183,6 +198,8 @@
           "skills": "技能"
         },
         "uninstall": "卸载",
+        "uninstall_package": "卸载整个包",
+        "uninstall_package_confirm": "确定要卸载整个 \"{{name}}\" 插件包吗？这将删除 {{count}} 个组件。",
         "uninstalling": "卸载中..."
       },
       "prompt": "提示词设置",

@@ -30,7 +30,11 @@ export const PluginMetadataSchema = z.object({
   size: z.number(), // file size in bytes
   contentHash: z.string(), // SHA-256 hash for change detection
   installedAt: z.number().optional(), // Unix timestamp (for installed plugins)
-  updatedAt: z.number().optional() // Unix timestamp (for installed plugins)
+  updatedAt: z.number().optional(), // Unix timestamp (for installed plugins)
+
+  // Package tracking (for ZIP-installed plugins)
+  packageName: z.string().optional(), // Parent package name (e.g., "my-plugin")
+  packageVersion: z.string().optional() // Package version from plugin.json
 })
 
 export type PluginMetadata = z.infer<typeof PluginMetadataSchema>
@@ -68,6 +72,13 @@ export type PluginError =
   | { type: 'READ_FAILED'; path: string; reason: string }
   | { type: 'WRITE_FAILED'; path: string; reason: string }
   | { type: 'PLUGIN_NOT_INSTALLED'; filename: string; agentId: string }
+  | { type: 'INVALID_ZIP_FORMAT'; path: string; reason: string }
+  | { type: 'SKILL_MD_NOT_FOUND'; path: string }
+  | { type: 'ZIP_EXTRACTION_FAILED'; path: string; reason: string }
+  | { type: 'PLUGIN_MANIFEST_NOT_FOUND'; path: string }
+  | { type: 'PLUGIN_MANIFEST_INVALID'; path: string; reason: string }
+  | { type: 'EMPTY_PLUGIN_PACKAGE'; path: string }
+  | { type: 'PLUGIN_PACKAGE_NOT_FOUND'; packageName: string }
 
 export type PluginResult<T> = { success: true; data: T } | { success: false; error: PluginError }
 
@@ -83,12 +94,92 @@ export interface UninstallPluginOptions {
   type: 'agent' | 'command' | 'skill'
 }
 
+// Package-level uninstall options
+export interface UninstallPluginPackageOptions {
+  agentId: string
+  packageName: string
+}
+
+// Package-level uninstall result
+export interface UninstallPluginPackageResult {
+  packageName: string
+  uninstalledComponents: Array<{ filename: string; type: PluginType }>
+  directoryRemoved: boolean
+}
+
 export interface WritePluginContentOptions {
   agentId: string
   filename: string
   type: 'agent' | 'command' | 'skill'
   content: string
 }
+
+export interface InstallSkillFromZipOptions {
+  agentId: string
+  zipFilePath: string
+}
+
+// Plugin package installation options (for ZIP upload)
+export interface InstallFromZipOptions {
+  agentId: string
+  zipFilePath: string
+}
+
+// Single plugin package installation result
+export interface SinglePluginInstallResult {
+  pluginName: string // Plugin name from plugin.json
+  installed: PluginMetadata[] // Successfully installed items
+  failed: Array<{ path: string; error: string }> // Failed items
+}
+
+// Plugin package installation result (supports multiple packages)
+export interface InstallFromZipResult {
+  packages: SinglePluginInstallResult[] // Results for each plugin package
+  totalInstalled: number // Total successfully installed components
+  totalFailed: number // Total failed components
+}
+
+// Plugin directory installation options (for folder upload)
+export interface InstallFromDirectoryOptions {
+  agentId: string
+  directoryPath: string
+}
+
+// Plugin manifest schema (.claude-plugin/plugin.json)
+// Reference: https://code.claude.com/docs/en/plugins-reference
+export const PluginAuthorSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().optional(),
+  url: z.string().optional()
+})
+
+export const PluginManifestSchema = z.object({
+  // Required field
+  name: z.string().min(1), // kebab-case, no spaces
+
+  // Metadata fields
+  version: z.string().optional(),
+  description: z.string().optional(),
+  author: PluginAuthorSchema.optional(),
+  homepage: z.string().optional(),
+  repository: z.string().optional(),
+  license: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+
+  // Component path fields (relative paths, start with ./)
+  commands: z.union([z.string(), z.array(z.string())]).optional(),
+  agents: z.union([z.string(), z.array(z.string())]).optional(),
+  skills: z.union([z.string(), z.array(z.string())]).optional(),
+  outputStyles: z.union([z.string(), z.array(z.string())]).optional(),
+
+  // Config fields (path string or inline object)
+  hooks: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+  mcpServers: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+  lspServers: z.union([z.string(), z.record(z.string(), z.unknown())]).optional()
+})
+
+export type PluginAuthor = z.infer<typeof PluginAuthorSchema>
+export type PluginManifest = z.infer<typeof PluginManifestSchema>
 
 export interface ListAvailablePluginsResult {
   agents: PluginMetadata[]

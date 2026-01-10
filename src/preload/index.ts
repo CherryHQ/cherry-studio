@@ -48,11 +48,16 @@ import type { CreateDirectoryOptions } from 'webdav'
 
 import type {
   InstalledPlugin,
+  InstallFromDirectoryOptions,
+  InstallFromZipOptions,
+  InstallFromZipResult,
   InstallPluginOptions,
   ListAvailablePluginsResult,
   PluginMetadata,
   PluginResult,
   UninstallPluginOptions,
+  UninstallPluginPackageOptions,
+  UninstallPluginPackageResult,
   WritePluginContentOptions
 } from '../renderer/src/types/plugin'
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
@@ -595,13 +600,19 @@ const api = {
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Install, options),
     uninstall: (options: UninstallPluginOptions): Promise<PluginResult<void>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Uninstall, options),
+    uninstallPackage: (options: UninstallPluginPackageOptions): Promise<PluginResult<UninstallPluginPackageResult>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_UninstallPackage, options),
     listInstalled: (agentId: string): Promise<PluginResult<InstalledPlugin[]>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListInstalled, agentId),
     invalidateCache: (): Promise<PluginResult<void>> => ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InvalidateCache),
     readContent: (sourcePath: string): Promise<PluginResult<string>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ReadContent, sourcePath),
     writeContent: (options: WritePluginContentOptions): Promise<PluginResult<void>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options)
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options),
+    installFromZip: (options: InstallFromZipOptions): Promise<PluginResult<InstallFromZipResult>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InstallFromZip, options),
+    installFromDirectory: (options: InstallFromDirectoryOptions): Promise<PluginResult<InstallFromZipResult>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, options)
   },
   localTransfer: {
     getState: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_ListServices),

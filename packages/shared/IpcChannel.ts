@@ -380,10 +380,13 @@ export enum IpcChannel {
   ClaudeCodePlugin_ListAvailable = 'claudeCodePlugin:list-available',
   ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
   ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
+  ClaudeCodePlugin_UninstallPackage = 'claudeCodePlugin:uninstall-package',
   ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
   ClaudeCodePlugin_InvalidateCache = 'claudeCodePlugin:invalidate-cache',
   ClaudeCodePlugin_ReadContent = 'claudeCodePlugin:read-content',
   ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
+  ClaudeCodePlugin_InstallFromZip = 'claudeCodePlugin:install-from-zip',
+  ClaudeCodePlugin_InstallFromDirectory = 'claudeCodePlugin:install-from-directory',
 
   // Local Transfer
   LocalTransfer_ListServices = 'local-transfer:list',

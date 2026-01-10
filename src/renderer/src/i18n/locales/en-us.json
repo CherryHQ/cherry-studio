@@ -165,13 +165,28 @@
           "title": "Installed Plugins"
         },
         "installing": "Installing...",
+        "plugin_upload": {
+          "all_failed": "All {{failed}} components failed to install",
+          "error": "Installation failed",
+          "format_hint": "Supports plugin packages (.claude-plugin/plugin.json)",
+          "hint": "Drag and drop plugin ZIP here, or click to select",
+          "invalid_format": "Please upload a ZIP file",
+          "partial_success": "Installed {{installed}} components, {{failed}} failed",
+          "select_folder": "Select Folder",
+          "select_folder_title": "Select Plugin Folder",
+          "success": "Plugin \"{{name}}\" installed successfully ({{count}} components)",
+          "success_multi": "Installed {{count}} components from {{packages}} packages",
+          "uploading": "Uploading and installing..."
+        },
         "results": "{{count}} plugin(s) found",
         "search": {
           "placeholder": "Search plugins..."
         },
+        "standalone_plugins": "Standalone Plugins",
         "success": {
           "install": "Plugin installed successfully",
-          "uninstall": "Plugin uninstalled successfully"
+          "uninstall": "Plugin uninstalled successfully",
+          "uninstall_package": "Package \"{{name}}\" uninstalled successfully"
         },
         "tab": "Plugins",
         "type": {
@@ -183,6 +198,8 @@
           "skills": "Skills"
         },
         "uninstall": "Uninstall",
+        "uninstall_package": "Uninstall Package",
+        "uninstall_package_confirm": "Are you sure you want to uninstall the entire \"{{name}}\" package? This will remove {{count}} component(s).",
         "uninstalling": "Uninstalling..."
       },
       "prompt": "Prompt Settings",

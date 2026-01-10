@@ -1,17 +1,27 @@
 import { loggerService } from '@logger'
+import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
-import type {
-  GetAgentResponse,
-  InstalledPlugin,
-  InstallPluginOptions,
-  ListAvailablePluginsResult,
-  PluginError,
-  PluginMetadata,
-  PluginType,
-  UninstallPluginOptions
+import {
+  type GetAgentResponse,
+  type InstalledPlugin,
+  type InstallFromDirectoryOptions,
+  type InstallFromZipOptions,
+  type InstallFromZipResult,
+  type InstallPluginOptions,
+  type ListAvailablePluginsResult,
+  type PluginError,
+  type PluginManifest,
+  PluginManifestSchema,
+  type PluginMetadata,
+  type PluginType,
+  type SinglePluginInstallResult,
+  type UninstallPluginOptions,
+  type UninstallPluginPackageOptions,
+  type UninstallPluginPackageResult
 } from '@types'
 import { app } from 'electron'
 import * as fs from 'fs'
+import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 
 import { AgentService } from '../services/AgentService'
@@ -23,6 +33,18 @@ const logger = loggerService.withContext('PluginService')
 interface PluginServiceConfig {
   maxFileSize: number // bytes
   cacheTimeout: number // milliseconds
+}
+
+// Install context for component installation
+interface InstallContext {
+  agent: GetAgentResponse
+  workdir: string
+}
+
+// Result of creating installed plugin metadata
+interface ComponentInstallResult {
+  metadata: PluginMetadata
+  installedPlugin: InstalledPlugin
 }
 
 /**
@@ -127,21 +149,13 @@ export class PluginService {
    */
   async install(options: InstallPluginOptions): Promise<PluginMetadata> {
     logger.info('Installing plugin', options)
-
     const context = await this.prepareInstallContext(options)
-
-    if (options.type === 'skill') {
-      return await this.installSkillPlugin(options, context)
-    }
-
-    return await this.installFilePlugin(options, context)
+    return await this.installComponent(options, context)
   }
 
-  private async prepareInstallContext(options: InstallPluginOptions): Promise<{
-    agent: GetAgentResponse
-    workdir: string
-    sourceAbsolutePath: string
-  }> {
+  private async prepareInstallContext(
+    options: InstallPluginOptions
+  ): Promise<InstallContext & { sourceAbsolutePath: string }> {
     const agent = await this.getAgentOrThrow(options.agentId)
     const workdir = this.getWorkdirOrThrow(agent, options.agentId)
 
@@ -152,107 +166,56 @@ export class PluginService {
     return { agent, workdir, sourceAbsolutePath }
   }
 
-  private async installSkillPlugin(
+  private async installComponent(
     options: InstallPluginOptions,
-    context: {
-      agent: GetAgentResponse
-      workdir: string
-      sourceAbsolutePath: string
-    }
+    context: InstallContext & { sourceAbsolutePath: string }
   ): Promise<PluginMetadata> {
     const { agent, workdir, sourceAbsolutePath } = context
+    const { type, sourcePath } = options
+    const isSkill = type === 'skill'
 
-    await this.cacheStore.ensureSkillSourceDirectory(sourceAbsolutePath, options.sourcePath)
-
-    const metadata = await parseSkillMetadata(sourceAbsolutePath, options.sourcePath, 'skills')
-    const sanitizedFolderName = this.sanitizeFolderName(metadata.filename)
-
-    await this.ensureClaudeDirectory(workdir, 'skill')
-    const destPath = this.getClaudePluginPath(workdir, 'skill', sanitizedFolderName)
-
-    metadata.filename = sanitizedFolderName
-
-    await this.installer.installSkill(agent.id, sourceAbsolutePath, destPath)
-
-    const installedAt = Date.now()
-    const metadataWithInstall: PluginMetadata = {
-      ...metadata,
-      filename: sanitizedFolderName,
-      installedAt,
-      updatedAt: metadata.updatedAt ?? installedAt,
-      type: 'skill'
-    }
-    const installedPlugin: InstalledPlugin = {
-      filename: sanitizedFolderName,
-      type: 'skill',
-      metadata: metadataWithInstall
+    // Validate and parse based on type
+    if (isSkill) {
+      await this.cacheStore.ensureSkillSourceDirectory(sourceAbsolutePath, sourcePath)
+    } else {
+      await this.cacheStore.validatePluginFile(sourceAbsolutePath, this.config.maxFileSize)
     }
 
-    await this.cacheStore.upsert(workdir, installedPlugin)
-    this.upsertAgentPlugin(agent, installedPlugin)
+    // Parse metadata
+    const category = isSkill ? 'skills' : path.basename(path.dirname(sourcePath))
+    const metadata = isSkill
+      ? await parseSkillMetadata(sourceAbsolutePath, sourcePath, category)
+      : await parsePluginMetadata(sourceAbsolutePath, sourcePath, category, type as 'agent' | 'command')
 
-    logger.info('Skill installed successfully', {
-      agentId: options.agentId,
-      sourcePath: options.sourcePath,
-      folderName: sanitizedFolderName
-    })
+    // Sanitize name
+    const sanitizedName = isSkill
+      ? this.sanitizeFolderName(metadata.filename)
+      : this.sanitizeFilename(metadata.filename)
 
-    return metadataWithInstall
-  }
+    // Ensure directory and get destination path
+    await this.ensureClaudeDirectory(workdir, type)
+    const destPath = this.getClaudePluginPath(workdir, type, sanitizedName)
 
-  private async installFilePlugin(
-    options: InstallPluginOptions,
-    context: {
-      agent: GetAgentResponse
-      workdir: string
-      sourceAbsolutePath: string
-    }
-  ): Promise<PluginMetadata> {
-    const { agent, workdir, sourceAbsolutePath } = context
-
-    if (options.type === 'skill') {
-      throw {
-        type: 'INVALID_FILE_TYPE',
-        extension: options.type
-      } as PluginError
+    // Install
+    if (isSkill) {
+      await this.installer.installSkill(agent.id, sourceAbsolutePath, destPath)
+    } else {
+      await this.installer.installFilePlugin(agent.id, sourceAbsolutePath, destPath)
     }
 
-    const filePluginType: 'agent' | 'command' = options.type
+    // Create metadata and register in cache
+    const { metadata: metadataWithInstall, installedPlugin } = this.createInstalledPluginMetadata(
+      metadata,
+      sanitizedName,
+      type
+    )
 
-    await this.cacheStore.validatePluginFile(sourceAbsolutePath, this.config.maxFileSize)
-
-    const category = path.basename(path.dirname(options.sourcePath))
-    const metadata = await parsePluginMetadata(sourceAbsolutePath, options.sourcePath, category, filePluginType)
-
-    const sanitizedFilename = this.sanitizeFilename(metadata.filename)
-    metadata.filename = sanitizedFilename
-
-    await this.ensureClaudeDirectory(workdir, filePluginType)
-    const destPath = this.getClaudePluginPath(workdir, filePluginType, sanitizedFilename)
-
-    await this.installer.installFilePlugin(agent.id, sourceAbsolutePath, destPath)
-
-    const installedAt = Date.now()
-    const metadataWithInstall: PluginMetadata = {
-      ...metadata,
-      filename: sanitizedFilename,
-      installedAt,
-      updatedAt: metadata.updatedAt ?? installedAt,
-      type: filePluginType
-    }
-    const installedPlugin: InstalledPlugin = {
-      filename: sanitizedFilename,
-      type: filePluginType,
-      metadata: metadataWithInstall
-    }
-
-    await this.cacheStore.upsert(workdir, installedPlugin)
-    this.upsertAgentPlugin(agent, installedPlugin)
+    await this.registerPluginInCache(workdir, installedPlugin, agent)
 
     logger.info('Plugin installed successfully', {
       agentId: options.agentId,
-      filename: sanitizedFilename,
-      type: filePluginType
+      filename: sanitizedName,
+      type
     })
 
     return metadataWithInstall
@@ -266,37 +229,119 @@ export class PluginService {
 
     const agent = await this.getAgentOrThrow(options.agentId)
     const workdir = this.getWorkdirOrThrow(agent, options.agentId)
-
     await this.validateWorkdir(agent, workdir)
 
-    if (options.type === 'skill') {
-      const sanitizedFolderName = this.sanitizeFolderName(options.filename)
-      const skillPath = this.getClaudePluginPath(workdir, 'skill', sanitizedFolderName)
-
-      await this.installer.uninstallSkill(agent.id, sanitizedFolderName, skillPath)
-      await this.cacheStore.remove(workdir, sanitizedFolderName, 'skill')
-      this.removeAgentPlugin(agent, sanitizedFolderName, 'skill')
-
-      logger.info('Skill uninstalled successfully', {
-        agentId: options.agentId,
-        folderName: sanitizedFolderName
-      })
-
-      return
+    // Construct InstalledPlugin for internal uninstall
+    const plugin: InstalledPlugin = {
+      filename: options.filename,
+      type: options.type,
+      metadata: {} as PluginMetadata // Only filename and type are used by uninstallComponentInternal
     }
 
-    const sanitizedFilename = this.sanitizeFilename(options.filename)
-    const filePath = this.getClaudePluginPath(workdir, options.type, sanitizedFilename)
-
-    await this.installer.uninstallFilePlugin(agent.id, sanitizedFilename, options.type, filePath)
-    await this.cacheStore.remove(workdir, sanitizedFilename, options.type)
-    this.removeAgentPlugin(agent, sanitizedFilename, options.type)
+    await this.uninstallComponentInternal(workdir, agent, plugin)
 
     logger.info('Plugin uninstalled successfully', {
       agentId: options.agentId,
-      filename: sanitizedFilename,
+      filename: options.filename,
       type: options.type
     })
+  }
+
+  /**
+   * Uninstall entire plugin package and all its components
+   */
+  async uninstallPluginPackage(options: UninstallPluginPackageOptions): Promise<UninstallPluginPackageResult> {
+    const { agentId, packageName } = options
+    logger.info('Uninstalling plugin package', { agentId, packageName })
+
+    const agent = await this.getAgentOrThrow(agentId)
+    const workdir = this.getWorkdirOrThrow(agent, agentId)
+    await this.validateWorkdir(agent, workdir)
+
+    // 1. Find all components belonging to this package
+    const installedPlugins = await this.listInstalledFromCache(workdir)
+    const packageComponents = installedPlugins.filter((p) => p.metadata.packageName === packageName)
+
+    if (packageComponents.length === 0) {
+      throw {
+        type: 'PLUGIN_PACKAGE_NOT_FOUND',
+        packageName
+      } as PluginError
+    }
+
+    const uninstalledComponents: Array<{ filename: string; type: PluginType }> = []
+
+    // 2. Uninstall each component
+    for (const component of packageComponents) {
+      try {
+        await this.uninstallComponentInternal(workdir, agent, component)
+        uninstalledComponents.push({
+          filename: component.filename,
+          type: component.type
+        })
+      } catch (error) {
+        logger.warn('Failed to uninstall component', {
+          filename: component.filename,
+          type: component.type,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    // 3. Remove package directory .claude/plugins/<packageName>/
+    let directoryRemoved = false
+    const sanitizedPackageName = this.sanitizeFolderName(packageName)
+    const packageDirPath = path.join(workdir, '.claude', 'plugins', sanitizedPackageName)
+    try {
+      if (await this.directoryExists(packageDirPath)) {
+        await deleteDirectoryRecursive(packageDirPath)
+        directoryRemoved = true
+        logger.info('Package directory removed', { packageDirPath })
+      }
+    } catch (error) {
+      logger.warn('Failed to remove package directory', {
+        packageDirPath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
+    logger.info('Plugin package uninstalled', {
+      agentId,
+      packageName,
+      componentsUninstalled: uninstalledComponents.length,
+      directoryRemoved
+    })
+
+    return {
+      packageName,
+      uninstalledComponents,
+      directoryRemoved
+    }
+  }
+
+  /**
+   * Internal method to uninstall a single component
+   */
+  private async uninstallComponentInternal(
+    workdir: string,
+    agent: GetAgentResponse,
+    plugin: InstalledPlugin
+  ): Promise<void> {
+    const { filename, type } = plugin
+
+    if (type === 'skill') {
+      const sanitizedFolderName = this.sanitizeFolderName(filename)
+      const skillPath = this.getClaudePluginPath(workdir, 'skill', sanitizedFolderName)
+      await this.installer.uninstallSkill(agent.id, sanitizedFolderName, skillPath)
+      await this.cacheStore.remove(workdir, sanitizedFolderName, 'skill')
+      this.removeAgentPlugin(agent, sanitizedFolderName, 'skill')
+    } else {
+      const sanitizedFilename = this.sanitizeFilename(filename)
+      const filePath = this.getClaudePluginPath(workdir, type, sanitizedFilename)
+      await this.installer.uninstallFilePlugin(agent.id, sanitizedFilename, type, filePath)
+      await this.cacheStore.remove(workdir, sanitizedFilename, type)
+      this.removeAgentPlugin(agent, sanitizedFilename, type)
+    }
   }
 
   /**
@@ -331,6 +376,525 @@ export class PluginService {
     this.availablePluginsCache = null
     this.cacheTimestamp = 0
     logger.info('Plugin cache invalidated')
+  }
+
+  private async safeRemoveDirectory(dirPath: string): Promise<void> {
+    try {
+      await deleteDirectoryRecursive(dirPath)
+      logger.debug('Cleaned up temp directory', { dirPath })
+    } catch (error) {
+      logger.warn('Failed to clean up temp directory', {
+        dirPath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  private async validateZipFile(zipFilePath: string): Promise<void> {
+    try {
+      const stats = await fs.promises.stat(zipFilePath)
+      if (!stats.isFile()) {
+        throw { type: 'INVALID_ZIP_FORMAT', path: zipFilePath, reason: 'Not a file' } as PluginError
+      }
+      if (!zipFilePath.toLowerCase().endsWith('.zip')) {
+        throw { type: 'INVALID_ZIP_FORMAT', path: zipFilePath, reason: 'Not a ZIP file' } as PluginError
+      }
+    } catch (error) {
+      if ((error as PluginError).type) throw error
+      throw { type: 'FILE_NOT_FOUND', path: zipFilePath } as PluginError
+    }
+  }
+
+  private async extractZip(zipFilePath: string, destDir: string): Promise<void> {
+    try {
+      const zip = new StreamZip.async({ file: zipFilePath })
+      await zip.extract(null, destDir)
+      await zip.close()
+      logger.debug('ZIP extracted successfully', { zipFilePath, destDir })
+    } catch (error) {
+      throw {
+        type: 'ZIP_EXTRACTION_FAILED',
+        path: zipFilePath,
+        reason: error instanceof Error ? error.message : String(error)
+      } as PluginError
+    }
+  }
+
+  /**
+   * Install plugin package from ZIP file
+   * Supports complete plugin packages with .claude-plugin/plugin.json
+   * Supports multiple plugin packages in a single ZIP
+   */
+  async installFromZip(options: InstallFromZipOptions): Promise<InstallFromZipResult> {
+    const { agentId, zipFilePath } = options
+    logger.info('Installing plugin package from ZIP', { agentId, zipFilePath })
+
+    // 1. Validate agent and workdir
+    const agent = await this.getAgentOrThrow(agentId)
+    const workdir = this.getWorkdirOrThrow(agent, agentId)
+    await this.validateWorkdir(agent, workdir)
+
+    // 2. Validate ZIP file
+    await this.validateZipFile(zipFilePath)
+
+    // 3. Create temp directory
+    const tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'plugin-upload', `plugin-${Date.now()}`)
+    await fs.promises.mkdir(tempDir, { recursive: true })
+
+    try {
+      // 4. Extract ZIP to temp directory
+      await this.extractZip(zipFilePath, tempDir)
+
+      // 5. Find all plugin roots (supports multiple plugins in one ZIP)
+      const pluginRoots = await this.findPluginRoots(tempDir)
+
+      if (pluginRoots.length === 0) {
+        throw { type: 'PLUGIN_MANIFEST_NOT_FOUND', path: tempDir } as PluginError
+      }
+
+      // 6. Install each plugin
+      const packages: SinglePluginInstallResult[] = []
+      for (const pluginRoot of pluginRoots) {
+        try {
+          const result = await this.installSinglePlugin(pluginRoot, workdir, agent)
+          packages.push(result)
+        } catch (error) {
+          packages.push({
+            pluginName: path.basename(pluginRoot),
+            installed: [],
+            failed: [{ path: pluginRoot, error: error instanceof Error ? error.message : String(error) }]
+          })
+        }
+      }
+
+      const totalInstalled = packages.reduce((sum, p) => sum + p.installed.length, 0)
+      const totalFailed = packages.reduce((sum, p) => sum + p.failed.length, 0)
+
+      logger.info('Plugin package(s) installed from ZIP', {
+        agentId,
+        packageCount: packages.length,
+        totalInstalled,
+        totalFailed
+      })
+
+      return { packages, totalInstalled, totalFailed }
+    } finally {
+      // 7. Cleanup temp directory
+      await this.safeRemoveDirectory(tempDir)
+    }
+  }
+
+  /**
+   * Install plugin package from directory
+   * Supports complete plugin packages with .claude-plugin/plugin.json
+   * Supports multiple plugin packages in a single directory
+   */
+  async installFromDirectory(options: InstallFromDirectoryOptions): Promise<InstallFromZipResult> {
+    const { agentId, directoryPath } = options
+    logger.info('Installing plugin package from directory', { agentId, directoryPath })
+
+    // 1. Validate agent and workdir
+    const agent = await this.getAgentOrThrow(agentId)
+    const workdir = this.getWorkdirOrThrow(agent, agentId)
+    await this.validateWorkdir(agent, workdir)
+
+    // 2. Validate directory exists
+    if (!(await this.directoryExists(directoryPath))) {
+      throw { type: 'FILE_NOT_FOUND', path: directoryPath } as PluginError
+    }
+
+    // 3. Find all plugin roots
+    const pluginRoots = await this.findPluginRoots(directoryPath)
+
+    if (pluginRoots.length === 0) {
+      throw { type: 'PLUGIN_MANIFEST_NOT_FOUND', path: directoryPath } as PluginError
+    }
+
+    // 4. Install each plugin
+    const packages: SinglePluginInstallResult[] = []
+    for (const pluginRoot of pluginRoots) {
+      try {
+        const result = await this.installSinglePlugin(pluginRoot, workdir, agent)
+        packages.push(result)
+      } catch (error) {
+        packages.push({
+          pluginName: path.basename(pluginRoot),
+          installed: [],
+          failed: [{ path: pluginRoot, error: error instanceof Error ? error.message : String(error) }]
+        })
+      }
+    }
+
+    const totalInstalled = packages.reduce((sum, p) => sum + p.installed.length, 0)
+    const totalFailed = packages.reduce((sum, p) => sum + p.failed.length, 0)
+
+    logger.info('Plugin package(s) installed from directory', {
+      agentId,
+      packageCount: packages.length,
+      totalInstalled,
+      totalFailed
+    })
+
+    return { packages, totalInstalled, totalFailed }
+  }
+
+  /**
+   * Install a single plugin package from a plugin root directory
+   */
+  private async installSinglePlugin(
+    pluginRoot: string,
+    workdir: string,
+    agent: GetAgentResponse
+  ): Promise<SinglePluginInstallResult> {
+    // 1. Read and validate plugin manifest
+    const manifest = await this.readPluginManifest(pluginRoot)
+    const pluginFolderName = this.sanitizeFolderName(manifest.name)
+    const packageInfo = { packageName: manifest.name, packageVersion: manifest.version }
+
+    // 2. Copy entire plugin package to .claude/plugins/<plugin-name>/
+    const pluginDestPath = path.join(workdir, '.claude', 'plugins', pluginFolderName)
+    await this.copyPluginDirectory(pluginRoot, pluginDestPath)
+
+    // 3. Scan and register components (default directories + custom paths)
+    const results = await Promise.all([
+      this.scanComponentPaths(pluginDestPath, 'skills', manifest.skills, 'skill', workdir, agent, packageInfo),
+      this.scanComponentPaths(pluginDestPath, 'agents', manifest.agents, 'agent', workdir, agent, packageInfo),
+      this.scanComponentPaths(pluginDestPath, 'commands', manifest.commands, 'command', workdir, agent, packageInfo)
+    ])
+
+    const installed = results.flatMap((r) => r.installed)
+    const failed = results.flatMap((r) => r.failed)
+
+    // 4. Validate: at least one item registered
+    if (installed.length === 0 && failed.length === 0) {
+      throw { type: 'EMPTY_PLUGIN_PACKAGE', path: pluginRoot } as PluginError
+    }
+
+    logger.info('Single plugin package installed', {
+      pluginName: manifest.name,
+      installedCount: installed.length,
+      failedCount: failed.length
+    })
+
+    return {
+      pluginName: manifest.name,
+      installed,
+      failed
+    }
+  }
+
+  /**
+   * Read and validate plugin manifest from .claude-plugin/plugin.json
+   */
+  private async readPluginManifest(dir: string): Promise<PluginManifest> {
+    const manifestPath = path.join(dir, '.claude-plugin', 'plugin.json')
+
+    // Log directory contents for debugging
+    try {
+      const entries = await fs.promises.readdir(dir)
+      logger.debug('Plugin directory contents', { dir, entries })
+    } catch (e) {
+      logger.warn('Failed to read plugin directory', { dir, error: e instanceof Error ? e.message : String(e) })
+    }
+
+    try {
+      await fs.promises.access(manifestPath, fs.constants.R_OK)
+    } catch {
+      throw { type: 'PLUGIN_MANIFEST_NOT_FOUND', path: manifestPath } as PluginError
+    }
+
+    try {
+      const content = await fs.promises.readFile(manifestPath, 'utf-8')
+      const json = JSON.parse(content)
+      return PluginManifestSchema.parse(json)
+    } catch (error) {
+      if ((error as PluginError).type) throw error
+      throw {
+        type: 'PLUGIN_MANIFEST_INVALID',
+        path: manifestPath,
+        reason: error instanceof Error ? error.message : String(error)
+      } as PluginError
+    }
+  }
+
+  /**
+   * Copy plugin directory with symlink dereferencing
+   */
+  private async copyPluginDirectory(src: string, dest: string): Promise<void> {
+    // Ensure parent directory exists
+    await fs.promises.mkdir(path.dirname(dest), { recursive: true })
+
+    // Remove existing destination if exists
+    try {
+      await fs.promises.rm(dest, { recursive: true, force: true })
+    } catch {
+      // Ignore if doesn't exist
+    }
+
+    // Copy with symlink dereferencing (as per Claude Code docs)
+    await fs.promises.cp(src, dest, {
+      recursive: true,
+      dereference: true // Honor symlinks by dereferencing them
+    })
+
+    logger.debug('Plugin directory copied', { src, dest })
+  }
+
+  /**
+   * Find all plugin root directories.
+   * Supports: single plugin, single plugin with wrapper directory, multiple plugins.
+   * e.g., if ZIP extracts to: tempDir/plugin-name/.claude-plugin/plugin.json
+   * this method returns: [tempDir/plugin-name]
+   * e.g., if ZIP extracts to: tempDir/plugins/{plugin1, plugin2}/.claude-plugin/...
+   * this method returns: [tempDir/plugins/plugin1, tempDir/plugins/plugin2]
+   */
+  private async findPluginRoots(extractedDir: string): Promise<string[]> {
+    // Case 1: Directory itself is a plugin root
+    if (await this.hasClaudePluginDir(extractedDir)) {
+      logger.debug('Plugin root found at extracted directory', { extractedDir })
+      return [extractedDir]
+    }
+
+    // Case 2: Scan subdirectories for plugins
+    const entries = await fs.promises.readdir(extractedDir, { withFileTypes: true })
+    const directories = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+
+    const roots: string[] = []
+    for (const dir of directories) {
+      const subDir = path.join(extractedDir, dir.name)
+      if (await this.hasClaudePluginDir(subDir)) {
+        roots.push(subDir)
+      }
+    }
+
+    // If found multiple plugins, return them
+    if (roots.length > 0) {
+      logger.debug('Found plugin roots', { count: roots.length, roots })
+      return roots
+    }
+
+    // Case 3: Single wrapper directory, recursively check inside
+    if (directories.length === 1) {
+      const subDir = path.join(extractedDir, directories[0].name)
+      return this.findPluginRoots(subDir)
+    }
+
+    // No plugins found
+    logger.warn('Could not find any plugin roots with .claude-plugin directory', {
+      extractedDir,
+      entries: entries.map((e) => e.name)
+    })
+    return []
+  }
+
+  /**
+   * Check if directory contains .claude-plugin subdirectory
+   */
+  private async hasClaudePluginDir(dir: string): Promise<boolean> {
+    return this.directoryExists(path.join(dir, '.claude-plugin'))
+  }
+
+  /**
+   * Scan default directory + custom paths for components
+   */
+  private async scanComponentPaths(
+    pluginDir: string,
+    defaultSubDir: string,
+    customPaths: string | string[] | undefined,
+    type: PluginType,
+    workdir: string,
+    agent: GetAgentResponse,
+    packageInfo?: { packageName: string; packageVersion?: string }
+  ): Promise<{ installed: PluginMetadata[]; failed: Array<{ path: string; error: string }> }> {
+    const results: { installed: PluginMetadata[]; failed: Array<{ path: string; error: string }> } = {
+      installed: [],
+      failed: []
+    }
+    const scannedPaths = new Set<string>()
+
+    // 1. Scan default directory
+    const defaultPath = path.join(pluginDir, defaultSubDir)
+    if (await this.directoryExists(defaultPath)) {
+      scannedPaths.add(defaultPath)
+      const result = await this.scanAndRegisterComponents(defaultPath, type, workdir, agent, packageInfo)
+      results.installed.push(...result.installed)
+      results.failed.push(...result.failed)
+    }
+
+    // 2. Scan custom paths (supplement, not replace)
+    if (customPaths) {
+      const pathArray = Array.isArray(customPaths) ? customPaths : [customPaths]
+      for (const p of pathArray) {
+        // Validate path doesn't escape plugin directory (path traversal protection)
+        if (!this.isPathWithinDirectory(pluginDir, p)) {
+          logger.warn('Skipping custom path with path traversal', { customPath: p, pluginDir })
+          results.failed.push({
+            path: p,
+            error: 'Path traversal detected - custom paths must stay within plugin directory'
+          })
+          continue
+        }
+
+        const fullPath = path.resolve(pluginDir, p)
+        if (!scannedPaths.has(fullPath)) {
+          scannedPaths.add(fullPath)
+          if (await this.pathExists(fullPath)) {
+            const result = await this.scanAndRegisterComponents(fullPath, type, workdir, agent, packageInfo)
+            results.installed.push(...result.installed)
+            results.failed.push(...result.failed)
+          }
+        }
+      }
+    }
+
+    return results
+  }
+
+  /**
+   * Check if a relative path stays within the base directory (path traversal protection)
+   */
+  private isPathWithinDirectory(baseDir: string, relativePath: string): boolean {
+    // Check for obvious path traversal patterns
+    if (relativePath.includes('..')) {
+      return false
+    }
+
+    // Resolve and verify the path stays within base directory
+    const resolvedPath = path.resolve(baseDir, relativePath)
+    const normalizedBase = path.normalize(baseDir + path.sep)
+
+    return resolvedPath.startsWith(normalizedBase) || resolvedPath === path.normalize(baseDir)
+  }
+
+  /**
+   * Scan a directory and register all valid components
+   */
+  private async scanAndRegisterComponents(
+    dirPath: string,
+    type: PluginType,
+    workdir: string,
+    agent: GetAgentResponse,
+    packageInfo?: { packageName: string; packageVersion?: string }
+  ): Promise<{ installed: PluginMetadata[]; failed: Array<{ path: string; error: string }> }> {
+    const results: { installed: PluginMetadata[]; failed: Array<{ path: string; error: string }> } = {
+      installed: [],
+      failed: []
+    }
+
+    try {
+      const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
+
+      for (const entry of entries) {
+        const entryPath = path.join(dirPath, entry.name)
+
+        try {
+          if (type === 'skill' && entry.isDirectory()) {
+            // Skills are directories with SKILL.md
+            const skillMdPath = path.join(entryPath, 'SKILL.md')
+            if (await this.fileExists(skillMdPath)) {
+              const metadata = await this.registerComponent(entryPath, entry.name, 'skill', workdir, agent, packageInfo)
+              results.installed.push(metadata)
+            }
+          } else if ((type === 'agent' || type === 'command') && entry.isFile()) {
+            // Agents and commands are .md files
+            if (entry.name.endsWith('.md') || entry.name.endsWith('.markdown')) {
+              const metadata = await this.registerComponent(entryPath, entry.name, type, workdir, agent, packageInfo)
+              results.installed.push(metadata)
+            }
+          }
+        } catch (error) {
+          results.failed.push({
+            path: entryPath,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          logger.warn('Failed to register component', {
+            path: entryPath,
+            type,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to scan directory', {
+        dirPath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
+    return results
+  }
+
+  /**
+   * Register a component (skill/agent/command) and update cache
+   */
+  private async registerComponent(
+    componentPath: string,
+    name: string,
+    type: PluginType,
+    workdir: string,
+    agent: GetAgentResponse,
+    packageInfo?: { packageName: string; packageVersion?: string }
+  ): Promise<PluginMetadata> {
+    const isSkill = type === 'skill'
+
+    // Parse metadata based on type
+    const metadata = isSkill
+      ? await parseSkillMetadata(componentPath, name, 'plugins')
+      : await parsePluginMetadata(componentPath, name, 'plugins', type as 'agent' | 'command')
+
+    // Sanitize name based on type
+    const sanitizedName = isSkill
+      ? this.sanitizeFolderName(metadata.filename)
+      : this.sanitizeFilename(metadata.filename)
+
+    // Create metadata and register in cache
+    const { metadata: metadataWithInstall, installedPlugin } = this.createInstalledPluginMetadata(
+      metadata,
+      sanitizedName,
+      type,
+      packageInfo
+    )
+
+    await this.registerPluginInCache(workdir, installedPlugin, agent)
+
+    logger.debug('Component registered', { name: sanitizedName, type, packageName: packageInfo?.packageName })
+    return metadataWithInstall
+  }
+
+  /**
+   * Check if directory exists
+   */
+  private async directoryExists(dirPath: string): Promise<boolean> {
+    try {
+      const stats = await fs.promises.stat(dirPath)
+      return stats.isDirectory()
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Check if path exists (file or directory)
+   */
+  private async pathExists(p: string): Promise<boolean> {
+    try {
+      await fs.promises.access(p, fs.constants.R_OK)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Check if file exists
+   */
+  private async fileExists(filePath: string): Promise<boolean> {
+    try {
+      const stats = await fs.promises.stat(filePath)
+      return stats.isFile()
+    } catch {
+      return false
+    }
   }
 
   // ============================================================================
@@ -417,8 +981,7 @@ export class PluginService {
       metadata: updatedMetadata
     }
 
-    await this.cacheStore.upsert(workdir, updatedPlugin)
-    this.upsertAgentPlugin(agent, updatedPlugin)
+    await this.registerPluginInCache(workdir, updatedPlugin, agent)
 
     logger.info('Plugin content updated successfully', {
       agentId,
@@ -530,6 +1093,47 @@ export class PluginService {
         message: 'Workdir does not exist or is not accessible'
       } as PluginError
     }
+  }
+
+  /**
+   * Create metadata and InstalledPlugin objects for a component
+   */
+  private createInstalledPluginMetadata(
+    metadata: PluginMetadata,
+    filename: string,
+    type: PluginType,
+    packageInfo?: { packageName: string; packageVersion?: string }
+  ): ComponentInstallResult {
+    const installedAt = Date.now()
+    const metadataWithInstall: PluginMetadata = {
+      ...metadata,
+      filename,
+      installedAt,
+      updatedAt: metadata.updatedAt ?? installedAt,
+      type,
+      ...(packageInfo && {
+        packageName: packageInfo.packageName,
+        packageVersion: packageInfo.packageVersion
+      })
+    }
+    const installedPlugin: InstalledPlugin = {
+      filename,
+      type,
+      metadata: metadataWithInstall
+    }
+    return { metadata: metadataWithInstall, installedPlugin }
+  }
+
+  /**
+   * Register plugin in both cache store and agent's installed_plugins
+   */
+  private async registerPluginInCache(
+    workdir: string,
+    installedPlugin: InstalledPlugin,
+    agent: GetAgentResponse
+  ): Promise<void> {
+    await this.cacheStore.upsert(workdir, installedPlugin)
+    this.upsertAgentPlugin(agent, installedPlugin)
   }
 
   private upsertAgentPlugin(agent: GetAgentResponse, plugin: InstalledPlugin): void {

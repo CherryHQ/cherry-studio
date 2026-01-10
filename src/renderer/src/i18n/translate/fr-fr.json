@@ -165,13 +165,28 @@
           "title": "Extension installée"
         },
         "installing": "Installation en cours...",
+        "plugin_upload": {
+          "all_failed": "[to be translated]:All {{failed}} components failed to install",
+          "error": "[to be translated]:Installation failed",
+          "format_hint": "[to be translated]:Supports plugin packages (.claude-plugin/plugin.json)",
+          "hint": "[to be translated]:Drag and drop plugin ZIP here, or click to select",
+          "invalid_format": "[to be translated]:Please upload a ZIP file",
+          "partial_success": "[to be translated]:Plugin \"{{name}}\" partially installed: {{installed}} installed, {{failed}} failed",
+          "select_folder": "[to be translated]:Select Folder",
+          "select_folder_title": "[to be translated]:Select Plugin Folder",
+          "success": "[to be translated]:Plugin \"{{name}}\" installed successfully ({{count}} components)",
+          "success_multi": "[to be translated]:Installed {{count}} components from {{packages}} packages",
+          "uploading": "[to be translated]:Uploading and installing..."
+        },
         "results": "{{count}} modules complémentaires trouvés",
         "search": {
           "placeholder": "Recherche de plug-ins..."
         },
+        "standalone_plugins": "[to be translated]:Standalone Plugins",
         "success": {
           "install": "Installation du plugin réussie",
-          "uninstall": "Désinstallation du plugin réussie"
+          "uninstall": "Désinstallation du plugin réussie",
+          "uninstall_package": "[to be translated]:Package \"{{name}}\" uninstalled successfully"
         },
         "tab": "Module d'extension",
         "type": {
@@ -183,6 +198,8 @@
           "skills": "compétence"
         },
         "uninstall": "Désinstaller",
+        "uninstall_package": "[to be translated]:Uninstall Package",
+        "uninstall_package_confirm": "[to be translated]:Are you sure you want to uninstall the entire \"{{name}}\" package? This will remove {{count}} component(s).",
         "uninstalling": "Désinstallation en cours..."
       },
       "prompt": "Paramètres de l'invite",

@@ -165,13 +165,28 @@
           "title": "Установленный плагин"
         },
         "installing": "Установка...",
+        "plugin_upload": {
+          "all_failed": "[to be translated]:All {{failed}} components failed to install",
+          "error": "[to be translated]:Installation failed",
+          "format_hint": "[to be translated]:Supports plugin packages (.claude-plugin/plugin.json)",
+          "hint": "[to be translated]:Drag and drop plugin ZIP here, or click to select",
+          "invalid_format": "[to be translated]:Please upload a ZIP file",
+          "partial_success": "[to be translated]:Plugin \"{{name}}\" partially installed: {{installed}} installed, {{failed}} failed",
+          "select_folder": "[to be translated]:Select Folder",
+          "select_folder_title": "[to be translated]:Select Plugin Folder",
+          "success": "[to be translated]:Plugin \"{{name}}\" installed successfully ({{count}} components)",
+          "success_multi": "[to be translated]:Installed {{count}} components from {{packages}} packages",
+          "uploading": "[to be translated]:Uploading and installing..."
+        },
         "results": "Найдено {{count}} плагинов",
         "search": {
           "placeholder": "Поиск плагинов..."
         },
+        "standalone_plugins": "[to be translated]:Standalone Plugins",
         "success": {
           "install": "Плагин успешно установлен",
-          "uninstall": "Плагин успешно удалён"
+          "uninstall": "Плагин успешно удалён",
+          "uninstall_package": "[to be translated]:Package \"{{name}}\" uninstalled successfully"
         },
         "tab": "плагин",
         "type": {
@@ -183,6 +198,8 @@
           "skills": "навык"
         },
         "uninstall": "Удаление",
+        "uninstall_package": "[to be translated]:Uninstall Package",
+        "uninstall_package_confirm": "[to be translated]:Are you sure you want to uninstall the entire \"{{name}}\" package? This will remove {{count}} component(s).",
         "uninstalling": "Удаление..."
       },
       "prompt": "Настройки подсказки",
@@ -1311,7 +1328,6 @@
     "backup": {
       "file_format": "Ошибка формата файла резервной копии"
     },
-    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "base64DataTruncated": "Данные изображения в формате Base64 усечены, размер",
     "boundary": {
       "default": {
@@ -1393,9 +1409,7 @@
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
-    "truncated": "[to be translated]:Data truncated, original size",
     "truncated": "Данные усечены, исходный размер",
-    "truncatedBadge": "[to be translated]:Truncated",
     "truncatedBadge": "Усечённый",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",

@@ -1054,6 +1054,16 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_UninstallPackage, async (_, options) => {
+    try {
+      const data = await pluginService.uninstallPluginPackage(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to uninstall plugin package', { options, error })
+      return { success: false, error }
+    }
+  })
+
   ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
     try {
       const data = await pluginService.listInstalled(agentId)
@@ -1124,6 +1134,26 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       return { success: true, data: undefined }
     } catch (error) {
       logger.error('Failed to write plugin content', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromZip, async (_, options) => {
+    try {
+      const data = await pluginService.installFromZip(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install plugin from ZIP', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, async (_, options) => {
+    try {
+      const data = await pluginService.installFromDirectory(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install plugin from directory', { options, error })
       return { success: false, error }
     }
   })

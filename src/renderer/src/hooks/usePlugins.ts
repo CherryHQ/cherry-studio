@@ -1,15 +1,6 @@
-import type { InstalledPlugin, PluginError, PluginMetadata } from '@renderer/types/plugin'
+import type { InstalledPlugin, PluginMetadata, UninstallPluginPackageResult } from '@renderer/types/plugin'
+import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import { useCallback, useEffect, useState } from 'react'
-
-/**
- * Helper to extract error message from PluginError union type
- */
-function getPluginErrorMessage(error: PluginError, defaultMessage: string): string {
-  if ('message' in error && error.message) return error.message
-  if ('reason' in error) return error.reason
-  if ('path' in error) return `Error with file: ${error.path}`
-  return defaultMessage
-}
 
 /**
  * Hook to fetch and cache available plugins from the resources directory
@@ -97,11 +88,12 @@ export function useInstalledPlugins(agentId: string | undefined) {
  * Hook to provide install and uninstall actions for plugins
  * @param agentId - The ID of the agent to perform actions for
  * @param onSuccess - Optional callback to be called on successful operations
- * @returns Object containing install, uninstall functions and their loading states
+ * @returns Object containing install, uninstall, uninstallPackage functions and their loading states
  */
 export function usePluginActions(agentId: string, onSuccess?: () => void) {
   const [installing, setInstalling] = useState<boolean>(false)
   const [uninstalling, setUninstalling] = useState<boolean>(false)
+  const [uninstallingPackage, setUninstallingPackage] = useState<boolean>(false)
 
   const install = useCallback(
     async (sourcePath: string, type: 'agent' | 'command' | 'skill') => {
@@ -159,5 +151,34 @@ export function usePluginActions(agentId: string, onSuccess?: () => void) {
     [agentId, onSuccess]
   )
 
-  return { install, uninstall, installing, uninstalling }
+  const uninstallPackage = useCallback(
+    async (
+      packageName: string
+    ): Promise<{ success: true; data: UninstallPluginPackageResult } | { success: false; error: string }> => {
+      setUninstallingPackage(true)
+
+      try {
+        const result = await window.api.claudeCodePlugin.uninstallPackage({
+          agentId,
+          packageName
+        })
+
+        if (result.success) {
+          onSuccess?.()
+          return { success: true as const, data: result.data }
+        } else {
+          const errorMessage = getPluginErrorMessage(result.error, 'Failed to uninstall package')
+          return { success: false as const, error: errorMessage }
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+        return { success: false as const, error: errorMessage }
+      } finally {
+        setUninstallingPackage(false)
+      }
+    },
+    [agentId, onSuccess]
+  )
+
+  return { install, uninstall, uninstallPackage, installing, uninstalling, uninstallingPackage }
 }

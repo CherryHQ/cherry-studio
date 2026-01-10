@@ -165,13 +165,28 @@
           "title": "已安裝外掛"
         },
         "installing": "安裝中...",
+        "plugin_upload": {
+          "all_failed": "全部 {{failed}} 個元件安裝失敗",
+          "error": "安裝失敗",
+          "format_hint": "支援外掛包格式（.claude-plugin/plugin.json）",
+          "hint": "拖曳外掛 ZIP 至此處，或點擊選擇檔案",
+          "invalid_format": "請上傳 ZIP 格式的檔案",
+          "partial_success": "已安裝 {{installed}} 個元件，{{failed}} 個失敗",
+          "select_folder": "選擇資料夾",
+          "select_folder_title": "選擇外掛資料夾",
+          "success": "外掛 \"{{name}}\" 安裝成功（{{count}} 個元件）",
+          "success_multi": "已從 {{packages}} 個外掛包安裝 {{count}} 個元件",
+          "uploading": "正在上傳並安裝..."
+        },
         "results": "找到 {{count}} 個外掛",
         "search": {
           "placeholder": "搜尋外掛..."
         },
+        "standalone_plugins": "獨立外掛",
         "success": {
           "install": "外掛安裝成功",
-          "uninstall": "外掛解除安裝成功"
+          "uninstall": "外掛解除安裝成功",
+          "uninstall_package": "外掛包 \"{{name}}\" 解除安裝成功"
         },
         "tab": "外掛",
         "type": {
@@ -183,6 +198,8 @@
           "skills": "技能"
         },
         "uninstall": "解除安裝",
+        "uninstall_package": "解除安裝整個包",
+        "uninstall_package_confirm": "確定要解除安裝整個 \"{{name}}\" 外掛包嗎？這將刪除 {{count}} 個元件。",
         "uninstalling": "解除安裝中..."
       },
       "prompt": "提示設定",
