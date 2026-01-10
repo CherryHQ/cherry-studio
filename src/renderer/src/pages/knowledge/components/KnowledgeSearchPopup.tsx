@@ -1,7 +1,7 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
-import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
+import { useKnowledgeSearch } from '@renderer/hooks/useKnowledge.v2'
 import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
 import type { InputRef } from 'antd'
 import { Divider, Input, List, Modal, Spin } from 'antd'
@@ -24,11 +24,13 @@ const logger = loggerService.withContext('KnowledgeSearchPopup')
 
 const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [open, setOpen] = useState(true)
-  const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<Array<KnowledgeSearchResult & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
   const searchInputRef = useRef<InputRef>(null)
+
+  // v2 Data API hook for searching
+  const { search, isSearching } = useKnowledgeSearch(base.id)
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) {
@@ -38,16 +40,18 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
     }
 
     setSearchKeyword(value.trim())
-    setLoading(true)
     try {
-      const searchResults = await searchKnowledgeBase(value, base)
+      const searchResults = await search({
+        search: value.trim(),
+        limit: base.documentCount,
+        rerank: !!base.rerankModel
+      })
       logger.debug(`KnowledgeSearchPopup Search Results: ${searchResults}`)
-      setResults(searchResults)
+      // Map results to include file: null for compatibility
+      setResults(searchResults.map((r) => ({ ...r, file: null })))
     } catch (error) {
       logger.error(`Failed to search knowledge base ${base.name}:`, error as Error)
       setResults([])
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -119,7 +123,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       <ResultsContainer>
-        {loading ? (
+        {isSearching ? (
           <LoadingContainer>
             <Spin size="large" />
           </LoadingContainer>

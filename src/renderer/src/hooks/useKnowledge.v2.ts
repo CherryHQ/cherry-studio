@@ -16,12 +16,13 @@ import {
   updateNotes
 } from '@renderer/store/knowledge'
 import type { FileMetadata, KnowledgeItem } from '@renderer/types'
-import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledge'
+import type { CreateKnowledgeItemDto, KnowledgeSearchRequest } from '@shared/data/api/schemas/knowledge'
 import type {
   DirectoryItemData,
   FileItemData,
   ItemStatus,
   KnowledgeItem as KnowledgeItemV2,
+  KnowledgeSearchResult,
   NoteItemData,
   SitemapItemData,
   UrlItemData
@@ -417,5 +418,39 @@ export const useKnowledgeItemDelete = () => {
   return {
     deleteItem,
     isDeleting
+  }
+}
+
+/**
+ * Hook for searching a knowledge base via v2 Data API
+ */
+export const useKnowledgeSearch = (baseId: string) => {
+  const { trigger: searchApi, isLoading: isSearching } = useMutation('POST', `/knowledge-bases/${baseId}/search`)
+
+  /**
+   * Search knowledge base via v2 API
+   */
+  const search = async (
+    request: Omit<KnowledgeSearchRequest, 'search'> & { search: string }
+  ): Promise<KnowledgeSearchResult[]> => {
+    if (!request.search?.trim()) {
+      return []
+    }
+
+    try {
+      const results = await searchApi({
+        body: request
+      })
+      logger.info('Knowledge base search completed', { baseId, resultCount: results.length })
+      return results
+    } catch (error) {
+      logger.error('Knowledge base search failed', error as Error)
+      throw error
+    }
+  }
+
+  return {
+    search,
+    isSearching
   }
 }
