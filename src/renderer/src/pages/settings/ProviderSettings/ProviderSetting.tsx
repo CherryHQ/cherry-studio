@@ -59,6 +59,7 @@ import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import LMStudioSettings from './LMStudioSettings'
+import OpenAISettings from './OpenAISettings'
 import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
@@ -390,7 +391,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       : t('settings.provider.api_host_tooltip')
 
   const isAnthropicOAuth = () => provider.id === 'anthropic' && provider.authType === 'oauth'
-
+  const isOpenAIOAuth = () => provider.id === 'openai' && provider.authType === 'oauth'
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
@@ -425,7 +426,21 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
-      {provider.id === 'openai' && <OpenAIAlert />}
+      {provider.id === 'openai' && (
+        <>
+          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.openai.auth_method')}</SettingSubtitle>
+          <Select
+            style={{ width: '40%', marginTop: 5, marginBottom: 10 }}
+            value={provider.authType || 'apiKey'}
+            onChange={(value) => updateProvider({ authType: value })}
+            options={[
+              { value: 'apiKey', label: t('settings.provider.openai.apikey') },
+              { value: 'oauth', label: t('settings.provider.openai.oauth') }
+            ]}
+          />
+          {provider.authType === 'oauth' && <OpenAISettings />}
+        </>
+      )}
       {provider.id === 'ovms' && <OVMSSettings />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
       {provider.id === 'anthropic' && (
@@ -443,7 +458,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           {provider.authType === 'oauth' && <AnthropicSettings />}
         </>
       )}
-      {!hideApiInput && !isAnthropicOAuth() && (
+      {!hideApiInput && !isAnthropicOAuth() && !isOpenAIOAuth() && (
         <>
           {!hideApiKeyInput && (
             <>
