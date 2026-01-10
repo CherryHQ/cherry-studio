@@ -6,6 +6,7 @@ import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.web
 import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.webp'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
+import AtlasCloudProviderLogo from '@renderer/assets/images/providers/atlascloud.svg'
 import AwsProviderLogo from '@renderer/assets/images/providers/aws-bedrock.webp'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
@@ -326,6 +327,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://api.anthropic.com',
     models: SYSTEM_MODELS.anthropic,
+    isSystem: true,
+    enabled: false
+  },
+  atlascloud: {
+    id: 'atlascloud',
+    name: 'Atlas Cloud',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.atlascloud.ai/v1',
+    models: SYSTEM_MODELS.atlascloud,
     isSystem: true,
     enabled: false
   },
@@ -719,6 +730,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
+  atlascloud: AtlasCloudProviderLogo,
   silicon: SiliconFlowProviderLogo,
   deepseek: DeepSeekProviderLogo,
   'gitee-ai': GiteeAIProviderLogo,
@@ -1459,6 +1471,18 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
+    }
+  },
+  atlascloud: {
+    api: {
+      url: 'https://api.atlascloud.ai/v1'
+    },
+    websites: {
+      official: 'https://atlascloud.ai?utm_source=cherrystudio&utm_medium=app&utm_campaign=model_provider',
+      apiKey:
+        'https://console.atlascloud.ai/settings?utm_source=cherrystudio&utm_medium=app&utm_campaign=model_provider',
+      docs: 'https://atlascloud.ai/docs?utm_source=cherrystudio&utm_medium=app&utm_campaign=model_provider',
+      models: 'https://atlascloud.ai/models?utm_source=cherrystudio&utm_medium=app&utm_campaign=model_provider'
     }
   }
 }

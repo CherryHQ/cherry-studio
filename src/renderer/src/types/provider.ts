@@ -199,7 +199,8 @@ export const SystemProviderIdSchema = z.enum([
   'sophnet',
   'gateway',
   'cerebras',
-  'mimo'
+  'mimo',
+  'atlascloud'
 ])
 
 export type SystemProviderId = z.infer<typeof SystemProviderIdSchema>
@@ -247,6 +248,7 @@ export const SystemProviderIds = {
   infini: 'infini',
   minimax: 'minimax',
   groq: 'groq',
+  atlascloud: 'atlascloud',
   together: 'together',
   fireworks: 'fireworks',
   nvidia: 'nvidia',

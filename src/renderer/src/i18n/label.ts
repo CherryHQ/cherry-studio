@@ -29,6 +29,7 @@ const providerKeyMap = {
   aihubmix: 'provider.aihubmix',
   alayanew: 'provider.alayanew',
   anthropic: 'provider.anthropic',
+  atlascloud: 'provider.atlascloud',
   'aws-bedrock': 'provider.aws-bedrock',
   'azure-openai': 'provider.azure-openai',
   baichuan: 'provider.baichuan',

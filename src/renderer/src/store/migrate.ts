@@ -3159,6 +3159,17 @@ const migrateConfig = {
       logger.error('migrate 192 error', error as Error)
       return state
     }
+  },
+  '193': (state: RootState) => {
+    try {
+      addProvider(state, 'atlascloud')
+      state.llm.providers = moveProvider(state.llm.providers, 'atlascloud', 11)
+      logger.info('migrate 184 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 184 error', error as Error)
+      return state
+    }
   }
 }
 
