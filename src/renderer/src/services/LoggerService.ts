@@ -113,9 +113,10 @@ class LoggerService {
    * @param data - Additional data to log
    */
   private processLog(level: LogLevel, message: string, data: any[]): void {
+    let windowSource = this.window
     if (!this.window) {
       console.error('[LoggerService] window source not initialized, please initialize window source first')
-      return
+      windowSource = 'UNKNOWN'
     }
 
     const currentLevel = LEVEL_MAP[level]
@@ -164,7 +165,7 @@ class LoggerService {
     if (currentLevel >= LEVEL_MAP[this.logToMainLevel] || forceLogToMain) {
       const source: LogSourceWithContext = {
         process: 'renderer',
-        window: this.window,
+        window: windowSource,
         module: this.module
       }
 
