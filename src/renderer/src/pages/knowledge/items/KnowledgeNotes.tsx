@@ -3,6 +3,7 @@ import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeNotes } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
@@ -36,9 +37,10 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
-  const { base, noteItems, updateNoteContent, removeItem, getProcessingStatus, addNote } = useKnowledge(
-    selectedBase.id || ''
-  )
+  const { base, noteItems, updateNoteContent, removeItem, getProcessingStatus } = useKnowledge(selectedBase.id || '')
+
+  // v2 Data API hook for adding notes
+  const { addNote, isAddingNote } = useKnowledgeNotes(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
@@ -51,7 +53,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   }
 
   const handleAddNote = async () => {
-    if (disabled) {
+    if (disabled || isAddingNote) {
       return
     }
 
@@ -81,7 +83,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddNote} disabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddNote} disabled={disabled || isAddingNote}>
           <PlusIcon size={16} />
           {t('knowledge.add_note')}
         </ResponsiveButton>

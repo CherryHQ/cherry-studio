@@ -8,7 +8,7 @@
 import { loggerService } from '@logger'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAppDispatch } from '@renderer/store'
-import { addFiles as addFilesAction, addItem } from '@renderer/store/knowledge'
+import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
 import type { FileMetadata, KnowledgeItem } from '@renderer/types'
 import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledge'
 import type {
@@ -16,6 +16,7 @@ import type {
   FileItemData,
   ItemStatus,
   KnowledgeItem as KnowledgeItemV2,
+  NoteItemData,
   SitemapItemData,
   UrlItemData
 } from '@shared/data/types/knowledge'
@@ -101,6 +102,25 @@ const toV1SitemapItem = (item: KnowledgeItemV2): KnowledgeItem => {
     id: item.id,
     type: item.type,
     content: data.url,
+    created_at: Date.parse(item.createdAt),
+    updated_at: Date.parse(item.updatedAt),
+    processingStatus: mapV2StatusToV1(item.status),
+    processingProgress: 0,
+    processingError: item.error ?? '',
+    retryCount: 0
+  }
+}
+
+/**
+ * Convert v2 KnowledgeItem (note type) to v1 format for Redux compatibility
+ * Note: v2 stores content directly in data.content, v1 displayed via noteItems
+ */
+const toV1NoteItem = (item: KnowledgeItemV2): KnowledgeItem => {
+  const data = item.data as NoteItemData
+  return {
+    id: item.id,
+    type: item.type,
+    content: data.content,
     created_at: Date.parse(item.createdAt),
     updated_at: Date.parse(item.updatedAt),
     processingStatus: mapV2StatusToV1(item.status),
@@ -305,5 +325,55 @@ export const useKnowledgeSitemaps = (baseId: string) => {
   return {
     addSitemap,
     isAddingSitemap
+  }
+}
+
+/**
+ * Hook for adding notes to a knowledge base via v2 Data API
+ */
+export const useKnowledgeNotes = (baseId: string) => {
+  const dispatch = useAppDispatch()
+
+  const { trigger: createItemsBatchApi, isLoading: isAddingNote } = useMutation(
+    'POST',
+    `/knowledge-bases/${baseId}/items/batch`
+  )
+
+  /**
+   * Add a note to knowledge base via v2 API
+   * Also updates Redux store for UI compatibility during migration
+   */
+  const addNote = async (content: string): Promise<KnowledgeItemV2 | undefined> => {
+    if (!content) return
+
+    try {
+      // Convert to v2 format
+      const v2Items: CreateKnowledgeItemDto[] = [
+        {
+          type: 'note' as const,
+          data: { type: 'note' as const, content } satisfies NoteItemData
+        }
+      ]
+
+      // Call v2 API (item created with status: 'pending', processing starts automatically)
+      const createdItems = await createItemsBatchApi({
+        body: { items: v2Items }
+      })
+
+      // Update Redux store for UI compatibility during migration
+      const v1Item = toV1NoteItem(createdItems[0])
+      dispatch(updateNotes({ baseId, item: v1Item }))
+
+      logger.info('Note added via v2 API', { baseId })
+      return createdItems[0]
+    } catch (error) {
+      logger.error('Failed to add note via v2 API', error as Error)
+      throw error
+    }
+  }
+
+  return {
+    addNote,
+    isAddingNote
   }
 }
