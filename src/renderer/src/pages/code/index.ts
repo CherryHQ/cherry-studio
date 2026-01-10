@@ -1,4 +1,5 @@
 import { type EndpointType, type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import { formatApiHost } from '@renderer/utils/api'
 import { codeTools } from '@shared/config/constant'
 
 export interface LaunchValidationResult {
@@ -145,6 +146,7 @@ export const generateToolEnvironment = ({
   baseUrl: string
 }): Record<string, string> => {
   const env: Record<string, string> = {}
+  const formattedBaseUrl = formatApiHost(baseUrl)
 
   switch (tool) {
     case codeTools.claudeCode:
@@ -169,19 +171,19 @@ export const generateToolEnvironment = ({
 
     case codeTools.qwenCode:
       env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = baseUrl
+      env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       break
     case codeTools.openaiCodex:
       env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = baseUrl
+      env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       env.OPENAI_MODEL_PROVIDER = modelProvider.id
       break
 
     case codeTools.iFlowCli:
       env.IFLOW_API_KEY = apiKey
-      env.IFLOW_BASE_URL = baseUrl
+      env.IFLOW_BASE_URL = formattedBaseUrl
       env.IFLOW_MODEL_NAME = model.id
       break
 
