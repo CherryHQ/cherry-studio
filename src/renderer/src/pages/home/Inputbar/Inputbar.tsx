@@ -99,6 +99,9 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
       mentionedModels: initialMentionedModels,
       selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
       isExpanded: false,
+      isCommitteeArmed: false,
+      committeePendingAskId: null as string | null,
+      committeePendingTopicId: null as string | null,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
@@ -130,8 +133,15 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
 
-  const { files, mentionedModels, selectedKnowledgeBases } = useInputbarToolsState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
+  const { files, mentionedModels, selectedKnowledgeBases, isCommitteeArmed } = useInputbarToolsState()
+  const {
+    setFiles,
+    setMentionedModels,
+    setSelectedKnowledgeBases,
+    setCommitteeArmed,
+    setCommitteePendingAskId,
+    setCommitteePendingTopicId
+  } = useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { text, setText } = useInputText({
@@ -254,6 +264,12 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
+      if (isCommitteeArmed && mentionedModels.length >= 2) {
+        setCommitteePendingAskId(message.id)
+        setCommitteePendingTopicId(topic.id)
+        setCommitteeArmed(false)
+      }
+
       dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
       setText('')
@@ -264,7 +280,22 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, topic, text, mentionedModels, files, dispatch, setText, setFiles, setTimeoutTimer, resizeTextArea])
+  }, [
+    assistant,
+    topic,
+    text,
+    mentionedModels,
+    files,
+    dispatch,
+    isCommitteeArmed,
+    setCommitteeArmed,
+    setCommitteePendingAskId,
+    setCommitteePendingTopicId,
+    setText,
+    setFiles,
+    setTimeoutTimer,
+    resizeTextArea
+  ])
 
   const tokenCountProps = useMemo(() => {
     if (!config.showTokenCount || estimateTokenCount === undefined || !showInputEstimatedTokens) {
