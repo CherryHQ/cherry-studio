@@ -1,6 +1,6 @@
 # Knowledge Data API 设计方案
 
-本文档描述 Knowledge 模块从 Redux/Dexie 迁移到 v2 Data API 架构的完整设计方案，并补充 DataApi 端点、DTO 以及订阅推送状态的约定。
+本文档描述 Knowledge 模块从 Redux/Dexie 迁移到 v2 Data API 架构的完整设计方案。
 
 ## 目标
 
@@ -9,13 +9,13 @@
 1. **统一数据存储** - 元数据从 Redux/Dexie 迁移到 SQLite
 2. **类型安全 API** - 使用 DataApi 提供完整类型推断
 3. **端点化向量操作** - 向量检索/重建通过 DataApi 统一入口
-4. **状态订阅推送** - 处理进度通过订阅实时推送
+4. **状态轮询更新** - 处理进度通过轮询 API 获取
 
 ## 关键决策与范围
 
 - **不支持 `memory`/`video` 类型**：v2 DataApi 仅覆盖 `file | url | note | sitemap | directory`。
 - **向量操作走 DataApi**：检索、重新嵌入、删除等操作通过 DataApi 端点发起。
-- **进度不持久化**：进度通过 DataApi 订阅推送；表中只保存 `status` 与 `error`。
+- **进度不持久化**：进度通过轮询获取；表中只保存 `status` 与 `error`。
 
 ## 设计原则
 
@@ -72,7 +72,7 @@
 | `type`                                              | `type`                    | 不变                               |
 | `content: string \| FileMetadata \| FileMetadata[]` | `data: KnowledgeItemData` | 统一为类型安全的 JSON              |
 | `processingStatus`                                  | `status`                  | 合并 status 和 stage               |
-| `processingProgress`                                | **移除**                  | 进度通过订阅事件推送，不持久化     |
+| `processingProgress`                                | **移除**                  | 进度通过轮询获取，不持久化         |
 | —                                                   | ~~`stage`~~               | **移除**：合并到 status            |
 | `uniqueId` / `uniqueIds`                            | **移除**                  | 不再需要                           |
 | `remark`                                            | **移除**                  | 重构为 url 和 sitemap 的 name 字段 |
@@ -422,46 +422,44 @@ export interface KnowledgeSchemas {
 
 说明：搜索结果的 `itemId/chunkId` 可由向量存储 metadata 推导（例如 `external_id`），若暂未补齐可仅依赖 `pageContent` + `metadata` 保持兼容。
 
-## 订阅与状态推送
+## 状态更新机制
 
-进度不落库，依赖 DataApi 订阅推送（主进程需实现订阅分发与广播）。推荐实现以下订阅路径：
+采用 **轮询机制** 而非订阅推送，原因：
 
-| 订阅 Path | 事件范围 | 说明 |
-| --------- | -------- | ---- |
-| `/knowledge-bases/:id/items` | base 下的 item 变更 | 新增/更新/删除/进度 |
-| `/knowledge-items/:id` | 单 item 变更 | 细粒度跟踪 |
+1. **实现简单** - 无需 WebSocket/SSE 基础设施
+2. **延迟可接受** - 知识库处理通常需要数秒到数分钟，5 秒轮询延迟对用户感知影响不大
+3. **资源可控** - 仅在有活动任务时轮询，无活动任务时停止
+4. **可靠性高** - 无需处理断连重连等复杂场景
 
-需要初始快照时可传 `includeInitial: true`，由 `SubscriptionEvent.INITIAL` 返回当前状态。
-
-### 订阅事件 Payload
+### 轮询实现（Renderer）
 
 ```typescript
-export interface KnowledgeItemStatusEvent {
-  baseId: string
-  itemId: string
-  status: ItemStatus
-  progress?: number // 0-100
-  stage?: 'preprocessing' | 'embedding'
-  error?: string
-  updatedAt: string
-}
+// 初始加载
+useEffect(() => {
+  void syncItemsFromApi()
+}, [baseId])
+
+// 有活动任务时轮询
+useEffect(() => {
+  const hasActiveItems = base?.items.some(
+    (item) => item.processingStatus === 'pending' || item.processingStatus === 'processing'
+  )
+
+  if (!hasActiveItems) return
+
+  const intervalId = setInterval(() => {
+    void syncItemsFromApi()
+  }, 5000) // 每 5 秒轮询
+
+  return () => clearInterval(intervalId)
+}, [base?.items, baseId])
 ```
 
-### 订阅示例（Renderer）
+### 状态字段
 
-```typescript
-import { dataApiService } from '@data/DataApiService'
-import { SubscriptionEvent } from '@shared/data/api'
-
-const unsubscribe = dataApiService.subscribe(
-  { path: `/knowledge-bases/${baseId}/items` },
-  (event: KnowledgeItemStatusEvent, type: SubscriptionEvent) => {
-    if (type === SubscriptionEvent.UPDATED) {
-      // 使用 mutate 或本地状态合并更新
-    }
-  }
-)
-```
+- `status`: 持久化到数据库（idle | pending | preprocessing | embedding | completed | failed）
+- `error`: 持久化到数据库（失败时的错误信息）
+- `progress`: **不持久化**，UI 可根据 status 显示简化进度
 
 ## 处理状态与队列协作
 
@@ -469,7 +467,7 @@ const unsubscribe = dataApiService.subscribe(
 - **处理中**：状态依次更新为 `preprocessing` / `embedding`
 - **完成**：`status = completed`
 - **失败**：`status = failed` 且写入 `error`
-- **进度**：通过订阅事件推送，UI 不依赖持久化字段
+- **进度**：UI 通过轮询 API 获取最新状态
 
 ## 错误处理约定
 

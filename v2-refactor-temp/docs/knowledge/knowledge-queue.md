@@ -1,17 +1,17 @@
 # Knowledge 队列系统设计（v2 后端队列）
 
-本方案将知识库嵌入队列从渲染进程与 Redux 迁移到 **主进程 + DataApi** 的后端队列模型。渲染端只发起 DataApi 请求并订阅进度，**不做批量、去重或调度**。
+本方案将知识库嵌入队列从渲染进程与 Redux 迁移到 **主进程 + DataApi** 的后端队列模型。渲染端只发起 DataApi 请求并通过轮询获取进度，**不做批量、去重或调度**。
 
 ## 目标
 
 - 队列完全由主进程管理，渲染端无调度逻辑
 - 队列严格按入队顺序（FIFO）处理
 - 使用 DataApi 端点创建/刷新/取消任务
-- 通过 DataApi 订阅推送进度，状态仅持久化到 SQLite
+- 通过轮询获取进度，状态仅持久化到 SQLite
 
 ## 范围
 
-- **包含**：队列调度、取消、进度推送
+- **包含**：队列调度、取消、状态更新
 - **不包含**：UI 设计、具体实现代码、模型/向量服务细节
 
 ## 假设
@@ -33,7 +33,7 @@ Main Process
   ├─ SQLite (knowledge_base / knowledge_item)
   └─ Vector Store (LibSQL)
        ▲
-       └─ DataApi 订阅推送进度/状态
+       └─ 渲染端通过轮询 API 获取状态
 ```
 
 ## 数据流（核心路径）
@@ -43,8 +43,8 @@ Main Process
    `POST /knowledge-bases/:id/items/batch`  
    主进程写入 `knowledge_item`，初始 `status = pending`，并将任务入队。
 
-2. **队列执行**  
-   主进程调度器按入队顺序（FIFO）执行任务，更新 `status` 并通过订阅推送进度。
+2. **队列执行**
+   主进程调度器按入队顺序（FIFO）执行任务，更新 `status` 到数据库。
 
 3. **完成/失败**  
    `status = completed | failed`，`error` 写入数据库。进度不持久化。失败需用户手动 `refresh` 重新入队。
@@ -76,36 +76,27 @@ Main Process
 - **并发**：当前设定 `concurrency = 1`，确保处理顺序与入队顺序一致。
 - **取消**：为每个任务分配 `AbortController`，取消后应尽快中止执行。
 
-## 状态与进度推送
+## 状态更新机制
 
 - **持久化字段**：`status`, `error`（存 SQLite）
-- **实时进度**：通过 DataApi 订阅推送，不落库
+- **状态获取**：渲染端通过轮询 API 获取最新状态，不使用订阅推送
 
-推荐订阅路径（与 `knowledge-data-api.md` 一致）：
+### 轮询策略
 
-| 订阅 Path | 说明 |
-| --------- | ---- |
-| `/knowledge-bases/:id/items` | base 下 item 变更与进度 |
-| `/knowledge-items/:id` | 单 item 变更与进度 |
+- 初始加载时同步一次状态
+- 有 `pending` 或 `processing` 状态的 item 时，每 5 秒轮询一次
+- 所有任务完成后停止轮询
 
-事件载荷示例：
+### 状态字段
 
 ```typescript
-export interface KnowledgeItemStatusEvent {
-  baseId: string
-  itemId: string
-  status: ItemStatus
-  progress?: number
-  stage?: 'preprocessing' | 'embedding'
-  error?: string
-  updatedAt: string
-}
+type ItemStatus = 'idle' | 'pending' | 'preprocessing' | 'embedding' | 'completed' | 'failed'
 ```
 
 ## 迁移要点（v1 → v2）
 
 - **移除渲染端队列与 Redux**：所有入队/调度全部移至主进程。
-- **统一 DataApi 调用**：UI 仅调用上述端点并订阅进度。
+- **统一 DataApi 调用**：UI 仅调用上述端点并通过轮询获取状态。
 - **状态字段对齐**：`knowledge_item.status` 作为唯一持久化状态。
 - **历史数据**：复用 `knowledge_item` 表与向量库，不需要额外迁移队列数据。
 

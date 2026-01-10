@@ -54,7 +54,7 @@
 | `type`                                              | `type`                    | 不变                            |
 | `content: string \| FileMetadata \| FileMetadata[]` | `data: KnowledgeItemData` | 统一为类型安全的 JSON           |
 | `processingStatus`                                  | `status`                  | 合并 status 和 stage            |
-| `processingProgress`                                | **移除**                  | 进度通过 IPC 事件推送，不持久化 |
+| `processingProgress`                                | **移除**                  | 进度通过轮询获取，不持久化      |
 | `uniqueId` / `uniqueIds`                            | **移除**                  | 不再需要                        |
 | `remark`                                            | **移除**                  | 重构为 url/sitemap 的 name 字段 |
 | `retryCount`                                        | **移除**                  | 不再需要                        |
