@@ -778,10 +778,10 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     { id: 'qwen-plus', name: 'qwen-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
     { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
     { id: 'qwen3-max', name: 'qwen3-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
-    { id: 'text-embedding-v4', name: 'text-embedding-v4', provider: 'dashscope', group: 'Qwen-text-embedding' },
-    { id: 'text-embedding-v3', name: 'text-embedding-v3', provider: 'dashscope', group: 'Qwen-text-embedding' },
-    { id: 'text-embedding-v2', name: 'text-embedding-v2', provider: 'dashscope', group: 'Qwen-text-embedding' },
-    { id: 'text-embedding-v1', name: 'text-embedding-v1', provider: 'dashscope', group: 'Qwen-text-embedding' }
+    { id: 'text-embedding-v4', name: 'text-embedding-v4', provider: 'dashscope', group: 'qwen-text-embedding' },
+    { id: 'text-embedding-v3', name: 'text-embedding-v3', provider: 'dashscope', group: 'qwen-text-embedding' },
+    { id: 'text-embedding-v2', name: 'text-embedding-v2', provider: 'dashscope', group: 'qwen-text-embedding' },
+    { id: 'text-embedding-v1', name: 'text-embedding-v1', provider: 'dashscope', group: 'qwen-text-embedding' }
   ],
   stepfun: [
     {
