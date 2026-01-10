@@ -50,6 +50,54 @@ export interface EmbeddingModelMeta extends ModelMeta {
 }
 
 // ============================================================================
+// Entity Types
+// ============================================================================
+
+/**
+ * Knowledge base metadata stored in SQLite.
+ */
+export interface KnowledgeBase {
+  id: string
+  name: string
+  description?: string
+  embeddingModelId: string
+  embeddingModelMeta?: EmbeddingModelMeta
+  rerankModelId?: string
+  rerankModelMeta?: ModelMeta
+  preprocessProviderId?: string
+  chunkSize?: number
+  chunkOverlap?: number
+  threshold?: number
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Knowledge item record stored in SQLite.
+ */
+export interface KnowledgeItem {
+  id: string
+  baseId: string
+  type: KnowledgeItemType
+  data: KnowledgeItemData
+  status: ItemStatus
+  error?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Search result returned by vector search.
+ */
+export interface KnowledgeSearchResult {
+  pageContent: string
+  score: number
+  metadata: Record<string, unknown>
+  itemId?: string
+  chunkId?: string
+}
+
+// ============================================================================
 // Item Data Types (Discriminated Union)
 // ============================================================================
 
