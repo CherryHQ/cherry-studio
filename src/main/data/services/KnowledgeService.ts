@@ -8,7 +8,9 @@
 import { dbService } from '@data/db/DbService'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
+import { knowledgeQueueManager } from '@main/services/knowledge/KnowledgeQueueManager'
 import { knowledgeServiceV2 } from '@main/services/knowledge/KnowledgeServiceV2'
+import { estimateWorkload } from '@main/services/knowledge/vectorstores/reader'
 import { reduxService } from '@main/services/ReduxService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type {
@@ -434,7 +436,7 @@ export class KnowledgeService {
   async cancelItem(id: string): Promise<{ status: 'cancelled' | 'ignored' }> {
     const item = await this.getItemById(id)
 
-    const result = await knowledgeServiceV2.cancel(id)
+    const result = knowledgeQueueManager.cancel(id)
 
     if (result.status === 'cancelled') {
       await dbService
@@ -573,6 +575,11 @@ export class KnowledgeService {
     options: { forceReload: boolean }
   ): Promise<void> {
     try {
+      if (knowledgeQueueManager.isQueued(item.id) || knowledgeQueueManager.isProcessing(item.id)) {
+        logger.debug('Item already queued or processing, skipping enqueue', { itemId: item.id })
+        return
+      }
+
       const baseParams = await this.buildBaseParams(base, 'embeddingModelId')
       const serviceItem = this.toServiceItem(item)
 
@@ -580,19 +587,53 @@ export class KnowledgeService {
         await this.removeItemVectors(base, item)
       }
 
-      const result = await knowledgeServiceV2.add({
+      const workload = estimateWorkload({
         base: baseParams,
         item: serviceItem,
+        itemId: item.id,
         forceReload: options.forceReload
       })
 
-      if (result.status === 'failed') {
-        await this.updateItemStatus(item.id, 'failed', result.message ?? null)
-      } else {
-        await this.updateItemStatus(item.id, 'completed', null)
+      const handleStageChange = async (stage: 'preprocessing' | 'embedding') => {
+        await this.updateItemStatus(item.id, stage, null)
       }
+
+      void knowledgeQueueManager
+        .enqueue(item.id, workload, async (signal) => {
+          try {
+            const result = await knowledgeServiceV2.add({
+              base: baseParams,
+              item: serviceItem,
+              forceReload: options.forceReload,
+              signal,
+              onStageChange: handleStageChange
+            })
+
+            if (result.status === 'failed') {
+              await this.updateItemStatus(item.id, 'failed', result.message ?? null)
+            } else {
+              await this.updateItemStatus(item.id, 'completed', null)
+            }
+          } catch (error) {
+            if (this.isAbortError(error)) {
+              await this.updateItemStatus(item.id, 'failed', 'Cancelled')
+              logger.info('Knowledge item processing cancelled', { itemId: item.id })
+              return
+            }
+
+            logger.error('Knowledge item processing failed', error as Error, { itemId: item.id, baseId: base.id })
+            await this.updateItemStatus(item.id, 'failed', error instanceof Error ? error.message : String(error))
+          }
+        })
+        .catch((error) => {
+          if (this.isAbortError(error)) {
+            logger.debug('Queue task aborted before start', { itemId: item.id })
+            return
+          }
+          logger.error('Failed to enqueue knowledge item', error as Error, { itemId: item.id })
+        })
     } catch (error) {
-      logger.error('Knowledge item processing failed', error as Error, { itemId: item.id, baseId: base.id })
+      logger.error('Knowledge item enqueue failed', error as Error, { itemId: item.id, baseId: base.id })
       await this.updateItemStatus(item.id, 'failed', error instanceof Error ? error.message : String(error))
     }
   }
@@ -601,6 +642,10 @@ export class KnowledgeService {
     const db = dbService.getDb()
 
     await db.update(knowledgeItemTable).set({ status, error: errorMessage }).where(eq(knowledgeItemTable.id, id))
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && error.name === 'AbortError'
   }
 
   private toServiceItem(item: KnowledgeItem): ServiceKnowledgeItem {
@@ -654,6 +699,10 @@ export class KnowledgeService {
     } catch (error) {
       logger.warn('Failed to remove knowledge item vectors', { itemId: item.id, error })
     }
+  }
+
+  getQueueStatus(): { queueSize: number; processingCount: number; currentWorkload: number } {
+    return knowledgeQueueManager.getStatus()
   }
 
   private async buildBaseParams(

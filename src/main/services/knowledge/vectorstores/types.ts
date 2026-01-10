@@ -73,11 +73,15 @@ export interface ContentReader {
  * Options for adding items to knowledge base
  * Compatible with v1 KnowledgeService API
  */
+export type KnowledgeProcessingStage = 'preprocessing' | 'embedding'
+
 export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBaseParams
   item: KnowledgeItem
   forceReload?: boolean
   userId?: string
+  signal?: AbortSignal
+  onStageChange?: (stage: KnowledgeProcessingStage) => void
 }
 
 /**

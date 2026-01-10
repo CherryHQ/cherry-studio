@@ -87,5 +87,10 @@ export const knowledgeHandlers: {
     POST: async ({ params, body }) => {
       return await knowledgeService.search(params.id, body)
     }
+  },
+  '/knowledge-queue/status': {
+    GET: async () => {
+      return knowledgeService.getQueueStatus()
+    }
   }
 }

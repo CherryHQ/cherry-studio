@@ -24,11 +24,11 @@ import { MetadataMode } from '@vectorstores/core'
 import { LIBSQL_TABLE, LibSQLVectorStore } from '@vectorstores/libsql'
 
 import Embeddings from './embedjs/embeddings/Embeddings'
+import { knowledgeQueueManager } from './KnowledgeQueueManager'
 import Reranker from './reranker/Reranker'
 import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
 import { embedNodes } from './vectorstores/EmbeddingPipeline'
-import { estimateWorkload, getReader } from './vectorstores/reader'
-import { TaskQueueManager } from './vectorstores/TaskQueueManager'
+import { getReader } from './vectorstores/reader'
 import {
   type KnowledgeBaseAddItemOptions,
   type KnowledgeBaseRemoveOptions,
@@ -58,12 +58,10 @@ class KnowledgeServiceV2 {
   private storageDir = path.join(getDataPath(), 'KnowledgeBase')
   private pendingDeleteFile = path.join(this.storageDir, 'knowledge_pending_delete_v2.json')
   private storeCache: Map<string, LibSQLVectorStore> = new Map()
-  private taskQueue: TaskQueueManager
 
   constructor() {
     this.initStorageDir()
     this.cleanupOnStartup()
-    this.taskQueue = new TaskQueueManager()
   }
 
   private initStorageDir(): void {
@@ -273,7 +271,7 @@ class KnowledgeServiceV2 {
    * This is the main entry point for adding any type of content
    */
   public add = async (options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
-    const { base, item, forceReload = false, userId = '' } = options
+    const { base, item, forceReload = false, userId = '', signal, onStageChange } = options
     const itemType = item.type as KnowledgeItemType
 
     logger.info(`[KnowledgeV2] Add called: type=${itemType}, base=${base.id}, item=${item.id}`)
@@ -298,17 +296,8 @@ class KnowledgeServiceV2 {
       userId
     }
 
-    // Estimate workload
-    const workload = estimateWorkload(context)
-
-    // Create task function
-    const taskFn = async (): Promise<LoaderReturn> => {
-      return this.processAddTask(context)
-    }
-
-    // Enqueue task and wait for completion
     try {
-      return await this.taskQueue.enqueue(item.id, taskFn, workload)
+      return await this.processAddTask(context, { signal, onStageChange })
     } catch (error) {
       logger.error(`[KnowledgeV2] Add task failed for item ${item.id}:`, error as Error)
       return {
@@ -322,11 +311,16 @@ class KnowledgeServiceV2 {
   /**
    * Process add task (called by queue)
    */
-  private async processAddTask(context: ReaderContext): Promise<LoaderReturn> {
+  private async processAddTask(
+    context: ReaderContext,
+    options: { signal?: AbortSignal; onStageChange?: KnowledgeBaseAddItemOptions['onStageChange'] }
+  ): Promise<LoaderReturn> {
     const { base, item } = context
     const itemType = item.type as KnowledgeItemType
 
     try {
+      this.throwIfAborted(options.signal, item.id)
+      options.onStageChange?.('preprocessing')
       // TODO: Preprocessing integration point
       // When PreprocessingService is ready, call it here for PDF files:
       // if (itemType === 'file') {
@@ -347,6 +341,9 @@ class KnowledgeServiceV2 {
         }
       }
 
+      this.throwIfAborted(options.signal, item.id)
+      options.onStageChange?.('embedding')
+
       // Step 3: Embed nodes
       logger.info(`[KnowledgeV2] Embedding ${readerResult.nodes.length} nodes for item ${item.id}`)
       const embeddedNodes = await embedNodes(readerResult.nodes, base)
@@ -356,6 +353,8 @@ class KnowledgeServiceV2 {
         baseDimensions: base.dimensions ?? 'auto',
         embeddedDimensions
       })
+
+      this.throwIfAborted(options.signal, item.id)
 
       // Step 4: Store in vector database
       const store = await this.getOrCreateStore(base)
@@ -401,28 +400,6 @@ class KnowledgeServiceV2 {
         }
       }
     }
-  }
-
-  /**
-   * Cancel a queued task if it has not started processing.
-   */
-  public cancel = async (itemId: string): Promise<{ status: 'cancelled' | 'ignored' }> => {
-    if (!itemId) {
-      return { status: 'ignored' }
-    }
-
-    if (this.taskQueue.remove(itemId)) {
-      logger.info(`[KnowledgeV2] Cancelled queued task for item ${itemId}`)
-      return { status: 'cancelled' }
-    }
-
-    if (this.taskQueue.isQueued(itemId) || this.taskQueue.isProcessing(itemId)) {
-      logger.debug(`[KnowledgeV2] Cancel ignored (already processing) for item ${itemId}`)
-      return { status: 'ignored' }
-    }
-
-    logger.debug(`[KnowledgeV2] Cancel ignored (not found) for item ${itemId}`)
-    return { status: 'ignored' }
   }
 
   /**
@@ -583,7 +560,17 @@ class KnowledgeServiceV2 {
    * Get queue status
    */
   public getQueueStatus(): { queueSize: number; processingCount: number; currentWorkload: number } {
-    return this.taskQueue.getStatus()
+    return knowledgeQueueManager.getStatus()
+  }
+
+  private throwIfAborted(signal: AbortSignal | undefined, itemId: string): void {
+    if (!signal?.aborted) {
+      return
+    }
+
+    const error = new Error(`Knowledge item ${itemId} cancelled`)
+    error.name = 'AbortError'
+    throw error
   }
 }
 

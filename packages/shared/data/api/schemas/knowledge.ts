@@ -182,4 +182,14 @@ export interface KnowledgeSchemas {
       response: KnowledgeSearchResult[]
     }
   }
+
+  '/knowledge-queue/status': {
+    GET: {
+      response: {
+        queueSize: number
+        processingCount: number
+        currentWorkload: number
+      }
+    }
+  }
 }

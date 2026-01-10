@@ -46,11 +46,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
 
   // 处理嵌入模型更改迁移
   const handleEmbeddingModelChangeMigration = useCallback(async () => {
-    const migratedBase = { ...newBase, id: nanoid() }
     try {
-      await migrateBase(migratedBase)
-      setOpen(false)
-      resolve(migratedBase)
+      const migratedBase = await migrateBase({ ...newBase, id: nanoid() })
+      if (migratedBase) {
+        setOpen(false)
+        resolve(migratedBase)
+      }
     } catch (error) {
       logger.error('KnowledgeBase migration failed:', error as Error)
       window.toast.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
