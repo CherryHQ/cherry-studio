@@ -96,9 +96,6 @@ const knowledgeSlice = createSlice({
         if (action.payload.item.type === 'note') {
           base.items.push(action.payload.item)
         }
-        if (action.payload.item.type === 'video') {
-          base.items.push(action.payload.item)
-        }
         base.updated_at = Date.now()
       }
     },

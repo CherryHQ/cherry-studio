@@ -7,7 +7,7 @@ import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
 import { Empty, Tabs, Tag } from 'antd'
-import { Book, Folder, Globe, Link, Notebook, RefreshCw, Search, Settings, Video } from 'lucide-react'
+import { Book, Folder, Globe, Link, Notebook, RefreshCw, Search, Settings } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +21,6 @@ import KnowledgeFiles from './items/KnowledgeFiles'
 import KnowledgeNotes from './items/KnowledgeNotes'
 import KnowledgeSitemaps from './items/KnowledgeSitemaps'
 import KnowledgeUrls from './items/KnowledgeUrls'
-import KnowledgeVideos from './items/KnowledgeVideos'
 
 const logger = loggerService.withContext('KnowledgeContent')
 interface KnowledgeContentProps {
@@ -30,9 +29,7 @@ interface KnowledgeContentProps {
 
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
-  const { base, urlItems, fileItems, directoryItems, noteItems, sitemapItems, videoItems } = useKnowledge(
-    selectedBase.id || ''
-  )
+  const { base, urlItems, fileItems, directoryItems, noteItems, sitemapItems } = useKnowledge(selectedBase.id || '')
   const [activeKey, setActiveKey] = useState('files')
   const [quota, setQuota] = useState<number | undefined>(undefined)
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
@@ -123,15 +120,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       items: sitemapItems,
       content: <KnowledgeSitemaps selectedBase={selectedBase} />,
       show: true
-    },
-    // 暂时不显示，后续实现
-    {
-      key: 'videos',
-      title: t('knowledge.videos'),
-      icon: activeKey === 'videos' ? <Video size={16} color="var(--color-primary)" /> : <Video size={16} />,
-      items: videoItems,
-      content: <KnowledgeVideos selectedBase={selectedBase} />,
-      show: false
     }
   ]
 

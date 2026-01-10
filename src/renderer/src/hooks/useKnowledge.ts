@@ -16,9 +16,9 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import { addFilesThunk, addItemThunk, addNoteThunk, addVedioThunk } from '@renderer/store/thunk/knowledgeThunk'
+import { addFilesThunk, addItemThunk, addNoteThunk } from '@renderer/store/thunk/knowledgeThunk'
 import type { FileMetadata, KnowledgeBase, KnowledgeItem, KnowledgeNoteItem, ProcessingStatus } from '@renderer/types'
-import { isKnowledgeFileItem, isKnowledgeNoteItem, isKnowledgeVideoItem } from '@renderer/types'
+import { isKnowledgeFileItem, isKnowledgeNoteItem } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { cloneDeep } from 'lodash'
@@ -82,12 +82,6 @@ export const useKnowledge = (baseId: string) => {
     checkAllBases()
   }
 
-  // add video support
-  const addVideo = (files: FileMetadata[]) => {
-    dispatch(addVedioThunk(baseId, 'video', files))
-    checkAllBases()
-  }
-
   // 更新笔记内容
   const updateNoteContent = async (noteId: string, content: string) => {
     const note = await db.knowledge_notes.get(noteId)
@@ -139,12 +133,6 @@ export const useKnowledge = (baseId: string) => {
       const file = item.content
       // name: eg. text.pdf
       await window.api.file.delete(file.name)
-    } else if (isKnowledgeVideoItem(item)) {
-      // video item has srt and video files
-      const files = item.content
-      const deletePromises = files.map((file) => window.api.file.delete(file.name))
-
-      await Promise.allSettled(deletePromises)
     }
   }
   // 刷新项目
@@ -312,7 +300,6 @@ export const useKnowledge = (baseId: string) => {
   const urlItems = base?.items.filter((item) => item.type === 'url') || []
   const sitemapItems = base?.items.filter((item) => item.type === 'sitemap') || []
   const [noteItems, setNoteItems] = useState<KnowledgeItem[]>([])
-  const videoItems = base?.items.filter((item) => item.type === 'video') || []
 
   useEffect(() => {
     const notes = base?.items.filter(isKnowledgeNoteItem) ?? []
@@ -333,7 +320,6 @@ export const useKnowledge = (baseId: string) => {
     urlItems,
     sitemapItems,
     noteItems,
-    videoItems,
     renameKnowledgeBase,
     updateKnowledgeBase,
     migrateBase,
@@ -341,7 +327,6 @@ export const useKnowledge = (baseId: string) => {
     addUrl,
     addSitemap,
     addNote,
-    addVideo,
     updateNoteContent,
     getNoteContent,
     updateItem,

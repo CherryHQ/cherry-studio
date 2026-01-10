@@ -3,7 +3,6 @@ import React from 'react'
 import styled from 'styled-components'
 
 import TextItem from './TextItem'
-import VideoItem from './VideoItem'
 
 // Export shared components
 export { CopyButtonContainer, KnowledgeItemMetadata } from './components'
@@ -16,15 +15,11 @@ interface Props {
   searchKeyword: string
 }
 const SearchItemRenderer: React.FC<Props> = ({ item, searchKeyword }) => {
-  const renderItem = () => {
-    if (item.metadata.type === 'video') {
-      return <VideoItem item={item} searchKeyword={searchKeyword} />
-    } else {
-      return <TextItem item={item} searchKeyword={searchKeyword} />
-    }
-  }
-
-  return <ResultItem>{renderItem()}</ResultItem>
+  return (
+    <ResultItem>
+      <TextItem item={item} searchKeyword={searchKeyword} />
+    </ResultItem>
+  )
 }
 
 export default React.memo(SearchItemRenderer)
