@@ -7,7 +7,7 @@
 
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAppDispatch } from '@renderer/store'
 import {
   addFiles as addFilesAction,
@@ -146,7 +146,10 @@ export const useKnowledgeFiles = (baseId: string) => {
 
   const { trigger: createItemsBatchApi, isLoading: isAddingFiles } = useMutation(
     'POST',
-    `/knowledge-bases/${baseId}/items/batch`
+    `/knowledge-bases/${baseId}/items/batch`,
+    {
+      refresh: [`/knowledge-bases/${baseId}/items`]
+    }
   )
 
   /**
@@ -194,7 +197,10 @@ export const useKnowledgeDirectories = (baseId: string) => {
 
   const { trigger: createItemsBatchApi, isLoading: isAddingDirectory } = useMutation(
     'POST',
-    `/knowledge-bases/${baseId}/items/batch`
+    `/knowledge-bases/${baseId}/items/batch`,
+    {
+      refresh: [`/knowledge-bases/${baseId}/items`]
+    }
   )
 
   /**
@@ -244,7 +250,10 @@ export const useKnowledgeUrls = (baseId: string) => {
 
   const { trigger: createItemsBatchApi, isLoading: isAddingUrl } = useMutation(
     'POST',
-    `/knowledge-bases/${baseId}/items/batch`
+    `/knowledge-bases/${baseId}/items/batch`,
+    {
+      refresh: [`/knowledge-bases/${baseId}/items`]
+    }
   )
 
   /**
@@ -294,7 +303,10 @@ export const useKnowledgeSitemaps = (baseId: string) => {
 
   const { trigger: createItemsBatchApi, isLoading: isAddingSitemap } = useMutation(
     'POST',
-    `/knowledge-bases/${baseId}/items/batch`
+    `/knowledge-bases/${baseId}/items/batch`,
+    {
+      refresh: [`/knowledge-bases/${baseId}/items`]
+    }
   )
 
   /**
@@ -344,7 +356,10 @@ export const useKnowledgeNotes = (baseId: string) => {
 
   const { trigger: createItemsBatchApi, isLoading: isAddingNote } = useMutation(
     'POST',
-    `/knowledge-bases/${baseId}/items/batch`
+    `/knowledge-bases/${baseId}/items/batch`,
+    {
+      refresh: [`/knowledge-bases/${baseId}/items`]
+    }
   )
 
   /**
@@ -392,6 +407,7 @@ export const useKnowledgeNotes = (baseId: string) => {
 export const useKnowledgeItemDelete = () => {
   const dispatch = useAppDispatch()
   const [isDeleting, setIsDeleting] = useState(false)
+  const invalidate = useInvalidateCache()
 
   /**
    * Delete a knowledge item via v2 API
@@ -402,6 +418,9 @@ export const useKnowledgeItemDelete = () => {
     try {
       // Call v2 API to delete item (also removes vectors)
       await dataApiService.delete(`/knowledge-items/${itemId}` as any)
+
+      // Refresh the items list cache
+      await invalidate(`/knowledge-bases/${baseId}/items`)
 
       // Update Redux store for UI compatibility during migration
       dispatch(removeItemAction({ baseId, item: { id: itemId } as KnowledgeItem }))
