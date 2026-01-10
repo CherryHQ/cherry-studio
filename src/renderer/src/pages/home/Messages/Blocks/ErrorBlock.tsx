@@ -1,8 +1,8 @@
+import { Button } from '@cherrystudio/ui'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
-import { getProviderById } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
@@ -34,11 +34,10 @@ import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import { formatFileSize } from '@renderer/utils/file'
 import { KB } from '@shared/config/constant'
-import { Button } from 'antd'
+import { Link } from '@tanstack/react-router'
 import { Alert as AntdAlert, Modal } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
@@ -103,11 +102,7 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
           values={{ provider: getProviderLabel(providerId) }}
           components={{
             provider: (
-              <Link
-                style={{ color: 'var(--color-link)' }}
-                to={`/settings/provider`}
-                state={{ provider: getProviderById(providerId) }}
-              />
+              <Link style={{ color: 'var(--color-link)' }} to="/settings/provider" search={{ id: providerId }} />
             )
           }}
         />
@@ -178,11 +173,9 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         onClick={showErrorDetail}
         style={{ cursor: 'pointer' }}
         action={
-          <>
-            <Button size="middle" color="default" variant="text" onClick={showErrorDetail}>
-              {t('common.detail')}
-            </Button>
-          </>
+          <Button size="sm" className="p-0" variant="ghost" onClick={showErrorDetail}>
+            {t('common.detail')}
+          </Button>
         }
       />
       <ErrorDetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} error={block.error} />
@@ -234,10 +227,10 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
       open={open}
       onCancel={onClose}
       footer={[
-        <Button key="copy" variant="text" color="default" onClick={copyErrorDetails}>
+        <Button key="copy" size="sm" variant="ghost" onClick={copyErrorDetails}>
           {t('common.copy')}
         </Button>,
-        <Button key="close" variant="text" color={'default'} onClick={onClose}>
+        <Button key="close" size="sm" variant="ghost" onClick={onClose}>
           {t('common.close')}
         </Button>
       ]}

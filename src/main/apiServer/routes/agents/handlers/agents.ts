@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
-import type { ListAgentsResponse } from '@types'
-import { type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
+import type { ListAgentsResponse, ReplaceAgentRequest, UpdateAgentRequest } from '@types'
 import type { Request, Response } from 'express'
 
 import type { ValidationRequest } from '../validators/zodValidator'

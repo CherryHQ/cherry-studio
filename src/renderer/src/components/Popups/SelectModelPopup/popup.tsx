@@ -1,6 +1,8 @@
 import { PushpinOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
+import { Avatar } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
-import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -12,7 +14,7 @@ import type { Model, ModelType, Provider } from '@renderer/types'
 import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getModelTags } from '@renderer/utils/model'
-import { Avatar, Divider, Empty, Modal, Tooltip } from 'antd'
+import { Divider, Empty, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Settings2 } from 'lucide-react'
 import React, {
@@ -111,10 +113,10 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         type: 'model',
         name: (
           <ModelName>
-            <HStack alignItems="center">
+            <Flex className="items-center">
               {model.name}
               {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
-            </HStack>
+            </Flex>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
@@ -124,7 +126,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
           </TagsContainer>
         ),
         icon: (
-          <Avatar src={getModelLogo(model)} size={24}>
+          <Avatar src={getModelLogo(model)} size="xs">
             {first(model.name) || 'M'}
           </Avatar>
         ),
@@ -182,7 +184,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         type: 'group',
         name: getFancyProviderName(p),
         actions: p.id !== 'cherryai' && (
-          <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+          <Tooltip content={t('navigate.provider_settings')} delay={500} closeDelay={0}>
             <Settings2
               size={12}
               color="var(--color-text)"
@@ -191,7 +193,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
                 e.stopPropagation()
                 setOpen(false)
                 resolve(undefined)
-                window.navigate(`/settings/provider?id=${p.id}`)
+                window.navigate({ to: '/settings/provider', search: { id: p.id } })
               }}
             />
           </Tooltip>

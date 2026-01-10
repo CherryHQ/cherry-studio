@@ -1,21 +1,22 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
-import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import type { ActionItem } from '@renderer/types/selectionTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
-import { Tooltip } from 'antd'
+import { defaultLanguage } from '@shared/config/constant'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { ArrowRightFromLine, ArrowRightToLine, ChevronDown, CircleHelp, Globe } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,7 +26,7 @@ import styled from 'styled-components'
 import { processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
 interface Props {
-  action: ActionItem
+  action: SelectionActionItem
   scrollToBottom: () => void
 }
 
@@ -33,11 +34,12 @@ const logger = loggerService.withContext('ActionTranslate')
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
-  const { language } = useSettings()
+
+  const [language] = usePreference('app.language')
   const { getLanguageByLangcode, isLoaded: isLanguagesLoaded } = useTranslate()
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
-    const lang = getLanguageByLangcode(language)
+    const lang = getLanguageByLangcode(language || navigator.language || defaultLanguage)
     if (lang !== UNKNOWN) {
       return lang
     } else {
@@ -110,7 +112,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     logger.silly('[initialize] UpdateLanguagePair completed.')
 
     // Initialize assistant
-    const currentAssistant = getDefaultTranslateAssistant(targetLangRef.current, action.selectedText)
+    const currentAssistant = await getDefaultTranslateAssistant(targetLangRef.current, action.selectedText)
 
     assistantRef.current = currentAssistant
 
@@ -170,7 +172,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       }
     }
 
-    const assistant = getDefaultTranslateAssistant(translateLang, action.selectedText)
+    const assistant = await getDefaultTranslateAssistant(translateLang, action.selectedText)
     assistantRef.current = assistant
     logger.debug('process once')
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
@@ -244,11 +246,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     <>
       <Container>
         <MenuContainer>
-          <Tooltip placement="bottom" title={t('translate.any.language')} arrow>
+          <Tooltip placement="bottom" content={t('translate.any.language')}>
             <Globe size={16} style={{ flexShrink: 0 }} />
           </Tooltip>
           <ArrowRightToLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.target_language')} arrow>
+          <Tooltip placement="bottom" content={t('translate.target_language')}>
             <LanguageSelect
               value={targetLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
@@ -260,7 +262,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             />
           </Tooltip>
           <ArrowRightFromLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.alter_language')} arrow>
+          <Tooltip placement="bottom" content={t('translate.alter_language')}>
             <LanguageSelect
               value={alterLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
@@ -271,7 +273,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               disabled={isStreaming}
             />
           </Tooltip>
-          <Tooltip placement="bottom" title={t('selection.action.translate.smart_translate_tips')} arrow>
+          <Tooltip placement="bottom" content={t('selection.action.translate.smart_translate_tips')}>
             <QuestionIcon size={14} style={{ marginLeft: 4 }} />
           </Tooltip>
           <Spacer />

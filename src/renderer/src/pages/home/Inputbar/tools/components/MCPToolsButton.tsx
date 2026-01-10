@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -12,12 +13,12 @@ import type { McpMode, MCPPrompt, MCPResource, MCPServer } from '@renderer/types
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
-import { Form, Input, Tooltip } from 'antd'
+import { useNavigate } from '@tanstack/react-router'
+import { Form, Input } from 'antd'
 import { CircleX, Hammer, Plus, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 
 interface Props {
   assistantId: string
@@ -195,7 +196,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     newList.push({
       label: t('settings.mcp.addServer.label') + '...',
       icon: <Plus />,
-      action: () => navigate('/settings/mcp')
+      action: () => navigate({ to: '/settings/mcp' })
     })
 
     return newList
@@ -554,10 +555,13 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   }
 
   return (
-    <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={isActive} aria-label={t('settings.mcp.title')}>
-        {getButtonIcon()}
-      </ActionIconButton>
+    <Tooltip content={t('settings.mcp.title')} closeDelay={0}>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        active={isActive}
+        aria-label={t('settings.mcp.title')}
+        icon={getButtonIcon()}
+      />
     </Tooltip>
   )
 }

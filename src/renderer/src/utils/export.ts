@@ -1,11 +1,10 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
 import i18n from '@renderer/i18n'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { addNote } from '@renderer/services/NotesService'
-import store from '@renderer/store'
-import { setExportState } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
@@ -19,12 +18,11 @@ import { appendBlocks } from 'notion-helper'
 
 const logger = loggerService.withContext('Utils:export')
 
-// 全局的导出状态获取函数
-const getExportState = () => store.getState().runtime.export.isExporting
+let exportState = false
 
-// 全局的导出状态设置函数，使用 dispatch 保障 Redux 状态更新正确
+const getExportState = () => exportState
 const setExportingState = (isExporting: boolean) => {
-  store.dispatch(setExportState({ isExporting }))
+  exportState = isExporting
 }
 
 /**
@@ -159,9 +157,11 @@ export function getTitleFromString(str: string, length: number = 80): string {
   return title
 }
 
-const getRoleText = (role: string, modelName?: string, providerId?: string): string => {
-  const { showModelNameInMarkdown, showModelProviderInMarkdown } = store.getState().settings
-
+const getRoleText = async (role: string, modelName?: string, providerId?: string): Promise<string> => {
+  const { showModelNameInMarkdown, showModelProviderInMarkdown } = await preferenceService.getMultiple({
+    showModelNameInMarkdown: 'data.export.markdown.show_model_name',
+    showModelProviderInMarkdown: 'data.export.markdown.show_model_provider'
+  })
   if (role === 'user') {
     return '🧑‍💻 User'
   } else if (role === 'system') {
@@ -263,14 +263,14 @@ const formatCitationsAsFootnotes = (citations: string): string => {
   return footnotes.join('\n\n')
 }
 
-const createBaseMarkdown = (
+const createBaseMarkdown = async (
   message: Message,
   includeReasoning: boolean = false,
   excludeCitations: boolean = false,
   normalizeCitations: boolean = true
-): { titleSection: string; reasoningSection: string; contentSection: string; citation: string } => {
-  const { forceDollarMathInMarkdown } = store.getState().settings
-  const roleText = getRoleText(message.role, message.model?.name, message.model?.provider)
+): Promise<{ titleSection: string; reasoningSection: string; contentSection: string; citation: string }> => {
+  const forceDollarMathInMarkdown = await preferenceService.get('data.export.markdown.force_dollar_math')
+  const roleText = await getRoleText(message.role, message.model?.name, message.model?.provider)
   const titleSection = `## ${roleText}`
   let reasoningSection = ''
 
@@ -313,10 +313,13 @@ const createBaseMarkdown = (
   return { titleSection, reasoningSection, contentSection: processedContent, citation }
 }
 
-export const messageToMarkdown = (message: Message, excludeCitations?: boolean): string => {
-  const { excludeCitationsInExport, standardizeCitationsInExport } = store.getState().settings
+export const messageToMarkdown = async (message: Message, excludeCitations?: boolean): Promise<string> => {
+  const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
+    excludeCitationsInExport: 'data.export.markdown.exclude_citations',
+    standardizeCitationsInExport: 'data.export.markdown.standardize_citations'
+  })
   const shouldExcludeCitations = excludeCitations ?? excludeCitationsInExport
-  const { titleSection, contentSection, citation } = createBaseMarkdown(
+  const { titleSection, contentSection, citation } = await createBaseMarkdown(
     message,
     false,
     shouldExcludeCitations,
@@ -325,10 +328,13 @@ export const messageToMarkdown = (message: Message, excludeCitations?: boolean):
   return [titleSection, '', contentSection, citation].join('\n')
 }
 
-export const messageToMarkdownWithReasoning = (message: Message, excludeCitations?: boolean): string => {
-  const { excludeCitationsInExport, standardizeCitationsInExport } = store.getState().settings
+export const messageToMarkdownWithReasoning = async (message: Message, excludeCitations?: boolean): Promise<string> => {
+  const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
+    excludeCitationsInExport: 'data.export.markdown.exclude_citations',
+    standardizeCitationsInExport: 'data.export.markdown.standardize_citations'
+  })
   const shouldExcludeCitations = excludeCitations ?? excludeCitationsInExport
-  const { titleSection, reasoningSection, contentSection, citation } = createBaseMarkdown(
+  const { titleSection, reasoningSection, contentSection, citation } = await createBaseMarkdown(
     message,
     true,
     shouldExcludeCitations,
@@ -337,18 +343,14 @@ export const messageToMarkdownWithReasoning = (message: Message, excludeCitation
   return [titleSection, '', reasoningSection, contentSection, citation].join('\n')
 }
 
-export const messagesToMarkdown = (
+export const messagesToMarkdown = async (
   messages: Message[],
   exportReasoning?: boolean,
   excludeCitations?: boolean
-): string => {
-  return messages
-    .map((message) =>
-      exportReasoning
-        ? messageToMarkdownWithReasoning(message, excludeCitations)
-        : messageToMarkdown(message, excludeCitations)
-    )
-    .join('\n---\n')
+): Promise<string> => {
+  const converter = exportReasoning ? messageToMarkdownWithReasoning : messageToMarkdown
+  const markdowns = await Promise.all(messages.map((message) => converter(message, excludeCitations)))
+  return markdowns.join('\n---\n')
 }
 
 const formatMessageAsPlainText = (message: Message): string => {
@@ -377,7 +379,7 @@ export const topicToMarkdown = async (
   const messages = await fetchTopicMessages(topic.id)
 
   if (messages && messages.length > 0) {
-    return topicName + '\n\n' + messagesToMarkdown(messages, exportReasoning, excludeCitations)
+    return topicName + '\n\n' + (await messagesToMarkdown(messages, exportReasoning, excludeCitations))
   }
 
   return topicName
@@ -407,7 +409,7 @@ export const exportTopicAsMarkdown = async (
 
   setExportingState(true)
 
-  const { markdownExportPath } = store.getState().settings
+  const markdownExportPath = await preferenceService.get('data.export.markdown.path')
   if (!markdownExportPath) {
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
@@ -450,14 +452,14 @@ export const exportMessageAsMarkdown = async (
 
   setExportingState(true)
 
-  const { markdownExportPath } = store.getState().settings
+  const markdownExportPath = await preferenceService.get('data.export.markdown.path')
   if (!markdownExportPath) {
     try {
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + '.md'
       const markdown = exportReasoning
-        ? messageToMarkdownWithReasoning(message, excludeCitations)
-        : messageToMarkdown(message, excludeCitations)
+        ? await messageToMarkdownWithReasoning(message, excludeCitations)
+        : await messageToMarkdown(message, excludeCitations)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
         window.toast.success(i18n.t('message.success.markdown.export.specified'))
@@ -474,8 +476,8 @@ export const exportMessageAsMarkdown = async (
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
       const markdown = exportReasoning
-        ? messageToMarkdownWithReasoning(message, excludeCitations)
-        : messageToMarkdown(message, excludeCitations)
+        ? await messageToMarkdownWithReasoning(message, excludeCitations)
+        : await messageToMarkdown(message, excludeCitations)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
@@ -573,7 +575,11 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
     return false
   }
 
-  const { notionDatabaseID, notionApiKey } = store.getState().settings
+  const { notionDatabaseID, notionApiKey, notionPageNameKey } = await preferenceService.getMultiple({
+    notionDatabaseID: 'data.integration.notion.database_id',
+    notionPageNameKey: 'data.integration.notion.page_name_key',
+    notionApiKey: 'data.integration.notion.api_key'
+  })
   if (!notionApiKey || !notionDatabaseID) {
     window.toast.error(i18n.t('message.error.notion.no_api_key'))
     return false
@@ -597,7 +603,7 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
     const responsePromise = notion.pages.create({
       parent: { database_id: notionDatabaseID },
       properties: {
-        [store.getState().settings.notionPageNameKey || 'Name']: {
+        [notionPageNameKey || 'Name']: {
           title: [{ text: { content: title } }]
         }
       }
@@ -626,7 +632,7 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
 }
 
 export const exportMessageToNotion = async (title: string, content: string, message?: Message): Promise<boolean> => {
-  const { notionExportReasoning } = store.getState().settings
+  const notionExportReasoning = await preferenceService.get('data.integration.notion.export_reasoning')
 
   const notionBlocks = await convertMarkdownToNotionBlocks(content)
 
@@ -646,7 +652,10 @@ export const exportMessageToNotion = async (title: string, content: string, mess
 }
 
 export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
-  const { notionExportReasoning, excludeCitationsInExport } = store.getState().settings
+  const { notionExportReasoning, excludeCitationsInExport } = await preferenceService.getMultiple({
+    notionExportReasoning: 'data.integration.notion.export_reasoning',
+    excludeCitationsInExport: 'data.export.markdown.exclude_citations'
+  })
 
   const topicMessages = await fetchTopicMessages(topic.id)
 
@@ -658,7 +667,7 @@ export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
 
   for (const message of topicMessages) {
     // 将单个消息转换为markdown
-    const messageMarkdown = messageToMarkdown(message, excludeCitationsInExport)
+    const messageMarkdown = await messageToMarkdown(message, excludeCitationsInExport)
     const messageBlocks = await convertMarkdownToNotionBlocks(messageMarkdown)
 
     if (notionExportReasoning) {
@@ -680,7 +689,10 @@ export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
 }
 
 export const exportMarkdownToYuque = async (title: string, content: string): Promise<any | null> => {
-  const { yuqueToken, yuqueRepoId } = store.getState().settings
+  const { yuqueToken, yuqueRepoId } = await preferenceService.getMultiple({
+    yuqueToken: 'data.integration.yuque.token',
+    yuqueRepoId: 'data.integration.yuque.repo_id'
+  })
 
   if (getExportState()) {
     window.toast.warning(i18n.t('message.warn.export.exporting'))
@@ -872,7 +884,13 @@ export const exportMarkdownToJoplin = async (
   title: string,
   contentOrMessages: string | Message | Message[]
 ): Promise<any | null> => {
-  const { joplinUrl, joplinToken, joplinExportReasoning, excludeCitationsInExport } = store.getState().settings
+  const { joplinUrl, joplinToken, joplinExportReasoning, excludeCitationsInExport } =
+    await preferenceService.getMultiple({
+      joplinUrl: 'data.integration.joplin.url',
+      joplinToken: 'data.integration.joplin.token',
+      joplinExportReasoning: 'data.integration.joplin.export_reasoning',
+      excludeCitationsInExport: 'data.export.markdown.exclude_citations'
+    })
 
   if (getExportState()) {
     window.toast.warning(i18n.t('message.warn.export.exporting'))
@@ -890,12 +908,12 @@ export const exportMarkdownToJoplin = async (
   if (typeof contentOrMessages === 'string') {
     content = contentOrMessages
   } else if (Array.isArray(contentOrMessages)) {
-    content = messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
+    content = await messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
   } else {
     // 单条Message
     content = joplinExportReasoning
-      ? messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
-      : messageToMarkdown(contentOrMessages, excludeCitationsInExport)
+      ? await messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
+      : await messageToMarkdown(contentOrMessages, excludeCitationsInExport)
   }
 
   try {
@@ -938,7 +956,12 @@ export const exportMarkdownToJoplin = async (
  * @param content 笔记内容
  */
 export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<void> => {
-  const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = store.getState().settings
+  const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = await preferenceService.getMultiple({
+    siyuanApiUrl: 'data.integration.siyuan.api_url',
+    siyuanToken: 'data.integration.siyuan.token',
+    siyuanBoxId: 'data.integration.siyuan.box_id',
+    siyuanRootPath: 'data.integration.siyuan.root_path'
+  })
 
   if (getExportState()) {
     window.toast.warning(i18n.t('message.warn.export.exporting'))

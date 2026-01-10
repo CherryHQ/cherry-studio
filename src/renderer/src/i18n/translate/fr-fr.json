@@ -4948,6 +4948,9 @@
       "title": "Zoom"
     }
   },
+  "tab": {
+    "new": "[to be translated]:New Tab"
+  },
   "title": {
     "apps": "Mini-programmes",
     "code": "Code",
