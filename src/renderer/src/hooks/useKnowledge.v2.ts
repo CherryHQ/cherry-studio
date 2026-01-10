@@ -6,9 +6,15 @@
  */
 
 import { loggerService } from '@logger'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAppDispatch } from '@renderer/store'
-import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
+import {
+  addFiles as addFilesAction,
+  addItem,
+  removeItem as removeItemAction,
+  updateNotes
+} from '@renderer/store/knowledge'
 import type { FileMetadata, KnowledgeItem } from '@renderer/types'
 import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledge'
 import type {
@@ -20,6 +26,7 @@ import type {
   SitemapItemData,
   UrlItemData
 } from '@shared/data/types/knowledge'
+import { useState } from 'react'
 
 const logger = loggerService.withContext('useKnowledge.v2')
 
@@ -375,5 +382,40 @@ export const useKnowledgeNotes = (baseId: string) => {
   return {
     addNote,
     isAddingNote
+  }
+}
+
+/**
+ * Hook for deleting a knowledge item via v2 Data API
+ */
+export const useKnowledgeItemDelete = () => {
+  const dispatch = useAppDispatch()
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  /**
+   * Delete a knowledge item via v2 API
+   * Also updates Redux store for UI compatibility during migration
+   */
+  const deleteItem = async (baseId: string, itemId: string): Promise<void> => {
+    setIsDeleting(true)
+    try {
+      // Call v2 API to delete item (also removes vectors)
+      await dataApiService.delete(`/knowledge-items/${itemId}` as any)
+
+      // Update Redux store for UI compatibility during migration
+      dispatch(removeItemAction({ baseId, item: { id: itemId } as KnowledgeItem }))
+
+      logger.info('Item deleted via v2 API', { itemId, baseId })
+    } catch (error) {
+      logger.error('Failed to delete item via v2 API', error as Error)
+      throw error
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  return {
+    deleteItem,
+    isDeleting
   }
 }

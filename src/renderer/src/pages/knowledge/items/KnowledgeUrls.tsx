@@ -4,7 +4,7 @@ import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { useKnowledgeUrls } from '@renderer/hooks/useKnowledge.v2'
+import { useKnowledgeItemDelete, useKnowledgeUrls } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
@@ -40,12 +40,13 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
-  const { base, urlItems, refreshItem, removeItem, getProcessingStatus, updateItem } = useKnowledge(
-    selectedBase.id || ''
-  )
+  const { base, urlItems, refreshItem, getProcessingStatus, updateItem } = useKnowledge(selectedBase.id || '')
 
   // v2 Data API hook for adding URLs
   const { addUrl, isAddingUrl } = useKnowledgeUrls(selectedBase.id || '')
+
+  // v2 Data API hook for deleting items
+  const { deleteItem } = useKnowledgeItemDelete()
 
   const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
@@ -183,7 +184,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     <StatusIconWrapper>
                       <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
                     </StatusIconWrapper>
-                    <Button variant="ghost" onClick={() => removeItem(item)}>
+                    <Button variant="ghost" onClick={() => deleteItem(selectedBase.id, item.id)}>
                       <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                     </Button>
                   </FlexAlignCenter>

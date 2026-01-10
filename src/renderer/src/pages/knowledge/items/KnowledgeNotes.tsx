@@ -3,7 +3,7 @@ import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { useKnowledgeNotes } from '@renderer/hooks/useKnowledge.v2'
+import { useKnowledgeItemDelete, useKnowledgeNotes } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
@@ -37,10 +37,13 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
-  const { base, noteItems, updateNoteContent, removeItem, getProcessingStatus } = useKnowledge(selectedBase.id || '')
+  const { base, noteItems, updateNoteContent, getProcessingStatus } = useKnowledge(selectedBase.id || '')
 
   // v2 Data API hook for adding notes
   const { addNote, isAddingNote } = useKnowledgeNotes(selectedBase.id || '')
+
+  // v2 Data API hook for deleting items
+  const { deleteItem } = useKnowledgeItemDelete()
 
   const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
@@ -121,7 +124,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         type="note"
                       />
                     </StatusIconWrapper>
-                    <Button variant="ghost" onClick={() => removeItem(note)}>
+                    <Button variant="ghost" onClick={() => deleteItem(selectedBase.id, note.id)}>
                       <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                     </Button>
                   </FlexAlignCenter>
