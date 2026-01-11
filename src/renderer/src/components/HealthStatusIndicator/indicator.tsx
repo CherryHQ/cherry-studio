@@ -67,7 +67,7 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
 
 const IndicatorWrapper = styled.div<{ $type: string }>`
   display: flex;
-  align-items: left;
+  align-items: center;
   justify-content: center;
   font-size: 14px;
   color: ${(props) => {

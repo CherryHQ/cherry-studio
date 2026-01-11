@@ -333,3 +333,26 @@ export const formatAxiosError = (error: AxiosError) => {
 
   return `${t('common.error')}: ${status} ${statusText}`
 }
+
+/**
+ * Safely serialize an unknown error to SerializedError format.
+ * Used specifically for health check error handling.
+ */
+export function serializeHealthCheckError(error: unknown): SerializedError {
+  if (error && typeof error === 'object' && 'name' in error) {
+    try {
+      return serializeError(error as AiSdkErrorUnion)
+    } catch {
+      return {
+        name: null,
+        message: safeToString(error),
+        stack: null
+      }
+    }
+  }
+  return {
+    name: null,
+    message: safeToString(error),
+    stack: null
+  }
+}

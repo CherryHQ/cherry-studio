@@ -7,6 +7,7 @@ import { ErrorDetailModal } from '@renderer/pages/home/Messages/Blocks/ErrorBloc
 import type { Model } from '@renderer/types'
 import type { SerializedError } from '@renderer/types/error'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Tooltip } from 'antd'
 import { Bolt, Minus } from 'lucide-react'
@@ -38,7 +39,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
     })) || []
 
   // 检查是否有失败的结果
-  const hasFailedResult = healthResults.some((r) => r.status === 'failed')
+  const hasFailedResult = healthResults.some((r) => r.status === HealthStatus.FAILED)
 
   return (
     <>

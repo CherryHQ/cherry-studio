@@ -22,7 +22,7 @@ import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@render
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, validateApiHost } from '@renderer/utils'
-import { safeToString, serializeError } from '@renderer/utils/error'
+import { serializeHealthCheckError } from '@renderer/utils/error'
 import {
   isAIGatewayProvider,
   isAnthropicProvider,
@@ -44,7 +44,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import type { AiSdkErrorUnion, SerializedError } from '../../../types/error'
 import {
   SettingContainer,
   SettingHelpLink,
@@ -272,25 +271,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         title: i18n.t('message.api.connection.failed')
       })
 
-      // Serialize error object for detailed display
-      let serializedError: SerializedError
-      if (error && typeof error === 'object' && 'name' in error) {
-        try {
-          serializedError = serializeError(error as AiSdkErrorUnion)
-        } catch {
-          serializedError = {
-            name: null,
-            message: safeToString(error),
-            stack: null
-          }
-        }
-      } else {
-        serializedError = {
-          name: null,
-          message: safeToString(error),
-          stack: null
-        }
-      }
+      const serializedError = serializeHealthCheckError(error)
 
       setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: serializedError }))
     } finally {
