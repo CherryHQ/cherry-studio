@@ -183,7 +183,12 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           {t('button.manage')}
         </Button>
         {provider.id !== 'ovms' ? (
-          <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+          <Button
+            id="add-model-btn"
+            type="default"
+            onClick={onAddModel}
+            icon={<Plus size={16} />}
+            disabled={isHealthChecking}>
             {t('button.add')}
           </Button>
         ) : (

@@ -2359,6 +2359,51 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "done": "Get Started",
+    "next": "Next",
+    "previous": "Previous",
+    "progress": "{{current}} of {{total}}",
+    "skip": "Skip Tour",
+    "steps": {
+      "addModel": {
+        "description": "After adding a provider, click this button to add models. Different models excel at different tasks:\n• GPT-4 for complex reasoning\n• Claude for long-form content\n• GLM for Chinese conversations",
+        "title": "Add Models"
+      },
+      "addProvider": {
+        "description": "Click this button to add an AI provider. We recommend CherryIN for beginners - sign up to get free credits with access to GPT, Claude, and other popular models.",
+        "title": "Add Provider"
+      },
+      "complete": {
+        "description": "You're all set! Start chatting with AI now. Explore more features and let AI become your powerful assistant!",
+        "title": "Start Exploring!"
+      },
+      "fillApiKey": {
+        "description": "Enter your API Key here. You can get the API Key from the provider's website. After filling it in, click the \"Check\" button to verify the connection.",
+        "title": "Fill in API Key"
+      },
+      "freeModel": {
+        "description": "Cherry Studio includes a free built-in GLM 4.5 Flash model. Click the model selector in the top navbar to switch models. No configuration needed - start chatting right away!",
+        "title": "Free Model"
+      },
+      "settingsIntro": {
+        "description": "Click here to access settings. Next, we'll guide you through adding AI providers and models.",
+        "title": "Settings"
+      },
+      "useCases": {
+        "description": "Cherry Studio can help you with various tasks:\n• Intelligent Q&A\n• Document translation & summarization\n• Code writing & debugging\n• Creative writing\n• Knowledge base queries\n\nType your question in the input box to get started!",
+        "title": "Use Cases"
+      },
+      "welcome": {
+        "description": "Cherry Studio is a powerful AI desktop client supporting multiple AI models. Let's take a quick tour to get you started!",
+        "title": "Welcome to Cherry Studio!"
+      }
+    },
+    "welcome": {
+      "description": "Your powerful AI assistant. Let's take a quick tour to help you get started.",
+      "title": "Welcome to Cherry Studio"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Install",

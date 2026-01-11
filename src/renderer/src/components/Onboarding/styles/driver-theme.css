@@ -1,0 +1,131 @@
+/* Cherry Studio driver.js theme customization */
+
+/* Base popover styles using CSS variables */
+/* popoverClass is applied directly to .driver-popover element */
+.driver-popover.cherry-driver-popover {
+  background-color: var(--color-background) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+  max-width: 360px !important;
+  font-family: var(--font-family) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-title {
+  color: var(--color-text) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  margin-bottom: 8px !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-description {
+  color: var(--color-text-2) !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-progress-text {
+  color: var(--color-text-3) !important;
+  font-size: 12px !important;
+}
+
+/* Button styles */
+.driver-popover.cherry-driver-popover .driver-popover-navigation-btns {
+  gap: 8px !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-next-btn,
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn,
+.driver-popover.cherry-driver-popover .driver-popover-close-btn {
+  border-radius: 6px !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* Remove any pseudo-elements that might cause text duplication */
+.driver-popover.cherry-driver-popover .driver-popover-next-btn::before,
+.driver-popover.cherry-driver-popover .driver-popover-next-btn::after,
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn::before,
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn::after {
+  content: none !important;
+  display: none !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-next-btn {
+  background-color: var(--color-primary) !important;
+  color: var(--color-white) !important;
+  border: none !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-next-btn:hover {
+  opacity: 0.9 !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn {
+  background-color: transparent !important;
+  color: var(--color-text-2) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn:hover {
+  background-color: var(--color-background-soft) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-close-btn {
+  background-color: transparent !important;
+  color: var(--color-text-3) !important;
+  border: none !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-close-btn:hover {
+  color: var(--color-text) !important;
+}
+
+/* Dark theme specific adjustments */
+.driver-popover.cherry-driver-popover.dark {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Light theme specific adjustments */
+.driver-popover.cherry-driver-popover.light {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Highlight stage */
+.driver-active-element {
+  border-radius: 8px !important;
+}
+
+/* Arrow styles */
+.driver-popover.cherry-driver-popover .driver-popover-arrow {
+  border-color: var(--color-background) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-arrow-side-left {
+  border-right-color: var(--color-background) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-arrow-side-right {
+  border-left-color: var(--color-background) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-arrow-side-top {
+  border-bottom-color: var(--color-background) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-arrow-side-bottom {
+  border-top-color: var(--color-background) !important;
+}
+
+/* Footer area */
+.driver-popover.cherry-driver-popover .driver-popover-footer {
+  margin-top: 16px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid var(--color-border) !important;
+}

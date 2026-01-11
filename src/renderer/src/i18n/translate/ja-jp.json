@@ -2359,6 +2359,51 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "done": "[to be translated]:Get Started",
+    "next": "[to be translated]:Next",
+    "previous": "[to be translated]:Previous",
+    "progress": "[to be translated]:{{current}} of {{total}}",
+    "skip": "[to be translated]:Skip Tour",
+    "steps": {
+      "addModel": {
+        "description": "[to be translated]:Add the models you need from the provider page. Different models excel at different tasks like chatting, writing, coding, and more.",
+        "title": "[to be translated]:Add Models"
+      },
+      "addProvider": {
+        "description": "[to be translated]:Go to Settings to add AI providers. We recommend CherryIN for beginners - get free credits upon registration and access to various popular models.",
+        "title": "[to be translated]:Add Provider"
+      },
+      "complete": {
+        "description": "[to be translated]:You're all set! Start chatting with your first assistant. Need help? Check Settings for more options.",
+        "title": "[to be translated]:You're All Set!"
+      },
+      "fillApiKey": {
+        "description": "[to be translated]:Enter your API Key here. You can get the API Key from the provider's website. After filling it in, click the \"Check\" button to verify the connection.",
+        "title": "[to be translated]:Fill in API Key"
+      },
+      "freeModel": {
+        "description": "[to be translated]:Cherry Studio includes a free built-in GLM 4.5 Flash model. Start chatting right away without any configuration - perfect for a quick trial!",
+        "title": "[to be translated]:Free Model"
+      },
+      "settingsIntro": {
+        "description": "[to be translated]:Click here to access settings. Next, we'll guide you through adding AI providers and models.",
+        "title": "[to be translated]:Settings"
+      },
+      "useCases": {
+        "description": "[to be translated]:Cherry Studio can help you with: intelligent Q&A, document translation & summarization, code writing & debugging, creative writing, knowledge base queries, and more.",
+        "title": "[to be translated]:Use Cases"
+      },
+      "welcome": {
+        "description": "[to be translated]:Cherry Studio helps you interact with various AI models. Let's take a quick tour to help you get started.",
+        "title": "[to be translated]:Welcome to Cherry Studio!"
+      }
+    },
+    "welcome": {
+      "description": "[to be translated]:Your powerful AI assistant. Let's take a quick tour to help you get started.",
+      "title": "[to be translated]:Welcome to Cherry Studio"
+    }
+  },
   "ovms": {
     "action": {
       "install": "インストール",

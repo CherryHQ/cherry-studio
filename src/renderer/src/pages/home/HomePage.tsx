@@ -1,6 +1,7 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useOnboardingInit } from '@renderer/hooks/useOnboardingInit'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
@@ -29,6 +30,9 @@ const HomePage: FC = () => {
 
   // Initialize agent session hook
   useAgentSessionInitializer()
+
+  // Initialize onboarding for new users
+  useOnboardingInit()
 
   const location = useLocation()
   const state = location.state

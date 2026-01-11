@@ -102,6 +102,7 @@ const Sidebar: FC = () => {
         </Tooltip>
         <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
           <StyledLink
+            id="sidebar-settings"
             onClick={async () => {
               hideMinappPopup()
               await to('/settings/provider')

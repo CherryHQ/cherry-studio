@@ -38,6 +38,7 @@ import { setNotesPath } from './note'
 import note from './note'
 import nutstore from './nutstore'
 import ocr from './ocr'
+import onboarding from './onboarding'
 import paintings from './paintings'
 import preprocess from './preprocess'
 import runtime from './runtime'
@@ -76,6 +77,7 @@ const rootReducer = combineReducers({
   translate,
   ocr,
   note,
+  onboarding,
   toolPermissions
 })
 

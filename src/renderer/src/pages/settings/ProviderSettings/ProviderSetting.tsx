@@ -463,6 +463,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               </SettingSubtitle>
               <Space.Compact style={{ width: '100%', marginTop: 5 }}>
                 <Input.Password
+                  id="api-key-input"
                   value={localApiKey}
                   placeholder={t('settings.provider.api_key.label')}
                   onChange={(e) => setLocalApiKey(e.target.value)}

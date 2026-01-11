@@ -2359,6 +2359,51 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "done": "开始使用",
+    "next": "下一步",
+    "previous": "上一步",
+    "progress": "{{current}} / {{total}}",
+    "skip": "跳过引导",
+    "steps": {
+      "addModel": {
+        "description": "添加服务商后，点击此按钮为该服务商添加模型。不同模型擅长不同任务：\n• GPT-4 适合复杂推理\n• Claude 适合长文本处理\n• GLM 适合中文对话",
+        "title": "添加模型"
+      },
+      "addProvider": {
+        "description": "点击此按钮添加 AI 服务商。推荐新手使用 CherryIN，注册即可获得免费额度，支持 GPT、Claude 等主流模型。",
+        "title": "添加服务商"
+      },
+      "complete": {
+        "description": "您已准备就绪！现在可以开始与 AI 对话了。探索更多功能，让 AI 成为您的得力助手！",
+        "title": "开始探索！"
+      },
+      "fillApiKey": {
+        "description": "在此处填入您的 API Key。您可以从服务商官网获取 API Key，填写后点击「检查」按钮验证连接。",
+        "title": "填写 API Key"
+      },
+      "freeModel": {
+        "description": "Cherry Studio 内置了免费的 GLM 4.5 Flash 模型，点击顶部导航栏的模型选择器即可切换使用。无需任何配置，立即开始对话！",
+        "title": "免费模型"
+      },
+      "settingsIntro": {
+        "description": "点击这里进入设置页面。接下来我们将引导您添加 AI 服务商和模型。",
+        "title": "设置入口"
+      },
+      "useCases": {
+        "description": "Cherry Studio 可以帮您完成多种任务：\n• 智能对话问答\n• 文档翻译与总结\n• 代码编写与调试\n• 创意写作\n• 知识库问答\n\n在输入框中输入您的问题，开始体验吧！",
+        "title": "功能用例"
+      },
+      "welcome": {
+        "description": "Cherry Studio 是一款强大的 AI 桌面客户端，支持多种 AI 模型。让我们快速了解如何开始使用！",
+        "title": "欢迎使用 Cherry Studio！"
+      }
+    },
+    "welcome": {
+      "description": "您的强大 AI 助手。让我们快速了解一下如何开始使用。",
+      "title": "欢迎使用 Cherry Studio"
+    }
+  },
   "ovms": {
     "action": {
       "install": "安装",
