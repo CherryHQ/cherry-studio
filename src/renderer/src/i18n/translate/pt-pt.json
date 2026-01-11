@@ -2618,9 +2618,11 @@
     "showing_results_other": "Exibir {{count}} extensões",
     "showing_results_plural": "Exibir {{count}} extensões",
     "skills": "habilidade",
+    "standalone_plugins": "[to be translated]:Standalone Plugins",
     "try_different_search": "Por favor, tente ajustar a pesquisa ou os filtros de categoria.",
     "type": "tipo",
     "uninstall": "Desinstalar",
+    "uninstall_package": "[to be translated]:Uninstall Package",
     "uninstalling": "Desinstalando..."
   },
   "preview": {

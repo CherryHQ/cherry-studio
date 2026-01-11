@@ -2618,9 +2618,11 @@
     "showing_results_other": "Εμφάνιση {{count}} προσθέτων",
     "showing_results_plural": "Εμφάνιση {{count}} πρόσθετων",
     "skills": "δεξιότητα",
+    "standalone_plugins": "[to be translated]:Standalone Plugins",
     "try_different_search": "Προσπαθήστε να προσαρμόσετε την αναζήτηση ή το φίλτρο κατηγοριών",
     "type": "τύπος",
     "uninstall": "κατάργηση εγκατάστασης",
+    "uninstall_package": "[to be translated]:Uninstall Package",
     "uninstalling": "Απεγκατάσταση..."
   },
   "preview": {

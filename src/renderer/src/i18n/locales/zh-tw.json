@@ -2618,9 +2618,11 @@
     "showing_results_other": "顯示 {{count}} 個外掛",
     "showing_results_plural": "顯示 {{count}} 個外掛",
     "skills": "技能",
+    "standalone_plugins": "獨立外掛",
     "try_different_search": "請嘗試調整搜尋或類別篩選",
     "type": "類型",
     "uninstall": "解除安裝",
+    "uninstall_package": "解除安裝外掛包",
     "uninstalling": "解除安裝中..."
   },
   "preview": {

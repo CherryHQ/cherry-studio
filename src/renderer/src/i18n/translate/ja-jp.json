@@ -2618,9 +2618,11 @@
     "showing_results_other": "{{count}} 個のプラグインを表示",
     "showing_results_plural": "{{count}} 個のプラグインを表示",
     "skills": "スキル",
+    "standalone_plugins": "[to be translated]:Standalone Plugins",
     "try_different_search": "検索またはカテゴリフィルターを調整してみてください",
     "type": "タイプ",
     "uninstall": "アンインストール",
+    "uninstall_package": "[to be translated]:Uninstall Package",
     "uninstalling": "アンインストール中..."
   },
   "preview": {

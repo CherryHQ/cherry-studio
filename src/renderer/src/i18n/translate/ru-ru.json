@@ -2618,9 +2618,11 @@
     "showing_results_other": "Отображено {{count}} плагинов",
     "showing_results_plural": "Отображение {{count}} плагинов",
     "skills": "навык",
+    "standalone_plugins": "[to be translated]:Standalone Plugins",
     "try_different_search": "Пожалуйста, попробуйте изменить поиск или фильтры категорий",
     "type": "тип",
     "uninstall": "Удаление",
+    "uninstall_package": "[to be translated]:Uninstall Package",
     "uninstalling": "Удаление..."
   },
   "preview": {

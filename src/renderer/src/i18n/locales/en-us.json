@@ -2618,9 +2618,11 @@
     "showing_results_other": "Showing {{count}} plugins",
     "showing_results_plural": "Showing {{count}} plugins",
     "skills": "Skills",
+    "standalone_plugins": "Standalone Plugins",
     "try_different_search": "Try adjusting your search or category filters",
     "type": "Type",
     "uninstall": "Uninstall",
+    "uninstall_package": "Uninstall Package",
     "uninstalling": "Uninstalling..."
   },
   "preview": {

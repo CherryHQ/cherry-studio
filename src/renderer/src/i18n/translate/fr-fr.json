@@ -2618,9 +2618,11 @@
     "showing_results_other": "Afficher {{count}} modules d'extension",
     "showing_results_plural": "Afficher {{count}} modules d'extension",
     "skills": "compétence",
+    "standalone_plugins": "[to be translated]:Standalone Plugins",
     "try_different_search": "Veuillez essayer d’ajuster la recherche ou le filtre de catégorie.",
     "type": "type",
     "uninstall": "Désinstaller",
+    "uninstall_package": "[to be translated]:Uninstall Package",
     "uninstalling": "Désinstallation en cours..."
   },
   "preview": {

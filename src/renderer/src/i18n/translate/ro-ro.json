@@ -2618,9 +2618,11 @@
     "showing_results_other": "Se afișează {{count}} pluginuri",
     "showing_results_plural": "Se afișează {{count}} pluginuri",
     "skills": "Abilități",
+    "standalone_plugins": "[to be translated]:Standalone Plugins",
     "try_different_search": "Încearcă să ajustezi căutarea sau filtrele de categorie",
     "type": "Tip",
     "uninstall": "Dezinstalează",
+    "uninstall_package": "[to be translated]:Uninstall Package",
     "uninstalling": "Se dezinstalează..."
   },
   "preview": {

@@ -2618,9 +2618,11 @@
     "showing_results_other": "显示 {{count}} 个插件",
     "showing_results_plural": "显示 {{count}} 个插件",
     "skills": "技能",
+    "standalone_plugins": "独立插件",
     "try_different_search": "请尝试调整搜索或类别筛选",
     "type": "类型",
     "uninstall": "卸载",
+    "uninstall_package": "卸载插件包",
     "uninstalling": "卸载中..."
   },
   "preview": {
