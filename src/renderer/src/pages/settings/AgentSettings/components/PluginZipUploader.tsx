@@ -1,6 +1,6 @@
 import { usePluginZipUpload } from '@renderer/hooks/usePluginZipUpload'
-import { Button, Upload } from 'antd'
-import { FolderOpen, Package, Upload as UploadIcon } from 'lucide-react'
+import { Upload } from 'antd'
+import { Package, Upload as UploadIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -70,35 +70,36 @@ export const PluginZipUploader: FC<PluginZipUploaderProps> = ({ agentId, onUploa
     async (file: File) => {
       if (disabled || uploading) return false
 
-      if (!file.name.toLowerCase().endsWith('.zip')) {
-        window.toast.error(t('agent.settings.plugins.plugin_upload.invalid_format'))
+      // Get the file path (Electron-specific)
+      const filePath = window.api.file.getPathForFile(file)
+      if (!filePath) {
+        window.toast.error(t('agent.settings.plugins.plugin_upload.error'))
         return false
       }
 
-      await uploadFromFile(file)
+      // Check if it's a directory or a ZIP file
+      const isDirectory = await window.api.file.isDirectory(filePath)
+
+      if (isDirectory) {
+        // Handle folder drop
+        await uploadFromDirectory(filePath)
+      } else if (file.name.toLowerCase().endsWith('.zip')) {
+        // Handle ZIP file drop
+        await uploadFromFile(file)
+      } else {
+        window.toast.error(t('agent.settings.plugins.plugin_upload.invalid_format'))
+      }
+
       return false
     },
-    [disabled, uploading, uploadFromFile, t]
+    [disabled, uploading, uploadFromFile, uploadFromDirectory, t]
   )
-
-  const handleSelectFolder = useCallback(async () => {
-    if (disabled || uploading) return
-
-    const folderPath = await window.api.file.selectFolder({
-      title: t('agent.settings.plugins.plugin_upload.select_folder_title') || 'Select Plugin Folder'
-    })
-
-    if (folderPath) {
-      await uploadFromDirectory(folderPath)
-    }
-  }, [disabled, uploading, uploadFromDirectory, t])
 
   return (
     <UploaderContainer>
       <Dragger
         showUploadList={false}
         beforeUpload={handleDrop}
-        accept=".zip"
         disabled={disabled || uploading}
         multiple={false}
         openFileDialogOnClick={true}>
@@ -114,16 +115,6 @@ export const PluginZipUploader: FC<PluginZipUploaderProps> = ({ agentId, onUploa
           <UploadHint>{t('agent.settings.plugins.plugin_upload.format_hint')}</UploadHint>
         </UploadContent>
       </Dragger>
-      <FolderButtonContainer>
-        <Button
-          type="default"
-          icon={<FolderOpen size={16} />}
-          onClick={handleSelectFolder}
-          disabled={disabled || uploading}
-          loading={uploading}>
-          {t('agent.settings.plugins.plugin_upload.select_folder') || 'Select Folder'}
-        </Button>
-      </FolderButtonContainer>
     </UploaderContainer>
   )
 }
@@ -141,12 +132,6 @@ const UploaderContainer = styled.div`
       border-color: var(--color-primary);
     }
   }
-`
-
-const FolderButtonContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-top: 8px;
 `
 
 const UploadContent = styled.div`

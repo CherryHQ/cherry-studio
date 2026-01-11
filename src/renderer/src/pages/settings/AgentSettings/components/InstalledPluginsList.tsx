@@ -1,3 +1,4 @@
+import { useTimer } from '@renderer/hooks/useTimer'
 import type { InstalledPlugin } from '@renderer/types/plugin'
 import type { TableProps } from 'antd'
 import { Button, Skeleton, Table as AntTable, Tag } from 'antd'
@@ -29,6 +30,7 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({
   const { t } = useTranslation()
   const [uninstallingPlugin, setUninstallingPlugin] = useState<string | null>(null)
   const [uninstallingPackageName, setUninstallingPackageName] = useState<string | null>(null)
+  const { setTimeoutTimer } = useTimer()
 
   // Group plugins by packageName
   const pluginGroups = useMemo((): PluginGroup[] => {
@@ -66,11 +68,10 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({
       if (confirmed) {
         setUninstallingPlugin(plugin.filename)
         onUninstall(plugin.filename, plugin.type)
-        // Reset after a delay to allow the operation to complete
-        setTimeout(() => setUninstallingPlugin(null), 2000)
+        setTimeoutTimer('uninstall', () => setUninstallingPlugin(null), 2000)
       }
     },
-    [onUninstall, t]
+    [onUninstall, t, setTimeoutTimer]
   )
 
   const handleUninstallPackage = useCallback(
@@ -84,10 +85,10 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({
         setUninstallingPackageName(packageName)
         onUninstallPackage(packageName)
         // Reset after a delay to allow the operation to complete
-        setTimeout(() => setUninstallingPackageName(null), 2000)
+        setTimeoutTimer('uninstall-package', () => setUninstallingPackageName(null), 2000)
       }
     },
-    [onUninstallPackage, t]
+    [onUninstallPackage, t, setTimeoutTimer]
   )
 
   if (loading) {

@@ -1,4 +1,4 @@
-import type { InstalledPlugin, PluginMetadata, UninstallPluginPackageResult } from '@renderer/types/plugin'
+import type { InstalledPlugin, PluginError, PluginMetadata, UninstallPluginPackageResult } from '@renderer/types/plugin'
 import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -95,89 +95,59 @@ export function usePluginActions(agentId: string, onSuccess?: () => void) {
   const [uninstalling, setUninstalling] = useState<boolean>(false)
   const [uninstallingPackage, setUninstallingPackage] = useState<boolean>(false)
 
-  const install = useCallback(
-    async (sourcePath: string, type: 'agent' | 'command' | 'skill') => {
-      setInstalling(true)
-
+  const executeAction = useCallback(
+    async <TResult>(
+      action: () => Promise<{ success: boolean; data?: TResult; error?: PluginError }>,
+      setLoading: (loading: boolean) => void,
+      errorPrefix: string
+    ): Promise<{ success: true; data: TResult } | { success: false; error: string }> => {
+      setLoading(true)
       try {
-        const result = await window.api.claudeCodePlugin.install({
-          agentId,
-          sourcePath,
-          type
-        })
-
+        const result = await action()
         if (result.success) {
           onSuccess?.()
-          return { success: true as const, data: result.data }
-        } else {
-          const errorMessage = getPluginErrorMessage(result.error, 'Failed to install plugin')
-          return { success: false as const, error: errorMessage }
+          return { success: true, data: result.data as TResult }
         }
+        return { success: false, error: getPluginErrorMessage(result.error, errorPrefix) }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
-        return { success: false as const, error: errorMessage }
+        return { success: false, error: err instanceof Error ? err.message : 'Unknown error occurred' }
       } finally {
-        setInstalling(false)
+        setLoading(false)
       }
     },
-    [agentId, onSuccess]
+    [onSuccess]
+  )
+
+  const install = useCallback(
+    (sourcePath: string, type: 'agent' | 'command' | 'skill') =>
+      executeAction(
+        () => window.api.claudeCodePlugin.install({ agentId, sourcePath, type }),
+        setInstalling,
+        'Failed to install plugin'
+      ),
+    [agentId, executeAction]
   )
 
   const uninstall = useCallback(
-    async (filename: string, type: 'agent' | 'command' | 'skill') => {
-      setUninstalling(true)
-
-      try {
-        const result = await window.api.claudeCodePlugin.uninstall({
-          agentId,
-          filename,
-          type
-        })
-
-        if (result.success) {
-          onSuccess?.()
-          return { success: true as const }
-        } else {
-          const errorMessage = getPluginErrorMessage(result.error, 'Failed to uninstall plugin')
-          return { success: false as const, error: errorMessage }
-        }
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
-        return { success: false as const, error: errorMessage }
-      } finally {
-        setUninstalling(false)
-      }
-    },
-    [agentId, onSuccess]
+    (filename: string, type: 'agent' | 'command' | 'skill') =>
+      executeAction(
+        () => window.api.claudeCodePlugin.uninstall({ agentId, filename, type }),
+        setUninstalling,
+        'Failed to uninstall plugin'
+      ),
+    [agentId, executeAction]
   )
 
   const uninstallPackage = useCallback(
-    async (
+    (
       packageName: string
-    ): Promise<{ success: true; data: UninstallPluginPackageResult } | { success: false; error: string }> => {
-      setUninstallingPackage(true)
-
-      try {
-        const result = await window.api.claudeCodePlugin.uninstallPackage({
-          agentId,
-          packageName
-        })
-
-        if (result.success) {
-          onSuccess?.()
-          return { success: true as const, data: result.data }
-        } else {
-          const errorMessage = getPluginErrorMessage(result.error, 'Failed to uninstall package')
-          return { success: false as const, error: errorMessage }
-        }
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
-        return { success: false as const, error: errorMessage }
-      } finally {
-        setUninstallingPackage(false)
-      }
-    },
-    [agentId, onSuccess]
+    ): Promise<{ success: true; data: UninstallPluginPackageResult } | { success: false; error: string }> =>
+      executeAction(
+        () => window.api.claudeCodePlugin.uninstallPackage({ agentId, packageName }),
+        setUninstallingPackage,
+        'Failed to uninstall package'
+      ),
+    [agentId, executeAction]
   )
 
   return { install, uninstall, uninstallPackage, installing, uninstalling, uninstallingPackage }

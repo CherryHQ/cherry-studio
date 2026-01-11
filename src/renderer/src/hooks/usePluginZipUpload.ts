@@ -1,10 +1,5 @@
 import { loggerService } from '@logger'
-import type {
-  InstallFromDirectoryOptions,
-  InstallFromZipOptions,
-  InstallFromZipResult,
-  PluginResult
-} from '@renderer/types/plugin'
+import type { InstallFromZipResult, PluginError, PluginResult } from '@renderer/types/plugin'
 import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import { useCallback, useState } from 'react'
 
@@ -27,37 +22,55 @@ export function usePluginZipUpload(options: UsePluginZipUploadOptions): UsePlugi
   const { agentId, onSuccess, onError } = options
   const [uploading, setUploading] = useState(false)
 
-  const uploadFromPath = useCallback(
-    async (zipFilePath: string): Promise<PluginResult<InstallFromZipResult>> => {
+  /**
+   * Execute an install operation with shared error handling
+   */
+  const executeInstall = useCallback(
+    async <TOptions>(
+      installFn: (opts: TOptions) => Promise<PluginResult<InstallFromZipResult>>,
+      installOptions: TOptions,
+      operationName: string
+    ): Promise<PluginResult<InstallFromZipResult>> => {
       setUploading(true)
       try {
-        const installOptions: InstallFromZipOptions = {
-          agentId,
-          zipFilePath
-        }
-        const result = await window.api.claudeCodePlugin.installFromZip(installOptions)
+        const result = await installFn(installOptions)
 
         if (result.success) {
           onSuccess?.(result.data)
         } else {
-          const errorMessage = getPluginErrorMessage(result.error, 'Failed to install plugin')
-          onError?.(errorMessage)
+          onError?.(getPluginErrorMessage(result.error, `Failed to ${operationName}`))
         }
 
         return result
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        logger.error('Failed to upload plugin ZIP', { error })
+        logger.error(`Failed to ${operationName}`, { error })
         onError?.(errorMessage)
         return {
           success: false,
-          error: { type: 'TRANSACTION_FAILED', operation: 'upload-zip', reason: errorMessage }
+          error: { type: 'TRANSACTION_FAILED', operation: operationName, reason: errorMessage } as PluginError
         }
       } finally {
         setUploading(false)
       }
     },
-    [agentId, onSuccess, onError]
+    [onSuccess, onError]
+  )
+
+  const uploadFromPath = useCallback(
+    (zipFilePath: string) =>
+      executeInstall(window.api.claudeCodePlugin.installFromZip, { agentId, zipFilePath }, 'install plugin'),
+    [agentId, executeInstall]
+  )
+
+  const uploadFromDirectory = useCallback(
+    (directoryPath: string) =>
+      executeInstall(
+        window.api.claudeCodePlugin.installFromDirectory,
+        { agentId, directoryPath },
+        'install plugin from directory'
+      ),
+    [agentId, executeInstall]
   )
 
   const uploadFromFile = useCallback(
@@ -74,39 +87,6 @@ export function usePluginZipUpload(options: UsePluginZipUploadOptions): UsePlugi
       return uploadFromPath(filePath)
     },
     [uploadFromPath, onError]
-  )
-
-  const uploadFromDirectory = useCallback(
-    async (directoryPath: string): Promise<PluginResult<InstallFromZipResult>> => {
-      setUploading(true)
-      try {
-        const installOptions: InstallFromDirectoryOptions = {
-          agentId,
-          directoryPath
-        }
-        const result = await window.api.claudeCodePlugin.installFromDirectory(installOptions)
-
-        if (result.success) {
-          onSuccess?.(result.data)
-        } else {
-          const errorMessage = getPluginErrorMessage(result.error, 'Failed to install plugin from directory')
-          onError?.(errorMessage)
-        }
-
-        return result
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        logger.error('Failed to install plugin from directory', { error })
-        onError?.(errorMessage)
-        return {
-          success: false,
-          error: { type: 'TRANSACTION_FAILED', operation: 'install-from-directory', reason: errorMessage }
-        }
-      } finally {
-        setUploading(false)
-      }
-    },
-    [agentId, onSuccess, onError]
   )
 
   return { uploading, uploadFromPath, uploadFromFile, uploadFromDirectory }

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isPathInside } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
 import {
@@ -59,6 +60,10 @@ interface ComponentInstallResult {
  */
 export class PluginService {
   private static instance: PluginService | null = null
+
+  // ZIP extraction limits (protection against zip bombs)
+  private readonly MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
+  private readonly MAX_FILES_COUNT = 1000
 
   private availablePluginsCache: ListAvailablePluginsResult | null = null
   private cacheTimestamp = 0
@@ -406,17 +411,48 @@ export class PluginService {
   }
 
   private async extractZip(zipFilePath: string, destDir: string): Promise<void> {
+    const zip = new StreamZip.async({ file: zipFilePath })
+
     try {
-      const zip = new StreamZip.async({ file: zipFilePath })
+      // Validate ZIP contents before extraction (zip bomb protection)
+      const entries = await zip.entries()
+      let totalSize = 0
+      let fileCount = 0
+
+      for (const entry of Object.values(entries)) {
+        totalSize += entry.size
+        fileCount++
+
+        if (totalSize > this.MAX_EXTRACTED_SIZE) {
+          throw {
+            type: 'FILE_TOO_LARGE',
+            size: totalSize,
+            max: this.MAX_EXTRACTED_SIZE
+          } as PluginError
+        }
+        if (fileCount > this.MAX_FILES_COUNT) {
+          throw {
+            type: 'ZIP_EXTRACTION_FAILED',
+            path: zipFilePath,
+            reason: `Too many files (${fileCount} > ${this.MAX_FILES_COUNT})`
+          } as PluginError
+        }
+      }
+
       await zip.extract(null, destDir)
-      await zip.close()
-      logger.debug('ZIP extracted successfully', { zipFilePath, destDir })
+      logger.debug('ZIP extracted successfully', { zipFilePath, destDir, totalSize, fileCount })
     } catch (error) {
+      // Re-throw PluginError as-is
+      if (error && typeof error === 'object' && 'type' in error) {
+        throw error
+      }
       throw {
         type: 'ZIP_EXTRACTION_FAILED',
         path: zipFilePath,
         reason: error instanceof Error ? error.message : String(error)
       } as PluginError
+    } finally {
+      await zip.close()
     }
   }
 
@@ -429,57 +465,18 @@ export class PluginService {
     const { agentId, zipFilePath } = options
     logger.info('Installing plugin package from ZIP', { agentId, zipFilePath })
 
-    // 1. Validate agent and workdir
     const agent = await this.getAgentOrThrow(agentId)
     const workdir = this.getWorkdirOrThrow(agent, agentId)
     await this.validateWorkdir(agent, workdir)
-
-    // 2. Validate ZIP file
     await this.validateZipFile(zipFilePath)
 
-    // 3. Create temp directory
     const tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'plugin-upload', `plugin-${Date.now()}`)
     await fs.promises.mkdir(tempDir, { recursive: true })
 
     try {
-      // 4. Extract ZIP to temp directory
       await this.extractZip(zipFilePath, tempDir)
-
-      // 5. Find all plugin roots (supports multiple plugins in one ZIP)
-      const pluginRoots = await this.findPluginRoots(tempDir)
-
-      if (pluginRoots.length === 0) {
-        throw { type: 'PLUGIN_MANIFEST_NOT_FOUND', path: tempDir } as PluginError
-      }
-
-      // 6. Install each plugin
-      const packages: SinglePluginInstallResult[] = []
-      for (const pluginRoot of pluginRoots) {
-        try {
-          const result = await this.installSinglePlugin(pluginRoot, workdir, agent)
-          packages.push(result)
-        } catch (error) {
-          packages.push({
-            pluginName: path.basename(pluginRoot),
-            installed: [],
-            failed: [{ path: pluginRoot, error: error instanceof Error ? error.message : String(error) }]
-          })
-        }
-      }
-
-      const totalInstalled = packages.reduce((sum, p) => sum + p.installed.length, 0)
-      const totalFailed = packages.reduce((sum, p) => sum + p.failed.length, 0)
-
-      logger.info('Plugin package(s) installed from ZIP', {
-        agentId,
-        packageCount: packages.length,
-        totalInstalled,
-        totalFailed
-      })
-
-      return { packages, totalInstalled, totalFailed }
+      return await this.installFromSourceDir(tempDir, workdir, agent, agentId, 'ZIP')
     } finally {
-      // 7. Cleanup temp directory
       await this.safeRemoveDirectory(tempDir)
     }
   }
@@ -493,24 +490,62 @@ export class PluginService {
     const { agentId, directoryPath } = options
     logger.info('Installing plugin package from directory', { agentId, directoryPath })
 
-    // 1. Validate agent and workdir
     const agent = await this.getAgentOrThrow(agentId)
     const workdir = this.getWorkdirOrThrow(agent, agentId)
     await this.validateWorkdir(agent, workdir)
 
-    // 2. Validate directory exists
     if (!(await this.directoryExists(directoryPath))) {
       throw { type: 'FILE_NOT_FOUND', path: directoryPath } as PluginError
     }
 
-    // 3. Find all plugin roots
-    const pluginRoots = await this.findPluginRoots(directoryPath)
-
-    if (pluginRoots.length === 0) {
-      throw { type: 'PLUGIN_MANIFEST_NOT_FOUND', path: directoryPath } as PluginError
+    // Validate directory is readable
+    try {
+      await fs.promises.access(directoryPath, fs.constants.R_OK)
+    } catch {
+      throw { type: 'PERMISSION_DENIED', path: directoryPath } as PluginError
     }
 
-    // 4. Install each plugin
+    return await this.installFromSourceDir(directoryPath, workdir, agent, agentId, 'directory')
+  }
+
+  /**
+   * Install plugin packages from a source directory (shared logic for ZIP and directory install)
+   */
+  private async installFromSourceDir(
+    sourceDir: string,
+    workdir: string,
+    agent: GetAgentResponse,
+    agentId: string,
+    sourceType: 'ZIP' | 'directory'
+  ): Promise<InstallFromZipResult> {
+    const pluginRoots = await this.findPluginRoots(sourceDir)
+
+    if (pluginRoots.length === 0) {
+      throw { type: 'PLUGIN_MANIFEST_NOT_FOUND', path: sourceDir } as PluginError
+    }
+
+    const packages = await this.installPluginRoots(pluginRoots, workdir, agent)
+    const totalInstalled = packages.reduce((sum, p) => sum + p.installed.length, 0)
+    const totalFailed = packages.reduce((sum, p) => sum + p.failed.length, 0)
+
+    logger.info(`Plugin package(s) installed from ${sourceType}`, {
+      agentId,
+      packageCount: packages.length,
+      totalInstalled,
+      totalFailed
+    })
+
+    return { packages, totalInstalled, totalFailed }
+  }
+
+  /**
+   * Install multiple plugin roots and collect results
+   */
+  private async installPluginRoots(
+    pluginRoots: string[],
+    workdir: string,
+    agent: GetAgentResponse
+  ): Promise<SinglePluginInstallResult[]> {
     const packages: SinglePluginInstallResult[] = []
     for (const pluginRoot of pluginRoots) {
       try {
@@ -524,18 +559,7 @@ export class PluginService {
         })
       }
     }
-
-    const totalInstalled = packages.reduce((sum, p) => sum + p.installed.length, 0)
-    const totalFailed = packages.reduce((sum, p) => sum + p.failed.length, 0)
-
-    logger.info('Plugin package(s) installed from directory', {
-      agentId,
-      packageCount: packages.length,
-      totalInstalled,
-      totalFailed
-    })
-
-    return { packages, totalInstalled, totalFailed }
+    return packages
   }
 
   /**
@@ -726,7 +750,8 @@ export class PluginService {
       const pathArray = Array.isArray(customPaths) ? customPaths : [customPaths]
       for (const p of pathArray) {
         // Validate path doesn't escape plugin directory (path traversal protection)
-        if (!this.isPathWithinDirectory(pluginDir, p)) {
+        const fullPath = path.resolve(pluginDir, p)
+        if (!isPathInside(fullPath, pluginDir)) {
           logger.warn('Skipping custom path with path traversal', { customPath: p, pluginDir })
           results.failed.push({
             path: p,
@@ -735,7 +760,6 @@ export class PluginService {
           continue
         }
 
-        const fullPath = path.resolve(pluginDir, p)
         if (!scannedPaths.has(fullPath)) {
           scannedPaths.add(fullPath)
           if (await this.pathExists(fullPath)) {
@@ -748,22 +772,6 @@ export class PluginService {
     }
 
     return results
-  }
-
-  /**
-   * Check if a relative path stays within the base directory (path traversal protection)
-   */
-  private isPathWithinDirectory(baseDir: string, relativePath: string): boolean {
-    // Check for obvious path traversal patterns
-    if (relativePath.includes('..')) {
-      return false
-    }
-
-    // Resolve and verify the path stays within base directory
-    const resolvedPath = path.resolve(baseDir, relativePath)
-    const normalizedBase = path.normalize(baseDir + path.sep)
-
-    return resolvedPath.startsWith(normalizedBase) || resolvedPath === path.normalize(baseDir)
   }
 
   /**

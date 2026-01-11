@@ -26,8 +26,18 @@ export function getPluginErrorMessage(error: PluginError | undefined, defaultMes
     PERMISSION_DENIED: 'Permission denied',
     WORKDIR_NOT_FOUND: 'Working directory not found or not accessible',
     INVALID_FILE_TYPE: 'Invalid file type',
-    FILE_TOO_LARGE: 'File is too large',
-    TRANSACTION_FAILED: (e) => `Operation failed: ${(e as { reason?: string }).reason || ''}`
+    FILE_TOO_LARGE: (e) => {
+      const err = e as { size?: number; max?: number }
+      if (err.size && err.max) {
+        const sizeMB = Math.round(err.size / 1024 / 1024)
+        const maxMB = Math.round(err.max / 1024 / 1024)
+        return `File too large (${sizeMB}MB > ${maxMB}MB limit)`
+      }
+      return 'File is too large'
+    },
+    TRANSACTION_FAILED: (e) => `Operation failed: ${(e as { reason?: string }).reason || ''}`,
+    PATH_TRAVERSAL: 'Invalid path detected - security violation',
+    DUPLICATE_FILENAME: (e) => `Plugin "${(e as { filename?: string }).filename || ''}" already exists`
   }
 
   // Check for specific error type first
