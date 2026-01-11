@@ -334,7 +334,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
     return (
       <>
-        <Tooltip title={apiKeyConnectivity.error?.message || t('settings.provider.api.check.failed')}>
+        <Tooltip title={apiKeyConnectivity.error?.message || t('settings.models.check.failed')}>
           <TriangleAlert
             size={16}
             color="var(--color-status-warning)"
