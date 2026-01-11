@@ -1779,7 +1779,7 @@
     "user_memories_reset": "Toate amintirile pentru {{user}} au fost resetate",
     "user_switch_failed": "Nu s-a putut schimba utilizatorul",
     "user_switched": "Contextul de utilizator a fost schimbat la {{user}}",
-    "users": "utilizatori"
+    "users": "Utilizatori"
   },
   "message": {
     "agents": {
