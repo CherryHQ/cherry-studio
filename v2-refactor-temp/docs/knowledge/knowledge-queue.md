@@ -38,10 +38,9 @@ Main Process
 
 ## 数据流（核心路径）
 
-1. **创建/批量创建**  
-   `POST /knowledge-bases/:id/items` 或  
-   `POST /knowledge-bases/:id/items/batch`  
-   主进程写入 `knowledge_item`，初始 `status = pending`，并将任务入队。
+1. **创建 items**
+   `POST /knowledge-bases/:id/items`
+   主进程写入 `knowledge_item`，初始 `status = pending`，并将任务入队。支持单个或批量创建。
 
 2. **队列执行**
    主进程调度器按入队顺序（FIFO）执行任务，更新 `status` 到数据库。
@@ -59,8 +58,7 @@ Main Process
 
 | Path | Method | 说明 |
 | ---- | ------ | ---- |
-| `/knowledge-bases/:id/items` | POST | 创建单个 item 并入队 |
-| `/knowledge-bases/:id/items/batch` | POST | 批量创建 items 并入队 |
+| `/knowledge-bases/:id/items` | POST | 创建 items 并入队（支持单个或批量） |
 | `/knowledge-items/:id/refresh` | POST | 重新处理并入队 |
 | `/knowledge-items/:id/cancel` | POST | 取消队列任务 |
 | `/knowledge-items/:id` | GET | 获取 item 详情与状态 |

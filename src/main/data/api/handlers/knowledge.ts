@@ -48,13 +48,7 @@ export const knowledgeHandlers: {
       return await knowledgeService.listItems(params.id, query ?? {})
     },
     POST: async ({ params, body }) => {
-      return await knowledgeService.createItem(params.id, body)
-    }
-  },
-
-  '/knowledge-bases/:id/items/batch': {
-    POST: async ({ params, body }) => {
-      return await knowledgeService.createItemsBatch(params.id, body)
+      return await knowledgeService.createItems(params.id, body)
     }
   },
 

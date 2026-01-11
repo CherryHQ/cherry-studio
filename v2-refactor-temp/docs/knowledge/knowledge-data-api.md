@@ -219,8 +219,7 @@ export type KnowledgeItemData =
 | `/knowledge-bases/:id` | PATCH | 更新知识库配置 |
 | `/knowledge-bases/:id` | DELETE | 删除知识库（含 items 与向量） |
 | `/knowledge-bases/:id/items` | GET | 分页查询指定知识库的 items |
-| `/knowledge-bases/:id/items` | POST | 创建单个 item（进入队列） |
-| `/knowledge-bases/:id/items/batch` | POST | 批量创建 items（进入队列） |
+| `/knowledge-bases/:id/items` | POST | 创建 items（支持单个或批量，进入队列） |
 | `/knowledge-items/:id` | GET | 获取单个 item |
 | `/knowledge-items/:id` | PATCH | 更新 item 数据（如 note 内容） |
 | `/knowledge-items/:id` | DELETE | 删除 item（含向量） |
@@ -307,7 +306,7 @@ export interface UpdateKnowledgeItemDto {
   error?: string | null
 }
 
-export interface BatchCreateItemsDto {
+export interface CreateKnowledgeItemsDto {
   items: CreateKnowledgeItemDto[]
 }
 
@@ -372,15 +371,8 @@ export interface KnowledgeSchemas {
     }
     POST: {
       params: { id: string }
-      body: CreateKnowledgeItemDto
-      response: KnowledgeItem
-    }
-  }
-  '/knowledge-bases/:id/items/batch': {
-    POST: {
-      params: { id: string }
-      body: BatchCreateItemsDto
-      response: KnowledgeItem[]
+      body: CreateKnowledgeItemsDto
+      response: { items: KnowledgeItem[] }
     }
   }
   '/knowledge-items/:id': {

@@ -144,9 +144,9 @@ const toV1NoteItem = (item: KnowledgeItemV2): KnowledgeItem => {
 export const useKnowledgeFiles = (baseId: string) => {
   const dispatch = useAppDispatch()
 
-  const { trigger: createItemsBatchApi, isLoading: isAddingFiles } = useMutation(
+  const { trigger: createItemsApi, isLoading: isAddingFiles } = useMutation(
     'POST',
-    `/knowledge-bases/${baseId}/items/batch`,
+    `/knowledge-bases/${baseId}/items`,
     {
       refresh: [`/knowledge-bases/${baseId}/items`]
     }
@@ -167,9 +167,11 @@ export const useKnowledgeFiles = (baseId: string) => {
       }))
 
       // Call v2 API (items created with status: 'pending', processing starts automatically)
-      const createdItems = await createItemsBatchApi({
+      const result = await createItemsApi({
         body: { items: v2Items }
       })
+
+      const createdItems = result.items
 
       // Update Redux store for UI compatibility during migration
       const v1Items = createdItems.map(toV1FileItem)
@@ -195,9 +197,9 @@ export const useKnowledgeFiles = (baseId: string) => {
 export const useKnowledgeDirectories = (baseId: string) => {
   const dispatch = useAppDispatch()
 
-  const { trigger: createItemsBatchApi, isLoading: isAddingDirectory } = useMutation(
+  const { trigger: createItemsApi, isLoading: isAddingDirectory } = useMutation(
     'POST',
-    `/knowledge-bases/${baseId}/items/batch`,
+    `/knowledge-bases/${baseId}/items`,
     {
       refresh: [`/knowledge-bases/${baseId}/items`]
     }
@@ -220,9 +222,11 @@ export const useKnowledgeDirectories = (baseId: string) => {
       ]
 
       // Call v2 API (item created with status: 'pending', processing starts automatically)
-      const createdItems = await createItemsBatchApi({
+      const result = await createItemsApi({
         body: { items: v2Items }
       })
+
+      const createdItems = result.items
 
       // Update Redux store for UI compatibility during migration
       const v1Item = toV1DirectoryItem(createdItems[0])
@@ -248,13 +252,9 @@ export const useKnowledgeDirectories = (baseId: string) => {
 export const useKnowledgeUrls = (baseId: string) => {
   const dispatch = useAppDispatch()
 
-  const { trigger: createItemsBatchApi, isLoading: isAddingUrl } = useMutation(
-    'POST',
-    `/knowledge-bases/${baseId}/items/batch`,
-    {
-      refresh: [`/knowledge-bases/${baseId}/items`]
-    }
-  )
+  const { trigger: createItemsApi, isLoading: isAddingUrl } = useMutation('POST', `/knowledge-bases/${baseId}/items`, {
+    refresh: [`/knowledge-bases/${baseId}/items`]
+  })
 
   /**
    * Add a URL to knowledge base via v2 API
@@ -273,9 +273,11 @@ export const useKnowledgeUrls = (baseId: string) => {
       ]
 
       // Call v2 API (item created with status: 'pending', processing starts automatically)
-      const createdItems = await createItemsBatchApi({
+      const result = await createItemsApi({
         body: { items: v2Items }
       })
+
+      const createdItems = result.items
 
       // Update Redux store for UI compatibility during migration
       const v1Item = toV1UrlItem(createdItems[0])
@@ -301,9 +303,9 @@ export const useKnowledgeUrls = (baseId: string) => {
 export const useKnowledgeSitemaps = (baseId: string) => {
   const dispatch = useAppDispatch()
 
-  const { trigger: createItemsBatchApi, isLoading: isAddingSitemap } = useMutation(
+  const { trigger: createItemsApi, isLoading: isAddingSitemap } = useMutation(
     'POST',
-    `/knowledge-bases/${baseId}/items/batch`,
+    `/knowledge-bases/${baseId}/items`,
     {
       refresh: [`/knowledge-bases/${baseId}/items`]
     }
@@ -326,9 +328,11 @@ export const useKnowledgeSitemaps = (baseId: string) => {
       ]
 
       // Call v2 API (item created with status: 'pending', processing starts automatically)
-      const createdItems = await createItemsBatchApi({
+      const result = await createItemsApi({
         body: { items: v2Items }
       })
+
+      const createdItems = result.items
 
       // Update Redux store for UI compatibility during migration
       const v1Item = toV1SitemapItem(createdItems[0])
@@ -354,13 +358,9 @@ export const useKnowledgeSitemaps = (baseId: string) => {
 export const useKnowledgeNotes = (baseId: string) => {
   const dispatch = useAppDispatch()
 
-  const { trigger: createItemsBatchApi, isLoading: isAddingNote } = useMutation(
-    'POST',
-    `/knowledge-bases/${baseId}/items/batch`,
-    {
-      refresh: [`/knowledge-bases/${baseId}/items`]
-    }
-  )
+  const { trigger: createItemsApi, isLoading: isAddingNote } = useMutation('POST', `/knowledge-bases/${baseId}/items`, {
+    refresh: [`/knowledge-bases/${baseId}/items`]
+  })
 
   /**
    * Add a note to knowledge base via v2 API
@@ -379,9 +379,11 @@ export const useKnowledgeNotes = (baseId: string) => {
       ]
 
       // Call v2 API (item created with status: 'pending', processing starts automatically)
-      const createdItems = await createItemsBatchApi({
+      const result = await createItemsApi({
         body: { items: v2Items }
       })
+
+      const createdItems = result.items
 
       // Update Redux store for UI compatibility during migration
       const v1Item = toV1NoteItem(createdItems[0])

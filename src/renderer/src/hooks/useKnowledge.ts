@@ -563,10 +563,11 @@ export const useKnowledge = (baseId: string) => {
       }
 
       if (itemsPayload.length > 0) {
-        const createdItems = await dataApiService.post(`/knowledge-bases/${migratedBase.id}/items/batch` as any, {
+        const result = await dataApiService.post(`/knowledge-bases/${migratedBase.id}/items`, {
           body: { items: itemsPayload }
         })
 
+        const createdItems = result.items
         const v1Items = createdItems.map(toV1Item)
         const v1Files = v1Items.filter((item) => item.type === 'file')
         const v1Notes = v1Items.filter((item) => item.type === 'note')

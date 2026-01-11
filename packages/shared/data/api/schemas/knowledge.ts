@@ -64,9 +64,9 @@ export interface UpdateKnowledgeItemDto {
 }
 
 /**
- * DTO for batch creation of knowledge items.
+ * DTO for creating knowledge items (supports single or batch).
  */
-export interface BatchCreateItemsDto {
+export interface CreateKnowledgeItemsDto {
   items: CreateKnowledgeItemDto[]
 }
 
@@ -132,16 +132,8 @@ export interface KnowledgeSchemas {
     }
     POST: {
       params: { id: string }
-      body: CreateKnowledgeItemDto
-      response: KnowledgeItem
-    }
-  }
-
-  '/knowledge-bases/:id/items/batch': {
-    POST: {
-      params: { id: string }
-      body: BatchCreateItemsDto
-      response: KnowledgeItem[]
+      body: CreateKnowledgeItemsDto
+      response: { items: KnowledgeItem[] }
     }
   }
 

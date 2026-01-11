@@ -14,9 +14,9 @@ import { estimateWorkload } from '@main/services/knowledge/vectorstores/reader'
 import { reduxService } from '@main/services/ReduxService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type {
-  BatchCreateItemsDto,
   CreateKnowledgeBaseDto,
   CreateKnowledgeItemDto,
+  CreateKnowledgeItemsDto,
   KnowledgeSearchRequest,
   UpdateKnowledgeBaseDto,
   UpdateKnowledgeItemDto
@@ -308,31 +308,7 @@ export class KnowledgeService {
     }
   }
 
-  async createItem(baseId: string, dto: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
-    const db = dbService.getDb()
-
-    const base = await this.getBaseById(baseId)
-    this.validateItemPayload(dto)
-
-    const [row] = await db
-      .insert(knowledgeItemTable)
-      .values({
-        baseId,
-        type: dto.type,
-        data: dto.data,
-        status: 'pending',
-        error: null
-      })
-      .returning()
-
-    const item = toKnowledgeItem(row)
-
-    void this.processItem(base, item, { forceReload: false })
-
-    return item
-  }
-
-  async createItemsBatch(baseId: string, dto: BatchCreateItemsDto): Promise<KnowledgeItem[]> {
+  async createItems(baseId: string, dto: CreateKnowledgeItemsDto): Promise<{ items: KnowledgeItem[] }> {
     const db = dbService.getDb()
 
     if (!dto.items || dto.items.length === 0) {
@@ -370,7 +346,7 @@ export class KnowledgeService {
       void this.processItem(base, item, { forceReload: false })
     })
 
-    return items
+    return { items }
   }
 
   async getItemById(id: string): Promise<KnowledgeItem> {
