@@ -3115,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Vue",
+        "title": "Carrières"
+      },
       "checkUpdate": {
         "available": "Mettre à jour maintenant",
         "label": "Vérifier les mises à jour"
@@ -4476,12 +4480,12 @@
         },
         "options": {
           "anthropic_cache": {
-            "cache_last_n": "[to be translated]:Cache Last N Messages",
-            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
-            "cache_system": "[to be translated]:Cache System Message",
-            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
-            "token_threshold": "[to be translated]:Cache Token Threshold",
-            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+            "cache_last_n": "Mettre en cache les N derniers messages",
+            "cache_last_n_help": "Mettre en cache les N derniers messages de conversation (à l’exclusion des messages système)",
+            "cache_system": "Message du système de cache",
+            "cache_system_help": "S'il faut mettre en cache l'invite système",
+            "token_threshold": "Seuil de jeton de cache",
+            "token_threshold_help": "Les messages dépassant ce nombre de jetons seront mis en cache. Mettre à 0 pour désactiver la mise en cache."
           },
           "array_content": {
             "help": "Ce fournisseur prend-il en charge le champ content du message sous forme de tableau ?",

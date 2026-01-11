@@ -1311,7 +1311,6 @@
     "backup": {
       "file_format": "Ошибка формата файла резервной копии"
     },
-    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "base64DataTruncated": "Данные изображения в формате Base64 усечены, размер",
     "boundary": {
       "default": {
@@ -1393,9 +1392,7 @@
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
-    "truncated": "[to be translated]:Data truncated, original size",
     "truncated": "Данные усечены, исходный размер",
-    "truncatedBadge": "[to be translated]:Truncated",
     "truncatedBadge": "Усечённый",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",
@@ -3118,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Вид",
+        "title": "Карьера"
+      },
       "checkUpdate": {
         "available": "Обновить",
         "label": "Проверить обновления"
@@ -4479,12 +4480,12 @@
         },
         "options": {
           "anthropic_cache": {
-            "cache_last_n": "[to be translated]:Cache Last N Messages",
-            "cache_last_n_help": "[to be translated]:Cache the last N conversation messages (excluding system messages)",
-            "cache_system": "[to be translated]:Cache System Message",
-            "cache_system_help": "[to be translated]:Whether to cache the system prompt",
-            "token_threshold": "[to be translated]:Cache Token Threshold",
-            "token_threshold_help": "[to be translated]:Messages exceeding this token count will be cached. Set to 0 to disable caching."
+            "cache_last_n": "Кэшировать последние N сообщений",
+            "cache_last_n_help": "Кэшировать последние N сообщений разговора (исключая системные сообщения)",
+            "cache_system": "Сообщение системы кэша",
+            "cache_system_help": "Кэшировать ли системный промпт",
+            "token_threshold": "Порог токена кэша",
+            "token_threshold_help": "Сообщения, превышающие это количество токенов, будут кэшироваться. Установите значение 0, чтобы отключить кэширование."
           },
           "array_content": {
             "help": "Поддерживает ли данный провайдер тип массива для поля content в сообщении",
