@@ -37,6 +37,9 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
       label: maskApiKey(kr.key)
     })) || []
 
+  // 检查是否有失败的结果
+  const hasFailedResult = healthResults.some((r) => r.status === 'failed')
+
   return (
     <>
       <ListItem ref={ref}>
@@ -59,10 +62,14 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
             results={healthResults}
             loading={isChecking}
             showLatency
-            onErrorClick={(error) => {
-              setSelectedError(error)
-              setShowErrorModal(true)
-            }}
+            onErrorClick={
+              hasFailedResult
+                ? (error) => {
+                    setSelectedError(error)
+                    setShowErrorModal(true)
+                  }
+                : undefined
+            }
           />
           <HStack alignItems="center" gap={0}>
             <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
@@ -74,14 +81,16 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
           </HStack>
         </HStack>
       </ListItem>
-      <ErrorDetailModal
-        open={showErrorModal}
-        onClose={() => {
-          setShowErrorModal(false)
-          setSelectedError(undefined)
-        }}
-        error={selectedError}
-      />
+      {hasFailedResult && (
+        <ErrorDetailModal
+          open={showErrorModal}
+          onClose={() => {
+            setShowErrorModal(false)
+            setSelectedError(undefined)
+          }}
+          error={selectedError}
+        />
+      )}
     </>
   )
 }
