@@ -1,4 +1,4 @@
-import { Button, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Radio, RadioGroup } from '@heroui/react'
 import { isMac, isWin } from '@renderer/config/constant'
@@ -6,7 +6,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Row } from 'antd'
+import { Row, Slider } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -101,8 +101,8 @@ const SelectionAssistantSettings: FC = () => {
             {!isSupportedOS && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}
           </SettingLabel>
           <Switch
-            checked={isSupportedOS && selectionEnabled}
-            onCheckedChange={handleEnableCheckboxChange}
+            isSelected={isSupportedOS && selectionEnabled}
+            onValueChange={handleEnableCheckboxChange}
             disabled={!isSupportedOS}
           />
         </SettingRow>
@@ -162,7 +162,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.toolbar.compact_mode.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.toolbar.compact_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isCompact} onCheckedChange={setIsCompact} />
+              <Switch isSelected={isCompact} onValueChange={setIsCompact} />
             </SettingRow>
           </SettingGroup>
 
@@ -174,7 +174,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.follow_toolbar.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.follow_toolbar.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isFollowToolbar} onCheckedChange={setIsFollowToolbar} />
+              <Switch isSelected={isFollowToolbar} onValueChange={setIsFollowToolbar} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -182,7 +182,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.remember_size.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.remember_size.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isRemeberWinSize} onCheckedChange={setIsRemeberWinSize} />
+              <Switch isSelected={isRemeberWinSize} onValueChange={setIsRemeberWinSize} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -190,7 +190,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.auto_close.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.auto_close.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isAutoClose} onCheckedChange={setIsAutoClose} />
+              <Switch isSelected={isAutoClose} onValueChange={setIsAutoClose} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -198,7 +198,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.auto_pin.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.auto_pin.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isAutoPin} onCheckedChange={setIsAutoPin} />
+              <Switch isSelected={isAutoPin} onValueChange={setIsAutoPin} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -206,19 +206,16 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.opacity.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.opacity.description')}</SettingDescription>
               </SettingLabel>
+              <div style={{ marginRight: '16px' }}>{opacityValue}%</div>
               <Slider
-                className="w-[120px]"
+                style={{ width: 100 }}
                 min={20}
                 max={100}
-                value={[opacityValue]}
-                onValueChange={(values) => setOpacityValue(values[0])}
-                onValueCommit={(values) => setActionWindowOpacity(values[0])}
-                marks={[
-                  { value: 20, label: '20%' },
-                  { value: 100, label: '100%' }
-                ]}
-                showValueLabel
-                formatValueLabel={(v) => `${v}%`}
+                reverse
+                value={opacityValue}
+                onChange={setOpacityValue}
+                onChangeComplete={setActionWindowOpacity}
+                tooltip={{ open: false }}
               />
             </SettingRow>
           </SettingGroup>

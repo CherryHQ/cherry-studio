@@ -1,6 +1,5 @@
 import { CloseCircleFilled } from '@ant-design/icons'
 import { Button, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
-import { Slider } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import { TopView } from '@renderer/components/TopView'
@@ -9,7 +8,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Col, Input, InputNumber, Modal, Popover, Row } from 'antd'
+import { Col, Input, InputNumber, Modal, Popover, Row, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
@@ -174,8 +173,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          checked={enableTemperature}
-          onCheckedChange={(enabled) => {
+          isSelected={enableTemperature}
+          onValueChange={(enabled) => {
             setEnableTemperature(enabled)
             onUpdateAssistantSettings({ enableTemperature: enabled })
           }}
@@ -187,16 +186,11 @@ const AssistantSettings: FC = () => {
             <Slider
               min={0}
               max={2}
-              onValueChange={(values) => setTemperature(values[0])}
-              onValueCommit={(values) => onTemperatureChange(values[0])}
-              value={[typeof temperature === 'number' ? temperature : 0]}
-              marks={[
-                { value: 0, label: '0' },
-                { value: 0.7, label: '0.7' },
-                { value: 2, label: '2' }
-              ]}
+              onChange={setTemperature}
+              onChangeComplete={onTemperatureChange}
+              value={typeof temperature === 'number' ? temperature : 0}
+              marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
               step={0.01}
-              showValueLabel
             />
           </Col>
           <Col span={4}>
@@ -221,8 +215,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          checked={enableTopP}
-          onCheckedChange={(enabled) => {
+          isSelected={enableTopP}
+          onValueChange={(enabled) => {
             setEnableTopP(enabled)
             onUpdateAssistantSettings({ enableTopP: enabled })
           }}
@@ -234,16 +228,11 @@ const AssistantSettings: FC = () => {
             <Slider
               min={0}
               max={1}
-              onValueChange={(values) => setTopP(values[0])}
-              onValueCommit={(values) => onTopPChange(values[0])}
-              value={[typeof topP === 'number' ? topP : 1]}
-              marks={[
-                { value: 0, label: '0' },
-                { value: 0.5, label: '0.5' },
-                { value: 1, label: '1' }
-              ]}
+              onChange={setTopP}
+              onChangeComplete={onTopPChange}
+              value={typeof topP === 'number' ? topP : 1}
+              marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
               step={0.01}
-              showValueLabel
             />
           </Col>
           <Col span={4}>
@@ -263,18 +252,11 @@ const AssistantSettings: FC = () => {
           <Slider
             min={0}
             max={20}
-            marks={[
-              { value: 0, label: '0' },
-              { value: 5, label: '5' },
-              { value: 10, label: '10' },
-              { value: 15, label: '15' },
-              { value: 20, label: t('chat.settings.max') }
-            ]}
-            onValueChange={(values) => setContextCount(values[0])}
-            onValueCommit={(values) => onContextCountChange(values[0])}
-            value={[typeof contextCount === 'number' ? contextCount : 0]}
+            marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
+            onChange={setContextCount}
+            onChangeComplete={onContextCountChange}
+            value={typeof contextCount === 'number' ? contextCount : 0}
             step={1}
-            showValueLabel
           />
         </Col>
         <Col span={5}>
@@ -298,8 +280,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          checked={enableMaxTokens}
-          onCheckedChange={async (enabled) => {
+          isSelected={enableMaxTokens}
+          onValueChange={async (enabled) => {
             if (enabled) {
               const confirmed = await modalConfirm({
                 title: t('chat.settings.max_tokens.confirm'),

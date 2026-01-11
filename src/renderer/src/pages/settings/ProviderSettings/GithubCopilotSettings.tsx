@@ -1,10 +1,9 @@
 import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { Slider } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Alert, Input, Steps, Typography } from 'antd'
+import { Alert, Input, Slider, Steps, Typography } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -327,22 +326,15 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       {renderAuthContent()}
       {authStatus === AuthStatus.AUTHENTICATED && (
         <SettingRow style={{ marginTop: 20 }}>
-          <SettingSubtitle style={{ marginTop: 0, paddingTop: 4, whiteSpace: 'nowrap' }}>
-            {t('settings.provider.copilot.rate_limit')}
-          </SettingSubtitle>
+          <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.copilot.rate_limit')}</SettingSubtitle>
           <Slider
-            className="w-80"
-            defaultValue={[provider.rateLimit ?? 10]}
+            defaultValue={provider.rateLimit ?? 10}
+            style={{ width: 200 }}
             min={1}
             max={60}
             step={1}
-            marks={[
-              { value: 1, label: '1' },
-              { value: 10, label: t('common.default') },
-              { value: 60, label: '60' }
-            ]}
-            onValueCommit={(values) => updateProvider({ ...provider, rateLimit: values[0] })}
-            showValueLabel
+            marks={{ 1: '1', 10: t('common.default'), 60: '60' }}
+            onChangeComplete={(value) => updateProvider({ ...provider, rateLimit: value })}
           />
         </SettingRow>
       )}

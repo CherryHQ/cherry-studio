@@ -1,12 +1,11 @@
 import { Switch } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { Slider } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import type { EditorView } from '@renderer/types'
-import { Input } from 'antd'
+import { Input, Slider } from 'antd'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -165,8 +164,8 @@ const NotesSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.display.compress_content')}</SettingRowTitle>
           <Switch
-            checked={!settings.isFullWidth}
-            onCheckedChange={(checked) => updateSettings({ isFullWidth: !checked })}
+            isSelected={!settings.isFullWidth}
+            onValueChange={(checked) => updateSettings({ isFullWidth: !checked })}
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.compress_content_description')}</SettingHelpText>
@@ -177,11 +176,9 @@ const NotesSettings: FC = () => {
             <Slider
               min={10}
               max={30}
-              value={[settings.fontSize]}
-              onValueChange={(values) => updateSettings({ fontSize: values[0] })}
-              className="mr-4 w-[200px]"
-              showValueLabel
-              formatValueLabel={(v) => `${v}px`}
+              value={settings.fontSize}
+              onChange={(value) => updateSettings({ fontSize: value })}
+              style={{ width: 200, marginRight: 16 }}
             />
             <FontSizeValue>{settings.fontSize}px</FontSizeValue>
           </FontSizeContainer>
@@ -191,8 +188,8 @@ const NotesSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.display.show_table_of_contents')}</SettingRowTitle>
           <Switch
-            checked={settings.showTableOfContents}
-            onCheckedChange={(checked) => updateSettings({ showTableOfContents: checked })}
+            isSelected={settings.showTableOfContents}
+            onValueChange={(checked) => updateSettings({ showTableOfContents: checked })}
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.show_table_of_contents_description')}</SettingHelpText>

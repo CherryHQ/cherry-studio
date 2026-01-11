@@ -1,9 +1,10 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
-import { Button, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
+import { Slider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -95,7 +96,7 @@ const MiniAppSettings: FC = () => {
         <SettingLabelGroup>
           <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
         </SettingLabelGroup>
-        <Switch checked={minappsOpenLinkExternal} onCheckedChange={(checked) => setMinappsOpenLinkExternal(checked)} />
+        <Switch isSelected={minappsOpenLinkExternal} onValueChange={(checked) => setMinappsOpenLinkExternal(checked)} />
       </SettingRow>
       <SettingDivider />
       {/* 缓存小程序数量设置 */}
@@ -112,17 +113,16 @@ const MiniAppSettings: FC = () => {
               </ResetButton>
             </Tooltip>
             <Slider
-              className="flex-1"
               min={1}
               max={10}
-              value={[maxKeepAliveMinapps]}
-              onValueChange={(values) => handleCacheChange(values[0])}
-              marks={[
-                { value: 1, label: '1' },
-                { value: 5, label: '5' },
-                { value: 10, label: 'Max' }
-              ]}
-              showValueLabel
+              value={maxKeepAliveMinapps}
+              onChange={handleCacheChange}
+              marks={{
+                1: '1',
+                5: '5',
+                10: 'Max'
+              }}
+              tooltip={{ formatter: (value) => `${value}` }}
             />
           </SliderWithResetContainer>
         </CacheSettingControls>
@@ -134,8 +134,8 @@ const MiniAppSettings: FC = () => {
           <SettingDescription>{t('settings.miniapps.sidebar_description')}</SettingDescription>
         </SettingLabelGroup>
         <Switch
-          checked={showOpenedMinappsInSidebar}
-          onCheckedChange={(checked) => setShowOpenedMinappsInSidebar(checked)}
+          isSelected={showOpenedMinappsInSidebar}
+          onValueChange={(checked) => setShowOpenedMinappsInSidebar(checked)}
         />
       </SettingRow>
     </Container>

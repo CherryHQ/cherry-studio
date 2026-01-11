@@ -1,6 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Avatar, Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
-import { Slider } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -20,7 +19,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Input, InputNumber, Radio, Segmented, Select, Upload } from 'antd'
+import { Input, InputNumber, Radio, Segmented, Select, Slider, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -90,7 +89,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const getNewPainting = useCallback(() => {
     return {
       ...DEFAULT_PAINTING,
-      model: mode === 'aihubmix_image_generate' ? 'gemini-3-pro-image-preview' : 'V_3',
+      model: mode === 'aihubmix_image_generate' ? 'gpt-image-1' : 'V_3',
       id: uuid()
     }
   }, [mode])
@@ -191,74 +190,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           if (base64s?.length > 0) {
             const validFiles = await Promise.all(
               base64s.map(async (base64) => {
-                return await window.api.file.saveBase64Image(base64)
-              })
-            )
-            await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
-          }
-          return
-        } else if (painting.model === 'gemini-3-pro-image-preview') {
-          const geminiUrl = `${aihubmixProvider.apiHost}/gemini/v1beta/models/gemini-3-pro-image-preview:streamGenerateContent`
-          const geminiHeaders = {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': aihubmixProvider.apiKey
-          }
-
-          const requestBody = {
-            contents: [
-              {
-                parts: [
-                  {
-                    text: prompt
-                  }
-                ],
-                role: 'user'
-              }
-            ],
-            generationConfig: {
-              responseModalities: ['TEXT', 'IMAGE'],
-              imageConfig: {
-                aspectRatio: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
-                imageSize: painting.imageSize || '1k'
-              }
-            }
-          }
-
-          logger.silly(`Gemini Request: ${JSON.stringify(requestBody)}`)
-
-          const response = await fetch(geminiUrl, {
-            method: 'POST',
-            headers: geminiHeaders,
-            body: JSON.stringify(requestBody)
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            logger.error('Gemini API Error:', errorData)
-            throw new Error(errorData.error?.message || '生成图像失败')
-          }
-
-          const data = await response.json()
-          logger.silly(`Gemini API Response: ${JSON.stringify(data)}`)
-
-          // Handle array response (stream) or single object
-          const responseItems = Array.isArray(data) ? data : [data]
-          const base64s: string[] = []
-
-          responseItems.forEach((item) => {
-            item.candidates?.forEach((candidate: any) => {
-              candidate.content?.parts?.forEach((part: any) => {
-                if (part.inlineData?.data) {
-                  base64s.push(part.inlineData.data)
-                }
-              })
-            })
-          })
-
-          if (base64s.length > 0) {
-            const validFiles = await Promise.all(
-              base64s.map(async (base64: string) => {
                 return await window.api.file.saveBase64Image(base64)
               })
             )
@@ -748,13 +679,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         return (
           <SliderContainer>
             <Slider
-              className="flex-1"
               min={item.min}
               max={item.max}
               step={item.step}
-              value={[(painting[item.key!] || item.initialValue) as number]}
-              onValueChange={(values) => updatePaintingState({ [item.key!]: values[0] })}
-              showValueLabel
+              value={(painting[item.key!] || item.initialValue) as number}
+              onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
             <StyledInputNumber
               min={item.min}
@@ -803,8 +732,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         return (
           <RowFlex>
             <Switch
-              checked={(painting[item.key!] || item.initialValue) as boolean}
-              onCheckedChange={(checked) => updatePaintingState({ [item.key!]: checked })}
+              isSelected={(painting[item.key!] || item.initialValue) as boolean}
+              onValueChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
           </RowFlex>
         )
