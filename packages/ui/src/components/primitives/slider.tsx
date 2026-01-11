@@ -1,4 +1,4 @@
-import { cn } from '@cherrystudio/ui/utils/index'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import * as SliderPrimitive from '@radix-ui/react-slider'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
@@ -17,12 +17,12 @@ const sliderTrackVariants = cva(
     variants: {
       size: {
         sm: 'data-[orientation=horizontal]:h-1 data-[orientation=vertical]:w-1',
-        default: 'data-[orientation=horizontal]:h-1.5 data-[orientation=vertical]:w-1.5',
+        md: 'data-[orientation=horizontal]:h-1.5 data-[orientation=vertical]:w-1.5',
         lg: 'data-[orientation=horizontal]:h-2 data-[orientation=vertical]:w-2'
       }
     },
     defaultVariants: {
-      size: 'default'
+      size: 'md'
     }
   }
 )
@@ -37,12 +37,12 @@ const sliderThumbVariants = cva(
     variants: {
       size: {
         sm: 'size-3.5',
-        default: 'size-4',
+        md: 'size-4',
         lg: 'size-5'
       }
     },
     defaultVariants: {
-      size: 'default'
+      size: 'md'
     }
   }
 )
@@ -51,12 +51,12 @@ const sliderMarkLabelVariants = cva('absolute text-muted-foreground', {
   variants: {
     size: {
       sm: 'text-[10px]',
-      default: 'text-xs',
+      md: 'text-xs',
       lg: 'text-sm'
     }
   },
   defaultVariants: {
-    size: 'default'
+    size: 'md'
   }
 })
 
@@ -70,12 +70,12 @@ const sliderValueLabelVariants = cva(
     variants: {
       size: {
         sm: 'text-[10px] -top-1',
-        default: 'text-xs -top-1.5',
+        md: 'text-xs -top-1.5',
         lg: 'text-sm -top-2'
       }
     },
     defaultVariants: {
-      size: 'default'
+      size: 'md'
     }
   }
 )
@@ -91,6 +91,7 @@ function Slider({
   orientation = 'horizontal',
   showValueLabel,
   formatValueLabel,
+  onValueChange,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> &
   VariantProps<typeof sliderTrackVariants> & {
@@ -113,15 +114,19 @@ function Slider({
   const sliderElement = (
     <SliderPrimitive.Root
       data-slot="slider"
+      data-size={size}
       defaultValue={defaultValue}
       value={value}
       min={min}
       max={max}
       orientation={orientation}
-      onValueChange={(newValues) => setLocalValues(newValues)}
+      onValueChange={(newValues) => {
+        setLocalValues(newValues)
+        onValueChange?.(newValues)
+      }}
       className={cn(
         'relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
-        (!marks || marks.length === 0) && className
+        !marks?.length && className
       )}
       {...props}>
       <SliderPrimitive.Track data-slot="slider-track" className={sliderTrackVariants({ size })}>
@@ -130,14 +135,14 @@ function Slider({
           className={cn('bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full')}
         />
       </SliderPrimitive.Track>
-      {Array.from({ length: localValues.length }, (_, index) => (
+      {localValues.map((val, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
           className={cn(sliderThumbVariants({ size }), showValueLabel && 'group')}>
           {showValueLabel && (
             <span data-slot="slider-value-label" className={sliderValueLabelVariants({ size })}>
-              {formatValueLabel ? formatValueLabel(localValues[index]) : localValues[index]}
+              {formatValueLabel ? formatValueLabel(val) : val}
             </span>
           )}
         </SliderPrimitive.Thumb>
@@ -145,7 +150,7 @@ function Slider({
     </SliderPrimitive.Root>
   )
 
-  if (!marks || marks.length === 0) {
+  if (!marks?.length) {
     return sliderElement
   }
 
@@ -157,11 +162,13 @@ function Slider({
       <div
         data-slot="slider-marks"
         className={cn('relative', isVertical ? 'ml-2 flex h-full flex-col justify-between' : 'mt-1.5 w-full')}>
-        {marks.map((mark, index) => {
-          const percentage = ((mark.value - min) / (max - min)) * 100
+        {marks.map((mark) => {
+          const range = max - min
+          if (range === 0) return null
+          const percentage = ((mark.value - min) / range) * 100
           return (
             <span
-              key={index}
+              key={mark.value}
               data-slot="slider-mark"
               className={sliderMarkLabelVariants({ size })}
               style={

@@ -19,7 +19,7 @@ const meta: Meta<typeof Slider> = {
   argTypes: {
     size: {
       control: { type: 'select' },
-      options: ['sm', 'default', 'lg'],
+      options: ['sm', 'md', 'lg'],
       description: 'The size of the slider'
     },
     defaultValue: {
@@ -88,7 +88,7 @@ export const Small: Story = {
 
 export const Medium: Story = {
   args: {
-    size: 'default',
+    size: 'md',
     defaultValue: [50],
     min: 0,
     max: 100
@@ -123,7 +123,7 @@ export const AllSizes: Story = {
       </div>
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Medium (Default)</p>
-        <Slider size="default" defaultValue={[50]} />
+        <Slider size="md" defaultValue={[50]} />
       </div>
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Large</p>
@@ -176,7 +176,7 @@ export const RangeSizes: Story = {
       </div>
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Medium Range</p>
-        <Slider size="default" defaultValue={[25, 75]} />
+        <Slider size="md" defaultValue={[25, 75]} />
       </div>
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Large Range</p>
@@ -249,7 +249,7 @@ export const VerticalSizes: Story = {
       </div>
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Medium</p>
-        <Slider size="default" defaultValue={[50]} orientation="vertical" />
+        <Slider size="md" defaultValue={[50]} orientation="vertical" />
       </div>
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Large</p>
@@ -309,7 +309,7 @@ export const RealWorldExamples: Story = {
             <span className="text-sm text-muted-foreground">🔊 Volume</span>
             <span className="text-sm font-medium">{volume[0]}%</span>
           </div>
-          <Slider size="default" value={volume} onValueChange={setVolume} min={0} max={100} step={1} />
+          <Slider size="md" value={volume} onValueChange={setVolume} min={0} max={100} step={1} />
         </div>
 
         {/* Brightness */}
@@ -399,7 +399,7 @@ export const MarksWithSizes: Story = {
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Medium (Default)</p>
         <Slider
-          size="default"
+          size="md"
           defaultValue={[0.7]}
           min={0}
           max={2}
@@ -506,7 +506,7 @@ export const ValueLabelSizes: Story = {
       </div>
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Medium (Default)</p>
-        <Slider size="default" defaultValue={[50]} showValueLabel formatValueLabel={(v) => `${v}%`} />
+        <Slider size="md" defaultValue={[50]} showValueLabel formatValueLabel={(v) => `${v}%`} />
       </div>
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Large</p>
@@ -563,12 +563,12 @@ export const ValueLabelWithMarks: Story = {
 // All Variants Display (like Figma)
 export const ShowcaseAllVariants: Story = {
   render: () => (
-    <div className="flex flex-col gap-12 p-8">
+    <div className="flex flex-col gap-12 p-8 min-w-[800px]">
       {/* Light Background */}
       <div className="bg-white rounded-lg border p-8">
         <h3 className="mb-6 text-lg font-semibold">All Sizes & Progress States</h3>
         <div className="flex gap-8">
-          <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <div className="flex flex-col gap-1 text-sm text-muted-foreground w-20 shrink-0">
             <div className="h-8 flex items-center">Large</div>
             <div className="h-8" />
             <div className="h-8" />
@@ -579,7 +579,7 @@ export const ShowcaseAllVariants: Story = {
             <div className="h-8" />
             <div className="h-8" />
           </div>
-          <div className="flex flex-col gap-1 text-sm text-muted-foreground w-16">
+          <div className="flex flex-col gap-1 text-sm text-muted-foreground w-16 shrink-0">
             <div className="h-8 flex items-center">0%</div>
             <div className="h-8 flex items-center">50%</div>
             <div className="h-8 flex items-center">100%</div>
@@ -590,7 +590,7 @@ export const ShowcaseAllVariants: Story = {
             <div className="h-8 flex items-center">50%</div>
             <div className="h-8 flex items-center">100%</div>
           </div>
-          <div className="flex-1 flex flex-col gap-1">
+          <div className="flex-1 flex flex-col gap-1 min-w-[400px]">
             <div className="h-8 flex items-center">
               <Slider size="lg" defaultValue={[0]} className="w-full" />
             </div>
@@ -601,13 +601,13 @@ export const ShowcaseAllVariants: Story = {
               <Slider size="lg" defaultValue={[100]} className="w-full" />
             </div>
             <div className="h-8 flex items-center">
-              <Slider size="default" defaultValue={[0]} className="w-full" />
+              <Slider size="md" defaultValue={[0]} className="w-full" />
             </div>
             <div className="h-8 flex items-center">
-              <Slider size="default" defaultValue={[50]} className="w-full" />
+              <Slider size="md" defaultValue={[50]} className="w-full" />
             </div>
             <div className="h-8 flex items-center">
-              <Slider size="default" defaultValue={[100]} className="w-full" />
+              <Slider size="md" defaultValue={[100]} className="w-full" />
             </div>
             <div className="h-8 flex items-center">
               <Slider size="sm" defaultValue={[0]} className="w-full" />
@@ -626,7 +626,7 @@ export const ShowcaseAllVariants: Story = {
       <div className="bg-slate-900 rounded-lg border border-slate-700 p-8">
         <h3 className="mb-6 text-lg font-semibold text-white">Dark Mode</h3>
         <div className="flex gap-8">
-          <div className="flex flex-col gap-1 text-sm text-slate-400">
+          <div className="flex flex-col gap-1 text-sm text-slate-400 w-20 shrink-0">
             <div className="h-8 flex items-center">Large</div>
             <div className="h-8" />
             <div className="h-8" />
@@ -637,7 +637,7 @@ export const ShowcaseAllVariants: Story = {
             <div className="h-8" />
             <div className="h-8" />
           </div>
-          <div className="flex flex-col gap-1 text-sm text-slate-400 w-16">
+          <div className="flex flex-col gap-1 text-sm text-slate-400 w-16 shrink-0">
             <div className="h-8 flex items-center">0%</div>
             <div className="h-8 flex items-center">50%</div>
             <div className="h-8 flex items-center">100%</div>
@@ -648,7 +648,7 @@ export const ShowcaseAllVariants: Story = {
             <div className="h-8 flex items-center">50%</div>
             <div className="h-8 flex items-center">100%</div>
           </div>
-          <div className="flex-1 flex flex-col gap-1">
+          <div className="flex-1 flex flex-col gap-1 min-w-[400px]">
             <div className="h-8 flex items-center">
               <Slider size="lg" defaultValue={[0]} className="w-full" />
             </div>
@@ -659,13 +659,13 @@ export const ShowcaseAllVariants: Story = {
               <Slider size="lg" defaultValue={[100]} className="w-full" />
             </div>
             <div className="h-8 flex items-center">
-              <Slider size="default" defaultValue={[0]} className="w-full" />
+              <Slider size="md" defaultValue={[0]} className="w-full" />
             </div>
             <div className="h-8 flex items-center">
-              <Slider size="default" defaultValue={[50]} className="w-full" />
+              <Slider size="md" defaultValue={[50]} className="w-full" />
             </div>
             <div className="h-8 flex items-center">
-              <Slider size="default" defaultValue={[100]} className="w-full" />
+              <Slider size="md" defaultValue={[100]} className="w-full" />
             </div>
             <div className="h-8 flex items-center">
               <Slider size="sm" defaultValue={[0]} className="w-full" />
