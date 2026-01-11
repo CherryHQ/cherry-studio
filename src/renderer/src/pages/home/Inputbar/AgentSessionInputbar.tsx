@@ -169,16 +169,18 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     setText,
     isEmpty: inputEmpty
   } = useInputText({
-    initialValue: cacheService.get<string>(draftCacheKey) ?? '',
-    onChange: (value) => cacheService.set(draftCacheKey, value, DRAFT_CACHE_TTL)
+    initialValue: cacheService.getCasual<string>(draftCacheKey) ?? '',
+    onChange: (value) => cacheService.setCasual(draftCacheKey, value, DRAFT_CACHE_TTL)
   })
   const {
     textareaRef,
     resize: resizeTextArea,
     focus: focusTextarea,
     setExpanded,
-    isExpanded: textareaIsExpanded
-  } = useTextareaResize({ maxHeight: 400, minHeight: 30 })
+    isExpanded: textareaIsExpanded,
+    customHeight,
+    setCustomHeight
+  } = useTextareaResize({ maxHeight: 500, minHeight: 30 })
   const { sendMessageShortcut, apiServer } = useSettings()
 
   const { t } = useTranslation()
@@ -474,6 +476,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       text={text}
       onTextChange={setText}
       textareaRef={textareaRef}
+      height={customHeight}
+      onHeightChange={setCustomHeight}
       resizeTextArea={resizeTextArea}
       focusTextarea={focusTextarea}
       placeholder={placeholderText}

@@ -1,7 +1,6 @@
 // Original: src/renderer/src/components/Ellipsis/index.tsx
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { HTMLAttributes } from 'react'
-
-import { cn } from '../../../utils'
 
 type Props = {
   maxLine?: number

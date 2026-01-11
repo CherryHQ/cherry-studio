@@ -1088,18 +1088,33 @@ export class SelectionService {
     this.lastCtrlkeyDownTime = -1
   }
 
-  //check if the key is ctrl key
+  // Check if the key is ctrl key
+  // Windows: VK_LCONTROL(162), VK_RCONTROL(163)
+  // macOS: kVK_Control(59), kVK_RightControl(62)
   private isCtrlkey(vkCode: number) {
+    if (isMac) {
+      return vkCode === 59 || vkCode === 62
+    }
     return vkCode === 162 || vkCode === 163
   }
 
-  //check if the key is shift key
+  // Check if the key is shift key
+  // Windows: VK_LSHIFT(160), VK_RSHIFT(161)
+  // macOS: kVK_Shift(56), kVK_RightShift(60)
   private isShiftkey(vkCode: number) {
+    if (isMac) {
+      return vkCode === 56 || vkCode === 60
+    }
     return vkCode === 160 || vkCode === 161
   }
 
-  //check if the key is alt key
+  // Check if the key is alt/option key
+  // Windows: VK_LMENU(164), VK_RMENU(165)
+  // macOS: kVK_Option(58), kVK_RightOption(61)
   private isAltkey(vkCode: number) {
+    if (isMac) {
+      return vkCode === 58 || vkCode === 61
+    }
     return vkCode === 164 || vkCode === 165
   }
 
@@ -1399,6 +1414,56 @@ export class SelectionService {
   }
 
   /**
+   * [Windows only] Manual window resize handler
+   *
+   * ELECTRON BUG WORKAROUND:
+   * In Electron, when using `frame: false` + `transparent: true`, the native window
+   * resize functionality is broken on Windows. This is a known Electron bug.
+   * See: https://github.com/electron/electron/issues/48554
+   *
+   * This method can be removed once the Electron bug is fixed.
+   */
+  public resizeActionWindow(actionWindow: BrowserWindow, deltaX: number, deltaY: number, direction: string): void {
+    const bounds = actionWindow.getBounds()
+    const minWidth = 300
+    const minHeight = 200
+
+    let { x, y, width, height } = bounds
+
+    // Handle horizontal resize
+    if (direction.includes('e')) {
+      width = Math.max(minWidth, width + deltaX)
+    }
+    if (direction.includes('w')) {
+      const newWidth = Math.max(minWidth, width - deltaX)
+      if (newWidth !== width) {
+        x = x + (width - newWidth)
+        width = newWidth
+      }
+    }
+
+    // Handle vertical resize
+    if (direction.includes('s')) {
+      height = Math.max(minHeight, height + deltaY)
+    }
+    if (direction.includes('n')) {
+      const newHeight = Math.max(minHeight, height - deltaY)
+      if (newHeight !== height) {
+        y = y + (height - newHeight)
+        height = newHeight
+      }
+    }
+
+    actionWindow.setBounds({ x, y, width, height })
+
+    // [Windows only] Update remembered window size for custom resize
+    // setBounds() may not trigger the 'resized' event, so we need to update manually
+    if (this.isRemeberWinSize) {
+      this.lastActionWindowSize = { width, height }
+    }
+  }
+
+  /**
    * Update trigger mode behavior
    * Switches between selection-based and alt-key based triggering
    * Manages appropriate event listeners for each mode
@@ -1493,6 +1558,18 @@ export class SelectionService {
         selectionService?.pinActionWindow(actionWindow, isPinned)
       }
     })
+
+    // [Windows only] Electron bug workaround - can be removed once fixed
+    // See: https://github.com/electron/electron/issues/48554
+    ipcMain.handle(
+      IpcChannel.Selection_ActionWindowResize,
+      (event, deltaX: number, deltaY: number, direction: string) => {
+        const actionWindow = BrowserWindow.fromWebContents(event.sender)
+        if (actionWindow) {
+          selectionService?.resizeActionWindow(actionWindow, deltaX, deltaY, direction)
+        }
+      }
+    )
 
     this.isIpcHandlerRegistered = true
   }

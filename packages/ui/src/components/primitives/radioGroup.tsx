@@ -1,4 +1,4 @@
-import { cn } from '@cherrystudio/ui/utils/index'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import * as RadioGroupPrimitive from '@radix-ui/react-radio-group'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { CircleIcon } from 'lucide-react'

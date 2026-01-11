@@ -1,12 +1,12 @@
 import { loggerService } from '@logger'
+import { toDataApiError } from '@shared/data/api/apiErrors'
 import type { DataRequest, DataResponse } from '@shared/data/api/apiTypes'
-import { toDataApiError } from '@shared/data/api/errorCodes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 
 import type { ApiServer } from '../ApiServer'
 
-const logger = loggerService.withContext('DataApiIpcAdapter')
+const logger = loggerService.withContext('DataApi:IpcAdapter')
 
 /**
  * IPC Adapter for Electron environment
@@ -46,7 +46,7 @@ export class IpcAdapter {
         const errorResponse: DataResponse = {
           id: request.id,
           status: apiError.status,
-          error: apiError,
+          error: apiError.toJSON(), // Serialize for IPC transmission
           metadata: {
             duration: 0,
             timestamp: Date.now()
@@ -56,55 +56,6 @@ export class IpcAdapter {
         return errorResponse
       }
     })
-
-    // Batch request handler
-    ipcMain.handle(IpcChannel.DataApi_Batch, async (_event, batchRequest: DataRequest): Promise<DataResponse> => {
-      try {
-        logger.debug('Handling batch request', { requestCount: batchRequest.body?.requests?.length })
-
-        const response = await this.apiServer.handleBatchRequest(batchRequest)
-        return response
-      } catch (error) {
-        logger.error('Batch request failed', error as Error)
-
-        const apiError = toDataApiError(error, 'batch request')
-        return {
-          id: batchRequest.id,
-          status: apiError.status,
-          error: apiError,
-          metadata: {
-            duration: 0,
-            timestamp: Date.now()
-          }
-        }
-      }
-    })
-
-    // Transaction handler (placeholder)
-    ipcMain.handle(
-      IpcChannel.DataApi_Transaction,
-      async (_event, transactionRequest: DataRequest): Promise<DataResponse> => {
-        try {
-          logger.debug('Handling transaction request')
-
-          // TODO: Implement transaction support
-          throw new Error('Transaction support not yet implemented')
-        } catch (error) {
-          logger.error('Transaction request failed', error as Error)
-
-          const apiError = toDataApiError(error, 'transaction request')
-          return {
-            id: transactionRequest.id,
-            status: apiError.status,
-            error: apiError,
-            metadata: {
-              duration: 0,
-              timestamp: Date.now()
-            }
-          }
-        }
-      }
-    )
 
     // Subscription handlers (placeholder for future real-time features)
     ipcMain.handle(IpcChannel.DataApi_Subscribe, async (_event, path: string) => {
@@ -134,8 +85,6 @@ export class IpcAdapter {
     logger.debug('Removing IPC handlers...')
 
     ipcMain.removeHandler(IpcChannel.DataApi_Request)
-    ipcMain.removeHandler(IpcChannel.DataApi_Batch)
-    ipcMain.removeHandler(IpcChannel.DataApi_Transaction)
     ipcMain.removeHandler(IpcChannel.DataApi_Subscribe)
     ipcMain.removeHandler(IpcChannel.DataApi_Unsubscribe)
 

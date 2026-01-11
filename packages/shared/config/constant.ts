@@ -7,6 +7,11 @@ export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', 
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
 
+export const API_SERVER_DEFAULTS = {
+  HOST: '127.0.0.1',
+  PORT: 23333
+}
+
 /**
  * A flat array of all file extensions known by the linguist database.
  * This is the primary source for identifying code files.
@@ -483,3 +488,11 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
 
 // resources/scripts should be maintained manually
 export const HOME_CHERRY_DIR = '.cherrystudio'
+
+// Git Bash path configuration types
+export type GitBashPathSource = 'manual' | 'auto'
+
+export interface GitBashPathInfo {
+  path: string | null
+  source: GitBashPathSource | null
+}

@@ -10,7 +10,7 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  getThinkModelType,
+  getModelSupportedReasoningEffortOptions,
   isDeepSeekHybridInferenceModel,
   isDoubaoThinkingAutoModel,
   isGPT5SeriesModel,
@@ -32,9 +32,7 @@ import {
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
-  isSupportVerbosityModel,
   isVisionModel,
-  MODEL_SUPPORTED_REASONING_EFFORT,
   ZHIPU_RESULT_TOKENS
 } from '@renderer/config/models'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
@@ -142,6 +140,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (isSupportedThinkingTokenZhipuModel(model)) {
       return { thinking: { type: reasoningEffort ? 'enabled' : 'disabled' } }
+    }
+
+    if (reasoningEffort === 'default') {
+      return {}
     }
 
     if (!reasoningEffort) {
@@ -305,16 +307,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Grok models/Perplexity models/OpenAI models
     if (isSupportedReasoningEffortModel(model)) {
       // 检查模型是否支持所选选项
-      const modelType = getThinkModelType(model)
-      const supportedOptions = MODEL_SUPPORTED_REASONING_EFFORT[modelType]
-      if (supportedOptions.includes(reasoningEffort)) {
+      const supportedOptions = getModelSupportedReasoningEffortOptions(model)?.filter((option) => option !== 'default')
+      if (supportedOptions?.includes(reasoningEffort)) {
         return {
           reasoning_effort: reasoningEffort
         }
       } else {
         // 如果不支持，fallback到第一个支持的值
         return {
-          reasoning_effort: supportedOptions[0]
+          reasoning_effort: supportedOptions?.[0]
         }
       }
     }
@@ -714,13 +715,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...modalities,
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
-          ...(isSupportVerbosityModel(model)
-            ? {
-                text: {
-                  verbosity: this.getVerbosity(model)
-                }
-              }
-            : {}),
+          // verbosity. getVerbosity ensures the returned value is valid.
+          verbosity: this.getVerbosity(model),
           ...this.getProviderSpecificParameters(assistant, model),
           ...reasoningEffort,
           // ...getOpenAIWebSearchParams(model, enableWebSearch),

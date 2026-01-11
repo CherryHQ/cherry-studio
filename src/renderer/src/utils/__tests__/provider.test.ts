@@ -189,7 +189,7 @@ describe('provider utils', () => {
 
     expect(isAnthropicProvider(createProvider({ type: 'anthropic' }))).toBe(true)
     expect(isGeminiProvider(createProvider({ type: 'gemini' }))).toBe(true)
-    expect(isAIGatewayProvider(createProvider({ type: 'ai-gateway' }))).toBe(true)
+    expect(isAIGatewayProvider(createProvider({ type: 'gateway' }))).toBe(true)
   })
 
   it('computes API version support', () => {

@@ -1,6 +1,7 @@
 /**
  * 职责：提供原子化的、无状态的API调用函数
  */
+import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
@@ -8,12 +9,12 @@ import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import type { FetchChatCompletionParams } from '@renderer/types'
+import { hubMCPServer } from '@renderer/store/mcp'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
+import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message, ResponseError } from '@renderer/types/newMessage'
-import type { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
@@ -22,6 +23,7 @@ import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
+import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
 import type { ModernAiProviderConfig } from '../aiCore/index_new'
@@ -34,6 +36,10 @@ import {
   getProviderByModel,
   getQuickModel
 } from './AssistantService'
+import { ConversationService } from './ConversationService'
+import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
+import type { BlockManager } from './messageStreaming'
+import type { StreamProcessorCallbacks } from './StreamProcessingService'
 // import { processKnowledgeSearch } from './KnowledgeService'
 // import {
 //   filterContextMessages,
@@ -43,16 +49,64 @@ import {
 // } from './MessagesService'
 // import WebSearchService from './WebSearchService'
 
+// FIXME: 这里太多重复逻辑，需要重构
+
 const logger = loggerService.withContext('ApiService')
 
-export async function fetchMcpTools(assistant: Assistant) {
-  // Get MCP tools (Fix duplicate declaration)
-  let mcpTools: MCPTool[] = [] // Initialize as empty array
+/**
+ * Get the MCP servers to use based on the assistant's MCP mode.
+ */
+export function getMcpServersForAssistant(assistant: Assistant): MCPServer[] {
+  const mode = getEffectiveMcpMode(assistant)
   const allMcpServers = store.getState().mcp.servers || []
   const activedMcpServers = allMcpServers.filter((s) => s.isActive)
-  const assistantMcpServers = assistant.mcpServers || []
 
-  const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+  switch (mode) {
+    case 'disabled':
+      return []
+    case 'auto':
+      return [hubMCPServer]
+    case 'manual': {
+      const assistantMcpServers = assistant.mcpServers || []
+      return activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+    }
+    default:
+      return []
+  }
+}
+
+export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
+  const allMcpServers = store.getState().mcp.servers || []
+  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+
+  if (activedMcpServers.length === 0) {
+    return []
+  }
+
+  try {
+    const toolPromises = activedMcpServers.map(async (mcpServer: MCPServer) => {
+      try {
+        const tools = await window.api.mcp.listTools(mcpServer)
+        return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+      } catch (error) {
+        logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
+        return []
+      }
+    })
+    const results = await Promise.allSettled(toolPromises)
+    return results
+      .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+      .map((result) => result.value)
+      .flat()
+  } catch (toolError) {
+    logger.error('Error fetching all active server tools:', toolError as Error)
+    return []
+  }
+}
+
+export async function fetchMcpTools(assistant: Assistant) {
+  let mcpTools: MCPTool[] = []
+  const enabledMCPs = getMcpServersForAssistant(assistant)
 
   if (enabledMCPs && enabledMCPs.length > 0) {
     try {
@@ -77,6 +131,59 @@ export async function fetchMcpTools(assistant: Assistant) {
   return mcpTools
 }
 
+/**
+ * 将用户消息转换为LLM可以理解的格式并发送请求
+ * @param request - 包含消息内容和助手信息的请求对象
+ * @param onChunkReceived - 接收流式响应数据的回调函数
+ */
+// 目前先按照函数来写,后续如果有需要到class的地方就改回来
+export async function transformMessagesAndFetch(
+  request: {
+    messages: Message[]
+    assistant: Assistant
+    blockManager: BlockManager
+    assistantMsgId: string
+    callbacks: StreamProcessorCallbacks
+    topicId?: string // 添加 topicId 用于 trace
+    options: {
+      signal?: AbortSignal
+      timeout?: number
+      headers?: Record<string, string>
+    }
+  },
+  onChunkReceived: (chunk: Chunk) => void
+) {
+  const { messages, assistant } = request
+
+  try {
+    const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(messages, assistant)
+
+    // replace prompt variables
+    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
+
+    // inject knowledge search prompt into model messages
+    await injectUserMessageWithKnowledgeSearchPrompt({
+      modelMessages,
+      assistant,
+      assistantMsgId: request.assistantMsgId,
+      topicId: request.topicId,
+      blockManager: request.blockManager,
+      setCitationBlockId: request.callbacks.setCitationBlockId!
+    })
+
+    await fetchChatCompletion({
+      messages: modelMessages,
+      assistant: assistant,
+      topicId: request.topicId,
+      requestOptions: request.options,
+      uiMessages,
+      onChunkReceived
+    })
+  } catch (error: any) {
+    onChunkReceived({ type: ChunkType.ERROR, error })
+  }
+}
+
 export async function fetchChatCompletion({
   messages,
   prompt,
@@ -95,7 +202,17 @@ export async function fetchChatCompletion({
     modelId: assistant.model?.id,
     modelName: assistant.model?.name
   })
-  const AI = new AiProviderNew(assistant.model || getDefaultModel())
+
+  // Get base provider and apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
+  const providerWithRotatedKey = {
+    ...baseProvider,
+    apiKey: getRotatedApiKey(baseProvider)
+  }
+
+  const AI = new AiProviderNew(assistant.model || getDefaultModel(), providerWithRotatedKey)
   const provider = AI.getActualProvider()
 
   const mcpTools: MCPTool[] = []
@@ -129,6 +246,7 @@ export async function fetchChatCompletion({
   const usePromptToolUse =
     isPromptToolUse(assistant) || (isToolUseModeFunction(assistant) && !isFunctionCallingModel(assistant.model))
 
+  const mcpMode = getEffectiveMcpMode(assistant)
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
@@ -141,6 +259,7 @@ export async function fetchChatCompletion({
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
     enableUrlContext: capabilities.enableUrlContext,
+    mcpMode,
     mcpTools,
     uiMessages,
     knowledgeRecognition: assistant.knowledgeRecognition
@@ -172,7 +291,15 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     return null
   }
 
-  const AI = new AiProviderNew(model)
+  // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const providerWithRotatedKey = {
+    ...provider,
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(model, providerWithRotatedKey)
 
   const topicId = messages?.find((message) => message.topicId)?.topicId || ''
 
@@ -271,7 +398,15 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
     return null
   }
 
-  const AI = new AiProviderNew(model)
+  // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const providerWithRotatedKey = {
+    ...provider,
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(model, providerWithRotatedKey)
 
   // only 2000 char and no images
   const truncatedContent = content.substring(0, 2000)
@@ -359,7 +494,15 @@ export async function fetchGenerate({
     return ''
   }
 
-  const AI = new AiProviderNew(model)
+  // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const providerWithRotatedKey = {
+    ...provider,
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(model, providerWithRotatedKey)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
@@ -404,43 +547,93 @@ export async function fetchGenerate({
 
 export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (['ollama', 'lmstudio', 'vertexai', 'cherryai'].includes(provider.id)) return true
+  if (provider.id === 'cherryai') return true
+  if (
+    (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) ||
+    NOT_SUPPORT_API_KEY_PROVIDER_TYPES.includes(provider.type)
+  )
+    return true
   return !isEmpty(provider.apiKey)
 }
 
 /**
- * Get the first available embedding model from enabled providers
+ * Get rotated API key for providers that support multiple keys
+ * Returns empty string for providers that don't require API keys
  */
-// function getFirstEmbeddingModel() {
-//   const providers = store.getState().llm.providers.filter((p) => p.enabled)
+function getRotatedApiKey(provider: Provider): string {
+  // Handle providers that don't require API keys
+  if (!provider.apiKey || provider.apiKey.trim() === '') {
+    return ''
+  }
 
-//   for (const provider of providers) {
-//     const embeddingModel = provider.models.find((model) => isEmbeddingModel(model))
-//     if (embeddingModel) {
-//       return embeddingModel
-//     }
-//   }
+  const keys = provider.apiKey
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean)
 
-//   return undefined
-// }
+  if (keys.length === 0) {
+    return ''
+  }
 
-export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
-  const AI = new AiProviderNew(provider)
+  const keyName = `provider:${provider.id}:last_used_key`
+
+  // If only one key, return it directly
+  if (keys.length === 1) {
+    return keys[0]
+  }
+
+  const lastUsedKey = cacheService.getCasual<string>(keyName)
+  if (!lastUsedKey) {
+    cacheService.setCasual(keyName, keys[0])
+    return keys[0]
+  }
+
+  const currentIndex = keys.indexOf(lastUsedKey)
+
+  // Log when the last used key is no longer in the list
+  if (currentIndex === -1) {
+    logger.debug('Last used API key no longer found in provider keys, falling back to first key', {
+      providerId: provider.id,
+      lastUsedKey: lastUsedKey.substring(0, 8) + '...' // Only log first 8 chars for security
+    })
+  }
+
+  const nextIndex = (currentIndex + 1) % keys.length
+  const nextKey = keys[nextIndex]
+  cacheService.setCasual(keyName, nextKey)
+
+  return nextKey
+}
+
+export async function fetchModels(provider: Provider): Promise<Model[]> {
+  // Apply API key rotation
+  // NOTE: Shallow copy is intentional. Provider objects are not mutated by downstream code.
+  // Nested properties (if any) are never modified after creation.
+  const providerWithRotatedKey = {
+    ...provider,
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(providerWithRotatedKey)
 
   try {
     return await AI.models()
   } catch (error) {
+    logger.error('Failed to fetch models from provider', {
+      providerId: provider.id,
+      providerName: provider.name,
+      error: error as Error
+    })
     return []
   }
 }
 
 export function checkApiProvider(provider: Provider): void {
-  if (
-    provider.id !== 'ollama' &&
-    provider.id !== 'lmstudio' &&
-    provider.type !== 'vertexai' &&
-    provider.id !== 'copilot'
-  ) {
+  const isExcludedProvider =
+    (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) ||
+    NOT_SUPPORT_API_KEY_PROVIDER_TYPES.includes(provider.type)
+
+  if (!isExcludedProvider) {
     if (!provider.apiKey) {
       window.toast.error(i18n.t('message.error.enter.api.label'))
       throw new Error(i18n.t('message.error.enter.api.label'))
@@ -458,18 +651,23 @@ export function checkApiProvider(provider: Provider): void {
   }
 }
 
+/**
+ * Validates that a provider/model pair is working by sending a minimal request.
+ * @param provider - The provider configuration to test.
+ * @param model - The model to use for the validation request (chat or embeddings).
+ * @param timeout - Maximum time (ms) to wait for the request to complete. Defaults to 15000 ms.
+ * @throws {Error} If the request fails or times out, indicating the API is not usable.
+ */
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  // Don't pass in provider parameter. We need auto-format URL
-  const ai = new AiProviderNew(model)
+  const ai = new AiProviderNew(model, provider)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
   assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
 
   if (isEmbeddingModel(model)) {
-    // race 超时 15s
     logger.silly("it's a embedding model")
     const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
     await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])

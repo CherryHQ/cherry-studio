@@ -3,12 +3,14 @@ import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
   isFunctionCallingModel,
-  isNotSupportTemperatureAndTopP,
   isOpenAIModel,
-  isSupportFlexServiceTierModel
+  isSupportFlexServiceTierModel,
+  isSupportTemperatureModel,
+  isSupportTopPModel
 } from '@renderer/config/models'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
+import type { RootState } from '@renderer/store'
 import type {
   Assistant,
   GenerateImageParams,
@@ -173,16 +175,16 @@ export abstract class BaseApiClient<
       return keys[0]
     }
 
-    const lastUsedKey = cacheService.getShared(keyName) as string | undefined
+    const lastUsedKey = cacheService.getSharedCasual<string>(keyName)
     if (lastUsedKey === undefined) {
-      cacheService.setShared(keyName, keys[0])
+      cacheService.setSharedCasual(keyName, keys[0])
       return keys[0]
     }
 
     const currentIndex = keys.indexOf(lastUsedKey)
     const nextIndex = (currentIndex + 1) % keys.length
     const nextKey = keys[nextIndex]
-    cacheService.setShared(keyName, nextKey)
+    cacheService.setSharedCasual(keyName, nextKey)
 
     return nextKey
   }
@@ -199,7 +201,7 @@ export abstract class BaseApiClient<
   }
 
   public getTemperature(assistant: Assistant, model: Model): number | undefined {
-    if (isNotSupportTemperatureAndTopP(model)) {
+    if (!isSupportTemperatureModel(model)) {
       return undefined
     }
     const assistantSettings = getAssistantSettings(assistant)
@@ -207,7 +209,7 @@ export abstract class BaseApiClient<
   }
 
   public getTopP(assistant: Assistant, model: Model): number | undefined {
-    if (isNotSupportTemperatureAndTopP(model)) {
+    if (!isSupportTopPModel(model)) {
       return undefined
     }
     const assistantSettings = getAssistantSettings(assistant)
@@ -245,23 +247,20 @@ export abstract class BaseApiClient<
 
   protected getVerbosity(model?: Model): OpenAIVerbosity {
     try {
-      const state = window.store?.getState()
+      const state = window.store?.getState() as RootState
       const verbosity = state?.settings?.openAI?.verbosity
 
-      if (verbosity && ['low', 'medium', 'high'].includes(verbosity)) {
-        // If model is provided, check if the verbosity is supported by the model
-        if (model) {
-          const supportedVerbosity = getModelSupportedVerbosity(model)
-          // Use user's verbosity if supported, otherwise use the first supported option
-          return supportedVerbosity.includes(verbosity) ? verbosity : supportedVerbosity[0]
-        }
-        return verbosity
+      // If model is provided, check if the verbosity is supported by the model
+      if (model) {
+        const supportedVerbosity = getModelSupportedVerbosity(model)
+        // Use user's verbosity if supported, otherwise use the first supported option
+        return supportedVerbosity.includes(verbosity) ? verbosity : supportedVerbosity[0]
       }
+      return verbosity
     } catch (error) {
-      logger.warn('Failed to get verbosity from state:', error as Error)
+      logger.warn('Failed to get verbosity from state. Fallback to undefined.', error as Error)
+      return undefined
     }
-
-    return 'medium'
   }
 
   protected getTimeout(model: Model) {
@@ -344,7 +343,7 @@ export abstract class BaseApiClient<
   }
 
   private getMemoryReferencesFromCache(message: Message) {
-    const memories = cacheService.get(`memory-search-${message.id}`) as MemoryItem[] | undefined
+    const memories = cacheService.getCasual<MemoryItem[]>(`memory-search-${message.id}`)
     if (memories) {
       const memoryReferences: KnowledgeReference[] = memories.map((mem, index) => ({
         id: index + 1,
@@ -362,10 +361,10 @@ export abstract class BaseApiClient<
     if (isEmpty(content)) {
       return []
     }
-    const webSearch: WebSearchResponse | undefined = cacheService.get(`web-search-${message.id}`)
+    const webSearch = cacheService.getCasual<WebSearchResponse>(`web-search-${message.id}`)
 
     if (webSearch) {
-      cacheService.delete(`web-search-${message.id}`)
+      cacheService.deleteCasual(`web-search-${message.id}`)
       return (webSearch.results as WebSearchProviderResponse).results.map(
         (result, index) =>
           ({
@@ -388,10 +387,10 @@ export abstract class BaseApiClient<
     if (isEmpty(content)) {
       return []
     }
-    const knowledgeReferences: KnowledgeReference[] | undefined = cacheService.get(`knowledge-search-${message.id}`)
+    const knowledgeReferences = cacheService.getCasual<KnowledgeReference[]>(`knowledge-search-${message.id}`)
 
     if (knowledgeReferences && !isEmpty(knowledgeReferences)) {
-      cacheService.delete(`knowledge-search-${message.id}`)
+      cacheService.deleteCasual(`knowledge-search-${message.id}`)
       logger.debug(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }

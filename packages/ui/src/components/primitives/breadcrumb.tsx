@@ -1,4 +1,4 @@
-import { cn } from '@cherrystudio/ui/utils/index'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { Slot } from '@radix-ui/react-slot'
 import { ChevronRight, MoreHorizontal } from 'lucide-react'
 import * as React from 'react'

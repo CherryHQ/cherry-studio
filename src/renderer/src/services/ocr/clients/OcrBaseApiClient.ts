@@ -27,16 +27,16 @@ export abstract class OcrBaseApiClient {
       return keys[0]
     }
 
-    const lastUsedKey = cacheService.getShared(keyName) as string | undefined
+    const lastUsedKey = cacheService.getSharedCasual<string>(keyName)
     if (lastUsedKey === undefined) {
-      cacheService.setShared(keyName, keys[0])
+      cacheService.setSharedCasual(keyName, keys[0])
       return keys[0]
     }
 
     const currentIndex = keys.indexOf(lastUsedKey)
     const nextIndex = (currentIndex + 1) % keys.length
     const nextKey = keys[nextIndex]
-    cacheService.setShared(keyName, nextKey)
+    cacheService.setSharedCasual(keyName, nextKey)
 
     return nextKey
   }

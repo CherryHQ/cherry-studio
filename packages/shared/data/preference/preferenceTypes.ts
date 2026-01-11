@@ -55,14 +55,15 @@ export enum ThemeMode {
 export type LanguageVarious =
   | 'zh-CN'
   | 'zh-TW'
+  | 'de-DE'
   | 'el-GR'
   | 'en-US'
   | 'es-ES'
   | 'fr-FR'
   | 'ja-JP'
   | 'pt-PT'
+  | 'ro-RO'
   | 'ru-RU'
-  | 'de-DE'
 
 export type WindowStyle = 'transparent' | 'opaque'
 

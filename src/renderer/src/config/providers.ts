@@ -31,6 +31,7 @@ import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
 import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
 import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
 import LongCatProviderLogo from '@renderer/assets/images/providers/longcat.png'
+import MiMoProviderLogo from '@renderer/assets/images/providers/mimo.svg'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
@@ -106,7 +107,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://aihubmix.com',
-    anthropicApiHost: 'https://aihubmix.com/anthropic',
+    anthropicApiHost: 'https://aihubmix.com',
     models: SYSTEM_MODELS.aihubmix,
     isSystem: true,
     enabled: false
@@ -199,7 +200,8 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'TokenFlux',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://tokenflux.ai',
+    apiHost: 'https://api.tokenflux.ai/openai/v1',
+    anthropicApiHost: 'https://api.tokenflux.ai/anthropic',
     models: SYSTEM_MODELS.tokenflux,
     isSystem: true,
     enabled: false
@@ -210,6 +212,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.302.ai',
+    anthropicApiHost: 'https://api.302.ai',
     models: SYSTEM_MODELS['302ai'],
     isSystem: true,
     enabled: false
@@ -288,7 +291,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
   ollama: {
     id: 'ollama',
     name: 'Ollama',
-    type: 'openai',
+    type: 'ollama',
     apiKey: '',
     apiHost: 'http://localhost:11434',
     models: SYSTEM_MODELS.ollama,
@@ -676,10 +679,10 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
-  'ai-gateway': {
-    id: 'ai-gateway',
-    name: 'AI Gateway',
-    type: 'ai-gateway',
+  gateway: {
+    id: 'gateway',
+    name: 'Vercel AI Gateway',
+    type: 'gateway',
     apiKey: '',
     apiHost: 'https://ai-gateway.vercel.sh/v1/ai',
     models: [],
@@ -693,6 +696,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://api.cerebras.ai/v1',
     models: SYSTEM_MODELS.cerebras,
+    isSystem: true,
+    enabled: false
+  },
+  mimo: {
+    id: 'mimo',
+    name: 'Xiaomi MiMo',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.xiaomimimo.com',
+    anthropicApiHost: 'https://api.xiaomimimo.com/anthropic',
+    models: SYSTEM_MODELS.mimo,
     isSystem: true,
     enabled: false
   }
@@ -762,8 +776,9 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   longcat: LongCatProviderLogo,
   huggingface: HuggingfaceProviderLogo,
   sophnet: SophnetProviderLogo,
-  'ai-gateway': AIGatewayProviderLogo,
-  cerebras: CerebrasProviderLogo
+  gateway: AIGatewayProviderLogo,
+  cerebras: CerebrasProviderLogo,
+  mimo: MiMoProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -927,7 +942,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     websites: {
       official: 'https://www.dmxapi.cn/register?aff=bwwY',
       apiKey: 'https://www.dmxapi.cn/register?aff=bwwY',
-      docs: 'https://dmxapi.cn/models.html#code-block',
+      docs: 'https://doc.dmxapi.cn/',
       models: 'https://www.dmxapi.cn/pricing'
     }
   },
@@ -1010,7 +1025,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       official: 'https://www.baichuan-ai.com/',
       apiKey: 'https://platform.baichuan-ai.com/console/apikey',
       docs: 'https://platform.baichuan-ai.com/docs',
-      models: 'https://platform.baichuan-ai.com/price'
+      models: 'https://platform.baichuan-ai.com/prices'
     }
   },
   modelscope: {
@@ -1075,7 +1090,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     websites: {
       official: 'https://platform.minimaxi.com/',
       apiKey: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
-      docs: 'https://platform.minimaxi.com/document/Announcement',
+      docs: 'https://platform.minimaxi.com/docs/api-reference/text-openai-api',
       models: 'https://platform.minimaxi.com/document/Models'
     }
   },
@@ -1413,7 +1428,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       models: 'https://huggingface.co/models'
     }
   },
-  'ai-gateway': {
+  gateway: {
     api: {
       url: 'https://ai-gateway.vercel.sh/v1/ai'
     },
@@ -1433,6 +1448,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://cloud.cerebras.ai',
       docs: 'https://inference-docs.cerebras.ai/introduction',
       models: 'https://inference-docs.cerebras.ai/models/overview'
+    }
+  },
+  mimo: {
+    api: {
+      url: 'https://api.xiaomimimo.com'
+    },
+    websites: {
+      official: 'https://platform.xiaomimimo.com/',
+      apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
+      docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
+      models: 'https://platform.xiaomimimo.com/'
     }
   }
 }

@@ -58,7 +58,8 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
 const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [
   'ollama',
   'lmstudio',
-  'nvidia'
+  'nvidia',
+  'gpustack'
 ] as const satisfies SystemProviderId[]
 
 /**
@@ -172,7 +173,11 @@ export function isGeminiProvider(provider: Provider): boolean {
 }
 
 export function isAIGatewayProvider(provider: Provider): boolean {
-  return provider.type === 'ai-gateway'
+  return provider.type === 'gateway'
+}
+
+export function isOllamaProvider(provider: Provider): boolean {
+  return provider.type === 'ollama'
 }
 
 const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]
@@ -182,4 +187,24 @@ export const isSupportAPIVersionProvider = (provider: Provider) => {
     return !NOT_SUPPORT_API_VERSION_PROVIDERS.some((pid) => pid === provider.id)
   }
   return provider.apiOptions?.isNotSupportAPIVersion !== false
+}
+
+export const NOT_SUPPORT_API_KEY_PROVIDERS: readonly SystemProviderId[] = [
+  'ollama',
+  'lmstudio',
+  'vertexai',
+  'aws-bedrock',
+  'copilot'
+]
+
+export const NOT_SUPPORT_API_KEY_PROVIDER_TYPES: readonly ProviderType[] = ['vertexai', 'aws-bedrock']
+
+// https://platform.claude.com/docs/en/build-with-claude/prompt-caching#1-hour-cache-duration
+export const isSupportAnthropicPromptCacheProvider = (provider: Provider) => {
+  return (
+    provider.type === 'anthropic' ||
+    isNewApiProvider(provider) ||
+    provider.id === SystemProviderIds.aihubmix ||
+    isAzureOpenAIProvider(provider)
+  )
 }

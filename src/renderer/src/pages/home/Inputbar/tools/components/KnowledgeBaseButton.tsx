@@ -5,11 +5,11 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { useAppSelector } from '@renderer/store'
 import type { KnowledgeBase } from '@renderer/types'
+import { useNavigate } from '@tanstack/react-router'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -54,7 +54,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
     items.push({
       label: t('knowledge.add.title') + '...',
       icon: <Plus />,
-      action: () => navigate('/knowledge'),
+      action: () => navigate({ to: '/app/knowledge' }),
       isSelected: false
     })
 
@@ -92,14 +92,6 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
     }
   }, [openQuickPanel, quickPanelHook])
 
-  // 监听 selectedBases 变化，动态更新已打开的 QuickPanel 列表状态
-  useEffect(() => {
-    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.KnowledgeBase) {
-      // 直接使用重新计算的 baseItems，因为它已经包含了最新的 isSelected 状态
-      quickPanelHook.updateList(baseItems)
-    }
-  }, [selectedBases, quickPanelHook, baseItems])
-
   useEffect(() => {
     const disposeRootMenu = quickPanel.registerRootMenu([
       {
@@ -125,6 +117,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
         onClick={handleOpenQuickPanel}
         active={selectedBases && selectedBases.length > 0}
         disabled={disabled}
+        aria-label={t('chat.input.knowledge_base')}
         icon={<FileSearch size={18} />}
       />
     </Tooltip>

@@ -59,6 +59,7 @@ export {
 export { Sortable } from './composites/Sortable'
 
 /* Shadcn Primitive Components */
+export * from './primitives/badge'
 export * from './primitives/breadcrumb'
 export * from './primitives/button'
 export * from './primitives/checkbox'

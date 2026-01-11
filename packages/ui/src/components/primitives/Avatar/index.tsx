@@ -1,7 +1,7 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { AvatarProps as HeroUIAvatarProps } from '@heroui/react'
 import { Avatar as HeroUIAvatar, AvatarGroup as HeroUIAvatarGroup } from '@heroui/react'
 
-import { cn } from '../../../utils'
 import EmojiAvatar from './EmojiAvatar'
 
 export interface AvatarProps extends Omit<HeroUIAvatarProps, 'size'> {

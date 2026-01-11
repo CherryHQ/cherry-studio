@@ -11,6 +11,7 @@
     "packages/extension-table-plus/**/*",
     "packages/mcp-trace/**/*",
     "packages/shared/**/*",
+    "packages/ui/**/*",
   ],
   "compilerOptions": {
     "composite": true,
@@ -33,8 +34,8 @@
       "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"],
       "@cherrystudio/ui/icons": ["./packages/ui/src/components/icons/index.ts"],
       "@cherrystudio/ui": ["./packages/ui/src/index.ts"],
-      "@cherrystudio/ui/*": ["./packages/ui/src/*"]
-
+      "@cherrystudio/ui/*": ["./packages/ui/src/*"],
+      "@test-mocks/*": ["./tests/__mocks__/*"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

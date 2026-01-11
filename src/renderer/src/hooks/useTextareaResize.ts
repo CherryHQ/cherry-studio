@@ -51,7 +51,7 @@ export function useTextareaResize(options: UseTextareaResizeOptions = {}): UseTe
   const { maxHeight = 400, minHeight = 30, autoResize = true } = options
 
   const textareaRef = useRef<TextAreaRef>(null)
-  const [customHeight, setCustomHeight] = useState<number>()
+  const [customHeight, setCustomHeight] = useState<number | undefined>(undefined)
   const [isExpanded, setIsExpanded] = useState(false)
 
   const resize = useCallback(

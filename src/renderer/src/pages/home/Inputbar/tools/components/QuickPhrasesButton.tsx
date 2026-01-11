@@ -251,7 +251,11 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
   return (
     <>
       <Tooltip content={t('settings.quickPhrase.title')} closeDelay={0}>
-        <ActionIconButton onClick={handleOpenQuickPanel} icon={<Zap size={18} />} />
+        <ActionIconButton
+          onClick={handleOpenQuickPanel}
+          aria-label={t('settings.quickPhrase.title')}
+          icon={<Zap size={18} />}
+        />
       </Tooltip>
 
       <Modal

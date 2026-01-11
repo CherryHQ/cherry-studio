@@ -1,8 +1,7 @@
 import AddAssistantOrAgentPopup from '@renderer/components/Popups/AddAssistantOrAgentPopup'
 import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
+import { cacheService } from '@renderer/data/CacheService'
 import { useApiServer } from '@renderer/hooks/useApiServer'
-import { useAppDispatch } from '@renderer/store'
-import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { AgentEntity, Assistant, Topic } from '@renderer/types'
 import type { FC } from 'react'
 import { useCallback } from 'react'
@@ -18,7 +17,6 @@ interface UnifiedAddButtonProps {
 
 const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setActiveAssistant, setActiveAgentId }) => {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
   const { apiServerRunning, startApiServer } = useApiServer()
 
   const afterCreate = useCallback(
@@ -41,9 +39,9 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setAct
         type: 'chat'
       })
       setActiveAgentId(a.id)
-      dispatch(setActiveTopicOrSessionAction('session'))
+      cacheService.set('chat.active_view', 'session')
     },
-    [dispatch, setActiveAgentId, setActiveAssistant]
+    [setActiveAgentId, setActiveAssistant]
   )
 
   const handleAddButtonClick = async () => {

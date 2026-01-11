@@ -30,13 +30,13 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
   }
 
   const onSelectProvider = () => {
-    NavigationService.navigate!(`/settings/provider?id=${providerId}`)
+    NavigationService.navigate!({ to: `/settings/provider`, search: { id: providerId } })
   }
 
   const onNavigateProvider = (e: MouseEvent) => {
     e.stopPropagation()
     SelectModelPopup.hide()
-    NavigationService.navigate!(`/settings/provider?id=${providerId}`)
+    NavigationService.navigate?.({ to: '/settings/provider', search: { id: providerId } })
   }
 
   if (!showLabel) {

@@ -20,7 +20,9 @@ import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
+import { lanTransferClientService } from './services/lanTransfer'
 import mcpService from './services/MCPService'
+import { localTransferService } from './services/LocalTransferService'
 import { nodeTraceService } from './services/NodeTraceService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
@@ -45,6 +47,7 @@ import { dataApiService } from '@data/DataApiService'
 import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
+import { isOvmsSupported } from './services/OvmsManager'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -82,6 +85,15 @@ if (isWin) {
  */
 if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
+}
+
+/**
+ * Set window class and name for X11
+ * This ensures the system tray and window manager identify the app correctly
+ */
+if (isLinux) {
+  app.commandLine.appendSwitch('class', 'cherry-studio')
+  app.commandLine.appendSwitch('name', 'cherry-studio')
 }
 
 // DocumentPolicyIncludeJSCallStacksInCrashReports: Enable features for unresponsive renderer js call stacks
@@ -132,10 +144,25 @@ if (!app.requestSingleInstanceLock()) {
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
   app.whenReady().then(async () => {
+    //TODO v2 Data Refactor: App Lifecycle Management
+    // This is the temporary solution for the data migration v2.
+    // We will refactor the app lifecycle management after the data migration v2 is stable.
+
     // First of all, init & migrate the database
-    await dbService.init()
-    await dbService.migrateDb()
-    await dbService.migrateSeed('preference')
+    try {
+      await dbService.init()
+      await dbService.migrateDb()
+      await dbService.migrateSeed('preference')
+    } catch (error) {
+      logger.error('Failed to initialize database', error as Error)
+      //TODO for v2 testing only:
+      await dialog.showErrorBox(
+        'Database Initialization Failed',
+        'Before the official release of the alpha version, the database structure may change at any time. To maintain simplicity, the database migration files will be periodically reinitialized, which may cause the application to fail. If this occurs, please delete the cherrystudio.sqlite file located in the user data directory.'
+      )
+      app.quit()
+      return
+    }
 
     // Data Migration v2
     // Check if data migration is needed BEFORE creating any windows
@@ -241,7 +268,8 @@ if (!app.requestSingleInstanceLock()) {
     })
 
     registerShortcuts(mainWindow)
-    registerIpc(mainWindow, app)
+    await registerIpc(mainWindow, app)
+    localTransferService.startDiscovery({ resetList: true })
 
     replaceDevtoolsFont(mainWindow)
 
@@ -323,16 +351,29 @@ if (!app.requestSingleInstanceLock()) {
     if (selectionService) {
       selectionService.quit()
     }
+
+    lanTransferClientService.dispose()
+    localTransferService.dispose()
   })
 
   app.on('will-quit', async () => {
     // 简单的资源清理，不阻塞退出流程
+    if (isOvmsSupported) {
+      const { ovmsManager } = await import('./services/OvmsManager')
+      if (ovmsManager) {
+        await ovmsManager.stopOvms()
+      } else {
+        logger.warn('Unexpected behavior: undefined ovmsManager, but OVMS should be supported.')
+      }
+    }
+
     try {
       await mcpService.cleanup()
       await apiServerService.stop()
     } catch (error) {
       logger.warn('Error cleaning up MCP service:', error as Error)
     }
+
     // finish the logger
     logger.finish()
   })

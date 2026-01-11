@@ -2,9 +2,9 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
@@ -34,16 +34,16 @@ interface SessionItemProps {
 
 const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress }) => {
   const { t } = useTranslation()
-  const { chat } = useRuntime()
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const { updateSession } = useUpdateSession(agentId)
-  const activeSessionId = chat.activeSessionIdMap[agentId]
+  const activeSessionId = activeSessionIdMap[agentId]
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const [_targetSession, setTargetSession] = useState<AgentSessionEntity>(session)
   const targetSession = useDeferredValue(_targetSession)
   const dispatch = useAppDispatch()
 
-  const { isEditing, isSaving, editValue, inputRef, startEdit, handleKeyDown, handleValueChange } = useInPlaceEdit({
+  const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
     onSave: async (value) => {
       if (value !== session.name) {
         await updateSession({ id: session.id, name: value })
@@ -180,14 +180,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
         {isFulfilled && !isActive && <FulfilledIndicator />}
         <SessionNameContainer>
           {isEditing ? (
-            <SessionEditInput
-              ref={inputRef}
-              value={editValue}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleValueChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              style={{ opacity: isSaving ? 0.5 : 1 }}
-            />
+            <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
           ) : (
             <>
               <SessionName>
@@ -240,12 +233,11 @@ const SessionListItem = styled.div`
   }
 
   &.singlealone {
-    border-radius: 0 !important;
     &:hover {
       background-color: var(--color-background-soft);
     }
     &.active {
-      border-left: 2px solid var(--color-primary);
+      background-color: var(--color-background-mute);
       box-shadow: none;
     }
   }

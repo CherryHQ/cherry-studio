@@ -1,6 +1,7 @@
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
 
@@ -17,7 +18,7 @@ const isProd = process.env.NODE_ENV === 'production'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin(), ...visualizerPlugin('main')],
+    plugins: [...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -26,7 +27,8 @@ export default defineConfig({
         '@shared': resolve('packages/shared'),
         '@logger': resolve('src/main/services/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node')
+        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
+        '@test-mocks': resolve('tests/__mocks__')
       }
     },
     build: {
@@ -52,8 +54,7 @@ export default defineConfig({
     plugins: [
       react({
         tsDecorators: true
-      }),
-      externalizeDepsPlugin()
+      })
     ],
     resolve: {
       alias: {
@@ -80,20 +81,15 @@ export default defineConfig({
   },
   renderer: {
     plugins: [
+      tanstackRouter({
+        target: 'react',
+        autoCodeSplitting: true,
+        routesDirectory: resolve('src/renderer/src/routes'),
+        generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts')
+      }),
       (async () => (await import('@tailwindcss/vite')).default())(),
       react({
-        tsDecorators: true,
-        plugins: [
-          [
-            '@swc/plugin-styled-components',
-            {
-              displayName: true, // 开发环境下启用组件名称
-              fileName: false, // 不在类名中包含文件名
-              pure: true, // 优化性能
-              ssr: false // 不需要服务端渲染
-            }
-          ]
-        ]
+        tsDecorators: true
       }),
       ...(isDev ? [CodeInspectorPlugin({ bundler: 'vite' })] : []), // 只在开发环境下启用 CodeInspectorPlugin
       ...visualizerPlugin('renderer')
@@ -113,7 +109,8 @@ export default defineConfig({
         '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
-        '@cherrystudio/ui': resolve('packages/ui/src')
+        '@cherrystudio/ui': resolve('packages/ui/src'),
+        '@test-mocks': resolve('tests/__mocks__')
       }
     },
     optimizeDeps: {

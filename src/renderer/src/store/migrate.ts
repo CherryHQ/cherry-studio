@@ -1,9 +1,27 @@
 /**
- * @deprecated this file will be removed after data refactor
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
  */
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
+import {
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
+  DEFAULT_TEMPERATURE,
+  isMac
+} from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import {
   glm45FlashModel,
@@ -15,6 +33,7 @@ import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER 
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 // import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
+import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
@@ -34,6 +53,7 @@ import {
   isSupportDeveloperRoleProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/utils/provider'
+import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -2037,8 +2057,8 @@ const migrateConfig = {
       if (!state.settings.apiServer) {
         state.settings.apiServer = {
           enabled: false,
-          host: 'localhost',
-          port: 23333,
+          host: API_SERVER_DEFAULTS.HOST,
+          port: API_SERVER_DEFAULTS.PORT,
           apiKey: `cs-sk-${uuid()}`
         }
       }
@@ -2814,7 +2834,7 @@ const migrateConfig = {
     try {
       addProvider(state, SystemProviderIds.longcat)
 
-      addProvider(state, SystemProviderIds['ai-gateway'])
+      addProvider(state, 'gateway')
       addProvider(state, 'cerebras')
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.minimax) {
@@ -2909,6 +2929,236 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 179 error', error as Error)
+      return state
+    }
+  },
+  '181': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'ai-gateway') {
+          provider.id = SystemProviderIds.gateway
+        }
+        // Also update model.provider references to avoid orphaned models
+        provider.models?.forEach((model) => {
+          if (model.provider === 'ai-gateway') {
+            model.provider = SystemProviderIds.gateway
+          }
+        })
+        // @ts-ignore
+        if (provider.type === 'ai-gateway') {
+          provider.type = 'gateway'
+        }
+      })
+      logger.info('migrate 181 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 181 error', error as Error)
+      return state
+    }
+  },
+  '182': (state: RootState) => {
+    try {
+      // Initialize streamOptions in settings.openAI if not exists
+      if (!state.settings.openAI.streamOptions) {
+        state.settings.openAI.streamOptions = {
+          includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE
+        }
+      }
+      logger.info('migrate 182 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 182 error', error as Error)
+      return state
+    }
+  },
+  '183': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.cherryin) {
+          provider.apiHost = 'https://open.cherryin.cc'
+          provider.anthropicApiHost = 'https://open.cherryin.cc'
+        }
+      })
+      state.llm.providers = moveProvider(state.llm.providers, SystemProviderIds.poe, 10)
+      logger.info('migrate 183 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 183 error', error as Error)
+      return state
+    }
+  },
+  '184': (state: RootState) => {
+    try {
+      // Add exa-mcp (free) web search provider if not exists
+      const exaMcpExists = state.websearch.providers.some((p) => p.id === 'exa-mcp')
+      if (!exaMcpExists) {
+        // Find the index of 'exa' provider to insert after it
+        const exaIndex = state.websearch.providers.findIndex((p) => p.id === 'exa')
+        const newProvider = {
+          id: 'exa-mcp' as const,
+          name: 'ExaMCP',
+          apiHost: 'https://mcp.exa.ai/mcp'
+        }
+        if (exaIndex !== -1) {
+          state.websearch.providers.splice(exaIndex + 1, 0, newProvider)
+        } else {
+          state.websearch.providers.push(newProvider)
+        }
+      }
+      logger.info('migrate 184 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 184 error', error as Error)
+      return state
+    }
+  },
+  '185': (state: RootState) => {
+    try {
+      // Reset toolUseMode to function for default assistant
+      if (state.assistants.defaultAssistant.settings?.toolUseMode) {
+        state.assistants.defaultAssistant.settings.toolUseMode = 'function'
+      }
+      // Reset toolUseMode to function for assistants
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings?.toolUseMode === 'prompt') {
+          if (assistant.model && isFunctionCallingModel(assistant.model)) {
+            assistant.settings.toolUseMode = 'function'
+          }
+        }
+      })
+      logger.info('migrate 185 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 185 error', error as Error)
+      return state
+    }
+  },
+  '186': (state: RootState) => {
+    try {
+      if (state.settings.apiServer) {
+        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.summaryText === 'undefined') {
+        state.settings.openAI.summaryText = undefined
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.verbosity === 'undefined') {
+        state.settings.openAI.verbosity = undefined
+      }
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
+      logger.info('migrate 186 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 186 error', error as Error)
+      return state
+    }
+  },
+  '187': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && assistant.settings.reasoning_effort === undefined) {
+          assistant.settings.reasoning_effort = 'default'
+        }
+      })
+      addProvider(state, 'mimo')
+      logger.info('migrate 187 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 187 error', error as Error)
+      return state
+    }
+  },
+  // 1.7.7
+  '188': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.openrouter) {
+          provider.anthropicApiHost = 'https://openrouter.ai/api'
+        }
+      })
+      logger.info('migrate 188 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 188 error', error as Error)
+      return state
+    }
+  },
+  // 1.7.7
+  '189': (state: RootState) => {
+    try {
+      window.api.memory.migrateMemoryDb()
+      // @ts-ignore
+      const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
+      // @ts-ignore
+      const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
+
+      if (memoryLlmApiClient) {
+        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        // @ts-ignore
+        delete state.memory.memoryConfig.llmApiClient
+      }
+
+      if (memoryEmbeddingApiClient) {
+        state.memory.memoryConfig.embeddingModel = getModel(
+          memoryEmbeddingApiClient.model,
+          memoryEmbeddingApiClient.provider
+        )
+        // @ts-ignore
+        delete state.memory.memoryConfig.embedderApiClient
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 189 error', error as Error)
+      return state
+    }
+  },
+  // 1.7.8
+  '190': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
+      logger.info('migrate 190 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 190 error', error as Error)
+      return state
+    }
+  },
+  '191': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'tokenflux') {
+          provider.apiHost = 'https://api.tokenflux.ai/openai/v1'
+          provider.anthropicApiHost = 'https://api.tokenflux.ai/anthropic'
+        }
+      })
+      logger.info('migrate 191 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 191 error', error as Error)
+      return state
+    }
+  },
+  '192': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === '302ai') {
+          provider.anthropicApiHost = 'https://api.302.ai'
+        }
+      })
+      state.settings.readClipboardAtStartup = false
+      logger.info('migrate 192 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 192 error', error as Error)
       return state
     }
   }

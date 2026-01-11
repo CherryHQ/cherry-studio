@@ -7,10 +7,10 @@
  * 2. 暂时保持接口兼容性
  */
 
-import type { GatewayLanguageModelEntry } from '@ai-sdk/gateway'
 import { createExecutor } from '@cherrystudio/ai-core'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { normalizeGatewayModels, normalizeSdkModels } from '@renderer/services/models/ModelAdapter'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
@@ -91,7 +91,9 @@ export default class ModernAiProvider {
     if (this.isModel(modelOrProvider)) {
       // 传入的是 Model
       this.model = modelOrProvider
-      this.actualProvider = provider ? adaptProvider({ provider }) : getActualProvider(modelOrProvider)
+      this.actualProvider = provider
+        ? adaptProvider({ provider, model: modelOrProvider })
+        : getActualProvider(modelOrProvider)
       // 只保存配置，不预先创建executor
       this.config = providerToAiSdkConfig(this.actualProvider, modelOrProvider)
     } else {
@@ -120,9 +122,12 @@ export default class ModernAiProvider {
       throw new Error('Model is required for completions. Please use constructor with model parameter.')
     }
 
-    // 每次请求时重新生成配置以确保API key轮换生效
-    this.config = providerToAiSdkConfig(this.actualProvider, this.model)
-    logger.debug('Generated provider config for completions', this.config)
+    // Config is now set in constructor, ApiService handles key rotation before passing provider
+    if (!this.config) {
+      // If config wasn't set in constructor (when provider only), generate it now
+      this.config = providerToAiSdkConfig(this.actualProvider, this.model!)
+    }
+    logger.debug('Using provider config for completions', this.config)
 
     // 检查 config 是否存在
     if (!this.config) {
@@ -189,7 +194,7 @@ export default class ModernAiProvider {
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
     // ai-gateway不是image/generation 端点，所以就先不走legacy了
-    if (config.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds['ai-gateway']) {
+    if (config.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds.gateway) {
       // 使用 legacy 实现处理图像生成（支持图片编辑等高级功能）
       if (!config.uiMessages) {
         throw new Error('uiMessages is required for image generation endpoint')
@@ -480,19 +485,12 @@ export default class ModernAiProvider {
 
   // 代理其他方法到原有实现
   public async models() {
-    if (this.actualProvider.id === SystemProviderIds['ai-gateway']) {
-      const formatModel = function (models: GatewayLanguageModelEntry[]): Model[] {
-        return models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          provider: 'gateway',
-          group: m.id.split('/')[0],
-          description: m.description ?? undefined
-        }))
-      }
-      return formatModel((await gateway.getAvailableModels()).models)
+    if (this.actualProvider.id === SystemProviderIds.gateway) {
+      const gatewayModels = (await gateway.getAvailableModels()).models
+      return normalizeGatewayModels(this.actualProvider, gatewayModels)
     }
-    return this.legacyProvider.models()
+    const sdkModels = await this.legacyProvider.models()
+    return normalizeSdkModels(this.actualProvider, sdkModels)
   }
 
   public async getEmbeddingDimensions(model: Model): Promise<number> {

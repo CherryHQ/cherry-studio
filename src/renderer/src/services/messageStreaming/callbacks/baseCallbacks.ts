@@ -1,13 +1,28 @@
+/**
+ * @fileoverview Base callbacks for streaming message processing
+ *
+ * This module provides the core callback handlers for message streaming:
+ * - onLLMResponseCreated: Initialize placeholder block for incoming response
+ * - onError: Handle streaming errors and cleanup
+ * - onComplete: Finalize streaming and persist to database
+ *
+ * ARCHITECTURE NOTE:
+ * These callbacks now use StreamingService for state management instead of Redux dispatch.
+ * This is part of the v2 data refactoring to use CacheService + Data API.
+ *
+ * Key changes:
+ * - dispatch/getState replaced with streamingService methods
+ * - saveUpdatesToDB replaced with streamingService.finalize()
+ */
+
 import { loggerService } from '@logger'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
-import type { PlaceholderMessageBlock, Response } from '@renderer/types/newMessage'
+import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { isAbortError, serializeError } from '@renderer/utils/error'
@@ -18,47 +33,59 @@ import type { AISDKError } from 'ai'
 import { NoOutputGeneratedError } from 'ai'
 
 import type { BlockManager } from '../BlockManager'
+import { streamingService } from '../StreamingService'
 
 const logger = loggerService.withContext('BaseCallbacks')
+
+/**
+ * Dependencies required for base callbacks
+ *
+ * NOTE: Simplified from original design - removed dispatch, getState, and saveUpdatesToDB
+ * since StreamingService now handles state management and persistence.
+ */
 interface BaseCallbacksDependencies {
   blockManager: BlockManager
-  dispatch: any
-  getState: any
   topicId: string
   assistantMsgId: string
-  saveUpdatesToDB: any
   assistant: Assistant
+  getCurrentThinkingInfo?: () => { blockId: string | null; millsec: number }
 }
 
 export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
-  const { blockManager, dispatch, getState, topicId, assistantMsgId, saveUpdatesToDB, assistant } = deps
+  const { blockManager, topicId, assistantMsgId, assistant, getCurrentThinkingInfo } = deps
 
   const startTime = Date.now()
   const notificationService = NotificationService.getInstance()
 
-  // 通用的 block 查找函数
-  const findBlockIdForCompletion = (message?: any) => {
-    // 优先使用 BlockManager 中的 activeBlockInfo
+  /**
+   * Find the block ID that should receive completion updates.
+   * Priority: active block > latest block in message > initial placeholder
+   */
+  const findBlockIdForCompletion = () => {
+    // Priority 1: Use active block from BlockManager
     const activeBlockInfo = blockManager.activeBlockInfo
-
     if (activeBlockInfo) {
       return activeBlockInfo.id
     }
 
-    // 如果没有活跃的block，从message中查找最新的block作为备选
-    const targetMessage = message || getState().messages.entities[assistantMsgId]
-    if (targetMessage) {
-      const allBlocks = findAllBlocks(targetMessage)
+    // Priority 2: Find latest block from StreamingService message
+    const message = streamingService.getMessage(assistantMsgId)
+    if (message) {
+      const allBlocks = findAllBlocks(message)
       if (allBlocks.length > 0) {
-        return allBlocks[allBlocks.length - 1].id // 返回最新的block
+        return allBlocks[allBlocks.length - 1].id
       }
     }
 
-    // 最后的备选方案：从 blockManager 获取占位符块ID
+    // Priority 3: Initial placeholder block
     return blockManager.initialPlaceholderBlockId
   }
 
   return {
+    /**
+     * Called when LLM response stream is created.
+     * Creates an initial placeholder block to receive streaming content.
+     */
     onLLMResponseCreated: async () => {
       const baseBlock = createBaseMessageBlock(assistantMsgId, MessageBlockType.UNKNOWN, {
         status: MessageBlockStatus.PROCESSING
@@ -66,6 +93,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       await blockManager.handleBlockTransition(baseBlock as PlaceholderMessageBlock, MessageBlockType.UNKNOWN)
     },
 
+    /**
+     * Called when an error occurs during streaming.
+     * Updates block and message status, creates error block, and finalizes session.
+     */
     onError: async (error: AISDKError) => {
       logger.debug('onError', error)
       if (NoOutputGeneratedError.isInstance(error)) {
@@ -78,7 +109,8 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       }
 
       const duration = Date.now() - startTime
-      // 发送错误通知（除了中止错误）
+
+      // Send error notification (except for abort errors)
       if (!isErrorTypeAbort) {
         const timeOut = duration > 30 * 1000
         if ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut)) {
@@ -97,26 +129,55 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       const possibleBlockId = findBlockIdForCompletion()
 
       if (possibleBlockId) {
-        // 更改上一个block的状态为ERROR
-        const changes = {
+        // Update previous block status to ERROR/PAUSED/PAUSED
+        const changes: Partial<ThinkingMessageBlock> = {
           status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+        }
+        // 如果是 thinking block，保留实际思考时间
+        if (blockManager.lastBlockType === MessageBlockType.THINKING) {
+          const thinkingInfo = getCurrentThinkingInfo?.()
+          if (thinkingInfo?.blockId === possibleBlockId && thinkingInfo?.millsec && thinkingInfo.millsec > 0) {
+            changes.thinking_millsec = thinkingInfo.millsec
+          }
         }
         blockManager.smartBlockUpdate(possibleBlockId, changes, blockManager.lastBlockType!, true)
       }
 
+      // Fix: Update all blocks still in STREAMING status to PAUSED/ERROR
+      // This fixes the thinking timer continuing when response is stopped
+      const currentMessage = streamingService.getMessage(assistantMsgId)
+      if (currentMessage) {
+        const allBlockRefs = findAllBlocks(currentMessage)
+        // 获取当前思考信息（如果有），用于保留实际思考时间
+        const thinkingInfo = getCurrentThinkingInfo?.()
+        for (const blockRef of allBlockRefs) {
+          const block = streamingService.getBlock(blockRef.id)
+          if (block && block.status === MessageBlockStatus.STREAMING && block.id !== possibleBlockId) {
+            // 构建更新对象
+            const changes: Partial<ThinkingMessageBlock> = {
+              status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+            }
+            // 如果是 thinking block 且有思考时间信息，保留实际思考时间
+            if (
+              block.type === MessageBlockType.THINKING &&
+              thinkingInfo?.blockId === block.id &&
+              thinkingInfo?.millsec &&
+              thinkingInfo.millsec > 0
+            ) {
+              changes.thinking_millsec = thinkingInfo.millsec
+            }
+            streamingService.updateBlock(block.id, changes)
+          }
+        }
+      }
+
+      // Create error block
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)
-      const messageErrorUpdate = {
-        status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
-      }
-      dispatch(
-        newMessagesActions.updateMessage({
-          topicId,
-          messageId: assistantMsgId,
-          updates: messageErrorUpdate
-        })
-      )
-      await saveUpdatesToDB(assistantMsgId, topicId, messageErrorUpdate, [])
+
+      // Finalize session with error/success status
+      const finalStatus = isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
+      await streamingService.finalize(assistantMsgId, finalStatus)
 
       EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
         id: assistantMsgId,
@@ -126,18 +187,15 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       })
     },
 
+    /**
+     * Called when streaming completes successfully.
+     * Updates block status, processes usage stats, and finalizes session.
+     */
     onComplete: async (status: AssistantMessageStatus, response?: Response) => {
-      const finalStateOnComplete = getState()
-      const finalAssistantMsg = finalStateOnComplete.messages.entities[assistantMsgId]
+      const finalAssistantMsg = streamingService.getMessage(assistantMsgId)
 
       if (status === 'success' && finalAssistantMsg) {
-        const userMsgId = finalAssistantMsg.askId
-        const orderedMsgs = selectMessagesForTopic(finalStateOnComplete, topicId)
-        const userMsgIndex = orderedMsgs.findIndex((m) => m.id === userMsgId)
-        const contextForUsage = userMsgIndex !== -1 ? orderedMsgs.slice(0, userMsgIndex + 1) : []
-        const finalContextWithAssistant = [...contextForUsage, finalAssistantMsg]
-
-        const possibleBlockId = findBlockIdForCompletion(finalAssistantMsg)
+        const possibleBlockId = findBlockIdForCompletion()
 
         if (possibleBlockId) {
           const changes = {
@@ -150,7 +208,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         const content = getMainTextContent(finalAssistantMsg)
 
         const timeOut = duration > 30 * 1000
-        // 发送长时间运行消息的成功通知
+        // Send success notification for long-running messages
         if ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut)) {
           await notificationService.send({
             id: uuid(),
@@ -164,10 +222,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           })
         }
 
-        // 更新topic的name
+        // Rename topic if needed
         autoRenameTopic(assistant, topicId)
 
-        // 处理usage估算
+        // Process usage estimation
         // For OpenRouter, always use the accurate usage data from API, don't estimate
         const isOpenRouter = assistant.model?.provider === 'openrouter'
         if (
@@ -177,11 +235,20 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
             response?.usage?.prompt_tokens === 0 ||
             response?.usage?.completion_tokens === 0)
         ) {
-          const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
-          response.usage = usage
+          // Use context from task for usage estimation
+          const task = streamingService.getTask(assistantMsgId)
+          if (task?.contextMessages && task.contextMessages.length > 0) {
+            // Include the final assistant message in context for accurate estimation
+            const finalContextWithAssistant = [...task.contextMessages, finalAssistantMsg]
+            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
+            response.usage = usage
+          } else {
+            logger.debug('Skipping usage estimation - contextMessages not available in task')
+          }
         }
       }
 
+      // Handle metrics completion_tokens fallback
       if (response && response.metrics) {
         if (response.metrics.completion_tokens === 0 && response.usage?.completion_tokens) {
           response = {
@@ -194,15 +261,17 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
-      const messageUpdates = { status, metrics: response?.metrics, usage: response?.usage }
-      dispatch(
-        newMessagesActions.updateMessage({
-          topicId,
-          messageId: assistantMsgId,
-          updates: messageUpdates
+      // Update message with final stats before finalize
+      if (response) {
+        streamingService.updateMessage(assistantMsgId, {
+          metrics: response.metrics,
+          usage: response.usage
         })
-      )
-      await saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
+      }
+
+      // Finalize session and persist to database
+      await streamingService.finalize(assistantMsgId, status)
+
       EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
       logger.debug('onComplete finished')
     }

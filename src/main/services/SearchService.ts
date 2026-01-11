@@ -14,38 +14,36 @@ export class SearchService {
     return SearchService.instance
   }
 
-  constructor() {
-    // Initialize the service
-  }
-
-  private async createNewSearchWindow(uid: string): Promise<BrowserWindow> {
+  private async createNewSearchWindow(uid: string, show: boolean = false): Promise<BrowserWindow> {
     const newWindow = new BrowserWindow({
-      width: 800,
-      height: 600,
-      show: false,
+      width: 1280,
+      height: 768,
+      show,
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
         devTools: is.dev
       }
     })
-    newWindow.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
-      const headers = {
-        ...details.requestHeaders,
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-      callback({ requestHeaders: headers })
-    })
+
     this.searchWindows[uid] = newWindow
-    newWindow.on('closed', () => {
-      delete this.searchWindows[uid]
-    })
+    newWindow.on('closed', () => delete this.searchWindows[uid])
+
+    newWindow.webContents.userAgent =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)  Safari/537.36'
+
     return newWindow
   }
 
-  public async openSearchWindow(uid: string): Promise<void> {
-    await this.createNewSearchWindow(uid)
+  public async openSearchWindow(uid: string, show: boolean = false): Promise<void> {
+    const existingWindow = this.searchWindows[uid]
+
+    if (existingWindow) {
+      show && existingWindow.show()
+      return
+    }
+
+    await this.createNewSearchWindow(uid, show)
   }
 
   public async closeSearchWindow(uid: string): Promise<void> {

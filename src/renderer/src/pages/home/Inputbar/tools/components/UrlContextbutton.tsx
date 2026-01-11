@@ -2,6 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Link } from 'lucide-react'
 import type { FC } from 'react'
@@ -30,8 +31,7 @@ const UrlContextButton: FC<Props> = ({ assistantId }) => {
       () => {
         const update = { ...assistant }
         if (
-          assistant.mcpServers &&
-          assistant.mcpServers.length > 0 &&
+          getEffectiveMcpMode(assistant) !== 'disabled' &&
           urlContentNewState === true &&
           isToolUseModeFunction(assistant)
         ) {
@@ -48,7 +48,13 @@ const UrlContextButton: FC<Props> = ({ assistantId }) => {
 
   return (
     <Tooltip content={t('chat.input.url_context')}>
-      <ActionIconButton onClick={handleToggle} active={assistant.enableUrlContext} icon={<Link size={18} />} />
+      <ActionIconButton
+        onClick={handleToggle}
+        active={assistant.enableUrlContext}
+        aria-label={t('chat.input.url_context')}
+        aria-pressed={assistant.enableUrlContext}
+        icon={<Link size={18} />}
+      />
     </Tooltip>
   )
 }

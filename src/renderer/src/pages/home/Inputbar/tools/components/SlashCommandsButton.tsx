@@ -41,6 +41,7 @@ const SlashCommandsButton: FC<Props> = ({ quickPanelController, session, openPan
         onClick={handleOpenQuickPanel}
         active={isActive}
         disabled={!hasCommands}
+        aria-label={t('chat.input.slash_commands.title')}
         icon={<Terminal size={18} />}></ActionIconButton>
     </Tooltip>
   )

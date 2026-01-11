@@ -18,7 +18,7 @@ vi.mock('@renderer/services/AssistantService', () => ({
     toolUseMode: assistant.settings?.toolUseMode ?? 'prompt',
     defaultModel: assistant.defaultModel,
     customParameters: assistant.settings?.customParameters ?? [],
-    reasoning_effort: assistant.settings?.reasoning_effort,
+    reasoning_effort: assistant.settings?.reasoning_effort ?? 'default',
     reasoning_effort_cache: assistant.settings?.reasoning_effort_cache,
     qwenThinkMode: assistant.settings?.qwenThinkMode
   })

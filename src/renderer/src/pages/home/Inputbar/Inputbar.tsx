@@ -10,6 +10,7 @@ import {
   isVisionModels,
   isWebSearchModel
 } from '@renderer/config/models'
+import { useCache } from '@renderer/data/hooks/useCache'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
@@ -30,7 +31,7 @@ import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesServi
 import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { type Assistant, type FileType, type KnowledgeBase, type Model, type Topic, TopicType } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
@@ -57,7 +58,7 @@ const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 const getMentionedModelsCacheKey = (assistantId: string) => `inputbar-mentioned-models-${assistantId}`
 
 const getValidatedCachedModels = (assistantId: string): Model[] => {
-  const cached = cacheService.get<Model[]>(getMentionedModelsCacheKey(assistantId))
+  const cached = cacheService.getCasual<Model[]>(getMentionedModelsCacheKey(assistantId))
   if (!Array.isArray(cached)) return []
   return cached.filter((model) => model?.id && model?.name)
 }
@@ -135,17 +136,19 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { text, setText } = useInputText({
-    initialValue: cacheService.get<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '',
-    onChange: (value) => cacheService.set(INPUTBAR_DRAFT_CACHE_KEY, value, DRAFT_CACHE_TTL)
+    initialValue: cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '',
+    onChange: (value) => cacheService.setCasual(INPUTBAR_DRAFT_CACHE_KEY, value, DRAFT_CACHE_TTL)
   })
   const {
     textareaRef,
     resize: resizeTextArea,
     focus: focusTextarea,
     setExpanded,
-    isExpanded: textareaIsExpanded
+    isExpanded: textareaIsExpanded,
+    customHeight,
+    setCustomHeight
   } = useTextareaResize({
-    maxHeight: 400,
+    maxHeight: 500,
     minHeight: 30
   })
 
@@ -163,7 +166,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const { setTimeoutTimer } = useTimer()
-  const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
+  const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
   const isVisionSupported = useMemo(
     () =>
@@ -208,7 +211,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   }, [canAddImageFile, setCouldAddImageFile])
 
   const onUnmount = useEffectEvent((id: string) => {
-    cacheService.set(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
+    cacheService.setCasual(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
   })
 
   useEffect(() => {
@@ -259,7 +262,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       setText('')
       setFiles([])
       setTimeoutTimer('sendMessage_1', () => setText(''), 500)
-      setTimeoutTimer('sendMessage_2', () => resizeTextArea(true), 0)
+      setTimeoutTimer('sendMessage_2', () => resizeTextArea(), 0)
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
@@ -480,6 +483,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       text={text}
       onTextChange={setText}
       textareaRef={textareaRef}
+      height={customHeight}
+      onHeightChange={setCustomHeight}
       resizeTextArea={resizeTextArea}
       focusTextarea={focusTextarea}
       isLoading={loading}

@@ -1,5 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
+import type { Assistant } from '@renderer/types'
 import { type Model, SystemProviderIds } from '@renderer/types'
 import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
@@ -8,11 +9,14 @@ import {
   isGPT5ProModel,
   isGPT5SeriesModel,
   isGPT51SeriesModel,
+  isGPT52SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAIOpenWeightModel,
-  isOpenAIReasoningModel
+  isOpenAIReasoningModel,
+  isSupportVerbosityModel
 } from './openai'
 import { isQwenMTModel } from './qwen'
+import { isClaude45ReasoningModel } from './reasoning'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
@@ -41,20 +45,77 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
   return !NOT_SUPPORTED_REGEX.test(modelId)
 }
 
-export function isNotSupportTemperatureAndTopP(model: Model): boolean {
+/**
+ * Check if the model supports temperature parameter
+ * @param model - The model to check
+ * @returns true if the model supports temperature parameter
+ */
+export function isSupportTemperatureModel(model: Model | undefined | null, assistant?: Assistant): boolean {
   if (!model) {
-    return true
+    return false
   }
 
-  if (
-    (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) ||
-    isOpenAIChatCompletionOnlyModel(model) ||
-    isQwenMTModel(model)
-  ) {
-    return true
+  // OpenAI reasoning models (except open weight) don't support temperature
+  if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
+    if (isGPT52SeriesModel(model) && assistant?.settings?.reasoning_effort === 'none') {
+      return true
+    }
+    return false
   }
 
-  return false
+  // OpenAI chat completion only models don't support temperature
+  if (isOpenAIChatCompletionOnlyModel(model)) {
+    return false
+  }
+
+  // Qwen MT models don't support temperature
+  if (isQwenMTModel(model)) {
+    return false
+  }
+
+  return true
+}
+
+/**
+ * Check if the model supports top_p parameter
+ * @param model - The model to check
+ * @returns true if the model supports top_p parameter
+ */
+export function isSupportTopPModel(model: Model | undefined | null, assistant?: Assistant): boolean {
+  if (!model) {
+    return false
+  }
+
+  // OpenAI reasoning models (except open weight) don't support top_p
+  if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
+    if (isGPT52SeriesModel(model) && assistant?.settings?.reasoning_effort === 'none') {
+      return true
+    }
+    return false
+  }
+
+  // OpenAI chat completion only models don't support top_p
+  if (isOpenAIChatCompletionOnlyModel(model)) {
+    return false
+  }
+
+  // Qwen MT models don't support top_p
+  if (isQwenMTModel(model)) {
+    return false
+  }
+
+  return true
+}
+
+/**
+ * Check if the model enforces mutual exclusivity between temperature and top_p parameters.
+ * Currently only Claude 4.5 reasoning models require this constraint.
+ * @param model - The model to check
+ * @returns true if temperature and top_p are mutually exclusive for this model
+ */
+export function isTemperatureTopPMutuallyExclusiveModel(model: Model | undefined | null): boolean {
+  if (!model) return false
+  return isClaude45ReasoningModel(model)
 }
 
 export function isGemmaModel(model?: Model): boolean {
@@ -154,10 +215,10 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
  * For GPT-5-pro, only 'high' is supported; for other GPT-5 models, 'low', 'medium', and 'high' are supported.
  * For GPT-5.1 series models, 'low', 'medium', and 'high' are supported.
  * @param model - The model to check
- * @returns An array of supported verbosity levels, always including `undefined` as the first element
+ * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
  */
 export const getModelSupportedVerbosity = (model: Model | undefined | null): OpenAIVerbosity[] => {
-  if (!model) {
+  if (!model || !isSupportVerbosityModel(model)) {
     return [undefined]
   }
 
@@ -165,7 +226,7 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): Ope
 
   for (const { validator, values } of MODEL_SUPPORTED_VERBOSITY) {
     if (validator(model)) {
-      supportedValues = [...values]
+      supportedValues = [null, ...values]
       break
     }
   }
@@ -176,6 +237,11 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): Ope
 export const isGeminiModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini')
+}
+
+export const isGrokModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('grok')
 }
 
 // zhipu 视觉推理模型用这组 special token 标记推理结果
@@ -200,4 +266,44 @@ export const isGemini3Model = (model: Model) => {
 export const isGemini3ThinkingTokenModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return isGemini3Model(model) && !modelId.includes('image')
+}
+
+/**
+ * Check if the model is a Gemini 3 Flash model
+ * Matches: gemini-3-flash, gemini-3-flash-preview, gemini-3-flash-preview-09-2025, gemini-flash-latest (alias)
+ * Excludes: gemini-3-flash-image-preview
+ * @param model - The model to check
+ * @returns true if the model is a Gemini 3 Flash model
+ */
+export const isGemini3FlashModel = (model: Model | undefined | null): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  // Check for gemini-flash-latest alias (currently points to gemini-3-flash, may change in future)
+  if (modelId === 'gemini-flash-latest') {
+    return true
+  }
+  // Check for gemini-3-flash with optional suffixes, excluding image variants
+  return /gemini-3-flash(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+}
+
+/**
+ * Check if the model is a Gemini 3 Pro model
+ * Matches: gemini-3-pro, gemini-3-pro-preview, gemini-3-pro-preview-09-2025, gemini-pro-latest (alias)
+ * Excludes: gemini-3-pro-image-preview
+ * @param model - The model to check
+ * @returns true if the model is a Gemini 3 Pro model
+ */
+export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  // Check for gemini-pro-latest alias (currently points to gemini-3-pro, may change in future)
+  if (modelId === 'gemini-pro-latest') {
+    return true
+  }
+  // Check for gemini-3-pro with optional suffixes, excluding image variants
+  return /gemini-3-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
 }

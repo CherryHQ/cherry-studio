@@ -1,14 +1,15 @@
 import { loggerService } from '@logger'
-import type { ApiImplementation } from '@shared/data/api/apiSchemas'
+import type { RequestContext as ErrorRequestContext } from '@shared/data/api/apiErrors'
+import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/apiErrors'
+import type { ApiImplementation } from '@shared/data/api/apiTypes'
 import type { DataRequest, DataResponse, HttpMethod, RequestContext } from '@shared/data/api/apiTypes'
-import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errorCodes'
 
 import { MiddlewareEngine } from './MiddlewareEngine'
 
 // Handler function type
 type HandlerFunction = (params: { params?: Record<string, string>; query?: any; body?: any }) => Promise<any>
 
-const logger = loggerService.withContext('DataApiServer')
+const logger = loggerService.withContext('DataApi:Server')
 
 /**
  * Core API Server - Transport agnostic request processor
@@ -59,6 +60,14 @@ export class ApiServer {
     const { method, path } = request
     const startTime = Date.now()
 
+    // Build error request context for tracking
+    const errorContext: ErrorRequestContext = {
+      requestId: request.id,
+      path,
+      method: method as HttpMethod,
+      timestamp: startTime
+    }
+
     logger.debug(`Processing request: ${method} ${path}`)
 
     try {
@@ -66,7 +75,7 @@ export class ApiServer {
       const handlerMatch = this.findHandler(path, method as HttpMethod)
 
       if (!handlerMatch) {
-        throw DataApiErrorFactory.create(ErrorCode.NOT_FOUND, `Handler not found: ${method} ${path}`)
+        throw DataApiErrorFactory.notFound('Handler', `${method} ${path}`, errorContext)
       }
 
       // Create request context
@@ -91,47 +100,17 @@ export class ApiServer {
     } catch (error) {
       logger.error(`Request handling failed: ${method} ${path}`, error as Error)
 
-      const apiError = DataApiErrorFactory.create(ErrorCode.INTERNAL_SERVER_ERROR, (error as Error).message)
+      // Convert to DataApiError and serialize for IPC
+      const apiError = error instanceof DataApiError ? error : toDataApiError(error, `${method} ${path}`)
 
       return {
         id: request.id,
         status: apiError.status,
-        error: apiError,
+        error: apiError.toJSON(), // Serialize for IPC transmission
         metadata: {
           duration: Date.now() - startTime,
           timestamp: Date.now()
         }
-      }
-    }
-  }
-
-  /**
-   * Handle batch requests
-   */
-  async handleBatchRequest(batchRequest: DataRequest): Promise<DataResponse> {
-    const requests = batchRequest.body?.requests || []
-
-    if (!Array.isArray(requests)) {
-      throw DataApiErrorFactory.create(ErrorCode.VALIDATION_ERROR, 'Batch request body must contain requests array')
-    }
-
-    logger.debug(`Processing batch request with ${requests.length} requests`)
-
-    // Use the batch handler from our handlers
-    const batchHandler = this.handlers['/batch']?.POST
-    if (!batchHandler) {
-      throw DataApiErrorFactory.create(ErrorCode.NOT_FOUND, 'Batch handler not found')
-    }
-
-    const result = await batchHandler({ body: batchRequest.body })
-
-    return {
-      id: batchRequest.id,
-      status: 200,
-      data: result,
-      metadata: {
-        duration: 0,
-        timestamp: Date.now()
       }
     }
   }

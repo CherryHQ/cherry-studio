@@ -1,19 +1,20 @@
 import store from '@renderer/store'
 import type { VertexProvider } from '@renderer/types'
+import { getTrailingApiVersion, withoutTrailingApiVersion } from '@shared/utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   formatApiHost,
   formatApiKeys,
   formatAzureOpenAIApiHost,
+  formatOllamaApiHost,
   formatVertexApiHost,
-  getTrailingApiVersion,
   hasAPIVersion,
+  isWithTrailingSharp,
   maskApiKey,
   routeToEndpoint,
   splitApiKeyString,
   validateApiHost,
-  withoutTrailingApiVersion,
   withoutTrailingSharp
 } from '../api'
 
@@ -341,6 +342,73 @@ describe('api', () => {
     })
   })
 
+  describe('formatOllamaApiHost', () => {
+    it('removes trailing slash and appends /api for basic hosts', () => {
+      expect(formatOllamaApiHost('https://api.ollama.com/')).toBe('https://api.ollama.com/api')
+      expect(formatOllamaApiHost('http://localhost:11434/')).toBe('http://localhost:11434/api')
+    })
+
+    it('appends /api when no suffix is present', () => {
+      expect(formatOllamaApiHost('https://api.ollama.com')).toBe('https://api.ollama.com/api')
+      expect(formatOllamaApiHost('http://localhost:11434')).toBe('http://localhost:11434/api')
+    })
+
+    it('removes /v1 suffix and appends /api', () => {
+      expect(formatOllamaApiHost('https://api.ollama.com/v1')).toBe('https://api.ollama.com/api')
+      expect(formatOllamaApiHost('http://localhost:11434/v1/')).toBe('http://localhost:11434/api')
+    })
+
+    it('removes /api suffix and keeps /api', () => {
+      expect(formatOllamaApiHost('https://api.ollama.com/api')).toBe('https://api.ollama.com/api')
+      expect(formatOllamaApiHost('http://localhost:11434/api/')).toBe('http://localhost:11434/api')
+    })
+
+    it('removes /chat suffix and appends /api', () => {
+      expect(formatOllamaApiHost('https://api.ollama.com/chat')).toBe('https://api.ollama.com/api')
+      expect(formatOllamaApiHost('http://localhost:11434/chat/')).toBe('http://localhost:11434/api')
+    })
+
+    it('handles multiple suffix combinations correctly', () => {
+      expect(formatOllamaApiHost('https://api.ollama.com/v1/chat')).toBe('https://api.ollama.com/v1/api')
+      expect(formatOllamaApiHost('https://api.ollama.com/chat/v1')).toBe('https://api.ollama.com/api')
+      expect(formatOllamaApiHost('https://api.ollama.com/api/chat')).toBe('https://api.ollama.com/api/api')
+    })
+
+    it('preserves complex paths while handling suffixes', () => {
+      expect(formatOllamaApiHost('https://api.ollama.com/custom/path')).toBe('https://api.ollama.com/custom/path/api')
+      expect(formatOllamaApiHost('https://api.ollama.com/custom/path/')).toBe('https://api.ollama.com/custom/path/api')
+      expect(formatOllamaApiHost('https://api.ollama.com/custom/path/v1')).toBe(
+        'https://api.ollama.com/custom/path/api'
+      )
+    })
+
+    it('handles edge cases with multiple slashes', () => {
+      expect(formatOllamaApiHost('https://api.ollama.com//')).toBe('https://api.ollama.com//api')
+      expect(formatOllamaApiHost('https://api.ollama.com///v1///')).toBe('https://api.ollama.com///v1///api')
+    })
+
+    it('handles localhost with different ports', () => {
+      expect(formatOllamaApiHost('http://localhost:3000')).toBe('http://localhost:3000/api')
+      expect(formatOllamaApiHost('http://127.0.0.1:11434/')).toBe('http://127.0.0.1:11434/api')
+      expect(formatOllamaApiHost('https://localhost:8080/v1')).toBe('https://localhost:8080/api')
+    })
+
+    it('handles IP addresses', () => {
+      expect(formatOllamaApiHost('http://192.168.1.100:11434')).toBe('http://192.168.1.100:11434/api')
+      expect(formatOllamaApiHost('https://10.0.0.1:8080/v1/')).toBe('https://10.0.0.1:8080/api')
+    })
+
+    it('handles empty strings and edge cases', () => {
+      expect(formatOllamaApiHost('')).toBe('/api')
+      expect(formatOllamaApiHost('/')).toBe('/api')
+    })
+
+    it('preserves protocol and handles mixed case', () => {
+      expect(formatOllamaApiHost('HTTPS://API.OLLAMA.COM')).toBe('HTTPS://API.OLLAMA.COM/api')
+      expect(formatOllamaApiHost('HTTP://localhost:11434/V1/')).toBe('HTTP://localhost:11434/V1/api')
+    })
+  })
+
   describe('getTrailingApiVersion', () => {
     it('extracts trailing API version from URL', () => {
       expect(getTrailingApiVersion('https://api.example.com/v1')).toBe('v1')
@@ -381,6 +449,43 @@ describe('api', () => {
 
     it('returns undefined for empty string', () => {
       expect(getTrailingApiVersion('')).toBeUndefined()
+    })
+
+    it('returns undefined when URL ends with # regardless of version', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v1#')).toBeUndefined()
+      expect(getTrailingApiVersion('https://api.example.com/v2beta#')).toBeUndefined()
+      expect(getTrailingApiVersion('https://gateway.ai.cloudflare.com/v1#')).toBeUndefined()
+      expect(getTrailingApiVersion('https://api.example.com/service/v1#')).toBeUndefined()
+    })
+
+    it('handles URLs with # and trailing slash correctly', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v1/#')).toBeUndefined()
+      expect(getTrailingApiVersion('https://api.example.com/v2beta/#')).toBeUndefined()
+    })
+
+    it('handles URLs with version followed by # and additional path', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v1#endpoint')).toBeUndefined()
+      expect(getTrailingApiVersion('https://api.example.com/v2beta#chat/completions')).toBeUndefined()
+    })
+
+    it('handles complex URLs with multiple # characters', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v1#path#')).toBeUndefined()
+      expect(getTrailingApiVersion('https://gateway.ai.cloudflare.com/v1/xxx/v2beta#')).toBeUndefined()
+    })
+
+    it('handles URLs ending with # when version is not at the end', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v1/service#')).toBeUndefined()
+      expect(getTrailingApiVersion('https://api.example.com/v1/api/chat#')).toBeUndefined()
+    })
+
+    it('distinguishes between URLs with and without trailing #', () => {
+      // Without # - should extract version
+      expect(getTrailingApiVersion('https://api.example.com/v1')).toBe('v1')
+      expect(getTrailingApiVersion('https://api.example.com/v2beta')).toBe('v2beta')
+
+      // With # - should return undefined
+      expect(getTrailingApiVersion('https://api.example.com/v1#')).toBeUndefined()
+      expect(getTrailingApiVersion('https://api.example.com/v2beta#')).toBeUndefined()
     })
   })
 
@@ -424,6 +529,70 @@ describe('api', () => {
 
     it('returns empty string unchanged', () => {
       expect(withoutTrailingApiVersion('')).toBe('')
+    })
+  })
+
+  describe('isWithTrailingSharp', () => {
+    it('returns true when URL ends with #', () => {
+      expect(isWithTrailingSharp('https://api.example.com#')).toBe(true)
+      expect(isWithTrailingSharp('http://localhost:3000#')).toBe(true)
+      expect(isWithTrailingSharp('#')).toBe(true)
+    })
+
+    it('returns false when URL does not end with #', () => {
+      expect(isWithTrailingSharp('https://api.example.com')).toBe(false)
+      expect(isWithTrailingSharp('http://localhost:3000')).toBe(false)
+      expect(isWithTrailingSharp('')).toBe(false)
+    })
+
+    it('returns false when URL has # in the middle but not at the end', () => {
+      expect(isWithTrailingSharp('https://api.example.com#path')).toBe(false)
+      expect(isWithTrailingSharp('https://api.example.com#section/path')).toBe(false)
+      expect(isWithTrailingSharp('https://api.example.com#path#other')).toBe(false)
+    })
+
+    it('handles URLs with multiple # characters', () => {
+      expect(isWithTrailingSharp('https://api.example.com##')).toBe(true)
+      expect(isWithTrailingSharp('https://api.example.com#path#')).toBe(true)
+      expect(isWithTrailingSharp('https://api.example.com###')).toBe(true)
+    })
+
+    it('handles URLs with trailing whitespace after #', () => {
+      expect(isWithTrailingSharp('https://api.example.com# ')).toBe(false)
+      expect(isWithTrailingSharp('https://api.example.com#\t')).toBe(false)
+      expect(isWithTrailingSharp('https://api.example.com#\n')).toBe(false)
+    })
+
+    it('handles URLs with whitespace before trailing #', () => {
+      expect(isWithTrailingSharp('  https://api.example.com#')).toBe(true)
+      expect(isWithTrailingSharp('\thttps://localhost:3000#')).toBe(true)
+    })
+
+    it('preserves type safety with generic parameter', () => {
+      const url1: string = 'https://api.example.com#'
+      const url2 = 'https://example.com' as const
+
+      expect(isWithTrailingSharp(url1)).toBe(true)
+      expect(isWithTrailingSharp(url2)).toBe(false)
+    })
+
+    it('handles complex real-world URLs', () => {
+      expect(isWithTrailingSharp('https://open.cherryin.net/v1/chat/completions#')).toBe(true)
+      expect(isWithTrailingSharp('https://api.openai.com/v1/engines/gpt-4#')).toBe(true)
+      expect(isWithTrailingSharp('https://gateway.ai.cloudflare.com/v1/xxx/v1beta#')).toBe(true)
+
+      expect(isWithTrailingSharp('https://open.cherryin.net/v1/chat/completions')).toBe(false)
+      expect(isWithTrailingSharp('https://api.openai.com/v1/engines/gpt-4')).toBe(false)
+      expect(isWithTrailingSharp('https://gateway.ai.cloudflare.com/v1/xxx/v1beta')).toBe(false)
+    })
+
+    it('handles edge cases', () => {
+      expect(isWithTrailingSharp('#')).toBe(true)
+      expect(isWithTrailingSharp(' #')).toBe(true)
+      expect(isWithTrailingSharp('# ')).toBe(false)
+      expect(isWithTrailingSharp('path#')).toBe(true)
+      expect(isWithTrailingSharp('/path/with/trailing/#')).toBe(true)
+      expect(isWithTrailingSharp('/path/without/trailing/')).toBe(false)
     })
   })
 

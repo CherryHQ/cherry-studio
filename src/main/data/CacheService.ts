@@ -18,6 +18,7 @@
  */
 
 import { loggerService } from '@logger'
+import type { SharedCacheKey, SharedCacheSchema } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, ipcMain } from 'electron'
@@ -42,8 +43,11 @@ export class CacheService {
   private static instance: CacheService
   private initialized = false
 
-  // Main process cache
+  // Main process internal cache
   private cache = new Map<string, CacheEntry>()
+
+  // Shared cache (synchronized with renderer windows)
+  private sharedCache = new Map<string, CacheEntry>()
 
   // GC timer reference and interval time (e.g., every 10 minutes)
   private gcInterval: NodeJS.Timeout | null = null
@@ -79,7 +83,7 @@ export class CacheService {
   // ============ Main Process Cache (Internal) ============
 
   /**
-   * Garbage collection logic
+   * Garbage collection logic for both internal and shared cache
    */
   private startGarbageCollection() {
     if (this.gcInterval) return
@@ -88,9 +92,18 @@ export class CacheService {
       const now = Date.now()
       let removedCount = 0
 
+      // Clean internal cache
       for (const [key, entry] of this.cache.entries()) {
         if (entry.expireAt && now > entry.expireAt) {
           this.cache.delete(key)
+          removedCount++
+        }
+      }
+
+      // Clean shared cache
+      for (const [key, entry] of this.sharedCache.entries()) {
+        if (entry.expireAt && now > entry.expireAt) {
+          this.sharedCache.delete(key)
           removedCount++
         }
       }
@@ -155,6 +168,110 @@ export class CacheService {
     return this.cache.delete(key)
   }
 
+  // ============ Shared Cache (Cross-window via IPC) ============
+
+  /**
+   * Get value from shared cache with TTL validation (type-safe)
+   * @param key - Schema-defined shared cache key
+   * @returns Cached value or undefined if not found or expired
+   */
+  getShared<K extends SharedCacheKey>(key: K): SharedCacheSchema[K] | undefined {
+    const entry = this.sharedCache.get(key)
+    if (!entry) return undefined
+
+    // Check TTL (lazy cleanup)
+    if (entry.expireAt && Date.now() > entry.expireAt) {
+      this.sharedCache.delete(key)
+      return undefined
+    }
+
+    return entry.value as SharedCacheSchema[K]
+  }
+
+  /**
+   * Set value in shared cache with cross-window broadcast (type-safe)
+   * @param key - Schema-defined shared cache key
+   * @param value - Value to cache (type inferred from schema)
+   * @param ttl - Time to live in milliseconds (optional)
+   */
+  setShared<K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K], ttl?: number): void {
+    const expireAt = ttl ? Date.now() + ttl : undefined
+    const entry: CacheEntry = { value, expireAt }
+
+    this.sharedCache.set(key, entry)
+
+    // Broadcast to all renderer windows
+    this.broadcastSync({
+      type: 'shared',
+      key,
+      value,
+      expireAt
+    })
+
+    logger.verbose(`Set shared cache key "${key}"`)
+  }
+
+  /**
+   * Check if key exists in shared cache and is not expired (type-safe)
+   * @param key - Schema-defined shared cache key
+   * @returns True if key exists and is valid, false otherwise
+   */
+  hasShared<K extends SharedCacheKey>(key: K): boolean {
+    const entry = this.sharedCache.get(key)
+    if (!entry) return false
+
+    // Check TTL
+    if (entry.expireAt && Date.now() > entry.expireAt) {
+      this.sharedCache.delete(key)
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * Delete from shared cache with cross-window broadcast (type-safe)
+   * @param key - Schema-defined shared cache key
+   * @returns True if deletion succeeded
+   */
+  deleteShared<K extends SharedCacheKey>(key: K): boolean {
+    if (!this.sharedCache.has(key)) {
+      return true
+    }
+
+    this.sharedCache.delete(key)
+
+    // Broadcast deletion to all renderer windows
+    this.broadcastSync({
+      type: 'shared',
+      key,
+      value: undefined // undefined means deletion
+    })
+
+    logger.verbose(`Deleted shared cache key "${key}"`)
+    return true
+  }
+
+  /**
+   * Get all shared cache entries (for renderer initialization sync)
+   * @returns Record of all shared cache entries with their metadata
+   */
+  private getAllShared(): Record<string, CacheEntry> {
+    const now = Date.now()
+    const result: Record<string, CacheEntry> = {}
+
+    for (const [key, entry] of this.sharedCache.entries()) {
+      // Skip expired entries
+      if (entry.expireAt && now > entry.expireAt) {
+        this.sharedCache.delete(key)
+        continue
+      }
+      result[key] = entry
+    }
+
+    return result
+  }
+
   // ============ Persist Cache Interface (Reserved) ============
 
   // TODO: Implement persist cache in future
@@ -180,8 +297,30 @@ export class CacheService {
     // Handle cache sync broadcast from renderer
     ipcMain.on(IpcChannel.Cache_Sync, (event, message: CacheSyncMessage) => {
       const senderWindowId = BrowserWindow.fromWebContents(event.sender)?.id
+
+      // Update Main's sharedCache when receiving shared type sync
+      if (message.type === 'shared') {
+        if (message.value === undefined) {
+          // Handle deletion
+          this.sharedCache.delete(message.key)
+        } else {
+          // Handle set - use expireAt directly (absolute timestamp)
+          const entry: CacheEntry = {
+            value: message.value,
+            expireAt: message.expireAt
+          }
+          this.sharedCache.set(message.key, entry)
+        }
+      }
+
+      // Broadcast to other windows
       this.broadcastSync(message, senderWindowId)
       logger.verbose(`Broadcasted cache sync: ${message.type}:${message.key}`)
+    })
+
+    // Handle getAllShared request for renderer initialization
+    ipcMain.handle(IpcChannel.Cache_GetAllShared, () => {
+      return this.getAllShared()
     })
 
     logger.debug('Cache sync IPC handlers registered')
@@ -197,11 +336,13 @@ export class CacheService {
       this.gcInterval = null
     }
 
-    // Clear cache
+    // Clear caches
     this.cache.clear()
+    this.sharedCache.clear()
 
     // Remove IPC handlers
     ipcMain.removeAllListeners(IpcChannel.Cache_Sync)
+    ipcMain.removeHandler(IpcChannel.Cache_GetAllShared)
 
     logger.debug('CacheService cleanup completed')
   }

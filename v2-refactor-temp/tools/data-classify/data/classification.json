@@ -2376,7 +2376,7 @@
             },
             {
               "category": "preferences",
-              "defaultValue": "localhost",
+              "defaultValue": "127.0.0.1",
               "originalKey": "host",
               "status": "classified",
               "targetKey": "feature.csaas.host",
