@@ -5,10 +5,11 @@ import { checkApi } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
 import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
+import type { AiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { safeToString, serializeError } from '@renderer/utils/error'
 import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
@@ -218,17 +219,36 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
           latency,
           error: undefined
         })
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 连通性检查失败
+        let serializedError: SerializedError
+        if (error && typeof error === 'object' && 'name' in error) {
+          try {
+            serializedError = serializeError(error as AiSdkErrorUnion)
+          } catch {
+            serializedError = {
+              name: null,
+              message: safeToString(error),
+              stack: null
+            }
+          }
+        } else {
+          serializedError = {
+            name: null,
+            message: safeToString(error),
+            stack: null
+          }
+        }
+
         updateConnectivityState(keyToCheck, {
           checking: false,
           status: HealthStatus.FAILED,
-          error: formatErrorMessage(error),
+          error: serializedError,
           model: undefined,
           latency: undefined
         })
 
-        logger.error('failed to validate the connectivity of the api key', error)
+        logger.error('failed to validate the connectivity of the api key', error as Error)
       }
     },
     [keys, connectivityStates, updateConnectivityState, provider]

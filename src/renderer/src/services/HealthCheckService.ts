@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import type { Model, Provider } from '@renderer/types'
+import type { SerializedError } from '@renderer/types/error'
 import type { ApiKeyWithStatus, ModelCheckOptions, ModelWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { safeToString, serializeError } from '@renderer/utils/error'
 import { aggregateApiKeyResults } from '@renderer/utils/healthCheck'
 
 import { checkModel } from './ApiService'
@@ -37,10 +38,31 @@ export async function checkModelWithMultipleKeys(
     if (result.status === 'fulfilled') {
       return result.value
     } else {
+      // Serialize the error for detailed display
+      const reason = result.reason
+      let serializedError: SerializedError
+      if (reason && typeof reason === 'object' && 'name' in reason) {
+        try {
+          serializedError = serializeError(reason)
+        } catch {
+          serializedError = {
+            name: null,
+            message: safeToString(reason),
+            stack: null
+          }
+        }
+      } else {
+        serializedError = {
+          name: null,
+          message: safeToString(reason),
+          stack: null
+        }
+      }
+
       return {
         key: apiKeys[index], // 对应失败的 promise 的 key
         status: HealthStatus.FAILED,
-        error: formatErrorMessage(result.reason)
+        error: serializedError
       }
     }
   })

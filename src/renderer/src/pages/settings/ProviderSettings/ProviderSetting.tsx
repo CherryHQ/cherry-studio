@@ -10,6 +10,7 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ErrorDetailModal } from '@renderer/pages/home/Messages/Blocks/ErrorBlock'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
@@ -21,7 +22,7 @@ import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@render
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, validateApiHost } from '@renderer/utils'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { safeToString, serializeError } from '@renderer/utils/error'
 import {
   isAIGatewayProvider,
   isAnthropicProvider,
@@ -43,6 +44,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import type { AiSdkErrorUnion, SerializedError } from '../../../types/error'
 import {
   SettingContainer,
   SettingHelpLink,
@@ -129,6 +131,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     status: HealthStatus.NOT_CHECKED,
     checking: false
   })
+  const [showErrorModal, setShowErrorModal] = useState(false)
 
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
@@ -263,13 +266,33 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         },
         3000
       )
-    } catch (error: any) {
+    } catch (error: unknown) {
       window.toast.error({
         timeout: 8000,
         title: i18n.t('message.api.connection.failed')
       })
 
-      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: formatErrorMessage(error) }))
+      // Serialize error object for detailed display
+      let serializedError: SerializedError
+      if (error && typeof error === 'object' && 'name' in error) {
+        try {
+          serializedError = serializeError(error as AiSdkErrorUnion)
+        } catch {
+          serializedError = {
+            name: null,
+            message: safeToString(error),
+            stack: null
+          }
+        }
+      } else {
+        serializedError = {
+          name: null,
+          message: safeToString(error),
+          stack: null
+        }
+      }
+
+      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: serializedError }))
     } finally {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: false }))
     }
@@ -329,9 +352,21 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     return (
-      <Tooltip title={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}>
-        <TriangleAlert size={16} color="var(--color-status-warning)" />
-      </Tooltip>
+      <>
+        <Tooltip title={apiKeyConnectivity.error?.message || t('settings.provider.api.check.failed')}>
+          <TriangleAlert
+            size={16}
+            color="var(--color-status-warning)"
+            style={{ cursor: 'pointer' }}
+            onClick={() => setShowErrorModal(true)}
+          />
+        </Tooltip>
+        <ErrorDetailModal
+          open={showErrorModal}
+          onClose={() => setShowErrorModal(false)}
+          error={apiKeyConnectivity.error}
+        />
+      </>
     )
   }
 
@@ -617,14 +652,6 @@ const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
   margin-right: -2px;
-`
-
-const ErrorOverlay = styled.div`
-  max-height: 200px;
-  overflow-y: auto;
-  max-width: 300px;
-  word-wrap: break-word;
-  user-select: text;
 `
 
 export default ProviderSetting

@@ -1,21 +1,17 @@
 import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
+import { HealthStatus } from '@renderer/types/healthCheck'
 import { Flex, Tooltip, Typography } from 'antd'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
-import type { HealthResult } from './types'
+import type { HealthStatusIndicatorProps } from './types'
 import { useHealthStatus } from './useHealthStatus'
-
-export interface HealthStatusIndicatorProps {
-  results: HealthResult[]
-  loading?: boolean
-  showLatency?: boolean
-}
 
 const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
   results,
   loading = false,
-  showLatency = false
+  showLatency = false,
+  onErrorClick
 }) => {
   const { overallStatus, tooltip, latencyText } = useHealthStatus({
     results,
@@ -38,7 +34,19 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
       icon = <CheckCircleFilled />
       break
     case 'error':
-      icon = <CloseCircleFilled />
+      icon = onErrorClick ? (
+        <CloseCircleFilled
+          onClick={() => {
+            const failedResult = results.find((r) => r.status === HealthStatus.FAILED)
+            if (failedResult?.error) {
+              onErrorClick(failedResult.error)
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        />
+      ) : (
+        <CloseCircleFilled />
+      )
       break
     case 'partial':
       icon = <ExclamationCircleFilled />
@@ -59,7 +67,7 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
 
 const IndicatorWrapper = styled.div<{ $type: string }>`
   display: flex;
-  align-items: center;
+  align-items: left;
   justify-content: center;
   font-size: 14px;
   color: ${(props) => {
