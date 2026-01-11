@@ -544,6 +544,20 @@
         "description": "Servere MCP activate implicit",
         "enableFirst": "Activează mai întâi acest server în setările MCP",
         "label": "Servere MCP",
+        "mode": {
+          "auto": {
+            "description": "AI descoperă și folosește instrumente automat",
+            "label": "Auto"
+          },
+          "disabled": {
+            "description": "Niciun instrument MCP",
+            "label": "Dezactivat"
+          },
+          "manual": {
+            "description": "Selectați servere MCP specifice",
+            "label": "Manual"
+          }
+        },
         "noServersAvailable": "Nu există servere MCP disponibile. Adaugă servere în setări",
         "title": "Setări MCP"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "Eroare format fișier backup"
     },
+    "base64DataTruncated": "Datele imagine Base64 sunt trunchiate, dimensiunea",
     "boundary": {
       "default": {
         "devtools": "Deschide panoul de depanare",
@@ -1377,6 +1392,8 @@
     "text": "Text",
     "toolInput": "Intrare instrument",
     "toolName": "Nume instrument",
+    "truncated": "Date trunchiate, dimensiunea originală",
+    "truncatedBadge": "Trunchiat",
     "unknown": "Eroare necunoscută",
     "usage": "Utilizare",
     "user_message_not_found": "Nu se poate găsi mesajul original al utilizatorului pentru a retrimite",
@@ -3098,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Vedere",
+        "title": "Carieră"
+      },
       "checkUpdate": {
         "available": "Actualizare",
         "label": "Verifică actualizări"
@@ -4458,6 +4479,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "Cache Ultimelor N Mesaje",
+            "cache_last_n_help": "Stochează ultimele N mesaje din conversație (excluzând mesajele de sistem)",
+            "cache_system": "Mesaj de sistem Cache",
+            "cache_system_help": "Dacă să se memoreze în cache promptul de sistem",
+            "token_threshold": "Prag de Token Cache",
+            "token_threshold_help": "Mesajele care depășesc acest număr de tokeni vor fi memorate în cache. Setați la 0 pentru a dezactiva memorarea în cache."
+          },
           "array_content": {
             "help": "Furnizorul acceptă ca câmpul content al mesajului să fie de tip array?",
             "label": "Acceptă conținut mesaj în format array"

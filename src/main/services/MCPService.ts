@@ -3,9 +3,9 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
-import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
@@ -35,6 +35,7 @@ import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { MCPProgressEvent } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { buildFunctionCallToolName } from '@shared/mcp'
 import { defaultAppHeaders } from '@shared/utils'
 import {
   BuiltinMCPServerNames,
@@ -163,6 +164,67 @@ class McpService {
     this.checkMcpConnectivity = this.checkMcpConnectivity.bind(this)
     this.getServerVersion = this.getServerVersion.bind(this)
     this.getServerLogs = this.getServerLogs.bind(this)
+  }
+
+  /**
+   * List all tools from all active MCP servers (excluding hub).
+   * Used by Hub server's tool registry.
+   */
+  public async listAllActiveServerTools(): Promise<MCPTool[]> {
+    const servers = await getMCPServersFromRedux()
+    const activeServers = servers.filter((server) => server.isActive)
+
+    const results = await Promise.allSettled(
+      activeServers.map(async (server) => {
+        const tools = await this.listToolsImpl(server)
+        const disabledTools = new Set(server.disabledTools ?? [])
+        return disabledTools.size > 0 ? tools.filter((tool) => !disabledTools.has(tool.name)) : tools
+      })
+    )
+
+    const allTools: MCPTool[] = []
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        allTools.push(...result.value)
+      } else {
+        logger.error(
+          `[listAllActiveServerTools] Failed to list tools from ${activeServers[index].name}:`,
+          result.reason as Error
+        )
+      }
+    })
+
+    return allTools
+  }
+
+  /**
+   * Call a tool by its full ID (serverId__toolName format).
+   * Used by Hub server's runtime.
+   */
+  public async callToolById(toolId: string, params: unknown, callId?: string): Promise<MCPCallToolResponse> {
+    const parts = toolId.split('__')
+    if (parts.length < 2) {
+      throw new Error(`Invalid tool ID format: ${toolId}`)
+    }
+
+    const serverId = parts[0]
+    const toolName = parts.slice(1).join('__')
+
+    const servers = await getMCPServersFromRedux()
+    const server = servers.find((s) => s.id === serverId)
+
+    if (!server) {
+      throw new Error(`Server not found: ${serverId}`)
+    }
+
+    logger.debug(`[callToolById] Calling tool ${toolName} on server ${server.name}`)
+
+    return this.callTool(null as unknown as Electron.IpcMainInvokeEvent, {
+      server,
+      name: toolName,
+      args: params,
+      callId
+    })
   }
 
   private getServerKey(server: MCPServer): string {

@@ -48,9 +48,8 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install corepack
-        shell: bash
-        run: corepack enable && corepack prepare yarn@4.9.1 --activate
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Clean node_modules
         if: ${{ github.event.inputs.clean == 'true' }}
@@ -59,11 +58,11 @@ jobs:
 
       - name: Install Dependencies
         shell: bash
-        run: yarn install
+        run: pnpm install
 
       - name: Build Windows with code signing
         shell: bash
-        run: yarn build:win
+        run: pnpm build:win
         env:
           WIN_SIGN: true
           CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
@@ -80,7 +79,7 @@ jobs:
         shell: bash
         run: |
           echo "Built Windows artifacts:"
-          ls -la dist/*.exe dist/*.blockmap dist/latest*.yml
+          ls -la dist/*.exe dist/latest*.yml
 
       - name: Download GitHub release assets
         shell: bash
@@ -113,12 +112,10 @@ jobs:
           fi
 
           # Remove unsigned Windows files from downloaded assets
-          # *.exe, *.exe.blockmap, latest.yml (Windows only)
-          rm -f release-assets/*.exe release-assets/*.exe.blockmap release-assets/latest.yml 2>/dev/null || true
+          rm -f release-assets/*.exe release-assets/latest.yml 2>/dev/null || true
 
           # Copy signed Windows files with error checking
           cp dist/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
-          cp dist/*.exe.blockmap release-assets/ || { echo "ERROR: Failed to copy .blockmap files"; exit 1; }
           cp dist/latest.yml release-assets/ || { echo "ERROR: Failed to copy latest.yml"; exit 1; }
 
           echo "Final release assets:"
@@ -303,3 +300,31 @@ jobs:
         run: |
           rm -f /tmp/release_payload.json /tmp/upload_headers.txt release_body.txt
           rm -rf release-assets/
+
+      - name: Send failure notification to Feishu
+        if: always() && (failure() || cancelled())
+        shell: bash
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          TAG_NAME: ${{ steps.get-tag.outputs.tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          # Determine status and color
+          if [ "$JOB_STATUS" = "cancelled" ]; then
+            STATUS_TEXT="已取消"
+            COLOR="orange"
+          else
+            STATUS_TEXT="失败"
+            COLOR="red"
+          fi
+
+          # Build description using printf
+          DESCRIPTION=$(printf "**标签:** %s\n\n**状态:** %s\n\n**工作流:** [查看详情](%s)" "$TAG_NAME" "$STATUS_TEXT" "$RUN_URL")
+
+          # Send notification
+          pnpm tsx scripts/feishu-notify.ts send \
+            -t "GitCode 同步${STATUS_TEXT}" \
+            -d "$DESCRIPTION" \
+            -c "${COLOR}"

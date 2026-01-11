@@ -16,7 +16,7 @@ import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isPromptToolUse } from '@renderer/utils/mcp-tools'
@@ -108,8 +108,7 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
       isGeminiModel(model) &&
       isToolUseModeFunction(assistant) &&
       update.enableWebSearch &&
-      assistant.mcpServers &&
-      assistant.mcpServers.length > 0
+      getEffectiveMcpMode(assistant) !== 'disabled'
     ) {
       update.enableWebSearch = false
       window.toast.warning(t('chat.mcp.warning.gemini_web_search'))

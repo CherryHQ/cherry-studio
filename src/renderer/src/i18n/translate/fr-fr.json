@@ -544,6 +544,20 @@
         "description": "Serveur MCP activé par défaut",
         "enableFirst": "Veuillez d'abord activer ce serveur dans les paramètres MCP",
         "label": "Serveur MCP",
+        "mode": {
+          "auto": {
+            "description": "L'IA découvre et utilise des outils automatiquement",
+            "label": "Auto"
+          },
+          "disabled": {
+            "description": "Aucun outil MCP",
+            "label": "Désactivé"
+          },
+          "manual": {
+            "description": "Sélectionner des serveurs MCP spécifiques",
+            "label": "Manuel"
+          }
+        },
         "noServersAvailable": "Aucun serveur MCP disponible. Veuillez ajouter un serveur dans les paramètres",
         "title": "Paramètres MCP"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "Le format du fichier de sauvegarde est incorrect"
     },
+    "base64DataTruncated": "Données d'image Base64 tronquées, taille",
     "boundary": {
       "default": {
         "devtools": "Ouvrir le panneau de débogage",
@@ -1377,6 +1392,8 @@
     "text": "texte",
     "toolInput": "entrée de l'outil",
     "toolName": "Nom de l'outil",
+    "truncated": "Données tronquées, taille d'origine",
+    "truncatedBadge": "Tronqué",
     "unknown": "Неизвестная ошибка",
     "usage": "Quantité",
     "user_message_not_found": "Impossible de trouver le message d'utilisateur original",
@@ -3098,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Vue",
+        "title": "Carrières"
+      },
       "checkUpdate": {
         "available": "Mettre à jour maintenant",
         "label": "Vérifier les mises à jour"
@@ -4458,6 +4479,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "Mettre en cache les N derniers messages",
+            "cache_last_n_help": "Mettre en cache les N derniers messages de conversation (à l’exclusion des messages système)",
+            "cache_system": "Message du système de cache",
+            "cache_system_help": "S'il faut mettre en cache l'invite système",
+            "token_threshold": "Seuil de jeton de cache",
+            "token_threshold_help": "Les messages dépassant ce nombre de jetons seront mis en cache. Mettre à 0 pour désactiver la mise en cache."
+          },
           "array_content": {
             "help": "Ce fournisseur prend-il en charge le champ content du message sous forme de tableau ?",
             "label": "Prise en charge du format de tableau pour le contenu du message"
