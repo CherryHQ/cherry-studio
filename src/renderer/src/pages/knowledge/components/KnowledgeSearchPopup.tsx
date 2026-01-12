@@ -1,8 +1,11 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
+import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
+import { useKnowledgeBase } from '@renderer/data/hooks/useKnowledges'
 import { useKnowledgeSearch } from '@renderer/hooks/useKnowledge.v2'
-import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
+import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
+import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import type { InputRef } from 'antd'
 import { Divider, Input, List, Modal, Spin } from 'antd'
 import { Search } from 'lucide-react'
@@ -10,10 +13,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { mapKnowledgeBaseV2ToV1 } from '../utils/knowledgeBaseAdapter'
 import SearchItemRenderer from './KnowledgeSearchItem'
 
 interface ShowParams {
-  base: KnowledgeBase
+  baseId: string
 }
 
 interface Props extends ShowParams {
@@ -22,15 +26,18 @@ interface Props extends ShowParams {
 
 const logger = loggerService.withContext('KnowledgeSearchPopup')
 
-const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ baseId, resolve }) => {
   const [open, setOpen] = useState(true)
   const [results, setResults] = useState<Array<KnowledgeSearchResult & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
   const searchInputRef = useRef<InputRef>(null)
+  const { preprocessProviders } = usePreprocessProviders()
 
   // v2 Data API hook for searching
-  const { search, isSearching } = useKnowledgeSearch(base.id)
+  const { search, isSearching } = useKnowledgeSearch(baseId)
+  const { base: baseV2 } = useKnowledgeBase(baseId, { enabled: !!baseId })
+  const base = baseV2 ? mapKnowledgeBaseV2ToV1(baseV2, preprocessProviders) : undefined
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) {
@@ -41,16 +48,17 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
 
     setSearchKeyword(value.trim())
     try {
+      const limit = base?.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
       const searchResults = await search({
         search: value.trim(),
-        limit: base.documentCount,
-        rerank: !!base.rerankModel
+        limit,
+        rerank: !!base?.rerankModel
       })
       logger.debug(`KnowledgeSearchPopup Search Results: ${searchResults}`)
       // Map results to include file: null for compatibility
       setResults(searchResults.map((r) => ({ ...r, file: null })))
     } catch (error) {
-      logger.error(`Failed to search knowledge base ${base.name}:`, error as Error)
+      logger.error(`Failed to search knowledge base ${base?.name ?? baseId}:`, error as Error)
       setResults([])
     }
   }

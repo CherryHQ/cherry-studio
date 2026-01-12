@@ -8,7 +8,6 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
-import type { KnowledgeBase as KnowledgeBaseV1 } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { MenuProps } from 'antd'
 import { Dropdown, Empty } from 'antd'
@@ -27,31 +26,33 @@ const KnowledgePage: FC = () => {
   const { bases, renameKnowledgeBase, deleteKnowledgeBase } = useKnowledgeBases()
   const { assistants, updateAssistants } = useAssistants()
   const { presets, setAssistantPresets } = useAssistantPresets()
-  // Note: During migration, child components still expect v1 KnowledgeBase type
-  // The v2 bases have a different structure but contain compatible core fields (id, name)
-  // Child components will be migrated separately
-  const [selectedBase, setSelectedBase] = useState<KnowledgeBase | undefined>(bases[0])
+  const [selectedBaseId, setSelectedBaseId] = useState<string | undefined>(bases[0]?.id)
 
   const handleAddKnowledge = useCallback(async () => {
-    const newBase = await AddKnowledgeBasePopup.show({ title: t('knowledge.add.title') })
-    if (newBase) {
-      // AddKnowledgeBasePopup returns v1 type but we use v2 - cast for compatibility
-      setSelectedBase(newBase as unknown as KnowledgeBase)
+    const newBaseId = await AddKnowledgeBasePopup.show({ title: t('knowledge.add.title') })
+    if (newBaseId) {
+      setSelectedBaseId(newBaseId)
     }
   }, [t])
 
-  const handleEditKnowledgeBase = useCallback(async (base: KnowledgeBase) => {
-    // EditKnowledgeBasePopup expects v1 type
-    const newBase = await EditKnowledgeBasePopup.show({ base: base as unknown as KnowledgeBaseV1 })
-    if (newBase && newBase?.id !== base.id) {
-      setSelectedBase(newBase as unknown as KnowledgeBase)
+  const handleEditKnowledgeBase = useCallback(async (baseId: string) => {
+    const nextBaseId = await EditKnowledgeBasePopup.show({ baseId })
+    if (nextBaseId) {
+      setSelectedBaseId(nextBaseId)
     }
   }, [])
 
   useEffect(() => {
-    const hasSelectedBase = bases.find((base) => base.id === selectedBase?.id)
-    !hasSelectedBase && setSelectedBase(bases[0])
-  }, [bases, selectedBase])
+    if (bases.length === 0) {
+      setSelectedBaseId(undefined)
+      return
+    }
+
+    const hasSelectedBase = bases.some((base) => base.id === selectedBaseId)
+    if (!hasSelectedBase) {
+      setSelectedBaseId(bases[0]?.id)
+    }
+  }, [bases, selectedBaseId])
 
   const getMenuItems = useCallback(
     (base: KnowledgeBase) => {
@@ -75,7 +76,7 @@ const KnowledgePage: FC = () => {
           label: t('common.settings'),
           key: 'settings',
           icon: <Settings size={14} />,
-          onClick: () => handleEditKnowledgeBase(base)
+          onClick: () => handleEditKnowledgeBase(base.id)
         },
         { type: 'divider' },
         {
@@ -88,7 +89,7 @@ const KnowledgePage: FC = () => {
               title: t('knowledge.delete_confirm'),
               centered: true,
               onOk: async () => {
-                setSelectedBase(undefined)
+                setSelectedBaseId(undefined)
                 await deleteKnowledgeBase(base.id)
 
                 // Clean up assistant references
@@ -125,9 +126,8 @@ const KnowledgePage: FC = () => {
   )
 
   useShortcut('search_message', () => {
-    if (selectedBase) {
-      // KnowledgeSearchPopup expects v1 type
-      KnowledgeSearchPopup.show({ base: selectedBase as unknown as KnowledgeBaseV1 }).then()
+    if (selectedBaseId) {
+      KnowledgeSearchPopup.show({ baseId: selectedBaseId }).then()
     }
   })
 
@@ -142,10 +142,10 @@ const KnowledgePage: FC = () => {
             <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
               <div>
                 <ListItem
-                  active={selectedBase?.id === base.id}
+                  active={selectedBaseId === base.id}
                   icon={<Book size={16} />}
                   title={base.name}
-                  onClick={() => setSelectedBase(base)}
+                  onClick={() => setSelectedBaseId(base.id)}
                 />
               </div>
             </Dropdown>
@@ -162,9 +162,8 @@ const KnowledgePage: FC = () => {
           <MainContent>
             <Empty description={t('knowledge.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </MainContent>
-        ) : selectedBase ? (
-          // KnowledgeContent expects v1 type - will be migrated separately
-          <KnowledgeContent selectedBase={selectedBase as unknown as KnowledgeBaseV1} />
+        ) : selectedBaseId ? (
+          <KnowledgeContent selectedBaseId={selectedBaseId} />
         ) : null}
       </ContentContainer>
     </Container>

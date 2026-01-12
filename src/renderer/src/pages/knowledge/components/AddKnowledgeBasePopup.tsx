@@ -3,7 +3,6 @@ import AiProviderNew from '@renderer/aiCore/index_new'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledges'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
-import type { KnowledgeBase } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +21,7 @@ interface ShowParams {
 }
 
 interface PopupContainerProps extends ShowParams {
-  resolve: (data: any) => void
+  resolve: (data: string | null) => void
 }
 
 const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
@@ -104,29 +103,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
         threshold: newBase.threshold
       })
 
-      // Convert to v1 format for UI compatibility (child components not yet migrated)
-      const newBaseV1: KnowledgeBase = {
-        id: newBaseV2.id,
-        name: newBaseV2.name,
-        description: newBaseV2.description,
-        model: newBase.model,
-        dimensions,
-        items: [],
-        created_at: Date.parse(newBaseV2.createdAt),
-        updated_at: Date.parse(newBaseV2.updatedAt),
-        version: 1,
-        chunkSize: newBaseV2.chunkSize,
-        chunkOverlap: newBaseV2.chunkOverlap,
-        threshold: newBaseV2.threshold,
-        rerankModel: newBase.rerankModel,
-        preprocessProvider: selectedDocPreprocessProvider
-          ? { type: 'preprocess', provider: selectedDocPreprocessProvider }
-          : undefined
-      }
-
-      // Cache is automatically refreshed via useKnowledgeBases hook
       setOpen(false)
-      resolve(newBaseV1)
+      resolve(newBaseV2.id)
     } catch (error) {
       logger.error('KnowledgeBase creation failed:', error as Error)
       window.toast.error(t('knowledge.error.failed_to_create') + getErrorMessage(error))
@@ -180,7 +158,7 @@ export default class AddKnowledgeBasePopup {
   }
 
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
+    return new Promise<string | null>((resolve) => {
       TopView.show(
         <PopupContainer
           {...props}

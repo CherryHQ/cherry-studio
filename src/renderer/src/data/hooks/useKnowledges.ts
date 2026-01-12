@@ -23,6 +23,9 @@ const PROCESSING_POLL_INTERVAL = 500
 /** API path type for knowledge base items */
 type KnowledgeBaseItemsPath = `/knowledge-bases/${string}/items`
 
+/** API path type for single knowledge base */
+type KnowledgeBasePath = `/knowledge-bases/${string}`
+
 /** API path type for single knowledge item */
 type KnowledgeItemPath = `/knowledges/${string}`
 
@@ -117,6 +120,46 @@ export function useKnowledgeItems(
     error,
     /** True if any items are still being processed */
     hasProcessingItems,
+    /** Manually trigger a refresh */
+    refetch,
+    /** SWR mutate for advanced cache control */
+    mutate
+  }
+}
+
+/**
+ * Hook for fetching a single knowledge base.
+ *
+ * @param baseId - The knowledge base ID to fetch
+ * @param options - Optional configuration
+ * @param options.enabled - Set to false to disable fetching (default: true)
+ * @returns Query result with base data and loading states
+ */
+export function useKnowledgeBase(
+  baseId: string,
+  options?: {
+    /** Set to false to disable fetching (default: true) */
+    enabled?: boolean
+  }
+) {
+  const enabled = options?.enabled !== false && !!baseId
+  const path: KnowledgeBasePath = `/knowledge-bases/${baseId}`
+
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
+    enabled
+  })
+
+  const base = data as KnowledgeBase | undefined
+
+  return {
+    /** Knowledge base data */
+    base,
+    /** True during initial load */
+    isLoading,
+    /** True during background revalidation */
+    isRefreshing,
+    /** Error if the request failed */
+    error,
     /** Manually trigger a refresh */
     refetch,
     /** SWR mutate for advanced cache control */

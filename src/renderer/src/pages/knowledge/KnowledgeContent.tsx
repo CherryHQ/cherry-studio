@@ -2,15 +2,14 @@ import { RedoOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { useKnowledgeFiles } from '@renderer/hooks/useKnowledge.v2'
+import { useKnowledgeBase, useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
+import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase } from '@renderer/types'
 import { Empty, Tabs, Tag } from 'antd'
 import { Book, Folder, Globe, Link, Notebook, RefreshCw, Search, Settings } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,16 +21,22 @@ import KnowledgeFiles from './items/KnowledgeFiles'
 import KnowledgeNotes from './items/KnowledgeNotes'
 import KnowledgeSitemaps from './items/KnowledgeSitemaps'
 import KnowledgeUrls from './items/KnowledgeUrls'
+import { mapKnowledgeBaseV2ToV1 } from './utils/knowledgeBaseAdapter'
 
 const logger = loggerService.withContext('KnowledgeContent')
 interface KnowledgeContentProps {
-  selectedBase: KnowledgeBase
+  selectedBaseId: string
 }
 
-const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
+const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
   const { t } = useTranslation()
-  const { base, urlItems, directoryItems, noteItems, sitemapItems } = useKnowledge(selectedBase.id || '')
-  const { fileItems: v2FileItems } = useKnowledgeFiles(selectedBase.id || '')
+  const { base: baseV2 } = useKnowledgeBase(selectedBaseId, { enabled: !!selectedBaseId })
+  const { items } = useKnowledgeItems(selectedBaseId, { enabled: !!selectedBaseId })
+  const { preprocessProviders } = usePreprocessProviders()
+  const base = useMemo(
+    () => (baseV2 ? mapKnowledgeBaseV2ToV1(baseV2, preprocessProviders) : undefined),
+    [baseV2, preprocessProviders]
+  )
   const [activeKey, setActiveKey] = useState('files')
   const [quota, setQuota] = useState<number | undefined>(undefined)
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
@@ -39,8 +44,14 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   const providerName = getProviderName(base?.model)
 
+  const fileItems = useMemo(() => items.filter((item) => item.type === 'file'), [items])
+  const noteItems = useMemo(() => items.filter((item) => item.type === 'note'), [items])
+  const directoryItems = useMemo(() => items.filter((item) => item.type === 'directory'), [items])
+  const urlItems = useMemo(() => items.filter((item) => item.type === 'url'), [items])
+  const sitemapItems = useMemo(() => items.filter((item) => item.type === 'sitemap'), [items])
+
   const handleMigrateV2 = useCallback(async () => {
-    if (!base) return
+    if (!base || base.version !== 1) return
     try {
       const result = await window.api.knowledgeBase.migrateV2(base)
       if (result.success) {
@@ -81,13 +92,17 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       handlers.forEach((cleanup) => cleanup())
     }
   }, [])
+  if (!base) {
+    return null
+  }
+
   const knowledgeItems = [
     {
       key: 'files',
       title: t('files.title'),
       icon: activeKey === 'files' ? <Book size={16} color="var(--color-primary)" /> : <Book size={16} />,
-      items: v2FileItems,
-      content: <KnowledgeFiles selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />,
+      items: fileItems,
+      content: <KnowledgeFiles selectedBase={base} progressMap={progressMap} preprocessMap={preprocessMap} />,
       show: true
     },
 
@@ -96,7 +111,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       title: t('knowledge.notes'),
       icon: activeKey === 'notes' ? <Notebook size={16} color="var(--color-primary)" /> : <Notebook size={16} />,
       items: noteItems,
-      content: <KnowledgeNotes selectedBase={selectedBase} />,
+      content: <KnowledgeNotes selectedBase={base} />,
       show: true
     },
     {
@@ -104,7 +119,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       title: t('knowledge.directories'),
       icon: activeKey === 'directories' ? <Folder size={16} color="var(--color-primary)" /> : <Folder size={16} />,
       items: directoryItems,
-      content: <KnowledgeDirectories selectedBase={selectedBase} progressMap={progressMap} />,
+      content: <KnowledgeDirectories selectedBase={base} progressMap={progressMap} />,
       show: true
     },
     {
@@ -112,7 +127,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       title: t('knowledge.urls'),
       icon: activeKey === 'urls' ? <Link size={16} color="var(--color-primary)" /> : <Link size={16} />,
       items: urlItems,
-      content: <KnowledgeUrls selectedBase={selectedBase} />,
+      content: <KnowledgeUrls selectedBase={base} />,
       show: true
     },
     {
@@ -120,14 +135,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       title: t('knowledge.sitemaps'),
       icon: activeKey === 'sitemaps' ? <Globe size={16} color="var(--color-primary)" /> : <Globe size={16} />,
       items: sitemapItems,
-      content: <KnowledgeSitemaps selectedBase={selectedBase} />,
+      content: <KnowledgeSitemaps selectedBase={base} />,
       show: true
     }
   ]
-
-  if (!base) {
-    return null
-  }
 
   const tabItems = knowledgeItems
     .filter((item) => item.show)
@@ -149,7 +160,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     <MainContainer>
       <HeaderContainer>
         <ModelInfo>
-          <Button variant="ghost" size="icon-sm" onClick={() => EditKnowledgeBasePopup.show({ base })}>
+          <Button variant="ghost" size="icon-sm" onClick={() => EditKnowledgeBasePopup.show({ baseId: base.id })}>
             <Settings size={18} color="var(--color-icon)" />
           </Button>
           <div className="model-row">
@@ -168,12 +179,14 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </div>
         </ModelInfo>
         <RowFlex className="items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleMigrateV2}>
-            <RefreshCw size={14} />
-            {t('knowledge.migrate_v2')}
-          </Button>
+          {base.version === 1 && (
+            <Button variant="outline" size="sm" onClick={handleMigrateV2}>
+              <RefreshCw size={14} />
+              {t('knowledge.migrate_v2')}
+            </Button>
+          )}
           {/* 使用selected base导致修改设置后没有响应式更新 */}
-          <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
+          <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ baseId: base.id })}>
             <Search size={18} />
           </NavbarIcon>
         </RowFlex>
