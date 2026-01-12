@@ -5,6 +5,7 @@ import { Flex, Tooltip, Typography } from 'antd'
 import React, { memo, useCallback } from 'react'
 import styled from 'styled-components'
 
+import type { HealthResult } from './types'
 import { useHealthStatus } from './useHealthStatus'
 
 interface HealthStatusIndicatorProps {
@@ -12,13 +13,6 @@ interface HealthStatusIndicatorProps {
   loading?: boolean
   showLatency?: boolean
   onErrorClick?: (error: SerializedError) => void
-}
-
-interface HealthResult {
-  status: HealthStatus
-  latency?: number
-  error?: SerializedError
-  label?: string
 }
 
 const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
