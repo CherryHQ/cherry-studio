@@ -1,5 +1,6 @@
 import { dbService } from '@data/db/DbService'
 import { loggerService } from '@logger'
+import { isDev } from '@main/constant'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
   PreferenceDefaultScopeType,
@@ -13,6 +14,50 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { preferenceTable } from './db/schemas/preference'
 
 const logger = loggerService.withContext('PreferenceService')
+
+/**
+ * Preference statistics summary
+ */
+interface PreferenceStatsSummary {
+  /** Timestamp when statistics were collected */
+  collectedAt: number
+  /** Total number of preference keys */
+  totalKeys: number
+  /** Number of keys with main process subscriptions */
+  mainProcessSubscribedKeys: number
+  /** Total main process subscription count */
+  mainProcessTotalSubscriptions: number
+  /** Number of keys with window subscriptions */
+  windowSubscribedKeys: number
+  /** Total window subscription count (one window subscribing to one key counts as one) */
+  windowTotalSubscriptions: number
+  /** Number of active windows with subscriptions */
+  activeWindowCount: number
+}
+
+/**
+ * Statistics for a single preference key
+ */
+interface PreferenceKeyStats {
+  /** Preference key */
+  key: string
+  /** Main process subscription count */
+  mainProcessSubscriptions: number
+  /** Window subscription count */
+  windowSubscriptions: number
+  /** List of window IDs subscribed to this key */
+  subscribedWindowIds: number[]
+}
+
+/**
+ * Complete statistics result
+ */
+interface PreferenceStats {
+  /** Summary statistics */
+  summary: PreferenceStatsSummary
+  /** Detailed per-key statistics (only when details=true) */
+  details?: PreferenceKeyStats[]
+}
 
 /**
  * Custom observer pattern implementation for preference change notifications
@@ -484,6 +529,113 @@ export class PreferenceService {
    */
   public getSubscriptionStats(): Record<string, number> {
     return this.notifier.getSubscriptionStats()
+  }
+
+  /**
+   * Get preference statistics
+   * @param details Whether to include per-key detailed statistics
+   * @returns Statistics object with summary and optional details
+   */
+  public getStats(details: boolean = false): PreferenceStats {
+    if (!isDev) {
+      logger.warn('getStats() is resource-intensive and should be used in development environment only')
+    }
+
+    const summary = this.collectStatsSummary()
+
+    if (!details) {
+      return { summary }
+    }
+
+    return {
+      summary,
+      details: this.collectStatsDetails()
+    }
+  }
+
+  /**
+   * Collect statistics summary
+   */
+  private collectStatsSummary(): PreferenceStatsSummary {
+    const mainProcessStats = this.notifier.getSubscriptionStats()
+    const mainProcessSubscribedKeys = Object.keys(mainProcessStats).length
+    const mainProcessTotalSubscriptions = this.notifier.getTotalSubscriptionCount()
+
+    const { windowSubscribedKeys, windowTotalSubscriptions, activeWindowCount } = this.collectWindowSubscriptionStats()
+
+    return {
+      collectedAt: Date.now(),
+      totalKeys: Object.keys(this.cache).length,
+      mainProcessSubscribedKeys,
+      mainProcessTotalSubscriptions,
+      windowSubscribedKeys,
+      windowTotalSubscriptions,
+      activeWindowCount
+    }
+  }
+
+  /**
+   * Collect window subscription statistics
+   */
+  private collectWindowSubscriptionStats(): {
+    windowSubscribedKeys: number
+    windowTotalSubscriptions: number
+    activeWindowCount: number
+  } {
+    const keyToWindows = new Map<string, Set<number>>()
+    let totalSubscriptions = 0
+
+    for (const [windowId, keys] of this.subscriptions.entries()) {
+      for (const key of keys) {
+        if (!keyToWindows.has(key)) {
+          keyToWindows.set(key, new Set())
+        }
+        keyToWindows.get(key)!.add(windowId)
+        totalSubscriptions++
+      }
+    }
+
+    return {
+      windowSubscribedKeys: keyToWindows.size,
+      windowTotalSubscriptions: totalSubscriptions,
+      activeWindowCount: this.subscriptions.size
+    }
+  }
+
+  /**
+   * Collect per-key detailed statistics
+   */
+  private collectStatsDetails(): PreferenceKeyStats[] {
+    const mainProcessStats = this.notifier.getSubscriptionStats()
+
+    const keyToWindowIds = new Map<string, number[]>()
+    for (const [windowId, keys] of this.subscriptions.entries()) {
+      for (const key of keys) {
+        if (!keyToWindowIds.has(key)) {
+          keyToWindowIds.set(key, [])
+        }
+        keyToWindowIds.get(key)!.push(windowId)
+      }
+    }
+
+    const allSubscribedKeys = new Set<string>([...Object.keys(mainProcessStats), ...keyToWindowIds.keys()])
+
+    const details: PreferenceKeyStats[] = []
+    for (const key of allSubscribedKeys) {
+      details.push({
+        key,
+        mainProcessSubscriptions: mainProcessStats[key] || 0,
+        windowSubscriptions: keyToWindowIds.get(key)?.length || 0,
+        subscribedWindowIds: keyToWindowIds.get(key) || []
+      })
+    }
+
+    details.sort(
+      (a, b) =>
+        b.mainProcessSubscriptions + b.windowSubscriptions - (a.mainProcessSubscriptions + a.windowSubscriptions)
+    )
+
+    return details
   }
 
   /**
