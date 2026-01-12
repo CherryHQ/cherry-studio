@@ -40,9 +40,11 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
 
   const hasFailedResult = useMemo(() => healthResults.some((r) => r.status === HealthStatus.FAILED), [healthResults])
 
-  const handleErrorClick = useCallback((error: SerializedError) => {
-    setSelectedError(error)
-    setShowErrorModal(true)
+  const handleErrorClick = useCallback((result: HealthResult) => {
+    if (result.error) {
+      setSelectedError(result.error)
+      setShowErrorModal(true)
+    }
   }, [])
 
   const handleCloseErrorModal = useCallback(() => {

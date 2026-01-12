@@ -1,5 +1,4 @@
 import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
-import type { SerializedError } from '@renderer/types/error'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { Flex, Tooltip, Typography } from 'antd'
 import React, { memo, useCallback } from 'react'
@@ -12,7 +11,7 @@ interface HealthStatusIndicatorProps {
   results: HealthResult[]
   loading?: boolean
   showLatency?: boolean
-  onErrorClick?: (error: SerializedError) => void
+  onErrorClick?: (result: HealthResult) => void
 }
 
 const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
@@ -26,11 +25,11 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
     showLatency
   })
 
-  const handleErrorClick = useCallback(() => {
+  const handleClick = useCallback(() => {
     if (!onErrorClick) return
     const failedResult = results.find((r) => r.status === HealthStatus.FAILED)
-    if (failedResult?.error) {
-      onErrorClick(failedResult.error)
+    if (failedResult) {
+      onErrorClick(failedResult)
     }
   }, [onErrorClick, results])
 
@@ -44,6 +43,8 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
 
   if (overallStatus === 'not_checked') return null
 
+  const isClickable = onErrorClick && results.some((r) => r.status === HealthStatus.FAILED)
+
   let icon: React.ReactNode = null
   switch (overallStatus) {
     case 'success':
@@ -51,13 +52,8 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
       break
     case 'error':
     case 'partial': {
-      const isClickable = onErrorClick && results.some((r) => r.status === HealthStatus.FAILED)
       const IconComponent = overallStatus === 'error' ? CloseCircleFilled : ExclamationCircleFilled
-      icon = (
-        <span onClick={isClickable ? handleErrorClick : undefined} style={{ cursor: isClickable ? 'pointer' : 'auto' }}>
-          <IconComponent />
-        </span>
-      )
+      icon = <IconComponent />
       break
     }
     default:
@@ -68,19 +64,25 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
     <Flex align="center" gap={6}>
       {latencyText && <LatencyText type="secondary">{latencyText}</LatencyText>}
       <Tooltip title={tooltip} styles={{ body: { userSelect: 'text' } }}>
-        <IndicatorWrapper $type={overallStatus}>{icon}</IndicatorWrapper>
+        <IndicatorWrapper
+          $type={overallStatus}
+          $clickable={isClickable}
+          onClick={isClickable ? handleClick : undefined}>
+          {icon}
+        </IndicatorWrapper>
       </Tooltip>
     </Flex>
   )
 }
 
-const IndicatorWrapper = styled.div<{ $type: string }>`
+const IndicatorWrapper = styled.div<{ $type: string; $clickable?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  color: ${(props) => {
-    switch (props.$type) {
+  cursor: ${({ $clickable }) => ($clickable ? 'pointer' : 'auto')};
+  color: ${({ $type }) => {
+    switch ($type) {
       case 'success':
         return 'var(--color-status-success)'
       case 'error':
