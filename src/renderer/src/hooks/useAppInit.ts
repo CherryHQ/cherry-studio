@@ -6,8 +6,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
-import { useAppDispatch } from '@renderer/store'
-import { useAppSelector } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
@@ -16,6 +15,7 @@ import {
   type ToolPermissionResultPayload,
   toolPermissionsActions
 } from '@renderer/store/toolPermissions'
+import type { KnowledgeItem } from '@renderer/types'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
@@ -29,6 +29,18 @@ import useFullScreenNotice from './useFullScreenNotice'
 import { useRuntime } from './useRuntime'
 import { useNavbarPosition, useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
+
+// Extend Window interface for browser extension API
+declare global {
+  interface Window {
+    __getKnowledgeBasesForAPI?: () => Array<{
+      id: string
+      name: string
+      description?: string
+      items: any[]
+    }>
+  }
+}
 
 const logger = loggerService.withContext('useAppInit')
 
@@ -158,6 +170,54 @@ export function useAppInit() {
     KnowledgeQueue.checkAllBases()
   }, [])
 
+  // Browser extension: Listen for ingest requests from API Server
+  useEffect(() => {
+    if (!window.electron?.ipcRenderer) return
+
+    const ingestListener = async (
+      _event: Electron.IpcRendererEvent,
+      payload: { requestId: string; baseId: string; item: Partial<KnowledgeItem> }
+    ) => {
+      try {
+        logger.info('Received ingest request from browser extension', payload)
+
+        // Add item to Redux store
+        const { addItem } = await import('@renderer/store/knowledge')
+        dispatch(addItem({ baseId: payload.baseId, item: payload.item as KnowledgeItem }))
+
+        // For note type, store full content in Dexie
+        if (payload.item.type === 'note' && payload.item.content && typeof payload.item.content === 'string') {
+          await db.knowledge_notes.put({
+            id: payload.item.id!,
+            type: 'note',
+            content: payload.item.content,
+            created_at: payload.item.created_at || Date.now(),
+            updated_at: payload.item.updated_at || Date.now()
+          })
+        }
+
+        // Trigger knowledge queue processing
+        await KnowledgeQueue.checkAllBases()
+
+        logger.info('Ingest request processed successfully', { requestId: payload.requestId })
+      } catch (error) {
+        logger.error('Failed to process ingest request:', error as Error)
+      }
+    }
+
+    const queueCheckListener = () => {
+      logger.info('Received queue check request from browser extension')
+      KnowledgeQueue.checkAllBases()
+    }
+
+    const removeListeners = [
+      window.electron.ipcRenderer.on(IpcChannel.KnowledgeBase_IngestRequest, ingestListener),
+      window.electron.ipcRenderer.on(IpcChannel.KnowledgeBase_TriggerQueueCheck, queueCheckListener)
+    ]
+
+    return () => removeListeners.forEach((removeListener) => removeListener())
+  }, [dispatch])
+
   useEffect(() => {
     let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
     if (customCssElement) {
@@ -273,5 +333,21 @@ export function useAppInit() {
 
   useEffect(() => {
     checkDataLimit()
+  }, [])
+
+  // Expose function for browser extension API
+  useEffect(() => {
+    // Make knowledge bases accessible to main process for API server
+    window.__getKnowledgeBasesForAPI = () => {
+      const state = window.store.getState()
+      return state.knowledge.bases.map((base) => ({
+        id: base.id,
+        name: base.name,
+        description: base.description,
+        items: base.items || []
+      }))
+    }
+
+    logger.info('Browser extension API function __getKnowledgeBasesForAPI registered')
   }, [])
 }
