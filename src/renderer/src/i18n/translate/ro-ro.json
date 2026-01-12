@@ -378,7 +378,7 @@
     "about": "Despre",
     "close": "Închide fereastra",
     "copy": "Copiază",
-    "cut": "Taie",
+    "cut": "Decupează",
     "delete": "Șterge",
     "documentation": "Documentație",
     "edit": "Editare",
@@ -1191,7 +1191,7 @@
     "agent_one": "Agent",
     "agent_other": "Agenți",
     "and": "și",
-    "assistant": "Agent",
+    "assistant": "Asistent",
     "assistant_one": "Asistent",
     "assistant_other": "Asistenți",
     "avatar": "Avatar",
@@ -1208,7 +1208,7 @@
     "copy": "Copiază",
     "copy_failed": "Copiere eșuată",
     "current": "Curent",
-    "cut": "Taie",
+    "cut": "Decupează",
     "default": "Implicit",
     "delete": "Șterge",
     "delete_confirm": "Ești sigur că vrei să ștergi?",
@@ -1222,10 +1222,10 @@
     "duplicate": "Duplică",
     "edit": "Editează",
     "enabled": "Activat",
-    "error": "eroare",
+    "error": "Eroare",
     "errors": {
       "create_message": "Nu s-a putut crea mesajul",
-      "validation": "Verificarea a eșuat"
+      "validation": "Validarea a eșuat"
     },
     "expand": "Extinde",
     "file": {
@@ -1611,7 +1611,7 @@
       "title": "Setări bază de cunoștințe"
     },
     "sitemap_added": "Adăugat cu succes",
-    "sitemap_placeholder": "Introdu URL-ul hărții site-ului",
+    "sitemap_placeholder": "Introdu URL-ul sitemap-ului",
     "sitemaps": "Site-uri web",
     "source": "Sursă",
     "status": "Stare",
@@ -1623,7 +1623,7 @@
     "status_pending": "În așteptare",
     "status_preprocess_completed": "Preprocesare finalizată",
     "status_preprocess_failed": "Preprocesare eșuată",
-    "status_processing": "Se procesează",
+    "status_processing": "În procesare",
     "subtitle_file": "fișier subtitrare",
     "threshold": "Prag de potrivire",
     "threshold_placeholder": "Nesetat",
@@ -1633,9 +1633,9 @@
     "topN": "Număr rezultate returnate",
     "topN_placeholder": "Nesetat",
     "topN_too_large_or_small": "Numărul de rezultate returnate nu poate fi mai mare de 30 sau mai mic de 1.",
-    "topN_tooltip": "Numărul de rezultate potrivite returnate; cu cât valoarea este mai mare, cu atât mai multe rezultate, dar și mai mulți tokeni consumați.",
+    "topN_tooltip": "Numărul de rezultate potrivite returnate; cu cât valoarea este mai mare, cu atât mai multe rezultate, dar și un consum mai mare de tokeni.",
     "url_added": "URL adăugat",
-    "url_placeholder": "Introdu URL, separă URL-urile multiple prin Enter",
+    "url_placeholder": "Introdu URL-ul; separă mai multe URL-uri prin Enter",
     "urls": "URL-uri",
     "videos": "video",
     "videos_file": "fișier video"
@@ -1760,7 +1760,7 @@
     "switch_user_confirm": "Schimbi contextul de utilizator la {{user}}?",
     "time": "Timp",
     "title": "Amintiri",
-    "total_memories": "total amintiri",
+    "total_memories": "Total amintiri",
     "try_different_filters": "Încearcă să ajustezi criteriile de căutare",
     "update_failed": "Nu s-a putut actualiza amintirea",
     "update_success": "Amintire actualizată cu succes",
@@ -1779,7 +1779,7 @@
     "user_memories_reset": "Toate amintirile pentru {{user}} au fost resetate",
     "user_switch_failed": "Nu s-a putut schimba utilizatorul",
     "user_switched": "Contextul de utilizator a fost schimbat la {{user}}",
-    "users": "utilizatori"
+    "users": "Utilizatori"
   },
   "message": {
     "agents": {
@@ -2196,7 +2196,7 @@
   "navbar": {
     "expand": "Extinde dialogul",
     "hide_sidebar": "Ascunde bara laterală",
-    "show_sidebar": "Arată bara laterală",
+    "show_sidebar": "Afișează bara laterală",
     "window": {
       "close": "Închide",
       "maximize": "Maximizează",
@@ -2216,27 +2216,27 @@
     },
     "characters": "Caractere",
     "collapse": "Restrânge",
-    "content_placeholder": "Te rugăm să introduci conținutul notiței...",
+    "content_placeholder": "Introdu conținutul notiței...",
     "copyContent": "Copiază conținutul",
     "crossPlatformRestoreWarning": "Configurația multi-platformă a fost restaurată, dar directorul de notițe este gol. Te rugăm să copiezi fișierele notițelor în: {{path}}",
-    "delete": "șterge",
+    "delete": "Șterge",
     "delete_confirm": "Ești sigur că vrei să ștergi acest {{type}}?",
     "delete_folder_confirm": "Ești sigur că vrei să ștergi dosarul \"{{name}}\" și tot conținutul său?",
     "delete_note_confirm": "Ești sigur că vrei să ștergi notița \"{{name}}\"?",
     "drop_markdown_hint": "Trage fișiere sau dosare .md aici pentru a importa",
     "empty": "Încă nu există notițe disponibile",
-    "expand": "desfășoară",
+    "expand": "Extinde",
     "export_failed": "Exportul în baza de cunoștințe a eșuat",
     "export_knowledge": "Exportă notițele în baza de cunoștințe",
     "export_success": "Exportat cu succes în baza de cunoștințe",
-    "folder": "dosar",
+    "folder": "Dosar",
     "new_folder": "Dosar nou",
     "new_note": "Creează o notiță nouă",
     "no_content_to_copy": "Niciun conținut de copiat",
     "no_file_selected": "Te rugăm să selectezi fișierul de încărcat",
     "no_valid_files": "Nu a fost încărcat niciun fișier valid",
     "open_folder": "Deschide un dosar extern",
-    "open_outside": "Deschide din exterior",
+    "open_outside": "Deschide extern",
     "rename": "Redenumește",
     "rename_changed": "Din cauza politicilor de securitate, numele fișierului a fost schimbat din {{original}} în {{final}}",
     "save": "Salvează în Notițe",
@@ -2275,7 +2275,7 @@
         "font_size_small": "Mic",
         "font_title": "Setări font",
         "serif_font": "Font cu serife",
-        "show_table_of_contents": "Arată cuprinsul",
+        "show_table_of_contents": "Afișează cuprinsul",
         "show_table_of_contents_description": "Afișează o bară laterală cu cuprinsul pentru o navigare ușoară în documente",
         "title": "Setări afișare"
       },
@@ -4262,7 +4262,7 @@
       "display_title": "Setări afișare mini-aplicații",
       "empty": "Trage mini-aplicațiile din stânga pentru a le ascunde",
       "open_link_external": {
-        "title": "Deschide linkurile de fereastră nouă în browser"
+        "title": "Deschide în browser linkurile care deschid ferestre noi"
       },
       "reset_tooltip": "Resetează la implicit",
       "sidebar_description": "Arată mini-aplicațiile active în bara laterală",
@@ -4362,7 +4362,7 @@
         "description": "Model folosit pentru sarcini simple, cum ar fi numirea subiectelor și extragerea cuvintelor cheie",
         "label": "Model rapid",
         "setting_title": "Configurare model rapid",
-        "tooltip": "Se recomandă alegerea unui model ușor și nu se recomandă alegerea unui model de gândire."
+        "tooltip": "Se recomandă alegerea unui model ușor, nu a unui model de raționament complex."
       },
       "topic_naming": {
         "auto": "Numire automată subiect",
@@ -4702,7 +4702,7 @@
     },
     "shortcuts": {
       "action": "Acțiune",
-      "actions": "operațiune",
+      "actions": "Comandă",
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
       "copy_last_message": "Copiază ultimul mesaj",
@@ -4733,8 +4733,8 @@
     },
     "theme": {
       "color_primary": "Culoare primară",
-      "dark": "Întunecat",
-      "light": "Luminos",
+      "dark": "Întunecată",
+      "light": "Luminoasă",
       "system": "Sistem",
       "title": "Temă",
       "window": {
@@ -4896,21 +4896,21 @@
     "translate": {
       "custom": {
         "delete": {
-          "description": "Ești sigur că vrei să ștergi?",
+          "description": "Ești sigur că vrei să ștergi această limbă?",
           "title": "Șterge limba personalizată"
         },
         "error": {
           "add": "Adăugarea a eșuat",
           "delete": "Ștergerea a eșuat",
           "langCode": {
-            "builtin": "Limba are suport integrat",
-            "empty": "Codul limbii este gol",
+            "builtin": "Limbă deja integrată",
+            "empty": "Codul limbii lipsește",
             "exists": "Limba există deja",
             "invalid": "Cod limbă invalid"
           },
           "update": "Actualizarea a eșuat",
           "value": {
-            "empty": "Numele limbii nu poate fi gol",
+            "empty": "Numele limbii este obligatoriu",
             "too_long": "Numele limbii este prea lung"
           }
         },
@@ -4920,13 +4920,13 @@
           "placeholder": "en-us"
         },
         "success": {
-          "add": "Adăugat cu succes",
-          "delete": "Șters cu succes",
-          "update": "Actualizare reușită"
+          "add": "Adăugată cu succes",
+          "delete": "Ștearsă cu succes",
+          "update": "Actualizată cu succes"
         },
         "table": {
           "action": {
-            "title": "Operațiune"
+            "title": "Acțiuni"
           }
         },
         "value": {
@@ -4958,7 +4958,7 @@
     "mcp-servers": "Servere MCP",
     "memories": "Amintiri",
     "notes": "Notițe",
-    "paintings": "Picturi",
+    "paintings": "Imagini",
     "settings": "Setări",
     "store": "Bibliotecă asistenți",
     "translate": "Traducere"
@@ -5002,7 +5002,7 @@
     "detect": {
       "method": {
         "algo": {
-          "label": "algoritm",
+          "label": "Algoritm",
           "tip": "Folosește biblioteca franc pentru detectarea limbii"
         },
         "auto": {
@@ -5109,7 +5109,7 @@
   "tray": {
     "quit": "Ieșire",
     "show_mini_window": "Asistent rapid",
-    "show_window": "Arată fereastra"
+    "show_window": "Afișează fereastra"
   },
   "update": {
     "install": "Instalează",
@@ -5125,7 +5125,7 @@
   "words": {
     "knowledgeGraph": "Grafic de cunoștințe",
     "quit": "Ieșire",
-    "show_window": "Arată fereastra",
+    "show_window": "Afișează fereastra",
     "visualization": "Vizualizare"
   }
 }
