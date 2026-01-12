@@ -21,13 +21,13 @@ const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embeddin
 const PROCESSING_POLL_INTERVAL = 500
 
 /** API path type for knowledge base items */
-type KnowledgeBaseItemsPath = `/knowledge-bases/${string}/items`
+type KnowledgeBaseItemsPath = `/knowledges/${string}/items`
 
 /** API path type for single knowledge base */
-type KnowledgeBasePath = `/knowledge-bases/${string}`
+type KnowledgeBasePath = `/knowledges/${string}`
 
 /** API path type for single knowledge item */
-type KnowledgeItemPath = `/knowledges/${string}`
+type KnowledgeItemPath = `/knowledge-items/${string}`
 
 /** Response type for knowledge items list */
 type KnowledgeItemsResponse = OffsetPaginationResponse<KnowledgeItem>
@@ -67,7 +67,7 @@ export function useKnowledgeItems(
   }
 ) {
   const enabled = options?.enabled !== false && !!baseId
-  const path: KnowledgeBaseItemsPath = `/knowledge-bases/${baseId}/items`
+  const path: KnowledgeBaseItemsPath = `/knowledges/${baseId}/items`
 
   // Fetch knowledge items
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
@@ -143,7 +143,7 @@ export function useKnowledgeBase(
   }
 ) {
   const enabled = options?.enabled !== false && !!baseId
-  const path: KnowledgeBasePath = `/knowledge-bases/${baseId}`
+  const path: KnowledgeBasePath = `/knowledges/${baseId}`
 
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
     enabled
@@ -192,7 +192,7 @@ export function useKnowledgeItem(
   }
 ) {
   const enabled = options?.enabled !== false && !!itemId
-  const path: KnowledgeItemPath = `/knowledges/${itemId}`
+  const path: KnowledgeItemPath = `/knowledge-items/${itemId}`
 
   // Fetch single item
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
@@ -277,7 +277,7 @@ export function useKnowledgeBases(options?: {
   const invalidate = useInvalidateCache()
 
   // Fetch knowledge bases list
-  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/knowledge-bases', {
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/knowledges', {
     enabled
   })
 
@@ -290,10 +290,10 @@ export function useKnowledgeBases(options?: {
   const createKnowledgeBase = async (dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> => {
     setIsCreating(true)
     try {
-      const result = await dataApiService.post('/knowledge-bases' as any, {
+      const result = await dataApiService.post('/knowledges' as any, {
         body: dto
       })
-      await invalidate('/knowledge-bases')
+      await invalidate('/knowledges')
       return result as KnowledgeBase
     } finally {
       setIsCreating(false)
@@ -306,10 +306,10 @@ export function useKnowledgeBases(options?: {
   const renameKnowledgeBase = async (baseId: string, name: string) => {
     setIsRenaming(true)
     try {
-      await dataApiService.patch(`/knowledge-bases/${baseId}` as any, {
+      await dataApiService.patch(`/knowledges/${baseId}` as any, {
         body: { name }
       })
-      await invalidate('/knowledge-bases')
+      await invalidate('/knowledges')
     } finally {
       setIsRenaming(false)
     }
@@ -322,8 +322,8 @@ export function useKnowledgeBases(options?: {
   const deleteKnowledgeBase = async (baseId: string) => {
     setIsDeleting(true)
     try {
-      await dataApiService.delete(`/knowledge-bases/${baseId}` as any)
-      await invalidate('/knowledge-bases')
+      await dataApiService.delete(`/knowledges/${baseId}` as any)
+      await invalidate('/knowledges')
     } finally {
       setIsDeleting(false)
     }

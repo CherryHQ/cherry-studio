@@ -375,11 +375,26 @@ export class KnowledgeService {
     if (dto.status !== undefined) updates.status = dto.status
     if (dto.error !== undefined) updates.error = dto.error
 
+    // If status is being set to 'pending', clear error and trigger reprocessing
+    const isPending = dto.status === 'pending'
+    if (isPending) {
+      updates.error = null
+    }
+
     const [row] = await db.update(knowledgeItemTable).set(updates).where(eq(knowledgeItemTable.id, id)).returning()
 
-    logger.info('Updated knowledge item', { id, changes: Object.keys(dto) })
+    const updatedItem = toKnowledgeItem(row)
 
-    return toKnowledgeItem(row)
+    // Trigger reprocessing if status was set to 'pending'
+    if (isPending) {
+      const base = await this.getBaseById(existing.baseId)
+      void this.processItem(base, updatedItem, { forceReload: true })
+      logger.info('Triggered reprocessing for knowledge item', { id })
+    } else {
+      logger.info('Updated knowledge item', { id, changes: Object.keys(dto) })
+    }
+
+    return updatedItem
   }
 
   async deleteItem(id: string): Promise<void> {
@@ -392,41 +407,6 @@ export class KnowledgeService {
     await db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
 
     logger.info('Deleted knowledge item', { id })
-  }
-
-  async refreshItem(id: string): Promise<KnowledgeItem> {
-    const db = dbService.getDb()
-
-    const item = await this.getItemById(id)
-    const base = await this.getBaseById(item.baseId)
-
-    await db.update(knowledgeItemTable).set({ status: 'pending', error: null }).where(eq(knowledgeItemTable.id, id))
-
-    const pendingItem = await this.getItemById(id)
-
-    void this.processItem(base, pendingItem, { forceReload: true })
-
-    return pendingItem
-  }
-
-  async cancelItem(id: string): Promise<{ status: 'cancelled' | 'ignored' }> {
-    const item = await this.getItemById(id)
-
-    const result = knowledgeQueueManager.cancel(id)
-
-    if (result.status === 'cancelled') {
-      await dbService
-        .getDb()
-        .update(knowledgeItemTable)
-        .set({ status: 'failed', error: 'Cancelled' })
-        .where(eq(knowledgeItemTable.id, id))
-
-      logger.info('Cancelled knowledge item', { id })
-    } else {
-      logger.debug('Cancel ignored for knowledge item', { id, status: item.status })
-    }
-
-    return result
   }
 
   async search(baseId: string, request: KnowledgeSearchRequest): Promise<KnowledgeSearchResult[]> {
@@ -675,10 +655,6 @@ export class KnowledgeService {
     } catch (error) {
       logger.warn('Failed to remove knowledge item vectors', { itemId: item.id, error })
     }
-  }
-
-  getQueueStatus(): { queueSize: number; processingCount: number; currentWorkload: number } {
-    return knowledgeQueueManager.getStatus()
   }
 
   private async buildBaseParams(

@@ -39,18 +39,17 @@ Main Process
 ## 数据流（核心路径）
 
 1. **创建 items**
-   `POST /knowledge-bases/:id/items`
+   `POST /knowledges/:id/items`
    主进程写入 `knowledge_item`，初始 `status = pending`，并将任务入队。支持单个或批量创建。
 
 2. **队列执行**
    主进程调度器按入队顺序（FIFO）执行任务，更新 `status` 到数据库。
 
-3. **完成/失败**  
-   `status = completed | failed`，`error` 写入数据库。进度不持久化。失败需用户手动 `refresh` 重新入队。
+3. **完成/失败**
+   `status = completed | failed`，`error` 写入数据库。进度不持久化。失败需用户手动重新处理。
 
-4. **刷新/取消**  
-   `POST /knowledges/:id/refresh` 重新入队；  
-   `POST /knowledges/:id/cancel` 取消队列任务。
+4. **刷新**
+   `PATCH /knowledge-items/:id` 设置 `status: 'pending'` 重新入队。
 
 ## DataApi 端点（必须明确）
 
@@ -58,14 +57,12 @@ Main Process
 
 | Path | Method | 说明 |
 | ---- | ------ | ---- |
-| `/knowledge-bases/:id/items` | POST | 创建 items 并入队（支持单个或批量） |
-| `/knowledges/:id/refresh` | POST | 重新处理并入队 |
-| `/knowledges/:id/cancel` | POST | 取消队列任务 |
-| `/knowledges/:id` | GET | 获取 item 详情与状态 |
-| `/knowledge-bases/:id/items` | GET | 按状态分页查询队列项 |
-| `/knowledge-queue/status` | GET | 队列状态（长度/并发/负载，可选） |
+| `/knowledges/:id/items` | POST | 创建 items 并入队（支持单个或批量） |
+| `/knowledge-items/:id` | PATCH | 更新 item（status: 'pending' 触发重新处理） |
+| `/knowledge-items/:id` | GET | 获取 item 详情与状态 |
+| `/knowledges/:id/items` | GET | 按状态分页查询队列项 |
 
-> 说明：状态过滤通过 `GET /knowledge-bases/:id/items?status=pending` 等 query 完成。
+> 说明：状态过滤通过 `GET /knowledges/:id/items?status=pending` 等 query 完成。
 
 ## 队列调度（主进程职责）
 

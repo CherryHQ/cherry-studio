@@ -21,7 +21,7 @@ export const knowledgeHandlers: {
     [Method in keyof KnowledgeSchemas[Path]]: KnowledgeHandler<Path, Method & ApiMethods<Path>>
   }
 } = {
-  '/knowledge-bases': {
+  '/knowledges': {
     GET: async ({ query }) => {
       return await knowledgeService.listBases(query ?? {})
     },
@@ -30,7 +30,7 @@ export const knowledgeHandlers: {
     }
   },
 
-  '/knowledge-bases/:id': {
+  '/knowledges/:id': {
     GET: async ({ params }) => {
       return await knowledgeService.getBaseById(params.id)
     },
@@ -43,7 +43,7 @@ export const knowledgeHandlers: {
     }
   },
 
-  '/knowledge-bases/:id/items': {
+  '/knowledges/:id/items': {
     GET: async ({ params, query }) => {
       return await knowledgeService.listItems(params.id, query ?? {})
     },
@@ -52,7 +52,7 @@ export const knowledgeHandlers: {
     }
   },
 
-  '/knowledges/:id': {
+  '/knowledge-items/:id': {
     GET: async ({ params }) => {
       return await knowledgeService.getItemById(params.id)
     },
@@ -65,26 +65,9 @@ export const knowledgeHandlers: {
     }
   },
 
-  '/knowledges/:id/refresh': {
-    POST: async ({ params }) => {
-      return await knowledgeService.refreshItem(params.id)
-    }
-  },
-
-  '/knowledges/:id/cancel': {
-    POST: async ({ params }) => {
-      return await knowledgeService.cancelItem(params.id)
-    }
-  },
-
-  '/knowledge-bases/:id/search': {
+  '/knowledges/:id/search': {
     POST: async ({ params, body }) => {
       return await knowledgeService.search(params.id, body)
-    }
-  },
-  '/knowledge-queue/status': {
-    GET: async () => {
-      return knowledgeService.getQueueStatus()
     }
   }
 }

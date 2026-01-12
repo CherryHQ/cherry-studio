@@ -92,7 +92,7 @@ export interface KnowledgeSearchRequest {
 // ============================================================================
 
 export interface KnowledgeSchemas {
-  '/knowledge-bases': {
+  '/knowledges': {
     GET: {
       query?: OffsetPaginationParams & SortParams & SearchParams
       response: OffsetPaginationResponse<KnowledgeBase>
@@ -103,7 +103,7 @@ export interface KnowledgeSchemas {
     }
   }
 
-  '/knowledge-bases/:id': {
+  '/knowledges/:id': {
     GET: {
       params: { id: string }
       response: KnowledgeBase
@@ -119,7 +119,7 @@ export interface KnowledgeSchemas {
     }
   }
 
-  '/knowledge-bases/:id/items': {
+  '/knowledges/:id/items': {
     GET: {
       params: { id: string }
       query?: OffsetPaginationParams &
@@ -137,7 +137,7 @@ export interface KnowledgeSchemas {
     }
   }
 
-  '/knowledges/:id': {
+  '/knowledge-items/:id': {
     GET: {
       params: { id: string }
       response: KnowledgeItem
@@ -153,35 +153,11 @@ export interface KnowledgeSchemas {
     }
   }
 
-  '/knowledges/:id/refresh': {
-    POST: {
-      params: { id: string }
-      response: KnowledgeItem
-    }
-  }
-
-  '/knowledges/:id/cancel': {
-    POST: {
-      params: { id: string }
-      response: { status: 'cancelled' | 'ignored' }
-    }
-  }
-
-  '/knowledge-bases/:id/search': {
+  '/knowledges/:id/search': {
     POST: {
       params: { id: string }
       body: KnowledgeSearchRequest
       response: KnowledgeSearchResult[]
-    }
-  }
-
-  '/knowledge-queue/status': {
-    GET: {
-      response: {
-        queueSize: number
-        processingCount: number
-        currentWorkload: number
-      }
     }
   }
 }

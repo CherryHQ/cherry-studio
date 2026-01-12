@@ -52,8 +52,8 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   )
 
   // v2 Data API hook for updating item remark
-  const itemsRefreshKey = selectedBase.id ? `/knowledge-bases/${selectedBase.id}/items` : ''
-  const { trigger: updateItemApi } = useMutation('PATCH', `/knowledges/:id` as any, {
+  const itemsRefreshKey = selectedBase.id ? `/knowledges/${selectedBase.id}/items` : ''
+  const { trigger: updateItemApi } = useMutation('PATCH', `/knowledge-items/:id` as any, {
     refresh: itemsRefreshKey ? [itemsRefreshKey] : []
   })
 

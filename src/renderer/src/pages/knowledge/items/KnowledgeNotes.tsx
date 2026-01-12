@@ -47,8 +47,8 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { noteItems, hasProcessingItems, addNote, isAddingNote, deleteItem } = useKnowledgeNotes(selectedBase.id || '')
 
   // v2 Data API hook for updating note content
-  const itemsRefreshKey = selectedBase.id ? `/knowledge-bases/${selectedBase.id}/items` : ''
-  const { trigger: updateNoteApi } = useMutation('PATCH', `/knowledges/:id` as any, {
+  const itemsRefreshKey = selectedBase.id ? `/knowledges/${selectedBase.id}/items` : ''
+  const { trigger: updateNoteApi } = useMutation('PATCH', `/knowledge-items/:id` as any, {
     refresh: itemsRefreshKey ? [itemsRefreshKey] : []
   })
 

@@ -213,26 +213,23 @@ export type KnowledgeItemData =
 
 | Path | Method | 说明 |
 | ---- | ------ | ---- |
-| `/knowledge-bases` | GET | 分页查询知识库列表 |
-| `/knowledge-bases` | POST | 创建知识库 |
-| `/knowledge-bases/:id` | GET | 获取知识库详情 |
-| `/knowledge-bases/:id` | PATCH | 更新知识库配置 |
-| `/knowledge-bases/:id` | DELETE | 删除知识库（含 items 与向量） |
-| `/knowledge-bases/:id/items` | GET | 分页查询指定知识库的 items |
-| `/knowledge-bases/:id/items` | POST | 创建 items（支持单个或批量，进入队列） |
-| `/knowledges/:id` | GET | 获取单个 item |
-| `/knowledges/:id` | PATCH | 更新 item 数据（如 note 内容） |
-| `/knowledges/:id` | DELETE | 删除 item（含向量） |
-| `/knowledges/:id/refresh` | POST | 重新处理（预处理 + 嵌入） |
-| `/knowledges/:id/cancel` | POST | 取消队列中的处理任务 |
-| `/knowledge-bases/:id/search` | POST | 向量/混合检索 |
+| `/knowledges` | GET | 分页查询知识库列表 |
+| `/knowledges` | POST | 创建知识库 |
+| `/knowledges/:id` | GET | 获取知识库详情 |
+| `/knowledges/:id` | PATCH | 更新知识库配置 |
+| `/knowledges/:id` | DELETE | 删除知识库（含 items 与向量） |
+| `/knowledges/:id/items` | GET | 分页查询指定知识库的 items |
+| `/knowledges/:id/items` | POST | 创建 items（支持单个或批量，进入队列） |
+| `/knowledge-items/:id` | GET | 获取单个 item |
+| `/knowledge-items/:id` | PATCH | 更新 item（status: 'pending' 触发重新处理） |
+| `/knowledge-items/:id` | DELETE | 删除 item（含向量） |
+| `/knowledges/:id/search` | POST | 向量/混合检索 |
 
 ### 端点清单（可选）
 
 | Path | Method | 说明 |
 | ---- | ------ | ---- |
-| `/knowledge-bases/:id/stats` | GET | 返回基础统计（item 计数/状态分布） |
-| `/knowledge-queue/status` | GET | 返回队列状态（长度、并发、负载） |
+| `/knowledges/:id/stats` | GET | 返回基础统计（item 计数/状态分布） |
 
 ## DTO 与 Schema 草案
 
@@ -333,7 +330,7 @@ export interface KnowledgeSearchResult {
 }
 
 export interface KnowledgeSchemas {
-  '/knowledge-bases': {
+  '/knowledges': {
     GET: {
       query?: OffsetPaginationParams & SortParams & SearchParams
       response: OffsetPaginationResponse<KnowledgeBase>
@@ -343,7 +340,7 @@ export interface KnowledgeSchemas {
       response: KnowledgeBase
     }
   }
-  '/knowledge-bases/:id': {
+  '/knowledges/:id': {
     GET: {
       params: { id: string }
       response: KnowledgeBase
@@ -358,7 +355,7 @@ export interface KnowledgeSchemas {
       response: void
     }
   }
-  '/knowledge-bases/:id/items': {
+  '/knowledges/:id/items': {
     GET: {
       params: { id: string }
       query?: OffsetPaginationParams &
@@ -375,7 +372,7 @@ export interface KnowledgeSchemas {
       response: { items: KnowledgeItem[] }
     }
   }
-  '/knowledges/:id': {
+  '/knowledge-items/:id': {
     GET: {
       params: { id: string }
       response: KnowledgeItem
@@ -390,19 +387,7 @@ export interface KnowledgeSchemas {
       response: void
     }
   }
-  '/knowledges/:id/refresh': {
-    POST: {
-      params: { id: string }
-      response: KnowledgeItem
-    }
-  }
-  '/knowledges/:id/cancel': {
-    POST: {
-      params: { id: string }
-      response: { status: 'cancelled' | 'ignored' }
-    }
-  }
-  '/knowledge-bases/:id/search': {
+  '/knowledges/:id/search': {
     POST: {
       params: { id: string }
       body: KnowledgeSearchRequest
