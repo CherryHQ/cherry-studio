@@ -248,7 +248,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     } catch (error: unknown) {
       const errorMsg = getErrorMessage(error)
       logger.error(`Failed to call PaddleOCR API: ${errorMsg}`, { error })
-      throw new Error(`API 调用失败: ${errorMsg}`)
+      throw new Error(`Failed to call PaddleOCR API: ${errorMsg}`)
     }
   }
 
