@@ -65,6 +65,7 @@
     "cmdk": "^1.1.1",
     "lucide-react": "^0.545.0",
     "react-dropzone": "^14.3.8",
+    "sonner": "2.0.7",
     "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {

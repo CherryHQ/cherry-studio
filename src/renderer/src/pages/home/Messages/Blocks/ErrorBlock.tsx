@@ -205,7 +205,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
     }
 
     navigator.clipboard.writeText(errorText)
-    window.toast.addToast({ title: t('message.copied') })
+    window.toast.success({ title: t('message.copied') })
   }
 
   const renderErrorDetails = (error?: SerializedError) => {
