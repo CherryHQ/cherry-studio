@@ -50,6 +50,14 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
     setSelectedError(undefined)
   }, [])
 
+  const handleEdit = useCallback(() => {
+    onEdit(model)
+  }, [model, onEdit])
+
+  const handleRemove = useCallback(() => {
+    onRemove(model)
+  }, [model, onRemove])
+
   return (
     <>
       <ListItem ref={ref}>
@@ -76,10 +84,10 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
           />
           <HStack alignItems="center" gap={0}>
             <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
-              <Button type="text" onClick={() => onEdit(model)} disabled={disabled} icon={<Bolt size={14} />} />
+              <Button type="text" onClick={handleEdit} disabled={disabled} icon={<Bolt size={14} />} />
             </Tooltip>
             <Tooltip title={t('settings.models.manage.remove_model')} mouseLeaveDelay={0}>
-              <Button type="text" onClick={() => onRemove(model)} disabled={disabled} icon={<Minus size={14} />} />
+              <Button type="text" onClick={handleRemove} disabled={disabled} icon={<Minus size={14} />} />
             </Tooltip>
           </HStack>
         </HStack>

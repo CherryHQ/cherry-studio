@@ -1,7 +1,7 @@
 import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { Flex, Tooltip, Typography } from 'antd'
-import React, { memo } from 'react'
+import React, { memo, useCallback } from 'react'
 import styled from 'styled-components'
 
 import type { HealthStatusIndicatorProps } from './types'
@@ -18,13 +18,13 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
     showLatency
   })
 
-  const handleErrorClick = () => {
+  const handleErrorClick = useCallback(() => {
     if (!onErrorClick) return
     const failedResult = results.find((r) => r.status === HealthStatus.FAILED)
     if (failedResult?.error) {
       onErrorClick(failedResult.error)
     }
-  }
+  }, [onErrorClick, results])
 
   if (loading) {
     return (

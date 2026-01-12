@@ -30,7 +30,7 @@ import { formatFileSize } from '@renderer/utils/file'
 import { KB } from '@shared/config/constant'
 import { Button } from 'antd'
 import { Modal } from 'antd'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -133,7 +133,7 @@ const TruncatedBadge = styled.span`
 
 // --- Sub-Components ---
 
-const BuiltinError = ({ error }: { error: SerializedError }) => {
+const BuiltinError = memo(({ error }: { error: SerializedError }) => {
   const { t } = useTranslation()
   return (
     <>
@@ -159,9 +159,9 @@ const BuiltinError = ({ error }: { error: SerializedError }) => {
       )}
     </>
   )
-}
+})
 
-const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
+const AiSdkErrorBase = memo(({ error }: { error: SerializedAiSdkError }) => {
   const { t } = useTranslation()
   const tRef = useRef(t)
   useEffect(() => {
@@ -219,31 +219,29 @@ const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
       )}
     </>
   )
-}
+})
 
-const TruncatedCodeViewer: React.FC<{ value: string; label: string; language?: string }> = ({
-  value,
-  label,
-  language = 'json'
-}) => {
-  const { t } = useTranslation()
-  const { content, truncated, isLikelyBase64 } = truncateLargeData(value, t)
+const TruncatedCodeViewer = memo(
+  ({ value, label, language = 'json' }: { value: string; label: string; language?: string }) => {
+    const { t } = useTranslation()
+    const { content, truncated, isLikelyBase64 } = truncateLargeData(value, t)
 
-  return (
-    <ErrorDetailItem>
-      <ErrorDetailLabel>
-        {label}:{truncated && <TruncatedBadge>{t('error.truncatedBadge')}</TruncatedBadge>}
-      </ErrorDetailLabel>
-      {isLikelyBase64 ? (
-        <ErrorDetailValue>{content}</ErrorDetailValue>
-      ) : (
-        <CodeViewer value={content} className="source-view" language={language} expanded />
-      )}
-    </ErrorDetailItem>
-  )
-}
+    return (
+      <ErrorDetailItem>
+        <ErrorDetailLabel>
+          {label}:{truncated && <TruncatedBadge>{t('error.truncatedBadge')}</TruncatedBadge>}
+        </ErrorDetailLabel>
+        {isLikelyBase64 ? (
+          <ErrorDetailValue>{content}</ErrorDetailValue>
+        ) : (
+          <CodeViewer value={content} className="source-view" language={language} expanded />
+        )}
+      </ErrorDetailItem>
+    )
+  }
+)
 
-const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
+const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
   const { t } = useTranslation()
 
   return (
@@ -500,14 +498,14 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
       <AiSdkErrorBase error={error} />
     </ErrorDetailList>
   )
-}
+})
 
 // --- Main Component ---
 
 const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, error }) => {
   const { t } = useTranslation()
 
-  const copyErrorDetails = () => {
+  const copyErrorDetails = useCallback(() => {
     if (!error) return
     let errorText: string
     if (isSerializedAiSdkError(error)) {
@@ -520,7 +518,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
 
     navigator.clipboard.writeText(errorText)
     window.toast.addToast({ title: t('message.copied') })
-  }
+  }, [error, t])
 
   const renderErrorDetails = (error?: SerializedError) => {
     if (!error) return <div>{t('error.unknown')}</div>
