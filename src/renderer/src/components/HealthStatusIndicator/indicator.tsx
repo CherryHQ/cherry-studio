@@ -18,6 +18,14 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
     showLatency
   })
 
+  const handleErrorClick = () => {
+    if (!onErrorClick) return
+    const failedResult = results.find((r) => r.status === HealthStatus.FAILED)
+    if (failedResult?.error) {
+      onErrorClick(failedResult.error)
+    }
+  }
+
   if (loading) {
     return (
       <IndicatorWrapper $type="checking">
@@ -34,23 +42,16 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
       icon = <CheckCircleFilled />
       break
     case 'error':
-      icon = onErrorClick ? (
-        <CloseCircleFilled
-          onClick={() => {
-            const failedResult = results.find((r) => r.status === HealthStatus.FAILED)
-            if (failedResult?.error) {
-              onErrorClick(failedResult.error)
-            }
-          }}
-          style={{ cursor: 'pointer' }}
-        />
-      ) : (
-        <CloseCircleFilled />
+    case 'partial': {
+      const isClickable = onErrorClick && results.some((r) => r.status === HealthStatus.FAILED)
+      const IconComponent = overallStatus === 'error' ? CloseCircleFilled : ExclamationCircleFilled
+      icon = (
+        <span onClick={isClickable ? handleErrorClick : undefined} style={{ cursor: isClickable ? 'pointer' : 'auto' }}>
+          <IconComponent />
+        </span>
       )
       break
-    case 'partial':
-      icon = <ExclamationCircleFilled />
-      break
+    }
     default:
       return null
   }

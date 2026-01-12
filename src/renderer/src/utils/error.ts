@@ -11,6 +11,7 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkAPICallError } from '@renderer/types/error'
 import type { NoSuchToolError } from 'ai'
+import { AISDKError } from 'ai'
 import { InvalidToolInputError } from 'ai'
 import type { AxiosError } from 'axios'
 import { isAxiosError } from 'axios'
@@ -339,16 +340,8 @@ export const formatAxiosError = (error: AxiosError) => {
  * Used specifically for health check error handling.
  */
 export function serializeHealthCheckError(error: unknown): SerializedError {
-  if (error && typeof error === 'object' && 'name' in error) {
-    try {
-      return serializeError(error as AiSdkErrorUnion)
-    } catch {
-      return {
-        name: null,
-        message: safeToString(error),
-        stack: null
-      }
-    }
+  if (AISDKError.isInstance(error)) {
+    return serializeError(error)
   }
   return {
     name: null,

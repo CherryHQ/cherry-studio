@@ -1,9 +1,9 @@
+import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
-import { ErrorDetailModal } from '@renderer/pages/home/Messages/Blocks/ErrorBlock'
 import type { Model } from '@renderer/types'
 import type { SerializedError } from '@renderer/types/error'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
@@ -11,7 +11,7 @@ import { HealthStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Tooltip } from 'antd'
 import { Bolt, Minus } from 'lucide-react'
-import React, { memo, useState } from 'react'
+import React, { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -38,8 +38,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
       label: maskApiKey(kr.key)
     })) || []
 
-  // 检查是否有失败的结果
-  const hasFailedResult = healthResults.some((r) => r.status === HealthStatus.FAILED)
+  const hasFailedResult = useMemo(() => healthResults.some((r) => r.status === HealthStatus.FAILED), [healthResults])
 
   return (
     <>
