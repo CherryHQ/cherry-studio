@@ -313,7 +313,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 
       // Refresh specified keys on success
       if (optionsRef.current?.refresh?.length) {
-        await Promise.all(optionsRef.current.refresh.map((key) => globalMutate(key)))
+        await globalMutate(createMultiKeyMatcher(optionsRef.current.refresh))
       }
     },
     onError: (error) => optionsRef.current?.onError?.(error),
@@ -329,7 +329,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 
     // Apply optimistic update if optimisticData is provided
     if (hasOptimisticData) {
-      await globalMutate(path, opts!.optimisticData, false)
+      await globalMutate([path], opts!.optimisticData, false)
     }
 
     try {
@@ -337,14 +337,14 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
 
       // Revalidate after optimistic update completes
       if (hasOptimisticData) {
-        await globalMutate(path)
+        await globalMutate([path])
       }
 
       return result
     } catch (err) {
       // Rollback optimistic update on error
       if (hasOptimisticData) {
-        await globalMutate(path)
+        await globalMutate([path])
       }
       throw err
     }
@@ -383,9 +383,9 @@ export function useInvalidateCache() {
     if (keys === true || keys === undefined) {
       await mutate(() => true)
     } else if (typeof keys === 'string') {
-      await mutate(keys)
+      await mutate(createKeyMatcher(keys))
     } else if (Array.isArray(keys)) {
-      await Promise.all(keys.map((key) => mutate(key)))
+      await mutate(createMultiKeyMatcher(keys))
     }
   }
 
@@ -703,12 +703,12 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
  * @internal
  * @param path - API endpoint path
  * @param query - Optional query parameters
- * @returns Tuple of [path] or [path, query] for SWR cache key
+ * @returns Tuple of [path, query?] for SWR cache key
  */
 function buildSWRKey<TPath extends ConcreteApiPaths, TQuery extends QueryParamsForPath<TPath>>(
   path: TPath,
   query?: TQuery
-): [TPath] | [TPath, TQuery] {
+): [TPath, TQuery?] {
   if (query && Object.keys(query).length > 0) {
     return [path, query]
   }
@@ -728,4 +728,27 @@ function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Query
 > {
   const apiFetcher = createApiFetcher<TPath, 'GET'>('GET')
   return apiFetcher(path, { query })
+}
+
+/**
+ * Create a filter function that matches SWR cache keys by path.
+ * Matches both [path] and [path, query] formats.
+ *
+ * @internal
+ * @param pathToMatch - The API path to match against cache keys
+ * @returns Filter function for use with SWR's mutate
+ */
+function createKeyMatcher(pathToMatch: string): (key: unknown) => boolean {
+  return (key) => Array.isArray(key) && key[0] === pathToMatch
+}
+
+/**
+ * Create a filter function that matches multiple paths.
+ *
+ * @internal
+ * @param paths - Array of API paths to match against cache keys
+ * @returns Filter function for use with SWR's mutate
+ */
+function createMultiKeyMatcher(paths: string[]): (key: unknown) => boolean {
+  return (key) => Array.isArray(key) && paths.includes(key[0] as string)
 }
