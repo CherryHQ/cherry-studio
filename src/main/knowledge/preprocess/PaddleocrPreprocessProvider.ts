@@ -171,7 +171,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
           `Error details: ${errorMsg}. ` +
           `Suggestion: If processing fails, try repairing the PDF using tools like Adobe Acrobat or online PDF repair services.`
       )
-      throw new Error(errorMsg)
+      throw error
     }
 
     if (doc?.numPages > PDF_PAGE_LIMIT) {
