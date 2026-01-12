@@ -47,6 +47,7 @@ export function buildPlugins(
     plugins.push(
       createPromptToolUsePlugin({
         enabled: true,
+        mcpMode: middlewareConfig.mcpMode,
         createSystemMessage: (systemPrompt, params, context) => {
           const modelId = typeof context.model === 'string' ? context.model : context.model.modelId
           if (modelId.includes('o1-mini') || modelId.includes('o1-preview')) {

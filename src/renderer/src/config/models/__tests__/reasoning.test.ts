@@ -745,7 +745,7 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     })
 
     it('should return doubao_after_251015 for Doubao-Seed-1.8 models', () => {
-      expect(getThinkModelType(createModel({ id: 'doubao-seed-1-8-251215' }))).toBe('doubao_after_251015')
+      expect(getThinkModelType(createModel({ id: 'doubao-seed-1-8-251228' }))).toBe('doubao_after_251015')
       expect(getThinkModelType(createModel({ id: 'doubao-seed-1.8' }))).toBe('doubao_after_251015')
     })
 
@@ -879,7 +879,7 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       // auto > after_251015 > no_auto
       expect(getThinkModelType(createModel({ id: 'doubao-seed-1.6' }))).toBe('doubao')
       expect(getThinkModelType(createModel({ id: 'doubao-seed-1-6-251015' }))).toBe('doubao_after_251015')
-      expect(getThinkModelType(createModel({ id: 'doubao-seed-1-8-251215' }))).toBe('doubao_after_251015')
+      expect(getThinkModelType(createModel({ id: 'doubao-seed-1-8-251228' }))).toBe('doubao_after_251015')
       expect(getThinkModelType(createModel({ id: 'doubao-1.5-thinking-vision-pro' }))).toBe('doubao_no_auto')
     })
 
@@ -1368,7 +1368,9 @@ describe('findTokenLimit', () => {
     { modelId: 'qwen-plus-ultra', expected: { min: 0, max: 81_920 } },
     { modelId: 'qwen-turbo-pro', expected: { min: 0, max: 38_912 } },
     { modelId: 'qwen-flash-lite', expected: { min: 0, max: 81_920 } },
-    { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } }
+    { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } },
+    { modelId: 'Baichuan-M2', expected: { min: 0, max: 30_000 } },
+    { modelId: 'baichuan-m2', expected: { min: 0, max: 30_000 } }
   ]
 
   it.each(cases)('returns correct limits for $modelId', ({ modelId, expected }) => {
