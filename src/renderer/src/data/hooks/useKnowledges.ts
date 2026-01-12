@@ -16,7 +16,7 @@ import { useMemo } from 'react'
 const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
 
 /** Polling interval in milliseconds when items are processing */
-const PROCESSING_POLL_INTERVAL = 3000
+const PROCESSING_POLL_INTERVAL = 500
 
 /** API path type for knowledge base items */
 type KnowledgeBaseItemsPath = `/knowledge-bases/${string}/items`

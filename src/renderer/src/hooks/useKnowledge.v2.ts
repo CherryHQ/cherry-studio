@@ -122,6 +122,12 @@ export const useKnowledgeFiles = (baseId: string) => {
  * Hook for adding directories to a knowledge base via v2 Data API
  */
 export const useKnowledgeDirectories = (baseId: string) => {
+  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const directoryItems = useMemo(() => items.filter((item) => item.type === 'directory'), [items])
+  const hasProcessingItems = useMemo(
+    () => directoryItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
+    [directoryItems]
+  )
   const { trigger: createItemsApi, isLoading: isAddingDirectory } = useMutation(
     'POST',
     `/knowledge-bases/${baseId}/items`,
@@ -160,9 +166,40 @@ export const useKnowledgeDirectories = (baseId: string) => {
     }
   }
 
+  const { deleteItem: deleteKnowledgeItem, isDeleting } = useKnowledgeItemDelete()
+  const invalidate = useInvalidateCache()
+
+  const deleteItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    return deleteKnowledgeItem(baseId, itemId)
+  }
+
+  const refreshItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    try {
+      await dataApiService.post(`/knowledges/${itemId}/refresh` as any, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
+      logger.info('Item refresh triggered', { itemId, baseId })
+    } catch (error) {
+      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+    }
+  }
+
   return {
+    items,
+    directoryItems,
+    hasProcessingItems,
     addDirectory,
-    isAddingDirectory
+    isAddingDirectory,
+    deleteItem,
+    isDeleting,
+    refreshItem
   }
 }
 
@@ -170,6 +207,12 @@ export const useKnowledgeDirectories = (baseId: string) => {
  * Hook for adding URLs to a knowledge base via v2 Data API
  */
 export const useKnowledgeUrls = (baseId: string) => {
+  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const urlItems = useMemo(() => items.filter((item) => item.type === 'url'), [items])
+  const hasProcessingItems = useMemo(
+    () => urlItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
+    [urlItems]
+  )
   const { trigger: createItemsApi, isLoading: isAddingUrl } = useMutation('POST', `/knowledge-bases/${baseId}/items`, {
     refresh: [`/knowledge-bases/${baseId}/items`]
   })
@@ -204,9 +247,40 @@ export const useKnowledgeUrls = (baseId: string) => {
     }
   }
 
+  const { deleteItem: deleteKnowledgeItem, isDeleting } = useKnowledgeItemDelete()
+  const invalidate = useInvalidateCache()
+
+  const deleteItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    return deleteKnowledgeItem(baseId, itemId)
+  }
+
+  const refreshItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    try {
+      await dataApiService.post(`/knowledges/${itemId}/refresh` as any, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
+      logger.info('Item refresh triggered', { itemId, baseId })
+    } catch (error) {
+      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+    }
+  }
+
   return {
+    items,
+    urlItems,
+    hasProcessingItems,
     addUrl,
-    isAddingUrl
+    isAddingUrl,
+    deleteItem,
+    isDeleting,
+    refreshItem
   }
 }
 
@@ -214,6 +288,12 @@ export const useKnowledgeUrls = (baseId: string) => {
  * Hook for adding sitemaps to a knowledge base via v2 Data API
  */
 export const useKnowledgeSitemaps = (baseId: string) => {
+  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const sitemapItems = useMemo(() => items.filter((item) => item.type === 'sitemap'), [items])
+  const hasProcessingItems = useMemo(
+    () => sitemapItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
+    [sitemapItems]
+  )
   const { trigger: createItemsApi, isLoading: isAddingSitemap } = useMutation(
     'POST',
     `/knowledge-bases/${baseId}/items`,
@@ -252,9 +332,40 @@ export const useKnowledgeSitemaps = (baseId: string) => {
     }
   }
 
+  const { deleteItem: deleteKnowledgeItem, isDeleting } = useKnowledgeItemDelete()
+  const invalidate = useInvalidateCache()
+
+  const deleteItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    return deleteKnowledgeItem(baseId, itemId)
+  }
+
+  const refreshItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    try {
+      await dataApiService.post(`/knowledges/${itemId}/refresh` as any, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
+      logger.info('Item refresh triggered', { itemId, baseId })
+    } catch (error) {
+      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+    }
+  }
+
   return {
+    items,
+    sitemapItems,
+    hasProcessingItems,
     addSitemap,
-    isAddingSitemap
+    isAddingSitemap,
+    deleteItem,
+    isDeleting,
+    refreshItem
   }
 }
 
@@ -262,6 +373,12 @@ export const useKnowledgeSitemaps = (baseId: string) => {
  * Hook for adding notes to a knowledge base via v2 Data API
  */
 export const useKnowledgeNotes = (baseId: string) => {
+  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const noteItems = useMemo(() => items.filter((item) => item.type === 'note'), [items])
+  const hasProcessingItems = useMemo(
+    () => noteItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
+    [noteItems]
+  )
   const { trigger: createItemsApi, isLoading: isAddingNote } = useMutation('POST', `/knowledge-bases/${baseId}/items`, {
     refresh: [`/knowledge-bases/${baseId}/items`]
   })
@@ -296,9 +413,40 @@ export const useKnowledgeNotes = (baseId: string) => {
     }
   }
 
+  const { deleteItem: deleteKnowledgeItem, isDeleting } = useKnowledgeItemDelete()
+  const invalidate = useInvalidateCache()
+
+  const deleteItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    return deleteKnowledgeItem(baseId, itemId)
+  }
+
+  const refreshItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    try {
+      await dataApiService.post(`/knowledges/${itemId}/refresh` as any, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
+      logger.info('Item refresh triggered', { itemId, baseId })
+    } catch (error) {
+      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+    }
+  }
+
   return {
+    items,
+    noteItems,
+    hasProcessingItems,
     addNote,
-    isAddingNote
+    isAddingNote,
+    deleteItem,
+    isDeleting,
+    refreshItem
   }
 }
 

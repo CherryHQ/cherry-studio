@@ -4,17 +4,15 @@ import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
-import { useKnowledgeItemDelete, useKnowledgeSitemaps } from '@renderer/hooks/useKnowledge.v2'
+import { useKnowledgeSitemaps } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
-import type { ItemStatus, KnowledgeItem as KnowledgeItemV2, SitemapItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeItem as KnowledgeItemV2, SitemapItemData } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -32,115 +30,28 @@ import {
 
 const logger = loggerService.withContext('KnowledgeSitemaps')
 
-/**
- * Map v2 ItemStatus to v1 ProcessingStatus
- */
-const mapV2StatusToV1 = (status: ItemStatus): ProcessingStatus => {
-  const statusMap: Record<ItemStatus, ProcessingStatus> = {
-    idle: 'pending',
-    pending: 'pending',
-    preprocessing: 'processing',
-    embedding: 'processing',
-    completed: 'completed',
-    failed: 'failed'
-  }
-  return statusMap[status] ?? 'pending'
-}
-
-/**
- * Convert v2 KnowledgeItem (sitemap type) to v1 format for UI compatibility
- */
-const toV1SitemapItem = (item: KnowledgeItemV2): KnowledgeItem => {
-  const data = item.data as SitemapItemData
-  return {
-    id: item.id,
-    type: item.type,
-    content: data.url,
-    created_at: Date.parse(item.createdAt),
-    updated_at: Date.parse(item.updatedAt),
-    processingStatus: mapV2StatusToV1(item.status),
-    processingProgress: 0,
-    processingError: item.error ?? '',
-    retryCount: 0,
-    uniqueId: item.status === 'completed' ? item.id : undefined
-  }
-}
-
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
 
-const getDisplayTime = (item: KnowledgeItem) => {
-  const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
+const getDisplayTime = (item: KnowledgeItemV2) => {
+  const createdAt = Date.parse(item.createdAt)
+  const updatedAt = Date.parse(item.updatedAt)
+  const timestamp = updatedAt > createdAt ? updatedAt : createdAt
   return dayjs(timestamp).format('MM-DD HH:mm')
 }
 
 const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
-  // v2 Data API: Fetch items with smart polling
-  const { items: v2Items, hasProcessingItems } = useKnowledgeItems(selectedBase.id || '', {
-    enabled: !!selectedBase.id
-  })
-
-  // Convert v2 items to v1 format and filter by type 'sitemap'
-  const sitemapItems = useMemo(() => {
-    return v2Items.filter((item) => item.type === 'sitemap').map(toV1SitemapItem)
-  }, [v2Items])
-
-  // Create a map of item statuses for getProcessingStatus
-  const statusMap = useMemo(() => {
-    const map = new Map<string, ProcessingStatus>()
-    v2Items.forEach((item) => {
-      const v1Status = mapV2StatusToV1(item.status)
-      if (item.status !== 'completed') {
-        map.set(item.id, v1Status)
-      }
-    })
-    return map
-  }, [v2Items])
-
-  // Create a fake base object with items for StatusIcon compatibility
-  const baseWithItems = useMemo(() => {
-    return {
-      ...selectedBase,
-      items: sitemapItems
-    }
-  }, [selectedBase, sitemapItems])
-
-  // getProcessingStatus function for StatusIcon
-  const getProcessingStatus = useCallback(
-    (sourceId: string): ProcessingStatus | undefined => {
-      return statusMap.get(sourceId)
-    },
-    [statusMap]
-  )
-
-  // v2 Data API hook for adding sitemaps
-  const { addSitemap, isAddingSitemap } = useKnowledgeSitemaps(selectedBase.id || '')
-
-  // v2 Data API hook for deleting items
-  const { deleteItem } = useKnowledgeItemDelete()
-
-  // v2 Data API hook for refreshing items
-  const { trigger: triggerRefresh } = useMutation('POST', `/knowledges/:id/refresh` as any)
-
-  const refreshItem = useCallback(
-    async (item: KnowledgeItem) => {
-      try {
-        await triggerRefresh({ params: { id: item.id } } as any)
-        logger.info('Item refresh triggered', { itemId: item.id })
-      } catch (error) {
-        logger.error('Failed to refresh item', error as Error, { itemId: item.id })
-      }
-    },
-    [triggerRefresh]
-  )
+  // v2 Data API hook for sitemap items
+  const { sitemapItems, hasProcessingItems, addSitemap, isAddingSitemap, deleteItem, refreshItem } =
+    useKnowledgeSitemaps(selectedBase.id || '')
 
   const providerName = getProviderName(selectedBase?.model)
   const disabled = !selectedBase?.version || !providerName
 
-  const reversedItems = useMemo(() => [...sitemapItems].reverse(), [sitemapItems])
+  const reversedItems = [...sitemapItems].reverse()
   const estimateSize = useCallback(() => 75, [])
 
   if (!selectedBase) {
@@ -165,7 +76,8 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     if (url) {
       try {
         new URL(url)
-        if (sitemapItems.find((item) => item.content === url)) {
+        const hasUrl = sitemapItems.some((item) => (item.data as SitemapItemData).url === url)
+        if (hasUrl) {
           window.toast.success(t('knowledge.sitemap_added'))
           return
         }
@@ -194,46 +106,44 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}
           autoHideScrollbar>
-          {(item) => (
-            <FileItem
-              key={item.id}
-              fileInfo={{
-                name: (
-                  <ClickableSpan>
-                    <Tooltip content={item.content as string}>
-                      <Ellipsis>
-                        <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                          {item.content as string}
-                        </a>
-                      </Ellipsis>
-                    </Tooltip>
-                  </ClickableSpan>
-                ),
-                ext: '.sitemap',
-                extra: getDisplayTime(item),
-                actions: (
-                  <FlexAlignCenter>
-                    {item.uniqueId && (
-                      <Button variant="ghost" onClick={() => refreshItem(item)}>
-                        <RefreshIcon />
+          {(item) => {
+            const data = item.data as SitemapItemData
+            return (
+              <FileItem
+                key={item.id}
+                fileInfo={{
+                  name: (
+                    <ClickableSpan>
+                      <Tooltip content={data.url}>
+                        <Ellipsis>
+                          <a href={data.url} target="_blank" rel="noopener noreferrer">
+                            {data.url}
+                          </a>
+                        </Ellipsis>
+                      </Tooltip>
+                    </ClickableSpan>
+                  ),
+                  ext: '.sitemap',
+                  extra: getDisplayTime(item),
+                  actions: (
+                    <FlexAlignCenter>
+                      {item.status === 'completed' && (
+                        <Button variant="ghost" onClick={() => refreshItem(item.id)}>
+                          <RefreshIcon />
+                        </Button>
+                      )}
+                      <StatusIconWrapper>
+                        <StatusIcon sourceId={item.id} item={item} type="sitemap" />
+                      </StatusIconWrapper>
+                      <Button variant="ghost" onClick={() => deleteItem(item.id)}>
+                        <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                       </Button>
-                    )}
-                    <StatusIconWrapper>
-                      <StatusIcon
-                        sourceId={item.id}
-                        base={baseWithItems}
-                        getProcessingStatus={getProcessingStatus}
-                        type="sitemap"
-                      />
-                    </StatusIconWrapper>
-                    <Button variant="ghost" onClick={() => deleteItem(selectedBase.id, item.id)}>
-                      <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
-                    </Button>
-                  </FlexAlignCenter>
-                )
-              }}
-            />
-          )}
+                    </FlexAlignCenter>
+                  )
+                }}
+              />
+            )
+          }}
         </DynamicVirtualList>
       </ItemFlexColumn>
     </ItemContainer>

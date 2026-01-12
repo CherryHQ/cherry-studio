@@ -3,17 +3,15 @@ import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
-import { useKnowledgeDirectories, useKnowledgeItemDelete } from '@renderer/hooks/useKnowledge.v2'
+import { useKnowledgeDirectories } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
-import type { DirectoryItemData, ItemStatus, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
+import type { KnowledgeBase } from '@renderer/types'
+import type { DirectoryItemData, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -31,116 +29,29 @@ import {
 
 const logger = loggerService.withContext('KnowledgeDirectories')
 
-/**
- * Map v2 ItemStatus to v1 ProcessingStatus
- */
-const mapV2StatusToV1 = (status: ItemStatus): ProcessingStatus => {
-  const statusMap: Record<ItemStatus, ProcessingStatus> = {
-    idle: 'pending',
-    pending: 'pending',
-    preprocessing: 'processing',
-    embedding: 'processing',
-    completed: 'completed',
-    failed: 'failed'
-  }
-  return statusMap[status] ?? 'pending'
-}
-
-/**
- * Convert v2 KnowledgeItem (directory type) to v1 format for UI compatibility
- */
-const toV1DirectoryItem = (item: KnowledgeItemV2): KnowledgeItem => {
-  const data = item.data as DirectoryItemData
-  return {
-    id: item.id,
-    type: item.type,
-    content: data.path,
-    created_at: Date.parse(item.createdAt),
-    updated_at: Date.parse(item.updatedAt),
-    processingStatus: mapV2StatusToV1(item.status),
-    processingProgress: 0,
-    processingError: item.error ?? '',
-    retryCount: 0,
-    uniqueId: item.status === 'completed' ? item.id : undefined
-  }
-}
-
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
   progressMap: Map<string, number>
 }
 
-const getDisplayTime = (item: KnowledgeItem) => {
-  const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
+const getDisplayTime = (item: KnowledgeItemV2) => {
+  const createdAt = Date.parse(item.createdAt)
+  const updatedAt = Date.parse(item.updatedAt)
+  const timestamp = updatedAt > createdAt ? updatedAt : createdAt
   return dayjs(timestamp).format('MM-DD HH:mm')
 }
 
 const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progressMap }) => {
   const { t } = useTranslation()
 
-  // v2 Data API: Fetch items with smart polling
-  const { items: v2Items, hasProcessingItems } = useKnowledgeItems(selectedBase.id || '', {
-    enabled: !!selectedBase.id
-  })
-
-  // Convert v2 items to v1 format and filter by type 'directory'
-  const directoryItems = useMemo(() => {
-    return v2Items.filter((item) => item.type === 'directory').map(toV1DirectoryItem)
-  }, [v2Items])
-
-  // Create a map of item statuses for getProcessingStatus
-  const statusMap = useMemo(() => {
-    const map = new Map<string, ProcessingStatus>()
-    v2Items.forEach((item) => {
-      const v1Status = mapV2StatusToV1(item.status)
-      if (item.status !== 'completed') {
-        map.set(item.id, v1Status)
-      }
-    })
-    return map
-  }, [v2Items])
-
-  // Create a fake base object with items for StatusIcon compatibility
-  const baseWithItems = useMemo(() => {
-    return {
-      ...selectedBase,
-      items: directoryItems
-    }
-  }, [selectedBase, directoryItems])
-
-  // getProcessingStatus function for StatusIcon
-  const getProcessingStatus = useCallback(
-    (sourceId: string): ProcessingStatus | undefined => {
-      return statusMap.get(sourceId)
-    },
-    [statusMap]
-  )
-
-  // v2 Data API hook for adding directories
-  const { addDirectory, isAddingDirectory } = useKnowledgeDirectories(selectedBase.id || '')
-
-  // v2 Data API hook for deleting items
-  const { deleteItem } = useKnowledgeItemDelete()
-
-  // v2 Data API hook for refreshing items
-  const { trigger: triggerRefresh } = useMutation('POST', `/knowledges/:id/refresh` as any)
-
-  const refreshItem = useCallback(
-    async (item: KnowledgeItem) => {
-      try {
-        await triggerRefresh({ params: { id: item.id } } as any)
-        logger.info('Item refresh triggered', { itemId: item.id })
-      } catch (error) {
-        logger.error('Failed to refresh item', error as Error, { itemId: item.id })
-      }
-    },
-    [triggerRefresh]
-  )
+  // v2 Data API hook for directory items
+  const { directoryItems, hasProcessingItems, addDirectory, isAddingDirectory, deleteItem, refreshItem } =
+    useKnowledgeDirectories(selectedBase.id || '')
 
   const providerName = getProviderName(selectedBase?.model)
   const disabled = !selectedBase?.version || !providerName
 
-  const reversedItems = useMemo(() => [...directoryItems].reverse(), [directoryItems])
+  const reversedItems = [...directoryItems].reverse()
   const estimateSize = useCallback(() => 75, [])
 
   if (!selectedBase) {
@@ -175,43 +86,45 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}
           autoHideScrollbar>
-          {(item) => (
-            <FileItem
-              key={item.id}
-              fileInfo={{
-                name: (
-                  <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
-                    <Ellipsis>
-                      <Tooltip content={item.content as string}>{item.content as string}</Tooltip>
-                    </Ellipsis>
-                  </ClickableSpan>
-                ),
-                ext: '.folder',
-                extra: getDisplayTime(item),
-                actions: (
-                  <FlexAlignCenter>
-                    {item.uniqueId && (
-                      <Button variant="ghost" onClick={() => refreshItem(item)}>
-                        <RefreshIcon />
+          {(item) => {
+            const data = item.data as DirectoryItemData
+            return (
+              <FileItem
+                key={item.id}
+                fileInfo={{
+                  name: (
+                    <ClickableSpan onClick={() => window.api.file.openPath(data.path)}>
+                      <Ellipsis>
+                        <Tooltip content={data.path}>{data.path}</Tooltip>
+                      </Ellipsis>
+                    </ClickableSpan>
+                  ),
+                  ext: '.folder',
+                  extra: getDisplayTime(item),
+                  actions: (
+                    <FlexAlignCenter>
+                      {item.status === 'completed' && (
+                        <Button variant="ghost" onClick={() => refreshItem(item.id)}>
+                          <RefreshIcon />
+                        </Button>
+                      )}
+                      <StatusIconWrapper>
+                        <StatusIcon
+                          sourceId={item.id}
+                          item={item}
+                          progress={progressMap.get(item.id)}
+                          type="directory"
+                        />
+                      </StatusIconWrapper>
+                      <Button variant="ghost" onClick={() => deleteItem(item.id)}>
+                        <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                       </Button>
-                    )}
-                    <StatusIconWrapper>
-                      <StatusIcon
-                        sourceId={item.id}
-                        base={baseWithItems}
-                        getProcessingStatus={getProcessingStatus}
-                        progress={progressMap.get(item.id)}
-                        type="directory"
-                      />
-                    </StatusIconWrapper>
-                    <Button variant="ghost" onClick={() => deleteItem(selectedBase.id, item.id)}>
-                      <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
-                    </Button>
-                  </FlexAlignCenter>
-                )
-              }}
-            />
-          )}
+                    </FlexAlignCenter>
+                  )
+                }}
+              />
+            )
+          }}
         </DynamicVirtualList>
       </ItemFlexColumn>
     </ItemContainer>
