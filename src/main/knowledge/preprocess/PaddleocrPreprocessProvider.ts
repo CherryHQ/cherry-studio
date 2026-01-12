@@ -140,6 +140,10 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     return 0
   }
 
+  private getMarkdownFileName(file: FileMetadata): string {
+    return file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
+  }
+
   private async validateFile(filePath: string): Promise<Buffer> {
     // 阶段1：校验文件类型
     logger.info(`Validating PDF file: ${filePath}`)
@@ -184,7 +188,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
   }
 
   private createProcessedFileInfo(file: FileMetadata, outputDir: string): FileMetadata {
-    const finalMdFileName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
+    const finalMdFileName = this.getMarkdownFileName(file)
     const finalMdPath = path.join(outputDir, finalMdFileName)
 
     const ext = path.extname(finalMdPath)
@@ -271,7 +275,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       .join('\n\n')
 
     // 直接构造目标文件名
-    const finalMdFileName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
+    const finalMdFileName = this.getMarkdownFileName(file)
     const finalMdPath = path.join(outputDir, finalMdFileName)
 
     // 保存 Markdown 文件
