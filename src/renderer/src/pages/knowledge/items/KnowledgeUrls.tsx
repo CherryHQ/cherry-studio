@@ -1,13 +1,16 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
 import { useKnowledgeItemDelete, useKnowledgeUrls } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import type { ItemStatus, KnowledgeItem as KnowledgeItemV2, UrlItemData } from '@shared/data/types/knowledge'
 import { Dropdown } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
@@ -28,6 +31,43 @@ import {
   StatusIconWrapper
 } from '../KnowledgeContent'
 
+const logger = loggerService.withContext('KnowledgeUrls')
+
+/**
+ * Map v2 ItemStatus to v1 ProcessingStatus
+ */
+const mapV2StatusToV1 = (status: ItemStatus): ProcessingStatus => {
+  const statusMap: Record<ItemStatus, ProcessingStatus> = {
+    idle: 'pending',
+    pending: 'pending',
+    preprocessing: 'processing',
+    embedding: 'processing',
+    completed: 'completed',
+    failed: 'failed'
+  }
+  return statusMap[status] ?? 'pending'
+}
+
+/**
+ * Convert v2 KnowledgeItem (url type) to v1 format for UI compatibility
+ */
+const toV1UrlItem = (item: KnowledgeItemV2): KnowledgeItem => {
+  const data = item.data as UrlItemData
+  return {
+    id: item.id,
+    type: item.type,
+    content: data.url,
+    remark: data.name !== data.url ? data.name : undefined,
+    created_at: Date.parse(item.createdAt),
+    updated_at: Date.parse(item.updatedAt),
+    processingStatus: mapV2StatusToV1(item.status),
+    processingProgress: 0,
+    processingError: item.error ?? '',
+    retryCount: 0,
+    uniqueId: item.status === 'completed' ? item.id : undefined
+  }
+}
+
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
@@ -40,7 +80,47 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
-  const { base, urlItems, refreshItem, getProcessingStatus, updateItem } = useKnowledge(selectedBase.id || '')
+  // v2 Data API: Fetch items with smart polling
+  const {
+    items: v2Items,
+    hasProcessingItems,
+    mutate
+  } = useKnowledgeItems(selectedBase.id || '', {
+    enabled: !!selectedBase.id
+  })
+
+  // Convert v2 items to v1 format and filter by type 'url'
+  const urlItems = useMemo(() => {
+    return v2Items.filter((item) => item.type === 'url').map(toV1UrlItem)
+  }, [v2Items])
+
+  // Create a map of item statuses for getProcessingStatus
+  const statusMap = useMemo(() => {
+    const map = new Map<string, ProcessingStatus>()
+    v2Items.forEach((item) => {
+      const v1Status = mapV2StatusToV1(item.status)
+      if (item.status !== 'completed') {
+        map.set(item.id, v1Status)
+      }
+    })
+    return map
+  }, [v2Items])
+
+  // Create a fake base object with items for StatusIcon compatibility
+  const baseWithItems = useMemo(() => {
+    return {
+      ...selectedBase,
+      items: urlItems
+    }
+  }, [selectedBase, urlItems])
+
+  // getProcessingStatus function for StatusIcon
+  const getProcessingStatus = useCallback(
+    (sourceId: string): ProcessingStatus | undefined => {
+      return statusMap.get(sourceId)
+    },
+    [statusMap]
+  )
 
   // v2 Data API hook for adding URLs
   const { addUrl, isAddingUrl } = useKnowledgeUrls(selectedBase.id || '')
@@ -48,13 +128,55 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   // v2 Data API hook for deleting items
   const { deleteItem } = useKnowledgeItemDelete()
 
-  const providerName = getProviderName(base?.model)
-  const disabled = !base?.version || !providerName
+  // v2 Data API hook for refreshing items
+  const { trigger: triggerRefresh } = useMutation('POST', `/knowledges/:id/refresh` as any)
+
+  const refreshItem = useCallback(
+    async (item: KnowledgeItem) => {
+      try {
+        await triggerRefresh({ params: { id: item.id } } as any)
+        logger.info('Item refresh triggered', { itemId: item.id })
+      } catch (error) {
+        logger.error('Failed to refresh item', error as Error, { itemId: item.id })
+      }
+    },
+    [triggerRefresh]
+  )
+
+  // v2 Data API hook for updating item remark
+  const { trigger: updateItemApi } = useMutation('PATCH', `/knowledges/:id` as any)
+
+  const updateItem = useCallback(
+    async (item: KnowledgeItem) => {
+      try {
+        await updateItemApi({
+          params: { id: item.id },
+          body: {
+            data: {
+              type: 'url',
+              url: item.content as string,
+              name: item.remark || (item.content as string)
+            } satisfies UrlItemData
+          }
+        } as any)
+        // Refresh the items list
+        mutate()
+        logger.info('URL remark updated', { itemId: item.id })
+      } catch (error) {
+        logger.error('Failed to update URL remark', error as Error, { itemId: item.id })
+        throw error
+      }
+    },
+    [updateItemApi, mutate]
+  )
+
+  const providerName = getProviderName(selectedBase?.model)
+  const disabled = !selectedBase?.version || !providerName
 
   const reversedItems = useMemo(() => [...urlItems].reverse(), [urlItems])
   const estimateSize = useCallback(() => 75, [])
 
-  if (!base) {
+  if (!selectedBase) {
     return null
   }
 
@@ -125,6 +247,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <PlusIcon size={16} />
           {t('knowledge.add_url')}
         </ResponsiveButton>
+        {hasProcessingItems && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>同步中...</span>}
       </ItemHeader>
       <ItemFlexColumn>
         {urlItems.length === 0 && <KnowledgeEmptyView />}
@@ -182,7 +305,12 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       </Button>
                     )}
                     <StatusIconWrapper>
-                      <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
+                      <StatusIcon
+                        sourceId={item.id}
+                        base={baseWithItems}
+                        getProcessingStatus={getProcessingStatus}
+                        type="url"
+                      />
                     </StatusIconWrapper>
                     <Button variant="ghost" onClick={() => deleteItem(selectedBase.id, item.id)}>
                       <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />

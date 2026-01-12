@@ -4,11 +4,13 @@ import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
 import { useKnowledgeItemDelete, useKnowledgeSitemaps } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import type { ItemStatus, KnowledgeItem as KnowledgeItemV2, SitemapItemData } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -28,11 +30,45 @@ import {
   StatusIconWrapper
 } from '../KnowledgeContent'
 
+const logger = loggerService.withContext('KnowledgeSitemaps')
+
+/**
+ * Map v2 ItemStatus to v1 ProcessingStatus
+ */
+const mapV2StatusToV1 = (status: ItemStatus): ProcessingStatus => {
+  const statusMap: Record<ItemStatus, ProcessingStatus> = {
+    idle: 'pending',
+    pending: 'pending',
+    preprocessing: 'processing',
+    embedding: 'processing',
+    completed: 'completed',
+    failed: 'failed'
+  }
+  return statusMap[status] ?? 'pending'
+}
+
+/**
+ * Convert v2 KnowledgeItem (sitemap type) to v1 format for UI compatibility
+ */
+const toV1SitemapItem = (item: KnowledgeItemV2): KnowledgeItem => {
+  const data = item.data as SitemapItemData
+  return {
+    id: item.id,
+    type: item.type,
+    content: data.url,
+    created_at: Date.parse(item.createdAt),
+    updated_at: Date.parse(item.updatedAt),
+    processingStatus: mapV2StatusToV1(item.status),
+    processingProgress: 0,
+    processingError: item.error ?? '',
+    retryCount: 0,
+    uniqueId: item.status === 'completed' ? item.id : undefined
+  }
+}
+
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
-
-const logger = loggerService.withContext('KnowledgeSitemaps')
 
 const getDisplayTime = (item: KnowledgeItem) => {
   const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
@@ -42,7 +78,43 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
-  const { base, sitemapItems, refreshItem, getProcessingStatus } = useKnowledge(selectedBase.id || '')
+  // v2 Data API: Fetch items with smart polling
+  const { items: v2Items, hasProcessingItems } = useKnowledgeItems(selectedBase.id || '', {
+    enabled: !!selectedBase.id
+  })
+
+  // Convert v2 items to v1 format and filter by type 'sitemap'
+  const sitemapItems = useMemo(() => {
+    return v2Items.filter((item) => item.type === 'sitemap').map(toV1SitemapItem)
+  }, [v2Items])
+
+  // Create a map of item statuses for getProcessingStatus
+  const statusMap = useMemo(() => {
+    const map = new Map<string, ProcessingStatus>()
+    v2Items.forEach((item) => {
+      const v1Status = mapV2StatusToV1(item.status)
+      if (item.status !== 'completed') {
+        map.set(item.id, v1Status)
+      }
+    })
+    return map
+  }, [v2Items])
+
+  // Create a fake base object with items for StatusIcon compatibility
+  const baseWithItems = useMemo(() => {
+    return {
+      ...selectedBase,
+      items: sitemapItems
+    }
+  }, [selectedBase, sitemapItems])
+
+  // getProcessingStatus function for StatusIcon
+  const getProcessingStatus = useCallback(
+    (sourceId: string): ProcessingStatus | undefined => {
+      return statusMap.get(sourceId)
+    },
+    [statusMap]
+  )
 
   // v2 Data API hook for adding sitemaps
   const { addSitemap, isAddingSitemap } = useKnowledgeSitemaps(selectedBase.id || '')
@@ -50,13 +122,28 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   // v2 Data API hook for deleting items
   const { deleteItem } = useKnowledgeItemDelete()
 
-  const providerName = getProviderName(base?.model)
-  const disabled = !base?.version || !providerName
+  // v2 Data API hook for refreshing items
+  const { trigger: triggerRefresh } = useMutation('POST', `/knowledges/:id/refresh` as any)
+
+  const refreshItem = useCallback(
+    async (item: KnowledgeItem) => {
+      try {
+        await triggerRefresh({ params: { id: item.id } } as any)
+        logger.info('Item refresh triggered', { itemId: item.id })
+      } catch (error) {
+        logger.error('Failed to refresh item', error as Error, { itemId: item.id })
+      }
+    },
+    [triggerRefresh]
+  )
+
+  const providerName = getProviderName(selectedBase?.model)
+  const disabled = !selectedBase?.version || !providerName
 
   const reversedItems = useMemo(() => [...sitemapItems].reverse(), [sitemapItems])
   const estimateSize = useCallback(() => 75, [])
 
-  if (!base) {
+  if (!selectedBase) {
     return null
   }
 
@@ -96,6 +183,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <PlusIcon size={16} />
           {t('knowledge.add_sitemap')}
         </ResponsiveButton>
+        {hasProcessingItems && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>同步中...</span>}
       </ItemHeader>
       <ItemFlexColumn>
         {sitemapItems.length === 0 && <KnowledgeEmptyView />}
@@ -133,7 +221,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     <StatusIconWrapper>
                       <StatusIcon
                         sourceId={item.id}
-                        base={base}
+                        base={baseWithItems}
                         getProcessingStatus={getProcessingStatus}
                         type="sitemap"
                       />

@@ -1,5 +1,5 @@
 /**
- * Knowledge Items Hook
+ * Knowledge Hooks
  *
  * Provides hooks for fetching knowledge items with smart polling for processing status updates.
  * Uses DataApi's useQuery with refreshInterval for real-time status updates.
@@ -8,7 +8,8 @@
  */
 
 import { useQuery } from '@data/hooks/useDataApi'
-import type { ItemStatus, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
+import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
+import type { ItemStatus, KnowledgeItem } from '@shared/data/types/knowledge'
 import { useMemo } from 'react'
 
 /** Status values that indicate an item is still being processed */
@@ -16,6 +17,15 @@ const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embeddin
 
 /** Polling interval in milliseconds when items are processing */
 const PROCESSING_POLL_INTERVAL = 3000
+
+/** API path type for knowledge base items */
+type KnowledgeBaseItemsPath = `/knowledge-bases/${string}/items`
+
+/** API path type for single knowledge item */
+type KnowledgeItemPath = `/knowledges/${string}`
+
+/** Response type for knowledge items list */
+type KnowledgeItemsResponse = OffsetPaginationResponse<KnowledgeItem>
 
 /**
  * Hook for fetching knowledge items with smart polling.
@@ -28,7 +38,6 @@ const PROCESSING_POLL_INTERVAL = 3000
  * @param baseId - The knowledge base ID to fetch items for
  * @param options - Optional configuration
  * @param options.enabled - Set to false to disable fetching (default: true)
- * @param options.limit - Number of items per page (default: 100)
  * @returns Query result with items, loading states, and controls
  *
  * @example
@@ -38,8 +47,7 @@ const PROCESSING_POLL_INTERVAL = 3000
  *
  * // With options
  * const { items, refetch } = useKnowledgeItems(baseId, {
- *   enabled: !!baseId,
- *   limit: 50
+ *   enabled: !!baseId
  * })
  *
  * // Conditional rendering based on processing state
@@ -51,48 +59,47 @@ export function useKnowledgeItems(
   options?: {
     /** Set to false to disable fetching (default: true) */
     enabled?: boolean
-    /** Number of items per page (default: 100) */
-    limit?: number
   }
 ) {
   const enabled = options?.enabled !== false && !!baseId
-  const limit = options?.limit ?? 100
+  const path: KnowledgeBaseItemsPath = `/knowledge-bases/${baseId}/items`
 
   // Fetch knowledge items
-  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(
-    `/knowledge-bases/${baseId}/items` as any,
-    {
-      query: { limit },
-      enabled
-    }
-  )
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
+    enabled
+  })
+
+  // Type the response data
+  const typedData = data as KnowledgeItemsResponse | undefined
 
   // Memoize items extraction to avoid creating new array on every render
-  const items = useMemo<KnowledgeItemV2[]>(() => (data as any)?.items ?? [], [data])
-  const total = useMemo<number>(() => (data as any)?.total ?? 0, [data])
+  const items = useMemo<KnowledgeItem[]>(() => typedData?.items ?? [], [typedData])
+  const total = useMemo<number>(() => typedData?.total ?? 0, [typedData])
 
   // Check if any items are still being processed
   const hasProcessingItems = useMemo(() => items.some((item) => PROCESSING_STATUSES.includes(item.status)), [items])
 
   // Use a second query with polling when items are processing
   // This is a pattern recommended in the DataApi documentation
-  const { data: polledData } = useQuery(`/knowledge-bases/${baseId}/items` as any, {
-    query: { limit },
+  const { data: polledData } = useQuery(path, {
     enabled: enabled && hasProcessingItems,
     swrOptions: {
       refreshInterval: PROCESSING_POLL_INTERVAL
     }
   })
 
+  // Type the polled data
+  const typedPolledData = polledData as KnowledgeItemsResponse | undefined
+
   // Use polled data when available and processing
-  const currentItems = useMemo<KnowledgeItemV2[]>(
-    () => (hasProcessingItems ? ((polledData as any)?.items ?? items) : items),
-    [hasProcessingItems, polledData, items]
+  const currentItems = useMemo<KnowledgeItem[]>(
+    () => (hasProcessingItems ? (typedPolledData?.items ?? items) : items),
+    [hasProcessingItems, typedPolledData, items]
   )
 
   const currentTotal = useMemo<number>(
-    () => (hasProcessingItems ? ((polledData as any)?.total ?? total) : total),
-    [hasProcessingItems, polledData, total]
+    () => (hasProcessingItems ? (typedPolledData?.total ?? total) : total),
+    [hasProcessingItems, typedPolledData, total]
   )
 
   return {
@@ -140,18 +147,19 @@ export function useKnowledgeItem(
   }
 ) {
   const enabled = options?.enabled !== false && !!itemId
+  const path: KnowledgeItemPath = `/knowledges/${itemId}`
 
   // Fetch single item
-  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(`/knowledge-items/${itemId}` as any, {
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
     enabled
   })
 
-  const item = data as KnowledgeItemV2 | undefined
+  const item = data as KnowledgeItem | undefined
   const status = item?.status ?? 'idle'
   const isProcessing = PROCESSING_STATUSES.includes(status)
 
   // Poll when item is processing
-  const { data: polledData } = useQuery(`/knowledge-items/${itemId}` as any, {
+  const { data: polledData } = useQuery(path, {
     enabled: enabled && isProcessing,
     swrOptions: {
       refreshInterval: PROCESSING_POLL_INTERVAL
@@ -159,7 +167,7 @@ export function useKnowledgeItem(
   })
 
   // Use polled data when processing
-  const currentItem = isProcessing ? ((polledData as KnowledgeItemV2 | undefined) ?? item) : item
+  const currentItem = isProcessing ? ((polledData as KnowledgeItem | undefined) ?? item) : item
 
   return {
     /** Knowledge item with latest status */

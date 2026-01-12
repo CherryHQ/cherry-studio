@@ -2,20 +2,20 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
-import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { useKnowledgeFiles, useKnowledgeItemDelete } from '@renderer/hooks/useKnowledge.v2'
+import { useKnowledgeFiles } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
 import { isKnowledgeFileItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
+import type { FileItemData, ItemStatus, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
 import { Upload } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -46,6 +46,41 @@ interface KnowledgeContentProps {
 
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
 
+/**
+ * Map v2 ItemStatus to v1 ProcessingStatus
+ */
+const mapV2StatusToV1 = (status: ItemStatus): ProcessingStatus => {
+  const statusMap: Record<ItemStatus, ProcessingStatus> = {
+    idle: 'pending',
+    pending: 'pending',
+    preprocessing: 'processing',
+    embedding: 'processing',
+    completed: 'completed',
+    failed: 'failed'
+  }
+  return statusMap[status] ?? 'pending'
+}
+
+/**
+ * Convert v2 KnowledgeItem (file type) to v1 format for UI compatibility
+ */
+const toV1FileItem = (item: KnowledgeItemV2): KnowledgeItem => {
+  const data = item.data as FileItemData
+  return {
+    id: item.id,
+    type: item.type,
+    content: data.file,
+    created_at: Date.parse(item.createdAt),
+    updated_at: Date.parse(item.updatedAt),
+    processingStatus: mapV2StatusToV1(item.status),
+    processingProgress: 0,
+    processingError: item.error ?? '',
+    retryCount: 0,
+    // v2 completed items have embedded vectors
+    uniqueId: item.status === 'completed' ? item.id : undefined
+  }
+}
+
 const getDisplayTime = (item: KnowledgeItem) => {
   const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
   return dayjs(timestamp).format('MM-DD HH:mm')
@@ -56,13 +91,47 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
   const { onSelectFile, selecting } = useFiles({ extensions: fileTypes })
 
-  const { base, fileItems, refreshItem, getProcessingStatus } = useKnowledge(selectedBase.id || '')
+  const {
+    fileItems: v2FileItems,
+    hasProcessingItems,
+    addFiles,
+    deleteItem,
+    refreshItem
+  } = useKnowledgeFiles(selectedBase.id || '')
 
-  // v2 Data API hook for adding files
-  const { addFiles } = useKnowledgeFiles(selectedBase.id || '')
+  // Convert v2 file items to v1 format
+  const fileItems = useMemo(() => {
+    return v2FileItems.map(toV1FileItem)
+  }, [v2FileItems])
 
-  // v2 Data API hook for deleting items
-  const { deleteItem } = useKnowledgeItemDelete()
+  // Create a map of item statuses for getProcessingStatus
+  const statusMap = useMemo(() => {
+    const map = new Map<string, ProcessingStatus>()
+    v2FileItems.forEach((item) => {
+      const v1Status = mapV2StatusToV1(item.status)
+      // Only set status if not completed (completed items show checkmark)
+      if (item.status !== 'completed') {
+        map.set(item.id, v1Status)
+      }
+    })
+    return map
+  }, [v2FileItems])
+
+  // Create a fake base object with items for StatusIcon compatibility
+  const baseWithItems = useMemo(() => {
+    return {
+      ...selectedBase,
+      items: fileItems
+    }
+  }, [selectedBase, fileItems])
+
+  // getProcessingStatus function for StatusIcon
+  const getProcessingStatus = useCallback(
+    (sourceId: string): ProcessingStatus | undefined => {
+      return statusMap.get(sourceId)
+    },
+    [statusMap]
+  )
 
   useEffect(() => {
     const handleResize = () => {
@@ -73,12 +142,12 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const providerName = getProviderName(base?.model)
-  const disabled = !base?.version || !providerName
+  const providerName = getProviderName(selectedBase?.model)
+  const disabled = !selectedBase?.version || !providerName
 
   const estimateSize = useCallback(() => 75, [])
 
-  if (!base) {
+  if (!selectedBase) {
     return null
   }
 
@@ -135,10 +204,10 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   }
 
   const showPreprocessIcon = (item: KnowledgeItem) => {
-    if (base.preprocessProvider && item.isPreprocessed !== false) {
+    if (selectedBase.preprocessProvider && item.isPreprocessed !== false) {
       return true
     }
-    if (!base.preprocessProvider && item.isPreprocessed === true) {
+    if (!selectedBase.preprocessProvider && item.isPreprocessed === true) {
       return true
     }
     return false
@@ -151,6 +220,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           <PlusIcon size={16} />
           {t('knowledge.add_file')}
         </ResponsiveButton>
+        {hasProcessingItems && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>同步中...</span>}
       </ItemHeader>
 
       <ItemFlexColumn>
@@ -175,7 +245,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           <KnowledgeEmptyView />
         ) : (
           <DynamicVirtualList
-            list={fileItems.reverse()}
+            list={[...fileItems].reverse()}
             estimateSize={estimateSize}
             overscan={2}
             scrollerStyle={{ height: windowHeight - 270 }}
@@ -202,7 +272,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button variant="ghost" onClick={() => refreshItem(item)}>
+                            <Button variant="ghost" onClick={() => refreshItem(item.id)}>
                               <RefreshIcon />
                             </Button>
                           )}
@@ -210,7 +280,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                             <StatusIconWrapper>
                               <StatusIcon
                                 sourceId={item.id}
-                                base={base}
+                                base={baseWithItems}
                                 getProcessingStatus={getProcessingStatus}
                                 type="file"
                                 isPreprocessed={preprocessMap.get(item.id) || item.isPreprocessed || false}
@@ -221,12 +291,12 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                           <StatusIconWrapper>
                             <StatusIcon
                               sourceId={item.id}
-                              base={base}
+                              base={baseWithItems}
                               getProcessingStatus={getProcessingStatus}
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button variant="ghost" onClick={() => deleteItem(selectedBase.id, item.id)}>
+                          <Button variant="ghost" onClick={() => deleteItem(item.id)}>
                             <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                           </Button>
                         </FlexAlignCenter>

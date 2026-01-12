@@ -231,7 +231,7 @@ export const useKnowledge = (baseId: string) => {
     const updatedAt = Date.now()
 
     try {
-      await dataApiService.patch(`/knowledge-items/${noteId}` as any, {
+      await dataApiService.patch(`/knowledges/${noteId}` as any, {
         body: {
           data: {
             type: 'note',
@@ -296,7 +296,7 @@ export const useKnowledge = (baseId: string) => {
     }
 
     try {
-      await dataApiService.delete(`/knowledge-items/${item.id}` as any)
+      await dataApiService.delete(`/knowledges/${item.id}` as any)
       dispatch(removeItemAction({ baseId, item }))
 
       if (isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)) {
@@ -318,7 +318,7 @@ export const useKnowledge = (baseId: string) => {
     }
 
     try {
-      await dataApiService.post(`/knowledge-items/${item.id}/refresh` as any, { body: undefined })
+      await dataApiService.post(`/knowledges/${item.id}/refresh` as any, { body: undefined })
       updateItem({
         ...item,
         processingStatus: 'pending',

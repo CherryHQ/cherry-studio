@@ -220,11 +220,11 @@ export type KnowledgeItemData =
 | `/knowledge-bases/:id` | DELETE | 删除知识库（含 items 与向量） |
 | `/knowledge-bases/:id/items` | GET | 分页查询指定知识库的 items |
 | `/knowledge-bases/:id/items` | POST | 创建 items（支持单个或批量，进入队列） |
-| `/knowledge-items/:id` | GET | 获取单个 item |
-| `/knowledge-items/:id` | PATCH | 更新 item 数据（如 note 内容） |
-| `/knowledge-items/:id` | DELETE | 删除 item（含向量） |
-| `/knowledge-items/:id/refresh` | POST | 重新处理（预处理 + 嵌入） |
-| `/knowledge-items/:id/cancel` | POST | 取消队列中的处理任务 |
+| `/knowledges/:id` | GET | 获取单个 item |
+| `/knowledges/:id` | PATCH | 更新 item 数据（如 note 内容） |
+| `/knowledges/:id` | DELETE | 删除 item（含向量） |
+| `/knowledges/:id/refresh` | POST | 重新处理（预处理 + 嵌入） |
+| `/knowledges/:id/cancel` | POST | 取消队列中的处理任务 |
 | `/knowledge-bases/:id/search` | POST | 向量/混合检索 |
 
 ### 端点清单（可选）
@@ -375,7 +375,7 @@ export interface KnowledgeSchemas {
       response: { items: KnowledgeItem[] }
     }
   }
-  '/knowledge-items/:id': {
+  '/knowledges/:id': {
     GET: {
       params: { id: string }
       response: KnowledgeItem
@@ -390,13 +390,13 @@ export interface KnowledgeSchemas {
       response: void
     }
   }
-  '/knowledge-items/:id/refresh': {
+  '/knowledges/:id/refresh': {
     POST: {
       params: { id: string }
       response: KnowledgeItem
     }
   }
-  '/knowledge-items/:id/cancel': {
+  '/knowledges/:id/cancel': {
     POST: {
       params: { id: string }
       response: { status: 'cancelled' | 'ignored' }

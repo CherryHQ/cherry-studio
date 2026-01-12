@@ -12,7 +12,7 @@
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
-import { knowledgeHandlers } from './knowledge'
+import { knowledgeHandlers } from './knowledges'
 import { messageHandlers } from './messages'
 import { testHandlers } from './test'
 import { topicHandlers } from './topics'

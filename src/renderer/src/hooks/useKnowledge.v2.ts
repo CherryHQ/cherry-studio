@@ -8,6 +8,7 @@
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
+import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
 import { useAppDispatch } from '@renderer/store'
 import {
   addFiles as addFilesAction,
@@ -27,9 +28,12 @@ import type {
   SitemapItemData,
   UrlItemData
 } from '@shared/data/types/knowledge'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const logger = loggerService.withContext('useKnowledge.v2')
+
+/** Status values that indicate an item is still being processed */
+const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
 
 /**
  * Map v2 ItemStatus to v1 ProcessingStatus
@@ -143,6 +147,12 @@ const toV1NoteItem = (item: KnowledgeItemV2): KnowledgeItem => {
  */
 export const useKnowledgeFiles = (baseId: string) => {
   const dispatch = useAppDispatch()
+  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const fileItems = useMemo(() => items.filter((item) => item.type === 'file'), [items])
+  const hasProcessingItems = useMemo(
+    () => fileItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
+    [fileItems]
+  )
 
   const { trigger: createItemsApi, isLoading: isAddingFiles } = useMutation(
     'POST',
@@ -151,6 +161,9 @@ export const useKnowledgeFiles = (baseId: string) => {
       refresh: [`/knowledge-bases/${baseId}/items`]
     }
   )
+
+  const { deleteItem: deleteKnowledgeItem, isDeleting } = useKnowledgeItemDelete()
+  const invalidate = useInvalidateCache()
 
   /**
    * Add files to knowledge base via v2 API
@@ -185,9 +198,43 @@ export const useKnowledgeFiles = (baseId: string) => {
     }
   }
 
+  /**
+   * Delete a file item via v2 API
+   */
+  const deleteItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    return deleteKnowledgeItem(baseId, itemId)
+  }
+
+  /**
+   * Refresh a file item via v2 API
+   */
+  const refreshItem = async (itemId: string): Promise<void> => {
+    if (!baseId || !itemId) {
+      return
+    }
+
+    try {
+      await dataApiService.post(`/knowledges/${itemId}/refresh` as any, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
+      logger.info('Item refresh triggered', { itemId, baseId })
+    } catch (error) {
+      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+    }
+  }
+
   return {
+    items,
+    fileItems,
+    hasProcessingItems,
     addFiles,
-    isAddingFiles
+    isAddingFiles,
+    deleteItem,
+    isDeleting,
+    refreshItem
   }
 }
 
@@ -419,7 +466,7 @@ export const useKnowledgeItemDelete = () => {
     setIsDeleting(true)
     try {
       // Call v2 API to delete item (also removes vectors)
-      await dataApiService.delete(`/knowledge-items/${itemId}` as any)
+      await dataApiService.delete(`/knowledges/${itemId}` as any)
 
       // Refresh the items list cache
       await invalidate(`/knowledge-bases/${baseId}/items`)

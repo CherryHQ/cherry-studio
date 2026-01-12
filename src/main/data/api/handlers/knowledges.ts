@@ -52,7 +52,7 @@ export const knowledgeHandlers: {
     }
   },
 
-  '/knowledge-items/:id': {
+  '/knowledges/:id': {
     GET: async ({ params }) => {
       return await knowledgeService.getItemById(params.id)
     },
@@ -65,13 +65,13 @@ export const knowledgeHandlers: {
     }
   },
 
-  '/knowledge-items/:id/refresh': {
+  '/knowledges/:id/refresh': {
     POST: async ({ params }) => {
       return await knowledgeService.refreshItem(params.id)
     }
   },
 
-  '/knowledge-items/:id/cancel': {
+  '/knowledges/:id/cancel': {
     POST: async ({ params }) => {
       return await knowledgeService.cancelItem(params.id)
     }

@@ -137,7 +137,7 @@ export interface KnowledgeSchemas {
     }
   }
 
-  '/knowledge-items/:id': {
+  '/knowledges/:id': {
     GET: {
       params: { id: string }
       response: KnowledgeItem
@@ -153,14 +153,14 @@ export interface KnowledgeSchemas {
     }
   }
 
-  '/knowledge-items/:id/refresh': {
+  '/knowledges/:id/refresh': {
     POST: {
       params: { id: string }
       response: KnowledgeItem
     }
   }
 
-  '/knowledge-items/:id/cancel': {
+  '/knowledges/:id/cancel': {
     POST: {
       params: { id: string }
       response: { status: 'cancelled' | 'ignored' }

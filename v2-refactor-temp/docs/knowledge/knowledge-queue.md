@@ -49,8 +49,8 @@ Main Process
    `status = completed | failed`，`error` 写入数据库。进度不持久化。失败需用户手动 `refresh` 重新入队。
 
 4. **刷新/取消**  
-   `POST /knowledge-items/:id/refresh` 重新入队；  
-   `POST /knowledge-items/:id/cancel` 取消队列任务。
+   `POST /knowledges/:id/refresh` 重新入队；  
+   `POST /knowledges/:id/cancel` 取消队列任务。
 
 ## DataApi 端点（必须明确）
 
@@ -59,9 +59,9 @@ Main Process
 | Path | Method | 说明 |
 | ---- | ------ | ---- |
 | `/knowledge-bases/:id/items` | POST | 创建 items 并入队（支持单个或批量） |
-| `/knowledge-items/:id/refresh` | POST | 重新处理并入队 |
-| `/knowledge-items/:id/cancel` | POST | 取消队列任务 |
-| `/knowledge-items/:id` | GET | 获取 item 详情与状态 |
+| `/knowledges/:id/refresh` | POST | 重新处理并入队 |
+| `/knowledges/:id/cancel` | POST | 取消队列任务 |
+| `/knowledges/:id` | GET | 获取 item 详情与状态 |
 | `/knowledge-bases/:id/items` | GET | 按状态分页查询队列项 |
 | `/knowledge-queue/status` | GET | 队列状态（长度/并发/负载，可选） |
 
