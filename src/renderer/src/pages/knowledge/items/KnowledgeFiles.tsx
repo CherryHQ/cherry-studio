@@ -7,11 +7,10 @@ import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
-import { isKnowledgeFileItem } from '@renderer/types'
+import type { FileMetadata, FileTypes, KnowledgeBase } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import type { FileItemData, ItemStatus, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
+import type { FileItemData, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
 import { Upload } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
@@ -46,43 +45,10 @@ interface KnowledgeContentProps {
 
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
 
-/**
- * Map v2 ItemStatus to v1 ProcessingStatus
- */
-const mapV2StatusToV1 = (status: ItemStatus): ProcessingStatus => {
-  const statusMap: Record<ItemStatus, ProcessingStatus> = {
-    idle: 'pending',
-    pending: 'pending',
-    preprocessing: 'processing',
-    embedding: 'processing',
-    completed: 'completed',
-    failed: 'failed'
-  }
-  return statusMap[status] ?? 'pending'
-}
-
-/**
- * Convert v2 KnowledgeItem (file type) to v1 format for UI compatibility
- */
-const toV1FileItem = (item: KnowledgeItemV2): KnowledgeItem => {
-  const data = item.data as FileItemData
-  return {
-    id: item.id,
-    type: item.type,
-    content: data.file,
-    created_at: Date.parse(item.createdAt),
-    updated_at: Date.parse(item.updatedAt),
-    processingStatus: mapV2StatusToV1(item.status),
-    processingProgress: 0,
-    processingError: item.error ?? '',
-    retryCount: 0,
-    // v2 completed items have embedded vectors
-    uniqueId: item.status === 'completed' ? item.id : undefined
-  }
-}
-
-const getDisplayTime = (item: KnowledgeItem) => {
-  const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
+const getDisplayTime = (item: KnowledgeItemV2) => {
+  const createdAt = Date.parse(item.createdAt)
+  const updatedAt = Date.parse(item.updatedAt)
+  const timestamp = updatedAt > createdAt ? updatedAt : createdAt
   return dayjs(timestamp).format('MM-DD HH:mm')
 }
 
@@ -99,39 +65,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     refreshItem
   } = useKnowledgeFiles(selectedBase.id || '')
 
-  // Convert v2 file items to v1 format
-  const fileItems = useMemo(() => {
-    return v2FileItems.map(toV1FileItem)
-  }, [v2FileItems])
-
-  // Create a map of item statuses for getProcessingStatus
-  const statusMap = useMemo(() => {
-    const map = new Map<string, ProcessingStatus>()
-    v2FileItems.forEach((item) => {
-      const v1Status = mapV2StatusToV1(item.status)
-      // Only set status if not completed (completed items show checkmark)
-      if (item.status !== 'completed') {
-        map.set(item.id, v1Status)
-      }
-    })
-    return map
-  }, [v2FileItems])
-
-  // Create a fake base object with items for StatusIcon compatibility
-  const baseWithItems = useMemo(() => {
-    return {
-      ...selectedBase,
-      items: fileItems
-    }
-  }, [selectedBase, fileItems])
-
-  // getProcessingStatus function for StatusIcon
-  const getProcessingStatus = useCallback(
-    (sourceId: string): ProcessingStatus | undefined => {
-      return statusMap.get(sourceId)
-    },
-    [statusMap]
-  )
+  const reversedItems = useMemo(() => [...v2FileItems].reverse(), [v2FileItems])
 
   useEffect(() => {
     const handleResize = () => {
@@ -203,14 +137,11 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     }
   }
 
-  const showPreprocessIcon = (item: KnowledgeItem) => {
-    if (selectedBase.preprocessProvider && item.isPreprocessed !== false) {
+  const showPreprocessIcon = (itemId: string) => {
+    if (selectedBase.preprocessProvider) {
       return true
     }
-    if (!selectedBase.preprocessProvider && item.isPreprocessed === true) {
-      return true
-    }
-    return false
+    return preprocessMap.get(itemId) === true
   }
 
   return (
@@ -241,20 +172,17 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             </p>
           </Dragger>
         </div>
-        {fileItems.length === 0 ? (
+        {v2FileItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
           <DynamicVirtualList
-            list={[...fileItems].reverse()}
+            list={reversedItems}
             estimateSize={estimateSize}
             overscan={2}
             scrollerStyle={{ height: windowHeight - 270 }}
             autoHideScrollbar>
             {(item) => {
-              if (!isKnowledgeFileItem(item)) {
-                return null
-              }
-              const file = item.content
+              const file = (item.data as FileItemData).file
               return (
                 <div style={{ height: '75px', paddingTop: '12px' }}>
                   <FileItem
@@ -271,30 +199,24 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       extra: `${getDisplayTime(item)} · ${formatFileSize(file.size)}`,
                       actions: (
                         <FlexAlignCenter>
-                          {item.uniqueId && (
+                          {item.status === 'completed' && (
                             <Button variant="ghost" onClick={() => refreshItem(item.id)}>
                               <RefreshIcon />
                             </Button>
                           )}
-                          {showPreprocessIcon(item) && (
+                          {showPreprocessIcon(item.id) && (
                             <StatusIconWrapper>
                               <StatusIcon
                                 sourceId={item.id}
-                                base={baseWithItems}
-                                getProcessingStatus={getProcessingStatus}
+                                item={item}
                                 type="file"
-                                isPreprocessed={preprocessMap.get(item.id) || item.isPreprocessed || false}
+                                isPreprocessed={preprocessMap.get(item.id) || false}
                                 progress={progressMap.get(item.id)}
                               />
                             </StatusIconWrapper>
                           )}
                           <StatusIconWrapper>
-                            <StatusIcon
-                              sourceId={item.id}
-                              base={baseWithItems}
-                              getProcessingStatus={getProcessingStatus}
-                              type="file"
-                            />
+                            <StatusIcon sourceId={item.id} item={item} type="file" />
                           </StatusIconWrapper>
                           <Button variant="ghost" onClick={() => deleteItem(item.id)}>
                             <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />

@@ -3,6 +3,7 @@ import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeFiles } from '@renderer/hooks/useKnowledge.v2'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
@@ -29,7 +30,8 @@ interface KnowledgeContentProps {
 
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
-  const { base, urlItems, fileItems, directoryItems, noteItems, sitemapItems } = useKnowledge(selectedBase.id || '')
+  const { base, urlItems, directoryItems, noteItems, sitemapItems } = useKnowledge(selectedBase.id || '')
+  const { fileItems: v2FileItems } = useKnowledgeFiles(selectedBase.id || '')
   const [activeKey, setActiveKey] = useState('files')
   const [quota, setQuota] = useState<number | undefined>(undefined)
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
@@ -84,7 +86,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       key: 'files',
       title: t('files.title'),
       icon: activeKey === 'files' ? <Book size={16} color="var(--color-primary)" /> : <Book size={16} />,
-      items: fileItems,
+      items: v2FileItems,
       content: <KnowledgeFiles selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />,
       show: true
     },

@@ -9,14 +9,7 @@ import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
-import { useAppDispatch } from '@renderer/store'
-import {
-  addFiles as addFilesAction,
-  addItem,
-  removeItem as removeItemAction,
-  updateNotes
-} from '@renderer/store/knowledge'
-import type { FileMetadata, KnowledgeItem } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import type { CreateKnowledgeItemDto, KnowledgeSearchRequest } from '@shared/data/api/schemas/knowledge'
 import type {
   DirectoryItemData,
@@ -36,117 +29,9 @@ const logger = loggerService.withContext('useKnowledge.v2')
 const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
 
 /**
- * Map v2 ItemStatus to v1 ProcessingStatus
- */
-const mapV2StatusToV1 = (status: ItemStatus): KnowledgeItem['processingStatus'] => {
-  const statusMap: Record<ItemStatus, KnowledgeItem['processingStatus']> = {
-    idle: 'pending',
-    pending: 'pending',
-    preprocessing: 'processing',
-    embedding: 'processing',
-    completed: 'completed',
-    failed: 'failed'
-  }
-  return statusMap[status] ?? 'pending'
-}
-
-/**
- * Convert v2 KnowledgeItem (file type) to v1 format for Redux compatibility
- */
-const toV1FileItem = (item: KnowledgeItemV2): KnowledgeItem => {
-  const data = item.data as FileItemData
-  return {
-    id: item.id,
-    type: item.type,
-    content: data.file,
-    created_at: Date.parse(item.createdAt),
-    updated_at: Date.parse(item.updatedAt),
-    processingStatus: mapV2StatusToV1(item.status),
-    processingProgress: 0,
-    processingError: item.error ?? '',
-    retryCount: 0
-  }
-}
-
-/**
- * Convert v2 KnowledgeItem (directory type) to v1 format for Redux compatibility
- */
-const toV1DirectoryItem = (item: KnowledgeItemV2): KnowledgeItem => {
-  const data = item.data as DirectoryItemData
-  return {
-    id: item.id,
-    type: item.type,
-    content: data.path,
-    created_at: Date.parse(item.createdAt),
-    updated_at: Date.parse(item.updatedAt),
-    processingStatus: mapV2StatusToV1(item.status),
-    processingProgress: 0,
-    processingError: item.error ?? '',
-    retryCount: 0
-  }
-}
-
-/**
- * Convert v2 KnowledgeItem (url type) to v1 format for Redux compatibility
- */
-const toV1UrlItem = (item: KnowledgeItemV2): KnowledgeItem => {
-  const data = item.data as UrlItemData
-  return {
-    id: item.id,
-    type: item.type,
-    content: data.url,
-    remark: data.name !== data.url ? data.name : undefined,
-    created_at: Date.parse(item.createdAt),
-    updated_at: Date.parse(item.updatedAt),
-    processingStatus: mapV2StatusToV1(item.status),
-    processingProgress: 0,
-    processingError: item.error ?? '',
-    retryCount: 0
-  }
-}
-
-/**
- * Convert v2 KnowledgeItem (sitemap type) to v1 format for Redux compatibility
- */
-const toV1SitemapItem = (item: KnowledgeItemV2): KnowledgeItem => {
-  const data = item.data as SitemapItemData
-  return {
-    id: item.id,
-    type: item.type,
-    content: data.url,
-    created_at: Date.parse(item.createdAt),
-    updated_at: Date.parse(item.updatedAt),
-    processingStatus: mapV2StatusToV1(item.status),
-    processingProgress: 0,
-    processingError: item.error ?? '',
-    retryCount: 0
-  }
-}
-
-/**
- * Convert v2 KnowledgeItem (note type) to v1 format for Redux compatibility
- * Note: v2 stores content directly in data.content, v1 displayed via noteItems
- */
-const toV1NoteItem = (item: KnowledgeItemV2): KnowledgeItem => {
-  const data = item.data as NoteItemData
-  return {
-    id: item.id,
-    type: item.type,
-    content: data.content,
-    created_at: Date.parse(item.createdAt),
-    updated_at: Date.parse(item.updatedAt),
-    processingStatus: mapV2StatusToV1(item.status),
-    processingProgress: 0,
-    processingError: item.error ?? '',
-    retryCount: 0
-  }
-}
-
-/**
  * Hook for adding files to a knowledge base via v2 Data API
  */
 export const useKnowledgeFiles = (baseId: string) => {
-  const dispatch = useAppDispatch()
   const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
   const fileItems = useMemo(() => items.filter((item) => item.type === 'file'), [items])
   const hasProcessingItems = useMemo(
@@ -167,7 +52,6 @@ export const useKnowledgeFiles = (baseId: string) => {
 
   /**
    * Add files to knowledge base via v2 API
-   * Also updates Redux store for UI compatibility during migration
    */
   const addFiles = async (files: FileMetadata[]): Promise<KnowledgeItemV2[] | undefined> => {
     if (files.length === 0) return
@@ -185,10 +69,6 @@ export const useKnowledgeFiles = (baseId: string) => {
       })
 
       const createdItems = result.items
-
-      // Update Redux store for UI compatibility during migration
-      const v1Items = createdItems.map(toV1FileItem)
-      dispatch(addFilesAction({ baseId, items: v1Items }))
 
       logger.info('Files added via v2 API', { baseId, count: createdItems.length })
       return createdItems
@@ -242,8 +122,6 @@ export const useKnowledgeFiles = (baseId: string) => {
  * Hook for adding directories to a knowledge base via v2 Data API
  */
 export const useKnowledgeDirectories = (baseId: string) => {
-  const dispatch = useAppDispatch()
-
   const { trigger: createItemsApi, isLoading: isAddingDirectory } = useMutation(
     'POST',
     `/knowledge-bases/${baseId}/items`,
@@ -254,7 +132,6 @@ export const useKnowledgeDirectories = (baseId: string) => {
 
   /**
    * Add a directory to knowledge base via v2 API
-   * Also updates Redux store for UI compatibility during migration
    */
   const addDirectory = async (path: string): Promise<KnowledgeItemV2 | undefined> => {
     if (!path) return
@@ -275,10 +152,6 @@ export const useKnowledgeDirectories = (baseId: string) => {
 
       const createdItems = result.items
 
-      // Update Redux store for UI compatibility during migration
-      const v1Item = toV1DirectoryItem(createdItems[0])
-      dispatch(addItem({ baseId, item: v1Item }))
-
       logger.info('Directory added via v2 API', { baseId, path })
       return createdItems[0]
     } catch (error) {
@@ -297,15 +170,12 @@ export const useKnowledgeDirectories = (baseId: string) => {
  * Hook for adding URLs to a knowledge base via v2 Data API
  */
 export const useKnowledgeUrls = (baseId: string) => {
-  const dispatch = useAppDispatch()
-
   const { trigger: createItemsApi, isLoading: isAddingUrl } = useMutation('POST', `/knowledge-bases/${baseId}/items`, {
     refresh: [`/knowledge-bases/${baseId}/items`]
   })
 
   /**
    * Add a URL to knowledge base via v2 API
-   * Also updates Redux store for UI compatibility during migration
    */
   const addUrl = async (url: string): Promise<KnowledgeItemV2 | undefined> => {
     if (!url) return
@@ -326,10 +196,6 @@ export const useKnowledgeUrls = (baseId: string) => {
 
       const createdItems = result.items
 
-      // Update Redux store for UI compatibility during migration
-      const v1Item = toV1UrlItem(createdItems[0])
-      dispatch(addItem({ baseId, item: v1Item }))
-
       logger.info('URL added via v2 API', { baseId, url })
       return createdItems[0]
     } catch (error) {
@@ -348,8 +214,6 @@ export const useKnowledgeUrls = (baseId: string) => {
  * Hook for adding sitemaps to a knowledge base via v2 Data API
  */
 export const useKnowledgeSitemaps = (baseId: string) => {
-  const dispatch = useAppDispatch()
-
   const { trigger: createItemsApi, isLoading: isAddingSitemap } = useMutation(
     'POST',
     `/knowledge-bases/${baseId}/items`,
@@ -360,7 +224,6 @@ export const useKnowledgeSitemaps = (baseId: string) => {
 
   /**
    * Add a sitemap to knowledge base via v2 API
-   * Also updates Redux store for UI compatibility during migration
    */
   const addSitemap = async (url: string): Promise<KnowledgeItemV2 | undefined> => {
     if (!url) return
@@ -381,10 +244,6 @@ export const useKnowledgeSitemaps = (baseId: string) => {
 
       const createdItems = result.items
 
-      // Update Redux store for UI compatibility during migration
-      const v1Item = toV1SitemapItem(createdItems[0])
-      dispatch(addItem({ baseId, item: v1Item }))
-
       logger.info('Sitemap added via v2 API', { baseId, url })
       return createdItems[0]
     } catch (error) {
@@ -403,15 +262,12 @@ export const useKnowledgeSitemaps = (baseId: string) => {
  * Hook for adding notes to a knowledge base via v2 Data API
  */
 export const useKnowledgeNotes = (baseId: string) => {
-  const dispatch = useAppDispatch()
-
   const { trigger: createItemsApi, isLoading: isAddingNote } = useMutation('POST', `/knowledge-bases/${baseId}/items`, {
     refresh: [`/knowledge-bases/${baseId}/items`]
   })
 
   /**
    * Add a note to knowledge base via v2 API
-   * Also updates Redux store for UI compatibility during migration
    */
   const addNote = async (content: string): Promise<KnowledgeItemV2 | undefined> => {
     if (!content) return
@@ -432,10 +288,6 @@ export const useKnowledgeNotes = (baseId: string) => {
 
       const createdItems = result.items
 
-      // Update Redux store for UI compatibility during migration
-      const v1Item = toV1NoteItem(createdItems[0])
-      dispatch(updateNotes({ baseId, item: v1Item }))
-
       logger.info('Note added via v2 API', { baseId })
       return createdItems[0]
     } catch (error) {
@@ -454,13 +306,11 @@ export const useKnowledgeNotes = (baseId: string) => {
  * Hook for deleting a knowledge item via v2 Data API
  */
 export const useKnowledgeItemDelete = () => {
-  const dispatch = useAppDispatch()
   const [isDeleting, setIsDeleting] = useState(false)
   const invalidate = useInvalidateCache()
 
   /**
    * Delete a knowledge item via v2 API
-   * Also updates Redux store for UI compatibility during migration
    */
   const deleteItem = async (baseId: string, itemId: string): Promise<void> => {
     setIsDeleting(true)
@@ -470,9 +320,6 @@ export const useKnowledgeItemDelete = () => {
 
       // Refresh the items list cache
       await invalidate(`/knowledge-bases/${baseId}/items`)
-
-      // Update Redux store for UI compatibility during migration
-      dispatch(removeItemAction({ baseId, item: { id: itemId } as KnowledgeItem }))
 
       logger.info('Item deleted via v2 API', { itemId, baseId })
     } catch (error) {
