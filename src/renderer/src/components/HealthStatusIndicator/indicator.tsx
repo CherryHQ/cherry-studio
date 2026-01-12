@@ -1,11 +1,25 @@
 import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
+import type { SerializedError } from '@renderer/types/error'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { Flex, Tooltip, Typography } from 'antd'
 import React, { memo, useCallback } from 'react'
 import styled from 'styled-components'
 
-import type { HealthStatusIndicatorProps } from './types'
 import { useHealthStatus } from './useHealthStatus'
+
+interface HealthStatusIndicatorProps {
+  results: HealthResult[]
+  loading?: boolean
+  showLatency?: boolean
+  onErrorClick?: (error: SerializedError) => void
+}
+
+interface HealthResult {
+  status: HealthStatus
+  latency?: number
+  error?: SerializedError
+  label?: string
+}
 
 const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
   results,
