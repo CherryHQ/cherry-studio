@@ -325,9 +325,9 @@ function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetc
     if (options?.body && typeof options.body === 'string') {
       try {
         const body = JSON.parse(options.body)
-        if (body.messages && Array.isArray(body.messages)) {
+        if (body.input && Array.isArray(body.input)) {
           let hasChanges = false
-          body.messages = body.messages.map((msg: { role: string }) => {
+          body.input = body.input.map((msg: { role: string }) => {
             if (msg.role === 'developer') {
               hasChanges = true
               return { ...msg, role: 'system' }
