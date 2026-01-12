@@ -11,7 +11,7 @@ import { HealthStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Tooltip } from 'antd'
 import { Bolt, Minus } from 'lucide-react'
-import React, { memo, useMemo, useState } from 'react'
+import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -40,6 +40,16 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
 
   const hasFailedResult = useMemo(() => healthResults.some((r) => r.status === HealthStatus.FAILED), [healthResults])
 
+  const handleErrorClick = useCallback((error: SerializedError) => {
+    setSelectedError(error)
+    setShowErrorModal(true)
+  }, [])
+
+  const handleCloseErrorModal = useCallback(() => {
+    setShowErrorModal(false)
+    setSelectedError(undefined)
+  }, [])
+
   return (
     <>
       <ListItem ref={ref}>
@@ -62,14 +72,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
             results={healthResults}
             loading={isChecking}
             showLatency
-            onErrorClick={
-              hasFailedResult
-                ? (error) => {
-                    setSelectedError(error)
-                    setShowErrorModal(true)
-                  }
-                : undefined
-            }
+            onErrorClick={hasFailedResult ? handleErrorClick : undefined}
           />
           <HStack alignItems="center" gap={0}>
             <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
@@ -82,14 +85,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
         </HStack>
       </ListItem>
       {hasFailedResult && (
-        <ErrorDetailModal
-          open={showErrorModal}
-          onClose={() => {
-            setShowErrorModal(false)
-            setSelectedError(undefined)
-          }}
-          error={selectedError}
-        />
+        <ErrorDetailModal open={showErrorModal} onClose={handleCloseErrorModal} error={selectedError} />
       )}
     </>
   )

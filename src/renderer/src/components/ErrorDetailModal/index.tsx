@@ -30,7 +30,7 @@ import { formatFileSize } from '@renderer/utils/file'
 import { KB } from '@shared/config/constant'
 import { Button } from 'antd'
 import { Modal } from 'antd'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -163,6 +163,11 @@ const BuiltinError = ({ error }: { error: SerializedError }) => {
 
 const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
   const { t } = useTranslation()
+  const tRef = useRef(t)
+  useEffect(() => {
+    tRef.current = t
+  }, [t])
+
   const { highlightCode } = useCodeStyle()
   const [highlightedString, setHighlightedString] = useState('')
   const [isTruncated, setIsTruncated] = useState(false)
@@ -171,7 +176,7 @@ const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
   useEffect(() => {
     const highlight = async () => {
       try {
-        const { content: truncatedCause, truncated, isLikelyBase64 } = truncateLargeData(cause || '', t)
+        const { content: truncatedCause, truncated, isLikelyBase64 } = truncateLargeData(cause || '', tRef.current)
         setIsTruncated(truncated)
 
         if (isLikelyBase64) {
@@ -194,7 +199,7 @@ const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
     const timer = setTimeout(highlight, 0)
 
     return () => clearTimeout(timer)
-  }, [highlightCode, cause, t])
+  }, [highlightCode, cause])
 
   return (
     <>
@@ -550,5 +555,6 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
   )
 }
 
-export { ErrorDetailModal as default, ErrorDetailModal }
-export type { ErrorDetailModalProps as ErrorDetailModalPropsType }
+export { ErrorDetailModal }
+export default ErrorDetailModal
+export type { ErrorDetailModalProps }
