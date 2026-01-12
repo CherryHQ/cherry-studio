@@ -124,9 +124,11 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
 
       await this.sendPreprocessProgress(sourceId, 100)
 
+      const processedFile = await this.createProcessedFileInfo(file, outputDir)
+
       // 5. 创建处理后数据
       return {
-        processedFile: this.createProcessedFileInfo(file, outputDir),
+        processedFile,
         quota: 0
       }
     } catch (error: unknown) {
@@ -187,13 +189,13 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     return pdfBuffer
   }
 
-  private createProcessedFileInfo(file: FileMetadata, outputDir: string): FileMetadata {
+  private async createProcessedFileInfo(file: FileMetadata, outputDir: string): Promise<FileMetadata> {
     const finalMdFileName = this.getMarkdownFileName(file)
     const finalMdPath = path.join(outputDir, finalMdFileName)
 
     const ext = path.extname(finalMdPath)
     const type = getFileType(ext)
-    const fileSize = fs.statSync(finalMdPath).size
+    const fileSize = (await fs.promises.stat(finalMdPath)).size
 
     return {
       ...file,
