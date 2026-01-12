@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { getFileType } from '@main/utils/file'
 import { MB } from '@shared/config/constant'
-import type { FileMetadata, PreprocessProvider } from '@types'
+import type { FileMetadata, PreprocessProvider, PreprocessReadPdfResult } from '@types'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -158,7 +158,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
 
     // 阶段3：校验页数（兼容 PDF 解析失败的场景）
     const pdfBuffer = await fs.promises.readFile(filePath)
-    let doc: any = undefined
+    let doc: PreprocessReadPdfResult | undefined
 
     try {
       doc = await this.readPdf(pdfBuffer)
