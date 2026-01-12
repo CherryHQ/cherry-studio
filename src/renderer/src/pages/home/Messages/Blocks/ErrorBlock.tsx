@@ -709,5 +709,4 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
   )
 }
 
-export { ErrorDetailModal }
 export default React.memo(ErrorBlock)

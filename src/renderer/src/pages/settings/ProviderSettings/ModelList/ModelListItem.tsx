@@ -30,13 +30,16 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
   const [showErrorModal, setShowErrorModal] = useState(false)
   const [selectedError, setSelectedError] = useState<SerializedError | undefined>()
 
-  const healthResults: HealthResult[] =
-    modelStatus?.keyResults?.map((kr) => ({
-      status: kr.status,
-      latency: kr.latency,
-      error: kr.error,
-      label: maskApiKey(kr.key)
-    })) || []
+  const healthResults = useMemo(
+    () =>
+      modelStatus?.keyResults?.map((kr) => ({
+        status: kr.status,
+        latency: kr.latency,
+        error: kr.error,
+        label: maskApiKey(kr.key)
+      })) || [],
+    [modelStatus?.keyResults]
+  )
 
   const hasFailedResult = useMemo(() => healthResults.some((r) => r.status === HealthStatus.FAILED), [healthResults])
 
