@@ -1,14 +1,11 @@
 import { loggerService } from '@logger'
 import PQueue from 'p-queue'
 
-import { MAX_WORKLOAD } from './vectorstores/types'
-
 const logger = loggerService.withContext('KnowledgeQueueManager')
 
 type QueueStatus = {
   queueSize: number
   processingCount: number
-  currentWorkload: number
 }
 
 export class KnowledgeQueueManager {
@@ -16,11 +13,9 @@ export class KnowledgeQueueManager {
   private controllers = new Map<string, AbortController>()
   private pendingWorkloads = new Map<string, number>()
   private processingWorkloads = new Map<string, number>()
-  private readonly maxWorkload: number
 
-  constructor(config?: { concurrency?: number; maxWorkload?: number }) {
+  constructor(config?: { concurrency?: number }) {
     this.queue = new PQueue({ concurrency: config?.concurrency ?? 1 })
-    this.maxWorkload = config?.maxWorkload ?? MAX_WORKLOAD
   }
 
   enqueue<T>(id: string, workload: number, task: (signal: AbortSignal) => Promise<T>): Promise<T | void> {
@@ -32,10 +27,6 @@ export class KnowledgeQueueManager {
     const controller = new AbortController()
     this.controllers.set(id, controller)
     this.pendingWorkloads.set(id, workload)
-
-    if (workload > this.maxWorkload) {
-      logger.warn('Task workload exceeds max workload', { id, workload, maxWorkload: this.maxWorkload })
-    }
 
     return this.queue
       .add(
@@ -78,17 +69,8 @@ export class KnowledgeQueueManager {
   getStatus(): QueueStatus {
     return {
       queueSize: this.queue.size,
-      processingCount: this.queue.pending,
-      currentWorkload: this.getCurrentWorkload()
+      processingCount: this.queue.pending
     }
-  }
-
-  private getCurrentWorkload(): number {
-    let total = 0
-    for (const workload of this.processingWorkloads.values()) {
-      total += workload
-    }
-    return total
   }
 }
 

@@ -559,7 +559,7 @@ class KnowledgeServiceV2 {
   /**
    * Get queue status
    */
-  public getQueueStatus(): { queueSize: number; processingCount: number; currentWorkload: number } {
+  public getQueueStatus(): { queueSize: number; processingCount: number } {
     return knowledgeQueueManager.getStatus()
   }
 

@@ -8,7 +8,7 @@
 import { loggerService } from '@logger'
 import type { LoaderReturn } from '@shared/config/types'
 
-import { MAX_CONCURRENT, MAX_WORKLOAD, type QueuedTask } from './types'
+import type { QueuedTask } from './types'
 
 const logger = loggerService.withContext('TaskQueueManager')
 
@@ -18,14 +18,7 @@ const logger = loggerService.withContext('TaskQueueManager')
 export class TaskQueueManager {
   private queue: QueuedTask[] = []
   private processing: Map<string, QueuedTask> = new Map()
-  private currentWorkload = 0
-  private readonly maxWorkload: number
-  private readonly maxConcurrent: number
-
-  constructor(config?: { maxWorkload?: number; maxConcurrent?: number }) {
-    this.maxWorkload = config?.maxWorkload ?? MAX_WORKLOAD
-    this.maxConcurrent = config?.maxConcurrent ?? MAX_CONCURRENT
-  }
+  private isDraining = false
 
   /**
    * Add task to queue and return promise that resolves when complete
@@ -46,32 +39,41 @@ export class TaskQueueManager {
 
       this.queue.push(queuedTask)
       logger.debug(`Task ${id} queued. Queue size: ${this.queue.length}, Workload: ${workload}`)
-      this.processNext()
+      this.scheduleDrain()
     })
   }
 
   /**
    * Process next task if capacity allows
    */
-  private processNext(): void {
-    if (this.isAtCapacity()) {
-      logger.debug(
-        `At capacity. Processing: ${this.processing.size}/${this.maxConcurrent}, Workload: ${this.currentWorkload}/${this.maxWorkload}`
-      )
+  private processNext(): QueuedTask | undefined {
+    return this.queue.shift()
+  }
+
+  /**
+   * Drain the queue without concurrency limits
+   */
+  private scheduleDrain(): void {
+    if (this.isDraining) {
       return
     }
 
-    const next = this.queue.shift()
-    if (!next) {
-      return
-    }
+    this.isDraining = true
+    while (this.queue.length > 0) {
+      const next = this.processNext()
+      if (!next) {
+        break
+      }
 
+      this.runTask(next)
+    }
+    this.isDraining = false
+  }
+
+  private runTask(next: QueuedTask): void {
     this.processing.set(next.id, next)
-    this.currentWorkload += next.workload
 
-    logger.debug(
-      `Processing task ${next.id}. Active: ${this.processing.size}, Workload: ${this.currentWorkload}/${this.maxWorkload}`
-    )
+    logger.debug(`Processing task ${next.id}. Active: ${this.processing.size}`)
 
     next
       .task()
@@ -84,17 +86,11 @@ export class TaskQueueManager {
       })
       .finally(() => {
         this.processing.delete(next.id)
-        this.currentWorkload -= next.workload
         logger.debug(`Task ${next.id} completed. Remaining queue: ${this.queue.length}`)
-        this.processNext()
+        if (this.queue.length > 0) {
+          this.scheduleDrain()
+        }
       })
-  }
-
-  /**
-   * Check if queue is at capacity
-   */
-  private isAtCapacity(): boolean {
-    return this.processing.size >= this.maxConcurrent || this.currentWorkload >= this.maxWorkload
   }
 
   /**
@@ -104,7 +100,7 @@ export class TaskQueueManager {
     return {
       queueSize: this.queue.length,
       processingCount: this.processing.size,
-      currentWorkload: this.currentWorkload
+      currentWorkload: 0
     }
   }
 

@@ -123,15 +123,6 @@ export interface RerankOptions {
 /**
  * Queue configuration
  */
-export interface QueueConfig {
-  /** Maximum total workload in bytes (default: 80MB) */
-  maxWorkload: number
-  /** Maximum concurrent tasks (default: 30) */
-  maxConcurrent: number
-  /** Maximum retry attempts (default: 3) */
-  retryAttempts: number
-}
-
 /**
  * Internal task item for queue processing
  */
@@ -179,12 +170,6 @@ export const DEFAULT_CHUNK_OVERLAP = 20
 
 /** Default document count for search results */
 export const DEFAULT_DOCUMENT_COUNT = 30
-
-/** Maximum workload in bytes (80MB) */
-export const MAX_WORKLOAD = 80 * 1024 * 1024
-
-/** Maximum concurrent processing items */
-export const MAX_CONCURRENT = 30
 
 /** 1 MB constant for workload estimation */
 export const MB = 1024 * 1024
