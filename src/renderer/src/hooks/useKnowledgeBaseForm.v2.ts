@@ -1,5 +1,14 @@
+/**
+ * Knowledge Base Form Hook v2 - Data API based
+ *
+ * Manages the state and handlers for a knowledge base form using v2 types.
+ * During migration, this coexists with useKnowledgeBaseForm.ts (v1 Redux-based).
+ *
+ * @see {@link docs/en/references/data/README.md} for Data System reference
+ * @see {@link v2-refactor-temp/docs/knowledge/knowledge-data-api.md} for Knowledge Data API design
+ */
+
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase } from '@renderer/types'
@@ -39,7 +48,13 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
   const { t } = useTranslation()
   const [newBase, setNewBase] = useState<KnowledgeBase>(base || createInitialKnowledgeBase())
   const { providers } = useProviders()
-  const { preprocessProviders } = usePreprocessProviders()
+
+  // TODO: Migrate usePreprocessProviders to v2 Data API
+  // Currently using mock data - needs to be implemented when preprocess providers are migrated
+  const preprocessProviders = useMemo(() => {
+    // TODO: Replace with v2 preprocess providers from Data API
+    return [] as Array<{ id: string; name: string; apiKey?: string }>
+  }, [])
 
   useEffect(() => {
     if (base) {
@@ -47,12 +62,14 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
     }
   }, [base])
 
+  // TODO: Migrate to v2 - preprocessProvider structure will change to just preprocessProviderId
   const selectedDocPreprocessProvider = useMemo(
     () => newBase.preprocessProvider?.provider,
     [newBase.preprocessProvider]
   )
 
   const docPreprocessSelectOptions = useMemo(() => {
+    // TODO: Implement when preprocess providers are migrated to v2 Data API
     const preprocessOptions = {
       label: t('settings.tool.preprocess.provider'),
       title: t('settings.tool.preprocess.provider'),
@@ -63,6 +80,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
     return [preprocessOptions]
   }, [preprocessProviders, t])
 
+  // TODO: In v2, this should update embeddingModelId and embeddingModelMeta instead of model object
   const handleEmbeddingModelChange = useCallback(
     (value: string) => {
       const model = providers.flatMap((p) => p.models).find((m) => getModelUniqId(m) === value)
@@ -73,6 +91,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
     [providers]
   )
 
+  // TODO: In v2, this should update rerankModelId and rerankModelMeta instead of rerankModel object
   const handleRerankModelChange = useCallback(
     (value: string) => {
       const rerankModel = value
@@ -83,22 +102,26 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
     [providers]
   )
 
+  // TODO: In v2, dimensions should be stored in embeddingModelMeta.dimensions
   const handleDimensionChange = useCallback((value: number | null) => {
     setNewBase((prev) => ({ ...prev, dimensions: value || undefined }))
   }, [])
 
+  // TODO: In v2, this should update preprocessProviderId instead of preprocessProvider object
   const handleDocPreprocessChange = useCallback(
     (value: string) => {
+      // TODO: Replace with v2 preprocess provider lookup from Data API
       const provider = preprocessProviders.find((p) => p.id === value)
       if (!provider) {
         setNewBase((prev) => ({ ...prev, preprocessProvider: undefined }))
         return
       }
+      // TODO: This structure will be simplified to just preprocessProviderId in v2
       setNewBase((prev) => ({
         ...prev,
         preprocessProvider: {
           type: 'preprocess',
-          provider
+          provider: provider as any
         }
       }))
     },
