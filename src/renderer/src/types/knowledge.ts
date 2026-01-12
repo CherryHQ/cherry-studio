@@ -157,3 +157,7 @@ export interface KnowledgeSearchResult {
   score: number
   metadata: Record<string, any>
 }
+
+export interface PreprocessReadPdfResult {
+  numPages: number
+}
