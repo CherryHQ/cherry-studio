@@ -7,10 +7,12 @@
  * @see {@link docs/en/references/data/data-api-in-renderer.md} for DataApi usage patterns
  */
 
-import { useQuery } from '@data/hooks/useDataApi'
+import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { ItemStatus, KnowledgeItem } from '@shared/data/types/knowledge'
-import { useMemo } from 'react'
+import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledge'
+import type { ItemStatus, KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
+import { useMemo, useState } from 'react'
 
 /** Status values that indicate an item is still being processed */
 const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
@@ -184,6 +186,127 @@ export function useKnowledgeItem(
     isRefreshing,
     /** Error if the request failed */
     error,
+    /** Manually trigger a refresh */
+    refetch,
+    /** SWR mutate for advanced cache control */
+    mutate
+  }
+}
+
+/** Response type for knowledge bases list */
+type KnowledgeBasesResponse = OffsetPaginationResponse<KnowledgeBase>
+
+/**
+ * Hook for fetching and managing knowledge bases via v2 Data API.
+ *
+ * Provides:
+ * - Fetching list of knowledge bases
+ * - Create knowledge base
+ * - Rename knowledge base
+ * - Delete knowledge base
+ *
+ * @param options - Optional configuration
+ * @param options.enabled - Set to false to disable fetching (default: true)
+ * @returns Query result with bases, mutations, and loading states
+ *
+ * @example
+ * ```typescript
+ * const { bases, isLoading, createKnowledgeBase, renameKnowledgeBase, deleteKnowledgeBase } = useKnowledgeBases()
+ *
+ * // Create a base
+ * const newBase = await createKnowledgeBase({ name: 'My KB', embeddingModelId: 'openai:text-embedding-3-small' })
+ *
+ * // Rename a base
+ * await renameKnowledgeBase(baseId, 'New Name')
+ *
+ * // Delete a base
+ * await deleteKnowledgeBase(baseId)
+ * ```
+ */
+export function useKnowledgeBases(options?: {
+  /** Set to false to disable fetching (default: true) */
+  enabled?: boolean
+}) {
+  const enabled = options?.enabled !== false
+  const [isCreating, setIsCreating] = useState(false)
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const invalidate = useInvalidateCache()
+
+  // Fetch knowledge bases list
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/knowledge-bases', {
+    enabled
+  })
+
+  const typedData = data as KnowledgeBasesResponse | undefined
+  const bases = useMemo<KnowledgeBase[]>(() => typedData?.items ?? [], [typedData])
+
+  /**
+   * Create a new knowledge base
+   */
+  const createKnowledgeBase = async (dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> => {
+    setIsCreating(true)
+    try {
+      const result = await dataApiService.post('/knowledge-bases' as any, {
+        body: dto
+      })
+      await invalidate('/knowledge-bases')
+      return result as KnowledgeBase
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  /**
+   * Rename a knowledge base
+   */
+  const renameKnowledgeBase = async (baseId: string, name: string) => {
+    setIsRenaming(true)
+    try {
+      await dataApiService.patch(`/knowledge-bases/${baseId}` as any, {
+        body: { name }
+      })
+      await invalidate('/knowledge-bases')
+    } finally {
+      setIsRenaming(false)
+    }
+  }
+
+  /**
+   * Delete a knowledge base
+   * Note: Side effects (cleaning assistant/preset references) must be handled by caller
+   */
+  const deleteKnowledgeBase = async (baseId: string) => {
+    setIsDeleting(true)
+    try {
+      await dataApiService.delete(`/knowledge-bases/${baseId}` as any)
+      await invalidate('/knowledge-bases')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  return {
+    /** List of knowledge bases */
+    bases,
+    /** True during initial load */
+    isLoading,
+    /** True during background revalidation */
+    isRefreshing,
+    /** True while creating a base */
+    isCreating,
+    /** True while renaming a base */
+    isRenaming,
+    /** True while deleting a base */
+    isDeleting,
+    /** Error if the request failed */
+    error,
+    /** Create a new knowledge base */
+    createKnowledgeBase,
+    /** Rename a knowledge base */
+    renameKnowledgeBase,
+    /** Delete a knowledge base */
+    deleteKnowledgeBase,
     /** Manually trigger a refresh */
     refetch,
     /** SWR mutate for advanced cache control */

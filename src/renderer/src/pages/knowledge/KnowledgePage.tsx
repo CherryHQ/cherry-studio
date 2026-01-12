@@ -1,13 +1,15 @@
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledges'
+import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
-import type { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase as KnowledgeBaseV1 } from '@renderer/types'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { MenuProps } from 'antd'
 import { Dropdown, Empty } from 'antd'
 import { Book, Plus, Settings } from 'lucide-react'
@@ -22,21 +24,27 @@ import KnowledgeContent from './KnowledgeContent'
 
 const KnowledgePage: FC = () => {
   const { t } = useTranslation()
-  const { bases, renameKnowledgeBase, deleteKnowledgeBase, updateKnowledgeBases } = useKnowledgeBases()
+  const { bases, renameKnowledgeBase, deleteKnowledgeBase } = useKnowledgeBases()
+  const { assistants, updateAssistants } = useAssistants()
+  const { presets, setAssistantPresets } = useAssistantPresets()
+  // Note: During migration, child components still expect v1 KnowledgeBase type
+  // The v2 bases have a different structure but contain compatible core fields (id, name)
+  // Child components will be migrated separately
   const [selectedBase, setSelectedBase] = useState<KnowledgeBase | undefined>(bases[0])
-  const [isDragging, setIsDragging] = useState(false)
 
   const handleAddKnowledge = useCallback(async () => {
     const newBase = await AddKnowledgeBasePopup.show({ title: t('knowledge.add.title') })
     if (newBase) {
-      setSelectedBase(newBase)
+      // AddKnowledgeBasePopup returns v1 type but we use v2 - cast for compatibility
+      setSelectedBase(newBase as unknown as KnowledgeBase)
     }
   }, [t])
 
   const handleEditKnowledgeBase = useCallback(async (base: KnowledgeBase) => {
-    const newBase = await EditKnowledgeBasePopup.show({ base })
+    // EditKnowledgeBasePopup expects v1 type
+    const newBase = await EditKnowledgeBasePopup.show({ base: base as unknown as KnowledgeBaseV1 })
     if (newBase && newBase?.id !== base.id) {
-      setSelectedBase(newBase)
+      setSelectedBase(newBase as unknown as KnowledgeBase)
     }
   }, [])
 
@@ -79,9 +87,23 @@ const KnowledgePage: FC = () => {
             window.modal.confirm({
               title: t('knowledge.delete_confirm'),
               centered: true,
-              onOk: () => {
+              onOk: async () => {
                 setSelectedBase(undefined)
-                deleteKnowledgeBase(base.id)
+                await deleteKnowledgeBase(base.id)
+
+                // Clean up assistant references
+                const updatedAssistants = assistants.map((assistant) => ({
+                  ...assistant,
+                  knowledge_bases: assistant.knowledge_bases?.filter((kb) => kb.id !== base.id)
+                }))
+                updateAssistants(updatedAssistants)
+
+                // Clean up preset references
+                const updatedPresets = presets.map((preset) => ({
+                  ...preset,
+                  knowledge_bases: preset.knowledge_bases?.filter((kb) => kb.id !== base.id)
+                }))
+                setAssistantPresets(updatedPresets)
               }
             })
           }
@@ -90,12 +112,22 @@ const KnowledgePage: FC = () => {
 
       return menus
     },
-    [deleteKnowledgeBase, handleEditKnowledgeBase, renameKnowledgeBase, t]
+    [
+      assistants,
+      deleteKnowledgeBase,
+      handleEditKnowledgeBase,
+      presets,
+      renameKnowledgeBase,
+      setAssistantPresets,
+      t,
+      updateAssistants
+    ]
   )
 
   useShortcut('search_message', () => {
     if (selectedBase) {
-      KnowledgeSearchPopup.show({ base: selectedBase }).then()
+      // KnowledgeSearchPopup expects v1 type
+      KnowledgeSearchPopup.show({ base: selectedBase as unknown as KnowledgeBaseV1 }).then()
     }
   })
 
@@ -106,33 +138,24 @@ const KnowledgePage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <KnowledgeSideNav>
-          <DraggableList
-            list={bases}
-            onUpdate={updateKnowledgeBases}
-            style={{ marginBottom: 0, paddingBottom: isDragging ? 50 : 0 }}
-            onDragStart={() => setIsDragging(true)}
-            onDragEnd={() => setIsDragging(false)}>
-            {(base: KnowledgeBase) => (
-              <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
-                <div>
-                  <ListItem
-                    active={selectedBase?.id === base.id}
-                    icon={<Book size={16} />}
-                    title={base.name}
-                    onClick={() => setSelectedBase(base)}
-                  />
-                </div>
-              </Dropdown>
-            )}
-          </DraggableList>
-          {!isDragging && (
-            <AddKnowledgeItem onClick={handleAddKnowledge}>
-              <AddKnowledgeName>
-                <Plus size={18} />
-                {t('button.add')}
-              </AddKnowledgeName>
-            </AddKnowledgeItem>
-          )}
+          {bases.map((base) => (
+            <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
+              <div>
+                <ListItem
+                  active={selectedBase?.id === base.id}
+                  icon={<Book size={16} />}
+                  title={base.name}
+                  onClick={() => setSelectedBase(base)}
+                />
+              </div>
+            </Dropdown>
+          ))}
+          <AddKnowledgeItem onClick={handleAddKnowledge}>
+            <AddKnowledgeName>
+              <Plus size={18} />
+              {t('button.add')}
+            </AddKnowledgeName>
+          </AddKnowledgeItem>
           <div style={{ minHeight: '10px' }}></div>
         </KnowledgeSideNav>
         {bases.length === 0 ? (
@@ -140,7 +163,8 @@ const KnowledgePage: FC = () => {
             <Empty description={t('knowledge.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </MainContent>
         ) : selectedBase ? (
-          <KnowledgeContent selectedBase={selectedBase} />
+          // KnowledgeContent expects v1 type - will be migrated separately
+          <KnowledgeContent selectedBase={selectedBase as unknown as KnowledgeBaseV1} />
         ) : null}
       </ContentContainer>
     </Container>

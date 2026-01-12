@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
 import AiProviderNew from '@renderer/aiCore/index_new'
 import { TopView } from '@renderer/components/TopView'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledges'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
 import type { KnowledgeBase } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
@@ -30,16 +29,13 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   const { t } = useTranslation()
-  const { addKnowledgeBase } = useKnowledgeBases()
+  const { createKnowledgeBase } = useKnowledgeBases()
   const {
     newBase,
     setNewBase,
     handlers,
     providerData: { providers, selectedDocPreprocessProvider, docPreprocessSelectOptions }
   } = useKnowledgeBaseForm()
-
-  // Data API mutation for creating knowledge base
-  const { trigger: createBaseApi } = useMutation('POST', '/knowledge-bases')
 
   const onOk = async () => {
     if (!newBase.name?.trim()) {
@@ -88,29 +84,27 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
       })
 
       // Call Data API to create knowledge base
-      const newBaseV2 = await createBaseApi({
-        body: {
-          name: newBase.name,
-          description: newBase.description,
-          embeddingModelId: `${newBase.model.provider}:${newBase.model.id}`,
-          embeddingModelMeta: {
-            id: newBase.model.id,
-            provider: newBase.model.provider,
-            name: newBase.model.name,
-            dimensions
-          },
-          rerankModelId: newBase.rerankModel ? `${newBase.rerankModel.provider}:${newBase.rerankModel.id}` : undefined,
-          rerankModelMeta: newBase.rerankModel
-            ? { id: newBase.rerankModel.id, provider: newBase.rerankModel.provider, name: newBase.rerankModel.name }
-            : undefined,
-          preprocessProviderId: selectedDocPreprocessProvider?.id,
-          chunkSize: newBase.chunkSize,
-          chunkOverlap: newBase.chunkOverlap,
-          threshold: newBase.threshold
-        }
+      const newBaseV2 = await createKnowledgeBase({
+        name: newBase.name,
+        description: newBase.description,
+        embeddingModelId: `${newBase.model.provider}:${newBase.model.id}`,
+        embeddingModelMeta: {
+          id: newBase.model.id,
+          provider: newBase.model.provider,
+          name: newBase.model.name,
+          dimensions
+        },
+        rerankModelId: newBase.rerankModel ? `${newBase.rerankModel.provider}:${newBase.rerankModel.id}` : undefined,
+        rerankModelMeta: newBase.rerankModel
+          ? { id: newBase.rerankModel.id, provider: newBase.rerankModel.provider, name: newBase.rerankModel.name }
+          : undefined,
+        preprocessProviderId: selectedDocPreprocessProvider?.id,
+        chunkSize: newBase.chunkSize,
+        chunkOverlap: newBase.chunkOverlap,
+        threshold: newBase.threshold
       })
 
-      // Convert to v1 format and update Redux (for UI compatibility)
+      // Convert to v1 format for UI compatibility (child components not yet migrated)
       const newBaseV1: KnowledgeBase = {
         id: newBaseV2.id,
         name: newBaseV2.name,
@@ -130,7 +124,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
           : undefined
       }
 
-      addKnowledgeBase(newBaseV1)
+      // Cache is automatically refreshed via useKnowledgeBases hook
       setOpen(false)
       resolve(newBaseV1)
     } catch (error) {
