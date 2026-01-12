@@ -95,13 +95,12 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       const filePath = fileStorage.getFilePathById(file)
       logger.info(`PaddleOCR preprocess processing started: ${filePath}`)
 
-      await this.validateFile(filePath)
+      const fileBuffer = await this.validateFile(filePath)
 
       // 进度条
       await this.sendPreprocessProgress(sourceId, 25)
 
       // 1.读取pdf文件并编码为base64
-      const fileBuffer = await fs.promises.readFile(filePath)
       const fileData = fileBuffer.toString('base64')
       await this.sendPreprocessProgress(sourceId, 50)
 
@@ -141,7 +140,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     return 0
   }
 
-  private async validateFile(filePath: string): Promise<void> {
+  private async validateFile(filePath: string): Promise<Buffer> {
     // 阶段1：校验文件类型
     logger.info(`Validating PDF file: ${filePath}`)
     const ext = path.extname(filePath).toLowerCase()
@@ -164,14 +163,15 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     try {
       doc = await this.readPdf(pdfBuffer)
     } catch (error: unknown) {
-      // PDF 解析失败：记录警告，跳过页数校验
-      logger.warn(
+      // PDF 解析失败：抛异常，跳过页数校验
+      const errorMsg = getErrorMessage(error)
+      logger.error(
         `Failed to parse PDF structure (file may be corrupted or use non-standard format). ` +
           `Skipping page count validation. Will attempt to process with PaddleOCR API. ` +
-          `Error details: ${getErrorMessage(error)}. ` +
+          `Error details: ${errorMsg}. ` +
           `Suggestion: If processing fails, try repairing the PDF using tools like Adobe Acrobat or online PDF repair services.`
       )
-      return
+      throw new Error(errorMsg)
     }
 
     if (doc?.numPages > PDF_PAGE_LIMIT) {
@@ -179,36 +179,22 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     }
 
     logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / MB)}MB`)
+
+    return pdfBuffer
   }
 
   private createProcessedFileInfo(file: FileMetadata, outputDir: string): FileMetadata {
-    const expectedMdFileName = `${file.id}.md`
-    const expectedMdPath = path.join(outputDir, expectedMdFileName)
+    const finalMdFileName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
+    const finalMdPath = path.join(outputDir, finalMdFileName)
 
-    // 不再检查 existsSync —— 由 saveResults 保证文件已写入
-    let finalPath = expectedMdPath
-
-    const finalName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
-    const newMdPath = path.join(outputDir, finalName)
-
-    if (newMdPath !== expectedMdPath) {
-      try {
-        fs.renameSync(expectedMdPath, newMdPath)
-        finalPath = newMdPath
-        logger.info(`Renamed markdown file to match original name: ${finalName}`)
-      } catch (error) {
-        logger.warn(`Failed to rename markdown file to ${finalName}: ${getErrorMessage(error)}`)
-      }
-    }
-
-    const ext = path.extname(finalPath)
+    const ext = path.extname(finalMdPath)
     const type = getFileType(ext)
-    const fileSize = fs.statSync(finalPath).size
+    const fileSize = fs.statSync(finalMdPath).size
 
     return {
       ...file,
-      name: finalName,
-      path: finalPath,
+      name: finalMdFileName,
+      path: finalMdPath,
       type: type,
       ext: ext,
       size: fileSize
@@ -273,7 +259,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     if (!result) {
       const errorMsg = `Parsing failed: No valid parsing result from PaddleOCR API for file [ID: ${file.id}]`
       // Keep warning log for troubleshooting
-      logger.warn(errorMsg)
+      logger.error(errorMsg)
       // Throw exception to interrupt function execution (no empty file created)
       throw new Error(errorMsg)
     }
@@ -284,12 +270,14 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       .map((layoutResult) => layoutResult.markdown.text)
       .join('\n\n')
 
-    // 保存 Markdown 文件
-    const mdFileName = `${file.id}.md`
-    const mdFilePath = path.join(outputDir, mdFileName)
-    fs.writeFileSync(mdFilePath, markdownText, 'utf-8')
+    // 直接构造目标文件名
+    const finalMdFileName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
+    const finalMdPath = path.join(outputDir, finalMdFileName)
 
-    logger.info(`Saved markdown file: ${mdFilePath}`)
+    // 保存 Markdown 文件
+    fs.writeFileSync(finalMdPath, markdownText, 'utf-8')
+
+    logger.info(`Saved markdown file: ${finalMdPath}`)
     return outputDir
   }
 }
