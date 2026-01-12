@@ -9,6 +9,12 @@ import {
   isSerializedAiSdkInvalidArgumentError,
   isSerializedAiSdkInvalidDataContentError,
   isSerializedAiSdkInvalidMessageRoleError,
+  isSerializedAiSdkInvalidPromptError,
+  isSerializedAiSdkInvalidToolInputError,
+  isSerializedAiSdkJSONParseError,
+  isSerializedAiSdkMessageConversionError,
+  isSerializedAiSdkNoObjectGeneratedError,
+  isSerializedAiSdkNoSpeechGeneratedError,
   isSerializedAiSdkNoSuchModelError,
   isSerializedAiSdkNoSuchProviderError,
   isSerializedAiSdkNoSuchToolError,
@@ -20,15 +26,46 @@ import {
   isSerializedError
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
-import { Button, Modal, Typography } from 'antd'
+import { formatFileSize } from '@renderer/utils/file'
+import { KB } from '@shared/config/constant'
+import { Button } from 'antd'
+import { Modal } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-export interface ErrorDetailModalProps {
+interface ErrorDetailModalProps {
   open: boolean
   onClose: () => void
   error?: SerializedError
+}
+
+const MAX_DISPLAY_SIZE = 100 * KB
+
+const truncateLargeData = (
+  data: string,
+  t: (key: string) => string
+): { content: string; truncated: boolean; isLikelyBase64: boolean } => {
+  if (!data || data.length <= MAX_DISPLAY_SIZE) {
+    return { content: data, truncated: false, isLikelyBase64: false }
+  }
+
+  const isLikelyBase64 = data.includes('data:image/') && data.includes(';base64,')
+  const formattedSize = formatFileSize(data.length)
+
+  if (isLikelyBase64) {
+    return {
+      content: `[${t('error.base64DataTruncated')} ~${formattedSize}]`,
+      truncated: true,
+      isLikelyBase64: true
+    }
+  }
+
+  return {
+    content: data.slice(0, MAX_DISPLAY_SIZE) + `\n\n... [${t('error.truncated')} ${formattedSize}]`,
+    truncated: true,
+    isLikelyBase64: false
+  }
 }
 
 // --- Styled Components ---
@@ -36,34 +73,35 @@ export interface ErrorDetailModalProps {
 const ErrorDetailContainer = styled.div`
   max-height: 60vh;
   overflow-y: auto;
-  padding: 16px 0;
 `
 
 const ErrorDetailList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
 `
 
 const ErrorDetailItem = styled.div`
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
+  flex-direction: column;
   gap: 8px;
-  line-height: 1.5;
-  word-break: break-word;
 `
 
-const ErrorDetailLabel = styled(Typography.Text)`
-  color: var(--color-text-secondary);
-  min-width: 120px;
-  flex-shrink: 0;
-`
-
-const ErrorDetailValue = styled(Typography.Text)`
-  flex: 1;
+const ErrorDetailLabel = styled.div`
+  font-weight: 600;
   color: var(--color-text);
-  white-space: pre-wrap;
+  font-size: 14px;
+`
+
+const ErrorDetailValue = styled.div`
+  font-family: var(--code-font-family);
+  font-size: 12px;
+  padding: 8px;
+  background: var(--color-code-background);
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  word-break: break-word;
+  color: var(--color-text);
 `
 
 const StackTrace = styled.div`
@@ -92,34 +130,6 @@ const TruncatedBadge = styled.span`
   background: var(--color-warning-bg, rgba(250, 173, 20, 0.1));
   border-radius: 4px;
 `
-
-// --- Helper Functions ---
-
-const truncateLargeData = (
-  value: string
-): {
-  content: string
-  truncated: boolean
-  isLikelyBase64: boolean
-} => {
-  const KB_SIZE = 1024
-  const MAX_SIZE = 100 * KB_SIZE
-  const TRUNCATE_SIZE = 50 * KB_SIZE
-
-  // Check for base64 pattern
-  const base64Pattern = /^[A-Za-z0-9+/=]+$/
-  const isLikelyBase64 = base64Pattern.test(value) && value.length > 100
-
-  if (value.length <= MAX_SIZE && !isLikelyBase64) {
-    return { content: value, truncated: false, isLikelyBase64 }
-  }
-
-  return {
-    content: value.slice(0, TRUNCATE_SIZE) + '...',
-    truncated: true,
-    isLikelyBase64
-  }
-}
 
 // --- Sub-Components ---
 
@@ -161,7 +171,7 @@ const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
   useEffect(() => {
     const highlight = async () => {
       try {
-        const { content: truncatedCause, truncated, isLikelyBase64 } = truncateLargeData(cause || '')
+        const { content: truncatedCause, truncated, isLikelyBase64 } = truncateLargeData(cause || '', t)
         setIsTruncated(truncated)
 
         if (isLikelyBase64) {
@@ -182,6 +192,7 @@ const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
       }
     }
     const timer = setTimeout(highlight, 0)
+
     return () => clearTimeout(timer)
   }, [highlightCode, cause, t])
 
@@ -211,7 +222,7 @@ const TruncatedCodeViewer: React.FC<{ value: string; label: string; language?: s
   language = 'json'
 }) => {
   const { t } = useTranslation()
-  const { content, truncated, isLikelyBase64 } = truncateLargeData(value)
+  const { content, truncated, isLikelyBase64 } = truncateLargeData(value, t)
 
   return (
     <ErrorDetailItem>
@@ -250,24 +261,26 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
         </ErrorDetailItem>
       )}
 
-      {isSerializedAiSdkAPICallError(error) && error.responseHeaders && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.responseHeaders')}:</ErrorDetailLabel>
-          <CodeViewer
-            value={JSON.stringify(error.responseHeaders, null, 2)}
-            className="source-view"
-            language="json"
-            expanded
-          />
-        </ErrorDetailItem>
-      )}
+      {isSerializedAiSdkAPICallError(error) && (
+        <>
+          {error.responseHeaders && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.responseHeaders')}:</ErrorDetailLabel>
+              <CodeViewer
+                value={JSON.stringify(error.responseHeaders, null, 2)}
+                className="source-view"
+                language="json"
+                expanded
+              />
+            </ErrorDetailItem>
+          )}
 
-      {isSerializedAiSdkAPICallError(error) && error.requestBodyValues && (
-        <TruncatedCodeViewer value={safeToString(error.requestBodyValues)} label={t('error.requestBodyValues')} />
-      )}
+          {error.requestBodyValues && (
+            <TruncatedCodeViewer value={safeToString(error.requestBodyValues)} label={t('error.requestBodyValues')} />
+          )}
 
-      {isSerializedAiSdkAPICallError(error) && error.data && (
-        <TruncatedCodeViewer value={safeToString(error.data)} label={t('error.data')} />
+          {error.data && <TruncatedCodeViewer value={safeToString(error.data)} label={t('error.data')} />}
+        </>
       )}
 
       {isSerializedAiSdkDownloadError(error) && error.statusText && (
@@ -305,12 +318,83 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
         </ErrorDetailItem>
       )}
 
-      {(isSerializedAiSdkNoSuchModelError(error) || isSerializedAiSdkNoSuchProviderError(error)) && error.modelId && (
+      {isSerializedAiSdkInvalidPromptError(error) && (
         <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.modelId')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.modelId}</ErrorDetailValue>
+          <ErrorDetailLabel>{t('error.prompt')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{safeToString(error.prompt)}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
+
+      {isSerializedAiSdkInvalidToolInputError(error) && (
+        <>
+          {error.toolName && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.toolName')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.toolName}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.toolInput && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.toolInput')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.toolInput}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+        </>
+      )}
+
+      {(isSerializedAiSdkJSONParseError(error) || isSerializedAiSdkNoObjectGeneratedError(error)) && error.text && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.text')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.text}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkMessageConversionError(error) && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.originalMessage')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{safeToString(error.originalMessage)}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkNoSpeechGeneratedError(error) && error.responses && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.responses')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.responses.join(', ')}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {isSerializedAiSdkNoObjectGeneratedError(error) && (
+        <>
+          {error.response && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.response')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{safeToString(error.response)}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.usage && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.usage')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{safeToString(error.usage)}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+          {error.finishReason && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.finishReason')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.finishReason}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+        </>
+      )}
+
+      {(isSerializedAiSdkNoSuchModelError(error) ||
+        isSerializedAiSdkNoSuchProviderError(error) ||
+        isSerializedAiSdkTooManyEmbeddingValuesForCallError(error)) &&
+        error.modelId && (
+          <ErrorDetailItem>
+            <ErrorDetailLabel>{t('error.modelId')}:</ErrorDetailLabel>
+            <ErrorDetailValue>{error.modelId}</ErrorDetailValue>
+          </ErrorDetailItem>
+        )}
 
       {(isSerializedAiSdkNoSuchModelError(error) || isSerializedAiSdkNoSuchProviderError(error)) && error.modelType && (
         <ErrorDetailItem>
@@ -319,11 +403,18 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
         </ErrorDetailItem>
       )}
 
-      {isSerializedAiSdkNoSuchProviderError(error) && error.availableProviders && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.availableProviders')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.availableProviders.join(', ')}</ErrorDetailValue>
-        </ErrorDetailItem>
+      {isSerializedAiSdkNoSuchProviderError(error) && (
+        <>
+          <ErrorDetailItem>
+            <ErrorDetailLabel>{t('error.providerId')}:</ErrorDetailLabel>
+            <ErrorDetailValue>{error.providerId}</ErrorDetailValue>
+          </ErrorDetailItem>
+
+          <ErrorDetailItem>
+            <ErrorDetailLabel>{t('error.availableProviders')}:</ErrorDetailLabel>
+            <ErrorDetailValue>{error.availableProviders.join(', ')}</ErrorDetailValue>
+          </ErrorDetailItem>
+        </>
       )}
 
       {isSerializedAiSdkNoSuchToolError(error) && (
@@ -421,6 +512,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
     } else {
       errorText = safeToString(error)
     }
+
     navigator.clipboard.writeText(errorText)
     window.toast.addToast({ title: t('message.copied') })
   }
