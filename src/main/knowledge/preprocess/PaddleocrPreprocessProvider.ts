@@ -14,7 +14,7 @@ import BasePreprocessProvider from './BasePreprocessProvider'
 const logger = loggerService.withContext('PaddleocrPreprocessProvider')
 
 /**
- * 单个文件大小不限制，但为避免处理超时，建议每个文件不超过100页。若超过100页，API只解析前100页，后续页将被忽略。
+ * 单个文件大小不超过50MB，为避免处理超时，建议每个文件不超过100页。若超过100页，API只解析前100页，后续页将被忽略。
  * 来源：PaddleOCR 官方 API 调用说明 https://aistudio.baidu.com/paddleocr
  */
 export const PDF_SIZE_LIMIT_MB = 50
