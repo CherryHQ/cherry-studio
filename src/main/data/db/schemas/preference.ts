@@ -1,6 +1,6 @@
 import { primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './columnHelpers'
+import { createUpdateTimestamps } from './_columnHelpers'
 
 export const preferenceTable = sqliteTable(
   'preference',

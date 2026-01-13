@@ -544,6 +544,20 @@
         "description": "Servidor MCP habilitado por defecto",
         "enableFirst": "Habilite este servidor en la configuración de MCP primero",
         "label": "Servidor MCP",
+        "mode": {
+          "auto": {
+            "description": "La IA descubre y utiliza herramientas automáticamente",
+            "label": "Auto"
+          },
+          "disabled": {
+            "description": "Sin herramientas MCP",
+            "label": "Discapacitado"
+          },
+          "manual": {
+            "description": "Seleccionar servidores MCP específicos",
+            "label": "Manual"
+          }
+        },
         "noServersAvailable": "No hay servidores MCP disponibles. Agregue un servidor en la configuración",
         "title": "Configuración MCP"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto"
     },
+    "base64DataTruncated": "Datos de imagen Base64 truncados, tamaño",
     "boundary": {
       "default": {
         "devtools": "Abrir el panel de depuración",
@@ -1377,6 +1392,8 @@
     "text": "Texto",
     "toolInput": "Herramienta de entrada",
     "toolName": "Nombre de la herramienta",
+    "truncated": "Datos truncados, tamaño original",
+    "truncatedBadge": "Truncado",
     "unknown": "Error desconocido",
     "usage": "Cantidad de uso",
     "user_message_not_found": "No se pudo encontrar el mensaje original del usuario",
@@ -3098,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Vista",
+        "title": "Carreras"
+      },
       "checkUpdate": {
         "available": "Actualizar ahora",
         "label": "Comprobar actualizaciones"
@@ -4458,6 +4479,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "Caché de los últimos N mensajes",
+            "cache_last_n_help": "Almacenar en caché los últimos N mensajes de la conversación (excluyendo los mensajes del sistema)",
+            "cache_system": "Mensaje del Sistema de Caché",
+            "cache_system_help": "Si se debe almacenar en caché el mensaje del sistema",
+            "token_threshold": "Umbral de Token de Caché",
+            "token_threshold_help": "Los mensajes que superen este recuento de tokens se almacenarán en caché. Establecer en 0 para desactivar el almacenamiento en caché."
+          },
           "array_content": {
             "help": "¿Admite el proveedor que el campo content del mensaje sea de tipo array?",
             "label": "Contenido del mensaje compatible con formato de matriz"
@@ -4918,6 +4947,9 @@
       "reset": "Restablecer",
       "title": "Escala"
     }
+  },
+  "tab": {
+    "new": "[to be translated]:New Tab"
   },
   "title": {
     "apps": "Aplicaciones",

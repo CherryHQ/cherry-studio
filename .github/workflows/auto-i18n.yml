@@ -90,3 +90,30 @@ jobs:
       - name: 📢 Notify if no changes
         if: steps.git_status.outputs.has_changes != 'true'
         run: echo "Bot script ran, but no changes were detected. No PR created."
+
+      - name: Send failure notification to Feishu
+        if: always() && (failure() || cancelled())
+        shell: bash
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          # Determine status and color
+          if [ "$JOB_STATUS" = "cancelled" ]; then
+            STATUS_TEXT="已取消"
+            COLOR="orange"
+          else
+            STATUS_TEXT="失败"
+            COLOR="red"
+          fi
+
+          # Build description using printf
+          DESCRIPTION=$(printf "**状态:** %s\n\n**工作流:** [查看详情](%s)" "$STATUS_TEXT" "$RUN_URL")
+
+          # Send notification
+          pnpm tsx scripts/feishu-notify.ts send \
+            -t "自动国际化${STATUS_TEXT}" \
+            -d "$DESCRIPTION" \
+            -c "${COLOR}"

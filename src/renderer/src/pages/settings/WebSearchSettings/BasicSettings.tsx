@@ -18,10 +18,10 @@ import { useAppDispatch } from '@renderer/store'
 import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
+import { useNavigate } from '@tanstack/react-router'
 import { Slider } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
@@ -76,7 +76,7 @@ const BasicSettings: FC = () => {
           cancelText: t('common.cancel'),
           centered: true,
           onOk: () => {
-            navigate(`/settings/websearch/provider/${provider.id}`)
+            navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
           }
         })
         return

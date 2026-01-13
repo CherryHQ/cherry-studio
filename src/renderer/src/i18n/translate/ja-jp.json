@@ -544,6 +544,20 @@
         "description": "デフォルトで有効な MCP サーバー",
         "enableFirst": "まず MCP 設定でこのサーバーを有効にしてください",
         "label": "MCP サーバー",
+        "mode": {
+          "auto": {
+            "description": "AIはツールを自動的に発見し、使用する",
+            "label": "オート"
+          },
+          "disabled": {
+            "description": "MCPツールなし",
+            "label": "無効"
+          },
+          "manual": {
+            "description": "特定のMCPサーバーを選択",
+            "label": "マニュアル"
+          }
+        },
         "noServersAvailable": "利用可能な MCP サーバーがありません。設定でサーバーを追加してください",
         "title": "MCP 設定"
       },
@@ -1297,6 +1311,7 @@
     "backup": {
       "file_format": "バックアップファイルの形式エラー"
     },
+    "base64DataTruncated": "Base64画像データが切り捨てられています、サイズ",
     "boundary": {
       "default": {
         "devtools": "デバッグパネルを開く",
@@ -1377,6 +1392,8 @@
     "text": "テキスト",
     "toolInput": "ツール入力",
     "toolName": "ツール名",
+    "truncated": "データが切り捨てられました、元のサイズ",
+    "truncatedBadge": "切り捨て",
     "unknown": "不明なエラー",
     "usage": "用量",
     "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
@@ -3098,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "表示",
+        "title": "キャリア"
+      },
       "checkUpdate": {
         "available": "今すぐ更新",
         "label": "更新を確認"
@@ -4458,6 +4479,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "最後のN件のメッセージをキャッシュ",
+            "cache_last_n_help": "最後のN件の会話メッセージをキャッシュする（システムメッセージは除く）",
+            "cache_system": "キャッシュシステムメッセージ",
+            "cache_system_help": "システムプロンプトをキャッシュするかどうか",
+            "token_threshold": "キャッシュトークン閾値",
+            "token_threshold_help": "このトークン数を超えるメッセージはキャッシュされます。キャッシュを無効にするには0を設定してください。"
+          },
           "array_content": {
             "help": "このプロバイダーは、message の content フィールドが配列型であることをサポートしていますか",
             "label": "配列形式のメッセージコンテンツをサポート"
@@ -4918,6 +4947,9 @@
       "reset": "リセット",
       "title": "ページズーム"
     }
+  },
+  "tab": {
+    "new": "[to be translated]:New Tab"
   },
   "title": {
     "apps": "アプリ",

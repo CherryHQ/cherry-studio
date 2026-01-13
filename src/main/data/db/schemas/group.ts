@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
 /**
  * Group table - general-purpose grouping for entities

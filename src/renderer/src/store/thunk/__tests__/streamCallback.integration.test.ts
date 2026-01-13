@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * Create mock callbacks for testing.
  *
  * NOTE: Updated to use simplified dependencies after StreamingService refactoring.
- * Now we need to initialize StreamingService session before creating callbacks.
+ * Now we need to initialize StreamingService task before creating callbacks.
  */
 const createMockCallbacks = (
   mockAssistantMsgId: string,
@@ -26,8 +26,8 @@ const createMockCallbacks = (
   mockAssistant: Assistant
   // dispatch and getState are no longer needed after StreamingService refactoring
 ) => {
-  // Initialize streaming session for tests
-  streamingService.startSession(mockTopicId, mockAssistantMsgId, {
+  // Initialize streaming task for tests
+  streamingService.startTask(mockTopicId, mockAssistantMsgId, {
     parentId: 'test-user-msg-id',
     role: 'assistant',
     assistantId: mockAssistant.id,

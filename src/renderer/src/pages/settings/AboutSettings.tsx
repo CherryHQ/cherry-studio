@@ -13,15 +13,15 @@ import i18n from '@renderer/i18n'
 // import { setUpdateState as setAppUpdateState } from '@renderer/store/runtime'
 import { runAsyncFunction } from '@renderer/utils'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { Link } from '@tanstack/react-router'
 import { Avatar, Progress, Radio, Row, Tag } from 'antd'
 import { debounce } from 'lodash'
-import { Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
+import { Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
@@ -322,6 +322,16 @@ const AboutSettings: FC = () => {
             {t('settings.about.contact.title')}
           </SettingRowTitle>
           <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            <Briefcase size={18} />
+            {t('settings.about.careers.title')}
+          </SettingRowTitle>
+          <Button onClick={() => onOpenWebsite('https://www.cherry-ai.com/careers')}>
+            {t('settings.about.careers.button')}
+          </Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>

@@ -27,7 +27,14 @@ import type {
   UseCacheKey
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
-import type { CacheEntry, CacheSubscriber, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type {
+  CacheEntry,
+  CacheEntryDetail,
+  CacheStats,
+  CacheSubscriber,
+  CacheSyncMessage,
+  CacheTierSummary
+} from '@shared/data/cache/cacheTypes'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
@@ -56,8 +63,8 @@ export class CacheService {
   private sharedCache = new Map<string, CacheEntry>() // Cross-window cache (local copy)
   private persistCache = new Map<RendererPersistCacheKey, any>() // Persistent cache
 
-  // Hook reference tracking
-  private activeHooks = new Set<string>()
+  // Hook reference tracking (reference-counted)
+  private activeHookCounts = new Map<string, number>()
 
   // Subscription management
   private subscribers = new Map<string, Set<CacheSubscriber>>()
@@ -346,7 +353,7 @@ export class CacheService {
    */
   private deleteInternal(key: string): boolean {
     // Check if key is being used by hooks
-    if (this.activeHooks.has(key)) {
+    if (this.activeHookCounts.get(key)) {
       logger.error(`Cannot delete key "${key}" as it's being used by useCache hook`)
       return false
     }
@@ -574,7 +581,7 @@ export class CacheService {
    */
   private deleteSharedInternal(key: string): boolean {
     // Check if key is being used by hooks
-    if (this.activeHooks.has(key)) {
+    if (this.activeHookCounts.get(key)) {
       logger.error(`Cannot delete key "${key}" as it's being used by useSharedCache hook`)
       return false
     }
@@ -666,7 +673,8 @@ export class CacheService {
    * @param key - Cache key being used by the hook
    */
   registerHook(key: string): void {
-    this.activeHooks.add(key)
+    const currentCount = this.activeHookCounts.get(key) ?? 0
+    this.activeHookCounts.set(key, currentCount + 1)
   }
 
   /**
@@ -674,7 +682,195 @@ export class CacheService {
    * @param key - Cache key no longer being used by the hook
    */
   unregisterHook(key: string): void {
-    this.activeHooks.delete(key)
+    const currentCount = this.activeHookCounts.get(key)
+    if (!currentCount) {
+      return
+    }
+
+    if (currentCount === 1) {
+      this.activeHookCounts.delete(key)
+      return
+    }
+
+    this.activeHookCounts.set(key, currentCount - 1)
+  }
+
+  // ============ Statistics ============
+
+  /**
+   * Get comprehensive statistics about all cache tiers
+   *
+   * @param includeDetails - Whether to include per-entry details (default: false)
+   * @returns Cache statistics with summary and optional details
+   *
+   * @example
+   * ```typescript
+   * // Get summary only (fast)
+   * const stats = cacheService.getStats()
+   * console.log(`Memory cache: ${stats.summary.memory.validCount} valid entries`)
+   *
+   * // Get full details (for debugging)
+   * const fullStats = cacheService.getStats(true)
+   * fullStats.details.memory.forEach(entry => {
+   *   if (entry.isExpired) console.log(`Expired: ${entry.key}`)
+   * })
+   * ```
+   */
+  public getStats(includeDetails: boolean = false): CacheStats {
+    const now = Date.now()
+
+    // Process memory and shared cache tiers
+    const memory = this.processCacheTier(this.memoryCache, now, includeDetails)
+    const shared = this.processCacheTier(this.sharedCache, now, includeDetails)
+    const persist = this.processPersistTier(includeDetails)
+
+    // Calculate totals
+    const totalBytes = memory.summary.estimatedBytes + shared.summary.estimatedBytes + persist.summary.estimatedBytes
+
+    const total = {
+      totalCount: memory.summary.totalCount + shared.summary.totalCount + persist.summary.totalCount,
+      validCount: memory.summary.validCount + shared.summary.validCount + persist.summary.validCount,
+      expiredCount: memory.summary.expiredCount + shared.summary.expiredCount,
+      withTTLCount: memory.summary.withTTLCount + shared.summary.withTTLCount,
+      hookReferences: memory.summary.hookReferences + shared.summary.hookReferences + persist.summary.hookReferences,
+      estimatedBytes: totalBytes,
+      estimatedSize: this.formatBytes(totalBytes)
+    }
+
+    return {
+      collectedAt: now,
+      summary: {
+        memory: memory.summary,
+        shared: shared.summary,
+        persist: persist.summary,
+        total
+      },
+      details: {
+        memory: memory.details,
+        shared: shared.details,
+        persist: persist.details
+      }
+    }
+  }
+
+  /**
+   * Process a cache tier (memory or shared) and collect statistics
+   */
+  private processCacheTier(
+    cache: Map<string, CacheEntry>,
+    now: number,
+    includeDetails: boolean
+  ): { summary: CacheTierSummary; details: CacheEntryDetail[] } {
+    let validCount = 0
+    let expiredCount = 0
+    let withTTLCount = 0
+    let hookReferences = 0
+    let estimatedBytes = 0
+    const details: CacheEntryDetail[] = []
+
+    for (const [key, entry] of cache.entries()) {
+      const hasTTL = entry.expireAt !== undefined
+      const isExpired = hasTTL && now > entry.expireAt!
+      const hookCount = this.activeHookCounts.get(key) ?? 0
+
+      // Estimate memory: key size + value size + metadata overhead
+      estimatedBytes += this.estimateSize(key) + this.estimateSize(entry.value)
+      if (entry.expireAt) estimatedBytes += 8 // number size
+
+      if (hasTTL) withTTLCount++
+      if (isExpired) {
+        expiredCount++
+      } else {
+        validCount++
+      }
+      hookReferences += hookCount
+
+      if (includeDetails) {
+        details.push({
+          key,
+          hasValue: entry.value !== undefined,
+          hasTTL,
+          isExpired,
+          expireAt: entry.expireAt,
+          remainingTTL: hasTTL && !isExpired ? entry.expireAt! - now : undefined,
+          hookCount
+        })
+      }
+    }
+
+    return {
+      summary: {
+        totalCount: cache.size,
+        validCount,
+        expiredCount,
+        withTTLCount,
+        hookReferences,
+        estimatedBytes
+      },
+      details
+    }
+  }
+
+  /**
+   * Process persist cache tier and collect statistics
+   * Persist cache has no TTL support, all entries are always valid
+   */
+  private processPersistTier(includeDetails: boolean): {
+    summary: CacheTierSummary
+    details: CacheEntryDetail[]
+  } {
+    let hookReferences = 0
+    let estimatedBytes = 0
+
+    for (const [key, value] of this.persistCache.entries()) {
+      hookReferences += this.activeHookCounts.get(key) ?? 0
+      estimatedBytes += this.estimateSize(key) + this.estimateSize(value)
+    }
+
+    const details: CacheEntryDetail[] = includeDetails
+      ? Array.from(this.persistCache.keys()).map((key) => ({
+          key,
+          hasValue: true,
+          hasTTL: false,
+          isExpired: false,
+          hookCount: this.activeHookCounts.get(key) ?? 0
+        }))
+      : []
+
+    return {
+      summary: {
+        totalCount: this.persistCache.size,
+        validCount: this.persistCache.size, // All persist entries are always valid
+        expiredCount: 0,
+        withTTLCount: 0,
+        hookReferences,
+        estimatedBytes
+      },
+      details
+    }
+  }
+
+  /**
+   * Estimate memory size of a value in bytes using JSON serialization
+   * Note: This is a rough estimate, actual memory usage may differ
+   */
+  private estimateSize(value: any): number {
+    try {
+      return new Blob([JSON.stringify(value)]).size
+    } catch {
+      return 0
+    }
+  }
+
+  /**
+   * Format bytes to human-readable size
+   */
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
   }
 
   // ============ Shared Cache Ready State Management ============
@@ -998,7 +1194,7 @@ export class CacheService {
     this.persistCache.clear()
 
     // Clear tracking
-    this.activeHooks.clear()
+    this.activeHookCounts.clear()
     this.subscribers.clear()
 
     logger.debug('CacheService cleanup completed')

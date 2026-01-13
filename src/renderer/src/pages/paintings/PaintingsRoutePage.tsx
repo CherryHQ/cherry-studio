@@ -5,9 +5,9 @@ import { setDefaultPaintingProvider } from '@renderer/store/settings'
 import { updateTab } from '@renderer/store/tabs'
 import type { PaintingProvider, SystemProviderId } from '@renderer/types'
 import { isNewApiProvider } from '@renderer/utils/provider'
+import { useParams } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { Route, Routes, useParams } from 'react-router-dom'
 
 import AihubmixPage from './AihubmixPage'
 import DmxapiPage from './DmxapiPage'
@@ -22,8 +22,8 @@ const logger = loggerService.withContext('PaintingsRoutePage')
 const BASE_OPTIONS: SystemProviderId[] = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'ovms']
 
 const PaintingsRoutePage: FC = () => {
-  const params = useParams()
-  const provider = params['*']
+  const params = useParams({ strict: false }) as { _splat?: string }
+  const provider = params._splat
   const dispatch = useAppDispatch()
   const providers = useAllProviders()
   const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
@@ -49,22 +49,34 @@ const PaintingsRoutePage: FC = () => {
     }
   }, [provider, dispatch, validOptions])
 
-  return (
-    <Routes>
-      <Route path="*" element={<NewApiPage Options={validOptions} />} />
-      <Route path="/zhipu" element={<ZhipuPage Options={validOptions} />} />
-      <Route path="/aihubmix" element={<AihubmixPage Options={validOptions} />} />
-      <Route path="/silicon" element={<SiliconPage Options={validOptions} />} />
-      <Route path="/dmxapi" element={<DmxapiPage Options={validOptions} />} />
-      <Route path="/tokenflux" element={<TokenFluxPage Options={validOptions} />} />
-      <Route path="/ovms" element={<OvmsPage Options={validOptions} />} />
-      <Route path="/new-api" element={<NewApiPage Options={validOptions} />} />
-      {/* new-api family providers are mounted dynamically below */}
-      {newApiProviders.map((p) => (
-        <Route key={p.id} path={`/${p.id}`} element={<NewApiPage Options={validOptions} />} />
-      ))}
-    </Routes>
-  )
+  // 根据 provider 渲染对应的页面
+  const renderPage = () => {
+    switch (provider) {
+      case 'zhipu':
+        return <ZhipuPage Options={validOptions} />
+      case 'aihubmix':
+        return <AihubmixPage Options={validOptions} />
+      case 'silicon':
+        return <SiliconPage Options={validOptions} />
+      case 'dmxapi':
+        return <DmxapiPage Options={validOptions} />
+      case 'tokenflux':
+        return <TokenFluxPage Options={validOptions} />
+      case 'ovms':
+        return <OvmsPage Options={validOptions} />
+      case 'new-api':
+        return <NewApiPage Options={validOptions} />
+      default:
+        // 检查是否是 new-api 家族的 provider
+        if (provider && newApiProviders.some((p) => p.id === provider)) {
+          return <NewApiPage Options={validOptions} />
+        }
+        // 默认页面
+        return <NewApiPage Options={validOptions} />
+    }
+  }
+
+  return renderPage()
 }
 
 export default PaintingsRoutePage

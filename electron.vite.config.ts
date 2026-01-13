@@ -1,3 +1,4 @@
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
@@ -80,6 +81,12 @@ export default defineConfig({
   },
   renderer: {
     plugins: [
+      tanstackRouter({
+        target: 'react',
+        autoCodeSplitting: true,
+        routesDirectory: resolve('src/renderer/src/routes'),
+        generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts')
+      }),
       (async () => (await import('@tailwindcss/vite')).default())(),
       react({
         tsDecorators: true

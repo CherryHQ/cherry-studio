@@ -1,5 +1,35 @@
 # Database Schema Guidelines
 
+## Schema File Organization
+
+### Principles
+
+| Scenario                               | Approach            |
+| -------------------------------------- | ------------------- |
+| Strongly related tables in same domain | Merge into one file |
+| Core tables / Complex business logic   | One file per table  |
+| Tables that may cross multiple domains | One file per table  |
+
+### Decision Criteria
+
+**Merge when:**
+
+- Tables have strong foreign key relationships (e.g., many-to-many)
+- Tables belong to the same business domain
+- Tables are unlikely to evolve independently
+
+**Separate (one file per table) when:**
+
+- Core table with many fields and complex logic
+- Has a dedicated Service layer counterpart
+- May expand independently in the future
+
+### File Naming
+
+- **Single-table files**: named after the table export name (`message.ts` for `messageTable`, `topic.ts` for `topicTable`)
+- **Multi-table files**: lowercase, named by domain (`tagging.ts` for `tagTable` + `entityTagTable`)
+- **Helper utilities**: underscore prefix (`_columnHelpers.ts`) to indicate non-table definitions
+
 ## Naming Conventions
 
 - **Table names**: Use **singular** form with snake_case (e.g., `topic`, `message`, `app_state`)
@@ -8,19 +38,19 @@
 
 ## Column Helpers
 
-All helpers are exported from `./schemas/columnHelpers.ts`.
+All helpers are exported from `./schemas/_columnHelpers.ts`.
 
 ### Primary Keys
 
-| Helper | UUID Version | Use Case |
-|--------|--------------|----------|
-| `uuidPrimaryKey()` | v4 (random) | General purpose tables |
+| Helper                    | UUID Version      | Use Case                             |
+| ------------------------- | ----------------- | ------------------------------------ |
+| `uuidPrimaryKey()`        | v4 (random)       | General purpose tables               |
 | `uuidPrimaryKeyOrdered()` | v7 (time-ordered) | Large tables with time-based queries |
 
 **Usage:**
 
 ```typescript
-import { uuidPrimaryKey, uuidPrimaryKeyOrdered } from './columnHelpers'
+import { uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 // General purpose table
 export const topicTable = sqliteTable('topic', {
@@ -45,29 +75,32 @@ export const messageTable = sqliteTable('message', {
 
 ### Timestamps
 
-| Helper | Fields | Use Case |
-|--------|--------|----------|
-| `createUpdateTimestamps` | `createdAt`, `updatedAt` | Tables without soft delete |
-| `createUpdateDeleteTimestamps` | `createdAt`, `updatedAt`, `deletedAt` | Tables with soft delete |
+| Helper                         | Fields                                | Use Case                   |
+| ------------------------------ | ------------------------------------- | -------------------------- |
+| `createUpdateTimestamps`       | `createdAt`, `updatedAt`              | Tables without soft delete |
+| `createUpdateDeleteTimestamps` | `createdAt`, `updatedAt`, `deletedAt` | Tables with soft delete    |
 
 **Usage:**
 
 ```typescript
-import { createUpdateTimestamps, createUpdateDeleteTimestamps } from './columnHelpers'
+import {
+  createUpdateTimestamps,
+  createUpdateDeleteTimestamps,
+} from "./_columnHelpers";
 
 // Without soft delete
-export const tagTable = sqliteTable('tag', {
+export const tagTable = sqliteTable("tag", {
   id: uuidPrimaryKey(),
   name: text(),
-  ...createUpdateTimestamps
-})
+  ...createUpdateTimestamps,
+});
 
 // With soft delete
-export const topicTable = sqliteTable('topic', {
+export const topicTable = sqliteTable("topic", {
   id: uuidPrimaryKey(),
   name: text(),
-  ...createUpdateDeleteTimestamps
-})
+  ...createUpdateDeleteTimestamps,
+});
 ```
 
 **Behavior:**
@@ -81,7 +114,7 @@ export const topicTable = sqliteTable('topic', {
 For JSON column support, use `{ mode: 'json' }`:
 
 ```typescript
-data: text({ mode: 'json' }).$type<MyDataType>()
+data: text({ mode: "json" }).$type<MyDataType>();
 ```
 
 Drizzle handles JSON serialization/deserialization automatically.
@@ -92,10 +125,10 @@ Drizzle handles JSON serialization/deserialization automatically.
 
 ```typescript
 // SET NULL: preserve record when referenced record is deleted
-groupId: text().references(() => groupTable.id, { onDelete: 'set null' })
+groupId: text().references(() => groupTable.id, { onDelete: "set null" });
 
 // CASCADE: delete record when referenced record is deleted
-topicId: text().references(() => topicTable.id, { onDelete: 'cascade' })
+topicId: text().references(() => topicTable.id, { onDelete: "cascade" });
 ```
 
 ### Self-Referencing Foreign Keys
@@ -103,23 +136,26 @@ topicId: text().references(() => topicTable.id, { onDelete: 'cascade' })
 For self-referencing foreign keys (e.g., tree structures with parentId), **always use the `foreignKey` operator** in the table's third parameter:
 
 ```typescript
-import { foreignKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { foreignKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const messageTable = sqliteTable(
-  'message',
+  "message",
   {
     id: uuidPrimaryKeyOrdered(),
-    parentId: text(),  // Do NOT use .references() here
+    parentId: text(), // Do NOT use .references() here
     // ...other fields
   },
   (t) => [
     // Use foreignKey operator for self-referencing
-    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('set null')
+    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete(
+      "set null"
+    ),
   ]
-)
+);
 ```
 
 **Why this approach:**
+
 - Avoids TypeScript circular reference issues (no need for `AnySQLiteColumn` type annotation)
 - More explicit and readable
 - Allows chaining `.onDelete()` / `.onUpdate()` actions
@@ -142,21 +178,22 @@ If you encounter a scenario that seems to require circular references:
 
 ```typescript
 // ✅ GOOD: Break the cycle by handling one side at application layer
-export const topicTable = sqliteTable('topic', {
+export const topicTable = sqliteTable("topic", {
   id: uuidPrimaryKey(),
   // Application-managed reference (no FK constraint)
   // Validated by TopicService.setCurrentMessage()
   currentMessageId: text(),
-})
+});
 
-export const messageTable = sqliteTable('message', {
+export const messageTable = sqliteTable("message", {
   id: uuidPrimaryKeyOrdered(),
   // Database-enforced FK
-  topicId: text().references(() => topicTable.id, { onDelete: 'cascade' }),
-})
+  topicId: text().references(() => topicTable.id, { onDelete: "cascade" }),
+});
 ```
 
 **Why soft references for SQLite:**
+
 - SQLite does not support `DEFERRABLE` constraints (unlike PostgreSQL/Oracle)
 - Application-layer validation provides equivalent data integrity
 - Simplifies insert/update operations without transaction ordering concerns
@@ -185,12 +222,12 @@ Always use `.returning()` to get inserted/updated data instead of re-querying:
 
 ```typescript
 // Good: Use returning()
-const [row] = await db.insert(table).values(data).returning()
-return rowToEntity(row)
+const [row] = await db.insert(table).values(data).returning();
+return rowToEntity(row);
 
 // Avoid: Re-query after insert (unnecessary database round-trip)
-await db.insert(table).values({ id, ...data })
-return this.getById(id)
+await db.insert(table).values({ id, ...data });
+return this.getById(id);
 ```
 
 ### Soft delete support
