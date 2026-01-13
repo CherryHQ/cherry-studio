@@ -21,7 +21,7 @@ import {
 import type { FileMetadata, KnowledgeBase, KnowledgeItem, KnowledgeNoteItem, ProcessingStatus } from '@renderer/types'
 import { isKnowledgeFileItem, isKnowledgeNoteItem } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
-import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledge'
+import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
 import type {
   DirectoryItemData,
   FileItemData,
@@ -161,7 +161,7 @@ export const useKnowledge = (baseId: string) => {
   // 重命名知识库
   const renameKnowledgeBase = (name: string) => {
     void dataApiService
-      .patch(`/knowledges/${baseId}` as any, {
+      .patch(`/knowledge-bases/${baseId}`, {
         body: { name }
       })
       .catch((error) => {
@@ -173,7 +173,7 @@ export const useKnowledge = (baseId: string) => {
   // 更新知识库
   const updateKnowledgeBase = (base: KnowledgeBase) => {
     void dataApiService
-      .patch(`/knowledges/${base.id}` as any, {
+      .patch(`/knowledge-bases/${base.id}`, {
         body: {
           name: base.name,
           description: base.description,
@@ -231,7 +231,7 @@ export const useKnowledge = (baseId: string) => {
     const updatedAt = Date.now()
 
     try {
-      await dataApiService.patch(`/knowledge-items/${noteId}` as any, {
+      await dataApiService.patch(`/knowledge-items/${noteId}`, {
         body: {
           data: {
             type: 'note',
@@ -296,7 +296,7 @@ export const useKnowledge = (baseId: string) => {
     }
 
     try {
-      await dataApiService.delete(`/knowledge-items/${item.id}` as any)
+      await dataApiService.delete(`/knowledge-items/${item.id}`)
       dispatch(removeItemAction({ baseId, item }))
 
       if (isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)) {
@@ -318,7 +318,7 @@ export const useKnowledge = (baseId: string) => {
     }
 
     try {
-      await dataApiService.patch(`/knowledge-items/${item.id}` as any, { body: { status: 'pending' } })
+      await dataApiService.post(`/knowledge-items/${item.id}/reprocess`, {})
       updateItem({
         ...item,
         processingStatus: 'pending',
@@ -370,7 +370,7 @@ export const useKnowledge = (baseId: string) => {
       let total = 0
 
       do {
-        const response = await dataApiService.get(`/knowledge-bases/${baseId}/items` as any, {
+        const response = await dataApiService.get(`/knowledge-bases/${baseId}/items`, {
           query: { page, limit: 100 }
         })
         fetchedItems.push(...response.items)
@@ -470,7 +470,7 @@ export const useKnowledge = (baseId: string) => {
     const newName = `${newBase.name || base.name}-${timestamp}`
 
     try {
-      const createdBase = await dataApiService.post('/knowledges', {
+      const createdBase = await dataApiService.post('/knowledge-bases', {
         body: {
           name: newName,
           description: newBase.description,
@@ -563,7 +563,7 @@ export const useKnowledge = (baseId: string) => {
       }
 
       if (itemsPayload.length > 0) {
-        const result = await dataApiService.post(`/knowledges/${migratedBase.id}/items`, {
+        const result = await dataApiService.post(`/knowledge-bases/${migratedBase.id}/items`, {
           body: { items: itemsPayload }
         })
 
@@ -653,7 +653,7 @@ export const useKnowledgeBases = () => {
 
   const renameKnowledgeBase = (baseId: string, name: string) => {
     void dataApiService
-      .patch(`/knowledges/${baseId}` as any, {
+      .patch(`/knowledge-bases/${baseId}`, {
         body: { name }
       })
       .catch((error) => {
@@ -665,7 +665,7 @@ export const useKnowledgeBases = () => {
   const deleteKnowledgeBase = (baseId: string) => {
     const base = bases.find((b) => b.id === baseId)
     if (!base) return
-    void dataApiService.delete(`/knowledges/${baseId}` as any).catch((error) => {
+    void dataApiService.delete(`/knowledge-bases/${baseId}`).catch((error) => {
       logger.error('Failed to delete knowledge base via Data API', error as Error, { baseId })
     })
     dispatch(deleteBase({ baseId }))

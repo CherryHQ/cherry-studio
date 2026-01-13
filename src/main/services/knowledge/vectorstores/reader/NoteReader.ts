@@ -5,6 +5,7 @@
  */
 
 import { loggerService } from '@logger'
+import type { NoteItemData } from '@shared/data/types/knowledge'
 import { Document, SentenceSplitter } from '@vectorstores/core'
 import md5 from 'md5'
 
@@ -29,8 +30,9 @@ export class NoteReader implements ContentReader {
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
-    const content = item.content as string
-    const sourceUrl = (item as { sourceUrl?: string }).sourceUrl
+    const noteData = item.data as NoteItemData
+    const content = noteData.content
+    const sourceUrl = noteData.sourceUrl
 
     const uniqueId = `NoteReader_${md5(content + (sourceUrl || ''))}`
 
@@ -76,14 +78,5 @@ export class NoteReader implements ContentReader {
       uniqueId,
       readerType: 'NoteReader'
     }
-  }
-
-  /**
-   * Estimate workload based on content length
-   */
-  estimateWorkload(context: ReaderContext): number {
-    const content = context.item.content as string
-    const encoder = new TextEncoder()
-    return encoder.encode(content).length
   }
 }

@@ -35,7 +35,7 @@ export const knowledgeBaseTable = sqliteTable('knowledge_base', {
 /**
  * knowledge_item table - Knowledge items (files, URLs, notes, etc.)
  *
- * Uses uuidPrimaryKeyOrdered (UUID v7) to support time-ordered queries
+ * Uses uuidPrimaryKey (UUID v4) for consistency with existing IDs
  */
 export const knowledgeItemTable = sqliteTable(
   'knowledge_item',

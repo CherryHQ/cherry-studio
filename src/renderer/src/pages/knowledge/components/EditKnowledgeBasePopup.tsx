@@ -11,7 +11,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledge'
+import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
 import { useCallback, useMemo, useState } from 'react'
@@ -92,7 +92,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ baseId, resolve }) => {
     let total = 0
 
     do {
-      const response = (await dataApiService.get(`/knowledges/${sourceBaseId}/items` as any, {
+      const response = (await dataApiService.get(`/knowledge-bases/${sourceBaseId}/items` as any, {
         query: { page, limit: 100 }
       })) as OffsetPaginationResponse<KnowledgeItemV2>
       fetchedItems.push(...response.items)
@@ -107,7 +107,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ baseId, resolve }) => {
     async (sourceBase: KnowledgeBase, targetBase: KnowledgeBase) => {
       const timestamp = dayjs().format('YYMMDDHHmmss')
       const nextName = `${targetBase.name || sourceBase.name}-${timestamp}`
-      const createdBase = await dataApiService.post('/knowledges' as any, {
+      const createdBase = await dataApiService.post('/knowledge-bases' as any, {
         body: buildPayload({ ...targetBase, name: nextName })
       })
 
@@ -118,12 +118,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ baseId, resolve }) => {
           data: item.data
         }))
 
-        await dataApiService.post(`/knowledges/${createdBase.id}/items` as any, {
+        await dataApiService.post(`/knowledge-bases/${createdBase.id}/items` as any, {
           body: { items: itemsPayload }
         })
       }
 
-      await invalidate(['/knowledges', `/knowledges/${createdBase.id}`])
+      await invalidate(['/knowledge-bases', `/knowledge-bases/${createdBase.id}`])
       return createdBase.id
     },
     [buildPayload, fetchAllItems, invalidate]
@@ -191,10 +191,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ baseId, resolve }) => {
     } else {
       try {
         logger.debug('newbase', newBase)
-        await dataApiService.patch(`/knowledges/${base.id}` as any, {
+        await dataApiService.patch(`/knowledge-bases/${base.id}` as any, {
           body: buildPayload(newBase)
         })
-        await invalidate(['/knowledges', `/knowledges/${base.id}`])
+        await invalidate(['/knowledge-bases', `/knowledge-bases/${base.id}`])
         setOpen(false)
         resolve(base.id)
       } catch (error) {

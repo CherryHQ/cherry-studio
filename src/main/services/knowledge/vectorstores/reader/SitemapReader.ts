@@ -6,6 +6,7 @@
  */
 
 import { loggerService } from '@logger'
+import type { SitemapItemData } from '@shared/data/types/knowledge'
 import type { Document } from '@vectorstores/core'
 import { SentenceSplitter } from '@vectorstores/core'
 import { HTMLReader } from '@vectorstores/readers/html'
@@ -16,7 +17,6 @@ import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
-  MB,
   type ReaderContext,
   type ReaderResult
 } from '../types'
@@ -34,7 +34,8 @@ export class SitemapReader implements ContentReader {
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
-    const url = item.content as string
+    const sitemapData = item.data as SitemapItemData
+    const url = sitemapData.url
 
     const uniqueId = `SitemapReader_${md5(url)}`
 
@@ -132,14 +133,6 @@ export class SitemapReader implements ContentReader {
       logger.error(`Failed to read sitemap ${url}:`, error as Error)
       throw error
     }
-  }
-
-  /**
-   * Estimate workload for sitemap reading
-   * Sitemaps can contain many URLs, use a fixed estimate of 20MB
-   */
-  estimateWorkload(_context: ReaderContext): number {
-    return 20 * MB
   }
 
   /**

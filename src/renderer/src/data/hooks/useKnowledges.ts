@@ -9,8 +9,7 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
-import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledge'
+import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { ItemStatus, KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { useMemo, useState } from 'react'
 
@@ -21,16 +20,13 @@ const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embeddin
 const PROCESSING_POLL_INTERVAL = 500
 
 /** API path type for knowledge base items */
-type KnowledgeBaseItemsPath = `/knowledges/${string}/items`
+type KnowledgeBaseItemsPath = `/knowledge-bases/${string}/items`
 
 /** API path type for single knowledge base */
-type KnowledgeBasePath = `/knowledges/${string}`
+type KnowledgeBasePath = `/knowledge-bases/${string}`
 
 /** API path type for single knowledge item */
 type KnowledgeItemPath = `/knowledge-items/${string}`
-
-/** Response type for knowledge items list */
-type KnowledgeItemsResponse = OffsetPaginationResponse<KnowledgeItem>
 
 /**
  * Hook for fetching knowledge items with smart polling.
@@ -67,19 +63,15 @@ export function useKnowledgeItems(
   }
 ) {
   const enabled = options?.enabled !== false && !!baseId
-  const path: KnowledgeBaseItemsPath = `/knowledges/${baseId}/items`
+  const path: KnowledgeBaseItemsPath = `/knowledge-bases/${baseId}/items`
 
   // Fetch knowledge items
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
     enabled
   })
 
-  // Type the response data
-  const typedData = data as KnowledgeItemsResponse | undefined
-
   // Memoize items extraction to avoid creating new array on every render
-  const items = useMemo<KnowledgeItem[]>(() => typedData?.items ?? [], [typedData])
-  const total = useMemo<number>(() => typedData?.total ?? 0, [typedData])
+  const items = useMemo<KnowledgeItem[]>(() => (data as KnowledgeItem[] | undefined) ?? [], [data])
 
   // Check if any items are still being processed
   const hasProcessingItems = useMemo(() => items.some((item) => PROCESSING_STATUSES.includes(item.status)), [items])
@@ -93,25 +85,17 @@ export function useKnowledgeItems(
     }
   })
 
-  // Type the polled data
-  const typedPolledData = polledData as KnowledgeItemsResponse | undefined
-
   // Use polled data when available and processing
   const currentItems = useMemo<KnowledgeItem[]>(
-    () => (hasProcessingItems ? (typedPolledData?.items ?? items) : items),
-    [hasProcessingItems, typedPolledData, items]
-  )
-
-  const currentTotal = useMemo<number>(
-    () => (hasProcessingItems ? (typedPolledData?.total ?? total) : total),
-    [hasProcessingItems, typedPolledData, total]
+    () => (hasProcessingItems ? ((polledData as KnowledgeItem[] | undefined) ?? items) : items),
+    [hasProcessingItems, polledData, items]
   )
 
   return {
     /** Knowledge items with latest status */
     items: currentItems,
     /** Total number of items */
-    total: currentTotal,
+    total: currentItems.length,
     /** True during initial load */
     isLoading,
     /** True during background revalidation */
@@ -143,7 +127,7 @@ export function useKnowledgeBase(
   }
 ) {
   const enabled = options?.enabled !== false && !!baseId
-  const path: KnowledgeBasePath = `/knowledges/${baseId}`
+  const path: KnowledgeBasePath = `/knowledge-bases/${baseId}`
 
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
     enabled
@@ -236,9 +220,6 @@ export function useKnowledgeItem(
   }
 }
 
-/** Response type for knowledge bases list */
-type KnowledgeBasesResponse = OffsetPaginationResponse<KnowledgeBase>
-
 /**
  * Hook for fetching and managing knowledge bases via v2 Data API.
  *
@@ -277,12 +258,11 @@ export function useKnowledgeBases(options?: {
   const invalidate = useInvalidateCache()
 
   // Fetch knowledge bases list
-  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/knowledges', {
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/knowledge-bases', {
     enabled
   })
 
-  const typedData = data as KnowledgeBasesResponse | undefined
-  const bases = useMemo<KnowledgeBase[]>(() => typedData?.items ?? [], [typedData])
+  const bases = useMemo<KnowledgeBase[]>(() => (data as KnowledgeBase[] | undefined) ?? [], [data])
 
   /**
    * Create a new knowledge base
@@ -290,10 +270,10 @@ export function useKnowledgeBases(options?: {
   const createKnowledgeBase = async (dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> => {
     setIsCreating(true)
     try {
-      const result = await dataApiService.post('/knowledges' as any, {
+      const result = await dataApiService.post('/knowledge-bases' as any, {
         body: dto
       })
-      await invalidate('/knowledges')
+      await invalidate('/knowledge-bases')
       return result as KnowledgeBase
     } finally {
       setIsCreating(false)
@@ -306,10 +286,10 @@ export function useKnowledgeBases(options?: {
   const renameKnowledgeBase = async (baseId: string, name: string) => {
     setIsRenaming(true)
     try {
-      await dataApiService.patch(`/knowledges/${baseId}` as any, {
+      await dataApiService.patch(`/knowledge-bases/${baseId}` as any, {
         body: { name }
       })
-      await invalidate('/knowledges')
+      await invalidate('/knowledge-bases')
     } finally {
       setIsRenaming(false)
     }
@@ -322,8 +302,8 @@ export function useKnowledgeBases(options?: {
   const deleteKnowledgeBase = async (baseId: string) => {
     setIsDeleting(true)
     try {
-      await dataApiService.delete(`/knowledges/${baseId}` as any)
-      await invalidate('/knowledges')
+      await dataApiService.delete(`/knowledge-bases/${baseId}` as any)
+      await invalidate('/knowledge-bases')
     } finally {
       setIsDeleting(false)
     }

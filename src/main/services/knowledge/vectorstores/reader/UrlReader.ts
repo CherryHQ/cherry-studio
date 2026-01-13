@@ -6,6 +6,7 @@
  */
 
 import { loggerService } from '@logger'
+import type { UrlItemData } from '@shared/data/types/knowledge'
 import type { Document } from '@vectorstores/core'
 import { SentenceSplitter } from '@vectorstores/core'
 import { HTMLReader } from '@vectorstores/readers/html'
@@ -15,7 +16,6 @@ import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
-  MB,
   type ReaderContext,
   type ReaderResult
 } from '../types'
@@ -33,7 +33,8 @@ export class UrlReader implements ContentReader {
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
-    const url = item.content as string
+    const urlData = item.data as UrlItemData
+    const url = urlData.url
 
     const uniqueId = `UrlReader_${md5(url)}`
 
@@ -111,14 +112,6 @@ export class UrlReader implements ContentReader {
       logger.error(`Failed to read URL ${url}:`, error as Error)
       throw error
     }
-  }
-
-  /**
-   * Estimate workload for URL reading
-   * URLs have variable content size, use a fixed estimate of 2MB
-   */
-  estimateWorkload(_context: ReaderContext): number {
-    return 2 * MB
   }
 
   /**

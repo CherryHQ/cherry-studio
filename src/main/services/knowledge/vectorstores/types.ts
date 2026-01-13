@@ -3,7 +3,8 @@
  */
 
 import type { LoaderReturn } from '@shared/config/types'
-import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchResult } from '@types'
+import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { FileMetadata, KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 import type { BaseNode, Metadata } from '@vectorstores/core'
 
 // ============================================================================
@@ -37,8 +38,6 @@ export interface ReaderContext {
   item: KnowledgeItem
   /** external_id for tracking (maps to item.id) */
   itemId: string
-  /** Force reload even if exists */
-  forceReload?: boolean
   /** User ID for preprocessing services */
   userId?: string
 }
@@ -56,13 +55,6 @@ export interface ContentReader {
    * @returns Promise resolving to ReaderResult with nodes
    */
   read(context: ReaderContext): Promise<ReaderResult>
-
-  /**
-   * Estimate workload in bytes (for queue management)
-   * @param context Reader context
-   * @returns Estimated workload in bytes
-   */
-  estimateWorkload(context: ReaderContext): number
 }
 
 // ============================================================================
@@ -78,7 +70,6 @@ export type KnowledgeProcessingStage = 'preprocessing' | 'embedding'
 export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBaseParams
   item: KnowledgeItem
-  forceReload?: boolean
   userId?: string
   signal?: AbortSignal
   onStageChange?: (stage: KnowledgeProcessingStage) => void

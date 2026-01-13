@@ -85,14 +85,3 @@ export async function readContent(context: ReaderContext): Promise<ReaderResult>
   }
   return reader.read(context)
 }
-
-/**
- * Estimate workload for content reading
- */
-export function estimateWorkload(context: ReaderContext): number {
-  const reader = readerRegistry.get(context.item.type as KnowledgeItemType)
-  if (!reader) {
-    return 0
-  }
-  return reader.estimateWorkload(context)
-}

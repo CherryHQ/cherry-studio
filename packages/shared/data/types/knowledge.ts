@@ -61,9 +61,9 @@ export interface KnowledgeBase {
   name: string
   description?: string
   embeddingModelId: string
-  embeddingModelMeta?: EmbeddingModelMeta
+  embeddingModelMeta?: EmbeddingModelMeta | null
   rerankModelId?: string
-  rerankModelMeta?: ModelMeta
+  rerankModelMeta?: ModelMeta | null
   preprocessProviderId?: string
   chunkSize?: number
   chunkOverlap?: number

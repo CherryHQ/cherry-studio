@@ -8,7 +8,8 @@
 import * as fs from 'node:fs'
 
 import { loggerService } from '@logger'
-import type { FileMetadata } from '@types'
+import type { FileMetadata } from '@shared/data/types/file'
+import type { FileItemData } from '@shared/data/types/knowledge'
 import type { Document } from '@vectorstores/core'
 import { type FileReader as VectorstoreFileReader, SentenceSplitter } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
@@ -56,7 +57,8 @@ export class FileReader implements ContentReader {
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
-    const file = item.content as FileMetadata
+    const fileData = item.data as FileItemData
+    const file = fileData.file
     const ext = file.ext.toLowerCase()
 
     const uniqueId = `FileReader_${md5(file.path)}`
@@ -180,13 +182,5 @@ export class FileReader implements ContentReader {
         return doc as Document
       })
       .filter((doc) => doc.getText().trim().length > 0)
-  }
-
-  /**
-   * Estimate workload based on file size
-   */
-  estimateWorkload(context: ReaderContext): number {
-    const file = context.item.content as FileMetadata
-    return file.size
   }
 }

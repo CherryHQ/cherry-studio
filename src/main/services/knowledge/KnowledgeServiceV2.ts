@@ -271,7 +271,7 @@ class KnowledgeServiceV2 {
    * This is the main entry point for adding any type of content
    */
   public add = async (options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
-    const { base, item, forceReload = false, userId = '', signal, onStageChange } = options
+    const { base, item, userId = '', signal, onStageChange } = options
     const itemType = item.type as KnowledgeItemType
 
     logger.info(`[KnowledgeV2] Add called: type=${itemType}, base=${base.id}, item=${item.id}`)
@@ -292,7 +292,6 @@ class KnowledgeServiceV2 {
       base,
       item,
       itemId: item.id,
-      forceReload,
       userId
     }
 

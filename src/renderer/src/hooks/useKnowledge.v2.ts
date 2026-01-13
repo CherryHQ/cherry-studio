@@ -10,7 +10,7 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
 import type { FileMetadata } from '@renderer/types'
-import type { CreateKnowledgeItemDto, KnowledgeSearchRequest } from '@shared/data/api/schemas/knowledge'
+import type { CreateKnowledgeItemDto, KnowledgeSearchRequest } from '@shared/data/api/schemas/knowledges'
 import type {
   DirectoryItemData,
   FileItemData,
@@ -39,9 +39,13 @@ export const useKnowledgeFiles = (baseId: string) => {
     [fileItems]
   )
 
-  const { trigger: createItemsApi, isLoading: isAddingFiles } = useMutation('POST', `/knowledges/${baseId}/items`, {
-    refresh: [`/knowledges/${baseId}/items`]
-  })
+  const { trigger: createItemsApi, isLoading: isAddingFiles } = useMutation(
+    'POST',
+    `/knowledge-bases/${baseId}/items`,
+    {
+      refresh: [`/knowledge-bases/${baseId}/items`]
+    }
+  )
 
   const { deleteItem: deleteKnowledgeItem, isDeleting } = useKnowledgeItemDelete()
   const invalidate = useInvalidateCache()
@@ -94,8 +98,8 @@ export const useKnowledgeFiles = (baseId: string) => {
     }
 
     try {
-      await dataApiService.patch(`/knowledge-items/${itemId}` as any, { body: { status: 'pending' } })
-      await invalidate(`/knowledges/${baseId}/items`)
+      await dataApiService.post(`/knowledge-items/${itemId}/reprocess`, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
       logger.error('Failed to refresh item', error as Error, { itemId, baseId })
@@ -124,9 +128,13 @@ export const useKnowledgeDirectories = (baseId: string) => {
     () => directoryItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
     [directoryItems]
   )
-  const { trigger: createItemsApi, isLoading: isAddingDirectory } = useMutation('POST', `/knowledges/${baseId}/items`, {
-    refresh: [`/knowledges/${baseId}/items`]
-  })
+  const { trigger: createItemsApi, isLoading: isAddingDirectory } = useMutation(
+    'POST',
+    `/knowledge-bases/${baseId}/items`,
+    {
+      refresh: [`/knowledge-bases/${baseId}/items`]
+    }
+  )
 
   /**
    * Add a directory to knowledge base via v2 API
@@ -175,8 +183,8 @@ export const useKnowledgeDirectories = (baseId: string) => {
     }
 
     try {
-      await dataApiService.patch(`/knowledge-items/${itemId}` as any, { body: { status: 'pending' } })
-      await invalidate(`/knowledges/${baseId}/items`)
+      await dataApiService.post(`/knowledge-items/${itemId}/reprocess`, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
       logger.error('Failed to refresh item', error as Error, { itemId, baseId })
@@ -205,8 +213,8 @@ export const useKnowledgeUrls = (baseId: string) => {
     () => urlItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
     [urlItems]
   )
-  const { trigger: createItemsApi, isLoading: isAddingUrl } = useMutation('POST', `/knowledges/${baseId}/items`, {
-    refresh: [`/knowledges/${baseId}/items`]
+  const { trigger: createItemsApi, isLoading: isAddingUrl } = useMutation('POST', `/knowledge-bases/${baseId}/items`, {
+    refresh: [`/knowledge-bases/${baseId}/items`]
   })
 
   /**
@@ -256,8 +264,8 @@ export const useKnowledgeUrls = (baseId: string) => {
     }
 
     try {
-      await dataApiService.patch(`/knowledge-items/${itemId}` as any, { body: { status: 'pending' } })
-      await invalidate(`/knowledges/${baseId}/items`)
+      await dataApiService.post(`/knowledge-items/${itemId}/reprocess`, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
       logger.error('Failed to refresh item', error as Error, { itemId, baseId })
@@ -286,9 +294,13 @@ export const useKnowledgeSitemaps = (baseId: string) => {
     () => sitemapItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
     [sitemapItems]
   )
-  const { trigger: createItemsApi, isLoading: isAddingSitemap } = useMutation('POST', `/knowledges/${baseId}/items`, {
-    refresh: [`/knowledges/${baseId}/items`]
-  })
+  const { trigger: createItemsApi, isLoading: isAddingSitemap } = useMutation(
+    'POST',
+    `/knowledge-bases/${baseId}/items`,
+    {
+      refresh: [`/knowledge-bases/${baseId}/items`]
+    }
+  )
 
   /**
    * Add a sitemap to knowledge base via v2 API
@@ -337,8 +349,8 @@ export const useKnowledgeSitemaps = (baseId: string) => {
     }
 
     try {
-      await dataApiService.patch(`/knowledge-items/${itemId}` as any, { body: { status: 'pending' } })
-      await invalidate(`/knowledges/${baseId}/items`)
+      await dataApiService.post(`/knowledge-items/${itemId}/reprocess`, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
       logger.error('Failed to refresh item', error as Error, { itemId, baseId })
@@ -367,8 +379,8 @@ export const useKnowledgeNotes = (baseId: string) => {
     () => noteItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
     [noteItems]
   )
-  const { trigger: createItemsApi, isLoading: isAddingNote } = useMutation('POST', `/knowledges/${baseId}/items`, {
-    refresh: [`/knowledges/${baseId}/items`]
+  const { trigger: createItemsApi, isLoading: isAddingNote } = useMutation('POST', `/knowledge-bases/${baseId}/items`, {
+    refresh: [`/knowledge-bases/${baseId}/items`]
   })
 
   /**
@@ -418,8 +430,8 @@ export const useKnowledgeNotes = (baseId: string) => {
     }
 
     try {
-      await dataApiService.patch(`/knowledge-items/${itemId}` as any, { body: { status: 'pending' } })
-      await invalidate(`/knowledges/${baseId}/items`)
+      await dataApiService.post(`/knowledge-items/${itemId}/reprocess`, {})
+      await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
       logger.error('Failed to refresh item', error as Error, { itemId, baseId })
@@ -452,10 +464,10 @@ export const useKnowledgeItemDelete = () => {
     setIsDeleting(true)
     try {
       // Call v2 API to delete item (also removes vectors)
-      await dataApiService.delete(`/knowledge-items/${itemId}` as any)
+      await dataApiService.delete(`/knowledge-items/${itemId}`)
 
       // Refresh the items list cache
-      await invalidate(`/knowledges/${baseId}/items`)
+      await invalidate(`/knowledge-bases/${baseId}/items`)
 
       logger.info('Item deleted via v2 API', { itemId, baseId })
     } catch (error) {
@@ -476,7 +488,7 @@ export const useKnowledgeItemDelete = () => {
  * Hook for searching a knowledge base via v2 Data API
  */
 export const useKnowledgeSearch = (baseId: string) => {
-  const { trigger: searchApi, isLoading: isSearching } = useMutation('POST', `/knowledges/${baseId}/search`)
+  const [isSearching, setIsSearching] = useState(false)
 
   /**
    * Search knowledge base via v2 API
@@ -488,15 +500,18 @@ export const useKnowledgeSearch = (baseId: string) => {
       return []
     }
 
+    setIsSearching(true)
     try {
-      const results = await searchApi({
-        body: request
+      const results = await dataApiService.get(`/knowledge-bases/${baseId}/search`, {
+        query: request
       })
       logger.info('Knowledge base search completed', { baseId, resultCount: results.length })
       return results
     } catch (error) {
       logger.error('Knowledge base search failed', error as Error)
       throw error
+    } finally {
+      setIsSearching(false)
     }
   }
 

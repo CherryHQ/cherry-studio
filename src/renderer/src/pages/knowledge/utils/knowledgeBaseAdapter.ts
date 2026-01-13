@@ -51,8 +51,8 @@ export const mapKnowledgeBaseV2ToV1 = (
   base: KnowledgeBaseV2,
   preprocessProviders: PreprocessProvider[] = []
 ): KnowledgeBaseV1 => {
-  const model = resolveModel(base.embeddingModelMeta, base.embeddingModelId)
-  const rerankModel = resolveModel(base.rerankModelMeta, base.rerankModelId)
+  const model = resolveModel(base.embeddingModelMeta ?? undefined, base.embeddingModelId)
+  const rerankModel = resolveModel(base.rerankModelMeta ?? undefined, base.rerankModelId)
   const preprocessProvider = base.preprocessProviderId
     ? preprocessProviders.find((provider) => provider.id === base.preprocessProviderId)
     : undefined

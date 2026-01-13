@@ -10,6 +10,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { windowService } from '@main/services/WindowService'
+import type { DirectoryItemData } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Document } from '@vectorstores/core'
 import { SentenceSplitter } from '@vectorstores/core'
@@ -21,7 +22,6 @@ import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
-  MB,
   type ReaderContext,
   type ReaderResult
 } from '../types'
@@ -39,7 +39,8 @@ export class DirectoryReader implements ContentReader {
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
-    const directoryPath = item.content as string
+    const directoryData = item.data as DirectoryItemData
+    const directoryPath = directoryData.path
 
     const uniqueId = `DirectoryReader_${uuidv4()}`
 
@@ -125,50 +126,6 @@ export class DirectoryReader implements ContentReader {
       uniqueId,
       readerType: 'DirectoryReader'
     }
-  }
-
-  /**
-   * Estimate workload based on total file sizes in directory
-   */
-  estimateWorkload(context: ReaderContext): number {
-    const directoryPath = context.item.content as string
-    try {
-      return this.calculateDirectorySize(directoryPath)
-    } catch {
-      return MB * 10 // Default 10MB if calculation fails
-    }
-  }
-
-  /**
-   * Calculate total size of files in directory recursively
-   */
-  private calculateDirectorySize(dirPath: string): number {
-    if (!fs.existsSync(dirPath)) {
-      return 0
-    }
-
-    let totalSize = 0
-    const entries = fs.readdirSync(dirPath)
-
-    for (const entry of entries) {
-      if (entry.startsWith('.')) continue
-
-      const fullPath = path.join(dirPath, entry)
-      try {
-        const stats = fs.statSync(fullPath)
-
-        if (stats.isDirectory()) {
-          totalSize += this.calculateDirectorySize(fullPath)
-        } else {
-          totalSize += stats.size
-        }
-      } catch {
-        // Skip files that can't be accessed
-        continue
-      }
-    }
-
-    return totalSize
   }
 
   /**

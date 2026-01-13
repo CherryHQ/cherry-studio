@@ -20,7 +20,7 @@
  */
 
 import type { AssertValidSchemas } from '../apiTypes'
-import type { KnowledgeSchemas } from './knowledge'
+import type { KnowledgeSchemas } from './knowledges'
 import type { MessageSchemas } from './messages'
 import type { TestSchemas } from './test'
 import type { TopicSchemas } from './topics'

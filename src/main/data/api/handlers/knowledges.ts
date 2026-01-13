@@ -4,9 +4,10 @@
  * Implements knowledge base and item endpoints for DataApi v2.
  */
 
-import { knowledgeService } from '@data/services/KnowledgeService'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledge'
+import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
 
 /**
  * Handler type for a specific knowledge endpoint.
@@ -21,53 +22,59 @@ export const knowledgeHandlers: {
     [Method in keyof KnowledgeSchemas[Path]]: KnowledgeHandler<Path, Method & ApiMethods<Path>>
   }
 } = {
-  '/knowledges': {
-    GET: async ({ query }) => {
-      return await knowledgeService.listBases(query ?? {})
+  '/knowledge-bases': {
+    GET: async () => {
+      return await knowledgeBaseService.list()
     },
     POST: async ({ body }) => {
-      return await knowledgeService.createBase(body)
+      return await knowledgeBaseService.create(body)
     }
   },
 
-  '/knowledges/:id': {
+  '/knowledge-bases/:id': {
     GET: async ({ params }) => {
-      return await knowledgeService.getBaseById(params.id)
+      return await knowledgeBaseService.getById(params.id)
     },
     PATCH: async ({ params, body }) => {
-      return await knowledgeService.updateBase(params.id, body)
+      return await knowledgeBaseService.update(params.id, body)
     },
     DELETE: async ({ params }) => {
-      await knowledgeService.deleteBase(params.id)
+      await knowledgeBaseService.delete(params.id)
       return undefined
     }
   },
 
-  '/knowledges/:id/items': {
-    GET: async ({ params, query }) => {
-      return await knowledgeService.listItems(params.id, query ?? {})
+  '/knowledge-bases/:id/items': {
+    GET: async ({ params }) => {
+      return await knowledgeItemService.list(params.id)
     },
     POST: async ({ params, body }) => {
-      return await knowledgeService.createItems(params.id, body)
+      return await knowledgeItemService.create(params.id, body)
     }
   },
 
   '/knowledge-items/:id': {
     GET: async ({ params }) => {
-      return await knowledgeService.getItemById(params.id)
+      return await knowledgeItemService.getById(params.id)
     },
     PATCH: async ({ params, body }) => {
-      return await knowledgeService.updateItem(params.id, body)
+      return await knowledgeItemService.update(params.id, body)
     },
     DELETE: async ({ params }) => {
-      await knowledgeService.deleteItem(params.id)
+      await knowledgeItemService.delete(params.id)
       return undefined
     }
   },
 
-  '/knowledges/:id/search': {
-    POST: async ({ params, body }) => {
-      return await knowledgeService.search(params.id, body)
+  '/knowledge-items/:id/reprocess': {
+    POST: async ({ params }) => {
+      return await knowledgeItemService.reprocess(params.id)
+    }
+  },
+
+  '/knowledge-bases/:id/search': {
+    GET: async ({ params, query }) => {
+      return await knowledgeBaseService.search(params.id, query)
     }
   }
 }

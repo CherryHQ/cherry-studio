@@ -39,7 +39,7 @@ Main Process
 ## 数据流（核心路径）
 
 1. **创建 items**
-   `POST /knowledges/:id/items`
+   `POST /knowledge-bases/:id/items`
    主进程写入 `knowledge_item`，初始 `status = pending`，并将任务入队。支持单个或批量创建。
 
 2. **队列执行**
@@ -49,7 +49,7 @@ Main Process
    `status = completed | failed`，`error` 写入数据库。进度不持久化。失败需用户手动重新处理。
 
 4. **刷新**
-   `PATCH /knowledge-items/:id` 设置 `status: 'pending'` 重新入队。
+   `POST /knowledge-items/:id/reprocess` 触发重新处理并入队。
 
 ## DataApi 端点（必须明确）
 
@@ -57,12 +57,10 @@ Main Process
 
 | Path | Method | 说明 |
 | ---- | ------ | ---- |
-| `/knowledges/:id/items` | POST | 创建 items 并入队（支持单个或批量） |
-| `/knowledge-items/:id` | PATCH | 更新 item（status: 'pending' 触发重新处理） |
+| `/knowledge-bases/:id/items` | POST | 创建 items 并入队（支持单个或批量） |
+| `/knowledge-items/:id/reprocess` | POST | 重新处理 item 并入队 |
 | `/knowledge-items/:id` | GET | 获取 item 详情与状态 |
-| `/knowledges/:id/items` | GET | 按状态分页查询队列项 |
-
-> 说明：状态过滤通过 `GET /knowledges/:id/items?status=pending` 等 query 完成。
+| `/knowledge-bases/:id/items` | GET | 查询队列项 |
 
 ## 队列调度（主进程职责）
 

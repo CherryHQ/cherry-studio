@@ -11,14 +11,13 @@ type QueueStatus = {
 export class KnowledgeQueueManager {
   private queue: PQueue
   private controllers = new Map<string, AbortController>()
-  private pendingWorkloads = new Map<string, number>()
-  private processingWorkloads = new Map<string, number>()
+  private processingIds = new Set<string>()
 
   constructor(config?: { concurrency?: number }) {
     this.queue = new PQueue({ concurrency: config?.concurrency ?? 1 })
   }
 
-  enqueue<T>(id: string, workload: number, task: (signal: AbortSignal) => Promise<T>): Promise<T | void> {
+  async enqueue<T>(id: string, task: (signal: AbortSignal) => Promise<T>): Promise<T | void> {
     if (this.controllers.has(id)) {
       logger.debug('Task already enqueued, skipping', { id })
       return Promise.reject(new Error(`Task ${id} already enqueued`))
@@ -26,24 +25,21 @@ export class KnowledgeQueueManager {
 
     const controller = new AbortController()
     this.controllers.set(id, controller)
-    this.pendingWorkloads.set(id, workload)
 
     return this.queue
       .add(
         async ({ signal }) => {
-          this.pendingWorkloads.delete(id)
-          this.processingWorkloads.set(id, workload)
+          this.processingIds.add(id)
           try {
             return await task(signal ?? controller.signal)
           } finally {
-            this.processingWorkloads.delete(id)
+            this.processingIds.delete(id)
           }
         },
         { id, signal: controller.signal }
       )
       .finally(() => {
-        this.pendingWorkloads.delete(id)
-        this.processingWorkloads.delete(id)
+        this.processingIds.delete(id)
         this.controllers.delete(id)
       })
   }
@@ -59,11 +55,11 @@ export class KnowledgeQueueManager {
   }
 
   isQueued(id: string): boolean {
-    return this.pendingWorkloads.has(id)
+    return this.controllers.has(id) && !this.processingIds.has(id)
   }
 
   isProcessing(id: string): boolean {
-    return this.processingWorkloads.has(id)
+    return this.processingIds.has(id)
   }
 
   getStatus(): QueueStatus {
