@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { getFileType } from '@main/utils/file'
 import { MB } from '@shared/config/constant'
-import type { FileMetadata, PreprocessProvider } from '@types'
+import type { FileMetadata, PreprocessProvider, PreprocessReadPdfResult } from '@types'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -124,9 +124,11 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
 
       await this.sendPreprocessProgress(sourceId, 100)
 
+      const processedFile = await this.createProcessedFileInfo(file, outputDir)
+
       // 5. 创建处理后数据
       return {
-        processedFile: this.createProcessedFileInfo(file, outputDir),
+        processedFile,
         quota: 0
       }
     } catch (error: unknown) {
@@ -138,6 +140,10 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
   public async checkQuota(): Promise<number> {
     // PaddleOCR doesn't have quota checking, return 0
     return 0
+  }
+
+  private getMarkdownFileName(file: FileMetadata): string {
+    return file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
   }
 
   private async validateFile(filePath: string): Promise<Buffer> {
@@ -158,7 +164,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
 
     // 阶段3：校验页数（兼容 PDF 解析失败的场景）
     const pdfBuffer = await fs.promises.readFile(filePath)
-    let doc: any = undefined
+    let doc: PreprocessReadPdfResult | undefined
 
     try {
       doc = await this.readPdf(pdfBuffer)
@@ -183,13 +189,13 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     return pdfBuffer
   }
 
-  private createProcessedFileInfo(file: FileMetadata, outputDir: string): FileMetadata {
-    const finalMdFileName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
+  private async createProcessedFileInfo(file: FileMetadata, outputDir: string): Promise<FileMetadata> {
+    const finalMdFileName = this.getMarkdownFileName(file)
     const finalMdPath = path.join(outputDir, finalMdFileName)
 
     const ext = path.extname(finalMdPath)
     const type = getFileType(ext)
-    const fileSize = fs.statSync(finalMdPath).size
+    const fileSize = (await fs.promises.stat(finalMdPath)).size
 
     return {
       ...file,
@@ -242,7 +248,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     } catch (error: unknown) {
       const errorMsg = getErrorMessage(error)
       logger.error(`Failed to call PaddleOCR API: ${errorMsg}`, { error })
-      throw new Error(`API 调用失败: ${errorMsg}`)
+      throw new Error(`Failed to call PaddleOCR API: ${errorMsg}`)
     }
   }
 
@@ -271,7 +277,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       .join('\n\n')
 
     // 直接构造目标文件名
-    const finalMdFileName = file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
+    const finalMdFileName = this.getMarkdownFileName(file)
     const finalMdPath = path.join(outputDir, finalMdFileName)
 
     // 保存 Markdown 文件

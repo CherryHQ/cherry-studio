@@ -332,7 +332,8 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
   [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
   [BuiltinMCPServerNames.didiMCP]: 'settings.mcp.builtinServersDescriptions.didi_mcp',
   [BuiltinMCPServerNames.browser]: 'settings.mcp.builtinServersDescriptions.browser',
-  [BuiltinMCPServerNames.nowledgeMem]: 'settings.mcp.builtinServersDescriptions.nowledge_mem'
+  [BuiltinMCPServerNames.nowledgeMem]: 'settings.mcp.builtinServersDescriptions.nowledge_mem',
+  [BuiltinMCPServerNames.hub]: 'settings.mcp.builtinServersDescriptions.hub'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {

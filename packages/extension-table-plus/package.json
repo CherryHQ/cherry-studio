@@ -68,8 +68,8 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "2.2.4",
-    "@tiptap/core": "^3.2.0",
-    "@tiptap/pm": "^3.2.0",
+    "@tiptap/core": "3.2.0",
+    "@tiptap/pm": "3.2.0",
     "eslint": "^9.22.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
@@ -89,5 +89,5 @@
     "build": "tsdown",
     "lint": "biome format ./src/ --write && eslint --fix ./src/"
   },
-  "packageManager": "yarn@4.9.1"
+  "packageManager": "pnpm@10.27.0"
 }

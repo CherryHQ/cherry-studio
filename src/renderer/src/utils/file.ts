@@ -1,6 +1,6 @@
 import type { FileMetadata } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
-import { audioExts, documentExts, imageExts, KB, MB, textExts, videoExts } from '@shared/config/constant'
+import { audioExts, documentExts, GB, imageExts, KB, MB, textExts, videoExts } from '@shared/config/constant'
 import mime from 'mime-types'
 
 /**
@@ -46,6 +46,10 @@ export function removeFileExtension(filePath: string): string {
  * @returns {string} 格式化后的文件大小字符串
  */
 export function formatFileSize(size: number): string {
+  if (size >= GB) {
+    return (size / GB).toFixed(1) + ' GB'
+  }
+
   if (size >= MB) {
     return (size / MB).toFixed(1) + ' MB'
   }

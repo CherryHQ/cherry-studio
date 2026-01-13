@@ -8,11 +8,12 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
-import type { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import type { McpMode, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
 import { Form, Input, Tooltip } from 'antd'
-import { CircleX, Hammer, Plus } from 'lucide-react'
+import { CircleX, Hammer, Plus, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +26,6 @@ interface Props {
   resizeTextArea: () => void
 }
 
-// 添加类型定义
 interface PromptArgument {
   name: string
   description?: string
@@ -44,24 +44,19 @@ interface ResourceData {
   uri?: string
 }
 
-// 提取到组件外的工具函数
 const extractPromptContent = (response: any): string | null => {
-  // Handle string response (backward compatibility)
   if (typeof response === 'string') {
     return response
   }
 
-  // Handle GetMCPPromptResponse format
   if (response && Array.isArray(response.messages)) {
     let formattedContent = ''
 
     for (const message of response.messages) {
       if (!message.content) continue
 
-      // Add role prefix if available
       const rolePrefix = message.role ? `**${message.role.charAt(0).toUpperCase() + message.role.slice(1)}:** ` : ''
 
-      // Process different content types
       switch (message.content.type) {
         case 'text':
           formattedContent += `${rolePrefix}${message.content.text}\n\n`
@@ -98,7 +93,6 @@ const extractPromptContent = (response: any): string | null => {
     return formattedContent.trim()
   }
 
-  // Fallback handling for single message format
   if (response && response.messages && response.messages.length > 0) {
     const message = response.messages[0]
     if (message.content && message.content.text) {
@@ -121,7 +115,6 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   const model = assistant.model
   const { setTimeoutTimer } = useTimer()
 
-  // 使用 useRef 存储不需要触发重渲染的值
   const isMountedRef = useRef(true)
 
   useEffect(() => {
@@ -130,11 +123,30 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     }
   }, [])
 
+  const currentMode = useMemo(() => getEffectiveMcpMode(assistant), [assistant])
+
   const mcpServers = useMemo(() => assistant.mcpServers || [], [assistant.mcpServers])
   const assistantMcpServers = useMemo(
     () => activedMcpServers.filter((server) => mcpServers.some((s) => s.id === server.id)),
     [activedMcpServers, mcpServers]
   )
+
+  const handleModeChange = useCallback(
+    (mode: McpMode) => {
+      setTimeoutTimer(
+        'updateMcpMode',
+        () => {
+          updateAssistant({
+            ...assistant,
+            mcpMode: mode
+          })
+        },
+        200
+      )
+    },
+    [assistant, setTimeoutTimer, updateAssistant]
+  )
+
   const handleMcpServerSelect = useCallback(
     (server: MCPServer) => {
       const update = { ...assistant }
@@ -144,29 +156,24 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
         update.mcpServers = [...mcpServers, server]
       }
 
-      // only for gemini
       if (update.mcpServers.length > 0 && isGeminiModel(model) && isToolUseModeFunction(assistant)) {
         const provider = getProviderByModel(model)
         if (isSupportUrlContextProvider(provider) && assistant.enableUrlContext) {
           window.toast.warning(t('chat.mcp.warning.url_context'))
           update.enableUrlContext = false
         }
-        if (
-          // 非官方 API (openrouter etc.) 可能支持同时启用内置搜索和函数调用
-          // 这里先假设 gemini type 和 vertexai type 不支持
-          isGeminiWebSearchProvider(provider) &&
-          assistant.enableWebSearch
-        ) {
+        if (isGeminiWebSearchProvider(provider) && assistant.enableWebSearch) {
           window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
           update.enableWebSearch = false
         }
       }
+
+      update.mcpMode = 'manual'
       updateAssistant(update)
     },
     [assistant, assistantMcpServers, mcpServers, model, t, updateAssistant]
   )
 
-  // 使用 useRef 缓存事件处理函数
   const handleMcpServerSelectRef = useRef(handleMcpServerSelect)
   handleMcpServerSelectRef.current = handleMcpServerSelect
 
@@ -176,23 +183,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     return () => EventEmitter.off('mcp-server-select', handler)
   }, [])
 
-  const updateMcpEnabled = useCallback(
-    (enabled: boolean) => {
-      setTimeoutTimer(
-        'updateMcpEnabled',
-        () => {
-          updateAssistant({
-            ...assistant,
-            mcpServers: enabled ? assistant.mcpServers || [] : []
-          })
-        },
-        200
-      )
-    },
-    [assistant, setTimeoutTimer, updateAssistant]
-  )
-
-  const menuItems = useMemo(() => {
+  const manualModeMenuItems = useMemo(() => {
     const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
       label: server.name,
       description: server.description || server.baseUrl,
@@ -207,33 +198,70 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
       action: () => navigate('/settings/mcp')
     })
 
-    newList.unshift({
-      label: t('settings.input.clear.all'),
-      description: t('settings.mcp.disable.description'),
-      icon: <CircleX />,
-      isSelected: false,
-      action: () => {
-        updateMcpEnabled(false)
-        quickPanelHook.close()
-      }
-    })
-
     return newList
-  }, [activedMcpServers, t, assistantMcpServers, navigate, updateMcpEnabled, quickPanelHook])
+  }, [activedMcpServers, t, assistantMcpServers, navigate])
 
-  const openQuickPanel = useCallback(() => {
+  const openManualModePanel = useCallback(() => {
     quickPanelHook.open({
-      title: t('settings.mcp.title'),
-      list: menuItems,
+      title: t('assistants.settings.mcp.mode.manual.label'),
+      list: manualModeMenuItems,
       symbol: QuickPanelReservedSymbol.Mcp,
       multiple: true,
       afterAction({ item }) {
         item.isSelected = !item.isSelected
       }
     })
+  }, [manualModeMenuItems, quickPanelHook, t])
+
+  const menuItems = useMemo(() => {
+    const newList: QuickPanelListItem[] = []
+
+    newList.push({
+      label: t('assistants.settings.mcp.mode.disabled.label'),
+      description: t('assistants.settings.mcp.mode.disabled.description'),
+      icon: <CircleX />,
+      isSelected: currentMode === 'disabled',
+      action: () => {
+        handleModeChange('disabled')
+        quickPanelHook.close()
+      }
+    })
+
+    newList.push({
+      label: t('assistants.settings.mcp.mode.auto.label'),
+      description: t('assistants.settings.mcp.mode.auto.description'),
+      icon: <Sparkles />,
+      isSelected: currentMode === 'auto',
+      action: () => {
+        handleModeChange('auto')
+        quickPanelHook.close()
+      }
+    })
+
+    newList.push({
+      label: t('assistants.settings.mcp.mode.manual.label'),
+      description: t('assistants.settings.mcp.mode.manual.description'),
+      icon: <Hammer />,
+      isSelected: currentMode === 'manual',
+      isMenu: true,
+      action: () => {
+        handleModeChange('manual')
+        openManualModePanel()
+      }
+    })
+
+    return newList
+  }, [t, currentMode, handleModeChange, quickPanelHook, openManualModePanel])
+
+  const openQuickPanel = useCallback(() => {
+    quickPanelHook.open({
+      title: t('settings.mcp.title'),
+      list: menuItems,
+      symbol: QuickPanelReservedSymbol.Mcp,
+      multiple: false
+    })
   }, [menuItems, quickPanelHook, t])
 
-  // 使用 useCallback 优化 insertPromptIntoTextArea
   const insertPromptIntoTextArea = useCallback(
     (promptText: string) => {
       setInputValue((prev) => {
@@ -245,7 +273,6 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
         const selectionEndPosition = cursorPosition + promptText.length
         const newText = prev.slice(0, cursorPosition) + promptText + prev.slice(cursorPosition)
 
-        // 使用 requestAnimationFrame 优化 DOM 操作
         requestAnimationFrame(() => {
           textArea.focus()
           textArea.setSelectionRange(selectionStart, selectionEndPosition)
@@ -424,7 +451,6 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     [activedMcpServers, t, insertPromptIntoTextArea]
   )
 
-  // 优化 resourcesList 的状态更新
   const [resourcesList, setResourcesList] = useState<QuickPanelListItem[]>([])
 
   useEffect(() => {
@@ -514,17 +540,26 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     }
   }, [openPromptList, openQuickPanel, openResourcesList, quickPanel, t])
 
+  const isActive = currentMode !== 'disabled'
+
+  const getButtonIcon = () => {
+    switch (currentMode) {
+      case 'auto':
+        return <Sparkles size={18} />
+      case 'disabled':
+      case 'manual':
+      default:
+        return <Hammer size={18} />
+    }
+  }
+
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton
-        onClick={handleOpenQuickPanel}
-        active={assistant.mcpServers && assistant.mcpServers.length > 0}
-        aria-label={t('settings.mcp.title')}>
-        <Hammer size={18} />
+      <ActionIconButton onClick={handleOpenQuickPanel} active={isActive} aria-label={t('settings.mcp.title')}>
+        {getButtonIcon()}
       </ActionIconButton>
     </Tooltip>
   )
 }
 
-// 使用 React.memo 包装组件
 export default React.memo(MCPToolsButton)

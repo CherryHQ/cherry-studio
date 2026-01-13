@@ -75,6 +75,15 @@ if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
 }
 
+/**
+ * Set window class and name for X11
+ * This ensures the system tray and window manager identify the app correctly
+ */
+if (isLinux) {
+  app.commandLine.appendSwitch('class', 'cherry-studio')
+  app.commandLine.appendSwitch('name', 'cherry-studio')
+}
+
 // DocumentPolicyIncludeJSCallStacksInCrashReports: Enable features for unresponsive renderer js call stacks
 // EarlyEstablishGpuChannel,EstablishGpuChannelAsync: Enable features for early establish gpu channel
 // speed up the startup time
