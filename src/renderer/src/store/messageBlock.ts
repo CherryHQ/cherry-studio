@@ -18,9 +18,9 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { AISDKWebSearchResult, Citation, WebSearchProviderResponse } from '@renderer/types'
+import type { AISDKWebSearchResult, Citation, NormalToolResponse, WebSearchProviderResponse } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
-import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
+import type { CitationMessageBlock, MessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
@@ -324,6 +324,55 @@ export const selectFormattedCitationsByBlockId = createSelector([selectBlockEnti
   }
   return []
 })
+
+// --- Active TodoWrite Block Selector ---
+
+interface TodoItem {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed'
+  activeForm: string
+}
+
+interface TodoWriteToolInput {
+  todos: TodoItem[]
+}
+
+/**
+ * Check if todos have any incomplete items
+ */
+const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
+  todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
+
+/**
+ * Select the latest TodoWrite tool block with incomplete todos
+ * Used by PinnedTodoPanel to display current task progress above the inputbar
+ */
+export const selectLatestTodoWriteBlock = createSelector(
+  [messageBlocksSelectors.selectAll],
+  (allBlocks): ToolMessageBlock | undefined => {
+    // Iterate from end to find the latest TodoWrite block
+    for (let i = allBlocks.length - 1; i >= 0; i--) {
+      const block = allBlocks[i]
+      if (block.type !== MessageBlockType.TOOL) continue
+
+      const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
+      if (!toolResponse) continue
+
+      // Check if it's a TodoWrite tool
+      if (toolResponse.tool?.name !== 'TodoWrite') continue
+
+      // Get todos and check if there are incomplete items
+      const args = toolResponse.arguments as TodoWriteToolInput | undefined
+      const todos = args?.todos ?? []
+
+      if (hasIncompleteTodos(todos)) {
+        return block as ToolMessageBlock
+      }
+    }
+
+    return undefined
+  }
+)
 
 // --- Selector Integration --- END
 

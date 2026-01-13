@@ -269,6 +269,15 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "已完成 {{completed}}/{{total}} 个任务"
+      },
+      "status": {
+        "in_progress": "进行中",
+        "pending": "待处理"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowRequest": "允许工具请求",

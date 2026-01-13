@@ -31,6 +31,7 @@ import styled from 'styled-components'
 import { v4 as uuid } from 'uuid'
 
 import { InputbarCore } from './components/InputbarCore'
+import { PinnedTodoPanel } from './components/PinnedTodoPanel'
 import {
   InputbarToolsProvider,
   useInputbarToolsDispatch,
@@ -471,23 +472,26 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   )
 
   return (
-    <InputbarCore
-      scope={TopicType.Session}
-      text={text}
-      onTextChange={setText}
-      textareaRef={textareaRef}
-      height={customHeight}
-      onHeightChange={setCustomHeight}
-      resizeTextArea={resizeTextArea}
-      focusTextarea={focusTextarea}
-      placeholder={placeholderText}
-      supportedExts={supportedExts}
-      onPause={abortAgentSession}
-      isLoading={canAbort}
-      handleSendMessage={sendMessage}
-      leftToolbar={leftToolbar}
-      forceEnableQuickPanelTriggers
-    />
+    <>
+      <PinnedTodoPanel />
+      <InputbarCore
+        scope={TopicType.Session}
+        text={text}
+        onTextChange={setText}
+        textareaRef={textareaRef}
+        height={customHeight}
+        onHeightChange={setCustomHeight}
+        resizeTextArea={resizeTextArea}
+        focusTextarea={focusTextarea}
+        placeholder={placeholderText}
+        supportedExts={supportedExts}
+        onPause={abortAgentSession}
+        isLoading={canAbort}
+        handleSendMessage={sendMessage}
+        leftToolbar={leftToolbar}
+        forceEnableQuickPanelTriggers
+      />
+    </>
   )
 }
 

@@ -97,6 +97,11 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
     selectPendingPermission(state.toolPermissions, toolResponse.toolCallId)
   )
 
+  // TodoWrite tools are always shown in PinnedTodoPanel, never in message stream
+  if (tool?.name === AgentToolsType.TodoWrite) {
+    return null
+  }
+
   if (status === 'pending') {
     if (pendingPermission) {
       return <ToolPermissionRequestCard toolResponse={toolResponse} />

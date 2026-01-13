@@ -269,6 +269,15 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "[to be translated]:{{completed}}/{{total}} tasks completed"
+      },
+      "status": {
+        "in_progress": "[to be translated]:In Progress",
+        "pending": "[to be translated]:Pending"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowRequest": "Permitir solicitud de herramienta",
