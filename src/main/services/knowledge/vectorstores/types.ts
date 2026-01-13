@@ -3,9 +3,11 @@
  */
 
 import type { LoaderReturn } from '@shared/config/types'
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import type { FileMetadata, KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
+import type { FileMetadata } from '@shared/data/types/file'
+import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import type { BaseNode, Metadata } from '@vectorstores/core'
+
+import type { ResolvedKnowledgeBase } from '../KnowledgeProviderAdapter'
 
 // ============================================================================
 // Reader Types
@@ -33,7 +35,7 @@ export interface ReaderResult {
  */
 export interface ReaderContext {
   /** Knowledge base configuration */
-  base: KnowledgeBaseParams
+  base: ResolvedKnowledgeBase
   /** Item being read */
   item: KnowledgeItem
   /** external_id for tracking (maps to item.id) */
@@ -63,12 +65,11 @@ export interface ContentReader {
 
 /**
  * Options for adding items to knowledge base
- * Compatible with v1 KnowledgeService API
  */
 export type KnowledgeProcessingStage = 'preprocessing' | 'embedding'
 
 export interface KnowledgeBaseAddItemOptions {
-  base: KnowledgeBaseParams
+  base: KnowledgeBase
   item: KnowledgeItem
   userId?: string
   signal?: AbortSignal
@@ -81,7 +82,7 @@ export interface KnowledgeBaseAddItemOptions {
 export interface KnowledgeBaseRemoveOptions {
   uniqueId: string
   uniqueIds: string[]
-  base: KnowledgeBaseParams
+  base: KnowledgeBase
   externalId?: string
   itemType?: KnowledgeItem['type']
 }
@@ -91,7 +92,7 @@ export interface KnowledgeBaseRemoveOptions {
  */
 export interface SearchOptions {
   search: string
-  base: KnowledgeBaseParams
+  base: KnowledgeBase
   /** Search mode: vector (default), bm25, or hybrid */
   mode?: 'default' | 'bm25' | 'hybrid'
   /** Alpha value for hybrid search (0-1, default 0.5) */
@@ -103,7 +104,7 @@ export interface SearchOptions {
  */
 export interface RerankOptions {
   search: string
-  base: KnowledgeBaseParams
+  base: KnowledgeBase
   results: KnowledgeSearchResult[]
 }
 

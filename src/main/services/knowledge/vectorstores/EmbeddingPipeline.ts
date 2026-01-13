@@ -5,11 +5,11 @@
  */
 
 import { loggerService } from '@logger'
-import type { KnowledgeBaseParams } from '@types'
 import type { BaseNode, Metadata } from '@vectorstores/core'
 import { MetadataMode } from '@vectorstores/core'
 
 import Embeddings from '../embedjs/embeddings/Embeddings'
+import type { ResolvedKnowledgeBase } from '../KnowledgeProviderAdapter'
 
 const logger = loggerService.withContext('EmbeddingPipeline')
 
@@ -22,7 +22,7 @@ const logger = loggerService.withContext('EmbeddingPipeline')
  */
 export async function embedNodes(
   nodes: BaseNode<Metadata>[],
-  base: KnowledgeBaseParams
+  base: ResolvedKnowledgeBase
 ): Promise<BaseNode<Metadata>[]> {
   if (nodes.length === 0) {
     return []
@@ -61,7 +61,7 @@ export async function embedNodes(
  * @param base Knowledge base params containing embedding config
  * @returns Embedding vector
  */
-export async function embedQuery(query: string, base: KnowledgeBaseParams): Promise<number[]> {
+export async function embedQuery(query: string, base: ResolvedKnowledgeBase): Promise<number[]> {
   const embeddings = new Embeddings({
     embedApiClient: base.embedApiClient,
     dimensions: base.dimensions
@@ -76,7 +76,7 @@ export async function embedQuery(query: string, base: KnowledgeBaseParams): Prom
 export class EmbeddingPipeline {
   private embeddings: Embeddings
 
-  constructor(base: KnowledgeBaseParams) {
+  constructor(base: ResolvedKnowledgeBase) {
     this.embeddings = new Embeddings({
       embedApiClient: base.embedApiClient,
       dimensions: base.dimensions

@@ -1,6 +1,7 @@
-import type { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
+import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { net } from 'electron'
 
+import type { ResolvedKnowledgeBase } from '../KnowledgeProviderAdapter'
 import BaseReranker from './BaseReranker'
 
 interface RerankError extends Error {
@@ -12,7 +13,7 @@ interface RerankError extends Error {
 }
 
 export default class GeneralReranker extends BaseReranker {
-  constructor(base: KnowledgeBaseParams) {
+  constructor(base: ResolvedKnowledgeBase) {
     super(base)
   }
   public rerank = async (query: string, searchResults: KnowledgeSearchResult[]): Promise<KnowledgeSearchResult[]> => {

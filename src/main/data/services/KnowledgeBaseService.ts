@@ -9,7 +9,6 @@
 import { dbService } from '@data/db/DbService'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { knowledgeProviderAdapter } from '@main/services/knowledge/KnowledgeProviderAdapter'
 import { knowledgeServiceV2 } from '@main/services/knowledge/KnowledgeServiceV2'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type {
@@ -116,8 +115,7 @@ export class KnowledgeBaseService {
       const base = rowToKnowledgeBase(row)
 
       try {
-        const baseParams = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
-        await knowledgeServiceV2.create(baseParams)
+        await knowledgeServiceV2.create(base)
         logger.info('Created knowledge base with vector store', { id: base.id, name: base.name })
       } catch (error) {
         logger.error('Failed to initialize vector store', error as Error, { id: base.id })
@@ -184,21 +182,19 @@ export class KnowledgeBaseService {
     }
 
     const searchRequest = request
-    const baseParams = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
     const mode = searchRequest.mode === 'vector' ? 'default' : searchRequest.mode
 
     let results = await knowledgeServiceV2.search({
       search: searchRequest.search,
-      base: baseParams,
+      base,
       mode,
       alpha: searchRequest.alpha
     })
 
     if (searchRequest.rerank && base.rerankModelId) {
-      const rerankBase = await knowledgeProviderAdapter.buildBaseParams(base, 'rerankModelId')
       results = await knowledgeServiceV2.rerank({
         search: searchRequest.search,
-        base: rerankBase,
+        base,
         results
       })
     }

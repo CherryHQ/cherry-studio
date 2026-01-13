@@ -1,10 +1,11 @@
-import type { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
+import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 
+import type { ResolvedKnowledgeBase } from '../KnowledgeProviderAdapter'
 import GeneralReranker from './GeneralReranker'
 
 export default class Reranker {
   private sdk: GeneralReranker
-  constructor(base: KnowledgeBaseParams) {
+  constructor(base: ResolvedKnowledgeBase) {
     this.sdk = new GeneralReranker(base)
   }
   public async rerank(query: string, searchResults: KnowledgeSearchResult[]): Promise<KnowledgeSearchResult[]> {

@@ -9,7 +9,6 @@
 import { dbService } from '@data/db/DbService'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { knowledgeProviderAdapter } from '@main/services/knowledge/KnowledgeProviderAdapter'
 import { knowledgeQueueManager } from '@main/services/knowledge/KnowledgeQueueManager'
 import { knowledgeServiceV2 } from '@main/services/knowledge/KnowledgeServiceV2'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -167,9 +166,8 @@ export class KnowledgeItemService {
     const item = await this.getById(id)
     const base = await knowledgeBaseService.getById(item.baseId)
 
-    const baseParams = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
     await knowledgeServiceV2.remove({
-      base: baseParams,
+      base,
       externalId: item.id,
       uniqueId: '',
       uniqueIds: []
@@ -187,8 +185,6 @@ export class KnowledgeItemService {
         return
       }
 
-      const baseParams = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
-
       const handleStageChange = async (stage: 'preprocessing' | 'embedding') => {
         await this.updateItemStatus(item.id, stage, null)
       }
@@ -197,7 +193,7 @@ export class KnowledgeItemService {
         .enqueue(item.id, async (signal) => {
           try {
             const result = await knowledgeServiceV2.add({
-              base: baseParams,
+              base,
               item,
               signal,
               onStageChange: handleStageChange
@@ -244,9 +240,8 @@ export class KnowledgeItemService {
 
   private async removeItemVectors(base: KnowledgeBase, item: KnowledgeItem): Promise<void> {
     try {
-      const baseParams = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
       await knowledgeServiceV2.remove({
-        base: baseParams,
+        base,
         externalId: item.id,
         uniqueId: '',
         uniqueIds: []

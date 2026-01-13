@@ -1,14 +1,15 @@
-import type { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
+import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 
+import type { ResolvedKnowledgeBase } from '../KnowledgeProviderAdapter'
 import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '../utils/knowledge'
 import type { MultiModalDocument, RerankStrategy } from './strategies/RerankStrategy'
 import { StrategyFactory } from './strategies/StrategyFactory'
 
 export default abstract class BaseReranker {
-  protected base: KnowledgeBaseParams
+  protected base: ResolvedKnowledgeBase
   protected strategy: RerankStrategy
 
-  constructor(base: KnowledgeBaseParams) {
+  constructor(base: ResolvedKnowledgeBase) {
     if (!base.rerankApiClient) {
       throw new Error('Rerank model is required')
     }

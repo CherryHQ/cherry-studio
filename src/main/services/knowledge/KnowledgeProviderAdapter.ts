@@ -13,12 +13,19 @@ import { reduxService } from '@main/services/ReduxService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { ModelMeta } from '@shared/data/types/meta'
-import type { ApiClient, KnowledgeBaseParams, Provider } from '@types'
+import type { ApiClient, Provider } from '@types'
 import { SystemProviderIds } from '@types'
 
 const logger = loggerService.withContext('KnowledgeProviderAdapter')
 
 const SEARCH_ENDPOINTS = ['chat/completions', 'responses', 'messages', 'generateContent', 'streamGenerateContent']
+
+export type ResolvedKnowledgeBase = KnowledgeBase & {
+  dimensions?: number
+  embedApiClient: ApiClient
+  rerankApiClient?: ApiClient
+  documentCount?: number
+}
 
 export class KnowledgeProviderAdapter {
   private static instance: KnowledgeProviderAdapter
@@ -35,7 +42,7 @@ export class KnowledgeProviderAdapter {
   public async buildBaseParams(
     base: KnowledgeBase,
     field: 'embeddingModelId' | 'rerankModelId'
-  ): Promise<KnowledgeBaseParams> {
+  ): Promise<ResolvedKnowledgeBase> {
     const embedApiClient = await this.resolveApiClient(
       base.embeddingModelId,
       base.embeddingModelMeta,
@@ -52,10 +59,8 @@ export class KnowledgeProviderAdapter {
     }
 
     return {
-      id: base.id,
+      ...base,
       dimensions: base.embeddingModelMeta?.dimensions,
-      chunkSize: base.chunkSize,
-      chunkOverlap: base.chunkOverlap,
       embedApiClient,
       rerankApiClient
     }

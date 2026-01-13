@@ -18,12 +18,14 @@ import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
-import type { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
+import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import type { VectorStoreQueryResult } from '@vectorstores/core'
 import { MetadataMode } from '@vectorstores/core'
 import { LIBSQL_TABLE, LibSQLVectorStore } from '@vectorstores/libsql'
 
 import Embeddings from './embedjs/embeddings/Embeddings'
+import type { ResolvedKnowledgeBase } from './KnowledgeProviderAdapter'
+import { knowledgeProviderAdapter } from './KnowledgeProviderAdapter'
 import { knowledgeQueueManager } from './KnowledgeQueueManager'
 import Reranker from './reranker/Reranker'
 import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
@@ -111,7 +113,7 @@ class KnowledgeServiceV2 {
   /**
    * Get or create a LibSQLVectorStore for a knowledge base
    */
-  private async getOrCreateStore(base: KnowledgeBaseParams): Promise<LibSQLVectorStore> {
+  private async getOrCreateStore(base: ResolvedKnowledgeBase): Promise<LibSQLVectorStore> {
     if (this.storeCache.has(base.id)) {
       return this.storeCache.get(base.id)!
     }
@@ -226,21 +228,23 @@ class KnowledgeServiceV2 {
   /**
    * Create/initialize a knowledge base
    */
-  public create = async (base: KnowledgeBaseParams): Promise<void> => {
+  public create = async (base: KnowledgeBase): Promise<void> => {
+    const resolvedBase = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
     logger.info(`[KnowledgeV2] Create called for base ${base.id}`, {
-      dimensions: base.dimensions ?? 'auto',
-      model: base.embedApiClient.model,
-      provider: base.embedApiClient.provider
+      dimensions: resolvedBase.dimensions ?? 'auto',
+      model: resolvedBase.embedApiClient.model,
+      provider: resolvedBase.embedApiClient.provider
     })
-    await this.getOrCreateStore(base)
+    await this.getOrCreateStore(resolvedBase)
   }
 
   /**
    * Reset a knowledge base (clear all data)
    */
-  public reset = async (base: KnowledgeBaseParams): Promise<void> => {
+  public reset = async (base: KnowledgeBase): Promise<void> => {
     logger.info(`[KnowledgeV2] Reset called for base ${base.id}`)
-    const store = await this.getOrCreateStore(base)
+    const resolvedBase = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
+    const store = await this.getOrCreateStore(resolvedBase)
     await store.clearCollection()
     logger.info(`[KnowledgeV2] Reset completed for base ${base.id}`)
   }
@@ -287,9 +291,11 @@ class KnowledgeServiceV2 {
       }
     }
 
+    const resolvedBase = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
+
     // Create reader context
     const context: ReaderContext = {
-      base,
+      base: resolvedBase,
       item,
       itemId: item.id,
       userId
@@ -390,7 +396,8 @@ class KnowledgeServiceV2 {
 
     // Fall back to uniqueId based deletion (v1 compatibility)
     if (uniqueIds && uniqueIds.length > 0) {
-      const store = await this.getOrCreateStore(base)
+      const resolvedBase = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
+      const store = await this.getOrCreateStore(resolvedBase)
       for (const id of uniqueIds) {
         try {
           await store.delete(id)
@@ -404,13 +411,7 @@ class KnowledgeServiceV2 {
   /**
    * Remove content by external_id
    */
-  public async removeByExternalId({
-    base,
-    externalId
-  }: {
-    base: KnowledgeBaseParams
-    externalId: string
-  }): Promise<number> {
+  public async removeByExternalId({ base, externalId }: { base: KnowledgeBase; externalId: string }): Promise<number> {
     const dbPath = this.getDbPath(base.id)
     if (!fs.existsSync(dbPath)) {
       logger.warn(`[KnowledgeV2] Remove skipped: db not found: ${dbPath}`)
@@ -418,7 +419,8 @@ class KnowledgeServiceV2 {
     }
 
     try {
-      const store = await this.getOrCreateStore(base)
+      const resolvedBase = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
+      const store = await this.getOrCreateStore(resolvedBase)
       const deleted = await store.deleteByExternalId(externalId)
       logger.info(`[KnowledgeV2] Remove completed: external_id=${externalId}, rows=${deleted}`)
       return deleted
@@ -436,7 +438,7 @@ class KnowledgeServiceV2 {
    * Search the knowledge base
    */
   public search = async (
-    options: SearchOptions | { search: string; base: KnowledgeBaseParams }
+    options: SearchOptions | { search: string; base: KnowledgeBase }
   ): Promise<KnowledgeSearchResult[]> => {
     const { search, base } = options
     const mode = 'mode' in options ? options.mode : 'default'
@@ -450,22 +452,23 @@ class KnowledgeServiceV2 {
     }
 
     try {
+      const resolvedBase = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
       logger.info(`[KnowledgeV2] Search starting for base ${base.id}, mode=${mode}`)
 
       // Embed the query
       const embeddingsClient = new Embeddings({
-        embedApiClient: base.embedApiClient,
-        dimensions: base.dimensions
+        embedApiClient: resolvedBase.embedApiClient,
+        dimensions: resolvedBase.dimensions
       })
       const queryEmbedding = await embeddingsClient.embedQuery(search)
       logger.debug('[KnowledgeV2] Search query embedding dimensions', {
         baseId: base.id,
-        baseDimensions: base.dimensions ?? 'auto',
+        baseDimensions: resolvedBase.dimensions ?? 'auto',
         queryDimensions: queryEmbedding.length
       })
 
       // Perform search
-      const dimensions = base.dimensions ?? queryEmbedding.length
+      const dimensions = resolvedBase.dimensions ?? queryEmbedding.length
       const store = new LibSQLVectorStore({
         clientConfig: { url: `file:${dbPath}` },
         dimensions,
@@ -473,7 +476,7 @@ class KnowledgeServiceV2 {
       })
       await this.logEmbeddingSchemaInfo(store, base.id, 'Pre-search')
 
-      const topK = base.documentCount ?? DEFAULT_DOCUMENT_COUNT
+      const topK = resolvedBase.documentCount ?? DEFAULT_DOCUMENT_COUNT
       const queryResult = await store.query({
         queryEmbedding,
         queryStr: search,
@@ -509,7 +512,7 @@ class KnowledgeServiceV2 {
    * Rerank search results
    */
   public rerank = async (
-    options: RerankOptions | { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] }
+    options: RerankOptions | { search: string; base: KnowledgeBase; results: KnowledgeSearchResult[] }
   ): Promise<KnowledgeSearchResult[]> => {
     const { search, base, results } = options
 
@@ -517,7 +520,8 @@ class KnowledgeServiceV2 {
       return results
     }
 
-    return new Reranker(base).rerank(search, results)
+    const resolvedBase = await knowledgeProviderAdapter.buildBaseParams(base, 'rerankModelId')
+    return new Reranker(resolvedBase).rerank(search, results)
   }
 
   // ============================================================================
