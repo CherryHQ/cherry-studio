@@ -4219,9 +4219,6 @@
       "title": "Nachrichteneinstellungen",
       "use_serif_font": "Serifenschrift verwenden"
     },
-    "mineru": {
-      "api_key": "MinerU bietet täglich 500 Seiten kostenlos an, Sie müssen keinen Schlüssel eingeben."
-    },
     "miniapps": {
       "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
       "cache_description": "Maximale Anzahl gleichzeitig aktiver Mini-Apps festlegen",
