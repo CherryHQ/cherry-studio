@@ -4219,9 +4219,6 @@
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
     },
-    "mineru": {
-      "api_key": "Mineru 現在每天提供 500 頁的免費配額，且無需輸入金鑰。"
-    },
     "miniapps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
       "cache_description": "設定同時保持活躍狀態的小程式最大數量",

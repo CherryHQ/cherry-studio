@@ -99,9 +99,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
           <Flex gap={8}>
             <Input.Password
               value={apiKey}
-              placeholder={
-                preprocessProvider.id === 'mineru' ? t('settings.mineru.api_key') : t('settings.provider.api_key.label')
-              }
+              placeholder={t('settings.provider.api_key.label')}
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
               spellCheck={false}

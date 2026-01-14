@@ -4219,9 +4219,6 @@
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"
     },
-    "mineru": {
-      "api_key": "MinerU propose désormais un quota gratuit de 500 pages par jour, vous n'avez donc pas besoin de saisir de clé."
-    },
     "miniapps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
       "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",

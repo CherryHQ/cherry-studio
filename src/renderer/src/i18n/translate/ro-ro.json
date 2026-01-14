@@ -4219,9 +4219,6 @@
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
     },
-    "mineru": {
-      "api_key": "Mineru oferă acum o cotă zilnică gratuită de 500 de pagini și nu este nevoie să introduci o cheie."
-    },
     "miniapps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
       "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
