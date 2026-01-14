@@ -2,7 +2,6 @@
  * Core type definitions for KnowledgeServiceV2 vectorstores integration
  */
 
-import type { LoaderReturn } from '@shared/config/types'
 import type { FileMetadata } from '@shared/data/types/file'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import type { BaseNode, Metadata } from '@vectorstores/core'
@@ -118,15 +117,15 @@ export interface RerankOptions {
 /**
  * Internal task item for queue processing
  */
-export interface QueuedTask {
+export interface QueuedTask<T = void> {
   /** Task identifier */
   id: string
   /** Task execution function */
-  task: () => Promise<LoaderReturn>
+  task: () => Promise<T>
   /** Estimated workload in bytes */
   workload: number
   /** Resolve callback */
-  resolve: (result: LoaderReturn) => void
+  resolve: (result: T) => void
   /** Reject callback */
   reject: (error: Error) => void
 }

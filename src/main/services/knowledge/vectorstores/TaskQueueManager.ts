@@ -6,7 +6,6 @@
  */
 
 import { loggerService } from '@logger'
-import type { LoaderReturn } from '@shared/config/types'
 
 import type { QueuedTask } from './types'
 
@@ -15,9 +14,9 @@ const logger = loggerService.withContext('TaskQueueManager')
 /**
  * Manages task queue with workload-based throttling
  */
-export class TaskQueueManager {
-  private queue: QueuedTask[] = []
-  private processing: Map<string, QueuedTask> = new Map()
+export class TaskQueueManager<T = void> {
+  private queue: QueuedTask<T>[] = []
+  private processing: Map<string, QueuedTask<T>> = new Map()
   private isDraining = false
 
   /**
@@ -25,11 +24,11 @@ export class TaskQueueManager {
    * @param id Task identifier
    * @param task Task execution function
    * @param workload Estimated workload in bytes
-   * @returns Promise resolving to LoaderReturn
+   * @returns Promise resolving to task result
    */
-  async enqueue(id: string, task: () => Promise<LoaderReturn>, workload: number): Promise<LoaderReturn> {
+  async enqueue(id: string, task: () => Promise<T>, workload: number): Promise<T> {
     return new Promise((resolve, reject) => {
-      const queuedTask: QueuedTask = {
+      const queuedTask: QueuedTask<T> = {
         id,
         task,
         workload,
@@ -46,7 +45,7 @@ export class TaskQueueManager {
   /**
    * Process next task if capacity allows
    */
-  private processNext(): QueuedTask | undefined {
+  private processNext(): QueuedTask<T> | undefined {
     return this.queue.shift()
   }
 
@@ -70,7 +69,7 @@ export class TaskQueueManager {
     this.isDraining = false
   }
 
-  private runTask(next: QueuedTask): void {
+  private runTask(next: QueuedTask<T>): void {
     this.processing.set(next.id, next)
 
     logger.debug(`Processing task ${next.id}. Active: ${this.processing.size}`)

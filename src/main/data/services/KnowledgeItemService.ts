@@ -192,18 +192,13 @@ export class KnowledgeItemService {
       knowledgeQueueManager
         .enqueue(item.id, async (signal) => {
           try {
-            const result = await knowledgeServiceV2.add({
+            await knowledgeServiceV2.add({
               base,
               item,
               signal,
               onStageChange: handleStageChange
             })
-
-            if (result.status === 'failed') {
-              await this.updateItemStatus(item.id, 'failed', result.message ?? null)
-            } else {
-              await this.updateItemStatus(item.id, 'completed', null)
-            }
+            await this.updateItemStatus(item.id, 'completed', null)
           } catch (error) {
             if (this.isAbortError(error)) {
               await this.updateItemStatus(item.id, 'failed', 'Cancelled')
