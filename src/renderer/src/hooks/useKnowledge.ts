@@ -18,14 +18,8 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import type {
-  FileMetadata,
-  FileTypes,
-  KnowledgeBase,
-  KnowledgeItem,
-  KnowledgeNoteItem,
-  ProcessingStatus
-} from '@renderer/types'
+import type { FileMetadata, KnowledgeBase, KnowledgeItem, KnowledgeNoteItem, ProcessingStatus } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { isKnowledgeFileItem, isKnowledgeNoteItem } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
@@ -241,7 +235,6 @@ export const useKnowledge = (baseId: string) => {
       await dataApiService.patch(`/knowledge-items/${noteId}`, {
         body: {
           data: {
-            type: 'note',
             content
           } satisfies NoteItemData
         }
