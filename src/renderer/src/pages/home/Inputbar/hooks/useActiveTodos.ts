@@ -19,6 +19,11 @@ export interface ActiveTodoInfo {
   totalCount: number
 }
 
+/**
+ * Hook to get todos from the latest TodoWrite block for a specific topic
+ * Returns undefined if no TodoWrite block with incomplete todos exists
+ * (selector already guarantees the block has incomplete todos)
+ */
 export function useActiveTodos(topicId: string): ActiveTodoInfo | undefined {
   const latestTodoBlock = useAppSelector((state) => selectLatestTodoWriteBlockForTopic(state, topicId))
 
@@ -29,15 +34,10 @@ export function useActiveTodos(topicId: string): ActiveTodoInfo | undefined {
     const args = toolResponse?.arguments as TodoWriteToolInput | undefined
     const todos = args?.todos ?? []
 
-    const completedCount = todos.filter((todo) => todo.status === 'completed').length
-    const hasIncompleteTodos = todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
-
-    if (!hasIncompleteTodos) return undefined
-
     return {
       blockId: latestTodoBlock.id,
       todos,
-      completedCount,
+      completedCount: todos.filter((todo) => todo.status === 'completed').length,
       totalCount: todos.length
     }
   }, [latestTodoBlock])
