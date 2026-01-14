@@ -3138,6 +3138,9 @@
         "title": "意见反馈"
       },
       "label": "关于我们",
+      "logLevel": {
+        "title": "日志级别"
+      },
       "releases": {
         "button": "查看",
         "title": "更新日志"

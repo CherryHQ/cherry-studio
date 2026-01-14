@@ -3138,6 +3138,9 @@
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
+      "logLevel": {
+        "title": "[to be translated]:Log Level"
+      },
       "releases": {
         "button": "Ver",
         "title": "Registro de alterações"

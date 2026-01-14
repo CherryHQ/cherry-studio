@@ -57,6 +57,9 @@ if (disableHardwareAcceleration) {
   app.disableHardwareAcceleration()
 }
 
+// Initialize log level from persisted config
+loggerService.setLevel(configManager.getLogLevel())
+
 /**
  * Disable chromium's window animations
  * main purpose for this is to avoid the transparent window flashing when it is shown

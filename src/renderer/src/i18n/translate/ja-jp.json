@@ -3138,6 +3138,9 @@
         "title": "フィードバック"
       },
       "label": "について",
+      "logLevel": {
+        "title": "[to be translated]:Log Level"
+      },
       "releases": {
         "button": "リリース",
         "title": "リリースノート"

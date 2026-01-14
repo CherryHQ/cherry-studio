@@ -1311,7 +1311,6 @@
     "backup": {
       "file_format": "Ошибка формата файла резервной копии"
     },
-    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "base64DataTruncated": "Данные изображения в формате Base64 усечены, размер",
     "boundary": {
       "default": {
@@ -1393,9 +1392,7 @@
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
-    "truncated": "[to be translated]:Data truncated, original size",
     "truncated": "Данные усечены, исходный размер",
-    "truncatedBadge": "[to be translated]:Truncated",
     "truncatedBadge": "Усечённый",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",
@@ -3141,6 +3138,9 @@
         "title": "Обратная связь"
       },
       "label": "О программе и обратная связь",
+      "logLevel": {
+        "title": "[to be translated]:Log Level"
+      },
       "releases": {
         "button": "Релизы",
         "title": "Заметки о релизах"

@@ -99,6 +99,7 @@ const api = {
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
+  setLogLevel: (level: LogLevel) => ipcRenderer.invoke(IpcChannel.App_SetLogLevel, level),
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
@@ -117,6 +118,13 @@ const api = {
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   logToMain: (source: LogSourceWithContext, level: LogLevel, message: string, data: any[]) =>
     ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data),
+  onLogLevelChange: (callback: (level: LogLevel) => void): (() => void) => {
+    const listener = (_: Electron.IpcRendererEvent, level: LogLevel) => callback(level)
+    ipcRenderer.on(IpcChannel.App_SetLogLevel, listener)
+    return () => {
+      ipcRenderer.removeListener(IpcChannel.App_SetLogLevel, listener)
+    }
+  },
   setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.App_SetFullScreen, value),
   isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_IsFullScreen),
   getSystemFonts: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.App_GetSystemFonts),

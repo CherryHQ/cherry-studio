@@ -3138,6 +3138,9 @@
         "title": "回饋"
       },
       "label": "關於與回饋",
+      "logLevel": {
+        "title": "日誌級別"
+      },
       "releases": {
         "button": "檢視",
         "title": "更新日誌"

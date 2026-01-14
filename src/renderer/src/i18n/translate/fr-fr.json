@@ -3138,6 +3138,9 @@
         "title": "Retour d'information"
       },
       "label": "À propos de nous",
+      "logLevel": {
+        "title": "[to be translated]:Log Level"
+      },
       "releases": {
         "button": "Afficher",
         "title": "Journal des mises à jour"
