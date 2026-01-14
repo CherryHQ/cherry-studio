@@ -93,9 +93,9 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                 key={item.id}
                 fileInfo={{
                   name: (
-                    <ClickableSpan onClick={() => window.api.file.openPath(data.path)}>
+                    <ClickableSpan onClick={() => window.api.file.openPath(data.groupName)}>
                       <Ellipsis>
-                        <Tooltip content={data.path}>{data.path}</Tooltip>
+                        <Tooltip content={data.groupName}>{data.groupName}</Tooltip>
                       </Ellipsis>
                     </ClickableSpan>
                   ),

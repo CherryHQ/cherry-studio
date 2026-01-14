@@ -65,7 +65,6 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           params: { id: item.id },
           body: {
             data: {
-              type: 'url',
               url: data.url,
               name
             } satisfies UrlItemData

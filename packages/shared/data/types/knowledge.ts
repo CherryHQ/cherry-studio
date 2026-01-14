@@ -105,7 +105,6 @@ export interface KnowledgeSearchResult {
  * File item data
  */
 export interface FileItemData {
-  type: 'file'
   /** File metadata */
   file: FileMetadata
 }
@@ -114,7 +113,6 @@ export interface FileItemData {
  * URL item data
  */
 export interface UrlItemData {
-  type: 'url'
   /** Web URL */
   url: string
   /** User-defined name */
@@ -125,7 +123,6 @@ export interface UrlItemData {
  * Note item data
  */
 export interface NoteItemData {
-  type: 'note'
   /** Note content */
   content: string
   /** Source URL (optional) */
@@ -136,7 +133,6 @@ export interface NoteItemData {
  * Sitemap item data
  */
 export interface SitemapItemData {
-  type: 'sitemap'
   /** Sitemap URL */
   url: string
   /** User-defined name */
@@ -147,9 +143,12 @@ export interface SitemapItemData {
  * Directory item data
  */
 export interface DirectoryItemData {
-  type: 'directory'
-  /** Directory path */
-  path: string
+  /** Group identifier for files within the same directory */
+  groupId: string
+  /** Directory path for UI grouping */
+  groupName: string
+  /** File metadata for the specific file entry */
+  file: FileMetadata
 }
 
 /**

@@ -156,49 +156,64 @@ export const knowledgeItemTable = sqliteTable(
 
 ### KnowledgeItemData 类型定义
 
-使用 Discriminated Union 实现类型安全：
+类型判断通过 `knowledge_item.type` 字段，`data` 内部不再重复存储 `type`：
 
 ```typescript
 // 文件类型
 interface FileItemData {
-  type: 'file'
   file: FileMetadata
 }
 
 // URL 类型
 interface UrlItemData {
-  type: 'url'
   url: string
   name: string // 用户自定义名称，如 "API 文档"
 }
 
 // 笔记类型
 interface NoteItemData {
-  type: 'note'
   content: string // 笔记内容
   sourceUrl?: string // 来源 URL
 }
 
 // Sitemap 类型
 interface SitemapItemData {
-  type: 'sitemap'
   url: string
   name: string // 用户自定义名称
 }
 
-// 目录类型
+// 目录类型（每个文件一条 item，通过 groupId 分组）
 interface DirectoryItemData {
-  type: 'directory'
-  path: string
+  groupId: string    // 同一目录下的文件共享相同的 groupId
+  groupName: string  // 目录路径，用于 UI 分组显示
+  file: FileMetadata // 实际文件元数据
 }
 
-// 联合类型
+// 联合类型（通过 item.type 判断具体类型）
 export type KnowledgeItemData =
   | FileItemData
   | UrlItemData
   | NoteItemData
   | SitemapItemData
   | DirectoryItemData
+```
+
+**TypeScript 使用示例：**
+
+```typescript
+function processItem(item: KnowledgeItem) {
+  switch (item.type) {
+    case 'file':
+      const fileData = item.data as FileItemData
+      // fileData.file 可用
+      break
+    case 'directory':
+      const dirData = item.data as DirectoryItemData
+      // dirData.groupId, dirData.groupName, dirData.file 可用
+      break
+    // ...
+  }
+}
 ```
 
 ## Data API 设计
@@ -219,18 +234,31 @@ export type KnowledgeItemData =
 | `/knowledge-bases/:id` | PATCH | 更新知识库配置 |
 | `/knowledge-bases/:id` | DELETE | 删除知识库（含 items 与向量） |
 | `/knowledge-bases/:id/items` | GET | 查询指定知识库的 items |
-| `/knowledge-bases/:id/items` | POST | 创建 items（支持单个或批量，进入队列） |
+| `/knowledge-bases/:id/items` | POST | 创建 items（支持单个或批量，进入队列，202 返回 pending items） |
 | `/knowledge-items/:id` | GET | 获取单个 item |
 | `/knowledge-items/:id` | PATCH | 更新 item |
 | `/knowledge-items/:id` | DELETE | 删除 item（含向量） |
-| `/knowledge-items/:id/reprocess` | POST | 重新处理 item |
+| `/knowledge-items/:id/reprocess` | POST | 重新处理 item（进入队列，202 返回 pending item） |
 | `/knowledge-bases/:id/search` | GET | 向量/混合检索 |
+
+### 端点清单（队列管理）
+
+| Path | Method | 说明 |
+| ---- | ------ | ---- |
+| `/knowledge-bases/:id/queue` | GET | 获取指定知识库的队列状态（含孤儿任务列表、活跃任务） |
+| `/knowledge-bases/:id/queue/recover` | POST | 恢复指定知识库的孤儿任务（重新入队） |
 
 ### 端点清单（可选）
 
 | Path | Method | 说明 |
 | ---- | ------ | ---- |
 | `/knowledge-bases/:id/stats` | GET | 返回基础统计（item 计数/状态分布） |
+
+## 异步语义与返回约定
+
+- `POST /knowledge-bases/:id/items` 与 `POST /knowledge-items/:id/reprocess` 都是异步入队操作。
+- 服务端会立即写入/更新 `knowledge_item`，将 `status` 置为 `pending`，并返回 `202 Accepted`。
+- 响应体返回 `pending` 的 item(s)，便于 UI 立刻展示，同时通过轮询获取后续状态变化。
 
 ## DTO 与 Schema 草案
 
@@ -357,7 +385,7 @@ export interface KnowledgeSchemas {
     POST: {
       params: { id: string }
       body: CreateKnowledgeItemsDto
-      response: { items: KnowledgeItem[] }
+      response: { items: KnowledgeItem[] } // 202 Accepted, items.status = 'pending'
     }
   }
   '/knowledge-items/:id': {
@@ -378,7 +406,7 @@ export interface KnowledgeSchemas {
   '/knowledge-items/:id/reprocess': {
     POST: {
       params: { id: string }
-      response: KnowledgeItem
+      response: KnowledgeItem // 202 Accepted, status = 'pending'
     }
   }
   '/knowledge-bases/:id/search': {
@@ -388,6 +416,25 @@ export interface KnowledgeSchemas {
       response: KnowledgeSearchResult[]
     }
   }
+  '/knowledge-bases/:id/queue': {
+    GET: {
+      params: { id: string }
+      response: BaseQueueStatus
+    }
+  }
+  '/knowledge-bases/:id/queue/recover': {
+    POST: {
+      params: { id: string }
+      response: { recoveredCount: number }  // 直接恢复该知识库所有孤儿任务
+    }
+  }
+}
+
+// 知识库队列状态响应
+export interface BaseQueueStatus {
+  orphanItemIds: string[]      // 该知识库的孤儿任务 ID 列表
+  activeItemIds: string[]      // 该知识库正在处理的任务 ID 列表
+  pendingCount: number         // 该知识库队列中等待的任务数
 }
 ```
 
@@ -412,8 +459,8 @@ useEffect(() => {
 
 // 有活动任务时轮询
 useEffect(() => {
-  const hasActiveItems = base?.items.some(
-    (item) => item.processingStatus === 'pending' || item.processingStatus === 'processing'
+  const hasActiveItems = items.some((item) =>
+    ['pending', 'preprocessing', 'embedding'].includes(item.status)
   )
 
   if (!hasActiveItems) return
@@ -423,7 +470,7 @@ useEffect(() => {
   }, 5000) // 每 5 秒轮询
 
   return () => clearInterval(intervalId)
-}, [base?.items, baseId])
+}, [items, baseId])
 ```
 
 ### 状态字段
@@ -434,7 +481,7 @@ useEffect(() => {
 
 ## 处理状态与队列协作
 
-- **创建/刷新 item**：进入处理队列，初始 `status = pending`
+- **创建/刷新 item**：进入处理队列，立即更新为 `status = pending` 并返回 202
 - **处理中**：状态依次更新为 `preprocessing` / `embedding`
 - **完成**：`status = completed`
 - **失败**：`status = failed` 且写入 `error`

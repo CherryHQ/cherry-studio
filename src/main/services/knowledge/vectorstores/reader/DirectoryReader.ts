@@ -40,7 +40,7 @@ export class DirectoryReader implements ContentReader {
   async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item, itemId } = context
     const directoryData = item.data as DirectoryItemData
-    const directoryPath = directoryData.path
+    const directoryPath = directoryData.groupName
 
     const uniqueId = `DirectoryReader_${uuidv4()}`
 

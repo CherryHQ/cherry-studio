@@ -59,7 +59,6 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           params: { id: noteId },
           body: {
             data: {
-              type: 'note',
               content
             } satisfies NoteItemData
           }

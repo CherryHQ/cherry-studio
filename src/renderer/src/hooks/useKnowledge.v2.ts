@@ -10,6 +10,7 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
 import type { FileMetadata } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 import type { CreateKnowledgeItemDto, KnowledgeSearchRequest } from '@shared/data/api/schemas/knowledges'
 import type {
   DirectoryItemData,
@@ -27,6 +28,51 @@ const logger = loggerService.withContext('useKnowledge.v2')
 
 /** Status values that indicate an item is still being processed */
 const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
+
+const buildDirectoryItems = async (
+  directoryPath: string,
+  options?: { maxEntries?: number }
+): Promise<CreateKnowledgeItemDto[]> => {
+  const groupId = uuid()
+  const groupName = directoryPath
+  const maxEntries = options?.maxEntries ?? 100000
+
+  try {
+    const filePaths = await window.api.file.listDirectory(directoryPath, {
+      recursive: true,
+      includeFiles: true,
+      includeDirectories: false,
+      includeHidden: false,
+      maxEntries,
+      searchPattern: '.'
+    })
+
+    if (filePaths.length === 0) {
+      return []
+    }
+
+    const files = await Promise.all(
+      filePaths.map(async (filePath) => {
+        try {
+          return await window.api.file.get(filePath)
+        } catch (error) {
+          logger.warn('Failed to read file metadata for directory item', error as Error, { filePath })
+          return null
+        }
+      })
+    )
+
+    return files
+      .filter((file): file is FileMetadata => file !== null)
+      .map((file) => ({
+        type: 'directory' as const,
+        data: { groupId, groupName, file } satisfies DirectoryItemData
+      }))
+  } catch (error) {
+    logger.error('Failed to build directory items', error as Error, { directoryPath })
+    throw error
+  }
+}
 
 /**
  * Hook for adding files to a knowledge base via v2 Data API
@@ -60,7 +106,7 @@ export const useKnowledgeFiles = (baseId: string) => {
       // Convert to v2 format
       const v2Items: CreateKnowledgeItemDto[] = files.map((file) => ({
         type: 'file' as const,
-        data: { type: 'file' as const, file } satisfies FileItemData
+        data: { file } satisfies FileItemData
       }))
 
       // Call v2 API (items created with status: 'pending', processing starts automatically)
@@ -143,13 +189,12 @@ export const useKnowledgeDirectories = (baseId: string) => {
     if (!path) return
 
     try {
-      // Convert to v2 format
-      const v2Items: CreateKnowledgeItemDto[] = [
-        {
-          type: 'directory' as const,
-          data: { type: 'directory' as const, path } satisfies DirectoryItemData
-        }
-      ]
+      const v2Items = await buildDirectoryItems(path)
+
+      if (v2Items.length === 0) {
+        window.toast.info('No files found in the selected directory.')
+        return
+      }
 
       // Call v2 API (item created with status: 'pending', processing starts automatically)
       const result = await createItemsApi({
@@ -228,7 +273,7 @@ export const useKnowledgeUrls = (baseId: string) => {
       const v2Items: CreateKnowledgeItemDto[] = [
         {
           type: 'url' as const,
-          data: { type: 'url' as const, url, name: url } satisfies UrlItemData
+          data: { url, name: url } satisfies UrlItemData
         }
       ]
 
@@ -313,7 +358,7 @@ export const useKnowledgeSitemaps = (baseId: string) => {
       const v2Items: CreateKnowledgeItemDto[] = [
         {
           type: 'sitemap' as const,
-          data: { type: 'sitemap' as const, url, name: url } satisfies SitemapItemData
+          data: { url, name: url } satisfies SitemapItemData
         }
       ]
 
@@ -394,7 +439,7 @@ export const useKnowledgeNotes = (baseId: string) => {
       const v2Items: CreateKnowledgeItemDto[] = [
         {
           type: 'note' as const,
-          data: { type: 'note' as const, content } satisfies NoteItemData
+          data: { content } satisfies NoteItemData
         }
       ]
 

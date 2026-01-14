@@ -6,7 +6,7 @@
 
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import { type ApiHandler, type ApiMethods, SuccessStatus } from '@shared/data/api/apiTypes'
 import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
 
 /**
@@ -49,7 +49,8 @@ export const knowledgeHandlers: {
       return await knowledgeItemService.list(params.id)
     },
     POST: async ({ params, body }) => {
-      return await knowledgeItemService.create(params.id, body)
+      const result = await knowledgeItemService.create(params.id, body)
+      return { data: result, status: SuccessStatus.ACCEPTED }
     }
   },
 
@@ -68,7 +69,8 @@ export const knowledgeHandlers: {
 
   '/knowledge-items/:id/reprocess': {
     POST: async ({ params }) => {
-      return await knowledgeItemService.reprocess(params.id)
+      const result = await knowledgeItemService.reprocess(params.id)
+      return { data: result, status: SuccessStatus.ACCEPTED }
     }
   },
 

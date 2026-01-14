@@ -18,9 +18,16 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import type { FileMetadata, KnowledgeBase, KnowledgeItem, KnowledgeNoteItem, ProcessingStatus } from '@renderer/types'
+import type {
+  FileMetadata,
+  FileTypes,
+  KnowledgeBase,
+  KnowledgeItem,
+  KnowledgeNoteItem,
+  ProcessingStatus
+} from '@renderer/types'
 import { isKnowledgeFileItem, isKnowledgeNoteItem } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
+import { runAsyncFunction, uuid } from '@renderer/utils'
 import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
 import type {
   DirectoryItemData,
@@ -81,7 +88,7 @@ const toV1Item = (item: KnowledgeItemV2): KnowledgeItem => {
       return {
         id: item.id,
         type: item.type,
-        content: data.path,
+        content: data.groupName,
         created_at: Date.parse(item.createdAt),
         updated_at: Date.parse(item.updatedAt),
         processingStatus: mapV2StatusToV1(item.status),
@@ -516,7 +523,7 @@ export const useKnowledge = (baseId: string) => {
             if (typeof item.content === 'object' && item.content !== null && 'path' in item.content) {
               itemsPayload.push({
                 type: 'file',
-                data: { type: 'file', file: item.content } satisfies FileItemData
+                data: { file: item.content } satisfies FileItemData
               })
             }
             break
@@ -525,7 +532,7 @@ export const useKnowledge = (baseId: string) => {
             const content = note?.content || (typeof item.content === 'string' ? item.content : '')
             itemsPayload.push({
               type: 'note',
-              data: { type: 'note', content } satisfies NoteItemData
+              data: { content } satisfies NoteItemData
             })
             break
           }
@@ -533,7 +540,7 @@ export const useKnowledge = (baseId: string) => {
             if (typeof item.content === 'string') {
               itemsPayload.push({
                 type: 'url',
-                data: { type: 'url', url: item.content, name: item.remark || item.content } satisfies UrlItemData
+                data: { url: item.content, name: item.remark || item.content } satisfies UrlItemData
               })
             }
             break
@@ -542,7 +549,6 @@ export const useKnowledge = (baseId: string) => {
               itemsPayload.push({
                 type: 'sitemap',
                 data: {
-                  type: 'sitemap',
                   url: item.content,
                   name: item.remark || item.content
                 } satisfies SitemapItemData
@@ -553,7 +559,21 @@ export const useKnowledge = (baseId: string) => {
             if (typeof item.content === 'string') {
               itemsPayload.push({
                 type: 'directory',
-                data: { type: 'directory', path: item.content } satisfies DirectoryItemData
+                data: {
+                  groupId: uuid(),
+                  groupName: item.content,
+                  file: {
+                    id: uuid(),
+                    name: item.content,
+                    origin_name: item.content,
+                    path: item.content,
+                    size: 0,
+                    ext: '',
+                    type: FileTypes.OTHER,
+                    created_at: new Date().toISOString(),
+                    count: 1
+                  }
+                } satisfies DirectoryItemData
               })
             }
             break
