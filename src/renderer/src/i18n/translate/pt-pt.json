@@ -4219,9 +4219,6 @@
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
     },
-    "mineru": {
-      "api_key": "O MinerU agora oferece uma cota diária gratuita de 500 páginas; você não precisa preencher uma chave."
-    },
     "miniapps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
       "cache_description": "Defina o número máximo de mini aplicativos que permanecerão ativos simultaneamente",
