@@ -131,9 +131,27 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
 
   const processFiles = async (files: FileMetadata[]) => {
     logger.debug('processFiles', files)
-    if (files.length > 0) {
+    if (files.length === 0) {
+      return
+    }
+
+    const startedAt = Date.now()
+    logger.info('KnowledgeFiles.processFiles:start', { baseId: selectedBase.id, count: files.length })
+
+    try {
       const uploadedFiles = await FileManager.uploadFiles(files)
+      logger.info('KnowledgeFiles.processFiles:done', {
+        baseId: selectedBase.id,
+        count: uploadedFiles.length,
+        durationMs: Date.now() - startedAt
+      })
       addFiles(uploadedFiles)
+    } catch (error) {
+      logger.error('KnowledgeFiles.processFiles:failed', error as Error, {
+        baseId: selectedBase.id,
+        durationMs: Date.now() - startedAt
+      })
+      throw error
     }
   }
 

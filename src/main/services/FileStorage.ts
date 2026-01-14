@@ -192,8 +192,10 @@ class FileStorage {
     const stats = fs.statSync(filePath)
     logger.debug(`stats: ${stats}, filePath: ${filePath}`)
     const fileSize = stats.size
+    const startedAt = Date.now()
 
     const files = await fs.promises.readdir(this.storageDir)
+    const storageCount = files.length
     for (const file of files) {
       const storedFilePath = path.join(this.storageDir, file)
       const storedStats = fs.statSync(storedFilePath)
@@ -208,6 +210,14 @@ class FileStorage {
           const ext = path.extname(file)
           const id = path.basename(file, ext)
           const type = await this.getFileType(filePath)
+
+          logger.info('findDuplicateFile:done', {
+            filePath,
+            fileSize,
+            storageCount,
+            durationMs: Date.now() - startedAt,
+            matched: true
+          })
 
           return {
             id,
@@ -224,6 +234,13 @@ class FileStorage {
       }
     }
 
+    logger.info('findDuplicateFile:done', {
+      filePath,
+      fileSize,
+      storageCount,
+      durationMs: Date.now() - startedAt,
+      matched: false
+    })
     return null
   }
 
@@ -298,9 +315,12 @@ class FileStorage {
 
   public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
     const filePath = file.path
+    const startedAt = Date.now()
+    logger.info('uploadFile:start', { filePath })
     const duplicateFile = await this.findDuplicateFile(filePath)
 
     if (duplicateFile) {
+      logger.info('uploadFile:duplicateHit', { filePath, durationMs: Date.now() - startedAt })
       return duplicateFile
     }
 
@@ -334,6 +354,12 @@ class FileStorage {
     }
 
     logger.debug(`File uploaded: ${fileMetadata}`)
+    logger.info('uploadFile:done', {
+      filePath,
+      id: fileMetadata.id,
+      size: fileMetadata.size,
+      durationMs: Date.now() - startedAt
+    })
 
     return fileMetadata
   }

@@ -28,7 +28,7 @@ import { knowledgeProviderAdapter } from './KnowledgeProviderAdapter'
 import Reranker from './reranker/Reranker'
 import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
 import { embedNodes } from './vectorstores/EmbeddingPipeline'
-import { getReader } from './vectorstores/reader'
+import { getReader } from './vectorstores/readers'
 import {
   type KnowledgeBaseAddItemOptions,
   type KnowledgeBaseRemoveOptions,

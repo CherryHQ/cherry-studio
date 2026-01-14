@@ -13,11 +13,11 @@ import { windowService } from '@main/services/WindowService'
 import type { DirectoryItemData } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Document } from '@vectorstores/core'
-import { SentenceSplitter } from '@vectorstores/core'
 import { FILE_EXT_TO_READER, SimpleDirectoryReader } from '@vectorstores/readers/directory'
 import { TextFileReader } from '@vectorstores/readers/text'
 import { v4 as uuidv4 } from 'uuid'
 
+import { TextChunkSplitter } from '../spliters/TextChunkSplitter'
 import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
@@ -104,8 +104,7 @@ export class DirectoryReader implements ContentReader {
     // Split documents into chunks
     const chunkSize = base.chunkSize ?? DEFAULT_CHUNK_SIZE
     const chunkOverlap = base.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
-    const splitter = new SentenceSplitter({ chunkSize, chunkOverlap })
-    const nodes = splitter.getNodesFromDocuments(filteredDocs)
+    const nodes = TextChunkSplitter(filteredDocs, { chunkSize, chunkOverlap })
 
     // Add external_id and ensure source is on all nodes
     nodes.forEach((node) => {

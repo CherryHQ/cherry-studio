@@ -8,11 +8,11 @@
 import { loggerService } from '@logger'
 import type { SitemapItemData } from '@shared/data/types/knowledge'
 import type { Document } from '@vectorstores/core'
-import { SentenceSplitter } from '@vectorstores/core'
 import { HTMLReader } from '@vectorstores/readers/html'
 import md5 from 'md5'
 import Sitemapper from 'sitemapper'
 
+import { TextChunkSplitter } from '../spliters/TextChunkSplitter'
 import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
@@ -111,8 +111,7 @@ export class SitemapReader implements ContentReader {
       }
 
       // Split documents into chunks
-      const splitter = new SentenceSplitter({ chunkSize, chunkOverlap })
-      const nodes = splitter.getNodesFromDocuments(documents)
+      const nodes = TextChunkSplitter(documents, { chunkSize, chunkOverlap })
 
       // Add external_id to all nodes
       nodes.forEach((node) => {

@@ -6,9 +6,10 @@
 
 import { loggerService } from '@logger'
 import type { NoteItemData } from '@shared/data/types/knowledge'
-import { Document, SentenceSplitter } from '@vectorstores/core'
+import { Document } from '@vectorstores/core'
 import md5 from 'md5'
 
+import { TextChunkSplitter } from '../spliters/TextChunkSplitter'
 import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
@@ -60,8 +61,7 @@ export class NoteReader implements ContentReader {
     const chunkSize = base.chunkSize ?? DEFAULT_CHUNK_SIZE
     const chunkOverlap = base.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
 
-    const splitter = new SentenceSplitter({ chunkSize, chunkOverlap })
-    const nodes = splitter.getNodesFromDocuments([document])
+    const nodes = TextChunkSplitter([document], { chunkSize, chunkOverlap })
 
     // Add external_id to all nodes
     nodes.forEach((node) => {
