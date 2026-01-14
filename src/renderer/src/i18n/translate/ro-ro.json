@@ -275,7 +275,7 @@
         "denyRequest": "Refuză cererea instrumentului",
         "hideDetails": "Ascunde detaliile instrumentului",
         "runWithOptions": "Rulează cu opțiuni suplimentare",
-        "showDetails": "Arată detaliile instrumentului"
+        "showDetails": "Afișează detaliile instrumentului"
       },
       "button": {
         "cancel": "Anulează",
@@ -401,7 +401,7 @@
     "toggleDevTools": "Comută instrumentele pentru dezvoltatori",
     "toggleFullscreen": "Comută ecranul complet",
     "undo": "Anulează",
-    "unhide": "Arată toate",
+    "unhide": "Afișează toate",
     "view": "Vizualizare",
     "website": "Site web",
     "window": "Fereastră",
@@ -649,7 +649,7 @@
     "manage": "Gestionează",
     "select_model": "Selectează modelul",
     "show": {
-      "all": "Arată tot"
+      "all": "Afișează tot"
     },
     "update_available": "Actualizare disponibilă",
     "whole_word": "Cuvânt întreg"
@@ -975,7 +975,7 @@
       },
       "reset": "Resetează",
       "set_as_default": "Aplică la asistentul implicit",
-      "show_line_numbers": "Arată numerele de linie în cod",
+      "show_line_numbers": "Afișează numerele liniilor de cod",
       "temperature": {
         "label": "Temperatură",
         "tip": "Valorile mai mari fac modelul mai creativ și imprevizibil, în timp ce valorile mai mici îl fac mai determinist și precis."
@@ -2246,7 +2246,7 @@
       "found_results": "S-au găsit {{count}} rezultate (Nume: {{nameCount}}, Conținut: {{contentCount}})",
       "more_matches": "mai multe potriviri",
       "searching": "Se caută...",
-      "show_less": "Arată mai puțin"
+      "show_less": "Afișează mai puțin"
     },
     "settings": {
       "data": {
@@ -2297,7 +2297,7 @@
       },
       "title": "Notițe"
     },
-    "show_starred": "Arată notițele favorite",
+    "show_starred": "Afișează notițele favorite",
     "sort_a2z": "Nume fișier (A-Z)",
     "sort_created_asc": "Ora creării (cele mai vechi întâi)",
     "sort_created_desc": "Ora creării (cele mai noi întâi)",
@@ -2948,7 +2948,7 @@
         "opacity": "Opacitate fereastră",
         "original_copy": "Copiază originalul",
         "original_hide": "Ascunde originalul",
-        "original_show": "Arată originalul",
+        "original_show": "Afișează originalul",
         "pin": "Fixează",
         "pinned": "Fixat",
         "r_regenerate": "R: Regenerează"
@@ -3046,7 +3046,7 @@
             "windows": "Unele aplicații nu acceptă selectarea textului cu tasta Ctrl. Dacă ai remapat tasta Ctrl folosind instrumente precum AHK, acest lucru poate cauza eșecul selecției textului în unele aplicații."
           },
           "selected": "Selecție",
-          "selected_note": "Arată bara de instrumente imediat ce textul este selectat",
+          "selected_note": "Afișează bara de instrumente la selectarea textului",
           "shortcut": "Comandă rapidă",
           "shortcut_link": "Mergi la Setările comenzilor rapide",
           "shortcut_note": "După selecție, folosește comanda rapidă pentru a afișa bara de instrumente. Te rugăm să setezi comanda rapidă în pagina de setări și să o activezi. ",
@@ -3441,7 +3441,7 @@
         },
         "show_model_provider": {
           "help": "Afișează furnizorul modelului (de ex., OpenAI, Gemini) la exportul în Markdown",
-          "title": "Arată furnizorul modelului"
+          "title": "Afișează furnizorul modelului"
         },
         "standardize_citations": {
           "help": "Când este activat, marcatorii de citare vor fi convertiți în format standard de notă de subsol Markdown [^1], iar listele de citare vor fi formatate.",
@@ -3826,22 +3826,22 @@
         "disabled": "Ascunde pictograme",
         "empty": "Trage funcția ascunsă din partea stângă aici",
         "files": {
-          "icon": "Arată pictograma Fișiere"
+          "icon": "Afișează pictograma Fișiere"
         },
         "knowledge": {
-          "icon": "Arată pictograma Cunoștințe"
+          "icon": "Afișează pictograma Cunoștințe"
         },
         "minapp": {
-          "icon": "Arată pictograma MinApp"
+          "icon": "Afișează pictograma MinApp"
         },
         "painting": {
-          "icon": "Arată pictograma Pictură"
+          "icon": "Afișează pictograma Imagini"
         },
         "title": "Setări bară laterală",
         "translate": {
-          "icon": "Arată pictograma Traducere"
+          "icon": "Afișează pictograma Traducere"
         },
-        "visible": "Arată pictograme"
+        "visible": "Afișează pictograme"
       },
       "title": "Setări afișare",
       "topic": {
@@ -3917,7 +3917,7 @@
         "knowledge_base": "Golește bazele de cunoștințe selectate",
         "models": "Golește toate modelele"
       },
-      "show_translate_confirm": "Arată dialogul de confirmare a traducerii",
+      "show_translate_confirm": "Afișează fereastra de confirmare a traducerii",
       "target_language": {
         "chinese": "Chineză simplificată",
         "chinese-traditional": "Chineză tradițională",
@@ -4184,7 +4184,7 @@
     },
     "messages": {
       "divider": {
-        "label": "Arată divizor între mesaje",
+        "label": "Afișează divizor între mesaje",
         "tooltip": "Nu se aplică mesajelor stil bulă"
       },
       "grid_columns": "Coloane afișare grilă mesaje",
@@ -4200,7 +4200,7 @@
         "paste_long_text_as_file": "Lipește text lung ca fișier",
         "paste_long_text_threshold": "Lungime lipire text lung",
         "send_shortcuts": "Comenzi rapide trimitere",
-        "show_estimated_tokens": "Arată tokeni estimați",
+        "show_estimated_tokens": "Afișează numărul estimat de tokeni",
         "title": "Setări intrare"
       },
       "markdown_rendering_input_message": "Randare Markdown mesaj intrare",
@@ -4214,8 +4214,8 @@
         "label": "Bară navigare",
         "none": "Niciunul"
       },
-      "prompt": "Arată prompt",
-      "show_message_outline": "Arată contur mesaj",
+      "prompt": "Afișează prompt",
+      "show_message_outline": "Afișează conturul mesajului",
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
     },
@@ -4262,7 +4262,7 @@
         "title": "Deschide în browser linkurile care deschid ferestre noi"
       },
       "reset_tooltip": "Resetează la implicit",
-      "sidebar_description": "Arată mini-aplicațiile active în bara laterală",
+      "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
       "sidebar_title": "Afișare mini-aplicații active în bara laterală",
       "title": "Setări mini-aplicații",
       "visible": "Mini-aplicații vizibile"
@@ -4718,7 +4718,7 @@
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
       "selection_assistant_select_text": "Asistent de selecție: Selectează text",
       "selection_assistant_toggle": "Comută Asistentul de selecție",
-      "show_app": "Arată/Ascunde aplicația",
+      "show_app": "Afișează/Ascunde aplicația",
       "show_settings": "Deschide setările",
       "title": "Comenzi rapide de la tastatură",
       "toggle_new_context": "Șterge contextul",
@@ -4887,7 +4887,7 @@
         "right": "Dreapta"
       },
       "show": {
-        "time": "Arată ora subiectului"
+        "time": "Afișează ora subiectului"
       }
     },
     "translate": {
@@ -4937,7 +4937,7 @@
     },
     "tray": {
       "onclose": "Minimizează în zona de notificare la închidere",
-      "show": "Arată pictograma în zona de notificare",
+      "show": "Afișează pictograma în zona de notificare",
       "title": "Zonă de notificare"
     },
     "zoom": {
