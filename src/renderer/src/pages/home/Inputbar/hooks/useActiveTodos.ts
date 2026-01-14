@@ -1,5 +1,5 @@
 import { useAppSelector } from '@renderer/store'
-import { selectLatestTodoWriteBlock } from '@renderer/store/messageBlock'
+import { selectLatestTodoWriteBlockForTopic } from '@renderer/store/messageBlock'
 import type { NormalToolResponse } from '@renderer/types'
 import { useMemo } from 'react'
 
@@ -20,11 +20,11 @@ export interface ActiveTodoInfo {
 }
 
 /**
- * Hook to get active (incomplete) todos from the latest TodoWrite block
+ * Hook to get active (incomplete) todos from the latest TodoWrite block for a specific topic
  * Returns undefined if no incomplete todos exist
  */
-export function useActiveTodos(): ActiveTodoInfo | undefined {
-  const latestTodoBlock = useAppSelector(selectLatestTodoWriteBlock)
+export function useActiveTodos(topicId: string): ActiveTodoInfo | undefined {
+  const latestTodoBlock = useAppSelector((state) => selectLatestTodoWriteBlockForTopic(state, topicId))
 
   return useMemo((): ActiveTodoInfo | undefined => {
     if (!latestTodoBlock) return undefined

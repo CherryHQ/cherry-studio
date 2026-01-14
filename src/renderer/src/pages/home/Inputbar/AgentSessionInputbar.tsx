@@ -473,7 +473,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
 
   return (
     <>
-      <PinnedTodoPanel />
+      <PinnedTodoPanel topicId={sessionTopicId} />
       <InputbarCore
         scope={TopicType.Session}
         text={text}

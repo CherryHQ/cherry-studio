@@ -36,15 +36,19 @@ function getStatusTranslationKey(status: TodoItem['status']): string {
   }
 }
 
+interface PinnedTodoPanelProps {
+  topicId: string
+}
+
 /**
  * PinnedTodoPanel - Displays active todos in a fixed panel above the inputbar
  *
  * This panel shows todos that are not yet completed (pending or in_progress).
  * When all todos are completed, this panel disappears.
  */
-export const PinnedTodoPanel: FC = () => {
+export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
   const { t } = useTranslation()
-  const activeTodoInfo = useActiveTodos()
+  const activeTodoInfo = useActiveTodos(topicId)
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   if (!activeTodoInfo) {

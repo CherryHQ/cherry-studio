@@ -344,16 +344,29 @@ const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
   todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
 
 /**
- * Select the latest TodoWrite tool block with incomplete todos
+ * Select the latest TodoWrite tool block with incomplete todos for a specific topic
  * Used by PinnedTodoPanel to display current task progress above the inputbar
  */
-export const selectLatestTodoWriteBlock = createSelector(
-  [messageBlocksSelectors.selectAll],
-  (allBlocks): ToolMessageBlock | undefined => {
-    // Iterate from end to find the latest TodoWrite block
+export const selectLatestTodoWriteBlockForTopic = createSelector(
+  [
+    messageBlocksSelectors.selectAll,
+    (state: RootState) => state.messages.messageIdsByTopic,
+    (_state: RootState, topicId: string) => topicId
+  ],
+  (allBlocks, messageIdsByTopic, topicId): ToolMessageBlock | undefined => {
+    // Get message IDs for this topic
+    const topicMessageIds = messageIdsByTopic[topicId]
+    if (!topicMessageIds || topicMessageIds.length === 0) return undefined
+
+    const topicMessageIdSet = new Set(topicMessageIds)
+
+    // Iterate from end to find the latest TodoWrite block in this topic
     for (let i = allBlocks.length - 1; i >= 0; i--) {
       const block = allBlocks[i]
       if (block.type !== MessageBlockType.TOOL) continue
+
+      // Check if this block belongs to the current topic
+      if (!topicMessageIdSet.has(block.messageId)) continue
 
       const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
       if (!toolResponse) continue
