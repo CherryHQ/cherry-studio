@@ -31,6 +31,8 @@ function getStatusTranslationKey(status: TodoItem['status']): string {
       return 'agent.todo.status.pending'
     case 'in_progress':
       return 'agent.todo.status.in_progress'
+    case 'completed':
+      return 'agent.todo.status.completed'
     default:
       return 'agent.todo.status.pending'
   }
@@ -40,12 +42,6 @@ interface PinnedTodoPanelProps {
   topicId: string
 }
 
-/**
- * PinnedTodoPanel - Displays active todos in a fixed panel above the inputbar
- *
- * This panel shows todos that are not yet completed (pending or in_progress).
- * When all todos are completed, this panel disappears.
- */
 export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
   const { t } = useTranslation()
   const activeTodoInfo = useActiveTodos(topicId)
@@ -55,7 +51,7 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
     return null
   }
 
-  const { incompleteTodos, completedCount, totalCount } = activeTodoInfo
+  const { todos, completedCount, totalCount } = activeTodoInfo
 
   return (
     <Container>
@@ -65,10 +61,12 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
           {isCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </PanelHeader>
         <TodoList $collapsed={isCollapsed}>
-          {incompleteTodos.map((todo, index) => (
-            <TodoItemRow key={`${todo.content}-${index}`}>
+          {todos.map((todo, index) => (
+            <TodoItemRow key={`${todo.content}-${index}`} $completed={todo.status === 'completed'}>
               {getTodoStatusIcon(todo.status)}
-              <TodoContent>{todo.status === 'in_progress' ? todo.activeForm : todo.content}</TodoContent>
+              <TodoContent $completed={todo.status === 'completed'}>
+                {todo.status === 'in_progress' ? todo.activeForm : todo.content}
+              </TodoContent>
               <TodoStatus>{t(getStatusTranslationKey(todo.status))}</TodoStatus>
             </TodoItemRow>
           ))}
@@ -129,20 +127,22 @@ const TodoList = styled.div<{ $collapsed: boolean }>`
   transition: max-height 0.2s ease;
 `
 
-const TodoItemRow = styled.div`
+const TodoItemRow = styled.div<{ $completed: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
   font-size: 13px;
   border-top: 0.5px solid var(--color-border);
+  opacity: ${(props) => (props.$completed ? 0.6 : 1)};
 `
 
-const TodoContent = styled.span`
+const TodoContent = styled.span<{ $completed: boolean }>`
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-decoration: ${(props) => (props.$completed ? 'line-through' : 'none')};
 `
 
 const TodoStatus = styled.span`

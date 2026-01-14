@@ -274,6 +274,7 @@
         "title": "{{completed}}/{{total}} tasks completed"
       },
       "status": {
+        "completed": "Completed",
         "in_progress": "In Progress",
         "pending": "Pending"
       }
