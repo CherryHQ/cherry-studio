@@ -64,7 +64,7 @@ Renderer
 Main Process
   ├─ KnowledgeItemService (CRUD + 状态更新)
   ├─ KnowledgeScheduler (全局/每库调度)
-  ├─ KnowledgeServiceV2 (read/chunk/embed/write)
+  ├─ KnowledgeServiceV2 (read/embed/write)
   ├─ SQLite (knowledge_item)
   └─ Vector Store (LibSQL)
        ▲
@@ -74,12 +74,11 @@ Main Process
 ## 核心抽象
 
 - **Job**：以 item 为单位的任务载体
-  `{ baseId, itemId, type, workload, stage, progress, createdAt }`
+  `{ baseId, itemId, type, createdAt }`
 - **Stage**：内部执行阶段
-  `read -> chunk -> embed -> write`
+  `read -> embed -> write`
   对外状态仍使用现有 `ItemStatus`（pending/preprocessing/embedding/completed/failed）
 - **Scheduler**：全局队列 + 每库子队列 + 资源池并发限制
-- **Workload**：估算任务成本，用于调度公平与背压
 
 ## 调度策略
 
@@ -92,15 +91,13 @@ Main Process
 ### 调度器接口（草案）
 
 ```ts
-export type KnowledgeJobStage = "read" | "chunk" | "embed" | "write";
+export type KnowledgeJobStage = "read" | "embed" | "write";
 
 export type KnowledgeJob = {
   baseId: string;
   itemId: string;
   type: KnowledgeItemType;
-  workload: number;
   createdAt: number;
-  controller: AbortController;
 };
 
 export type SchedulerConfig = {
@@ -132,16 +129,9 @@ export interface KnowledgeScheduler {
 
 ### 并发与阶段池
 
-- 任务管线：`read + chunk` 占用 IO → `embed` 占用 → `write` 占用，阶段完成即释放
-- `globalConcurrency` 用于限制“已启动但未完成”的任务总数，阶段池决定实际并发
+- 任务管线：`read` 占用 IO → `embed` 占用 → `write` 占用，阶段完成即释放
+- `globalConcurrency` 用于限制"已启动但未完成"的任务总数，阶段池决定实际并发
 - `globalConcurrency` 过低会导致阶段池空转；过高会造成等待积压
-
-### Workload 估算
-
-- file：按文件大小估算
-- directory：使用 `data.file.size`（每个文件独立 item）
-- url/note/sitemap：按字符长度估算
-- 仅用于调度公平与背压，不改变库内 FIFO
 
 ## 处理流水线（统一类型）
 
@@ -178,10 +168,10 @@ export interface KnowledgeScheduler {
 ## 进度与状态
 
 - **单一百分比**：UI 只显示 0–100%，不区分阶段文本
-- **权重合成**：`read+chunk 60%`，`embed+write 40%`（可配置）
+- **权重合成**：`read 60%`，`embed+write 40%`（可配置）
 - **进度读取**：`GET /knowledge-items/:id` 返回 `progress`（仅内存维护，不落库）
 - **阶段映射**：
-  - `read + chunk` → `ItemStatus=preprocessing`
+  - `read` → `ItemStatus=preprocessing`
   - `embed + write` → `ItemStatus=embedding`
   - 完成 → `completed`
   - 中止/错误 → `failed`（记录 error）

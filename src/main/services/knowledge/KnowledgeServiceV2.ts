@@ -163,7 +163,7 @@ class KnowledgeServiceV2 {
    * This is the main entry point for adding any type of content
    */
   public add = async (options: KnowledgeBaseAddItemOptions): Promise<void> => {
-    const { base, item, userId = '', signal, onStageChange } = options
+    const { base, item, userId = '', signal, onStageChange, runStage } = options
     const itemType = item.type as KnowledgeItemType
 
     logger.info(`[KnowledgeV2] Add called: type=${itemType}, base=${base.id}, item=${item.id}`)
@@ -185,7 +185,7 @@ class KnowledgeServiceV2 {
       userId
     }
 
-    await this.processAddTask(context, { signal, onStageChange })
+    await this.processAddTask(context, { signal, onStageChange, runStage })
   }
 
   /**
@@ -193,10 +193,15 @@ class KnowledgeServiceV2 {
    */
   private async processAddTask(
     context: ReaderContext,
-    options: { signal?: AbortSignal; onStageChange?: KnowledgeBaseAddItemOptions['onStageChange'] }
+    options: {
+      signal?: AbortSignal
+      onStageChange?: KnowledgeBaseAddItemOptions['onStageChange']
+      runStage?: KnowledgeBaseAddItemOptions['runStage']
+    }
   ): Promise<void> {
     const { base, item } = context
     const itemType = item.type as KnowledgeItemType
+    const runStage = options.runStage ?? (async (_stage, task) => await task())
 
     try {
       this.throwIfAborted(options.signal, item.id)
@@ -209,7 +214,7 @@ class KnowledgeServiceV2 {
 
       // Read content using appropriate reader
       const reader = getReader(itemType)!
-      const readerResult = await reader.read(context)
+      const readerResult = await runStage('read', async () => await reader.read(context))
 
       if (readerResult.nodes.length === 0) {
         logger.warn(`[KnowledgeV2] No content read for item ${item.id}`)
@@ -221,7 +226,7 @@ class KnowledgeServiceV2 {
 
       // Step 3: Embed nodes
       logger.info(`[KnowledgeV2] Embedding ${readerResult.nodes.length} nodes for item ${item.id}`)
-      const embeddedNodes = await embedNodes(readerResult.nodes, base)
+      const embeddedNodes = await runStage('embed', async () => await embedNodes(readerResult.nodes, base))
       const embeddedDimensions = embeddedNodes[0]?.getEmbedding()?.length ?? 0
       logger.debug('[KnowledgeV2] Embedding dimensions resolved', {
         baseId: base.id,
@@ -233,7 +238,7 @@ class KnowledgeServiceV2 {
 
       // Step 4: Store in vector database
       const store = this.ensureStore(base)
-      const insertedIds = await store.add(embeddedNodes)
+      const insertedIds = await runStage('write', async () => await store.add(embeddedNodes))
       logger.info(`[KnowledgeV2] Add completed: item=${item.id}, nodes=${insertedIds.length}`)
 
       return

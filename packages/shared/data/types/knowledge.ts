@@ -82,6 +82,7 @@ export interface KnowledgeItem {
   data: KnowledgeItemData
   status: ItemStatus
   error?: string | null
+  progress?: number
   createdAt: string
   updatedAt: string
 }

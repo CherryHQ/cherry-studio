@@ -67,12 +67,23 @@ export interface ContentReader {
  */
 export type KnowledgeProcessingStage = 'preprocessing' | 'embedding'
 
+/**
+ * Stages for knowledge queue processing.
+ * - read: Reading content from source (file, URL, etc.)
+ * - embed: Generating embeddings for content nodes
+ * - write: Writing embedded nodes to vector store
+ */
+export type KnowledgeQueueStage = 'read' | 'embed' | 'write'
+
+export type KnowledgeStageRunner = <T>(stage: KnowledgeQueueStage, task: () => Promise<T>) => Promise<T>
+
 export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBase
   item: KnowledgeItem
   userId?: string
   signal?: AbortSignal
   onStageChange?: (stage: KnowledgeProcessingStage) => void
+  runStage?: KnowledgeStageRunner
 }
 
 /**
