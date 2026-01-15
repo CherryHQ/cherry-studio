@@ -108,6 +108,39 @@ export interface KnowledgeSearchRequest {
 }
 
 // ============================================================================
+// Queue Status Types
+// ============================================================================
+
+/**
+ * Queue status for a knowledge base.
+ * Used to detect and handle orphan tasks (tasks stuck after app crash).
+ */
+export interface BaseQueueStatus {
+  /** IDs of orphan items (stuck in incomplete status but not in active queue) */
+  orphanItemIds: string[]
+  /** IDs of items currently in the active queue */
+  activeItemIds: string[]
+  /** Number of items pending in the queue */
+  pendingCount: number
+}
+
+/**
+ * Response for recovering orphan tasks.
+ */
+export interface RecoverResponse {
+  /** Number of tasks successfully recovered */
+  recoveredCount: number
+}
+
+/**
+ * Response for ignoring orphan tasks.
+ */
+export interface IgnoreResponse {
+  /** Number of tasks marked as failed */
+  ignoredCount: number
+}
+
+// ============================================================================
 // API Schema Definitions
 // ============================================================================
 
@@ -229,6 +262,42 @@ export interface KnowledgeSchemas {
       params: { id: string }
       query?: KnowledgeSearchRequest
       response: KnowledgeSearchResult[]
+    }
+  }
+
+  /**
+   * Queue status endpoint for monitoring and orphan task detection
+   * @example GET /knowledge-bases/kb123/queue
+   */
+  '/knowledge-bases/:id/queue': {
+    /** Get queue status including orphan tasks */
+    GET: {
+      params: { id: string }
+      response: BaseQueueStatus
+    }
+  }
+
+  /**
+   * Recover orphan tasks by re-enqueueing them
+   * @example POST /knowledge-bases/kb123/queue/recover
+   */
+  '/knowledge-bases/:id/queue/recover': {
+    /** Recover orphan tasks for a knowledge base */
+    POST: {
+      params: { id: string }
+      response: RecoverResponse
+    }
+  }
+
+  /**
+   * Ignore orphan tasks by marking them as failed
+   * @example POST /knowledge-bases/kb123/queue/ignore
+   */
+  '/knowledge-bases/:id/queue/ignore': {
+    /** Ignore orphan tasks (mark as failed) */
+    POST: {
+      params: { id: string }
+      response: IgnoreResponse
     }
   }
 }

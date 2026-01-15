@@ -78,5 +78,23 @@ export const knowledgeHandlers: {
     GET: async ({ params, query }) => {
       return await knowledgeBaseService.search(params.id, query)
     }
+  },
+
+  '/knowledge-bases/:id/queue': {
+    GET: async ({ params }) => {
+      return await knowledgeItemService.getQueueStatus(params.id)
+    }
+  },
+
+  '/knowledge-bases/:id/queue/recover': {
+    POST: async ({ params }) => {
+      return await knowledgeItemService.recoverOrphans(params.id)
+    }
+  },
+
+  '/knowledge-bases/:id/queue/ignore': {
+    POST: async ({ params }) => {
+      return await knowledgeItemService.ignoreOrphans(params.id)
+    }
   }
 }

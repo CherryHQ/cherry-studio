@@ -12,9 +12,15 @@ import { loggerService } from '@logger'
 import { knowledgeServiceV2 } from '@main/services/knowledge/KnowledgeServiceV2'
 import { type KnowledgeJob, knowledgeQueueManager } from '@main/services/knowledge/queue'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { CreateKnowledgeItemsDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
+import type {
+  BaseQueueStatus,
+  CreateKnowledgeItemsDto,
+  IgnoreResponse,
+  RecoverResponse,
+  UpdateKnowledgeItemDto
+} from '@shared/data/api/schemas/knowledges'
 import type { ItemStatus, KnowledgeBase, KnowledgeItem, KnowledgeItemData } from '@shared/data/types/knowledge'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 
@@ -182,6 +188,91 @@ export class KnowledgeItemService {
     await db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
 
     logger.info('Deleted knowledge item', { id })
+  }
+
+  /**
+   * Get orphan items for a knowledge base.
+   * Orphans = items with incomplete status that are NOT in the active queue.
+   */
+  async getOrphanItems(baseId: string): Promise<KnowledgeItem[]> {
+    const db = dbService.getDb()
+    const incompleteStatuses: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
+
+    const rows = await db
+      .select()
+      .from(knowledgeItemTable)
+      .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.status, incompleteStatuses)))
+
+    // Filter out items that are actually in the queue
+    return rows
+      .filter((row) => !knowledgeQueueManager.isQueued(row.id) && !knowledgeQueueManager.isProcessing(row.id))
+      .map(rowToKnowledgeItem)
+  }
+
+  /**
+   * Get queue status for a knowledge base.
+   */
+  async getQueueStatus(baseId: string): Promise<BaseQueueStatus> {
+    // Validate base exists
+    await knowledgeBaseService.getById(baseId)
+
+    const orphanItems = await this.getOrphanItems(baseId)
+    const allItems = await this.list(baseId)
+
+    const activeItemIds = allItems
+      .filter((item) => knowledgeQueueManager.isQueued(item.id) || knowledgeQueueManager.isProcessing(item.id))
+      .map((item) => item.id)
+
+    const queueStatus = knowledgeQueueManager.getStatus()
+    const pendingCount = queueStatus.perBaseQueue[baseId] ?? 0
+
+    return {
+      orphanItemIds: orphanItems.map((item) => item.id),
+      activeItemIds,
+      pendingCount
+    }
+  }
+
+  /**
+   * Recover orphan items by re-enqueueing them.
+   */
+  async recoverOrphans(baseId: string): Promise<RecoverResponse> {
+    const orphanItems = await this.getOrphanItems(baseId)
+    const base = await knowledgeBaseService.getById(baseId)
+
+    for (const item of orphanItems) {
+      // Reset status and re-enqueue
+      await this.updateItemStatus(item.id, 'pending', null)
+      knowledgeQueueManager.clearProgress(item.id)
+      await this.removeItemVectors(base, item)
+      await this.processItem(base, { ...item, status: 'pending', error: undefined })
+    }
+
+    logger.info('Recovered orphan items', { baseId, count: orphanItems.length })
+    return { recoveredCount: orphanItems.length }
+  }
+
+  /**
+   * Ignore orphan items by marking them as failed.
+   */
+  async ignoreOrphans(baseId: string): Promise<IgnoreResponse> {
+    // Validate base exists
+    await knowledgeBaseService.getById(baseId)
+
+    const orphanItems = await this.getOrphanItems(baseId)
+
+    if (orphanItems.length > 0) {
+      const db = dbService.getDb()
+      const orphanIds = orphanItems.map((item) => item.id)
+
+      await db
+        .update(knowledgeItemTable)
+        .set({ status: 'failed', error: 'Task interrupted' })
+        .where(inArray(knowledgeItemTable.id, orphanIds))
+    }
+
+    logger.info('Ignored orphan items', { baseId, count: orphanItems.length })
+    return { ignoredCount: orphanItems.length }
   }
 
   private async processItem(base: KnowledgeBase, item: KnowledgeItem): Promise<void> {

@@ -9,7 +9,7 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
-import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { BaseQueueStatus, CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { ItemStatus, KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -27,6 +27,9 @@ type KnowledgeBasePath = `/knowledge-bases/${string}`
 
 /** API path type for single knowledge item */
 type KnowledgeItemPath = `/knowledge-items/${string}`
+
+/** API path type for queue status */
+type KnowledgeQueuePath = `/knowledge-bases/${string}/queue`
 
 /**
  * Hook for fetching knowledge items with smart polling.
@@ -144,6 +147,54 @@ export function useKnowledgeBase(
     refetch,
     /** SWR mutate for advanced cache control */
     mutate
+  }
+}
+
+/**
+ * Hook for fetching queue status of a knowledge base.
+ *
+ * Used to detect orphan tasks (tasks stuck after app crash).
+ *
+ * @param baseId - The knowledge base ID to check queue status for
+ * @param options - Optional configuration
+ * @param options.enabled - Set to false to disable fetching (default: true)
+ * @returns Query result with queue status and orphan detection
+ *
+ * @example
+ * ```typescript
+ * const { hasOrphans, orphanCount, refetch } = useKnowledgeQueueStatus(baseId)
+ *
+ * if (hasOrphans) {
+ *   return <RecoverButton count={orphanCount} />
+ * }
+ * ```
+ */
+export function useKnowledgeQueueStatus(
+  baseId: string,
+  options?: {
+    /** Set to false to disable fetching (default: true) */
+    enabled?: boolean
+  }
+) {
+  const enabled = options?.enabled !== false && !!baseId
+  const path: KnowledgeQueuePath = `/knowledge-bases/${baseId}/queue`
+
+  const { data, isLoading, error, refetch } = useQuery(path, { enabled })
+  const queueStatus = data as BaseQueueStatus | undefined
+
+  return {
+    /** Queue status data */
+    queueStatus,
+    /** True if there are orphan items */
+    hasOrphans: (queueStatus?.orphanItemIds?.length ?? 0) > 0,
+    /** Number of orphan items */
+    orphanCount: queueStatus?.orphanItemIds?.length ?? 0,
+    /** True during initial load */
+    isLoading,
+    /** Error if the request failed */
+    error,
+    /** Manually trigger a refresh */
+    refetch
   }
 }
 

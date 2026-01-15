@@ -2,7 +2,8 @@ import { RedoOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { useKnowledgeBase, useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useKnowledgeBase, useKnowledgeItems, useKnowledgeQueueStatus } from '@renderer/data/hooks/useKnowledges'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
@@ -64,6 +65,53 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
       logger.error('Migration failed:', error as Error)
     }
   }, [base, t])
+
+  // Queue status for orphan task detection
+  const {
+    hasOrphans,
+    orphanCount,
+    refetch: refetchQueue
+  } = useKnowledgeQueueStatus(selectedBaseId, {
+    enabled: !!selectedBaseId
+  })
+
+  const { trigger: recoverOrphans, isLoading: isRecovering } = useMutation(
+    'POST',
+    `/knowledge-bases/${selectedBaseId}/queue/recover`,
+    {
+      refresh: [`/knowledge-bases/${selectedBaseId}/items`]
+    }
+  )
+
+  const { trigger: ignoreOrphans, isLoading: isIgnoring } = useMutation(
+    'POST',
+    `/knowledge-bases/${selectedBaseId}/queue/ignore`,
+    {
+      refresh: [`/knowledge-bases/${selectedBaseId}/items`]
+    }
+  )
+
+  const handleRecover = useCallback(async () => {
+    try {
+      const result = await recoverOrphans({})
+      await refetchQueue()
+      window.toast.success(t('knowledge.orphan_recovered', { count: result.recoveredCount }))
+    } catch (error) {
+      window.toast.error(t('knowledge.orphan_recover_failed'))
+      logger.error('Recover orphans failed:', error as Error)
+    }
+  }, [recoverOrphans, refetchQueue, t])
+
+  const handleIgnore = useCallback(async () => {
+    try {
+      const result = await ignoreOrphans({})
+      await refetchQueue()
+      window.toast.info(t('knowledge.orphan_ignored', { count: result.ignoredCount }))
+    } catch (error) {
+      window.toast.error(t('knowledge.orphan_ignore_failed'))
+      logger.error('Ignore orphans failed:', error as Error)
+    }
+  }, [ignoreOrphans, refetchQueue, t])
 
   useEffect(() => {
     const handlers = [
@@ -179,6 +227,17 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
           </div>
         </ModelInfo>
         <RowFlex className="items-center gap-2">
+          {hasOrphans && (
+            <>
+              <Button variant="outline" size="sm" onClick={handleRecover} disabled={isRecovering || isIgnoring}>
+                <RefreshCw size={14} className={isRecovering ? 'animate-spin' : ''} />
+                {t('knowledge.recover_orphans', { count: orphanCount })}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleIgnore} disabled={isRecovering || isIgnoring}>
+                {t('knowledge.ignore_orphans')}
+              </Button>
+            </>
+          )}
           {base.version === 1 && (
             <Button variant="outline" size="sm" onClick={handleMigrateV2}>
               <RefreshCw size={14} />
