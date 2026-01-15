@@ -22,7 +22,7 @@ import type { VectorStoreQueryResult } from '@vectorstores/core'
 import { MetadataMode } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
-import Embeddings from './embedjs/embeddings/Embeddings'
+import Embeddings from './embeddings'
 import type { ResolvedKnowledgeBase } from './KnowledgeProviderAdapter'
 import { knowledgeProviderAdapter } from './KnowledgeProviderAdapter'
 import Reranker from './reranker/Reranker'

@@ -1,14 +1,17 @@
 import { loggerService } from '@logger'
 import { TraceMethod } from '@mcp-trace/trace-core'
-import type { ApiClient } from '@types'
 import { embed, type EmbeddingModel, embedMany } from 'ai'
 
-import type { EmbeddingProvider, EmbeddingProviderOptions } from './EmbeddingProviders'
-import { resolveEmbeddingProvider } from './EmbeddingProviders'
+import { resolveEmbeddingProvider } from './registry'
+import type { EmbeddingProvider, EmbeddingProviderOptions, EmbeddingsConfig } from './types'
 
 const logger = loggerService.withContext('Embeddings')
 const DEFAULT_BATCH_SIZE = 10
 
+/**
+ * Main embedding class for generating vector embeddings
+ * Public API remains unchanged for backward compatibility
+ */
 export default class Embeddings {
   private readonly model: EmbeddingModel<string>
   private readonly dimensions?: number
@@ -17,13 +20,14 @@ export default class Embeddings {
   private readonly provider: EmbeddingProvider
   private resolvedDimensions?: number
 
-  constructor({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }) {
+  constructor({ embedApiClient, dimensions }: EmbeddingsConfig) {
     this.dimensions = dimensions
     this.providerId = embedApiClient.provider
     this.modelId = embedApiClient.model
     this.provider = resolveEmbeddingProvider(embedApiClient)
     this.model = this.provider.createModel(embedApiClient)
   }
+
   public async init(): Promise<void> {
     return
   }

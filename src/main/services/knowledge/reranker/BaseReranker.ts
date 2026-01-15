@@ -1,30 +1,33 @@
+// Import providers to trigger auto-registration
+import './providers'
+
 import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 
 import type { ResolvedKnowledgeBase } from '../KnowledgeProviderAdapter'
 import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '../utils/knowledge'
-import type { MultiModalDocument, RerankStrategy } from './strategies/RerankStrategy'
-import { StrategyFactory } from './strategies/StrategyFactory'
+import { resolveRerankProvider } from './registry'
+import type { MultiModalDocument, RerankProvider, RerankResultItem } from './types'
 
 export default abstract class BaseReranker {
   protected base: ResolvedKnowledgeBase
-  protected strategy: RerankStrategy
+  protected provider: RerankProvider
 
   constructor(base: ResolvedKnowledgeBase) {
     if (!base.rerankApiClient) {
       throw new Error('Rerank model is required')
     }
     this.base = base
-    this.strategy = StrategyFactory.createStrategy(base.rerankApiClient.provider)
+    this.provider = resolveRerankProvider(base.rerankApiClient.provider)
   }
   abstract rerank(query: string, searchResults: KnowledgeSearchResult[]): Promise<KnowledgeSearchResult[]>
   protected getRerankUrl(): string {
-    return this.strategy.buildUrl(this.base.rerankApiClient?.baseURL)
+    return this.provider.buildUrl(this.base.rerankApiClient?.baseURL)
   }
   protected getRerankRequestBody(query: string, searchResults: KnowledgeSearchResult[]) {
     const documents = this.buildDocuments(searchResults)
     const topN = this.base.documentCount ?? DEFAULT_DOCUMENT_COUNT
     const model = this.base.rerankApiClient?.model
-    return this.strategy.buildRequestBody(query, documents, topN, model)
+    return this.provider.buildRequestBody(query, documents, topN, model)
   }
   private buildDocuments(searchResults: KnowledgeSearchResult[]): MultiModalDocument[] {
     return searchResults.map((doc) => {
@@ -40,8 +43,8 @@ export default abstract class BaseReranker {
       return document
     })
   }
-  protected extractRerankResult(data: any) {
-    return this.strategy.extractResults(data)
+  protected extractRerankResult(data: unknown) {
+    return this.provider.extractResults(data)
   }
 
   /**
@@ -50,10 +53,7 @@ export default abstract class BaseReranker {
    * @param rerankResults
    * @protected
    */
-  protected getRerankResult(
-    searchResults: KnowledgeSearchResult[],
-    rerankResults: Array<{ index: number; relevance_score: number }>
-  ) {
+  protected getRerankResult(searchResults: KnowledgeSearchResult[], rerankResults: RerankResultItem[]) {
     const resultMap = new Map(
       rerankResults.map((result) => [result.index, result.relevance_score || DEFAULT_RELEVANT_SCORE])
     )
@@ -75,13 +75,17 @@ export default abstract class BaseReranker {
       'Content-Type': 'application/json'
     }
   }
-  protected formatErrorMessage(url: string, error: any, requestBody: any) {
+  protected formatErrorMessage(
+    url: string,
+    error: Error & { response?: { status: number; statusText: string; body?: unknown } },
+    requestBody: unknown
+  ) {
     const errorDetails = {
       url: url,
       message: error.message,
       status: error.response?.status,
       statusText: error.response?.statusText,
-      responseBody: error.response?.body, // Include the actual API error response
+      responseBody: error.response?.body,
       requestBody: requestBody
     }
     return JSON.stringify(errorDetails, null, 2)

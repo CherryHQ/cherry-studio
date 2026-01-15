@@ -2,7 +2,7 @@ import type { Client } from '@libsql/client'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { DATA_PATH } from '@main/config'
-import Embeddings from '@main/services/knowledge/embedjs/embeddings/Embeddings'
+import Embeddings from '@main/services/knowledge/embeddings'
 import { makeSureDirExists } from '@main/utils'
 import type {
   AddMemoryOptions,
