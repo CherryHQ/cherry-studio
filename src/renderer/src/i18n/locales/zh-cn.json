@@ -4219,9 +4219,6 @@
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
     },
-    "mineru": {
-      "api_key": "MinerU现在提供每日500页的免费额度，您不需要填写密钥。"
-    },
     "miniapps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
       "cache_description": "设置同时保持活跃状态的小程序最大数量",
