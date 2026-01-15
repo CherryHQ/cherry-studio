@@ -81,7 +81,7 @@ export const builtinTools: Tool[] = [
     description: 'Runs a sub-agent to handle complex, multi-step tasks',
     requirePermissions: false,
     type: 'builtin',
-    supportedEnvironments: ELECTRON_ONLY // Sub-agents depend on filesystem tools
+    supportedEnvironments: ALL_ENVIRONMENTS // Sub-agents can use browser-compatible tools
   },
   {
     id: 'Write',
