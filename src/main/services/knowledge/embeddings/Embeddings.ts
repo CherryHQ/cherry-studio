@@ -46,14 +46,21 @@ export default class Embeddings {
   }
 
   @TraceMethod({ spanName: 'embedDocuments', tag: 'Embeddings' })
-  public async embedDocuments(texts: string[]): Promise<number[][]> {
+  public async embedDocuments(texts: string[], onProgress?: (progress: number) => void): Promise<number[][]> {
     if (texts.length === 0) {
       return []
     }
     const vectors: number[][] = []
     const providerOptions = this.buildProviderOptions()
+    const totalBatches = Math.ceil(texts.length / DEFAULT_BATCH_SIZE)
+    logger.debug(`[Embeddings] Starting embedDocuments: ${texts.length} texts in ${totalBatches} batches`)
+
     for (let i = 0; i < texts.length; i += DEFAULT_BATCH_SIZE) {
+      const batchIndex = Math.floor(i / DEFAULT_BATCH_SIZE) + 1
       const batch = texts.slice(i, i + DEFAULT_BATCH_SIZE)
+      const batchStartTime = Date.now()
+      logger.debug(`[Embeddings] [BATCH ${batchIndex}/${totalBatches}] Starting, size: ${batch.length}`)
+
       try {
         const result = await embedMany({
           model: this.model,
@@ -61,8 +68,16 @@ export default class Embeddings {
           providerOptions
         })
         vectors.push(...result.embeddings)
+
+        const batchDuration = Date.now() - batchStartTime
+        logger.debug(`[Embeddings] [BATCH ${batchIndex}/${totalBatches}] Completed in ${batchDuration}ms`)
+
+        // Report progress after each batch (0-100 range for embedding phase)
+        const progress = Math.round((vectors.length / texts.length) * 100)
+        onProgress?.(progress)
       } catch (error) {
-        logger.error('Embedding documents failed', {
+        const batchDuration = Date.now() - batchStartTime
+        logger.error(`[Embeddings] [BATCH ${batchIndex}/${totalBatches}] Failed after ${batchDuration}ms`, {
           provider: this.providerId,
           model: this.modelId,
           batchStart: i,
@@ -72,6 +87,7 @@ export default class Embeddings {
         throw new Error('Embedding documents failed', { cause: error })
       }
     }
+    logger.debug(`[Embeddings] embedDocuments completed: ${vectors.length} vectors`)
     return vectors
   }
 

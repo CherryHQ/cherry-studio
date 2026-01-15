@@ -83,6 +83,7 @@ export interface KnowledgeBaseAddItemOptions {
   userId?: string
   signal?: AbortSignal
   onStageChange?: (stage: KnowledgeProcessingStage) => void
+  onProgress?: (stage: KnowledgeProcessingStage, progress: number) => void
   runStage?: KnowledgeStageRunner
 }
 

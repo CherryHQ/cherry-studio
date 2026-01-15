@@ -219,9 +219,10 @@ export class KnowledgeItemService {
 
           const handleStageChange = async (stage: 'preprocessing' | 'embedding') => {
             await updateStatus(stage, null)
-            if (stage === 'embedding') {
-              updateItemProgress(60, { immediate: true })
-            }
+          }
+
+          const handleProgress = (_stage: 'preprocessing' | 'embedding', progress: number) => {
+            updateItemProgress(progress, { immediate: true })
           }
 
           try {
@@ -230,6 +231,7 @@ export class KnowledgeItemService {
               item,
               signal,
               onStageChange: handleStageChange,
+              onProgress: handleProgress,
               runStage
             })
             await updateStatus('completed', null)

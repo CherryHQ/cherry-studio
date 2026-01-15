@@ -1,6 +1,5 @@
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import type { KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
 import { Progress } from 'antd'
 import type { FC } from 'react'
@@ -8,7 +7,6 @@ import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const logger = loggerService.withContext('StatusIcon')
 interface StatusIconProps {
   sourceId: string
   type: string
@@ -17,13 +15,13 @@ interface StatusIconProps {
   item?: KnowledgeItemV2
 }
 
-const StatusIcon: FC<StatusIconProps> = ({ sourceId, type, progress = 0, isPreprocessed, item }) => {
+const StatusIcon: FC<StatusIconProps> = ({ type, progress: propProgress, isPreprocessed, item }) => {
   const { t } = useTranslation()
   const status = item?.status
   const errorText = item?.error
   const resolvedType = item?.type ?? type
-  const resolvedId = item?.id ?? sourceId
-  logger.debug(`[StatusIcon] Rendering for item: ${resolvedId} Status: ${status} Progress: ${progress}`)
+  // Use item.progress if available, otherwise fall back to the prop
+  const progress = item?.progress ?? propProgress ?? 0
 
   return useMemo(() => {
     if (!status || status === 'idle') {
@@ -44,11 +42,17 @@ const StatusIcon: FC<StatusIconProps> = ({ sourceId, type, progress = 0, isPrepr
 
       case 'preprocessing':
       case 'embedding': {
+        const strokeColor = status === 'preprocessing' ? '#faad14' : '#1890ff' // 黄色 vs 蓝色
+        const tooltipContent =
+          status === 'preprocessing' ? t('knowledge.status_preprocessing') : t('knowledge.status_embedding')
+
         return resolvedType === 'directory' || resolvedType === 'file' ? (
-          <Progress type="circle" size={14} percent={Number(progress?.toFixed(0))} />
+          <Tooltip placement="left" content={`${tooltipContent} ${progress}%`}>
+            <Progress type="circle" size={14} percent={Number(progress?.toFixed(0))} strokeColor={strokeColor} />
+          </Tooltip>
         ) : (
-          <Tooltip placement="left" content={t('knowledge.status_processing')}>
-            <StatusDot $status="processing" />
+          <Tooltip placement="left" content={tooltipContent}>
+            <StatusDot $status={status === 'preprocessing' ? 'pending' : 'processing'} />
           </Tooltip>
         )
       }
@@ -106,6 +110,7 @@ export default React.memo(StatusIcon, (prevProps, nextProps) => {
     prevProps.progress === nextProps.progress &&
     prevProps.isPreprocessed === nextProps.isPreprocessed &&
     prevProps.item?.status === nextProps.item?.status &&
-    prevProps.item?.error === nextProps.item?.error
+    prevProps.item?.error === nextProps.item?.error &&
+    prevProps.item?.progress === nextProps.item?.progress
   )
 })

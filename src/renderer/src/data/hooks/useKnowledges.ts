@@ -11,13 +11,13 @@ import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { ItemStatus, KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 /** Status values that indicate an item is still being processed */
 const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
 
 /** Polling interval in milliseconds when items are processing */
-const PROCESSING_POLL_INTERVAL = 500
+const PROCESSING_POLL_INTERVAL = 1000
 
 /** API path type for knowledge base items */
 type KnowledgeBaseItemsPath = `/knowledge-bases/${string}/items`
@@ -65,37 +65,33 @@ export function useKnowledgeItems(
   const enabled = options?.enabled !== false && !!baseId
   const path: KnowledgeBaseItemsPath = `/knowledge-bases/${baseId}/items`
 
-  // Fetch knowledge items
+  // Track if we have processing items (use state to persist across renders)
+  const [hasProcessingItems, setHasProcessingItems] = useState(false)
+
+  // Single query with conditional polling
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
-    enabled
+    enabled,
+    swrOptions: {
+      // Only poll when we have processing items
+      refreshInterval: hasProcessingItems ? PROCESSING_POLL_INTERVAL : 0,
+      dedupingInterval: PROCESSING_POLL_INTERVAL
+    }
   })
 
   // Memoize items extraction to avoid creating new array on every render
   const items = useMemo<KnowledgeItem[]>(() => (data as KnowledgeItem[] | undefined) ?? [], [data])
 
-  // Check if any items are still being processed
-  const hasProcessingItems = useMemo(() => items.some((item) => PROCESSING_STATUSES.includes(item.status)), [items])
-
-  // Use a second query with polling when items are processing
-  // This is a pattern recommended in the DataApi documentation
-  const { data: polledData } = useQuery(path, {
-    enabled: enabled && hasProcessingItems,
-    swrOptions: {
-      refreshInterval: PROCESSING_POLL_INTERVAL
-    }
-  })
-
-  // Use polled data when available and processing
-  const currentItems = useMemo<KnowledgeItem[]>(
-    () => (hasProcessingItems ? ((polledData as KnowledgeItem[] | undefined) ?? items) : items),
-    [hasProcessingItems, polledData, items]
-  )
+  // Update processing state when items change
+  useEffect(() => {
+    const processing = items.some((item) => PROCESSING_STATUSES.includes(item.status))
+    setHasProcessingItems(processing)
+  }, [items])
 
   return {
     /** Knowledge items with latest status */
-    items: currentItems,
+    items,
     /** Total number of items */
-    total: currentItems.length,
+    total: items.length,
     /** True during initial load */
     isLoading,
     /** True during background revalidation */
@@ -178,35 +174,36 @@ export function useKnowledgeItem(
   const enabled = options?.enabled !== false && !!itemId
   const path: KnowledgeItemPath = `/knowledge-items/${itemId}`
 
-  // Fetch single item
+  // Track if item is processing (use state to persist across renders)
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  // Single query with conditional polling
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
-    enabled
-  })
-
-  const item = data as KnowledgeItem | undefined
-  const status = item?.status ?? 'idle'
-  const isProcessing = PROCESSING_STATUSES.includes(status)
-
-  // Poll when item is processing
-  const { data: polledData } = useQuery(path, {
-    enabled: enabled && isProcessing,
+    enabled,
     swrOptions: {
-      refreshInterval: PROCESSING_POLL_INTERVAL
+      // Only poll when item is processing
+      refreshInterval: isProcessing ? PROCESSING_POLL_INTERVAL : 0
     }
   })
 
-  // Use polled data when processing
-  const currentItem = isProcessing ? ((polledData as KnowledgeItem | undefined) ?? item) : item
+  const item = data as KnowledgeItem | undefined
+
+  // Update processing state when item changes
+  useEffect(() => {
+    const status = item?.status ?? 'idle'
+    const processing = PROCESSING_STATUSES.includes(status)
+    setIsProcessing(processing)
+  }, [item])
 
   return {
     /** Knowledge item with latest status */
-    item: currentItem,
+    item,
     /** Current processing status */
-    status: currentItem?.status ?? 'idle',
+    status: item?.status ?? 'idle',
     /** True if item is being processed */
-    isProcessing: PROCESSING_STATUSES.includes(currentItem?.status ?? 'idle'),
+    isProcessing,
     /** Error message if processing failed */
-    processingError: currentItem?.error,
+    processingError: item?.error,
     /** True during initial load */
     isLoading,
     /** True during background revalidation */

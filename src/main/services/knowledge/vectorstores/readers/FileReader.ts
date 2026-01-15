@@ -76,8 +76,9 @@ export class FileReader implements ContentReader {
     const ext = file.ext.toLowerCase()
 
     const uniqueId = `FileReader_${md5(file.path)}`
+    const totalStartTime = Date.now()
 
-    logger.debug(`Reading file ${file.path} (ext: ${ext}) for item ${itemId}`)
+    logger.debug(`[FileReader] Starting read for ${file.path} (ext: ${ext})`)
 
     if (!fs.existsSync(file.path)) {
       logger.warn(`File not found: ${file.path}`)
@@ -93,13 +94,19 @@ export class FileReader implements ContentReader {
     const chunkOverlap = base.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
 
     try {
+      const loadStartTime = Date.now()
       const documents = await this.readDocuments(file, config)
+      const loadDuration = Date.now() - loadStartTime
+      logger.debug(`[FileReader] [LOAD] Completed in ${loadDuration}ms, documents: ${documents.length}`)
 
       // Split documents into chunks using configured splitter
+      const splitStartTime = Date.now()
       const nodes =
         config.splitter === 'markdown'
           ? new MarkdownNodeParser().getNodesFromDocuments(documents)
           : TextChunkSplitter(documents, { chunkSize, chunkOverlap })
+      const splitDuration = Date.now() - splitStartTime
+      logger.debug(`[FileReader] [SPLIT] Completed in ${splitDuration}ms, nodes: ${nodes.length}`)
 
       // Add external_id and source to all nodes
       nodes.forEach((node) => {
@@ -111,7 +118,10 @@ export class FileReader implements ContentReader {
         }
       })
 
-      logger.debug(`File ${file.path} read with ${nodes.length} chunks`)
+      const totalDuration = Date.now() - totalStartTime
+      logger.debug(
+        `[FileReader] Read completed in ${totalDuration}ms (load: ${loadDuration}ms, split: ${splitDuration}ms), nodes: ${nodes.length}`
+      )
 
       return {
         nodes,
@@ -119,7 +129,8 @@ export class FileReader implements ContentReader {
         readerType: 'FileReader'
       }
     } catch (error) {
-      logger.error(`Failed to read file ${file.path}:`, error as Error)
+      const totalDuration = Date.now() - totalStartTime
+      logger.error(`[FileReader] Failed to read file ${file.path} after ${totalDuration}ms:`, error as Error)
       throw error
     }
   }

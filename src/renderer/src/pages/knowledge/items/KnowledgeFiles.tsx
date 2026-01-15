@@ -59,8 +59,6 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
 
   const { fileItems: v2FileItems, addFiles, deleteItem, refreshItem } = useKnowledgeFiles(selectedBase.id || '')
 
-  console.log('KnowledgeFiles render', { v2FileItems })
-
   const reversedItems = useMemo(() => [...v2FileItems].reverse(), [v2FileItems])
 
   useEffect(() => {

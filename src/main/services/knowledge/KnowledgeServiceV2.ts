@@ -163,7 +163,7 @@ class KnowledgeServiceV2 {
    * This is the main entry point for adding any type of content
    */
   public add = async (options: KnowledgeBaseAddItemOptions): Promise<void> => {
-    const { base, item, userId = '', signal, onStageChange, runStage } = options
+    const { base, item, userId = '', signal, onStageChange, onProgress, runStage } = options
     const itemType = item.type as KnowledgeItemType
 
     logger.info(`[KnowledgeV2] Add called: type=${itemType}, base=${base.id}, item=${item.id}`)
@@ -185,7 +185,7 @@ class KnowledgeServiceV2 {
       userId
     }
 
-    await this.processAddTask(context, { signal, onStageChange, runStage })
+    await this.processAddTask(context, { signal, onStageChange, onProgress, runStage })
   }
 
   /**
@@ -196,6 +196,7 @@ class KnowledgeServiceV2 {
     options: {
       signal?: AbortSignal
       onStageChange?: KnowledgeBaseAddItemOptions['onStageChange']
+      onProgress?: KnowledgeBaseAddItemOptions['onProgress']
       runStage?: KnowledgeBaseAddItemOptions['runStage']
     }
   ): Promise<void> {
@@ -203,18 +204,20 @@ class KnowledgeServiceV2 {
     const itemType = item.type as KnowledgeItemType
     const runStage = options.runStage ?? (async (_stage, task) => await task())
 
+    const totalStartTime = Date.now()
+    logger.info(`[KnowledgeV2] Processing started for item ${item.id}`)
+
     try {
       this.throwIfAborted(options.signal, item.id)
       options.onStageChange?.('preprocessing')
-      // TODO: Preprocessing integration point
-      // When PreprocessingService is ready, call it here for PDF files:
-      // if (itemType === 'file') {
-      //   processedItem = await preprocessingService.preprocessIfNeeded(item, base, userId)
-      // }
 
-      // Read content using appropriate reader
+      // Step 1: Read content using appropriate reader
+      const readStartTime = Date.now()
+      logger.debug(`[KnowledgeV2] [READ] Starting for item ${item.id}`)
       const reader = getReader(itemType)!
       const readerResult = await runStage('read', async () => await reader.read(context))
+      const readDuration = Date.now() - readStartTime
+      logger.debug(`[KnowledgeV2] [READ] Completed in ${readDuration}ms, nodes: ${readerResult.nodes.length}`)
 
       if (readerResult.nodes.length === 0) {
         logger.warn(`[KnowledgeV2] No content read for item ${item.id}`)
@@ -224,9 +227,22 @@ class KnowledgeServiceV2 {
       this.throwIfAborted(options.signal, item.id)
       options.onStageChange?.('embedding')
 
-      // Step 3: Embed nodes
-      logger.info(`[KnowledgeV2] Embedding ${readerResult.nodes.length} nodes for item ${item.id}`)
-      const embeddedNodes = await runStage('embed', async () => await embedNodes(readerResult.nodes, base))
+      // Step 2: Embed nodes with progress reporting
+      const embedStartTime = Date.now()
+      logger.debug(`[KnowledgeV2] [EMBED] Starting for item ${item.id}, nodes: ${readerResult.nodes.length}`)
+
+      // Wrap progress callback to include stage
+      const handleEmbedProgress = options.onProgress
+        ? (progress: number) => options.onProgress!('embedding', progress)
+        : undefined
+
+      const embeddedNodes = await runStage(
+        'embed',
+        async () => await embedNodes(readerResult.nodes, base, handleEmbedProgress)
+      )
+      const embedDuration = Date.now() - embedStartTime
+      logger.debug(`[KnowledgeV2] [EMBED] Completed in ${embedDuration}ms`)
+
       const embeddedDimensions = embeddedNodes[0]?.getEmbedding()?.length ?? 0
       logger.debug('[KnowledgeV2] Embedding dimensions resolved', {
         baseId: base.id,
@@ -236,14 +252,27 @@ class KnowledgeServiceV2 {
 
       this.throwIfAborted(options.signal, item.id)
 
-      // Step 4: Store in vector database
+      // Step 3: Store in vector database
+      const writeStartTime = Date.now()
+      logger.debug(`[KnowledgeV2] [WRITE] Starting for item ${item.id}`)
       const store = this.ensureStore(base)
       const insertedIds = await runStage('write', async () => await store.add(embeddedNodes))
-      logger.info(`[KnowledgeV2] Add completed: item=${item.id}, nodes=${insertedIds.length}`)
+      const writeDuration = Date.now() - writeStartTime
+      logger.debug(`[KnowledgeV2] [WRITE] Completed in ${writeDuration}ms, inserted: ${insertedIds.length}`)
+
+      const totalDuration = Date.now() - totalStartTime
+      logger.info(
+        `[KnowledgeV2] Processing completed for item ${item.id} in ${totalDuration}ms ` +
+          `(read: ${readDuration}ms, embed: ${embedDuration}ms, write: ${writeDuration}ms)`
+      )
 
       return
     } catch (error) {
-      logger.error(`[KnowledgeV2] Process add task failed for item ${item.id}:`, error as Error)
+      const totalDuration = Date.now() - totalStartTime
+      logger.error(
+        `[KnowledgeV2] Process add task failed for item ${item.id} after ${totalDuration}ms:`,
+        error as Error
+      )
       throw error
     }
   }
