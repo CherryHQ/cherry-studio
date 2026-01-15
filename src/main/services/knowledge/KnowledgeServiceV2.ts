@@ -238,7 +238,7 @@ class KnowledgeServiceV2 {
 
       const embeddedNodes = await runStage(
         'embed',
-        async () => await embedNodes(readerResult.nodes, base, handleEmbedProgress)
+        async () => await embedNodes(readerResult.nodes, base, handleEmbedProgress, options.signal)
       )
       const embedDuration = Date.now() - embedStartTime
       logger.debug(`[KnowledgeV2] [EMBED] Completed in ${embedDuration}ms`)

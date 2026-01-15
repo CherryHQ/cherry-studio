@@ -24,7 +24,8 @@ const logger = loggerService.withContext('EmbeddingPipeline')
 export async function embedNodes(
   nodes: BaseNode<Metadata>[],
   base: ResolvedKnowledgeBase,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal
 ): Promise<BaseNode<Metadata>[]> {
   if (nodes.length === 0) {
     return []
@@ -41,7 +42,7 @@ export async function embedNodes(
   const texts = nodes.map((node) => node.getContent(MetadataMode.NONE))
 
   // Batch embed all texts with progress callback
-  const vectors = await embeddings.embedDocuments(texts, onProgress)
+  const vectors = await embeddings.embedDocuments(texts, onProgress, signal)
 
   logger.debug(`Embedded ${vectors.length} vectors (dimensions: ${vectors[0]?.length ?? 0})`)
 

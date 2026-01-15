@@ -46,7 +46,11 @@ export default class Embeddings {
   }
 
   @TraceMethod({ spanName: 'embedDocuments', tag: 'Embeddings' })
-  public async embedDocuments(texts: string[], onProgress?: (progress: number) => void): Promise<number[][]> {
+  public async embedDocuments(
+    texts: string[],
+    onProgress?: (progress: number) => void,
+    signal?: AbortSignal
+  ): Promise<number[][]> {
     if (texts.length === 0) {
       return []
     }
@@ -65,7 +69,8 @@ export default class Embeddings {
         const result = await embedMany({
           model: this.model,
           values: batch,
-          providerOptions
+          providerOptions,
+          abortSignal: signal
         })
         vectors.push(...result.embeddings)
 
