@@ -23,12 +23,11 @@ import { MetadataMode } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
 import Embeddings from './embeddings'
+import { embedNodes } from './embeddings/EmbeddingPipeline'
 import type { ResolvedKnowledgeBase } from './KnowledgeProviderAdapter'
 import { knowledgeProviderAdapter } from './KnowledgeProviderAdapter'
+import { getReader } from './readers'
 import Reranker from './reranker/Reranker'
-import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
-import { embedNodes } from './vectorstores/EmbeddingPipeline'
-import { getReader } from './vectorstores/readers'
 import {
   type KnowledgeBaseAddItemOptions,
   type KnowledgeBaseRemoveOptions,
@@ -36,7 +35,8 @@ import {
   type ReaderContext,
   type RerankOptions,
   type SearchOptions
-} from './vectorstores/types'
+} from './types'
+import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
 
 const logger = loggerService.withContext('KnowledgeServiceV2')
 

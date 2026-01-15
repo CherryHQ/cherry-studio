@@ -8,8 +8,8 @@ import { loggerService } from '@logger'
 import type { BaseNode, Metadata } from '@vectorstores/core'
 import { MetadataMode } from '@vectorstores/core'
 
-import Embeddings from '../embeddings'
 import type { ResolvedKnowledgeBase } from '../KnowledgeProviderAdapter'
+import Embeddings from '.'
 
 const logger = loggerService.withContext('EmbeddingPipeline')
 

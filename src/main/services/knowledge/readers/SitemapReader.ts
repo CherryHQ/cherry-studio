@@ -12,7 +12,7 @@ import { HTMLReader } from '@vectorstores/readers/html'
 import md5 from 'md5'
 import Sitemapper from 'sitemapper'
 
-import { TextChunkSplitter } from '../spliters/TextChunkSplitter'
+import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
 import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,

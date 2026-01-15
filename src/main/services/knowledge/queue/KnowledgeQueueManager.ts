@@ -6,7 +6,7 @@
 
 import { loggerService } from '@logger'
 
-import type { KnowledgeStageRunner } from '../vectorstores/types'
+import type { KnowledgeStageRunner } from '../types'
 import { ConcurrencyPool } from './ConcurrencyPool'
 import { ProgressTracker } from './ProgressTracker'
 import type {

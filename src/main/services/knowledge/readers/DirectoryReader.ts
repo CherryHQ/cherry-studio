@@ -17,7 +17,7 @@ import { FILE_EXT_TO_READER, SimpleDirectoryReader } from '@vectorstores/readers
 import { TextFileReader } from '@vectorstores/readers/text'
 import { v4 as uuidv4 } from 'uuid'
 
-import { TextChunkSplitter } from '../spliters/TextChunkSplitter'
+import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
 import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,

@@ -11,7 +11,7 @@ import type { Document } from '@vectorstores/core'
 import { HTMLReader } from '@vectorstores/readers/html'
 import md5 from 'md5'
 
-import { TextChunkSplitter } from '../spliters/TextChunkSplitter'
+import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
 import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,

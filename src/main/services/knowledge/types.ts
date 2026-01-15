@@ -6,7 +6,7 @@ import type { FileMetadata } from '@shared/data/types/file'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import type { BaseNode, Metadata } from '@vectorstores/core'
 
-import type { ResolvedKnowledgeBase } from '../KnowledgeProviderAdapter'
+import type { ResolvedKnowledgeBase } from './KnowledgeProviderAdapter'
 
 // ============================================================================
 // Reader Types
@@ -170,9 +170,6 @@ export const DEFAULT_CHUNK_SIZE = 1024
 
 /** Default chunk overlap for text splitting */
 export const DEFAULT_CHUNK_OVERLAP = 20
-
-/** Default document count for search results */
-export const DEFAULT_DOCUMENT_COUNT = 30
 
 /** 1 MB constant for workload estimation */
 export const MB = 1024 * 1024

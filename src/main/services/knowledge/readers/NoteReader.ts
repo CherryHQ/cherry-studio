@@ -9,7 +9,7 @@ import type { NoteItemData } from '@shared/data/types/knowledge'
 import { Document } from '@vectorstores/core'
 import md5 from 'md5'
 
-import { TextChunkSplitter } from '../spliters/TextChunkSplitter'
+import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
 import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,

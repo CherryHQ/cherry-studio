@@ -4,7 +4,7 @@
 
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 
-import type { KnowledgeStageRunner } from '../vectorstores/types'
+import type { KnowledgeStageRunner } from '../types'
 
 // ============================================================================
 // Queue Status Types

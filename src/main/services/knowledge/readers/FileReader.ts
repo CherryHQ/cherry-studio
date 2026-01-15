@@ -21,7 +21,7 @@ import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
 import md5 from 'md5'
 
-import { TextChunkSplitter } from '../spliters/TextChunkSplitter'
+import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
 import {
   type ContentReader,
   DEFAULT_CHUNK_OVERLAP,
