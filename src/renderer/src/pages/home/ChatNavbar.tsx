@@ -17,6 +17,7 @@ import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
 import ChatNavbarContent from './components/ChatNavbarContent'
+import SettingsButton from './components/SettingsButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
@@ -65,14 +66,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     })
   }
 
-  // const handleUpdateModel = useCallback(
-  //   async (model: ApiModel) => {
-  //     if (!activeSession || !activeAgent) return
-  //     return updateModel(activeSession.id, model.id, { showSuccessToast: false })
-  //   },
-  //   [activeAgent, activeSession, updateModel]
-  // )
-
   return (
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
       <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
@@ -107,6 +100,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       </div>
       <RowFlex className="items-center gap-2">
         {isTopNavbar && <UpdateAppButton />}
+        <SettingsButton assistant={assistant} />
         {isTopNavbar && (
           <Tooltip placement="bottom" content={t('navbar.expand')} delay={800}>
             <NarrowIcon onClick={handleNarrowModeToggle}>

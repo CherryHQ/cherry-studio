@@ -11,6 +11,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { Drawer } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -120,7 +121,8 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   }
 
   const scrollToMessage = (element: HTMLElement) => {
-    element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // Use container: 'nearest' to keep scroll within the chat pane (Chromium-only, see #11565, #11567)
+    scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
   }
 
   const scrollToTop = () => {

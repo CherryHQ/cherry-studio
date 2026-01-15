@@ -4,10 +4,12 @@ import type { BuiltinMCPServerName } from '@types'
 import { BuiltinMCPServerNames } from '@types'
 
 import BraveSearchServer from './brave-search'
+import BrowserServer from './browser'
 import DiDiMcpServer from './didi-mcp'
 import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
+import HubServer from './hub'
 import MemoryServer from './memory'
 import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
@@ -35,7 +37,7 @@ export function createInMemoryMCPServer(
       return new FetchServer().server
     }
     case BuiltinMCPServerNames.filesystem: {
-      return new FileSystemServer(args).server
+      return new FileSystemServer(envs.WORKSPACE_ROOT).server
     }
     case BuiltinMCPServerNames.difyKnowledge: {
       const difyKey = envs.DIFY_KEY
@@ -47,6 +49,12 @@ export function createInMemoryMCPServer(
     case BuiltinMCPServerNames.didiMCP: {
       const apiKey = envs.DIDI_API_KEY
       return new DiDiMcpServer(apiKey).server
+    }
+    case BuiltinMCPServerNames.browser: {
+      return new BrowserServer().server
+    }
+    case BuiltinMCPServerNames.hub: {
+      return new HubServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

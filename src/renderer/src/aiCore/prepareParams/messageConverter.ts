@@ -3,6 +3,7 @@
  * 将 Cherry Studio 消息格式转换为 AI SDK 消息格式
  */
 
+import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
@@ -13,6 +14,7 @@ import {
   findThinkingBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
+import { parseDataUrl } from '@shared/utils'
 import type {
   AssistantModelMessage,
   FilePart,
@@ -59,23 +61,27 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
           mediaType: image.mime
         })
       } catch (error) {
-        logger.warn('Failed to load image:', error as Error)
+        logger.error('Failed to load image file, image will be excluded from message:', {
+          fileId: imageBlock.file.id,
+          fileName: imageBlock.file.origin_name,
+          error: error as Error
+        })
       }
     } else if (imageBlock.url) {
-      const isBase64 = imageBlock.url.startsWith('data:')
-      if (isBase64) {
-        const base64 = imageBlock.url.match(/^data:[^;]*;base64,(.+)$/)![1]
-        const mimeMatch = imageBlock.url.match(/^data:([^;]+)/)
-        parts.push({
-          type: 'image',
-          image: base64,
-          mediaType: mimeMatch ? mimeMatch[1] : 'image/png'
+      const url = imageBlock.url
+      const parseResult = parseDataUrl(url)
+      if (parseResult?.isBase64) {
+        const { mediaType, data } = parseResult
+        parts.push({ type: 'image', image: data, ...(mediaType ? { mediaType } : {}) })
+      } else if (url.startsWith('data:')) {
+        // Malformed data URL or non-base64 data URL
+        logger.error('Malformed or non-base64 data URL detected, image will be excluded:', {
+          urlPrefix: url.slice(0, 50) + '...'
         })
+        continue
       } else {
-        parts.push({
-          type: 'image',
-          image: imageBlock.url
-        })
+        // For remote URLs we keep payload minimal to match existing expectations.
+        parts.push({ type: 'image', image: url })
       }
     }
   }
@@ -156,13 +162,13 @@ async function convertMessageToAssistantModelMessage(
   thinkingBlocks: ThinkingMessageBlock[],
   model?: Model
 ): Promise<AssistantModelMessage> {
-  const parts: Array<TextPart | FilePart> = []
+  const parts: Array<TextPart | ReasoningPart | FilePart> = []
   if (content) {
     parts.push({ type: 'text', text: content })
   }
 
   for (const thinkingBlock of thinkingBlocks) {
-    parts.push({ type: 'text', text: thinkingBlock.content })
+    parts.push({ type: 'reasoning', text: thinkingBlock.content })
   }
 
   for (const fileBlock of fileBlocks) {
@@ -194,20 +200,23 @@ async function convertMessageToAssistantModelMessage(
  * This function processes messages and transforms them into the format required by the SDK.
  * It handles special cases for vision models and image enhancement models.
  *
- * @param messages - Array of messages to convert. Must contain at least 2 messages when using image enhancement models.
+ * @param messages - Array of messages to convert.
  * @param model - The model configuration that determines conversion behavior
  *
  * @returns A promise that resolves to an array of SDK-compatible model messages
  *
  * @remarks
- * For image enhancement models with 2+ messages:
- * - Expects the second-to-last message (index length-2) to be an assistant message containing image blocks
- * - Expects the last message (index length-1) to be a user message
- * - Extracts images from the assistant message and appends them to the user message content
- * - Returns only the last two processed messages [assistantSdkMessage, userSdkMessage]
+ * For image enhancement models:
+ * - Collapses the conversation into [system?, user(image)] format
+ * - Searches backwards through all messages to find the most recent assistant message with images
+ * - Preserves all system messages (including ones generated from file uploads like 'fileid://...')
+ * - Extracts the last user message content and merges images from the previous assistant message
+ * - Returns only the collapsed messages: system messages (if any) followed by a single user message
+ * - If no user message is found, returns only system messages
+ * - Typical pattern: [system?, user, assistant(image), user] -> [system?, user(image)]
  *
  * For other models:
- * - Returns all converted messages in order
+ * - Returns all converted messages in order without special image handling
  *
  * The function automatically detects vision model capabilities and adjusts conversion accordingly.
  */
@@ -220,29 +229,66 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
     sdkMessages.push(...(Array.isArray(sdkMessage) ? sdkMessage : [sdkMessage]))
   }
   // Special handling for image enhancement models
-  // Only keep the last two messages and merge images into the user message
-  // [system?, user, assistant, user]
-  if (isImageEnhancementModel(model) && messages.length >= 3) {
-    const needUpdatedMessages = messages.slice(-2)
-    const needUpdatedSdkMessages = sdkMessages.slice(-2)
-    const assistantMessage = needUpdatedMessages.filter((m) => m.role === 'assistant')[0]
-    const assistantSdkMessage = needUpdatedSdkMessages.filter((m) => m.role === 'assistant')[0]
-    const userSdkMessage = needUpdatedSdkMessages.filter((m) => m.role === 'user')[0]
-    const systemSdkMessages = sdkMessages.filter((m) => m.role === 'system')
-    const imageBlocks = findImageBlocks(assistantMessage)
-    const imageParts = await convertImageBlockToImagePart(imageBlocks)
-    const parts: Array<TextPart | ImagePart | FilePart> = []
-    if (typeof userSdkMessage.content === 'string') {
-      parts.push({ type: 'text', text: userSdkMessage.content })
-      parts.push(...imageParts)
-      userSdkMessage.content = parts
-    } else {
-      userSdkMessage.content.push(...imageParts)
+  // Target behavior: Collapse the conversation into [system?, user(image)].
+  // Explanation of why we don't simply use slice:
+  // 1) We need to preserve all system messages: During the convertMessageToSdkParam process, native file uploads may insert `system(fileid://...)`.
+  // Directly slicing the original messages or already converted sdkMessages could easily result in missing these system instructions.
+  // Therefore, we first perform a full conversion and then aggregate the system messages afterward.
+  // 2) The conversion process may split messages: A single user message might be broken into two SDK messages—[system, user].
+  // Slicing either side could lead to obtaining semantically incorrect fragments (e.g., only the split-out system message).
+  // 3) The “previous assistant message” is not necessarily the second-to-last one: There might be system messages or other message blocks inserted in between,
+  // making a simple slice(-2) assumption too rigid. Here, we trace back from the end of the original messages to locate the most recent assistant message, which better aligns with business semantics.
+  // 4) This is a “collapse” rather than a simple “slice”: Ultimately, we need to synthesize a new user message
+  // (with text from the last user message and images from the previous assistant message). Using slice can only extract subarrays,
+  // which still require reassembly; constructing directly according to the target structure is clearer and more reliable.
+  if (isImageEnhancementModel(model)) {
+    // Collect all system messages (including ones generated from file uploads)
+    const systemMessages = sdkMessages.filter((m): m is SystemModelMessage => m.role === 'system')
+
+    // Find the last user message (SDK converted)
+    const lastUserSdkIndex = (() => {
+      for (let i = sdkMessages.length - 1; i >= 0; i--) {
+        if (sdkMessages[i].role === 'user') return i
+      }
+      return -1
+    })()
+
+    const lastUserSdk = lastUserSdkIndex >= 0 ? (sdkMessages[lastUserSdkIndex] as UserModelMessage) : null
+
+    // Find the nearest preceding assistant message in original messages
+    let prevAssistant: Message | null = null
+    for (let i = messages.length - 2; i >= 0; i--) {
+      if (messages[i].role === 'assistant') {
+        prevAssistant = messages[i]
+        break
+      }
     }
-    if (systemSdkMessages.length > 0) {
-      return [systemSdkMessages[0], assistantSdkMessage, userSdkMessage]
+
+    // Build the final user content parts
+    let finalUserParts: Array<TextPart | FilePart | ImagePart> = []
+    if (lastUserSdk) {
+      if (typeof lastUserSdk.content === 'string') {
+        finalUserParts.push({ type: 'text', text: lastUserSdk.content })
+      } else if (Array.isArray(lastUserSdk.content)) {
+        finalUserParts = [...lastUserSdk.content]
+      }
     }
-    return [assistantSdkMessage, userSdkMessage]
+
+    // Append images from the previous assistant message if any
+    if (prevAssistant) {
+      const imageBlocks = findImageBlocks(prevAssistant)
+      const imageParts = await convertImageBlockToImagePart(imageBlocks)
+      if (imageParts.length > 0) {
+        finalUserParts.push(...imageParts)
+      }
+    }
+
+    // If we couldn't find a last user message, fall back to returning collected system messages only
+    if (!lastUserSdk) {
+      return systemMessages
+    }
+
+    return [...systemMessages, { role: 'user', content: finalUserParts }]
   }
 
   return sdkMessages

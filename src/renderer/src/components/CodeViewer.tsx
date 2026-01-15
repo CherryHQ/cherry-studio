@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { uuid } from '@renderer/utils'
@@ -8,6 +9,15 @@ import { debounce } from 'lodash'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('CodeViewer')
+
+interface SavedSelection {
+  startLine: number
+  startOffset: number
+  endLine: number
+  endOffset: number
+}
 
 interface CodeViewerProps {
   /** Code string value. */
@@ -52,6 +62,10 @@ interface CodeViewerProps {
    * @default true
    */
   wrapped?: boolean
+  /**
+   * Callback to request expansion when multi-line selection is detected.
+   */
+  onRequestExpand?: () => void
 }
 
 /**
@@ -70,7 +84,8 @@ const CodeViewer = ({
   fontSize: customFontSize,
   className,
   expanded = true,
-  wrapped = true
+  wrapped = true,
+  onRequestExpand
 }: CodeViewerProps) => {
   const [_lineNumbers] = usePreference('chat.code.show_line_numbers')
   const [_fontSize] = usePreference('chat.message.font_size')
@@ -78,6 +93,16 @@ const CodeViewer = ({
   const shikiThemeRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
+  const savedSelectionRef = useRef<SavedSelection | null>(null)
+  // Ensure the active selection actually belongs to this CodeViewer instance
+  const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
+    const scroller = scrollerRef.current
+    if (!scroller || !sel || sel.rangeCount === 0) return false
+
+    // Check if selection intersects with scroller
+    const range = sel.getRangeAt(0)
+    return scroller.contains(range.commonAncestorContainer)
+  }, [])
 
   const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
   const lineNumbers = useMemo(() => options?.lineNumbers ?? _lineNumbers, [options?.lineNumbers, _lineNumbers])
@@ -112,6 +137,204 @@ const CodeViewer = ({
       mounted = false
     }
   }, [language, getShikiPreProperties, isShikiThemeDark, className])
+
+  // 保存当前选区的逻辑位置
+  const saveSelection = useCallback((): SavedSelection | null => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return null
+    }
+
+    // Only capture selections within this viewer's scroller
+    if (!selectionBelongsToViewer(selection)) {
+      return null
+    }
+
+    const range = selection.getRangeAt(0)
+    const scroller = scrollerRef.current
+    if (!scroller) return null
+
+    // 查找选区起始和结束位置对应的行号
+    const findLineAndOffset = (node: Node, offset: number): { line: number; offset: number } | null => {
+      // 向上查找包含 data-index 属性的元素
+      let element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement
+
+      // 跳过行号元素，找到实际的行内容
+      while (element) {
+        if (element.classList?.contains('line-number')) {
+          // 如果在行号上，移动到同级的 line-content
+          const lineContainer = element.parentElement
+          const lineContent = lineContainer?.querySelector('.line-content')
+          if (lineContent) {
+            element = lineContent as Element
+            break
+          }
+        }
+        if (element.hasAttribute('data-index')) {
+          break
+        }
+        element = element.parentElement
+      }
+
+      if (!element || !element.hasAttribute('data-index')) {
+        logger.warn('Could not find data-index element', {
+          nodeName: node.nodeName,
+          nodeType: node.nodeType
+        })
+        return null
+      }
+
+      const lineIndex = parseInt(element.getAttribute('data-index') || '0', 10)
+      const lineContent = element.querySelector('.line-content') || element
+
+      // Calculate character offset within the line
+      let charOffset = 0
+      if (node.nodeType === Node.TEXT_NODE) {
+        // 遍历该行的所有文本节点，找到当前节点的位置
+        const walker = document.createTreeWalker(lineContent as Node, NodeFilter.SHOW_TEXT)
+        let currentNode: Node | null
+        while ((currentNode = walker.nextNode())) {
+          if (currentNode === node) {
+            charOffset += offset
+            break
+          }
+          charOffset += currentNode.textContent?.length || 0
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        // 如果是元素节点，计算之前所有文本的长度
+        const textBefore = (node as Element).textContent?.slice(0, offset) || ''
+        charOffset = textBefore.length
+      }
+
+      logger.debug('findLineAndOffset result', {
+        lineIndex,
+        charOffset
+      })
+
+      return { line: lineIndex, offset: charOffset }
+    }
+
+    const start = findLineAndOffset(range.startContainer, range.startOffset)
+    const end = findLineAndOffset(range.endContainer, range.endOffset)
+
+    if (!start || !end) {
+      logger.warn('saveSelection failed', {
+        hasStart: !!start,
+        hasEnd: !!end
+      })
+      return null
+    }
+
+    logger.debug('saveSelection success', {
+      startLine: start.line,
+      startOffset: start.offset,
+      endLine: end.line,
+      endOffset: end.offset
+    })
+
+    return {
+      startLine: start.line,
+      startOffset: start.offset,
+      endLine: end.line,
+      endOffset: end.offset
+    }
+  }, [selectionBelongsToViewer])
+
+  // 滚动事件处理：保存选择用于复制，但不恢复（避免选择高亮问题）
+  const handleScroll = useCallback(() => {
+    // 只保存选择状态用于复制，不在滚动时恢复选择
+    const saved = saveSelection()
+    if (saved) {
+      savedSelectionRef.current = saved
+      logger.debug('Selection saved for copy', {
+        startLine: saved.startLine,
+        endLine: saved.endLine
+      })
+    }
+  }, [saveSelection])
+
+  // 处理复制事件，确保跨虚拟滚动的复制能获取完整内容
+  const handleCopy = useCallback(
+    (event: ClipboardEvent) => {
+      const selection = window.getSelection()
+      // Ignore copies for selections outside this viewer
+      if (!selectionBelongsToViewer(selection)) {
+        return
+      }
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        return
+      }
+
+      // Prefer saved selection from scroll, otherwise get it in real-time
+      let saved = savedSelectionRef.current
+      if (!saved) {
+        saved = saveSelection()
+      }
+
+      if (!saved) {
+        logger.warn('Cannot get selection, using browser default')
+        return
+      }
+
+      const { startLine, startOffset, endLine, endOffset } = saved
+
+      // Always use custom copy in collapsed state to handle virtual scroll edge cases
+      const needsCustomCopy = !expanded
+
+      logger.debug('Copy event', {
+        startLine,
+        endLine,
+        startOffset,
+        endOffset,
+        expanded,
+        needsCustomCopy,
+        usedSavedSelection: !!savedSelectionRef.current
+      })
+
+      if (needsCustomCopy) {
+        try {
+          const selectedLines: string[] = []
+
+          for (let i = startLine; i <= endLine; i++) {
+            const line = rawLines[i] || ''
+
+            if (i === startLine && i === endLine) {
+              // 单行选择
+              selectedLines.push(line.slice(startOffset, endOffset))
+            } else if (i === startLine) {
+              // 第一行，从 startOffset 到行尾
+              selectedLines.push(line.slice(startOffset))
+            } else if (i === endLine) {
+              // 最后一行，从行首到 endOffset
+              selectedLines.push(line.slice(0, endOffset))
+            } else {
+              // 中间的完整行
+              selectedLines.push(line)
+            }
+          }
+
+          const fullText = selectedLines.join('\n')
+
+          logger.debug('Custom copy success', {
+            linesCount: selectedLines.length,
+            totalLength: fullText.length,
+            firstLine: selectedLines[0]?.slice(0, 30),
+            lastLine: selectedLines[selectedLines.length - 1]?.slice(0, 30)
+          })
+
+          if (!event.clipboardData) {
+            logger.warn('clipboardData unavailable, using browser default copy')
+            return
+          }
+          event.clipboardData.setData('text/plain', fullText)
+          event.preventDefault()
+        } catch (error) {
+          logger.error('Custom copy failed', { error })
+        }
+      }
+    },
+    [selectionBelongsToViewer, expanded, saveSelection, rawLines]
+  )
 
   // Virtualizer 配置
   const getScrollElement = useCallback(() => scrollerRef.current, [])
@@ -148,6 +371,58 @@ const CodeViewer = ({
     }
   }, [virtualItems, debouncedHighlightLines])
 
+  // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state
+  const handleSelectionChange = useMemo(
+    () =>
+      debounce(() => {
+        const selection = window.getSelection()
+
+        // No valid selection: clear and return
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+          savedSelectionRef.current = null
+          return
+        }
+
+        // Only handle selections within this CodeViewer
+        if (!selectionBelongsToViewer(selection)) {
+          savedSelectionRef.current = null
+          return
+        }
+
+        // In collapsed state, detect multi-line selection and request expand
+        if (!expanded && onRequestExpand) {
+          const saved = saveSelection()
+          if (saved && saved.endLine > saved.startLine) {
+            logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
+              startLine: saved.startLine,
+              endLine: saved.endLine
+            })
+            onRequestExpand()
+          }
+        }
+      }, 100),
+    [expanded, onRequestExpand, saveSelection, selectionBelongsToViewer]
+  )
+
+  useEffect(() => {
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange)
+      handleSelectionChange.cancel()
+    }
+  }, [handleSelectionChange])
+
+  // Listen for copy events
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+
+    scroller.addEventListener('copy', handleCopy as EventListener)
+    return () => {
+      scroller.removeEventListener('copy', handleCopy as EventListener)
+    }
+  }, [handleCopy])
+
   // Report scrollHeight when it might change
   useLayoutEffect(() => {
     onHeightChange?.(scrollerRef.current?.scrollHeight ?? 0)
@@ -161,6 +436,7 @@ const CodeViewer = ({
         $wrap={wrapped}
         $expand={expanded}
         $lineHeight={estimateSize()}
+        onScroll={handleScroll}
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,

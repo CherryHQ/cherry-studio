@@ -11,13 +11,13 @@ import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { DmxapiPainting } from '@types'
 import { Input, InputNumber, Segmented, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { generationModeType } from '../../types'
@@ -136,11 +136,14 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     let model = ''
     let priceModel = ''
     let image_size = ''
+    let extend_params = {}
+
     for (const provider of Object.keys(modelGroups)) {
       if (modelGroups[provider] && modelGroups[provider].length > 0) {
         model = modelGroups[provider][0].id
         priceModel = modelGroups[provider][0].price
         image_size = modelGroups[provider][0].image_sizes[0].value
+        extend_params = modelGroups[provider][0].extend_params
         break
       }
     }
@@ -149,7 +152,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       model,
       priceModel,
       image_size,
-      modelGroups
+      modelGroups,
+      extend_params
     }
   }
 
@@ -158,7 +162,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     const generationMode = params?.generationMode || painting?.generationMode || MODEOPTIONS[0].value
 
-    const { model, priceModel, image_size, modelGroups } = getFirstModelInfo(generationMode)
+    const { model, priceModel, image_size, modelGroups, extend_params } = getFirstModelInfo(generationMode)
 
     return {
       ...DEFAULT_PAINTING,
@@ -169,6 +173,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       modelGroups,
       priceModel,
       image_size,
+      extend_params,
       ...params
     }
   }
@@ -186,7 +191,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectModel = (modelId: string) => {
     const model = allModels.find((m) => m.id === modelId)
     if (model) {
-      updatePaintingState({ model: modelId, priceModel: model.price, image_size: model.image_sizes[0].value })
+      updatePaintingState({
+        model: modelId,
+        priceModel: model.price,
+        image_size: model.image_sizes[0].value,
+        extend_params: model.extend_params
+      })
     }
   }
 
@@ -289,7 +299,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     clearImages()
 
-    const { model, priceModel, image_size, modelGroups } = getFirstModelInfo(v)
+    const { model, priceModel, image_size, modelGroups, extend_params } = getFirstModelInfo(v)
 
     setModelOptions(modelGroups)
 
@@ -305,9 +315,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       // 否则更新当前painting
       updatePaintingState({
         generationMode: v,
-        model: model,
-        image_size: image_size,
-        priceModel: priceModel
+        model,
+        image_size,
+        priceModel,
+        extend_params
       })
     }
   }
@@ -351,7 +362,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const params = {
       prompt,
       model: painting.model,
-      n: painting.n
+      n: painting.n,
+      ...painting?.extend_params
     }
 
     const headerExpand = {
@@ -393,7 +405,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const params = {
       prompt,
       n: painting.n,
-      model: painting.model
+      model: painting.model,
+      ...painting?.extend_params
     }
 
     if (painting.image_size) {
@@ -477,6 +490,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             window.toast.warning(t('message.empty_url'))
             return null
           }
+
+          if (url.startsWith('data:image')) {
+            return await window.api.file.saveBase64Image(url)
+          }
+
           return await window.api.file.download(url, true)
         } catch (error) {
           if (
@@ -635,7 +653,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate('../' + providerId, { replace: true })
+      navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -933,7 +951,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <InfoTooltip content={t('paintings.auto_create_paint_tip')} />
           </SettingTitle>
           <RowFlex>
-            <Switch isSelected={painting.autoCreate} onValueChange={(checked) => onChangeAutoCreate(checked)} />
+            <Switch checked={painting.autoCreate} onCheckedChange={(checked) => onChangeAutoCreate(checked)} />
           </RowFlex>
         </LeftContainer>
         <MainContainer>

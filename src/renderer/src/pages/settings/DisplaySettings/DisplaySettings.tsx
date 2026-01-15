@@ -13,7 +13,7 @@ import useUserTheme from '@renderer/hooks/useUserTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { ColorPicker, Segmented, Select } from 'antd'
+import { ColorPicker, Segmented, Select, Tooltip } from 'antd'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -186,6 +186,21 @@ const DisplaySettings: FC = () => {
     [t]
   )
 
+  const renderFontOption = useCallback(
+    (font: string) => (
+      <Tooltip title={font} placement="left" mouseEnterDelay={0.5}>
+        <div
+          className="truncate"
+          style={{
+            fontFamily: font
+          }}>
+          {font}
+        </div>
+      </Tooltip>
+    ),
+    []
+  )
+
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -231,7 +246,7 @@ const DisplaySettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
-              <Switch isSelected={windowStyle === 'transparent'} onValueChange={handleWindowStyleChange} />
+              <Switch checked={windowStyle === 'transparent'} onCheckedChange={handleWindowStyleChange} />
             </SettingRow>
           </>
         )}
@@ -282,7 +297,7 @@ const DisplaySettings: FC = () => {
           <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
           <SelectRow>
             <Select
-              style={{ width: 200 }}
+              style={{ width: 280 }}
               placeholder={t('settings.display.font.select')}
               options={[
                 {
@@ -293,7 +308,7 @@ const DisplaySettings: FC = () => {
                   ),
                   value: ''
                 },
-                ...fontList.map((font) => ({ label: <span style={{ fontFamily: font }}>{font}</span>, value: font }))
+                ...fontList.map((font) => ({ label: renderFontOption(font), value: font }))
               ]}
               value={userTheme.userFontFamily || ''}
               onChange={(font) => handleUserFontChange(font)}
@@ -310,7 +325,7 @@ const DisplaySettings: FC = () => {
           <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
           <SelectRow>
             <Select
-              style={{ width: 200 }}
+              style={{ width: 280 }}
               placeholder={t('settings.display.font.select')}
               options={[
                 {
@@ -321,7 +336,7 @@ const DisplaySettings: FC = () => {
                   ),
                   value: ''
                 },
-                ...fontList.map((font) => ({ label: <span style={{ fontFamily: font }}>{font}</span>, value: font }))
+                ...fontList.map((font) => ({ label: renderFontOption(font), value: font }))
               ]}
               value={userTheme.userCodeFontFamily || ''}
               onChange={(font) => handleUserCodeFontChange(font)}
@@ -355,8 +370,8 @@ const DisplaySettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.advanced.auto_switch_to_topics')}</SettingRowTitle>
               <Switch
-                isSelected={clickAssistantToShowTopic}
-                onValueChange={(checked) => setClickAssistantToShowTopic(checked)}
+                checked={clickAssistantToShowTopic}
+                onCheckedChange={(checked) => setClickAssistantToShowTopic(checked)}
               />
             </SettingRow>
             <SettingDivider />
@@ -364,12 +379,12 @@ const DisplaySettings: FC = () => {
         )}
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
-          <Switch isSelected={showTopicTime} onValueChange={(checked) => setShowTopicTime(checked)} />
+          <Switch checked={showTopicTime} onCheckedChange={(checked) => setShowTopicTime(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
-          <Switch isSelected={pinTopicsToTop} onValueChange={(checked) => setPinTopicsToTop(checked)} />
+          <Switch checked={pinTopicsToTop} onCheckedChange={(checked) => setPinTopicsToTop(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -464,7 +479,7 @@ const SelectRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  width: 300px;
+  width: 380px;
 `
 
 export default DisplaySettings

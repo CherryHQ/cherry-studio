@@ -4,20 +4,14 @@ import { Flex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
-import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
-import {
-  selectCurrentUserId,
-  selectGlobalMemoryEnabled,
-  selectMemoryConfig,
-  setCurrentUserId,
-  setGlobalMemoryEnabled
-} from '@renderer/store/memory'
+import { selectMemoryConfig } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
 import { Badge, Dropdown, Empty, Form, Input, Modal, Pagination, Space, Spin } from 'antd'
 import dayjs from 'dayjs'
@@ -25,7 +19,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch, useSelector } from 'react-redux'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import {
@@ -38,6 +32,7 @@ import {
   SettingTitle
 } from '../index'
 import { DEFAULT_USER_ID } from './constants'
+import MemorySettingsModal from './MemorySettingsModal'
 import UserSelector from './UserSelector'
 
 const logger = loggerService.withContext('MemorySettings')
@@ -158,23 +153,17 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
       open={visible}
       onCancel={onCancel}
       width={600}
+      centered
+      transitionName="animation-move-down"
+      okButtonProps={{ loading: loading, title: t('common.save'), onClick: () => form.submit() }}
       styles={{
         header: {
           borderBottom: '0.5px solid var(--color-border)',
-          paddingBottom: 16
-        },
-        body: {
-          paddingTop: 24
+          paddingBottom: 16,
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0
         }
-      }}
-      footer={[
-        <Button key="cancel" size="lg" onClick={onCancel}>
-          {t('common.cancel')}
-        </Button>,
-        <Button key="submit" variant="default" size="lg" disabled={loading} onClick={() => form.submit()}>
-          {t('common.save')}
-        </Button>
-      ]}>
+      }}>
       <Form form={form} layout="vertical" onFinish={handleSubmit}>
         <Form.Item
           label={t('memory.memory_content')}
@@ -281,9 +270,8 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
 
 const MemorySettings = () => {
   const { t } = useTranslation()
-  const dispatch = useDispatch()
-  const currentUser = useSelector(selectCurrentUserId)
-  const globalMemoryEnabled = useSelector(selectGlobalMemoryEnabled)
+  const [currentUser, setCurrentUserId] = usePreference('feature.memory.current_user_id')
+  const [globalMemoryEnabled, setGlobalMemoryEnabled] = usePreference('feature.memory.enabled')
 
   const [allMemories, setAllMemories] = useState<MemoryItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -436,8 +424,8 @@ const MemorySettings = () => {
   const handleUserSwitch = async (userId: string) => {
     logger.verbose(`Switching to user: ${userId}`)
 
-    // First update Redux state
-    dispatch(setCurrentUserId(userId))
+    // First update preference state
+    setCurrentUserId(userId)
 
     // Clear current memories to show loading state immediately
     setAllMemories([])
@@ -481,16 +469,16 @@ const MemorySettings = () => {
   const handleSettingsSubmit = async () => {
     setSettingsModalVisible(false)
     await memoryService.updateConfig()
-    if (cacheService.get('memory.wait.settings')) {
-      cacheService.delete('memory.wait.settings')
-      dispatch(setGlobalMemoryEnabled(true))
+    if (cacheService.getCasual<boolean>('memory.wait.settings')) {
+      cacheService.deleteCasual('memory.wait.settings')
+      setGlobalMemoryEnabled(true)
     }
   }
 
   const handleSettingsCancel = () => {
     setSettingsModalVisible(false)
     form.resetFields()
-    cacheService.delete('memory.wait.settings')
+    cacheService.deleteCasual('memory.wait.settings')
   }
 
   const handleResetMemories = async (userId: string) => {
@@ -552,15 +540,15 @@ const MemorySettings = () => {
   }
 
   const memoryConfig = useSelector(selectMemoryConfig)
-  const embedderModel = useModel(memoryConfig.embedderApiClient?.model, memoryConfig.embedderApiClient?.provider)
+  const embeddingModel = useModel(memoryConfig.embeddingModel?.id, memoryConfig.embeddingModel?.provider)
 
   const handleGlobalMemoryToggle = async (enabled: boolean) => {
-    if (enabled && !embedderModel) {
-      cacheService.set('memory.wait.settings', true)
+    if (enabled && !embeddingModel) {
+      cacheService.setCasual('memory.wait.settings', true)
       return setSettingsModalVisible(true)
     }
 
-    dispatch(setGlobalMemoryEnabled(enabled))
+    setGlobalMemoryEnabled(enabled)
 
     if (enabled) {
       return window.modal.confirm({
@@ -591,7 +579,7 @@ const MemorySettings = () => {
             <TextBadge text="Beta" />
           </RowFlex>
           <RowFlex className="items-center gap-2.5">
-            <Switch isSelected={globalMemoryEnabled} onValueChange={handleGlobalMemoryToggle} />
+            <Switch checked={globalMemoryEnabled} onCheckedChange={handleGlobalMemoryToggle} />
             <Button variant="ghost" onClick={() => setSettingsModalVisible(true)} size="icon">
               <Settings2 size={16} />
             </Button>
@@ -802,7 +790,7 @@ const MemorySettings = () => {
         existingUsers={[...uniqueUsers, DEFAULT_USER_ID]}
       />
 
-      <MemoriesSettingsModal
+      <MemorySettingsModal
         visible={settingsModalVisible}
         onSubmit={async () => await handleSettingsSubmit()}
         onCancel={handleSettingsCancel}

@@ -2,13 +2,15 @@ import { CloseCircleFilled } from '@ant-design/icons'
 import { Button, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
+import Selector from '@renderer/components/Selector'
 import { TopView } from '@renderer/components/TopView'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Col, Input, InputNumber, Modal, Popover, Row, Slider } from 'antd'
+import { Col, Divider, Input, InputNumber, Modal, Popover, Row, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
@@ -20,12 +22,15 @@ import { SettingContainer, SettingRow, SettingSubtitle } from '..'
 const AssistantSettings: FC = () => {
   const { defaultAssistant, updateDefaultAssistant } = useDefaultAssistant()
   const [temperature, setTemperature] = useState(defaultAssistant.settings?.temperature ?? DEFAULT_TEMPERATURE)
-  const [enableTemperature, setEnableTemperature] = useState(defaultAssistant.settings?.enableTemperature ?? true)
+  const [enableTemperature, setEnableTemperature] = useState(defaultAssistant.settings?.enableTemperature ?? false)
   const [contextCount, setContextCount] = useState(defaultAssistant.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(defaultAssistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(defaultAssistant?.settings?.maxTokens ?? 0)
   const [topP, setTopP] = useState(defaultAssistant.settings?.topP ?? 1)
   const [enableTopP, setEnableTopP] = useState(defaultAssistant.settings?.enableTopP ?? false)
+  const [toolUseMode, setToolUseMode] = useState<AssistantSettingsType['toolUseMode']>(
+    defaultAssistant.settings?.toolUseMode ?? 'function'
+  )
   const [emoji, setEmoji] = useState(defaultAssistant.emoji || getLeadingEmoji(defaultAssistant.name) || '')
   const [name, setName] = useState(
     defaultAssistant.name.replace(getLeadingEmoji(defaultAssistant.name) || '', '').trim()
@@ -46,7 +51,8 @@ const AssistantSettings: FC = () => {
         maxTokens: settings.maxTokens ?? maxTokens,
         streamOutput: settings.streamOutput ?? true,
         topP: settings.topP ?? topP,
-        enableTopP: settings.enableTopP ?? enableTopP
+        enableTopP: settings.enableTopP ?? enableTopP,
+        toolUseMode: settings.toolUseMode ?? toolUseMode
       }
     })
   }
@@ -73,19 +79,10 @@ const AssistantSettings: FC = () => {
     setMaxTokens(0)
     setTopP(1)
     setEnableTopP(false)
+    setToolUseMode('function')
     updateDefaultAssistant({
       ...defaultAssistant,
-      settings: {
-        ...defaultAssistant.settings,
-        temperature: DEFAULT_TEMPERATURE,
-        enableTemperature: true,
-        contextCount: DEFAULT_CONTEXTCOUNT,
-        enableMaxTokens: false,
-        maxTokens: DEFAULT_MAX_TOKENS,
-        streamOutput: true,
-        topP: 1,
-        enableTopP: false
-      }
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS }
     })
   }
 
@@ -107,10 +104,9 @@ const AssistantSettings: FC = () => {
 
   return (
     <SettingContainer
-      style={{ height: 'auto', background: 'transparent', padding: `0 0 12px 0`, gap: 12 }}
+      style={{ height: 'auto', background: 'transparent', padding: `0 0 12px 0`, gap: 10 }}
       theme={theme}>
-      <SettingSubtitle style={{ marginTop: 0 }}>{t('common.name')}</SettingSubtitle>
-      <RowFlex className="items-center gap-2">
+      <RowFlex className="items-center gap-2" style={{ marginTop: 10 }}>
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button className="h-[30px] min-w-[30px] p-1 text-xl">{emoji}</Button>
@@ -163,6 +159,7 @@ const AssistantSettings: FC = () => {
           </Button>
         </Tooltip>
       </SettingSubtitle>
+      <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.temperature.label')}</Label>
@@ -173,15 +170,15 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          isSelected={enableTemperature}
-          onValueChange={(enabled) => {
+          checked={enableTemperature}
+          onCheckedChange={(enabled) => {
             setEnableTemperature(enabled)
             onUpdateAssistantSettings({ enableTemperature: enabled })
           }}
         />
       </SettingRow>
       {enableTemperature && (
-        <Row align="middle" gutter={12}>
+        <Row align="middle" gutter={12} style={{ marginTop: -5, marginBottom: -10 }}>
           <Col span={20}>
             <Slider
               min={0}
@@ -205,6 +202,7 @@ const AssistantSettings: FC = () => {
           </Col>
         </Row>
       )}
+      <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.top_p.label')}</Label>
@@ -215,15 +213,15 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          isSelected={enableTopP}
-          onValueChange={(enabled) => {
+          checked={enableTopP}
+          onCheckedChange={(enabled) => {
             setEnableTopP(enabled)
             onUpdateAssistantSettings({ enableTopP: enabled })
           }}
         />
       </SettingRow>
       {enableTopP && (
-        <Row align="middle" gutter={12}>
+        <Row align="middle" gutter={12} style={{ marginTop: -5, marginBottom: -10 }}>
           <Col span={20}>
             <Slider
               min={0}
@@ -240,6 +238,7 @@ const AssistantSettings: FC = () => {
           </Col>
         </Row>
       )}
+      <Divider style={{ margin: '2px 0' }} />
       <Row align="middle">
         <Label>{t('chat.settings.context_count.label')}</Label>
         <HelpTooltip
@@ -247,7 +246,7 @@ const AssistantSettings: FC = () => {
           iconProps={{ className: 'cursor-pointer text-color-text-3' }}
         />
       </Row>
-      <Row align="middle" gutter={20}>
+      <Row align="middle" gutter={20} style={{ marginTop: -5, marginBottom: -10 }}>
         <Col span={19}>
           <Slider
             min={0}
@@ -270,6 +269,7 @@ const AssistantSettings: FC = () => {
           />
         </Col>
       </Row>
+      <Divider style={{ margin: '2px 0' }} />
       <Flex className="items-center justify-between">
         <RowFlex className="items-center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
@@ -280,8 +280,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          isSelected={enableMaxTokens}
-          onValueChange={async (enabled) => {
+          checked={enableMaxTokens}
+          onCheckedChange={async (enabled) => {
             if (enabled) {
               const confirmed = await modalConfirm({
                 title: t('chat.settings.max_tokens.confirm'),
@@ -314,6 +314,22 @@ const AssistantSettings: FC = () => {
           </Col>
         </Row>
       )}
+      <Divider style={{ margin: '2px 0' }} />
+      <SettingRow>
+        <Label>{t('assistants.settings.tool_use_mode.label')}</Label>
+        <Selector
+          value={toolUseMode}
+          options={[
+            { label: t('assistants.settings.tool_use_mode.prompt'), value: 'prompt' },
+            { label: t('assistants.settings.tool_use_mode.function'), value: 'function' }
+          ]}
+          onChange={(value) => {
+            setToolUseMode(value)
+            onUpdateAssistantSettings({ toolUseMode: value })
+          }}
+          size={14}
+        />
+      </SettingRow>
     </SettingContainer>
   )
 }

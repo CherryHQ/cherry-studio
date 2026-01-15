@@ -1,12 +1,10 @@
-import { ColFlex, Flex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { InfoTooltip } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { ColFlex, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { Badge, Descriptions, Empty, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { Hammer, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface MCPToolsSectionProps {
@@ -138,7 +136,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     {
       title: (
         <Flex className="items-center justify-center gap-1">
-          <Hammer size={14} color="orange" />
+          <McpLogo width={14} height={14} style={{ opacity: 0.8 }} />
           <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
         </Flex>
       ),
@@ -146,7 +144,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       width: 150, // Fixed width might be good for alignment
       align: 'center',
       render: (_, tool) => (
-        <Switch isSelected={isToolEnabled(tool)} onValueChange={(checked) => handleToggle(tool, checked)} size="sm" />
+        <Switch checked={isToolEnabled(tool)} onCheckedChange={(checked) => handleToggle(tool, checked)} />
       )
     },
     {
@@ -169,10 +167,9 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                 : t('settings.mcp.tools.autoApprove.tooltip.disabled')
           }>
           <Switch
-            isSelected={isToolAutoApproved(tool, server)}
+            checked={isToolAutoApproved(tool, server)}
             disabled={!isToolEnabled(tool)}
-            onValueChange={(checked) => handleAutoApproveToggle(tool, checked)}
-            size="sm"
+            onCheckedChange={(checked) => handleAutoApproveToggle(tool, checked)}
           />
         </Tooltip>
       )

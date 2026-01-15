@@ -1,3 +1,5 @@
+//TODO [v2] 类型将转移至 packages/shared/data/types/message.ts。 转移后此文件将废弃(deprecated)
+
 import type { CompletionUsage } from '@cherrystudio/openai/resources'
 import type { ProviderMetadata } from 'ai'
 
@@ -234,6 +236,7 @@ export interface Response {
   error?: ResponseError
 }
 
+// FIXME: Weak type safety. It may be a specific class instance which inherits Error in runtime.
 export type ResponseError = Record<string, any>
 
 export interface MessageInputBaseParams {

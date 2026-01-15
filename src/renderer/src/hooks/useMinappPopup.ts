@@ -186,7 +186,7 @@ export const useMinappPopup = () => {
 
         // Then navigate to the app tab using NavigationService
         if (NavigationService.navigate) {
-          NavigationService.navigate(`/apps/${config.id}`)
+          NavigationService.navigate({ to: `/apps/${config.id}` })
         }
       } else {
         // For side navbar, use the traditional popup system

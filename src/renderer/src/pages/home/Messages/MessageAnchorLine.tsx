@@ -12,6 +12,7 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 // import { updateMessageThunk } from '@renderer/store/thunk/messageThunk'
 import type { Message } from '@renderer/types/newMessage'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { CircleChevronDown } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
@@ -118,7 +119,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           () => {
             const messageElement = document.getElementById(`message-${message.id}`)
             if (messageElement) {
-              messageElement.scrollIntoView({ behavior: 'auto', block: 'start' })
+              scrollIntoView(messageElement, { behavior: 'auto', block: 'start', container: 'nearest' })
             }
           },
           100
@@ -140,7 +141,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
         return
       }
 
-      messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
     },
     [setSelectedMessage]
   )

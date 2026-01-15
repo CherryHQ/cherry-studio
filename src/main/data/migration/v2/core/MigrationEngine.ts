@@ -5,7 +5,9 @@
 
 import { dbService } from '@data/db/DbService'
 import { appStateTable } from '@data/db/schemas/appState'
+import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import type {
   MigrationProgress,
@@ -24,8 +26,6 @@ import { createMigrationContext } from './MigrationContext'
 
 // TODO: Import these tables when they are created in user data schema
 // import { assistantTable } from '../../db/schemas/assistant'
-// import { topicTable } from '../../db/schemas/topic'
-// import { messageTable } from '../../db/schemas/message'
 // import { fileTable } from '../../db/schemas/file'
 // import { knowledgeBaseTable } from '../../db/schemas/knowledgeBase'
 
@@ -197,12 +197,13 @@ export class MigrationEngine {
     const db = dbService.getDb()
 
     // Tables to clear - add more as they are created
+    // Order matters: child tables must be cleared before parent tables
     const tables = [
+      { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
+      { table: topicTable, name: 'topic' },
       { table: preferenceTable, name: 'preference' }
       // TODO: Add these when tables are created
       // { table: assistantTable, name: 'assistant' },
-      // { table: topicTable, name: 'topic' },
-      // { table: messageTable, name: 'message' },
       // { table: fileTable, name: 'file' },
       // { table: knowledgeBaseTable, name: 'knowledge_base' }
     ]
@@ -216,14 +217,15 @@ export class MigrationEngine {
       }
     }
 
-    // Clear tables in reverse dependency order
+    // Clear tables in dependency order (children before parents)
+    // Messages reference topics, so delete messages first
+    await db.delete(messageTable)
+    await db.delete(topicTable)
+    await db.delete(preferenceTable)
     // TODO: Add these when tables are created (in correct order)
-    // await db.delete(messageTable)
-    // await db.delete(topicTable)
     // await db.delete(fileTable)
     // await db.delete(knowledgeBaseTable)
     // await db.delete(assistantTable)
-    await db.delete(preferenceTable)
 
     logger.info('All new architecture tables cleared successfully')
   }

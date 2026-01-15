@@ -1,5 +1,6 @@
+import { preferenceService } from '@data/PreferenceService'
 import store from '@renderer/store'
-import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
+import { selectMemoryConfig } from '@renderer/store/memory'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -18,17 +19,18 @@ export const memorySearchTool = () => {
       limit: z.number().min(1).max(20).default(5).describe('Maximum number of memories to return')
     }),
     execute: async ({ query, limit = 5 }) => {
-      const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
+      const globalMemoryEnabled = await preferenceService.get('feature.memory.enabled')
       if (!globalMemoryEnabled) {
         return []
       }
 
       const memoryConfig = selectMemoryConfig(store.getState())
-      if (!memoryConfig.llmApiClient || !memoryConfig.embedderApiClient) {
+
+      if (!memoryConfig.llmModel || !memoryConfig.embeddingModel) {
         return []
       }
 
-      const currentUserId = selectCurrentUserId(store.getState())
+      const currentUserId = await preferenceService.get('feature.memory.current_user_id')
       const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, 'default', currentUserId)
 
       const memoryProcessor = new MemoryProcessor()

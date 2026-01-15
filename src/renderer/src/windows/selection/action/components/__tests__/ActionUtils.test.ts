@@ -284,6 +284,54 @@ describe('processMessages', () => {
     })
   })
 
+  describe('thinking timer fallback', () => {
+    it('should use local timer when thinking_millsec is missing', async () => {
+      const nowValues = [1000, 1500, 2000]
+      let nowIndex = 0
+      const performanceSpy = vi.spyOn(performance, 'now').mockImplementation(() => {
+        const value = nowValues[Math.min(nowIndex, nowValues.length - 1)]
+        nowIndex += 1
+        return value
+      })
+
+      const mockChunks = [
+        { type: ChunkType.THINKING_START },
+        { type: ChunkType.THINKING_DELTA, text: 'Thinking...' },
+        { type: ChunkType.THINKING_COMPLETE, text: 'Done thinking' },
+        { type: ChunkType.TEXT_START },
+        { type: ChunkType.TEXT_COMPLETE, text: 'Final answer' },
+        { type: ChunkType.BLOCK_COMPLETE }
+      ]
+
+      vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
+        for (const chunk of mockChunks) {
+          await onChunkReceived(chunk)
+        }
+      })
+
+      await processMessages(
+        mockAssistant,
+        mockTopic,
+        'test prompt',
+        mockSetAskId,
+        mockOnStream,
+        mockOnFinish,
+        mockOnError
+      )
+
+      const thinkingDeltaCall = vi.mocked(throttledBlockUpdate).mock.calls.find(([id]) => id === 'thinking-block-1')
+      const deltaPayload = thinkingDeltaCall?.[1] as { thinking_millsec?: number } | undefined
+      expect(deltaPayload?.thinking_millsec).toBe(500)
+
+      const thinkingCompleteUpdate = vi
+        .mocked(updateOneBlock)
+        .mock.calls.find(([payload]) => (payload as any)?.changes?.thinking_millsec !== undefined)
+      expect((thinkingCompleteUpdate?.[0] as any)?.changes?.thinking_millsec).toBe(1000)
+
+      performanceSpy.mockRestore()
+    })
+  })
+
   describe('stream with exceptions', () => {
     it('should handle error chunks properly', async () => {
       const mockError = new Error('Stream processing error')

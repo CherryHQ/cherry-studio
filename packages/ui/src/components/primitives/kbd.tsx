@@ -1,4 +1,4 @@
-import { cn } from '@cherrystudio/ui/utils/index'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 function Kbd({ className, ...props }: React.ComponentProps<'kbd'>) {
   return (

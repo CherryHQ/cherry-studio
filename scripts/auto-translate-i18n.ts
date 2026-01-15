@@ -50,7 +50,7 @@ Usage Instructions:
    - pt-pt (Portuguese)
 
 Run Command:
-yarn auto:i18n
+pnpm i18n:translate
 
 Performance Optimization Recommendations:
 - For stable API services: MAX_CONCURRENT_TRANSLATIONS=8, TRANSLATION_DELAY_MS=50
@@ -152,7 +152,8 @@ const languageMap = {
   'es-es': 'Spanish',
   'fr-fr': 'French',
   'pt-pt': 'Portuguese',
-  'de-de': 'German'
+  'de-de': 'German',
+  'ro-ro': 'Romanian'
 }
 
 const PROMPT = `

@@ -103,7 +103,7 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
 
 /**
  * Filters messages based on the 'useful' flag and message role sequences.
- * Only remain one message in a group. Either useful or fallback to the last message in the group.
+ * Only remain one message in a group. Either useful or fallback to the first message in the group.
  */
 export function filterUsefulMessages(messages: Message[]): Message[] {
   const _messages = [...messages]
@@ -145,6 +145,55 @@ export function filterAdjacentUserMessaegs(messages: Message[]): Message[] {
   // Filter adjacent user messages, keeping only the last one
   return messages.filter((message, index, origin) => {
     return !(message.role === 'user' && index + 1 < origin.length && origin[index + 1].role === 'user')
+  })
+}
+
+/**
+ * Filters out assistant messages that only contain ErrorBlocks and their associated user messages.
+ * An assistant message is associated with a user message via the askId field.
+ */
+export function filterErrorOnlyMessagesWithRelated(messages: Message[]): Message[] {
+  const state = store.getState()
+
+  // Find all assistant messages that only contain ErrorBlocks
+  const errorOnlyAskIds = new Set<string>()
+
+  for (const message of messages) {
+    if (message.role !== 'assistant' || !message.askId) {
+      continue
+    }
+
+    // Check if this assistant message only contains ErrorBlocks
+    let hasNonErrorBlock = false
+    for (const blockId of message.blocks) {
+      const block = messageBlocksSelectors.selectById(state, blockId)
+      if (!block) continue
+
+      if (block.type !== MessageBlockType.ERROR) {
+        hasNonErrorBlock = true
+        break
+      }
+    }
+
+    // If only ErrorBlocks (or no blocks), mark this askId for removal
+    if (!hasNonErrorBlock && message.blocks.length > 0) {
+      errorOnlyAskIds.add(message.askId)
+    }
+  }
+
+  // Filter out both the assistant messages and their associated user messages
+  return messages.filter((message) => {
+    // Remove assistant messages that only have ErrorBlocks
+    if (message.role === 'assistant' && message.askId && errorOnlyAskIds.has(message.askId)) {
+      return false
+    }
+
+    // Remove user messages that are associated with error-only assistant messages
+    if (message.role === 'user' && errorOnlyAskIds.has(message.id)) {
+      return false
+    }
+
+    return true
   })
 }
 

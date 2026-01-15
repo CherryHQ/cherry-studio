@@ -1,14 +1,11 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch } from '@renderer/store'
-import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { Alert, Button, Input, InputNumber, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -18,13 +15,19 @@ const { Text, Title } = Typography
 
 const ApiServerSettings: FC = () => {
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
-  // API Server state with proper defaults
-  const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
-  const { apiServerRunning, apiServerLoading, startApiServer, stopApiServer, restartApiServer, setApiServerEnabled } =
-    useApiServer()
+  // API Server state from useApiServer hook
+  const {
+    apiServerConfig,
+    apiServerRunning,
+    apiServerLoading,
+    startApiServer,
+    stopApiServer,
+    restartApiServer,
+    setApiServerEnabled,
+    setApiServerConfig
+  } = useApiServer()
 
   const handleApiServerToggle = async (enabled: boolean) => {
     try {
@@ -45,26 +48,33 @@ const ApiServerSettings: FC = () => {
   }
 
   const copyApiKey = () => {
-    navigator.clipboard.writeText(apiServerConfig.apiKey)
+    if (apiServerConfig.apiKey) {
+      navigator.clipboard.writeText(apiServerConfig.apiKey)
+    }
     window.toast.success(t('apiServer.messages.apiKeyCopied'))
   }
 
+  const generateApiKey = () => {
+    return `cs-sk-${uuidv4()}`
+  }
+
   const regenerateApiKey = () => {
-    const newApiKey = `cs-sk-${uuidv4()}`
-    dispatch(setApiServerApiKey(newApiKey))
+    setApiServerConfig({ apiKey: generateApiKey() })
     window.toast.success(t('apiServer.messages.apiKeyRegenerated'))
   }
 
   const handlePortChange = (value: string) => {
-    const port = parseInt(value) || 23333
+    const port = parseInt(value) || API_SERVER_DEFAULTS.PORT
     if (port >= 1000 && port <= 65535) {
-      dispatch(setApiServerPort(port))
+      setApiServerConfig({ port })
     }
   }
 
   const openApiDocs = () => {
     if (apiServerRunning) {
-      window.open(`http://localhost:${apiServerConfig.port}/api-docs`, '_blank')
+      const host = apiServerConfig.host || API_SERVER_DEFAULTS.HOST
+      const port = apiServerConfig.port || API_SERVER_DEFAULTS.PORT
+      window.open(`http://${host}:${port}/api-docs`, '_blank')
     }
   }
 
@@ -98,7 +108,9 @@ const ApiServerSettings: FC = () => {
               {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
             </StatusText>
             <StatusSubtext>
-              {apiServerRunning ? `http://localhost:${apiServerConfig.port}` : t('apiServer.fields.port.description')}
+              {apiServerRunning
+                ? `http://${apiServerConfig.host || API_SERVER_DEFAULTS.HOST}:${apiServerConfig.port || API_SERVER_DEFAULTS.PORT}`
+                : t('apiServer.fields.port.description')}
             </StatusSubtext>
           </StatusContent>
         </StatusSection>
@@ -119,11 +131,11 @@ const ApiServerSettings: FC = () => {
           {!apiServerRunning && (
             <StyledInputNumber
               value={apiServerConfig.port}
-              onChange={(value) => handlePortChange(String(value || 23333))}
+              onChange={(value) => handlePortChange(String(value || API_SERVER_DEFAULTS.PORT))}
               min={1000}
               max={65535}
               disabled={apiServerRunning}
-              placeholder="23333"
+              placeholder={String(API_SERVER_DEFAULTS.PORT)}
               size="middle"
             />
           )}
@@ -152,7 +164,7 @@ const ApiServerSettings: FC = () => {
         <FieldDescription>{t('apiServer.fields.apiKey.description')}</FieldDescription>
 
         <StyledInput
-          value={apiServerConfig.apiKey}
+          value={apiServerConfig.apiKey || ''}
           readOnly
           placeholder={t('apiServer.fields.apiKey.placeholder')}
           size="middle"

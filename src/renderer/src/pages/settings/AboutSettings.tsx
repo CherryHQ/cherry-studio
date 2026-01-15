@@ -13,15 +13,15 @@ import i18n from '@renderer/i18n'
 // import { setUpdateState as setAppUpdateState } from '@renderer/store/runtime'
 import { runAsyncFunction } from '@renderer/utils'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { Link } from '@tanstack/react-router'
 import { Avatar, Progress, Radio, Row, Tag } from 'antd'
 import { debounce } from 'lodash'
-import { Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
+import { Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
@@ -170,9 +170,7 @@ const AboutSettings: FC = () => {
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    window.api.openWebsite(
-      isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us'
-    )
+    window.api.openWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
   }
 
   return (
@@ -228,13 +226,13 @@ const AboutSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
-              <Switch isSelected={autoCheckUpdate} onValueChange={(v) => setAutoCheckUpdate(v)} />
+              <Switch checked={autoCheckUpdate} onCheckedChange={(v) => setAutoCheckUpdate(v)} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
               <Tooltip content={t('settings.general.test_plan.tooltip')}>
-                <Switch isSelected={testPlan} onValueChange={(v) => handleSetTestPlan(v)} />
+                <Switch checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
             {testPlan && (
@@ -328,6 +326,16 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
+            <Briefcase size={18} />
+            {t('settings.about.careers.title')}
+          </SettingRowTitle>
+          <Button onClick={() => onOpenWebsite('https://www.cherry-ai.com/careers')}>
+            {t('settings.about.careers.button')}
+          </Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
             <Bug size={18} />
             {t('settings.about.debug.title')}
           </SettingRowTitle>
@@ -401,11 +409,11 @@ const UpdateNotesWrapper = styled.div`
   margin: 8px 0;
   background-color: var(--color-bg-2);
   border-radius: 6px;
+  color: var(--color-text-2);
+  font-size: 14px;
 
   p {
     margin: 0;
-    color: var(--color-text-2);
-    font-size: 14px;
   }
 `
 

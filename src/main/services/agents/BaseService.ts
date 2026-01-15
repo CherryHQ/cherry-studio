@@ -1,39 +1,41 @@
-import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
 import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
+import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
 import { objectKeys } from '@types'
-import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
 
-import { MigrationService } from './database/MigrationService'
-import * as schema from './database/schema'
-import { dbPath } from './drizzle.config'
+import { DatabaseManager } from './database/DatabaseManager'
 import { type AgentModelField, AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('BaseService')
+const MCP_TOOL_ID_PREFIX = 'mcp__'
+const MCP_TOOL_LEGACY_PREFIX = 'mcp_'
+
+const buildMcpToolId = (serverId: string, toolName: string) => `${MCP_TOOL_ID_PREFIX}${serverId}__${toolName}`
+const toLegacyMcpToolId = (toolId: string) => {
+  if (!toolId.startsWith(MCP_TOOL_ID_PREFIX)) {
+    return null
+  }
+  const rawId = toolId.slice(MCP_TOOL_ID_PREFIX.length)
+  return `${MCP_TOOL_LEGACY_PREFIX}${rawId.replace(/__/g, '_')}`
+}
 
 /**
- * Base service class providing shared database connection and utilities
- * for all agent-related services.
+ * Base service class providing shared utilities for all agent-related services.
  *
  * Features:
- * - Programmatic schema management (no CLI dependencies)
- * - Automatic table creation and migration
- * - Schema version tracking and compatibility checks
- * - Transaction-based operations for safety
- * - Development vs production mode handling
- * - Connection retry logic with exponential backoff
+ * - Database access through DatabaseManager singleton
+ * - JSON field serialization/deserialization
+ * - Path validation and creation
+ * - Model validation
+ * - MCP tools and slash commands listing
  */
 export abstract class BaseService {
-  protected static client: Client | null = null
-  protected static db: LibSQLDatabase<typeof schema> | null = null
-  protected static isInitialized = false
-  protected static initializationPromise: Promise<void> | null = null
   protected jsonFields: string[] = [
     'tools',
     'mcps',
@@ -43,25 +45,12 @@ export abstract class BaseService {
     'slash_commands'
   ]
 
-  /**
-   * Initialize database with retry logic and proper error handling
-   */
-  protected static async initialize(): Promise<void> {
-    // Return existing initialization if in progress
-    if (BaseService.initializationPromise) {
-      return BaseService.initializationPromise
-    }
-
-    if (BaseService.isInitialized) {
-      return
-    }
-
-    BaseService.initializationPromise = BaseService.performInitialization()
-    return BaseService.initializationPromise
-  }
-
-  public async listMcpTools(agentType: AgentType, ids?: string[]): Promise<Tool[]> {
+  public async listMcpTools(
+    agentType: AgentType,
+    ids?: string[]
+  ): Promise<{ tools: Tool[]; legacyIdMap: Map<string, string> }> {
     const tools: Tool[] = []
+    const legacyIdMap = new Map<string, string>()
     if (agentType === 'claude-code') {
       tools.push(...builtinTools)
     }
@@ -71,13 +60,21 @@ export abstract class BaseService {
           const server = await mcpApiService.getServerInfo(id)
           if (server) {
             server.tools.forEach((tool: MCPTool) => {
+              const canonicalId = buildFunctionCallToolName(server.name, tool.name)
+              const serverIdBasedId = buildMcpToolId(id, tool.name)
+              const legacyId = toLegacyMcpToolId(serverIdBasedId)
+
               tools.push({
-                id: `mcp_${id}_${tool.name}`,
+                id: canonicalId,
                 name: tool.name,
                 type: 'mcp',
                 description: tool.description || '',
                 requirePermissions: true
               })
+              legacyIdMap.set(serverIdBasedId, canonicalId)
+              if (legacyId) {
+                legacyIdMap.set(legacyId, canonicalId)
+              }
             })
           }
         } catch (error) {
@@ -89,7 +86,53 @@ export abstract class BaseService {
       }
     }
 
-    return tools
+    return { tools, legacyIdMap }
+  }
+
+  /**
+   * Normalize MCP tool IDs in allowed_tools to the current format.
+   *
+   * Legacy formats:
+   * - "mcp__<serverId>__<toolName>" (double underscore separators, server ID based)
+   * - "mcp_<serverId>_<toolName>" (single underscore separators)
+   * Current format: "mcp__<serverName>__<toolName>" (double underscore separators).
+   *
+   * This keeps persisted data compatible without requiring a database migration.
+   */
+  protected normalizeAllowedTools(
+    allowedTools: string[] | undefined,
+    tools: Tool[],
+    legacyIdMap?: Map<string, string>
+  ): string[] | undefined {
+    if (!allowedTools || allowedTools.length === 0) {
+      return allowedTools
+    }
+
+    const resolvedLegacyIdMap = new Map<string, string>()
+
+    if (legacyIdMap) {
+      for (const [legacyId, canonicalId] of legacyIdMap) {
+        resolvedLegacyIdMap.set(legacyId, canonicalId)
+      }
+    }
+
+    for (const tool of tools) {
+      if (tool.type !== 'mcp') {
+        continue
+      }
+      const legacyId = toLegacyMcpToolId(tool.id)
+      if (!legacyId) {
+        continue
+      }
+      resolvedLegacyIdMap.set(legacyId, tool.id)
+    }
+
+    if (resolvedLegacyIdMap.size === 0) {
+      return allowedTools
+    }
+
+    const normalized = allowedTools.map((toolId) => resolvedLegacyIdMap.get(toolId) ?? toolId)
+    return Array.from(new Set(normalized))
   }
 
   public async listSlashCommands(agentType: AgentType): Promise<SlashCommand[]> {
@@ -99,78 +142,13 @@ export abstract class BaseService {
     return []
   }
 
-  private static async performInitialization(): Promise<void> {
-    const maxRetries = 3
-    let lastError: Error
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        logger.info(`Initializing Agent database at: ${dbPath} (attempt ${attempt}/${maxRetries})`)
-
-        // Ensure the database directory exists
-        const dbDir = path.dirname(dbPath)
-        if (!fs.existsSync(dbDir)) {
-          logger.info(`Creating database directory: ${dbDir}`)
-          fs.mkdirSync(dbDir, { recursive: true })
-        }
-
-        BaseService.client = createClient({
-          url: `file:${dbPath}`
-        })
-
-        BaseService.db = drizzle(BaseService.client, { schema })
-
-        // Run database migrations
-        const migrationService = new MigrationService(BaseService.db, BaseService.client)
-        await migrationService.runMigrations()
-
-        BaseService.isInitialized = true
-        logger.info('Agent database initialized successfully')
-        return
-      } catch (error) {
-        lastError = error as Error
-        logger.warn(`Database initialization attempt ${attempt} failed:`, lastError)
-
-        // Clean up on failure
-        if (BaseService.client) {
-          try {
-            BaseService.client.close()
-          } catch (closeError) {
-            logger.warn('Failed to close client during cleanup:', closeError as Error)
-          }
-        }
-        BaseService.client = null
-        BaseService.db = null
-
-        // Wait before retrying (exponential backoff)
-        if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000 // 2s, 4s, 8s
-          logger.info(`Retrying in ${delay}ms...`)
-          await new Promise((resolve) => setTimeout(resolve, delay))
-        }
-      }
-    }
-
-    // All retries failed
-    BaseService.initializationPromise = null
-    logger.error('Failed to initialize Agent database after all retries:', lastError!)
-    throw lastError!
-  }
-
-  protected ensureInitialized(): void {
-    if (!BaseService.isInitialized || !BaseService.db || !BaseService.client) {
-      throw new Error('Database not initialized. Call initialize() first.')
-    }
-  }
-
-  protected get database(): LibSQLDatabase<typeof schema> {
-    this.ensureInitialized()
-    return BaseService.db!
-  }
-
-  protected get rawClient(): Client {
-    this.ensureInitialized()
-    return BaseService.client!
+  /**
+   * Get database instance
+   * Automatically waits for initialization to complete
+   */
+  public async getDatabase() {
+    const dbManager = await DatabaseManager.getInstance()
+    return dbManager.getDatabase()
   }
 
   protected serializeJsonFields(data: any): any {
@@ -282,7 +260,7 @@ export abstract class BaseService {
   }
 
   /**
-   * Force re-initialization (for development/testing)
+   * Validate agent model configuration
    */
   protected async validateAgentModels(
     agentType: AgentType,
@@ -322,23 +300,5 @@ export abstract class BaseService {
         )
       }
     }
-  }
-
-  static async reinitialize(): Promise<void> {
-    BaseService.isInitialized = false
-    BaseService.initializationPromise = null
-
-    if (BaseService.client) {
-      try {
-        BaseService.client.close()
-      } catch (error) {
-        logger.warn('Failed to close client during reinitialize:', error as Error)
-      }
-    }
-
-    BaseService.client = null
-    BaseService.db = null
-
-    await BaseService.initialize()
   }
 }

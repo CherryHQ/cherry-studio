@@ -17,10 +17,10 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { isNewApiProvider } from '@renderer/config/providers'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import type { ModalProps } from 'antd'
 import { Divider, Form, Input, InputNumber, Modal, Select } from 'antd'
 import { cloneDeep } from 'lodash'
@@ -343,10 +343,9 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               label={t('settings.models.add.supported_text_delta.label')}
               tooltip={t('settings.models.add.supported_text_delta.tooltip')}>
               <Switch
-                isSelected={supportedTextDelta}
+                checked={supportedTextDelta}
                 className="ml-auto"
-                size="sm"
-                onValueChange={(checked) => {
+                onCheckedChange={(checked) => {
                   setSupportedTextDelta(checked)
                   // 直接传递新值给autoSave
                   autoSave({ supported_text_delta: checked })

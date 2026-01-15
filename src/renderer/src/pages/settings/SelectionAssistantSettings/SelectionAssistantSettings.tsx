@@ -1,17 +1,16 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { Radio, RadioGroup } from '@heroui/react'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Row, Slider } from 'antd'
+import { Link } from '@tanstack/react-router'
+import { Radio, Row, Slider } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {
@@ -101,8 +100,8 @@ const SelectionAssistantSettings: FC = () => {
             {!isSupportedOS && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}
           </SettingLabel>
           <Switch
-            isSelected={isSupportedOS && selectionEnabled}
-            onValueChange={handleEnableCheckboxChange}
+            checked={isSupportedOS && selectionEnabled}
+            onCheckedChange={handleEnableCheckboxChange}
             disabled={!isSupportedOS}
           />
         </SettingRow>
@@ -129,11 +128,7 @@ const SelectionAssistantSettings: FC = () => {
                 </SettingRowTitle>
                 <SettingDescription>{t('selection.settings.toolbar.trigger_mode.description')}</SettingDescription>
               </SettingLabel>
-              <RadioGroup
-                size="sm"
-                orientation="horizontal"
-                value={triggerMode}
-                onValueChange={(value) => setTriggerMode(value as SelectionTriggerMode)}>
+              <Radio.Group value={triggerMode} onChange={(e) => setTriggerMode(e.target.value as SelectionTriggerMode)}>
                 <Tooltip content={t('selection.settings.toolbar.trigger_mode.selected_note')}>
                   <Radio value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio>
                 </Tooltip>
@@ -154,7 +149,7 @@ const SelectionAssistantSettings: FC = () => {
                   }>
                   <Radio value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio>
                 </Tooltip>
-              </RadioGroup>
+              </Radio.Group>
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -162,7 +157,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.toolbar.compact_mode.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.toolbar.compact_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isCompact} onValueChange={setIsCompact} />
+              <Switch checked={isCompact} onCheckedChange={setIsCompact} />
             </SettingRow>
           </SettingGroup>
 
@@ -174,7 +169,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.follow_toolbar.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.follow_toolbar.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isFollowToolbar} onValueChange={setIsFollowToolbar} />
+              <Switch checked={isFollowToolbar} onCheckedChange={setIsFollowToolbar} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -182,7 +177,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.remember_size.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.remember_size.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isRemeberWinSize} onValueChange={setIsRemeberWinSize} />
+              <Switch checked={isRemeberWinSize} onCheckedChange={setIsRemeberWinSize} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -190,7 +185,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.auto_close.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.auto_close.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isAutoClose} onValueChange={setIsAutoClose} />
+              <Switch checked={isAutoClose} onCheckedChange={setIsAutoClose} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -198,7 +193,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.auto_pin.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.auto_pin.description')}</SettingDescription>
               </SettingLabel>
-              <Switch isSelected={isAutoPin} onValueChange={setIsAutoPin} />
+              <Switch checked={isAutoPin} onCheckedChange={setIsAutoPin} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -230,15 +225,13 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.advanced.filter_mode.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
               </SettingLabel>
-              <RadioGroup
-                size="sm"
-                orientation="horizontal"
+              <Radio.Group
                 value={filterMode ?? 'default'}
-                onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}>
+                onChange={(e) => setFilterMode(e.target.value as SelectionFilterMode)}>
                 <Radio value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio>
                 <Radio value="whitelist">{t('selection.settings.advanced.filter_mode.whitelist')}</Radio>
                 <Radio value="blacklist">{t('selection.settings.advanced.filter_mode.blacklist')}</Radio>
-              </RadioGroup>
+              </Radio.Group>
             </SettingRow>
 
             {filterMode && filterMode !== 'default' && (

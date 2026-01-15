@@ -6,10 +6,10 @@ import { ContentSearch } from '@renderer/components/ContentSearch'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
@@ -54,8 +54,9 @@ const Chat: FC<Props> = (props) => {
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const [isTopNavbar] = usePreference('ui.navbar.position')
   const chatMaxWidth = useChatMaxWidth()
-  const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId, activeSessionIdMap } = chat
+  const [activeAgentId] = useCache('agent.active_id')
+  const [activeTopicOrSession] = useCache('chat.active_view')
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
   const sessionAgentId = activeTopicOrSession === 'session' ? activeAgentId : null
   const { createDefaultSession } = useCreateDefaultSession(sessionAgentId)
@@ -183,7 +184,8 @@ const Chat: FC<Props> = (props) => {
       <RowFlex>
         <motion.div
           animate={{
-            marginRight: topicPosition === 'right' && showTopics ? 'var(--assistants-width)' : 0
+            marginRight:
+              topicPosition === 'right' && showTopics ? 'calc(var(--assistants-width) + var(--border-width))' : 0
           }}
           transition={{ duration: 0.3, ease: 'easeInOut' }}
           style={{ flex: 1, display: 'flex', minWidth: 0 }}>
@@ -235,6 +237,7 @@ const Chat: FC<Props> = (props) => {
                     ) : (
                       <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
                     )}
+                    {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
                     <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
                   </>
                 )}

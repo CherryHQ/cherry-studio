@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { convertMessagesToSdkMessages } from '@renderer/aiCore/prepareParams'
 import type { Assistant, Message } from '@renderer/types'
 import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
@@ -8,11 +9,32 @@ import { getAssistantSettings, getDefaultModel } from './AssistantService'
 import {
   filterAfterContextClearMessages,
   filterEmptyMessages,
+  filterErrorOnlyMessagesWithRelated,
   filterUsefulMessages,
   filterUserRoleStartMessages
 } from './MessagesService'
 
+const logger = loggerService.withContext('ConversationService')
+
 export class ConversationService {
+  /**
+   * Applies the filtering pipeline that prepares UI messages for model consumption.
+   * This keeps the logic testable and prevents future regressions when the pipeline changes.
+   */
+  static filterMessagesPipeline(messages: Message[], contextCount: number): Message[] {
+    const messagesAfterContextClear = filterAfterContextClearMessages(messages)
+    const usefulMessages = filterUsefulMessages(messagesAfterContextClear)
+    // Run the error-only filter before trimming trailing assistant responses so the pair is removed together.
+    const withoutErrorOnlyPairs = filterErrorOnlyMessagesWithRelated(usefulMessages)
+    const withoutTrailingAssistant = filterLastAssistantMessage(withoutErrorOnlyPairs)
+    const withoutAdjacentUsers = filterAdjacentUserMessaegs(withoutTrailingAssistant)
+    const limitedByContext = takeRight(withoutAdjacentUsers, contextCount + 2)
+    const contextClearFiltered = filterAfterContextClearMessages(limitedByContext)
+    const nonEmptyMessages = filterEmptyMessages(contextClearFiltered)
+    const userRoleStartMessages = filterUserRoleStartMessages(nonEmptyMessages)
+    return userRoleStartMessages
+  }
+
   static async prepareMessagesForModel(
     messages: Message[],
     assistant: Assistant
@@ -28,19 +50,11 @@ export class ConversationService {
       }
     }
 
-    const filteredMessages1 = filterAfterContextClearMessages(messages)
-
-    const filteredMessages2 = filterUsefulMessages(filteredMessages1)
-
-    const filteredMessages3 = filterLastAssistantMessage(filteredMessages2)
-
-    const filteredMessages4 = filterAdjacentUserMessaegs(filteredMessages3)
-
-    let uiMessages = filterUserRoleStartMessages(
-      filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount + 2))) // 取原来几个provider的最大值
-    )
+    const uiMessagesFromPipeline = ConversationService.filterMessagesPipeline(messages, contextCount)
+    logger.debug('uiMessagesFromPipeline', uiMessagesFromPipeline)
 
     // Fallback: ensure at least the last user message is present to avoid empty payloads
+    let uiMessages = uiMessagesFromPipeline
     if ((!uiMessages || uiMessages.length === 0) && lastUserMessage) {
       uiMessages = [lastUserMessage]
     }

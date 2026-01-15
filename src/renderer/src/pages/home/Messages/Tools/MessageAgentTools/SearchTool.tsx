@@ -8,7 +8,7 @@ export function SearchTool({
   input,
   output
 }: {
-  input: SearchToolInputType
+  input?: SearchToolInputType
   output?: SearchToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算结果数量
@@ -20,13 +20,13 @@ export function SearchTool({
       <ToolTitle
         icon={<Search className="h-4 w-4" />}
         label="Search"
-        params={`"${input}"`}
+        params={input ? `"${input}"` : undefined}
         stats={output ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}` : undefined}
       />
     ),
     children: (
       <div>
-        <StringInputTool input={input} label="Search Query" />
+        {input && <StringInputTool input={input} label="Search Query" />}
         {output && (
           <div>
             <StringOutputTool output={output} label="Search Results" textColor="text-yellow-600 dark:text-yellow-400" />

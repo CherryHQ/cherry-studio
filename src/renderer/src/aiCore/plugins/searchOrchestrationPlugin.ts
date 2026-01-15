@@ -7,10 +7,11 @@
  * 3. onRequestEnd: 自动记忆存储
  */
 import { type AiRequestContext, definePlugin } from '@cherrystudio/ai-core'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
+import { selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { extractInfoFromXML } from '@renderer/utils/extract'
@@ -31,7 +32,7 @@ import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
 
-const getMessageContent = (message: ModelMessage) => {
+export const getMessageContent = (message: ModelMessage) => {
   if (typeof message.content === 'string') return message.content
   return message.content.reduce((acc, part) => {
     if (part.type === 'text') {
@@ -176,7 +177,7 @@ async function storeConversationMemory(
   assistant: Assistant,
   context: AiRequestContext
 ): Promise<void> {
-  const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
+  const globalMemoryEnabled = await preferenceService.get('feature.memory.enabled')
 
   if (!globalMemoryEnabled || !assistant.enableMemory) {
     return
@@ -199,7 +200,7 @@ async function storeConversationMemory(
       return
     }
 
-    const currentUserId = selectCurrentUserId(store.getState())
+    const currentUserId = await preferenceService.get('feature.memory.current_user_id')
     // const lastUserMessage = messages.findLast((m) => m.role === 'user')
 
     const processorConfig = MemoryProcessor.getProcessorConfig(
@@ -266,14 +267,14 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 判断是否需要各种搜索
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
-        const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
+        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
+        const globalMemoryEnabled = await preferenceService.get('feature.memory.enabled')
         const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
         const shouldMemorySearch = globalMemoryEnabled && assistant.enableMemory
 
         // 执行意图分析
-        if (shouldWebSearch || hasKnowledgeBase) {
+        if (shouldWebSearch || shouldKnowledgeSearch) {
           const analysisResult = await analyzeSearchIntent(lastUserMessage, assistant, {
             shouldWebSearch,
             shouldKnowledgeSearch,
@@ -330,46 +331,30 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 📚 知识库搜索工具配置
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
+        const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
 
-        if (hasKnowledgeBase) {
-          if (knowledgeRecognition === 'off') {
-            // off 模式：直接添加知识库搜索工具，使用用户消息作为搜索关键词
+        if (shouldKnowledgeSearch) {
+          // on 模式：根据意图识别结果决定是否添加工具
+          const needsKnowledgeSearch =
+            analysisResult?.knowledge &&
+            analysisResult.knowledge.question &&
+            analysisResult.knowledge.question[0] !== 'not_needed'
+
+          if (needsKnowledgeSearch && analysisResult.knowledge) {
+            // logger.info('📚 Adding knowledge search tool (intent-based)')
             const userMessage = userMessages[context.requestId]
-            const fallbackKeywords = {
-              question: [getMessageContent(userMessage) || 'search'],
-              rewrite: getMessageContent(userMessage) || 'search'
-            }
-            // logger.info('📚 Adding knowledge search tool (force mode)')
             params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
               assistant,
-              fallbackKeywords,
+              analysisResult.knowledge,
               getMessageContent(userMessage),
               topicId
             )
-            // params.toolChoice = { type: 'tool', toolName: 'builtin_knowledge_search' }
-          } else {
-            // on 模式：根据意图识别结果决定是否添加工具
-            const needsKnowledgeSearch =
-              analysisResult?.knowledge &&
-              analysisResult.knowledge.question &&
-              analysisResult.knowledge.question[0] !== 'not_needed'
-
-            if (needsKnowledgeSearch && analysisResult.knowledge) {
-              // logger.info('📚 Adding knowledge search tool (intent-based)')
-              const userMessage = userMessages[context.requestId]
-              params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
-                assistant,
-                analysisResult.knowledge,
-                getMessageContent(userMessage),
-                topicId
-              )
-            }
           }
         }
 
         // 🧠 记忆搜索工具配置
-        const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
+        const globalMemoryEnabled = await preferenceService.get('feature.memory.enabled')
         if (globalMemoryEnabled && assistant.enableMemory) {
           // logger.info('🧠 Adding memory search tool')
           params.tools['builtin_memory_search'] = memorySearchTool()

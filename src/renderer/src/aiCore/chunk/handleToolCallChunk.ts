@@ -212,8 +212,9 @@ export class ToolCallChunkHandler {
         description: toolName,
         type: 'builtin'
       } as BaseTool
-    } else if ((mcpTool = this.mcpTools.find((t) => t.name === toolName) as MCPTool)) {
+    } else if ((mcpTool = this.mcpTools.find((t) => t.id === toolName) as MCPTool)) {
       // 如果是客户端执行的 MCP 工具，沿用现有逻辑
+      // toolName is mcpTool.id (registered with id as key in convertMcpToolsToAiSdkTools)
       logger.info(`[ToolCallChunkHandler] Handling client-side MCP tool: ${toolName}`)
       // mcpTool = this.mcpTools.find((t) => t.name === toolName) as MCPTool
       // if (!mcpTool) {

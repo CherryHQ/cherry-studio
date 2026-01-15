@@ -8,7 +8,8 @@ import type { AssistantPreset } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Dropdown } from 'antd'
 import { t } from 'i18next'
-import { ArrowDownAZ, Ellipsis, PlusIcon, SquareArrowOutUpRight } from 'lucide-react'
+import { isArray } from 'lodash'
+import { Ellipsis, PlusIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { type FC, memo, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
@@ -77,9 +78,9 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       }
     },
     {
-      key: 'sort',
-      label: t('assistants.presets.sorting.title'),
-      icon: <ArrowDownAZ size={14} />,
+      key: 'manage',
+      label: t('assistants.presets.manage.title'),
+      icon: <Settings2 size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
         ManageAssistantPresetsPopup.show()
@@ -143,7 +144,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
                     {getLocalizedGroupName('我的')}
                   </CustomTag>
                 )}
-                {!!preset.group?.length &&
+                {isArray(preset.group) &&
                   preset.group.map((group) => (
                     <CustomTag key={group} color="#A0A0A0" size={11}>
                       {getLocalizedGroupName(group)}

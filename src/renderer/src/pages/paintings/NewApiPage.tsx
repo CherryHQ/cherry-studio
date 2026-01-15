@@ -10,7 +10,7 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo, isNewApiProvider, PROVIDER_URLS } from '@renderer/config/providers'
+import { getProviderLogo, PROVIDER_URLS } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -28,13 +28,16 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { isNewApiProvider } from '@renderer/utils/provider'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import type { RcFile } from 'antd/es/upload'
+import type { UploadFile } from 'antd/es/upload/interface'
 import type { FC } from 'react'
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
@@ -435,7 +438,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate('../' + providerId, { replace: true })
+      navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -462,7 +465,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   // 当 modelOptions 为空时，引导用户跳转到 Provider 设置页面，新增 image-generation 端点模型
   const handleShowAddModelPopup = () => {
-    navigate(`/settings/provider?id=${newApiProvider.id}`)
+    navigate({ to: `/settings/provider?id=${newApiProvider.id}` })
   }
 
   useEffect(() => {
@@ -552,7 +555,31 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     maxCount={16}
                     showUploadList={true}
                     listType="picture"
-                    beforeUpload={handleImageUpload}>
+                    beforeUpload={handleImageUpload}
+                    fileList={editImageFiles.map((file, idx): UploadFile<any> => {
+                      const rcFile: RcFile = {
+                        ...file,
+                        uid: String(idx),
+                        lastModifiedDate: file.lastModified ? new Date(file.lastModified) : new Date()
+                      }
+                      return {
+                        uid: rcFile.uid,
+                        name: rcFile.name || `image_${idx + 1}.png`,
+                        status: 'done',
+                        url: URL.createObjectURL(file),
+                        originFileObj: rcFile,
+                        lastModifiedDate: rcFile.lastModifiedDate
+                      }
+                    })}
+                    onRemove={(file) => {
+                      setEditImageFiles((prev) =>
+                        prev.filter((f) => {
+                          const idx = prev.indexOf(f)
+                          return String(idx) !== file.uid
+                        })
+                      )
+                      return true
+                    }}>
                     <ImagePlaceholder>
                       <ImageSizeImage src={IcImageUp} theme={theme} />
                     </ImagePlaceholder>

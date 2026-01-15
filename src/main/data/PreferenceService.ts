@@ -1,7 +1,12 @@
 import { dbService } from '@data/db/DbService'
 import { loggerService } from '@logger'
+import { isDev } from '@main/constant'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import type {
+  PreferenceDefaultScopeType,
+  PreferenceKeyType,
+  PreferenceMultipleResultType
+} from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { and, eq } from 'drizzle-orm'
 import { BrowserWindow, ipcMain } from 'electron'
@@ -9,6 +14,50 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { preferenceTable } from './db/schemas/preference'
 
 const logger = loggerService.withContext('PreferenceService')
+
+/**
+ * Preference statistics summary
+ */
+interface PreferenceStatsSummary {
+  /** Timestamp when statistics were collected */
+  collectedAt: number
+  /** Total number of preference keys */
+  totalKeys: number
+  /** Number of keys with main process subscriptions */
+  mainProcessSubscribedKeys: number
+  /** Total main process subscription count */
+  mainProcessTotalSubscriptions: number
+  /** Number of keys with window subscriptions */
+  windowSubscribedKeys: number
+  /** Total window subscription count (one window subscribing to one key counts as one) */
+  windowTotalSubscriptions: number
+  /** Number of active windows with subscriptions */
+  activeWindowCount: number
+}
+
+/**
+ * Statistics for a single preference key
+ */
+interface PreferenceKeyStats {
+  /** Preference key */
+  key: string
+  /** Main process subscription count */
+  mainProcessSubscriptions: number
+  /** Window subscription count */
+  windowSubscriptions: number
+  /** List of window IDs subscribed to this key */
+  subscribedWindowIds: number[]
+}
+
+/**
+ * Complete statistics result
+ */
+interface PreferenceStats {
+  /** Summary statistics */
+  summary: PreferenceStatsSummary
+  /** Detailed per-key statistics (only when details=true) */
+  details?: PreferenceKeyStats[]
+}
 
 /**
  * Custom observer pattern implementation for preference change notifications
@@ -118,8 +167,6 @@ class PreferenceNotifier {
   }
 }
 
-type MultiPreferencesResultType<K extends PreferenceKeyType> = { [P in K]: PreferenceDefaultScopeType[P] | undefined }
-
 const DefaultScope = 'default'
 /**
  * PreferenceService manages preference data storage and synchronization across multiple windows
@@ -153,6 +200,7 @@ export class PreferenceService {
 
   /**
    * Get the singleton instance of PreferenceService
+   * @returns The singleton PreferenceService instance
    */
   public static getInstance(): PreferenceService {
     if (!PreferenceService.instance) {
@@ -164,6 +212,7 @@ export class PreferenceService {
   /**
    * Initialize preference cache from database
    * Should be called once at application startup
+   * @returns Promise that resolves when initialization completes
    */
   public async initialize(): Promise<void> {
     if (this.initialized) {
@@ -194,6 +243,8 @@ export class PreferenceService {
   /**
    * Get a single preference value from memory cache
    * Fast synchronous access - no database queries after initialization
+   * @param key The preference key to retrieve
+   * @returns The preference value with defaults applied
    */
   public get<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] {
     if (!this.initialized) {
@@ -208,6 +259,9 @@ export class PreferenceService {
    * Set a single preference value
    * Updates both database and memory cache, then broadcasts changes to all listeners
    * Optimized to skip database writes and notifications when value hasn't changed
+   * @param key The preference key to update
+   * @param value The new value to set
+   * @returns Promise that resolves when update completes
    */
   public async set<K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> {
     try {
@@ -247,27 +301,21 @@ export class PreferenceService {
   /**
    * Get multiple preferences at once from memory cache
    * Fast synchronous access - no database queries
+   * @param keys Array of preference keys to retrieve
+   * @returns Object with preference values for requested keys
    */
-  public getMultiple<K extends PreferenceKeyType>(keys: K[]): MultiPreferencesResultType<K> {
+  public getMultipleRaw<K extends PreferenceKeyType>(keys: K[]): PreferenceMultipleResultType<K> {
     if (!this.initialized) {
       logger.warn('Preference cache not initialized, returning defaults for multiple keys')
-      const output: MultiPreferencesResultType<K> = {} as MultiPreferencesResultType<K>
-      for (const key of keys) {
-        if (key in DefaultPreferences.default) {
-          output[key] = DefaultPreferences.default[key]
-        } else {
-          output[key] = undefined as MultiPreferencesResultType<K>[K]
-        }
-      }
-      return output
     }
 
-    const output: MultiPreferencesResultType<K> = {} as MultiPreferencesResultType<K>
+    const output: PreferenceMultipleResultType<K> = {} as PreferenceMultipleResultType<K>
     for (const key of keys) {
-      if (key in this.cache) {
+      // Prefer cache value, fallback to default
+      if (this.initialized && key in this.cache) {
         output[key] = this.cache[key]
       } else {
-        output[key] = undefined
+        output[key] = DefaultPreferences.default[key]
       }
     }
 
@@ -275,9 +323,37 @@ export class PreferenceService {
   }
 
   /**
+   * Get multiple preferences with custom key mapping
+   * @param keys Object mapping local names to preference keys
+   * @returns Object with mapped preference values
+   * @example
+   * ```typescript
+   * const { host, port } = preferenceService.getMultiple({
+   *   host: 'feature.csaas.host',
+   *   port: 'feature.csaas.port'
+   * })
+   * ```
+   */
+  public getMultiple<T extends Record<string, PreferenceKeyType>>(
+    keys: T
+  ): { [P in keyof T]: PreferenceDefaultScopeType[T[P]] } {
+    const preferenceKeys = Object.values(keys) as PreferenceKeyType[]
+    const values = this.getMultipleRaw(preferenceKeys)
+    const result = {} as { [P in keyof T]: PreferenceDefaultScopeType[T[P]] }
+
+    for (const key in keys) {
+      result[key] = values[keys[key]]
+    }
+
+    return result
+  }
+
+  /**
    * Set multiple preferences at once
    * Updates both database and memory cache in a transaction, then broadcasts changes
    * Optimized to skip unchanged values and reduce database operations
+   * @param updates Object containing preference key-value pairs to update
+   * @returns Promise that resolves when all updates complete
    */
   public async setMultiple(updates: Partial<PreferenceDefaultScopeType>): Promise<void> {
     try {
@@ -345,6 +421,8 @@ export class PreferenceService {
   /**
    * Subscribe a window to preference changes
    * Window will receive notifications for specified keys
+   * @param windowId The ID of the BrowserWindow to subscribe
+   * @param keys Array of preference keys to subscribe to
    */
   public subscribeForWindow(windowId: number, keys: string[]): void {
     if (!this.subscriptions.has(windowId)) {
@@ -359,6 +437,7 @@ export class PreferenceService {
 
   /**
    * Unsubscribe a window from preference changes
+   * @param windowId The ID of the BrowserWindow to unsubscribe
    */
   public unsubscribeForWindow(windowId: number): void {
     this.subscriptions.delete(windowId)
@@ -369,7 +448,9 @@ export class PreferenceService {
 
   /**
    * Subscribe to preference changes in main process
-   * Returns unsubscribe function for cleanup
+   * @param key The preference key to watch for changes
+   * @param callback Function to call when the preference changes
+   * @returns Unsubscribe function for cleanup
    */
   public subscribeChange<K extends PreferenceKeyType>(
     key: K,
@@ -386,7 +467,9 @@ export class PreferenceService {
 
   /**
    * Subscribe to multiple preference changes in main process
-   * Returns unsubscribe function for cleanup
+   * @param keys Array of preference keys to watch for changes
+   * @param callback Function to call when any of the preferences change
+   * @returns Unsubscribe function for cleanup
    */
   public subscribeMultipleChanges(
     keys: PreferenceKeyType[],
@@ -417,6 +500,7 @@ export class PreferenceService {
 
   /**
    * Get main process listener count for debugging
+   * @returns Total number of change listeners
    */
   public getChangeListenerCount(): number {
     return this.notifier.getTotalSubscriptionCount()
@@ -424,6 +508,8 @@ export class PreferenceService {
 
   /**
    * Get subscription count for a specific preference key
+   * @param key The preference key to check
+   * @returns Number of listeners subscribed to this key
    */
   public getKeyListenerCount(key: PreferenceKeyType): number {
     return this.notifier.getKeySubscriptionCount(key)
@@ -431,6 +517,7 @@ export class PreferenceService {
 
   /**
    * Get all subscribed preference keys
+   * @returns Array of preference keys that have active subscriptions
    */
   public getSubscribedKeys(): string[] {
     return this.notifier.getSubscribedKeys()
@@ -438,14 +525,126 @@ export class PreferenceService {
 
   /**
    * Get detailed subscription statistics for debugging
+   * @returns Record mapping preference keys to their listener counts
    */
   public getSubscriptionStats(): Record<string, number> {
     return this.notifier.getSubscriptionStats()
   }
 
   /**
+   * Get preference statistics
+   * @param details Whether to include per-key detailed statistics
+   * @returns Statistics object with summary and optional details
+   */
+  public getStats(details: boolean = false): PreferenceStats {
+    if (!isDev) {
+      logger.warn('getStats() is resource-intensive and should be used in development environment only')
+    }
+
+    const summary = this.collectStatsSummary()
+
+    if (!details) {
+      return { summary }
+    }
+
+    return {
+      summary,
+      details: this.collectStatsDetails()
+    }
+  }
+
+  /**
+   * Collect statistics summary
+   */
+  private collectStatsSummary(): PreferenceStatsSummary {
+    const mainProcessStats = this.notifier.getSubscriptionStats()
+    const mainProcessSubscribedKeys = Object.keys(mainProcessStats).length
+    const mainProcessTotalSubscriptions = this.notifier.getTotalSubscriptionCount()
+
+    const { windowSubscribedKeys, windowTotalSubscriptions, activeWindowCount } = this.collectWindowSubscriptionStats()
+
+    return {
+      collectedAt: Date.now(),
+      totalKeys: Object.keys(this.cache).length,
+      mainProcessSubscribedKeys,
+      mainProcessTotalSubscriptions,
+      windowSubscribedKeys,
+      windowTotalSubscriptions,
+      activeWindowCount
+    }
+  }
+
+  /**
+   * Collect window subscription statistics
+   */
+  private collectWindowSubscriptionStats(): {
+    windowSubscribedKeys: number
+    windowTotalSubscriptions: number
+    activeWindowCount: number
+  } {
+    const keyToWindows = new Map<string, Set<number>>()
+    let totalSubscriptions = 0
+
+    for (const [windowId, keys] of this.subscriptions.entries()) {
+      for (const key of keys) {
+        if (!keyToWindows.has(key)) {
+          keyToWindows.set(key, new Set())
+        }
+        keyToWindows.get(key)!.add(windowId)
+        totalSubscriptions++
+      }
+    }
+
+    return {
+      windowSubscribedKeys: keyToWindows.size,
+      windowTotalSubscriptions: totalSubscriptions,
+      activeWindowCount: this.subscriptions.size
+    }
+  }
+
+  /**
+   * Collect per-key detailed statistics
+   */
+  private collectStatsDetails(): PreferenceKeyStats[] {
+    const mainProcessStats = this.notifier.getSubscriptionStats()
+
+    const keyToWindowIds = new Map<string, number[]>()
+    for (const [windowId, keys] of this.subscriptions.entries()) {
+      for (const key of keys) {
+        if (!keyToWindowIds.has(key)) {
+          keyToWindowIds.set(key, [])
+        }
+        keyToWindowIds.get(key)!.push(windowId)
+      }
+    }
+
+    const allSubscribedKeys = new Set<string>([...Object.keys(mainProcessStats), ...keyToWindowIds.keys()])
+
+    const details: PreferenceKeyStats[] = []
+    for (const key of allSubscribedKeys) {
+      details.push({
+        key,
+        mainProcessSubscriptions: mainProcessStats[key] || 0,
+        windowSubscriptions: keyToWindowIds.get(key)?.length || 0,
+        subscribedWindowIds: keyToWindowIds.get(key) || []
+      })
+    }
+
+    details.sort(
+      (a, b) =>
+        b.mainProcessSubscriptions + b.windowSubscriptions - (a.mainProcessSubscriptions + a.windowSubscriptions)
+    )
+
+    return details
+  }
+
+  /**
    * Unified notification method for both main and renderer processes
    * Broadcasts preference changes to main process listeners and subscribed renderer windows
+   * @param key The preference key that changed
+   * @param value The new value
+   * @param oldValue The previous value
+   * @returns Promise that resolves when all notifications are sent
    */
   private async notifyChange(key: string, value: any, oldValue?: any): Promise<void> {
     // 1. Notify main process listeners
@@ -512,6 +711,7 @@ export class PreferenceService {
   /**
    * Get all preferences from memory cache
    * Returns complete preference object for bulk operations
+   * @returns Complete preference object with all values
    */
   public getAll(): PreferenceDefaultScopeType {
     if (!this.initialized) {
@@ -523,7 +723,8 @@ export class PreferenceService {
   }
 
   /**
-   * Get all current subscriptions (for debugging)
+   * Get all current window subscriptions (for debugging)
+   * @returns Map of window IDs to their subscribed preference keys
    */
   public getSubscriptions(): Map<number, Set<string>> {
     return new Map(this.subscriptions)
@@ -548,6 +749,9 @@ export class PreferenceService {
   /**
    * Deep equality check for preference values
    * Handles primitives, arrays, and plain objects
+   * @param a First value to compare
+   * @param b Second value to compare
+   * @returns True if values are deeply equal, false otherwise
    */
   private isEqual(a: any, b: any): boolean {
     // Handle strict equality (primitives, same reference)
@@ -603,8 +807,8 @@ export class PreferenceService {
       }
     )
 
-    ipcMain.handle(IpcChannel.Preference_GetMultiple, (_, keys: PreferenceKeyType[]) => {
-      return instance.getMultiple(keys)
+    ipcMain.handle(IpcChannel.Preference_GetMultipleRaw, (_, keys: PreferenceKeyType[]) => {
+      return instance.getMultipleRaw(keys)
     })
 
     ipcMain.handle(IpcChannel.Preference_SetMultiple, async (_, updates: Partial<PreferenceDefaultScopeType>) => {

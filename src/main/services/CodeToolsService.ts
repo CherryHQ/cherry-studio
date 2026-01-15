@@ -548,6 +548,17 @@ class CodeToolsService {
     logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
 
+    // Validate directory exists before proceeding
+    if (!directory || !fs.existsSync(directory)) {
+      const errorMessage = `Directory does not exist: ${directory}`
+      logger.error(errorMessage)
+      return {
+        success: false,
+        message: errorMessage,
+        command: ''
+      }
+    }
+
     const packageName = await this.getPackageName(cliTool)
     const bunPath = await this.getBunPath()
     const executableName = await this.getCliExecutableName(cliTool)
@@ -709,6 +720,7 @@ class CodeToolsService {
         // Build bat file content, including debug information
         const batContent = [
           '@echo off',
+          'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
           `title ${cliTool} - Cherry Studio`, // Set window title in bat file
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',

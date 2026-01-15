@@ -321,7 +321,11 @@
   /* ==================== */
   /* Spacing */
   /* ==================== */
-  --spacing-5xs: 0.25rem;
+  /* 在 Tailwind CSS v4 中，像 max-w-md、w-md 这类工具类会按照命名空间优先级查找 CSS 变量： */
+  /* --spacing-{value} > --container-{value} */
+  /* 下述定义的spacing与container相差巨大,所以先注释掉 */
+
+  /* --spacing-5xs: 0.25rem;
   --spacing-4xs: 0.5rem;
   --spacing-3xs: 0.75rem;
   --spacing-2xs: 1rem;
@@ -336,7 +340,7 @@
   --spacing-5xl: 5.5rem;
   --spacing-6xl: 6rem;
   --spacing-7xl: 6.5rem;
-  --spacing-8xl: 7rem;
+  --spacing-8xl: 7rem; */
 
   /* ==================== */
   /* Radius */

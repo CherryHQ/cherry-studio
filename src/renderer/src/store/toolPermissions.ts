@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
@@ -14,6 +30,7 @@ export type ToolPermissionRequestPayload = {
   createdAt: number
   expiresAt: number
   suggestions: PermissionUpdate[]
+  autoApprove?: boolean
 }
 
 export type ToolPermissionResultPayload = {
@@ -21,9 +38,10 @@ export type ToolPermissionResultPayload = {
   behavior: 'allow' | 'deny'
   message?: string
   reason: 'response' | 'timeout' | 'aborted' | 'no-window'
+  toolCallId?: string
 }
 
-export type ToolPermissionStatus = 'pending' | 'submitting-allow' | 'submitting-deny'
+export type ToolPermissionStatus = 'pending' | 'submitting-allow' | 'submitting-deny' | 'invoking'
 
 export type ToolPermissionEntry = ToolPermissionRequestPayload & {
   status: ToolPermissionStatus
@@ -61,8 +79,24 @@ const toolPermissionsSlice = createSlice({
       entry.status = 'pending'
     },
     requestResolved: (state, action: PayloadAction<ToolPermissionResultPayload>) => {
-      const { requestId } = action.payload
-      delete state.requests[requestId]
+      const { requestId, behavior } = action.payload
+      const entry = state.requests[requestId]
+
+      if (!entry) return
+
+      if (behavior === 'allow') {
+        entry.status = 'invoking'
+      } else {
+        delete state.requests[requestId]
+      }
+    },
+    removeByToolCallId: (state, action: PayloadAction<{ toolCallId: string }>) => {
+      const { toolCallId } = action.payload
+
+      const entryId = Object.keys(state.requests).find((key) => state.requests[key]?.toolCallId === toolCallId)
+      if (entryId) {
+        delete state.requests[entryId]
+      }
     },
     clearAll: (state) => {
       state.requests = {}
@@ -73,8 +107,8 @@ const toolPermissionsSlice = createSlice({
 export const toolPermissionsActions = toolPermissionsSlice.actions
 
 export const selectActiveToolPermission = (state: ToolPermissionsState): ToolPermissionEntry | null => {
-  const activeEntries = Object.values(state.requests).filter(
-    (entry) => entry.status === 'pending' || entry.status === 'submitting-allow' || entry.status === 'submitting-deny'
+  const activeEntries = Object.values(state.requests).filter((entry) =>
+    ['pending', 'submitting-allow', 'submitting-deny', 'invoking'].includes(entry.status)
   )
 
   if (activeEntries.length === 0) return null
@@ -89,9 +123,7 @@ export const selectPendingPermission = (
 ): ToolPermissionEntry | undefined => {
   const activeEntries = Object.values(state.requests)
     .filter((entry) => entry.toolCallId === toolCallId)
-    .filter(
-      (entry) => entry.status === 'pending' || entry.status === 'submitting-allow' || entry.status === 'submitting-deny'
-    )
+    .filter((entry) => ['pending', 'submitting-allow', 'submitting-deny', 'invoking'].includes(entry.status))
 
   if (activeEntries.length === 0) return undefined
 

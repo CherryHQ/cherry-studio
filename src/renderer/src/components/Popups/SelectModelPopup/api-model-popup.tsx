@@ -57,7 +57,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
   const { models, isLoading } = useApiModels(apiFilter)
-  const adaptedModels = models.map((model) => apiModelAdapter(model))
+  const adaptedModels = useMemo(() => models.map((model) => apiModelAdapter(model)), [models])
 
   // 当前选中的模型ID
   const currentModelId = model ? model.id : ''

@@ -13,7 +13,7 @@ import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { addMCPServer } from '@renderer/store/mcp'
+import { addMCPServer, hubMCPServer } from '@renderer/store/mcp'
 import type {
   Assistant,
   MCPCallToolResponse,
@@ -90,7 +90,8 @@ export function openAIToolsToMcpTool(
     return undefined
   }
   const tools = mcpTools.filter((mcpTool) => {
-    return mcpTool.id === toolName || mcpTool.name === toolName
+    // toolName is mcpTool.id (registered with id as function name)
+    return mcpTool.id === toolName
   })
   if (tools.length > 1) {
     logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
@@ -135,7 +136,10 @@ export async function callMCPTool(
   topicId?: string,
   modelName?: string
 ): Promise<MCPCallToolResponse> {
-  logger.info(`Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
+  logger.info(
+    `Calling Tool: ${toolResponse.id} ${toolResponse.tool.serverName} ${toolResponse.tool.name}`,
+    toolResponse.tool
+  )
   try {
     const server = getMcpServerByTool(toolResponse.tool)
 
@@ -321,7 +325,16 @@ export function filterMCPTools(
 
 export function getMcpServerByTool(tool: MCPTool) {
   const servers = store.getState().mcp.servers
-  return servers.find((s) => s.id === tool.serverId)
+  const server = servers.find((s) => s.id === tool.serverId)
+  if (server) {
+    return server
+  }
+  // For hub server (auto mode), the server isn't in the store
+  // Return the hub server constant if the tool's serverId matches
+  if (tool.serverId === 'hub') {
+    return hubMCPServer
+  }
+  return undefined
 }
 
 export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {

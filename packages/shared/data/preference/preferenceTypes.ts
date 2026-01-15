@@ -3,6 +3,13 @@ import type { PreferenceSchemas } from './preferenceSchemas'
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
 export type PreferenceKeyType = keyof PreferenceDefaultScopeType
 
+/**
+ * Result type for getMultipleRaw - maps requested keys to their values
+ */
+export type PreferenceMultipleResultType<K extends PreferenceKeyType> = {
+  [P in K]: PreferenceDefaultScopeType[P]
+}
+
 export type PreferenceUpdateOptions = {
   optimistic: boolean
 }
@@ -48,14 +55,15 @@ export enum ThemeMode {
 export type LanguageVarious =
   | 'zh-CN'
   | 'zh-TW'
+  | 'de-DE'
   | 'el-GR'
   | 'en-US'
   | 'es-ES'
   | 'fr-FR'
   | 'ja-JP'
   | 'pt-PT'
+  | 'ro-RO'
   | 'ru-RU'
-  | 'de-DE'
 
 export type WindowStyle = 'transparent' | 'opaque'
 

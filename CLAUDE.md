@@ -11,59 +11,54 @@ This file provides guidance to AI coding assistants when working with code in th
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
 - **Always propose before executing**: Before making any changes, clearly explain your planned approach and wait for explicit user approval to ensure alignment and prevent unwanted modifications.
+- **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat:`, `fix:`, `refactor:`, `docs:`).
+
+## Pull Request Workflow (CRITICAL)
+
+When creating a Pull Request, you MUST:
+
+1. **Read the PR template first**: Always read `.github/pull_request_template.md` before creating the PR
+2. **Follow ALL template sections**: Structure the `--body` parameter to include every section from the template
+3. **Never skip sections**: Include all sections even if marking them as N/A or "None"
+4. **Use proper formatting**: Match the template's markdown structure exactly (headings, checkboxes, code blocks)
 
 ## Development Commands
 
-- **Install**: `yarn install` - Install all project dependencies
-- **Development**: `yarn dev` - Runs Electron app in development mode with hot reload
-- **Debug**: `yarn debug` - Starts with debugging enabled, use `chrome://inspect` to attach debugger
-- **Build Check**: `yarn build:check` - **REQUIRED** before commits (lint + test + typecheck)
-  - If having i18n sort issues, run `yarn sync:i18n` first to sync template
-  - If having formatting issues, run `yarn format` first
-- **Test**: `yarn test` - Run all tests (Vitest) across main and renderer processes
+- **Install**: `pnpm install` - Install all project dependencies
+- **Development**: `pnpm dev` - Runs Electron app in development mode with hot reload
+- **Debug**: `pnpm debug` - Starts with debugging enabled, use `chrome://inspect` to attach debugger
+- **Build Check**: `pnpm build:check` - **REQUIRED** before commits (lint + test + typecheck)
+  - If having i18n sort issues, run `pnpm i18n:sync` first to sync template
+  - If having formatting issues, run `pnpm format` first
+- **Test**: `pnpm test` - Run all tests (Vitest) across main and renderer processes
 - **Single Test**:
-  - `yarn test:main` - Run tests for main process only
-  - `yarn test:renderer` - Run tests for renderer process only
-- **Lint**: `yarn lint` - Fix linting issues and run TypeScript type checking
-- **Format**: `yarn format` - Auto-format code using Biome
+  - `pnpm test:main` - Run tests for main process only
+  - `pnpm test:renderer` - Run tests for renderer process only
+- **Lint**: `pnpm lint` - Fix linting issues and run TypeScript type checking
+- **Format**: `pnpm format` - Auto-format code using Biome
 
 ## Project Architecture
 
 ### Electron Structure
+
 - **Main Process** (`src/main/`): Node.js backend with services (MCP, Knowledge, Storage, etc.)
-- **Renderer Process** (`src/renderer/`): React UI with Redux state management
+- **Renderer Process** (`src/renderer/`): React UI
 - **Preload Scripts** (`src/preload/`): Secure IPC bridge
 
 ### Key Architectural Components
 
-#### Main Process Services (`src/main/services/`)
-
-- **MCPService**: Model Context Protocol server management
-- **KnowledgeService**: Document processing and knowledge base management
-- **FileStorage/S3Storage/WebDav**: Multiple storage backends
-- **WindowService**: Multi-window management (main, mini, selection windows)
-- **ProxyManager**: Network proxy handling
-- **SearchService**: Full-text search capabilities
-
-#### AI Core (`src/renderer/src/aiCore/`)
-
-- **Middleware System**: Composable pipeline for AI request processing
-- **Client Factory**: Supports multiple AI providers (OpenAI, Anthropic, Gemini, etc.)
-- **Stream Processing**: Real-time response handling
-
 #### Data Management
 
-- **Cache System**: Three-layer caching (memory/shared/persist) with React hooks integration
-- **Preferences**: Type-safe configuration management with multi-window synchronization
-- **User Data**: SQLite-based storage with Drizzle ORM for business data
+**MUST READ**: [docs/en/references/data/README.md](docs/en/references/data/README.md) for system selection, architecture, and patterns.
 
-#### Knowledge Management
+| System     | Use Case                     | APIs                                            |
+| ---------- | ---------------------------- | ----------------------------------------------- |
+| Cache      | Temp data (can lose)         | `useCache`, `useSharedCache`, `usePersistCache` |
+| Preference | User settings                | `usePreference`                                 |
+| DataApi    | Business data (**critical**) | `useQuery`, `useMutation`                       |
 
-- **Embeddings**: Vector search with multiple providers (OpenAI, Voyage, etc.)
-- **OCR**: Document text extraction (system OCR, Doc2x, Mineru)
-- **Preprocessing**: Document preparation pipeline
-- **Loaders**: Support for various file formats (PDF, DOCX, EPUB, etc.)
+Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `yarn db:migrations:generate`
 
 ### Build System
 
@@ -88,63 +83,36 @@ This file provides guidance to AI coding assistants when working with code in th
 - **Multi-language Support**: i18n with dynamic loading
 - **Theme System**: Light/dark themes with custom CSS variables
 
-### UI Design
+## v2 Refactoring (In Progress)
 
-The project is in the process of migrating from antd & styled-components to Tailwind CSS and Shadcn UI. Please use components from `@packages/ui` to build UI components. The use of antd and styled-components is prohibited.
+The v2 branch is undergoing a major refactoring effort:
 
-UI Library: `@packages/ui`
+### Data Layer
 
-### Database Architecture
+- **Removing**: Redux, Dexie
+- **Adopting**: Cache / Preference / DataApi architecture (see [Data Management](#data-management))
 
-- **Database**: SQLite (`cherrystudio.sqlite`) + libsql driver
-- **ORM**: Drizzle ORM with comprehensive migration system
-- **Schemas**: Located in `src/main/data/db/schemas/` directory
+### UI Layer
 
-#### Database Standards
+- **Removing**: antd, HeroUI, styled-components
+- **Adopting**: `@cherrystudio/ui` (located in `packages/ui`, Tailwind CSS + Shadcn UI)
+- **Prohibited**: antd, HeroUI, styled-components
 
-- **Table Naming**: Use singular form with snake_case (e.g., `topic`, `message`, `app_state`)
-- **Schema Exports**: Export using `xxxTable` pattern (e.g., `topicTable`, `appStateTable`)
-- **Field Definition**: Drizzle auto-infers field names, no need to add default field names
-- **JSON Fields**: For JSON support, add `{ mode: 'json' }`, refer to `preference.ts` table definition
-- **JSON Serialization**: For JSON fields, no need to manually serialize/deserialize when reading/writing to database, Drizzle handles this automatically
-- **Timestamps**: Use existing `crudTimestamps` utility
-- **Migrations**: Generate via `yarn run migrations:generate`
+### File Naming Convention
 
-## Data Access Patterns
+During migration, use `*.v2.ts` suffix for files not yet fully migrated:
 
-The application uses three distinct data management systems. Choose the appropriate system based on data characteristics:
-
-### Cache System
-- **Purpose**: Temporary data that can be regenerated
-- **Lifecycle**: Component-level (memory), window-level (shared), or persistent (survives restart)
-- **Use Cases**: API response caching, computed results, temporary UI state
-- **APIs**: `useCache`, `useSharedCache`, `usePersistCache` hooks, or `cacheService`
-
-### Preference System
-- **Purpose**: User configuration and application settings
-- **Lifecycle**: Permanent until user changes
-- **Use Cases**: Theme, language, editor settings, user preferences
-- **APIs**: `usePreference`, `usePreferences` hooks, or `preferenceService`
-
-### User Data API
-- **Purpose**: Core business data (conversations, files, notes, etc.)
-- **Lifecycle**: Permanent business records
-- **Use Cases**: Topics, messages, files, knowledge base, user-generated content
-- **APIs**: `useDataApi` hook or `dataApiService` for direct calls
-
-### Selection Guidelines
-
-- **Use Cache** for data that can be lost without impact (computed values, API responses)
-- **Use Preferences** for user settings that affect app behavior (UI configuration, feature flags)
-- **Use User Data API** for irreplaceable business data (conversations, documents, user content)
+- Indicates work-in-progress refactoring
+- Avoids conflicts with existing code
+- **Post-completion**: These files will be renamed or merged into their final locations
 
 ## Logging Standards
 
 ### Usage
 
 ```typescript
-import { loggerService } from '@logger'
-const logger = loggerService.withContext('moduleName')
+import { loggerService } from "@logger";
+const logger = loggerService.withContext("moduleName");
 // Renderer: loggerService.initWindowSource('windowName') first
-logger.info('message', CONTEXT)
+logger.info("message", CONTEXT);
 ```

@@ -1,3 +1,15 @@
+/**
+ * @fileoverview Citation callbacks for handling web search and knowledge references
+ *
+ * This module provides callbacks for processing citation data during streaming:
+ * - External tool citations (web search, knowledge)
+ * - LLM-integrated web search citations
+ *
+ * ARCHITECTURE NOTE:
+ * These callbacks now use StreamingService for state management instead of Redux dispatch.
+ * This is part of the v2 data refactoring to use CacheService + Data API.
+ */
+
 import { loggerService } from '@logger'
 import type { ExternalToolResult } from '@renderer/types'
 import type { CitationMessageBlock } from '@renderer/types/newMessage'
@@ -6,17 +18,22 @@ import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 
 import type { BlockManager } from '../BlockManager'
+import { streamingService } from '../StreamingService'
 
 const logger = loggerService.withContext('CitationCallbacks')
 
+/**
+ * Dependencies required for citation callbacks
+ *
+ * NOTE: Simplified - removed getState since StreamingService handles state.
+ */
 interface CitationCallbacksDependencies {
   blockManager: BlockManager
   assistantMsgId: string
-  getState: any
 }
 
 export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => {
-  const { blockManager, assistantMsgId, getState } = deps
+  const { blockManager, assistantMsgId } = deps
 
   // 内部维护的状态
   let citationBlockId: string | null = null
@@ -80,15 +97,18 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
         }
         blockManager.smartBlockUpdate(blockId, changes, MessageBlockType.CITATION, true)
 
-        const state = getState()
-        const existingMainTextBlocks = findMainTextBlocks(state.messages.entities[assistantMsgId])
-        if (existingMainTextBlocks.length > 0) {
-          const existingMainTextBlock = existingMainTextBlocks[0]
-          const currentRefs = existingMainTextBlock.citationReferences || []
-          const mainTextChanges = {
-            citationReferences: [...currentRefs, { blockId, citationBlockSource: llmWebSearchResult.source }]
+        // Get message from StreamingService
+        const message = streamingService.getMessage(assistantMsgId)
+        if (message) {
+          const existingMainTextBlocks = findMainTextBlocks(message)
+          if (existingMainTextBlocks.length > 0) {
+            const existingMainTextBlock = existingMainTextBlocks[0]
+            const currentRefs = existingMainTextBlock.citationReferences || []
+            const mainTextChanges = {
+              citationReferences: [...currentRefs, { blockId, citationBlockSource: llmWebSearchResult.source }]
+            }
+            blockManager.smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT, true)
           }
-          blockManager.smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT, true)
         }
 
         if (blockManager.hasInitialPlaceholder) {
@@ -106,21 +126,29 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
         )
         citationBlockId = citationBlock.id
 
-        const state = getState()
-        const existingMainTextBlocks = findMainTextBlocks(state.messages.entities[assistantMsgId])
-        if (existingMainTextBlocks.length > 0) {
-          const existingMainTextBlock = existingMainTextBlocks[0]
-          const currentRefs = existingMainTextBlock.citationReferences || []
-          const mainTextChanges = {
-            citationReferences: [...currentRefs, { citationBlockId, citationBlockSource: llmWebSearchResult.source }]
+        // Get message from StreamingService
+        const message = streamingService.getMessage(assistantMsgId)
+        if (message) {
+          const existingMainTextBlocks = findMainTextBlocks(message)
+          if (existingMainTextBlocks.length > 0) {
+            const existingMainTextBlock = existingMainTextBlocks[0]
+            const currentRefs = existingMainTextBlock.citationReferences || []
+            const mainTextChanges = {
+              citationReferences: [...currentRefs, { citationBlockId, citationBlockSource: llmWebSearchResult.source }]
+            }
+            blockManager.smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT, true)
           }
-          blockManager.smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT, true)
         }
         await blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
       }
     },
 
     // 暴露给外部的方法，用于textCallbacks中获取citationBlockId
-    getCitationBlockId: () => citationBlockId
+    getCitationBlockId: () => citationBlockId,
+
+    // 暴露给外部的方法，用于 KnowledgeService 中设置 citationBlockId
+    setCitationBlockId: (blockId: string) => {
+      citationBlockId = blockId
+    }
   }
 }

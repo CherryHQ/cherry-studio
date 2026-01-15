@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 
-const logger = loggerService.withContext('TestService')
+const logger = loggerService.withContext('DataApi:TestService')
 
 /**
  * Test service for API testing scenarios

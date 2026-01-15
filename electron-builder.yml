@@ -28,6 +28,12 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!config"
+  - "!patches"
+  - "!app-upgrade-config.json"
+  - "!**/node_modules/**/*.cpp"
+  - "!**/node_modules/node-addon-api/**"
+  - "!**/node_modules/prebuild-install/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -91,6 +97,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
+  differentialPackage: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
@@ -106,6 +113,8 @@ mac:
   target:
     - target: dmg
     - target: zip
+dmg:
+  writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   target:
@@ -135,58 +144,30 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-rc.1
+    Cherry Studio 1.7.13 - Security & Bug Fixes
 
-    🎉 MAJOR NEW FEATURE: AI Agents
-    - Create and manage custom AI agents with specialized tools and permissions
-    - Dedicated agent sessions with persistent SQLite storage, separate from regular chats
-    - Real-time tool approval system - review and approve agent actions dynamically
-    - MCP (Model Context Protocol) integration for connecting external tools
-    - Slash commands support for quick agent interactions
-    - OpenAI-compatible REST API for agent access
+    🔒 Security
+    - [Plugin] Fix security vulnerability in DXT plugin system on Windows
 
-    ✨ New Features:
-    - AI Providers: Added support for Hugging Face, Mistral, Perplexity, and SophNet
-    - Knowledge Base: OpenMinerU document preprocessor, full-text search in notes, enhanced tool selection
-    - Image & OCR: Intel OVMS painting provider and Intel OpenVINO (NPU) OCR support
-    - MCP Management: Redesigned interface with dual-column layout for easier management
-    - Languages: Added German language support
-
-    ⚡ Improvements:
-    - Upgraded to Electron 38.7.0
-    - Enhanced system shutdown handling and automatic update checks
-    - Improved proxy bypass rules
-
-    🐛 Important Bug Fixes:
-    - Fixed streaming response issues across multiple AI providers
-    - Fixed session list scrolling problems
-    - Fixed knowledge base deletion errors
+    🐛 Bug Fixes
+    - [Agent] Fix Agent not working when Node.js is not installed on system
+    - [Chat] Fix app crash when opening certain agents
+    - [Chat] Fix reasoning process not displaying correctly for some providers
+    - [Chat] Fix memory leak issue during streaming conversations
+    - [MCP] Fix timeout field not accepting string format in MCP configuration
+    - [Settings] Add careers section in About page
 
     <!--LANG:zh-CN-->
-    v1.7.0-rc.1 新特性
+    Cherry Studio 1.7.13 - 安全与问题修复
 
-    🎉 重大更新：AI Agent 智能体系统
-    - 创建和管理专属 AI Agent，配置专用工具和权限
-    - 独立的 Agent 会话，使用 SQLite 持久化存储，与普通聊天分离
-    - 实时工具审批系统 - 动态审查和批准 Agent 操作
-    - MCP（模型上下文协议）集成，连接外部工具
-    - 支持斜杠命令快速交互
-    - 兼容 OpenAI 的 REST API 访问
+    🔒 安全修复
+    - [插件] 修复 Windows 系统 DXT 插件的安全漏洞
 
-    ✨ 新功能:
-    - AI 提供商：新增 Hugging Face、Mistral、Perplexity 和 SophNet 支持
-    - 知识库：OpenMinerU 文档预处理器、笔记全文搜索、增强的工具选择
-    - 图像与 OCR：Intel OVMS 绘图提供商和 Intel OpenVINO (NPU) OCR 支持
-    - MCP 管理：重构管理界面，采用双列布局，更加方便管理
-    - 语言：新增德语支持
-
-    ⚡ 改进:
-    - 升级到 Electron 38.7.0
-    - 增强的系统关机处理和自动更新检查
-    - 改进的代理绕过规则
-
-    🐛 重要修复:
-    - 修复多个 AI 提供商的流式响应问题
-    - 修复会话列表滚动问题
-    - 修复知识库删除错误
+    🐛 问题修复
+    - [Agent] 修复系统未安装 Node.js 时 Agent 功能无法使用的问题
+    - [对话] 修复打开某些智能体时应用崩溃的问题
+    - [对话] 修复部分服务商推理过程无法正确显示的问题
+    - [对话] 修复流式对话时的内存泄漏问题
+    - [MCP] 修复 MCP 配置的 timeout 字段不支持字符串格式的问题
+    - [设置] 关于页面新增招聘入口
     <!--LANG:END-->

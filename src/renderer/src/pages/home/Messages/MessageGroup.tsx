@@ -9,6 +9,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
+import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Popover } from 'antd'
 import type { ComponentProps } from 'react'
@@ -75,7 +76,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         () => {
           const messageElement = document.getElementById(`message-${message.id}`)
           if (messageElement) {
-            messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
           }
         },
         200
@@ -134,7 +135,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setSelectedMessage(message)
           } else {
             // 直接滚动
-            element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
           }
         }
       }

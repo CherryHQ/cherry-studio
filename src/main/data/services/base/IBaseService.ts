@@ -1,4 +1,9 @@
-import type { PaginationParams, ServiceOptions } from '@shared/data/api/apiTypes'
+import type { CursorPaginationParams, OffsetPaginationParams, ServiceOptions } from '@shared/data/api/apiTypes'
+
+/**
+ * Base pagination params for service layer (supports both modes)
+ */
+type BasePaginationParams = (OffsetPaginationParams | CursorPaginationParams) & Record<string, any>
 
 /**
  * Standard service interface for data operations
@@ -14,12 +19,12 @@ export interface IBaseService<T = any, TCreate = any, TUpdate = any> {
    * Find multiple entities with pagination
    */
   findMany(
-    params: PaginationParams & Record<string, any>,
+    params: BasePaginationParams,
     options?: ServiceOptions
   ): Promise<{
     items: T[]
-    total: number
-    hasNext?: boolean
+    total?: number
+    page?: number
     nextCursor?: string
   }>
 
@@ -68,12 +73,12 @@ export interface ISearchableService<T = any, TCreate = any, TUpdate = any> exten
    */
   search(
     query: string,
-    params?: PaginationParams,
+    params?: BasePaginationParams,
     options?: ServiceOptions
   ): Promise<{
     items: T[]
-    total: number
-    hasNext?: boolean
+    total?: number
+    page?: number
     nextCursor?: string
   }>
 }
@@ -87,12 +92,12 @@ export interface IHierarchicalService<TParent = any, TChild = any, TChildCreate 
    */
   getChildren(
     parentId: string,
-    params?: PaginationParams,
+    params?: BasePaginationParams,
     options?: ServiceOptions
   ): Promise<{
     items: TChild[]
-    total: number
-    hasNext?: boolean
+    total?: number
+    page?: number
     nextCursor?: string
   }>
 

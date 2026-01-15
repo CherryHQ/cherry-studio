@@ -59,7 +59,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <ColFlex className="items-stretch gap-2">
         <RowFlex className="items-center gap-4">
           <div>{t('settings.models.topic_naming.auto')}</div>
-          <Switch isSelected={enableTopicNaming} onValueChange={setEnableTopicNaming} />
+          <Switch checked={enableTopicNaming} onCheckedChange={setEnableTopicNaming} />
         </RowFlex>
         <Divider style={{ margin: 0 }} />
         <div>

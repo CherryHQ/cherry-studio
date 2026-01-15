@@ -261,7 +261,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch isSelected={localBackupSkipBackupFile} onValueChange={onSkipBackupFilesChange} />
+        <Switch checked={localBackupSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>

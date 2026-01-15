@@ -4,7 +4,7 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isDeepSeekHybridInferenceModel } from './reasoning'
-import { isPureGenerateImageModel, isTextToImageModel } from './vision'
+import { isTextToImageModel } from './vision'
 
 // Tool calling models
 export const FUNCTION_CALLING_MODELS = [
@@ -22,14 +22,17 @@ export const FUNCTION_CALLING_MODELS = [
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
   'glm-4.5(?:-[\\w-]+)?',
+  'glm-4.7(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'doubao-seed-1[.-][68](?:-[\\w-]+)?',
+  'doubao-seed-code(?:-[\\w-]+)?',
   'kimi-k2(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
-  'minimax-m2'
+  'minimax-m2(?:.1)?',
+  'mimo-v2-flash'
 ] as const
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -41,7 +44,11 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'gemini-1(?:\\.[\\w-]+)?',
   'qwen-mt(?:-[\\w-]+)?',
   'gpt-5-chat(?:-[\\w-]+)?',
-  'glm-4\\.5v'
+  'glm-4\\.5v',
+  'gemini-2.5-flash-image(?:-[\\w-]+)?',
+  'gemini-2.0-flash-preview-image-generation',
+  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
+  'deepseek-v3.2-speciale'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -50,13 +57,7 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
 )
 
 export function isFunctionCallingModel(model?: Model): boolean {
-  if (
-    !model ||
-    isEmbeddingModel(model) ||
-    isRerankModel(model) ||
-    isTextToImageModel(model) ||
-    isPureGenerateImageModel(model)
-  ) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 
@@ -66,16 +67,8 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return isUserSelectedModelType(model, 'function_calling')!
   }
 
-  if (model.provider === 'qiniu') {
-    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(modelId)
-  }
-
   if (model.provider === 'doubao' || modelId.includes('doubao')) {
     return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
-  }
-
-  if (['deepseek', 'anthropic', 'kimi', 'moonshot'].includes(model.provider)) {
-    return true
   }
 
   // 2025/08/26 百炼与火山引擎均不支持 v3.1 函数调用

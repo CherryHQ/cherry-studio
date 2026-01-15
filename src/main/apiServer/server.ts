@@ -1,12 +1,11 @@
 import { createServer } from 'node:http'
 
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { agentService } from '../services/agents'
 import { windowService } from '../services/WindowService'
 import { app } from './app'
-import { config } from './config'
 
 const logger = loggerService.withContext('ApiServer')
 
@@ -29,13 +28,9 @@ export class ApiServer {
       this.server = null
     }
 
-    // Load config
-    const { port, host } = await config.load()
-
-    // Initialize AgentService
-    logger.info('Initializing AgentService')
-    await agentService.initialize()
-    logger.info('AgentService initialized')
+    // Load config from preference service
+    const port = preferenceService.get('feature.csaas.port')
+    const host = preferenceService.get('feature.csaas.host')
 
     // Create server with Express app
     this.server = createServer(app)
@@ -84,7 +79,6 @@ export class ApiServer {
 
   async restart(): Promise<void> {
     await this.stop()
-    await config.reload()
     await this.start()
   }
 

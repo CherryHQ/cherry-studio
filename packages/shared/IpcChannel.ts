@@ -55,6 +55,8 @@ export enum IpcChannel {
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
   Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
   Webview_SearchHotkey = 'webview:search-hotkey',
+  Webview_PrintToPDF = 'webview:print-to-pdf',
+  Webview_SaveAsHTML = 'webview:save-as-html',
 
   // Open
   Open_Path = 'open:path',
@@ -90,6 +92,8 @@ export enum IpcChannel {
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
+  Mcp_GetServerLogs = 'mcp:get-server-logs',
+  Mcp_ServerLog = 'mcp:server-log',
   // Python
   Python_Execute = 'python:execute',
 
@@ -196,6 +200,9 @@ export enum IpcChannel {
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_StartWatcher = 'file:startWatcher',
   File_StopWatcher = 'file:stopWatcher',
+  File_PauseWatcher = 'file:pauseWatcher',
+  File_ResumeWatcher = 'file:resumeWatcher',
+  File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
 
   // file service
@@ -226,6 +233,8 @@ export enum IpcChannel {
   Backup_ListS3Files = 'backup:listS3Files',
   Backup_DeleteS3File = 'backup:deleteS3File',
   Backup_CheckS3Connection = 'backup:checkS3Connection',
+  Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
+  Backup_DeleteTempBackup = 'backup:deleteTempBackup',
 
   // data migration
   DataMigrate_CheckNeeded = 'data-migrate:check-needed',
@@ -252,6 +261,9 @@ export enum IpcChannel {
   System_GetHostname = 'system:getHostname',
   System_GetCpuName = 'system:getCpuName',
   System_CheckGitBash = 'system:checkGitBash',
+  System_GetGitBashPath = 'system:getGitBashPath',
+  System_GetGitBashPathInfo = 'system:getGitBashPathInfo',
+  System_SetGitBashPath = 'system:setGitBashPath',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',
@@ -301,6 +313,8 @@ export enum IpcChannel {
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
+  // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
+  Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
 
@@ -315,11 +329,12 @@ export enum IpcChannel {
   Memory_DeleteUser = 'memory:delete-user',
   Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
   Memory_GetUsersList = 'memory:get-users-list',
+  Memory_MigrateMemoryDb = 'memory:migrate-memory-db',
 
   // Data: Preference
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',
-  Preference_GetMultiple = 'preference:get-multiple',
+  Preference_GetMultipleRaw = 'preference:get-multiple-raw',
   Preference_SetMultiple = 'preference:set-multiple',
   Preference_GetAll = 'preference:get-all',
   Preference_Subscribe = 'preference:subscribe',
@@ -328,11 +343,10 @@ export enum IpcChannel {
   // Data: Cache
   Cache_Sync = 'cache:sync',
   Cache_SyncBatch = 'cache:sync-batch',
+  Cache_GetAllShared = 'cache:get-all-shared',
 
   // Data: API Channels
   DataApi_Request = 'data-api:request',
-  DataApi_Batch = 'data-api:batch',
-  DataApi_Transaction = 'data-api:transaction',
   DataApi_Subscribe = 'data-api:subscribe',
   DataApi_Unsubscribe = 'data-api:unsubscribe',
   DataApi_Stream = 'data-api:stream',
@@ -381,6 +395,7 @@ export enum IpcChannel {
   OCR_ListProviders = 'ocr:list-providers',
 
   // OVMS
+  Ovms_IsSupported = 'ovms:is-supported',
   Ovms_AddModel = 'ovms:add-model',
   Ovms_StopAddModel = 'ovms:stop-addmodel',
   Ovms_GetModels = 'ovms:get-models',
@@ -401,10 +416,14 @@ export enum IpcChannel {
   ClaudeCodePlugin_ReadContent = 'claudeCodePlugin:read-content',
   ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
 
-  // WebSocket
-  WebSocket_Start = 'webSocket:start',
-  WebSocket_Stop = 'webSocket:stop',
-  WebSocket_Status = 'webSocket:status',
-  WebSocket_SendFile = 'webSocket:send-file',
-  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates'
+  // Local Transfer
+  LocalTransfer_ListServices = 'local-transfer:list',
+  LocalTransfer_StartScan = 'local-transfer:start-scan',
+  LocalTransfer_StopScan = 'local-transfer:stop-scan',
+  LocalTransfer_ServicesUpdated = 'local-transfer:services-updated',
+  LocalTransfer_Connect = 'local-transfer:connect',
+  LocalTransfer_Disconnect = 'local-transfer:disconnect',
+  LocalTransfer_ClientEvent = 'local-transfer:client-event',
+  LocalTransfer_SendFile = 'local-transfer:send-file',
+  LocalTransfer_CancelTransfer = 'local-transfer:cancel-transfer'
 }

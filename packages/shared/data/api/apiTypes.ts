@@ -8,6 +8,118 @@
  */
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
+// ============================================================================
+// Success Status Codes
+// ============================================================================
+
+/**
+ * Success status code constants (avoid magic numbers)
+ */
+export const SuccessStatus = {
+  /** 200 OK - Request succeeded */
+  OK: 200,
+  /** 201 Created - Resource created successfully */
+  CREATED: 201,
+  /** 202 Accepted - Async task accepted, will be processed later */
+  ACCEPTED: 202,
+  /** 204 No Content - Success with no response body */
+  NO_CONTENT: 204
+} as const
+
+/**
+ * Success status code type (derived from constants, type-safe)
+ */
+export type SuccessStatusCode = (typeof SuccessStatus)[keyof typeof SuccessStatus]
+
+/**
+ * Handler result type:
+ * - Return data T directly (uses auto-inferred status code)
+ * - Return { data, status } object (uses custom status code)
+ */
+export type HandlerResult<T> = T | { data: T; status: SuccessStatusCode }
+
+/**
+ * Type guard: check if result is custom status format
+ */
+export function isCustomStatusResult<T>(result: unknown): result is { data: T; status: SuccessStatusCode } {
+  return (
+    result !== null &&
+    typeof result === 'object' &&
+    'status' in result &&
+    typeof (result as Record<string, unknown>).status === 'number' &&
+    Object.values(SuccessStatus).includes((result as Record<string, unknown>).status as SuccessStatusCode)
+  )
+}
+
+// ============================================================================
+// Schema Constraint Types
+// ============================================================================
+
+/**
+ * Constraint for a single endpoint method definition.
+ * Requires `response` field, allows optional `params`, `query`, and `body`.
+ */
+export type EndpointMethodConstraint = {
+  params?: Record<string, any>
+  query?: Record<string, any>
+  body?: any
+  response: any // response is required
+}
+
+/**
+ * Constraint for a single API path - only allows valid HTTP methods.
+ */
+export type EndpointConstraint = {
+  [Method in HttpMethod]?: EndpointMethodConstraint
+}
+
+/**
+ * Validates that a schema only contains valid HTTP methods.
+ * Used in AssertValidSchemas for compile-time validation.
+ */
+type ValidateMethods<T> = {
+  [Path in keyof T]: {
+    [Method in keyof T[Path]]: Method extends HttpMethod ? T[Path][Method] : never
+  }
+}
+
+/**
+ * Validates that all endpoints have a `response` field.
+ * Returns the original type if valid, or `never` if any endpoint lacks response.
+ */
+type ValidateResponses<T> = {
+  [Path in keyof T]: {
+    [Method in keyof T[Path]]: T[Path][Method] extends { response: any }
+      ? T[Path][Method]
+      : { error: `Endpoint ${Path & string}.${Method & string} is missing 'response' field` }
+  }
+}
+
+/**
+ * Validates that a schema conforms to expected structure:
+ * 1. All methods must be valid HTTP methods (GET, POST, PUT, DELETE, PATCH)
+ * 2. All endpoints must have a `response` field
+ *
+ * This is applied at the composition level (schemas/index.ts) to catch
+ * invalid schemas even if individual schema files don't use validation.
+ *
+ * @example
+ * ```typescript
+ * // In schemas/index.ts
+ * export type ApiSchemas = AssertValidSchemas<TestSchemas & BatchSchemas>
+ *
+ * // Invalid method will cause error:
+ * // Type 'never' is not assignable to type...
+ * ```
+ */
+export type AssertValidSchemas<T> = ValidateMethods<T> & ValidateResponses<T> extends infer R
+  ? { [K in keyof R]: R[K] }
+  : never
+
+// ============================================================================
+// Core Request/Response Types
+// ============================================================================
+
 /**
  * Request object structure for Data API calls
  */
@@ -30,8 +142,6 @@ export interface DataRequest<T = any> {
     timestamp: number
     /** OpenTelemetry span context for tracing */
     spanContext?: any
-    /** Cache options for this specific request */
-    cache?: CacheOptions
   }
 }
 
@@ -46,7 +156,7 @@ export interface DataResponse<T = any> {
   /** Response data if successful */
   data?: T
   /** Error information if request failed */
-  error?: DataApiError
+  error?: SerializedDataApiError
   /** Response metadata */
   metadata?: {
     /** Request processing duration in milliseconds */
@@ -60,146 +170,131 @@ export interface DataResponse<T = any> {
   }
 }
 
-/**
- * Standardized error structure for Data API
- */
-export interface DataApiError {
-  /** Error code for programmatic handling */
-  code: string
-  /** Human-readable error message */
-  message: string
-  /** HTTP status code */
-  status: number
-  /** Additional error details */
-  details?: any
-  /** Error stack trace (development mode only) */
-  stack?: string
-}
+// Note: Error types have been moved to apiErrors.ts
+// Import from there: ErrorCode, DataApiError, SerializedDataApiError, DataApiErrorFactory
+import type { SerializedDataApiError } from './apiErrors'
+
+// Re-export for backwards compatibility in DataResponse
+export type { SerializedDataApiError } from './apiErrors'
+
+// ============================================================================
+// Pagination Types
+// ============================================================================
+
+// ----- Request Parameters -----
 
 /**
- * Standard error codes for Data API
+ * Offset-based pagination parameters (page + limit)
  */
-export enum ErrorCode {
-  // Client errors (4xx)
-  BAD_REQUEST = 'BAD_REQUEST',
-  UNAUTHORIZED = 'UNAUTHORIZED',
-  FORBIDDEN = 'FORBIDDEN',
-  NOT_FOUND = 'NOT_FOUND',
-  METHOD_NOT_ALLOWED = 'METHOD_NOT_ALLOWED',
-  VALIDATION_ERROR = 'VALIDATION_ERROR',
-  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
-
-  // Server errors (5xx)
-  INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
-  DATABASE_ERROR = 'DATABASE_ERROR',
-  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
-
-  // Custom application errors
-  MIGRATION_ERROR = 'MIGRATION_ERROR',
-  PERMISSION_DENIED = 'PERMISSION_DENIED',
-  RESOURCE_LOCKED = 'RESOURCE_LOCKED',
-  CONCURRENT_MODIFICATION = 'CONCURRENT_MODIFICATION'
-}
-
-/**
- * Cache configuration options
- */
-export interface CacheOptions {
-  /** Cache TTL in seconds */
-  ttl?: number
-  /** Return stale data while revalidating in background */
-  staleWhileRevalidate?: boolean
-  /** Custom cache key override */
-  cacheKey?: string
-  /** Operations that should invalidate this cache entry */
-  invalidateOn?: string[]
-  /** Whether to bypass cache entirely */
-  noCache?: boolean
-}
-
-/**
- * Transaction request wrapper for atomic operations
- */
-export interface TransactionRequest {
-  /** List of operations to execute in transaction */
-  operations: DataRequest[]
-  /** Transaction options */
-  options?: {
-    /** Database isolation level */
-    isolation?: 'read-uncommitted' | 'read-committed' | 'repeatable-read' | 'serializable'
-    /** Whether to rollback entire transaction on any error */
-    rollbackOnError?: boolean
-    /** Transaction timeout in milliseconds */
-    timeout?: number
-  }
-}
-
-/**
- * Batch request for multiple operations
- */
-export interface BatchRequest {
-  /** List of requests to execute */
-  requests: DataRequest[]
-  /** Whether to execute requests in parallel */
-  parallel?: boolean
-  /** Stop on first error */
-  stopOnError?: boolean
-}
-
-/**
- * Batch response containing results for all requests
- */
-export interface BatchResponse {
-  /** Individual response for each request */
-  results: DataResponse[]
-  /** Overall batch execution metadata */
-  metadata: {
-    /** Total execution time */
-    duration: number
-    /** Number of successful operations */
-    successCount: number
-    /** Number of failed operations */
-    errorCount: number
-  }
-}
-
-/**
- * Pagination parameters for list operations
- */
-export interface PaginationParams {
+export interface OffsetPaginationParams {
   /** Page number (1-based) */
   page?: number
   /** Items per page */
   limit?: number
-  /** Cursor for cursor-based pagination */
-  cursor?: string
-  /** Sort field and direction */
-  sort?: {
-    field: string
-    order: 'asc' | 'desc'
-  }
 }
 
 /**
- * Paginated response wrapper
+ * Cursor-based pagination parameters (cursor + limit)
+ *
+ * The cursor is typically an opaque reference to a record in the dataset.
+ * The cursor itself is NEVER included in the response - it marks an exclusive boundary.
+ *
+ * Common semantics:
+ * - "after cursor": Returns items AFTER the cursor (forward pagination)
+ * - "before cursor": Returns items BEFORE the cursor (backward/historical pagination)
+ *
+ * The specific semantic depends on the API endpoint. Check endpoint documentation.
  */
-export interface PaginatedResponse<T> {
+export interface CursorPaginationParams {
+  /** Cursor for pagination boundary (exclusive - cursor item not included in response) */
+  cursor?: string
+  /** Items per page */
+  limit?: number
+}
+
+/**
+ * Sort parameters (independent, combine as needed)
+ */
+export interface SortParams {
+  /** Field to sort by */
+  sortBy?: string
+  /** Sort direction */
+  sortOrder?: 'asc' | 'desc'
+}
+
+/**
+ * Search parameters (independent, combine as needed)
+ */
+export interface SearchParams {
+  /** Search query string */
+  search?: string
+}
+
+// ----- Response Types -----
+
+/**
+ * Offset-based pagination response
+ */
+export interface OffsetPaginationResponse<T> {
   /** Items for current page */
   items: T[]
   /** Total number of items */
   total: number
-  /** Current page number */
+  /** Current page number (1-based) */
   page: number
-  /** Total number of pages */
-  pageCount: number
-  /** Whether there are more pages */
-  hasNext: boolean
-  /** Whether there are previous pages */
-  hasPrev: boolean
-  /** Next cursor for cursor-based pagination */
+}
+
+/**
+ * Cursor-based pagination response
+ */
+export interface CursorPaginationResponse<T> {
+  /** Items for current page */
+  items: T[]
+  /** Next cursor (undefined means no more data) */
   nextCursor?: string
-  /** Previous cursor for cursor-based pagination */
-  prevCursor?: string
+}
+
+// ----- Type Utilities -----
+
+/**
+ * Infer pagination mode from response type
+ */
+export type InferPaginationMode<R> = R extends OffsetPaginationResponse<any>
+  ? 'offset'
+  : R extends CursorPaginationResponse<any>
+    ? 'cursor'
+    : never
+
+/**
+ * Infer item type from pagination response
+ */
+export type InferPaginationItem<R> = R extends OffsetPaginationResponse<infer T>
+  ? T
+  : R extends CursorPaginationResponse<infer T>
+    ? T
+    : never
+
+/**
+ * Union type for both pagination responses
+ */
+export type PaginationResponse<T> = OffsetPaginationResponse<T> | CursorPaginationResponse<T>
+
+/**
+ * Type guard: check if response is offset-based
+ */
+export function isOffsetPaginationResponse<T>(
+  response: PaginationResponse<T>
+): response is OffsetPaginationResponse<T> {
+  return 'page' in response && 'total' in response
+}
+
+/**
+ * Type guard: check if response is cursor-based
+ */
+export function isCursorPaginationResponse<T>(
+  response: PaginationResponse<T>
+): response is CursorPaginationResponse<T> {
+  return !('page' in response)
 }
 
 /**
@@ -274,16 +369,173 @@ export interface ServiceOptions {
   metadata?: Record<string, any>
 }
 
+// ============================================================================
+// API Schema Type Utilities
+// ============================================================================
+
+import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath } from './apiPaths'
+import type { ApiSchemas } from './schemas'
+
+// Re-export for external use
+export type { ConcreteApiPaths } from './apiPaths'
+export type { ApiSchemas } from './schemas'
+
 /**
- * Standard service response wrapper
+ * All available API paths
  */
-export interface ServiceResult<T = any> {
-  /** Whether operation was successful */
-  success: boolean
-  /** Result data if successful */
-  data?: T
-  /** Error information if failed */
-  error?: DataApiError
-  /** Additional metadata */
-  metadata?: Record<string, any>
+export type ApiPaths = keyof ApiSchemas
+
+/**
+ * Available HTTP methods for a specific path
+ */
+export type ApiMethods<TPath extends ApiPaths> = keyof ApiSchemas[TPath] & HttpMethod
+
+/**
+ * Response type for a specific path and method
+ */
+export type ApiResponse<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
+  ? TMethod extends keyof ApiSchemas[TPath]
+    ? ApiSchemas[TPath][TMethod] extends { response: infer R }
+      ? R
+      : never
+    : never
+  : never
+
+/**
+ * URL params type for a specific path and method
+ */
+export type ApiParams<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
+  ? TMethod extends keyof ApiSchemas[TPath]
+    ? ApiSchemas[TPath][TMethod] extends { params: infer P }
+      ? P
+      : never
+    : never
+  : never
+
+/**
+ * Query params type for a specific path and method
+ */
+export type ApiQuery<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
+  ? TMethod extends keyof ApiSchemas[TPath]
+    ? ApiSchemas[TPath][TMethod] extends { query: infer Q }
+      ? Q
+      : never
+    : never
+  : never
+
+/**
+ * Request body type for a specific path and method
+ */
+export type ApiBody<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
+  ? TMethod extends keyof ApiSchemas[TPath]
+    ? ApiSchemas[TPath][TMethod] extends { body: infer B }
+      ? B
+      : never
+    : never
+  : never
+
+/**
+ * Type-safe API client interface using concrete paths
+ * Accepts actual paths like '/test/items/123' instead of '/test/items/:id'
+ * Automatically infers query, body, and response types from ApiSchemas
+ */
+export interface ApiClient {
+  get<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options?: {
+      query?: QueryParamsForPath<TPath>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'GET'>>
+
+  post<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options: {
+      body?: BodyForPath<TPath, 'POST'>
+      query?: Record<string, any>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'POST'>>
+
+  put<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options: {
+      body: BodyForPath<TPath, 'PUT'>
+      query?: Record<string, any>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'PUT'>>
+
+  delete<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options?: {
+      query?: Record<string, any>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'DELETE'>>
+
+  patch<TPath extends ConcreteApiPaths>(
+    path: TPath,
+    options: {
+      body?: BodyForPath<TPath, 'PATCH'>
+      query?: Record<string, any>
+      headers?: Record<string, string>
+    }
+  ): Promise<ResponseForPath<TPath, 'PATCH'>>
+}
+
+/**
+ * Helper types to determine if parameters are required based on schema
+ */
+type HasRequiredQuery<Path extends ApiPaths, Method extends ApiMethods<Path>> = Path extends keyof ApiSchemas
+  ? Method extends keyof ApiSchemas[Path]
+    ? ApiSchemas[Path][Method] extends { query: any }
+      ? true
+      : false
+    : false
+  : false
+
+type HasRequiredBody<Path extends ApiPaths, Method extends ApiMethods<Path>> = Path extends keyof ApiSchemas
+  ? Method extends keyof ApiSchemas[Path]
+    ? ApiSchemas[Path][Method] extends { body: any }
+      ? true
+      : false
+    : false
+  : false
+
+type HasRequiredParams<Path extends ApiPaths, Method extends ApiMethods<Path>> = Path extends keyof ApiSchemas
+  ? Method extends keyof ApiSchemas[Path]
+    ? ApiSchemas[Path][Method] extends { params: any }
+      ? true
+      : false
+    : false
+  : false
+
+/**
+ * Handler function for a specific API endpoint
+ * Provides type-safe parameter extraction based on ApiSchemas
+ * Parameters are required or optional based on the schema definition
+ *
+ * Handler can return:
+ * - Data directly (T) - status code will be auto-inferred
+ * - { data: T, status: SuccessStatusCode } - custom status code
+ */
+export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>> = (
+  params: (HasRequiredParams<Path, Method> extends true
+    ? { params: ApiParams<Path, Method> }
+    : { params?: ApiParams<Path, Method> }) &
+    (HasRequiredQuery<Path, Method> extends true
+      ? { query: ApiQuery<Path, Method> }
+      : { query?: ApiQuery<Path, Method> }) &
+    (HasRequiredBody<Path, Method> extends true ? { body: ApiBody<Path, Method> } : { body?: ApiBody<Path, Method> })
+) => Promise<HandlerResult<ApiResponse<Path, Method>>>
+
+/**
+ * Complete API implementation that must match ApiSchemas structure
+ * TypeScript will error if any endpoint is missing - this ensures exhaustive coverage
+ */
+export type ApiImplementation = {
+  [Path in ApiPaths]: {
+    [Method in ApiMethods<Path>]: ApiHandler<Path, Method>
+  }
 }

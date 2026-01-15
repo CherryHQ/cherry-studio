@@ -81,7 +81,7 @@ class FileManager {
     const file = await db.files.get(id)
 
     if (file) {
-      const filesPath = cacheService.get('filesPath') ?? ''
+      const filesPath = cacheService.get('app.path.files') ?? ''
       file.path = filesPath + '/' + file.id + file.ext
     }
 
@@ -89,7 +89,7 @@ class FileManager {
   }
 
   static getFilePath(file: FileMetadata) {
-    const filesPath = cacheService.get('filesPath') ?? ''
+    const filesPath = cacheService.get('app.path.files') ?? ''
     return filesPath + '/' + file.id + file.ext
   }
 
@@ -137,7 +137,7 @@ class FileManager {
   }
 
   static getFileUrl(file: FileMetadata) {
-    const filesPath = cacheService.get('filesPath') ?? ''
+    const filesPath = cacheService.get('app.path.files') ?? ''
     return 'file://' + filesPath + '/' + file.name
   }
 

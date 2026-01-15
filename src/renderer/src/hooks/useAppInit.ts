@@ -64,7 +64,7 @@ export function useAppInit() {
   useEffect(() => {
     window.api.getDataPathFromArgs().then((dataPath) => {
       if (dataPath) {
-        window.navigate('/settings/data', { replace: true })
+        window.navigate({ to: '/settings/data', replace: true })
       }
     })
   }, [])
@@ -79,7 +79,7 @@ export function useAppInit() {
   useFullScreenNotice()
 
   useEffect(() => {
-    savedAvatar?.value && cacheService.set('avatar', savedAvatar.value)
+    savedAvatar?.value && cacheService.set('app.user.avatar', savedAvatar.value)
   }, [savedAvatar])
 
   useEffect(() => {
@@ -149,8 +149,8 @@ export function useAppInit() {
   useEffect(() => {
     // set files path
     window.api.getAppInfo().then((info) => {
-      cacheService.set('filesPath', info.filesPath)
-      cacheService.set('resourcesPath', info.resourcesPath)
+      cacheService.set('app.path.files', info.filesPath)
+      cacheService.set('app.path.resources', info.resourcesPath)
     })
   }, [])
 
@@ -175,14 +175,46 @@ export function useAppInit() {
   useEffect(() => {
     if (!window.electron?.ipcRenderer) return
 
-    const requestListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionRequestPayload) => {
+    const requestListener = async (_event: Electron.IpcRendererEvent, payload: ToolPermissionRequestPayload) => {
       logger.debug('Renderer received tool permission request', {
         requestId: payload.requestId,
         toolName: payload.toolName,
         expiresAt: payload.expiresAt,
-        suggestionCount: payload.suggestions.length
+        suggestionCount: payload.suggestions.length,
+        autoApprove: payload.autoApprove
       })
       dispatch(toolPermissionsActions.requestReceived(payload))
+
+      // Auto-approve if requested
+      if (payload.autoApprove) {
+        logger.debug('Auto-approving tool permission request', {
+          requestId: payload.requestId,
+          toolName: payload.toolName
+        })
+
+        dispatch(toolPermissionsActions.submissionSent({ requestId: payload.requestId, behavior: 'allow' }))
+
+        try {
+          const response = await window.api.agentTools.respondToPermission({
+            requestId: payload.requestId,
+            behavior: 'allow',
+            updatedInput: payload.input,
+            updatedPermissions: payload.suggestions
+          })
+
+          if (!response?.success) {
+            throw new Error('Auto-approval response rejected by main process')
+          }
+
+          logger.debug('Auto-approval acknowledged by main process', {
+            requestId: payload.requestId,
+            toolName: payload.toolName
+          })
+        } catch (error) {
+          logger.error('Failed to send auto-approval response', error as Error)
+          dispatch(toolPermissionsActions.submissionFailed({ requestId: payload.requestId }))
+        }
+      }
     }
 
     const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {
@@ -236,9 +268,7 @@ export function useAppInit() {
   // Update memory service configuration when it changes
   useEffect(() => {
     const memoryService = MemoryService.getInstance()
-    memoryService.updateConfig().catch((error) => {
-      logger.error('Failed to update memory config:', error)
-    })
+    memoryService.updateConfig().catch((error) => logger.error('Failed to update memory config:', error))
   }, [memoryConfig])
 
   useEffect(() => {

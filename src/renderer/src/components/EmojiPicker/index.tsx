@@ -45,6 +45,7 @@ const i18nMap: Record<LanguageVarious, typeof en> = {
   'fr-FR': fr,
   'ja-JP': ja,
   'pt-PT': pt_PT,
+  'ro-RO': en, // No Romanian available, fallback to English
   'ru-RU': ru_RU
 }
 
@@ -60,6 +61,7 @@ const dataSourceMap: Record<LanguageVarious, string> = {
   'fr-FR': dataFR,
   'ja-JP': dataJA,
   'pt-PT': dataPT,
+  'ro-RO': dataEN, // No Romanian CLDR available, fallback to English
   'ru-RU': dataRU
 }
 
@@ -75,6 +77,7 @@ const localeMap: Record<LanguageVarious, string> = {
   'fr-FR': 'fr',
   'ja-JP': 'ja',
   'pt-PT': 'pt',
+  'ro-RO': 'en',
   'ru-RU': 'ru'
 }
 

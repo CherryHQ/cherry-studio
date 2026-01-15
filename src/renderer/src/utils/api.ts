@@ -13,6 +13,13 @@ export function formatApiKeys(value: string): string {
 }
 
 /**
+ * Matches a version segment in a path that starts with `/v<number>` and optionally
+ * continues with `alpha` or `beta`. The segment may be followed by `/` or the end
+ * of the string (useful for cases like `/v3alpha/resources`).
+ */
+const VERSION_REGEX_PATTERN = '\\/v\\d+(?:alpha|beta)?(?=\\/|$)'
+
+/**
  * 判断 host 的 path 中是否包含形如版本的字符串（例如 /v1、/v2beta 等），
  *
  * @param host - 要检查的 host 或 path 字符串
@@ -21,16 +28,14 @@ export function formatApiKeys(value: string): string {
 export function hasAPIVersion(host?: string): boolean {
   if (!host) return false
 
-  // 匹配路径中以 `/v<number>` 开头并可选跟随 `alpha` 或 `beta` 的版本段，
-  // 该段后面可以跟 `/` 或字符串结束（用于匹配诸如 `/v3alpha/resources` 的情况）。
-  const versionRegex = /\/v\d+(?:alpha|beta)?(?=\/|$)/i
+  const regex = new RegExp(VERSION_REGEX_PATTERN, 'i')
 
   try {
     const url = new URL(host)
-    return versionRegex.test(url.pathname)
+    return regex.test(url.pathname)
   } catch {
     // 若无法作为完整 URL 解析，则当作路径直接检测
-    return versionRegex.test(host)
+    return regex.test(host)
   }
 }
 
@@ -52,31 +57,79 @@ export function withoutTrailingSlash<T extends string>(url: T): T {
 }
 
 /**
+ * Checks if a URL string ends with a trailing '#' character.
+ *
+ * @template T - The string type to preserve type safety
+ * @param {T} url - The URL string to check
+ * @returns {boolean} True if the URL ends with '#', false otherwise
+ *
+ * @example
+ * ```ts
+ * isWithTrailingSharp('https://example.com#') // true
+ * isWithTrailingSharp('https://example.com')  // false
+ * ```
+ */
+export function isWithTrailingSharp<T extends string>(url: T): boolean {
+  return url.endsWith('#')
+}
+
+/**
+ * Removes the trailing '#' from a URL string if it exists.
+ *
+ * @template T - The string type to preserve type safety
+ * @param {T} url - The URL string to process
+ * @returns {T} The URL string without a trailing '#'
+ *
+ * @example
+ * ```ts
+ * withoutTrailingSharp('https://example.com#') // 'https://example.com'
+ * withoutTrailingSharp('https://example.com')  // 'https://example.com'
+ * ```
+ */
+export function withoutTrailingSharp<T extends string>(url: T): T {
+  return url.replace(/#$/, '') as T
+}
+
+/**
  * Formats an API host URL by normalizing it and optionally appending an API version.
  *
  * @param host - The API host URL to format. Leading/trailing whitespace will be trimmed and trailing slashes removed.
- * @param isSupportedAPIVerion - Whether the API version is supported. Defaults to `true`.
+ * @param supportApiVersion - Whether the API version is supported. Defaults to `true`.
  * @param apiVersion - The API version to append if needed. Defaults to `'v1'`.
  *
  * @returns The formatted API host URL. If the host is empty after normalization, returns an empty string.
- *          If the host ends with '#', API version is not supported, or the host already contains a version, returns the normalized host as-is.
+ *          If the host ends with '#', API version is not supported, or the host already contains a version, returns the normalized host with trailing '#' removed.
  *          Otherwise, returns the host with the API version appended.
  *
  * @example
  * formatApiHost('https://api.example.com/') // Returns 'https://api.example.com/v1'
- * formatApiHost('https://api.example.com#') // Returns 'https://api.example.com#'
+ * formatApiHost('https://api.example.com#') // Returns 'https://api.example.com'
  * formatApiHost('https://api.example.com/v2', true, 'v1') // Returns 'https://api.example.com/v2'
  */
-export function formatApiHost(host?: string, isSupportedAPIVerion: boolean = true, apiVersion: string = 'v1'): string {
+export function formatApiHost(host?: string, supportApiVersion: boolean = true, apiVersion: string = 'v1'): string {
   const normalizedHost = withoutTrailingSlash(trim(host))
   if (!normalizedHost) {
     return ''
   }
 
-  if (normalizedHost.endsWith('#') || !isSupportedAPIVerion || hasAPIVersion(normalizedHost)) {
-    return normalizedHost
+  const shouldAppendApiVersion = !(normalizedHost.endsWith('#') || !supportApiVersion || hasAPIVersion(normalizedHost))
+
+  if (shouldAppendApiVersion) {
+    return `${normalizedHost}/${apiVersion}`
+  } else {
+    return withoutTrailingSharp(normalizedHost)
   }
-  return `${normalizedHost}/${apiVersion}`
+}
+
+/**
+ * 格式化 Ollama 的 API 主机地址。
+ */
+export function formatOllamaApiHost(host: string): string {
+  const normalizedHost = withoutTrailingSlash(host)
+    ?.replace(/\/v1$/, '')
+    ?.replace(/\/api$/, '')
+    ?.replace(/\/chat$/, '')
+  return formatApiHost(normalizedHost + '/api', false)
 }
 
 /**

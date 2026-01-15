@@ -1,20 +1,5 @@
-import {
-  formatPrivateKey,
-  hasProviderConfig,
-  ProviderConfigFactory,
-  type ProviderId,
-  type ProviderSettingsMap
-} from '@cherrystudio/ai-core/provider'
-import { cacheService } from '@data/CacheService'
-import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
-import {
-  isAnthropicProvider,
-  isAzureOpenAIProvider,
-  isCherryAIProvider,
-  isGeminiProvider,
-  isNewApiProvider,
-  isPerplexityProvider
-} from '@renderer/config/providers'
+import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
+import { isOpenAIChatCompletionOnlyModel, isOpenAIReasoningModel } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockApiKey,
@@ -22,42 +7,40 @@ import {
   getAwsBedrockRegion,
   getAwsBedrockSecretAccessKey
 } from '@renderer/hooks/useAwsBedrock'
-import { createVertexProvider, isVertexAIConfigured, isVertexProvider } from '@renderer/hooks/useVertexAI'
+import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
+import { getProviderById } from '@renderer/services/ProviderService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEndpoint } from '@renderer/utils/api'
-import { cloneDeep } from 'lodash'
+import type { OpenAICompletionsStreamOptions } from '@renderer/types/aiCoreTypes'
+import {
+  formatApiHost,
+  formatAzureOpenAIApiHost,
+  formatOllamaApiHost,
+  formatVertexApiHost,
+  isWithTrailingSharp,
+  routeToEndpoint
+} from '@renderer/utils/api'
+import {
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isCherryAIProvider,
+  isGeminiProvider,
+  isNewApiProvider,
+  isOllamaProvider,
+  isPerplexityProvider,
+  isSupportDeveloperRoleProvider,
+  isSupportStreamOptionsProvider,
+  isVertexProvider
+} from '@renderer/utils/provider'
+import { defaultAppHeaders } from '@shared/utils'
+import { cloneDeep, isEmpty } from 'lodash'
 
+import type { AiSdkConfig } from '../types'
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
+import { azureAnthropicProviderCreator } from './config/azure-anthropic'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
-
-/**
- * 获取轮询的API key
- * 复用legacy架构的多key轮询逻辑
- */
-function getRotatedApiKey(provider: Provider): string {
-  const keys = provider.apiKey.split(',').map((key) => key.trim())
-  const keyName = `provider:${provider.id}:last_used_key`
-
-  if (keys.length === 1) {
-    return keys[0]
-  }
-
-  const lastUsedKey = cacheService.getShared(keyName) as string | undefined
-  if (lastUsedKey === undefined) {
-    cacheService.setShared(keyName, keys[0])
-    return keys[0]
-  }
-
-  const currentIndex = keys.indexOf(lastUsedKey)
-  const nextIndex = (currentIndex + 1) % keys.length
-  const nextKey = keys[nextIndex]
-  cacheService.setShared(keyName, nextKey)
-
-  return nextKey
-}
 
 /**
  * 处理特殊provider的转换逻辑
@@ -75,30 +58,39 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
       return vertexAnthropicProviderCreator(model, provider)
     }
   }
+  if (isAzureOpenAIProvider(provider)) {
+    return azureAnthropicProviderCreator(model, provider)
+  }
   return provider
 }
 
 /**
- * 主要用来对齐AISdk的BaseURL格式
- * @param provider
- * @returns
+ * Format and normalize the API host URL for a provider.
+ * Handles provider-specific URL formatting rules (e.g., appending version paths, Azure formatting).
+ *
+ * @param provider - The provider whose API host is to be formatted.
+ * @returns A new provider instance with the formatted API host.
  */
-function formatProviderApiHost(provider: Provider): Provider {
+export function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
+  const appendApiVersion = !isWithTrailingSharp(provider.apiHost)
   if (formatted.anthropicApiHost) {
-    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost)
+    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost, appendApiVersion)
   }
 
   if (isAnthropicProvider(provider)) {
     const baseHost = formatted.anthropicApiHost || formatted.apiHost
-    formatted.apiHost = formatApiHost(baseHost)
+    // AI SDK needs /v1 in baseURL, Anthropic SDK will strip it in getSdkClient
+    formatted.apiHost = formatApiHost(baseHost, appendApiVersion)
     if (!formatted.anthropicApiHost) {
       formatted.anthropicApiHost = formatted.apiHost
     }
   } else if (formatted.id === SystemProviderIds.copilot || formatted.id === SystemProviderIds.github) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
+  } else if (isOllamaProvider(formatted)) {
+    formatted.apiHost = formatOllamaApiHost(formatted.apiHost)
   } else if (isGeminiProvider(formatted)) {
-    formatted.apiHost = formatApiHost(formatted.apiHost, true, 'v1beta')
+    formatted.apiHost = formatApiHost(formatted.apiHost, appendApiVersion, 'v1beta')
   } else if (isAzureOpenAIProvider(formatted)) {
     formatted.apiHost = formatAzureOpenAIApiHost(formatted.apiHost)
   } else if (isVertexProvider(formatted)) {
@@ -108,44 +100,62 @@ function formatProviderApiHost(provider: Provider): Provider {
   } else if (isPerplexityProvider(formatted)) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else {
-    formatted.apiHost = formatApiHost(formatted.apiHost)
+    formatted.apiHost = formatApiHost(formatted.apiHost, appendApiVersion)
   }
   return formatted
 }
 
 /**
- * 获取实际的Provider配置
- * 简化版：将逻辑分解为小函数
+ * Retrieve the effective Provider configuration for the given model.
+ * Applies all necessary transformations (special-provider handling, URL formatting, etc.).
+ *
+ * @param model - The model whose provider is to be resolved.
+ * @returns A new Provider instance with all adaptations applied.
  */
 export function getActualProvider(model: Model): Provider {
   const baseProvider = getProviderByModel(model)
 
-  // 按顺序处理各种转换
-  let actualProvider = cloneDeep(baseProvider)
-  actualProvider = handleSpecialProviders(model, actualProvider)
-  actualProvider = formatProviderApiHost(actualProvider)
+  return adaptProvider({ provider: baseProvider, model })
+}
 
-  return actualProvider
+/**
+ * Transforms a provider configuration by applying model-specific adaptations and normalizing its API host.
+ * The transformations are applied in the following order:
+ * 1. Model-specific provider handling (e.g., New-API, system providers, Azure OpenAI)
+ * 2. API host formatting (provider-specific URL normalization)
+ *
+ * @param provider - The base provider configuration to transform.
+ * @param model - The model associated with the provider; optional but required for special-provider handling.
+ * @returns A new Provider instance with all transformations applied.
+ */
+export function adaptProvider({ provider, model }: { provider: Provider; model?: Model }): Provider {
+  let adaptedProvider = cloneDeep(provider)
+
+  // Apply transformations in order
+  if (model) {
+    adaptedProvider = handleSpecialProviders(model, adaptedProvider)
+  }
+  adaptedProvider = formatProviderApiHost(adaptedProvider)
+
+  return adaptedProvider
 }
 
 /**
  * 将 Provider 配置转换为新 AI SDK 格式
  * 简化版：利用新的别名映射系统
  */
-export function providerToAiSdkConfig(
-  actualProvider: Provider,
-  model: Model
-): {
-  providerId: ProviderId | 'openai-compatible'
-  options: ProviderSettingsMap[keyof ProviderSettingsMap]
-} {
+export function providerToAiSdkConfig(actualProvider: Provider, model: Model): AiSdkConfig {
   const aiSdkProviderId = getAiSdkProviderId(actualProvider)
 
   // 构建基础配置
   const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
   const baseConfig = {
     baseURL: baseURL,
-    apiKey: getRotatedApiKey(actualProvider)
+    apiKey: actualProvider.apiKey
+  }
+  let includeUsage: OpenAICompletionsStreamOptions['include_usage'] = undefined
+  if (isSupportStreamOptionsProvider(actualProvider)) {
+    includeUsage = store.getState().settings.openAI?.streamOptions?.includeUsage
   }
 
   const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot
@@ -158,12 +168,25 @@ export function providerToAiSdkConfig(
         ...actualProvider.extra_headers
       },
       name: actualProvider.id,
-      includeUsage: true
+      includeUsage
     })
 
     return {
       providerId: 'github-copilot-openai-compatible',
       options
+    }
+  }
+
+  if (isOllamaProvider(actualProvider)) {
+    return {
+      providerId: 'ollama',
+      options: {
+        ...baseConfig,
+        headers: {
+          ...actualProvider.extra_headers,
+          Authorization: !isEmpty(baseConfig.apiKey) ? `Bearer ${baseConfig.apiKey}` : undefined
+        }
+      }
     }
   }
 
@@ -176,28 +199,29 @@ export function providerToAiSdkConfig(
     extraOptions.mode = 'chat'
   }
 
-  // 添加额外headers
-  if (actualProvider.extra_headers) {
-    extraOptions.headers = actualProvider.extra_headers
-    // copy from openaiBaseClient/openaiResponseApiClient
-    if (aiSdkProviderId === 'openai') {
-      extraOptions.headers = {
-        ...extraOptions.headers,
-        'HTTP-Referer': 'https://cherry-ai.com',
-        'X-Title': 'Cherry Studio',
-        'X-Api-Key': baseConfig.apiKey
-      }
-    }
+  extraOptions.headers = {
+    ...defaultAppHeaders(),
+    ...actualProvider.extra_headers
+  }
+
+  if (aiSdkProviderId === 'openai') {
+    extraOptions.headers['X-Api-Key'] = baseConfig.apiKey
   }
   // azure
   // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
   // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
-  if (aiSdkProviderId === 'azure' || actualProvider.type === 'azure-openai') {
-    // extraOptions.apiVersion = actualProvider.apiVersion === 'preview' ? 'v1' : actualProvider.apiVersion 默认使用v1，不使用azure endpoint
-    if (actualProvider.apiVersion === 'preview' || actualProvider.apiVersion === 'v1') {
-      extraOptions.mode = 'responses'
-    } else {
-      extraOptions.mode = 'chat'
+  if (aiSdkProviderId === 'azure-responses') {
+    extraOptions.mode = 'responses'
+  } else if (aiSdkProviderId === 'azure') {
+    extraOptions.mode = 'chat'
+  }
+  if (isAzureOpenAIProvider(actualProvider)) {
+    const apiVersion = actualProvider.apiVersion?.trim()
+    if (apiVersion) {
+      extraOptions.apiVersion = apiVersion
+      if (!['preview', 'v1'].includes(apiVersion)) {
+        extraOptions.useDeploymentBasedUrls = true
+      }
     }
   }
 
@@ -233,12 +257,26 @@ export function providerToAiSdkConfig(
     if (model.endpoint_type) {
       extraOptions.endpointType = model.endpoint_type
     }
+    // CherryIN API Host
+    const cherryinProvider = getProviderById(SystemProviderIds.cherryin)
+    if (cherryinProvider) {
+      extraOptions.anthropicBaseURL = cherryinProvider.anthropicApiHost + '/v1'
+      extraOptions.geminiBaseURL = cherryinProvider.apiHost + '/v1beta/models'
+    }
+  }
+
+  // Apply developer-to-system role conversion for providers that don't support developer role
+  // bug: https://github.com/vercel/ai/issues/10982
+  // fixPR: https://github.com/vercel/ai/pull/11127
+  // TODO: but the PR don't backport to v5, the code will be removed when upgrading to v6
+  if (!isSupportDeveloperRoleProvider(actualProvider) || !isOpenAIReasoningModel(model)) {
+    extraOptions.fetch = createDeveloperToSystemFetch(extraOptions.fetch)
   }
 
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {
-      providerId: aiSdkProviderId as ProviderId,
+      providerId: aiSdkProviderId,
       options
     }
   }
@@ -251,7 +289,7 @@ export function providerToAiSdkConfig(
       ...options,
       name: actualProvider.id,
       ...extraOptions,
-      includeUsage: true
+      includeUsage
     }
   }
 }
@@ -271,6 +309,44 @@ export function isModernSdkSupported(provider: Provider): boolean {
 
   // 如果映射到了支持的provider，则支持现代SDK
   return hasProviderConfig(aiSdkProviderId)
+}
+
+/**
+ * Creates a custom fetch wrapper that converts 'developer' role to 'system' role in request body.
+ * This is needed for providers that don't support the 'developer' role (e.g., Azure DeepSeek R1).
+ *
+ * @param originalFetch - Optional original fetch function to wrap
+ * @returns A fetch function that transforms the request body
+ */
+function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetch {
+  const baseFetch = originalFetch ?? fetch
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    let options = init
+    if (options?.body && typeof options.body === 'string') {
+      try {
+        const body = JSON.parse(options.body)
+        if (body.messages && Array.isArray(body.messages)) {
+          let hasChanges = false
+          body.messages = body.messages.map((msg: { role: string }) => {
+            if (msg.role === 'developer') {
+              hasChanges = true
+              return { ...msg, role: 'system' }
+            }
+            return msg
+          })
+          if (hasChanges) {
+            options = {
+              ...options,
+              body: JSON.stringify(body)
+            }
+          }
+        }
+      } catch {
+        // If parsing fails, just use original body
+      }
+    }
+    return baseFetch(input, options)
+  }
 }
 
 /**
@@ -323,7 +399,6 @@ export async function prepareSpecialProviderConfig(
             ...(config.options.headers ? config.options.headers : {}),
             'Content-Type': 'application/json',
             'anthropic-version': '2023-06-01',
-            'anthropic-beta': 'oauth-2025-04-20',
             Authorization: `Bearer ${oauthToken}`
           },
           baseURL: 'https://api.anthropic.com/v1',
@@ -332,5 +407,6 @@ export async function prepareSpecialProviderConfig(
       }
     }
   }
+
   return config
 }
