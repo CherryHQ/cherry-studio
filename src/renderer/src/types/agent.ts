@@ -33,12 +33,27 @@ export const isAgentType = (type: unknown): type is AgentType => {
 }
 
 // ------------------ Tool metadata ------------------
+
+/**
+ * Runtime environments where tools can be executed.
+ * - 'electron': Desktop Electron environment with full Node.js/filesystem access
+ * - 'browser': Web browser environment with limited capabilities (no filesystem/shell)
+ */
+export const ToolEnvironmentSchema = z.enum(['electron', 'browser'])
+export type ToolEnvironment = z.infer<typeof ToolEnvironmentSchema>
+
 export const ToolSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['builtin', 'mcp', 'custom']),
   description: z.string().optional(),
-  requirePermissions: z.boolean().optional()
+  requirePermissions: z.boolean().optional(),
+  /**
+   * Environments where this tool can be executed.
+   * If undefined, defaults to ['electron'] (desktop only).
+   * Tools with ['electron', 'browser'] work in both environments.
+   */
+  supportedEnvironments: z.array(ToolEnvironmentSchema).optional()
 })
 
 export type Tool = z.infer<typeof ToolSchema>
