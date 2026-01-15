@@ -1,56 +1,92 @@
-# AI Assistant Guide
+# CLAUDE.md
 
-This file provides guidance to AI coding assistants when working with code in this repository. Adherence to these guidelines is crucial for maintaining code quality and consistency.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+Cherry Studio is a cross-platform desktop AI assistant client built with Electron, supporting multiple LLM providers (OpenAI, Anthropic, Google, Ollama, etc.). Uses React for the UI with Redux state management.
+
+## Requirements
+
+- Node.js >= 22.0.0
+- pnpm 10.27.0 (`corepack enable && corepack prepare pnpm@10.27.0 --activate`)
 
 ## Guiding Principles (MUST FOLLOW)
 
 - **Keep it clear**: Write code that is easy to read, maintain, and explain.
 - **Match the house style**: Reuse existing patterns, naming, and conventions.
-- **Search smart**: Prefer `ast-grep` for semantic queries; fall back to `rg`/`grep` when needed.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
-- **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
-- **Always propose before executing**: Before making any changes, clearly explain your planned approach and wait for explicit user approval to ensure alignment and prevent unwanted modifications.
-- **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
+- **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm build:check` (runs lint + test + typecheck).
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat:`, `fix:`, `refactor:`, `docs:`).
-
-## Pull Request Workflow (CRITICAL)
-
-When creating a Pull Request, you MUST:
-
-1. **Read the PR template first**: Always read `.github/pull_request_template.md` before creating the PR
-2. **Follow ALL template sections**: Structure the `--body` parameter to include every section from the template
-3. **Never skip sections**: Include all sections even if marking them as N/A or "None"
-4. **Use proper formatting**: Match the template's markdown structure exactly (headings, checkboxes, code blocks)
 
 ## Development Commands
 
-- **Install**: `pnpm install` - Install all project dependencies
-- **Development**: `pnpm dev` - Runs Electron app in development mode with hot reload
-- **Debug**: `pnpm debug` - Starts with debugging enabled, use `chrome://inspect` to attach debugger
-- **Build Check**: `pnpm build:check` - **REQUIRED** before commits (lint + test + typecheck)
-  - If having i18n sort issues, run `pnpm i18n:sync` first to sync template
-  - If having formatting issues, run `pnpm format` first
-- **Test**: `pnpm test` - Run all tests (Vitest) across main and renderer processes
-- **Single Test**:
-  - `pnpm test:main` - Run tests for main process only
-  - `pnpm test:renderer` - Run tests for renderer process only
-- **Lint**: `pnpm lint` - Fix linting issues and run TypeScript type checking
-- **Format**: `pnpm format` - Auto-format code using Biome
+```bash
+pnpm install          # Install dependencies
+cp .env.example .env  # Setup environment (first time only)
+pnpm dev              # Run in development mode with hot reload
+pnpm debug            # Debug mode, attach via chrome://inspect
+pnpm build:check      # REQUIRED before commits (lint + test + typecheck)
+pnpm test             # Run all Vitest tests
+pnpm test:main        # Test main process only
+pnpm test:renderer    # Test renderer process only
+pnpm test:aicore      # Test aiCore package only
+pnpm lint             # Fix linting + typecheck
+pnpm format           # Auto-format with Biome
+pnpm i18n:sync        # Fix i18n sort issues
+pnpm build:win/mac/linux  # Build for specific platform
+```
+
+## Pull Request Workflow (CRITICAL)
+
+When creating a Pull Request:
+1. **Read the PR template first**: Always read `.github/pull_request_template.md` before creating the PR
+2. **Follow ALL template sections**: Include every section (even if N/A)
+3. **Current restriction**: PRs changing Redux data models or IndexedDB schemas are NOT accepted until v2.0.0
+
+### Branch Naming Convention
+- Features: `feature/issue-number-brief-description`
+- Bug fixes: `fix/issue-number-brief-description`
+- Docs: `docs/brief-description`
+- Hotfixes: `hotfix/issue-number-brief-description`
 
 ## Project Architecture
 
 ### Electron Structure
 
-- **Main Process** (`src/main/`): Node.js backend with services (MCP, Knowledge, Storage, etc.)
-- **Renderer Process** (`src/renderer/`): React UI with Redux state management
-- **Preload Scripts** (`src/preload/`): Secure IPC bridge
+- **Main Process** (`src/main/`): Node.js backend with services
+- **Renderer Process** (`src/renderer/`): React 19 UI with Redux Toolkit
+- **Preload Scripts** (`src/preload/`): Secure IPC bridge between processes
 
-### Key Components
+### Key Services (src/main/services/)
 
-- **AI Core** (`src/renderer/src/aiCore/`): Middleware pipeline for multiple AI providers.
-- **Services** (`src/main/services/`): MCPService, KnowledgeService, WindowService, etc.
-- **Build System**: Electron-Vite with experimental rolldown-vite, pnpm workspaces.
-- **State Management**: Redux Toolkit (`src/renderer/src/store/`) for predictable state.
+- `MCPService.ts` - Model Context Protocol server management
+- `KnowledgeService.ts` - RAG/knowledge base using embedjs
+- `WindowService.ts` - Electron window management
+- `FileStorage.ts` - Local file persistence
+- `BackupManager.ts` - WebDAV/S3 backup
+- `SelectionService.ts` - System-wide text selection handling
+- `CodeToolsService.ts` - Code execution tools
+
+### AI Core (packages/aiCore/)
+
+Standalone package providing a middleware pipeline for multiple AI providers. Uses Vercel AI SDK (`ai` package) for unified streaming across providers. Key abstractions:
+- Provider adapters for OpenAI, Anthropic, Google, Azure, Bedrock, etc.
+- Middleware chain for request/response transformation
+- Tool calling with MCP integration
+
+### State Management
+
+- Redux Toolkit at `src/renderer/src/store/`
+- IndexedDB via Dexie at `src/renderer/src/databases/`
+- Redux-persist for state persistence
+
+### Monorepo Packages (packages/)
+
+- `aiCore` - AI provider middleware (publishable as `@cherrystudio/ai-core`)
+- `shared` - Shared types and utilities
+- `mcp-trace` - MCP tracing tools
+- `ai-sdk-provider` - Custom AI SDK providers
 
 ### Logging
 
@@ -60,3 +96,9 @@ const logger = loggerService.withContext("moduleName");
 // Renderer: loggerService.initWindowSource('windowName') first
 logger.info("message", CONTEXT);
 ```
+
+### Internationalization
+
+- Locale files at `src/renderer/src/i18n/locales/`
+- Run `pnpm i18n:sync` to sync translation template
+- Run `pnpm i18n:translate` for auto-translation
