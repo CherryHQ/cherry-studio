@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cherry Studio</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        width: 320px;
+        min-height: 200px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        background: #fff;
+        color: #333;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #1a1a1a;
+          color: #e5e5e5;
+        }
+      }
+      #root {
+        padding: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./popup.tsx"></script>
+  </body>
+</html>

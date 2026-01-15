@@ -1,0 +1,73 @@
+{
+  "manifest_version": 3,
+  "name": "Cherry Studio",
+  "version": "1.0.0",
+  "description": "AI Assistant powered by multiple LLM providers",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "sidePanel",
+    "contextMenus",
+    "activeTab",
+    "clipboardRead",
+    "clipboardWrite",
+    "notifications",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://*.openrouter.ai/*",
+    "https://api.groq.com/*",
+    "https://api.mistral.ai/*",
+    "https://api.deepseek.com/*",
+    "https://api.together.xyz/*",
+    "https://api.perplexity.ai/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Cherry Studio",
+    "default_popup": "popup.html"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      }
+    },
+    "open_side_panel": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Open Cherry Studio"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*", "fonts/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
