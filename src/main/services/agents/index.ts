@@ -20,18 +20,6 @@ export { type AgentModelField, AgentModelValidationError } from './errors'
 // Shared database utilities and base service class
 export { BaseService } from './BaseService'
 
-// === Tool Environment Utilities ===
-// Utilities for filtering tools based on runtime environment
-export {
-  filterToolsByEnvironment,
-  getBuiltinTools,
-  getDisabledBuiltinToolIds,
-  getSupportedToolIds,
-  getUnsupportedToolIds,
-  isToolSupportedInEnvironment,
-  partitionToolsByEnvironment
-} from './services/claudecode/tool-environment'
-
 // === Database Layer ===
 // Drizzle ORM schemas, migrations, and database utilities
 export * as Database from './database'

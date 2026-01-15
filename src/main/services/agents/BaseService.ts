@@ -12,7 +12,7 @@ import { DatabaseManager } from './database/DatabaseManager'
 import type { AgentModelField } from './errors'
 import { AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
-import { getBuiltinTools } from './services/claudecode/tool-environment'
+import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('BaseService')
 const MCP_TOOL_ID_PREFIX = 'mcp__'
@@ -53,12 +53,9 @@ export abstract class BaseService {
   ): Promise<{ tools: Tool[]; legacyIdMap: Map<string, string> }> {
     const tools: Tool[] = []
     const legacyIdMap = new Map<string, string>()
-
     if (agentType === 'claude-code') {
-      // Use getBuiltinTools() which returns all tools (environment-aware version available separately)
-      tools.push(...getBuiltinTools())
+      tools.push(...builtinTools)
     }
-
     if (ids && ids.length > 0) {
       for (const id of ids) {
         try {
@@ -69,15 +66,12 @@ export abstract class BaseService {
               const serverIdBasedId = buildMcpToolId(id, tool.name)
               const legacyId = toLegacyMcpToolId(serverIdBasedId)
 
-              // MCP tools are considered browser-compatible by default
-              // as they communicate via HTTP and don't require local filesystem
               tools.push({
                 id: canonicalId,
                 name: tool.name,
                 type: 'mcp',
                 description: tool.description || '',
-                requirePermissions: true,
-                supportedEnvironments: ['electron', 'browser']
+                requirePermissions: true
               })
               legacyIdMap.set(serverIdBasedId, canonicalId)
               if (legacyId) {
