@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "刪除助手會刪除所有該助手下的話題和檔案，確定要繼續嗎？",
+      "error": {
+        "remain_one": "不允許刪除最後一個助手"
+      },
       "title": "刪除助手"
     },
     "edit": {
@@ -541,6 +544,20 @@
         "description": "預設啟用的 MCP 伺服器",
         "enableFirst": "請先在 MCP 設定中啟用此伺服器",
         "label": "MCP 伺服器",
+        "mode": {
+          "auto": {
+            "description": "AI 自動發現和使用工具",
+            "label": "自動"
+          },
+          "disabled": {
+            "description": "不使用 MCP 工具",
+            "label": "停用"
+          },
+          "manual": {
+            "description": "選擇特定的 MCP 伺服器",
+            "label": "手動"
+          }
+        },
         "noServersAvailable": "無可用 MCP 伺服器。請在設定中新增伺服器",
         "title": "MCP 設定"
       },
@@ -1294,6 +1311,7 @@
     "backup": {
       "file_format": "備份檔案格式錯誤"
     },
+    "base64DataTruncated": "Base64 圖片資料已截斷，大小",
     "boundary": {
       "default": {
         "devtools": "開啟除錯面板",
@@ -1374,6 +1392,8 @@
     "text": "文字",
     "toolInput": "工具輸入",
     "toolName": "工具名稱",
+    "truncated": "資料已截斷，原始大小",
+    "truncatedBadge": "已截斷",
     "unknown": "未知錯誤",
     "usage": "用量",
     "user_message_not_found": "無法找到原始使用者訊息",
@@ -2643,7 +2663,7 @@
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
     "longcat": "龍貓",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "小米 MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -3095,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "查看",
+        "title": "加入我們"
+      },
       "checkUpdate": {
         "available": "立即更新",
         "label": "檢查更新"
@@ -3162,6 +3186,7 @@
         "label": "應用程式資料",
         "migration_title": "資料移轉",
         "new_path": "新路徑",
+        "open": "開啟目錄",
         "original_path": "原始路徑",
         "path_change_failed": "資料目錄變更失敗",
         "path_changed_without_copy": "路徑已變更成功",
@@ -3232,24 +3257,43 @@
         },
         "content": "匯出部分資料，包括聊天記錄與設定。請注意，備份過程可能需要一些時間，感謝耐心等候。",
         "lan": {
-          "auto_close_tip": "將於 {{seconds}} 秒後自動關閉...",
-          "confirm_close_message": "檔案傳輸正在進行中。關閉將會中斷傳輸。您確定要強制關閉嗎？",
-          "confirm_close_title": "確認關閉",
           "connected": "已連線",
           "connection_failed": "連線失敗",
-          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。請開啟 Cherry Studio App 掃描此 QR 碼。",
+          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。",
+          "device_list_title": "區域網路裝置",
+          "discovered_devices": "已發現的裝置",
           "error": {
+            "file_too_large": "檔案過大，僅支援最大 500MB",
             "init_failed": "初始化失敗",
+            "invalid_file_type": "僅支援 ZIP 檔案",
             "no_file": "未選擇檔案",
             "no_ip": "無法取得 IP 位址",
+            "not_connected": "請先完成握手",
             "send_failed": "無法傳送檔案"
           },
-          "force_close": "強制關閉",
-          "generating_qr": "正在產生 QR 碼...",
-          "noZipSelected": "未選取壓縮檔案",
-          "scan_qr": "請使用手機掃描 QR 碼",
-          "selectZip": "選擇壓縮檔案",
-          "sendZip": "開始還原資料",
+          "file_transfer": {
+            "cancelled": "傳輸已取消",
+            "failed": "檔案傳輸失敗：{{message}}",
+            "progress": "傳送中... {{progress}}%",
+            "success": "檔案傳送成功"
+          },
+          "handshake": {
+            "button": "握手",
+            "failed": "握手失敗：{{message}}",
+            "in_progress": "握手中...",
+            "success": "已與 {{device}} 完成握手",
+            "test_message_received": "收到來自 {{device}} 的 pong",
+            "test_message_sent": "已送出 hello world 測試封包"
+          },
+          "idle_hint": "掃描已暫停。開始掃描以尋找區域網路中的 Cherry Studio 裝置。",
+          "ip_addresses": "IP 位址",
+          "last_seen": "上次看到：{{time}}",
+          "metadata": "中繼資料",
+          "no_connection_warning": "請在 Cherry Studio 行動裝置開啟區域網路傳輸",
+          "no_devices": "尚未找到區域網路節點",
+          "scan_devices": "掃描裝置",
+          "scanning_hint": "正在掃描區域網路中的 Cherry Studio 裝置...",
+          "send_file": "傳送檔案",
           "status": {
             "completed": "傳輸完成",
             "connected": "已連線",
@@ -3258,9 +3302,11 @@
             "error": "連線錯誤",
             "initializing": "正在初始化連線...",
             "preparing": "正在準備傳輸...",
-            "sending": "傳輸中 {{progress}}%",
-            "waiting_qr_scan": "請掃描 QR 碼以連線"
+            "sending": "傳輸中 {{progress}}%"
           },
+          "status_badge_idle": "閒置",
+          "status_badge_scanning": "掃描中",
+          "stop_scan": "停止掃描",
           "title": "區域網路傳輸",
           "transfer_progress": "傳輸進度"
         },
@@ -4101,7 +4147,7 @@
       "tagsPlaceholder": "輸入標籤",
       "timeout": "逾時",
       "timeoutTooltip": "對該伺服器請求的逾時時間（秒），預設為 60 秒",
-      "title": "MCP",
+      "title": "MCP 伺服器",
       "tools": {
         "autoApprove": {
           "label": "自動核准",
@@ -4172,9 +4218,6 @@
       "show_message_outline": "顯示訊息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
-    },
-    "mineru": {
-      "api_key": "Mineru 現在每天提供 500 頁的免費配額，且無需輸入金鑰。"
     },
     "miniapps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
@@ -4433,6 +4476,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "快取最近 N 則訊息",
+            "cache_last_n_help": "快取最後 N 則對話訊息（排除系統訊息）",
+            "cache_system": "快取系統訊息",
+            "cache_system_help": "是否快取系統提示",
+            "token_threshold": "快取權杖閾值",
+            "token_threshold_help": "超過此標記數量的訊息將被快取。設為 0 以停用快取。"
+          },
           "array_content": {
             "help": "該供應商是否支援 message 的 content 欄位為 array 類型",
             "label": "支援陣列格式的 message content"
@@ -4735,6 +4786,12 @@
       },
       "title": "其他設定",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} 需要 API 金鑰才能運作。您現在要設定嗎？",
+          "ok": "設定",
+          "title": "需要 API 金鑰"
+        },
+        "api_providers": "API 服務商",
         "apikey": "API 金鑰",
         "blacklist": "黑名單",
         "blacklist_description": "以下網站不會出現在搜尋結果中",
@@ -4776,7 +4833,15 @@
         },
         "content_limit": "內容長度限制",
         "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
+        "default_provider": "預設搜尋引擎",
         "free": "免費",
+        "is_default": "預設",
+        "local_provider": {
+          "hint": "登入網站以獲得更佳搜尋結果並個人化您的搜尋設定。",
+          "open_settings": "開啟 {{provider}} 設定",
+          "settings": "本地搜尋設定"
+        },
+        "local_providers": "本地搜尋",
         "no_provider_selected": "請選擇搜尋供應商後再檢查",
         "overwrite": "覆蓋搜尋服務",
         "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
@@ -4787,6 +4852,7 @@
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
         "search_with_time": "搜尋包含日期",
+        "set_as_default": "設為預設",
         "subscribe": "黑名單訂閱",
         "subscribe_add": "新增訂閱",
         "subscribe_add_failed": "訂閱來源新增失敗",

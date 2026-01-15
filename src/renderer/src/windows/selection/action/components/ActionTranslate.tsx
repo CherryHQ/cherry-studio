@@ -9,9 +9,10 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
+import { pauseTrace } from '@renderer/services/SpanManagerService'
 import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import type { ActionItem } from '@renderer/types/selectionTypes'
-import { runAsyncFunction } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
 import { Tooltip } from 'antd'
@@ -32,88 +33,118 @@ const logger = loggerService.withContext('ActionTranslate')
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
-  const { translateModelPrompt, language } = useSettings()
+  const { language } = useSettings()
+  const { getLanguageByLangcode, isLoaded: isLanguagesLoaded } = useTranslate()
 
-  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(LanguagesEnum.enUS)
-  const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(LanguagesEnum.zhCN)
+  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
+    const lang = getLanguageByLangcode(language)
+    if (lang !== UNKNOWN) {
+      return lang
+    } else {
+      logger.warn('[initialize targetLanguage] Unexpected UNKNOWN. Fallback to zh-CN')
+      return LanguagesEnum.zhCN
+    }
+  })
+
+  const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(LanguagesEnum.enUS)
 
   const [error, setError] = useState('')
   const [showOriginal, setShowOriginal] = useState(false)
-  const [isContented, setIsContented] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
   const [contentToCopy, setContentToCopy] = useState('')
-  const { getLanguageByLangcode } = useTranslate()
+  const [initialized, setInitialized] = useState(false)
 
   // Use useRef for values that shouldn't trigger re-renders
-  const initialized = useRef(false)
   const assistantRef = useRef<Assistant | null>(null)
   const topicRef = useRef<Topic | null>(null)
   const askId = useRef('')
+  const targetLangRef = useRef(targetLanguage)
 
-  useEffect(() => {
-    runAsyncFunction(async () => {
-      const biDirectionLangPair = await db.settings.get({ id: 'translate:bidirectional:pair' })
+  // It's called only in initialization.
+  // It will change target/alter language, so fetchResult will be triggered. Be careful!
+  const updateLanguagePair = useCallback(async () => {
+    // Only called is when languages loaded.
+    // It ensure we could get right language from getLanguageByLangcode.
+    if (!isLanguagesLoaded) {
+      logger.silly('[updateLanguagePair] Languages are not loaded. Skip.')
+      return
+    }
 
-      let targetLang: TranslateLanguage
-      let alterLang: TranslateLanguage
+    const biDirectionLangPair = await db.settings.get({ id: 'translate:bidirectional:pair' })
 
-      if (!biDirectionLangPair || !biDirectionLangPair.value[0]) {
-        const lang = getLanguageByLangcode(language)
-        if (lang !== UNKNOWN) {
-          targetLang = lang
-        } else {
-          logger.warn('Fallback to zh-CN')
-          targetLang = LanguagesEnum.zhCN
-        }
-      } else {
-        targetLang = getLanguageByLangcode(biDirectionLangPair.value[0])
-      }
-
-      if (!biDirectionLangPair || !biDirectionLangPair.value[1]) {
-        alterLang = LanguagesEnum.enUS
-      } else {
-        alterLang = getLanguageByLangcode(biDirectionLangPair.value[1])
-      }
-
+    if (biDirectionLangPair && biDirectionLangPair.value[0]) {
+      const targetLang = getLanguageByLangcode(biDirectionLangPair.value[0])
       setTargetLanguage(targetLang)
-      setAlterLanguage(alterLang)
-    })
-  }, [getLanguageByLangcode, language])
+      targetLangRef.current = targetLang
+    }
 
-  // Initialize values only once when action changes
-  useEffect(() => {
-    if (initialized.current || !action.selectedText) return
-    initialized.current = true
+    if (biDirectionLangPair && biDirectionLangPair.value[1]) {
+      const alterLang = getLanguageByLangcode(biDirectionLangPair.value[1])
+      setAlterLanguage(alterLang)
+    }
+  }, [getLanguageByLangcode, isLanguagesLoaded])
+
+  // Initialize values only once
+  const initialize = useCallback(async () => {
+    if (initialized) {
+      logger.silly('[initialize] Already initialized.')
+      return
+    }
+
+    // Only try to initialize when languages loaded, so updateLanguagePair would not fail.
+    if (!isLanguagesLoaded) {
+      logger.silly('[initialize] Languages not loaded. Skip initialization.')
+      return
+    }
+
+    // Edge case
+    if (action.selectedText === undefined) {
+      logger.error('[initialize] No selected text.')
+      return
+    }
+    logger.silly('[initialize] Start initialization.')
+
+    // Initialize language pair.
+    // It will update targetLangRef, so we could get latest target language in the following code
+    await updateLanguagePair()
+    logger.silly('[initialize] UpdateLanguagePair completed.')
 
     // Initialize assistant
-    const currentAssistant = getDefaultTranslateAssistant(targetLanguage, action.selectedText)
+    const currentAssistant = getDefaultTranslateAssistant(targetLangRef.current, action.selectedText)
 
     assistantRef.current = currentAssistant
 
     // Initialize topic
     topicRef.current = getDefaultTopic(currentAssistant.id)
-  }, [action, targetLanguage, translateModelPrompt])
+    setInitialized(true)
+  }, [action.selectedText, initialized, isLanguagesLoaded, updateLanguagePair])
+
+  // Try to initialize when:
+  // 1. action.selectedText change (generally will not)
+  // 2. isLanguagesLoaded change (only initialize when languages loaded)
+  // 3. updateLanguagePair change (depend on translateLanguages and isLanguagesLoaded)
+  useEffect(() => {
+    initialize()
+  }, [initialize])
 
   const fetchResult = useCallback(async () => {
-    if (!assistantRef.current || !topicRef.current || !action.selectedText) return
+    if (!assistantRef.current || !topicRef.current || !action.selectedText || !initialized) return
 
     const setAskId = (id: string) => {
       askId.current = id
     }
     const onStream = () => {
-      setIsContented(true)
+      setStatus('streaming')
       scrollToBottom?.()
     }
     const onFinish = (content: string) => {
+      setStatus('finished')
       setContentToCopy(content)
-      setIsLoading(false)
     }
     const onError = (error: Error) => {
-      setIsLoading(false)
+      setStatus('finished')
       setError(error.message)
     }
-
-    setIsLoading(true)
 
     let sourceLanguageCode: TranslateLanguageCode
 
@@ -141,8 +172,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     const assistant = getDefaultTranslateAssistant(translateLang, action.selectedText)
     assistantRef.current = assistant
+    logger.debug('process once')
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
-  }, [action, targetLanguage, alterLanguage, scrollToBottom])
+  }, [action, targetLanguage, alterLanguage, scrollToBottom, initialized])
 
   useEffect(() => {
     fetchResult()
@@ -150,29 +182,61 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   const allMessages = useTopicMessages(topicRef.current?.id || '')
 
-  const messageContent = useMemo(() => {
+  const currentAssistantMessage = useMemo(() => {
     const assistantMessages = allMessages.filter((message) => message.role === 'assistant')
-    const lastAssistantMessage = assistantMessages[assistantMessages.length - 1]
-    return lastAssistantMessage ? <MessageContent key={lastAssistantMessage.id} message={lastAssistantMessage} /> : null
+    if (assistantMessages.length === 0) {
+      return null
+    }
+    return assistantMessages[assistantMessages.length - 1]
   }, [allMessages])
 
+  useEffect(() => {
+    // Sync message status
+    switch (currentAssistantMessage?.status) {
+      case AssistantMessageStatus.PROCESSING:
+      case AssistantMessageStatus.PENDING:
+      case AssistantMessageStatus.SEARCHING:
+        setStatus('streaming')
+        break
+      case AssistantMessageStatus.PAUSED:
+      case AssistantMessageStatus.ERROR:
+      case AssistantMessageStatus.SUCCESS:
+        setStatus('finished')
+        break
+      case undefined:
+        break
+      default:
+        logger.warn('Unexpected assistant message status:', { status: currentAssistantMessage?.status })
+    }
+  }, [currentAssistantMessage?.status])
+
+  const isPreparing = status === 'preparing'
+  const isStreaming = status === 'streaming'
+
   const handleChangeLanguage = (targetLanguage: TranslateLanguage, alterLanguage: TranslateLanguage) => {
+    if (!initialized) {
+      return
+    }
     setTargetLanguage(targetLanguage)
+    targetLangRef.current = targetLanguage
     setAlterLanguage(alterLanguage)
 
     db.settings.put({ id: 'translate:bidirectional:pair', value: [targetLanguage.langCode, alterLanguage.langCode] })
   }
 
   const handlePause = () => {
+    // FIXME: It doesn't work because abort signal is not set.
+    logger.silly('Try to pause: ', { id: askId.current })
     if (askId.current) {
       abortCompletion(askId.current)
-      setIsLoading(false)
+    }
+    if (topicRef.current?.id) {
+      pauseTrace(topicRef.current.id)
     }
   }
 
   const handleRegenerate = () => {
     setContentToCopy('')
-    setIsLoading(true)
     fetchResult()
   }
 
@@ -192,7 +256,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               title={t('translate.target_language')}
               optionFilterProp="label"
               onChange={(value) => handleChangeLanguage(getLanguageByLangcode(value), alterLanguage)}
-              disabled={isLoading}
+              disabled={isStreaming}
             />
           </Tooltip>
           <ArrowRightFromLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
@@ -204,7 +268,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               title={t('translate.alter_language')}
               optionFilterProp="label"
               onChange={(value) => handleChangeLanguage(targetLanguage, getLanguageByLangcode(value))}
-              disabled={isLoading}
+              disabled={isStreaming}
             />
           </Tooltip>
           <Tooltip placement="bottom" title={t('selection.action.translate.smart_translate_tips')} arrow>
@@ -231,13 +295,20 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
-          {!isContented && isLoading && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {messageContent}
+          {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
+          {!isPreparing && currentAssistantMessage && (
+            <MessageContent key={currentAssistantMessage.id} message={currentAssistantMessage} />
+          )}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter loading={isLoading} onPause={handlePause} onRegenerate={handleRegenerate} content={contentToCopy} />
+      <WindowFooter
+        loading={isStreaming}
+        onPause={handlePause}
+        onRegenerate={handleRegenerate}
+        content={contentToCopy}
+      />
     </>
   )
 }

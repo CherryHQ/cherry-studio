@@ -64,6 +64,145 @@ export async function isBinaryExists(name: string): Promise<boolean> {
   return fs.existsSync(cmd)
 }
 
+// Timeout for command lookup operations (in milliseconds)
+const COMMAND_LOOKUP_TIMEOUT_MS = 5000
+
+// Regex to validate command names - must start with alphanumeric or underscore, max 128 chars
+const VALID_COMMAND_NAME_REGEX = /^[a-zA-Z0-9_][a-zA-Z0-9_-]{0,127}$/
+
+// Maximum output size to prevent buffer overflow (10KB)
+const MAX_OUTPUT_SIZE = 10240
+
+/**
+ * Check if a command is available in the user's login shell environment
+ * @param command - Command name to check (e.g., 'npx', 'uvx')
+ * @param loginShellEnv - The login shell environment from getLoginShellEnvironment()
+ * @returns Full path to the command if found, null otherwise
+ */
+export async function findCommandInShellEnv(
+  command: string,
+  loginShellEnv: Record<string, string>
+): Promise<string | null> {
+  // Validate command name to prevent command injection
+  if (!VALID_COMMAND_NAME_REGEX.test(command)) {
+    logger.warn(`Invalid command name '${command}' - must only contain alphanumeric characters, underscore, or hyphen`)
+    return null
+  }
+
+  return new Promise((resolve) => {
+    let resolved = false
+
+    const safeResolve = (value: string | null) => {
+      if (resolved) return
+      resolved = true
+      resolve(value)
+    }
+
+    if (isWin) {
+      // On Windows, use 'where' command
+      const child = spawn('where', [command], {
+        env: loginShellEnv,
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+
+      let output = ''
+      const timeoutId = setTimeout(() => {
+        if (resolved) return
+        child.kill('SIGKILL')
+        logger.debug(`Timeout checking command '${command}' on Windows`)
+        safeResolve(null)
+      }, COMMAND_LOOKUP_TIMEOUT_MS)
+
+      child.stdout.on('data', (data) => {
+        if (output.length < MAX_OUTPUT_SIZE) {
+          output += data.toString()
+        }
+      })
+
+      child.on('close', (code) => {
+        clearTimeout(timeoutId)
+        if (resolved) return
+
+        if (code === 0 && output.trim()) {
+          const paths = output.trim().split(/\r?\n/)
+          // Only accept .exe files on Windows - .cmd/.bat files cannot be executed
+          // with spawn({ shell: false }) which is used by MCP SDK's StdioClientTransport
+          const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
+          if (exePath) {
+            logger.debug(`Found command '${command}' at: ${exePath}`)
+            safeResolve(exePath)
+          } else {
+            logger.debug(`Command '${command}' found but not as .exe (${paths[0]}), treating as not found`)
+            safeResolve(null)
+          }
+        } else {
+          logger.debug(`Command '${command}' not found in shell environment`)
+          safeResolve(null)
+        }
+      })
+
+      child.on('error', (error) => {
+        clearTimeout(timeoutId)
+        if (resolved) return
+        logger.warn(`Error checking command '${command}':`, { error, platform: 'windows' })
+        safeResolve(null)
+      })
+    } else {
+      // Unix/Linux/macOS: use 'command -v' which is POSIX standard
+      // Use /bin/sh for reliability - it's POSIX compliant and always available
+      // This avoids issues with user's custom shell (csh, fish, etc.)
+      // SECURITY: Use positional parameter $1 to prevent command injection
+      const child = spawn('/bin/sh', ['-c', 'command -v "$1"', '--', command], {
+        env: loginShellEnv,
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+
+      let output = ''
+      const timeoutId = setTimeout(() => {
+        if (resolved) return
+        child.kill('SIGKILL')
+        logger.debug(`Timeout checking command '${command}'`)
+        safeResolve(null)
+      }, COMMAND_LOOKUP_TIMEOUT_MS)
+
+      child.stdout.on('data', (data) => {
+        if (output.length < MAX_OUTPUT_SIZE) {
+          output += data.toString()
+        }
+      })
+
+      child.on('close', (code) => {
+        clearTimeout(timeoutId)
+        if (resolved) return
+
+        if (code === 0 && output.trim()) {
+          const commandPath = output.trim().split('\n')[0]
+
+          // Validate the output is an absolute path (not an alias, function, or builtin)
+          // command -v can return just the command name for aliases/builtins
+          if (path.isAbsolute(commandPath)) {
+            logger.debug(`Found command '${command}' at: ${commandPath}`)
+            safeResolve(commandPath)
+          } else {
+            logger.debug(`Command '${command}' resolved to non-path '${commandPath}', treating as not found`)
+            safeResolve(null)
+          }
+        } else {
+          logger.debug(`Command '${command}' not found in shell environment`)
+          safeResolve(null)
+        }
+      })
+
+      child.on('error', (error) => {
+        clearTimeout(timeoutId)
+        if (resolved) return
+        logger.warn(`Error checking command '${command}':`, { error, platform: 'unix' })
+        safeResolve(null)
+      })
+    }
+  })
+}
+
 /**
  * Find executable in common paths or PATH environment variable
  * Based on Claude Code's implementation with security checks

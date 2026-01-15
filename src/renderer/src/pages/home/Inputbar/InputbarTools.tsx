@@ -261,9 +261,12 @@ const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) =
     const sourceId = source.droppableId
     const destinationId = destination.droppableId
 
+    const visibleKeys = visibleTools.map((t) => t.key)
+    const hiddenKeys = hiddenTools.map((t) => t.key)
+
     const newToolOrder: ToolOrderConfig = {
-      visible: [...toolOrder.visible],
-      hidden: [...toolOrder.hidden]
+      visible: [...visibleKeys],
+      hidden: [...hiddenKeys]
     }
 
     const sourceArray = sourceId === 'inputbar-tools-visible' ? 'visible' : 'hidden'

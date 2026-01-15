@@ -17,6 +17,7 @@ import {
   isGPT52ProModel,
   isGPT52SeriesModel,
   isOpenAIDeepResearchModel,
+  isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
 } from './openai'
@@ -41,6 +42,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
   gpt52pro: ['medium', 'high', 'xhigh'] as const,
+  gpt_oss: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini2_flash: ['low', 'medium', 'high', 'auto'] as const,
@@ -72,6 +74,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_2: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2] as const,
   gpt5_1_codex_max: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max] as const,
   gpt52pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro] as const,
+  gpt_oss: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt_oss] as const,
   grok: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
   grok4_fast: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
   gemini2_flash: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini2_flash] as const,
@@ -127,6 +130,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
         thinkingModelType = 'gpt5pro'
       }
     }
+  } else if (isOpenAIOpenWeightModel(model)) {
+    thinkingModelType = 'gpt_oss'
   } else if (isSupportedReasoningEffortOpenAIModel(model)) {
     thinkingModelType = 'o'
   } else if (isGrok4FastReasoningModel(model)) {
@@ -571,7 +576,7 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
 
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['glm-4.5', 'glm-4.6'].some((id) => modelId.includes(id))
+  return ['glm-4.5', 'glm-4.6', 'glm-4.7'].some((id) => modelId.includes(id))
 }
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
@@ -632,7 +637,17 @@ export const isMiniMaxReasoningModel = (model?: Model): boolean => {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  return (['minimax-m1', 'minimax-m2'] as const).some((id) => modelId.includes(id))
+  return (['minimax-m1', 'minimax-m2', 'minimax-m2.1'] as const).some((id) => modelId.includes(id))
+}
+
+export const isBaichuanReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+
+  // 只有 Baichuan-M2 是推理模型（注意：M2-Plus 不是推理模型）
+  return modelId.includes('baichuan-m2') && !modelId.includes('plus')
 }
 
 export function isReasoningModel(model?: Model): boolean {
@@ -670,6 +685,7 @@ export function isReasoningModel(model?: Model): boolean {
     isLingReasoningModel(model) ||
     isMiniMaxReasoningModel(model) ||
     isMiMoReasoningModel(model) ||
+    isBaichuanReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
@@ -713,7 +729,10 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   '(?:anthropic\\.)?claude-opus-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
     min: 1024,
     max: 32_000
-  }
+  },
+
+  // Baichuan models
+  'baichuan-m2$': { min: 0, max: 30_000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
@@ -738,3 +757,20 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
  */
 export const isFixedReasoningModel = (model: Model) =>
   isReasoningModel(model) && !isSupportedThinkingTokenModel(model) && !isSupportedReasoningEffortModel(model)
+
+// https://platform.minimaxi.com/docs/guides/text-m2-function-call#openai-sdk
+// https://docs.z.ai/guides/capabilities/thinking-mode
+// https://platform.moonshot.cn/docs/guide/use-kimi-k2-thinking-model#%E5%A4%9A%E6%AD%A5%E5%B7%A5%E5%85%B7%E8%B0%83%E7%94%A8
+const INTERLEAVED_THINKING_MODEL_REGEX =
+  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?$/i
+
+/**
+ * Determines whether the given model supports interleaved thinking.
+ *
+ * @param model - The model object to check.
+ * @returns `true` if the model's ID matches the interleaved thinking model pattern; otherwise, `false`.
+ */
+export const isInterleavedThinkingModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return INTERLEAVED_THINKING_MODEL_REGEX.test(modelId)
+}

@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
-import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
+import AIStudioLogo from '@renderer/assets/images/apps/aistudio.png?url'
 import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
@@ -145,7 +145,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'dashscope',
     name: i18n.t('minapps.qwen'),
-    url: 'https://www.tongyi.com/',
+    url: 'https://www.qianwen.com',
     logo: QwenModelLogo
   },
   {
@@ -328,9 +328,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'qwenlm',
-    name: 'QwenLM',
+    name: 'QwenChat',
     logo: QwenlmAppLogo,
-    url: 'https://qwenlm.ai/'
+    url: 'https://chat.qwen.ai'
   },
   {
     id: 'flowith',

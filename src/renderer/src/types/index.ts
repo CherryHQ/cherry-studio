@@ -27,6 +27,8 @@ export * from './ocr'
 export * from './plugin'
 export * from './provider'
 
+export type McpMode = 'disabled' | 'auto' | 'manual'
+
 export type Assistant = {
   id: string
   name: string
@@ -47,6 +49,8 @@ export type Assistant = {
   // enableUrlContext 是 Gemini/Anthropic 的特有功能
   enableUrlContext?: boolean
   enableGenerateImage?: boolean
+  /** MCP mode: 'disabled' (no MCP), 'auto' (hub server only), 'manual' (user selects servers) */
+  mcpMode?: McpMode
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
@@ -55,6 +59,15 @@ export type Assistant = {
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
+}
+
+/**
+ * Get the effective MCP mode for an assistant with backward compatibility.
+ * Legacy assistants without mcpMode default based on mcpServers presence.
+ */
+export function getEffectiveMcpMode(assistant: Assistant): McpMode {
+  if (assistant.mcpMode) return assistant.mcpMode
+  return (assistant.mcpServers?.length ?? 0) > 0 ? 'manual' : 'disabled'
 }
 
 export type TranslateAssistant = Assistant & {
@@ -92,6 +105,7 @@ const ThinkModelTypes = [
   'gpt5_2',
   'gpt5pro',
   'gpt52pro',
+  'gpt_oss',
   'grok',
   'grok4_fast',
   'gemini2_flash',
@@ -395,6 +409,7 @@ export interface DmxapiPainting extends PaintingParams {
   autoCreate?: boolean
   generationMode?: generationModeType
   priceModel?: string
+  extend_params?: Record<string, unknown>
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -471,6 +486,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'ja-JP'
   | 'pt-PT'
+  | 'ro-RO'
   | 'ru-RU'
 
 export type CodeStyleVarious = 'auto' | string
@@ -754,7 +770,8 @@ export const BuiltinMCPServerNames = {
   python: '@cherry/python',
   didiMCP: '@cherry/didi-mcp',
   browser: '@cherry/browser',
-  nowledgeMem: '@cherry/nowledge-mem'
+  nowledgeMem: '@cherry/nowledge-mem',
+  hub: '@cherry/hub'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
@@ -915,17 +932,11 @@ export * from './tool'
 // Memory Service Types
 // ========================================================================
 export interface MemoryConfig {
-  /**
-   * @deprecated use embedderApiClient instead
-   */
-  embedderModel?: Model
-  embedderDimensions?: number
-  /**
-   * @deprecated use llmApiClient instead
-   */
+  embeddingDimensions?: number
+  embeddingModel?: Model
   llmModel?: Model
-  embedderApiClient?: ApiClient
-  llmApiClient?: ApiClient
+  // Dynamically retrieved, not persistently stored
+  embeddingApiClient?: ApiClient
   customFactExtractionPrompt?: string
   customUpdateMemoryPrompt?: string
   /** Indicates whether embedding dimensions are automatically detected */

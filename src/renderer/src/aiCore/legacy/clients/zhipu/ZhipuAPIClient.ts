@@ -66,6 +66,11 @@ export class ZhipuAPIClient extends OpenAIAPIClient {
 
   public async listModels(): Promise<OpenAI.Models.Model[]> {
     const models = [
+      'glm-4.7',
+      'glm-4.6',
+      'glm-4.6v',
+      'glm-4.6v-flash',
+      'glm-4.6v-flashx',
       'glm-4.5',
       'glm-4.5-x',
       'glm-4.5-air',

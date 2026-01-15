@@ -28,6 +28,12 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!config"
+  - "!patches"
+  - "!app-upgrade-config.json"
+  - "!**/node_modules/**/*.cpp"
+  - "!**/node_modules/node-addon-api/**"
+  - "!**/node_modules/prebuild-install/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -90,6 +96,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
+  differentialPackage: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
@@ -105,6 +112,8 @@ mac:
   target:
     - target: dmg
     - target: zip
+dmg:
+  writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   target:
@@ -134,38 +143,30 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.6 - New Models & MCP Enhancements
+    Cherry Studio 1.7.13 - Security & Bug Fixes
 
-    This release adds support for new AI models and includes a new MCP server for memory management.
-
-    ✨ New Features
-    - [Models] Add support for Xiaomi MiMo model
-    - [Models] Add support for Gemini 3 Flash and Pro model detection
-    - [Models] Add support for Volcengine Doubao-Seed-1.8 model
-    - [MCP] Add Nowledge Mem builtin MCP server for memory management
-    - [Settings] Add default reasoning effort option to resolve confusion between undefined and none
+    🔒 Security
+    - [Plugin] Fix security vulnerability in DXT plugin system on Windows
 
     🐛 Bug Fixes
-    - [Azure] Restore deployment-based URLs for non-v1 apiVersion
-    - [Translation] Disable reasoning mode for translation to improve efficiency
-    - [Image] Update API path for image generation requests in OpenAIBaseClient
-    - [Windows] Auto-discover and persist Git Bash path on Windows for scoop users
+    - [Agent] Fix Agent not working when Node.js is not installed on system
+    - [Chat] Fix app crash when opening certain agents
+    - [Chat] Fix reasoning process not displaying correctly for some providers
+    - [Chat] Fix memory leak issue during streaming conversations
+    - [MCP] Fix timeout field not accepting string format in MCP configuration
+    - [Settings] Add careers section in About page
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.6 - 新模型与 MCP 增强
+    Cherry Studio 1.7.13 - 安全与问题修复
 
-    本次更新添加了多个新 AI 模型支持，并新增记忆管理 MCP 服务器。
-
-    ✨ 新功能
-    - [模型] 添加小米 MiMo 模型支持
-    - [模型] 添加 Gemini 3 Flash 和 Pro 模型检测支持
-    - [模型] 添加火山引擎 Doubao-Seed-1.8 模型支持
-    - [MCP] 新增 Nowledge Mem 内置 MCP 服务器，用于记忆管理
-    - [设置] 添加默认推理强度选项，解决 undefined 和 none 之间的混淆
+    🔒 安全修复
+    - [插件] 修复 Windows 系统 DXT 插件的安全漏洞
 
     🐛 问题修复
-    - [Azure] 修复非 v1 apiVersion 的部署 URL 问题
-    - [翻译] 禁用翻译时的推理模式以提高效率
-    - [图像] 更新 OpenAIBaseClient 中图像生成请求的 API 路径
-    - [Windows] 自动发现并保存 Windows scoop 用户的 Git Bash 路径
+    - [Agent] 修复系统未安装 Node.js 时 Agent 功能无法使用的问题
+    - [对话] 修复打开某些智能体时应用崩溃的问题
+    - [对话] 修复部分服务商推理过程无法正确显示的问题
+    - [对话] 修复流式对话时的内存泄漏问题
+    - [MCP] 修复 MCP 配置的 timeout 字段不支持字符串格式的问题
+    - [设置] 关于页面新增招聘入口
     <!--LANG:END-->

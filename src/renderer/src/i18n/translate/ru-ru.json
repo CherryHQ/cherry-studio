@@ -32,7 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Используется автоматически обнаруженный Git Bash",
-      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
+      "autoDiscoveredHint": "Автоматически обнаруженный",
       "clear": {
         "button": "Очистить пользовательский путь"
       },
@@ -40,7 +40,7 @@
       "error": {
         "description": "Для запуска агентов в Windows требуется Git Bash. Без него агент не может работать. Пожалуйста, установите Git для Windows с",
         "recheck": "Повторная проверка установки Git Bash",
-        "required": "[to be translated]:Git Bash path is required on Windows",
+        "required": "Требуется путь к Git Bash в Windows",
         "title": "Требуется Git Bash"
       },
       "found": {
@@ -53,9 +53,9 @@
         "invalidPath": "Выбранный файл не является допустимым исполняемым файлом Git Bash (bash.exe).",
         "title": "Выберите исполняемый файл Git Bash"
       },
-      "placeholder": "[to be translated]:Select bash.exe path",
+      "placeholder": "Выберите путь к bash.exe",
       "success": "Git Bash успешно обнаружен!",
-      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "Для запуска агентов в Windows требуется Git Bash. Установите его с сайта git-scm.com, если он отсутствует."
     },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду"
@@ -420,6 +420,9 @@
     },
     "delete": {
       "content": "Удаление ассистента удалит все топики и файлы под ассистентом. Вы уверены, что хотите удалить его?",
+      "error": {
+        "remain_one": "Нельзя удалить последнего помощника"
+      },
       "title": "Удалить ассистента"
     },
     "edit": {
@@ -541,6 +544,20 @@
         "description": "Серверы MCP, включенные по умолчанию",
         "enableFirst": "Сначала включите этот сервер в настройках MCP",
         "label": "Серверы MCP",
+        "mode": {
+          "auto": {
+            "description": "ИИ самостоятельно обнаруживает и использует инструменты",
+            "label": "Авто"
+          },
+          "disabled": {
+            "description": "Нет инструментов MCP",
+            "label": "Отключено"
+          },
+          "manual": {
+            "description": "Выберите конкретные MCP-серверы",
+            "label": "Руководство"
+          }
+        },
         "noServersAvailable": "Нет доступных серверов MCP. Добавьте серверы в настройках",
         "title": "Настройки MCP"
       },
@@ -1294,6 +1311,7 @@
     "backup": {
       "file_format": "Ошибка формата файла резервной копии"
     },
+    "base64DataTruncated": "Данные изображения в формате Base64 усечены, размер",
     "boundary": {
       "default": {
         "devtools": "Открыть панель отладки",
@@ -1374,6 +1392,8 @@
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
+    "truncated": "Данные усечены, исходный размер",
+    "truncatedBadge": "Усечённый",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",
     "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
@@ -2198,7 +2218,7 @@
     "collapse": "Свернуть",
     "content_placeholder": "Введите содержимое заметки...",
     "copyContent": "Копировать контент",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
+    "crossPlatformRestoreWarning": "Кроссплатформенная конфигурация восстановлена, но каталог заметок пуст. Пожалуйста, скопируйте файлы заметок в: {{path}}",
     "delete": "удалить",
     "delete_confirm": "Вы уверены, что хотите удалить этот объект {{type}}?",
     "delete_folder_confirm": "Вы уверены, что хотите удалить папку \"{{name}}\" со всем ее содержимым?",
@@ -2643,7 +2663,7 @@
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
     "longcat": "Тоторо",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3095,6 +3115,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Вид",
+        "title": "Карьера"
+      },
       "checkUpdate": {
         "available": "Обновить",
         "label": "Проверить обновления"
@@ -3162,6 +3186,7 @@
         "label": "Данные приложения",
         "migration_title": "Миграция данных",
         "new_path": "Новый путь",
+        "open": "Открыть каталог",
         "original_path": "Исходный путь",
         "path_change_failed": "Сбой изменения каталога данных",
         "path_changed_without_copy": "Путь изменен успешно",
@@ -3232,24 +3257,43 @@
         },
         "content": "Экспорт части данных, включая историю чатов и настройки. Обратите внимание, процесс резервного копирования может занять некоторое время, благодарим за ваше терпение.",
         "lan": {
-          "auto_close_tip": "Автоматическое закрытие через {{seconds}} секунд...",
-          "confirm_close_message": "Передача файла в процессе. Закрытие прервет передачу. Вы уверены, что хотите принудительно закрыть?",
-          "confirm_close_title": "Подтвердить закрытие",
           "connected": "Подключено",
           "connection_failed": "Соединение не удалось",
           "content": "Убедитесь, что компьютер и телефон подключены к одной сети, чтобы использовать локальную передачу. Откройте приложение Cherry Studio и отсканируйте этот QR-код.",
+          "device_list_title": "Устройства локальной сети",
+          "discovered_devices": "Обнаруженные устройства",
           "error": {
+            "file_too_large": "Файл слишком большой, поддерживается максимум 500 МБ.",
             "init_failed": "Инициализация не удалась",
+            "invalid_file_type": "Поддерживаются только ZIP-файлы",
             "no_file": "Файл не выбран",
             "no_ip": "Не удалось получить IP-адрес",
+            "not_connected": "Пожалуйста, сначала завершите рукопожатие",
             "send_failed": "Не удалось отправить файл"
           },
-          "force_close": "Принудительное закрытие",
-          "generating_qr": "Генерация QR-кода...",
-          "noZipSelected": "Архив не выбран",
-          "scan_qr": "Пожалуйста, отсканируйте QR-код с помощью вашего телефона",
-          "selectZip": "Выберите архив",
-          "sendZip": "Начать восстановление данных",
+          "file_transfer": {
+            "cancelled": "Перевод отменён",
+            "failed": "Передача файла не удалась: {{message}}",
+            "progress": "Отправка... {{progress}}%",
+            "success": "Файл успешно отправлен"
+          },
+          "handshake": {
+            "button": "Рукопожатие",
+            "failed": "Сбой рукопожатия: {{message}}",
+            "in_progress": "Рукопожатие...",
+            "success": "Рукопожатие завершено с {{device}}",
+            "test_message_received": "Получен понг от {{device}}",
+            "test_message_sent": "Отправлен тестовый полезный груз \"hello world\""
+          },
+          "idle_hint": "Сканирование приостановлено. Начните сканирование, чтобы найти пиры Cherry Studio в вашей локальной сети.",
+          "ip_addresses": "IP-адреса",
+          "last_seen": "В последний раз был(а) в сети в {{time}}",
+          "metadata": "Метаданные",
+          "no_connection_warning": "Пожалуйста, откройте LAN Transfer в мобильном приложении Cherry Studio",
+          "no_devices": "Пока не найдено участников локальной сети",
+          "scan_devices": "Сканировать устройства",
+          "scanning_hint": "Сканирование локальной сети на наличие узлов Cherry Studio...",
+          "send_file": "Отправить файл",
           "status": {
             "completed": "Перевод завершён",
             "connected": "Подключено",
@@ -3258,9 +3302,11 @@
             "error": "Ошибка подключения",
             "initializing": "Инициализация соединения...",
             "preparing": "Подготовка передачи...",
-            "sending": "Передача {{progress}}%",
-            "waiting_qr_scan": "Пожалуйста, отсканируйте QR-код для подключения"
+            "sending": "Передача {{progress}}%"
           },
+          "status_badge_idle": "Бездействие",
+          "status_badge_scanning": "Сканирование",
+          "stop_scan": "Остановить сканирование",
           "title": "Передача по локальной сети",
           "transfer_progress": "Прогресс передачи"
         },
@@ -4173,9 +4219,6 @@
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"
     },
-    "mineru": {
-      "api_key": "Mineru теперь предлагает ежедневную бесплатную квоту в 500 страниц, и вам не нужно вводить ключ."
-    },
     "miniapps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
       "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
@@ -4433,6 +4476,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "Кэшировать последние N сообщений",
+            "cache_last_n_help": "Кэшировать последние N сообщений разговора (исключая системные сообщения)",
+            "cache_system": "Сообщение системы кэша",
+            "cache_system_help": "Кэшировать ли системный промпт",
+            "token_threshold": "Порог токена кэша",
+            "token_threshold_help": "Сообщения, превышающие это количество токенов, будут кэшироваться. Установите значение 0, чтобы отключить кэширование."
+          },
           "array_content": {
             "help": "Поддерживает ли данный провайдер тип массива для поля content в сообщении",
             "label": "поддержка формата массива для содержимого сообщения"
@@ -4735,6 +4786,12 @@
       },
       "title": "Другие настройки",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} требует API-ключ для работы. Хотите настроить его сейчас?",
+          "ok": "Настроить",
+          "title": "Требуется ключ API"
+        },
+        "api_providers": "Поставщики API",
         "apikey": "API ключ",
         "blacklist": "Черный список",
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
@@ -4776,7 +4833,15 @@
         },
         "content_limit": "Ограничение длины контента",
         "content_limit_tooltip": "Ограничить длину контента в результатах поиска; контент, превышающий лимит, будет усечен.",
+        "default_provider": "Поставщик по умолчанию",
         "free": "Бесплатно",
+        "is_default": "По умолчанию",
+        "local_provider": {
+          "hint": "Войдите на сайт, чтобы получать более точные результаты поиска и настроить параметры поиска под себя.",
+          "open_settings": "Открыть настройки {{provider}}",
+          "settings": "Настройки локального поиска"
+        },
+        "local_providers": "Местные поставщики",
         "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
         "overwrite": "Переопределить поисковый сервис",
         "overwrite_tooltip": "Принудительно использовать поисковый сервис вместо LLM",
@@ -4787,6 +4852,7 @@
         "search_provider": "поиск сервисного провайдера",
         "search_provider_placeholder": "Выберите поставщика поисковых услуг",
         "search_with_time": "Поиск, содержащий дату",
+        "set_as_default": "Установить по умолчанию",
         "subscribe": "Подписка на черный список",
         "subscribe_add": "Добавить подписку",
         "subscribe_add_failed": "Не удалось добавить источник подписки",
