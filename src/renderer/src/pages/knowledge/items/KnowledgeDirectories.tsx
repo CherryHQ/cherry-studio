@@ -45,8 +45,9 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
   const { t } = useTranslation()
 
   // v2 Data API hook for directory items
-  const { directoryItems, hasProcessingItems, addDirectory, isAddingDirectory, deleteItem, refreshItem } =
-    useKnowledgeDirectories(selectedBase.id || '')
+  const { directoryItems, addDirectory, isAddingDirectory, deleteItem, refreshItem } = useKnowledgeDirectories(
+    selectedBase.id || ''
+  )
 
   const providerName = getProviderName(selectedBase?.model)
   const disabled = !selectedBase?.version || !providerName
@@ -75,7 +76,6 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
           <PlusIcon size={16} />
           {t('knowledge.add_directory')}
         </ResponsiveButton>
-        {hasProcessingItems && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>同步中...</span>}
       </ItemHeader>
       <ItemFlexColumn>
         {directoryItems.length === 0 && <KnowledgeEmptyView />}

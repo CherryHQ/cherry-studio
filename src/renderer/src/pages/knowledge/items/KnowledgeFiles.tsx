@@ -57,13 +57,9 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
   const { onSelectFile, selecting } = useFiles({ extensions: fileTypes })
 
-  const {
-    fileItems: v2FileItems,
-    hasProcessingItems,
-    addFiles,
-    deleteItem,
-    refreshItem
-  } = useKnowledgeFiles(selectedBase.id || '')
+  const { fileItems: v2FileItems, addFiles, deleteItem, refreshItem } = useKnowledgeFiles(selectedBase.id || '')
+
+  console.log('KnowledgeFiles render', { v2FileItems })
 
   const reversedItems = useMemo(() => [...v2FileItems].reverse(), [v2FileItems])
 
@@ -169,7 +165,6 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           <PlusIcon size={16} />
           {t('knowledge.add_file')}
         </ResponsiveButton>
-        {hasProcessingItems && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>同步中...</span>}
       </ItemHeader>
 
       <ItemFlexColumn>

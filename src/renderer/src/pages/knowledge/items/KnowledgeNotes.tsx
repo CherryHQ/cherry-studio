@@ -44,7 +44,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
   // v2 Data API hook for note items
-  const { noteItems, hasProcessingItems, addNote, isAddingNote, deleteItem } = useKnowledgeNotes(selectedBase.id || '')
+  const { noteItems, addNote, isAddingNote, deleteItem } = useKnowledgeNotes(selectedBase.id || '')
 
   // v2 Data API hook for updating note content
   const itemsRefreshKey = selectedBase.id ? `/knowledges/${selectedBase.id}/items` : ''
@@ -118,7 +118,6 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <PlusIcon size={16} />
           {t('knowledge.add_note')}
         </ResponsiveButton>
-        {hasProcessingItems && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>同步中...</span>}
       </ItemHeader>
       <ItemFlexColumn>
         {noteItems.length === 0 && <KnowledgeEmptyView />}

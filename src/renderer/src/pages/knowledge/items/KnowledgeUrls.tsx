@@ -47,9 +47,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
   // v2 Data API hook for URL items
-  const { urlItems, hasProcessingItems, addUrl, isAddingUrl, deleteItem, refreshItem } = useKnowledgeUrls(
-    selectedBase.id || ''
-  )
+  const { urlItems, addUrl, isAddingUrl, deleteItem, refreshItem } = useKnowledgeUrls(selectedBase.id || '')
 
   // v2 Data API hook for updating item remark
   const itemsRefreshKey = selectedBase.id ? `/knowledges/${selectedBase.id}/items` : ''
@@ -157,7 +155,6 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <PlusIcon size={16} />
           {t('knowledge.add_url')}
         </ResponsiveButton>
-        {hasProcessingItems && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>同步中...</span>}
       </ItemHeader>
       <ItemFlexColumn>
         {urlItems.length === 0 && <KnowledgeEmptyView />}

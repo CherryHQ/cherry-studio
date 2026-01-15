@@ -45,8 +45,9 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
   // v2 Data API hook for sitemap items
-  const { sitemapItems, hasProcessingItems, addSitemap, isAddingSitemap, deleteItem, refreshItem } =
-    useKnowledgeSitemaps(selectedBase.id || '')
+  const { sitemapItems, addSitemap, isAddingSitemap, deleteItem, refreshItem } = useKnowledgeSitemaps(
+    selectedBase.id || ''
+  )
 
   const providerName = getProviderName(selectedBase?.model)
   const disabled = !selectedBase?.version || !providerName
@@ -95,7 +96,6 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <PlusIcon size={16} />
           {t('knowledge.add_sitemap')}
         </ResponsiveButton>
-        {hasProcessingItems && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>同步中...</span>}
       </ItemHeader>
       <ItemFlexColumn>
         {sitemapItems.length === 0 && <KnowledgeEmptyView />}
