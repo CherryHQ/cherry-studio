@@ -1566,6 +1566,7 @@
       }
     },
     "file_hint": "支持 {{file_types}} 格式",
+    "files": "个文件",
     "image_hint": "支持 {{image_types}} 格式",
     "images": "图片",
     "index_all": "索引全部",

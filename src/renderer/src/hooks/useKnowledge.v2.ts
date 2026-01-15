@@ -236,6 +236,47 @@ export const useKnowledgeDirectories = (baseId: string) => {
     }
   }
 
+  /**
+   * Delete all items in a directory group
+   */
+  const deleteGroup = async (groupId: string): Promise<void> => {
+    if (!baseId || !groupId) {
+      return
+    }
+
+    const itemsToDelete = directoryItems.filter((item) => (item.data as DirectoryItemData).groupId === groupId)
+
+    try {
+      await Promise.all(itemsToDelete.map((item) => deleteKnowledgeItem(baseId, item.id)))
+      logger.info('Directory group deleted', { groupId, baseId, count: itemsToDelete.length })
+    } catch (error) {
+      logger.error('Failed to delete directory group', error as Error, { groupId, baseId })
+      throw error
+    }
+  }
+
+  /**
+   * Refresh all completed items in a directory group
+   */
+  const refreshGroup = async (groupId: string): Promise<void> => {
+    if (!baseId || !groupId) {
+      return
+    }
+
+    const itemsToRefresh = directoryItems.filter(
+      (item) => (item.data as DirectoryItemData).groupId === groupId && item.status === 'completed'
+    )
+
+    try {
+      await Promise.all(itemsToRefresh.map((item) => dataApiService.post(`/knowledge-items/${item.id}/reprocess`, {})))
+      await invalidate(`/knowledge-bases/${baseId}/items`)
+      logger.info('Directory group refresh triggered', { groupId, baseId, count: itemsToRefresh.length })
+    } catch (error) {
+      logger.error('Failed to refresh directory group', error as Error, { groupId, baseId })
+      throw error
+    }
+  }
+
   return {
     items,
     directoryItems,
@@ -244,7 +285,9 @@ export const useKnowledgeDirectories = (baseId: string) => {
     isAddingDirectory,
     deleteItem,
     isDeleting,
-    refreshItem
+    refreshItem,
+    deleteGroup,
+    refreshGroup
   }
 }
 
