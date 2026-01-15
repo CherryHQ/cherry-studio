@@ -4767,8 +4767,7 @@
         "paddleocr": {
           "aistudio_access_token": "StarRiver Community Access Token",
           "api_url": "API-URL",
-          "api_url_label": "Zugriffstoken und API-URL abrufen",
-          "tip": "Sie können die offizielle PaddleOCR-Dokumentation als Referenz für die lokale Bereitstellung verwenden oder in der StarRiver-Community Cloud-Dienste bereitstellen. Für letztere Option geben Sie bitte den StarRiver-Community-Zugriffstoken ein."
+          "api_url_label": "Zugriffstoken und API-URL abrufen"
         },
         "system": {
           "win": {
@@ -4785,8 +4784,7 @@
           "aistudio_access_token": "Zugriffstoken der AI Studio Community",
           "api_url": "API-URL",
           "api_url_label": "Zugriffstoken und API-URL abrufen",
-          "paddleocr_url_label": "Offizielle Website von PaddleOCR",
-          "tip": "Klicken Sie unten auf „Zugriffstoken und API-URL abrufen“, um fortzufahren. Klicken Sie dann in der oberen linken Ecke auf „API“, wählen Sie entweder „Dokumentenanalyse (PP-StructureV3)“ oder „Dokumentenanalyse mit großem Modell (PaddleOCR-VL)“ aus, und kopieren Sie die `API_URL` und das `TOKEN`."
+          "paddleocr_url_label": "Offizielle Website von PaddleOCR"
         },
         "provider": "Dokumentverarbeitungsanbieter",
         "provider_placeholder": "Einen Dokumentverarbeitungsanbieter auswählen",

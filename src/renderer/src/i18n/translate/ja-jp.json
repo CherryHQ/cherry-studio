@@ -4767,8 +4767,7 @@
         "paddleocr": {
           "aistudio_access_token": "AI Studio Community のアクセス・トークン",
           "api_url": "API URL",
-          "api_url_label": "アクセストークンとAPI URLを取得する",
-          "tip": "ローカルサービスをデプロイするには、公式の PaddleOCR ドキュメントを参照するか、PaddlePaddle AI Studio コミュニティ上でクラウドサービスをデプロイすることができます。後者の場合は、AI Studio コミュニティのアクセストークンを提供してください。"
+          "api_url_label": "アクセストークンとAPI URLを取得する"
         },
         "system": {
           "win": {
@@ -4785,8 +4784,7 @@
           "aistudio_access_token": "AI Studioコミュニティのアクセストークン",
           "api_url": "API URL",
           "api_url_label": "アクセストークンとAPI URLを取得する",
-          "paddleocr_url_label": "PaddleOCR 公式ウェブサイト",
-          "tip": "「アクセストークンとAPI URLの取得」ボタンを以下からクリックして先に進み、左上隅の「API」をクリックします。「ドキュメント解析（PP-StructureV3）」または「大規模言語モデルによるドキュメント解析（PaddleOCR-VL）」のいずれかを選択し、「API_URL」と「TOKEN」をコピーしてください。"
+          "paddleocr_url_label": "PaddleOCR 公式ウェブサイト"
         },
         "provider": "プレプロセスプロバイダー",
         "provider_placeholder": "前処理プロバイダーを選択してください",

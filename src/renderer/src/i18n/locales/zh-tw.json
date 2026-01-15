@@ -4767,8 +4767,7 @@
         "paddleocr": {
           "aistudio_access_token": "星河社區訪問令牌",
           "api_url": "API 網址",
-          "api_url_label": "取得訪問令牌及 API 網址",
-          "tip": "點擊下方「取得訪問令牌及 API URL」進入，然後點選左上角的「API」，選擇「文字辨識（PP-OCRv5）」，並複製 `API_URL` 及 `TOKEN`。"
+          "api_url_label": "取得訪問令牌及 API 網址"
         },
         "system": {
           "win": {
@@ -4785,8 +4784,7 @@
           "aistudio_access_token": "星河社區訪問令牌",
           "api_url": "API 網址",
           "api_url_label": "取得訪問令牌及 API 網址",
-          "paddleocr_url_label": "PaddleOCR 官方網站",
-          "tip": "點擊下方「取得訪問令牌及 API URL」進入，然後點選左上角的「API」，選擇「文件解析（PP-StructureV3）」或「大型模型文件解析（PaddleOCR-VL）」，並複製 `API_URL` 及 `TOKEN`。"
+          "paddleocr_url_label": "PaddleOCR 官方網站"
         },
         "provider": "文件處理供應商",
         "provider_placeholder": "選擇一個文件處理供應商",

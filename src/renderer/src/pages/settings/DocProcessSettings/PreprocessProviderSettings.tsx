@@ -142,7 +142,6 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
           </Flex>
           {preprocessProvider.id === 'paddleocr' && (
             <SettingHelpTextRow className="!flex-col">
-              <SettingHelpText className="mb-[5px]">{t('settings.tool.preprocess.paddleocr.tip')}</SettingHelpText>
               <div className="!flex !gap-3">
                 <SettingHelpLink
                   className="!inline-block"

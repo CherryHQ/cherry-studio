@@ -66,7 +66,6 @@ export const OcrPpocrSettings = () => {
       </SettingRow>
 
       <SettingHelpTextRow style={{ display: 'flex', flexDirection: 'column' }}>
-        <SettingHelpText style={{ marginBottom: 5 }}>{t('settings.tool.ocr.paddleocr.tip')}</SettingHelpText>
         <div style={{ display: 'flex', gap: 12 }}>
           <SettingHelpLink target="_blank" href={API_URL}>
             {t('settings.tool.ocr.paddleocr.api_url_label')}
