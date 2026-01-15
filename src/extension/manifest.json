@@ -36,11 +36,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Cherry Studio",
-    "default_popup": "popup.html"
-  },
-  "side_panel": {
-    "default_path": "sidepanel.html"
+    "default_title": "Cherry Studio - Click to open side panel"
   },
   "content_scripts": [
     {
@@ -61,7 +57,14 @@
         "default": "Ctrl+Shift+S",
         "mac": "Command+Shift+S"
       },
-      "description": "Open Cherry Studio"
+      "description": "Open Cherry Studio Side Panel"
+    },
+    "open_window": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+W",
+        "mac": "Command+Shift+W"
+      },
+      "description": "Open Cherry Studio in Window"
     }
   },
   "web_accessible_resources": [

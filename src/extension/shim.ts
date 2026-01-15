@@ -93,7 +93,10 @@ const fileStorage = new ExtensionFileStorage()
 
 // No-op function for unsupported features
 const noop = () => Promise.resolve()
-const noopReturn = <T>(value: T) => () => Promise.resolve(value)
+const noopReturn =
+  <T>(value: T) =>
+  () =>
+    Promise.resolve(value)
 
 // Create the extension API shim
 const extensionApi: WindowApiType = {
@@ -131,8 +134,31 @@ const extensionApi: WindowApiType = {
   setTestPlan: noop,
   setTestChannel: noop,
   setTheme: async (theme) => {
-    document.documentElement.setAttribute('data-theme', theme)
-    await chrome.storage.local.set({ theme })
+    // Determine actual theme (resolve 'system' to light/dark)
+    let actualTheme = theme
+    if (theme === 'system') {
+      actualTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    }
+
+    // Apply theme classes
+    document.documentElement.classList.remove('light', 'dark')
+    document.documentElement.classList.add(actualTheme)
+    document.documentElement.setAttribute('data-theme', actualTheme)
+
+    // Update body classes as well (for compatibility)
+    document.body.classList.remove('light', 'dark')
+    document.body.classList.add(actualTheme)
+    document.body.setAttribute('theme-mode', actualTheme)
+
+    // Save to storage
+    await chrome.storage.local.set({ theme, actualTheme })
+
+    // Trigger the ThemeUpdated event that ThemeProvider is listening for
+    // This simulates the IPC event from main process
+    const event = new CustomEvent('ipc-message', {
+      detail: { channel: 'Theme:Updated', args: [null, actualTheme] }
+    })
+    window.dispatchEvent(event)
   },
   handleZoomFactor: async (delta, reset) => {
     const current = document.body.style.zoom ? parseFloat(document.body.style.zoom) : 1
@@ -159,7 +185,8 @@ const extensionApi: WindowApiType = {
   },
   logToMain: async (source, level, message, data) => {
     const logFn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log
-    logFn(`[${source.name}]`, message, ...data)
+    const sourceName = source?.name || 'unknown'
+    logFn(`[${sourceName}]`, message, ...(data || []))
   },
   setFullScreen: noop,
   isFullScreen: noopReturn(false),
@@ -303,7 +330,7 @@ const extensionApi: WindowApiType = {
     renameDir: noop,
     read: async (fileId) => {
       const file = await fileStorage.get(fileId)
-      if (!file) return null
+      if (!file) throw new Error(`File not found: ${fileId}`)
       return file.blob.text()
     },
     readExternal: noopReturn(null),
@@ -545,7 +572,11 @@ const extensionApi: WindowApiType = {
     encrypt: async (text, secretKey, iv) => {
       const encoder = new TextEncoder()
       const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(secretKey), 'AES-CBC', false, ['encrypt'])
-      const encrypted = await crypto.subtle.encrypt({ name: 'AES-CBC', iv: encoder.encode(iv) }, keyMaterial, encoder.encode(text))
+      const encrypted = await crypto.subtle.encrypt(
+        { name: 'AES-CBC', iv: encoder.encode(iv) },
+        keyMaterial,
+        encoder.encode(text)
+      )
       return btoa(String.fromCharCode(...new Uint8Array(encrypted)))
     },
     decrypt: async (encryptedData, iv, secretKey) => {
@@ -750,13 +781,81 @@ const extensionApi: WindowApiType = {
 // Inject the shim as window.api
 ;(window as any).api = extensionApi
 
-// Also provide electron stub
+// Initialize theme from storage or system preference
+;(async () => {
+  const { theme, actualTheme } = await chrome.storage.local.get(['theme', 'actualTheme'])
+  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  const themeToApply = actualTheme || systemTheme
+
+  // Apply initial theme
+  document.documentElement.classList.add(themeToApply)
+  document.documentElement.setAttribute('data-theme', themeToApply)
+  document.body.classList.add(themeToApply)
+  document.body.setAttribute('theme-mode', themeToApply)
+
+  // Listen for system theme changes if theme is set to 'system'
+  if (theme === 'system' || !theme) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      const newTheme = e.matches ? 'dark' : 'light'
+      document.documentElement.classList.remove('light', 'dark')
+      document.documentElement.classList.add(newTheme)
+      document.body.classList.remove('light', 'dark')
+      document.body.classList.add(newTheme)
+
+      // Notify ThemeProvider
+      const event = new CustomEvent('ipc-message', {
+        detail: { channel: 'Theme:Updated', args: [null, newTheme] }
+      })
+      window.dispatchEvent(event)
+    })
+  }
+})()
+
+// Also provide electron stub with ipcRenderer
 ;(window as any).electron = {
   process: {
     platform: 'browser',
     versions: { chrome: navigator.userAgent }
+  },
+  ipcRenderer: {
+    on: (channel: string, callback: (...args: any[]) => void) => {
+      // Listen for custom events that simulate IPC
+      const handler = (event: Event) => {
+        const customEvent = event as CustomEvent
+        if (customEvent.detail?.channel === channel) {
+          callback(...customEvent.detail.args)
+        }
+      }
+      window.addEventListener('ipc-message', handler)
+
+      // Return cleanup function
+      return () => {
+        window.removeEventListener('ipc-message', handler)
+      }
+    },
+    once: (channel: string, callback: (...args: any[]) => void) => {
+      console.log(`[Extension] Ignoring ipcRenderer.once('${channel}')`)
+      return () => {}
+    },
+    removeListener: (channel: string, callback: (...args: any[]) => void) => {
+      // No-op
+    },
+    removeAllListeners: (channel: string) => {
+      // No-op
+    },
+    send: (channel: string, ...args: any[]) => {
+      console.log(`[Extension] Ignoring ipcRenderer.send('${channel}')`, args)
+    },
+    invoke: async (channel: string, ...args: any[]) => {
+      console.log(`[Extension] Ignoring ipcRenderer.invoke('${channel}')`, args)
+      return null
+    }
   }
 }
+
+// Assign to window immediately (synchronous)
+// Note: window.electron is already assigned above at line 808
+window.api = extensionApi
 
 export { extensionApi }
 export type { WindowApiType }

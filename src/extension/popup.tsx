@@ -5,7 +5,7 @@
  * Provides fast access to common features.
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useEffect,useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
 // Simple styles (avoiding full Ant Design for popup performance)
@@ -109,6 +109,17 @@ function Popup() {
     window.close()
   }
 
+  const openWindow = async () => {
+    await chrome.windows.create({
+      url: chrome.runtime.getURL('src/extension/window.html'),
+      type: 'popup',
+      width: 1200,
+      height: 800,
+      focused: true
+    })
+    window.close()
+  }
+
   const askWithSelection = async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (tab?.id) {
@@ -160,28 +171,28 @@ function Popup() {
         autoFocus
       />
 
-      <button
-        onClick={quickAsk}
-        style={{ ...s.button, ...s.primaryButton }}
-        disabled={!quickInput.trim()}
-      >
+      <button onClick={quickAsk} style={{ ...s.button, ...s.primaryButton }} disabled={!quickInput.trim()}>
         <span>Ask AI</span>
       </button>
 
       <button onClick={openSidePanel} style={{ ...s.button, ...s.secondaryButton }}>
-        <span>Open Chat Panel</span>
+        <span>📱 Open Side Panel</span>
+      </button>
+
+      <button onClick={openWindow} style={{ ...s.button, ...s.secondaryButton }}>
+        <span>🪟 Open in Window</span>
       </button>
 
       <button onClick={askWithSelection} style={{ ...s.button, ...s.secondaryButton }}>
-        <span>Ask About Selection</span>
+        <span>✨ Ask About Selection</span>
       </button>
 
       <button onClick={openSettings} style={{ ...s.button, ...s.secondaryButton }}>
-        <span>Settings</span>
+        <span>⚙️ Settings</span>
       </button>
 
       <div style={s.footer}>
-        Press <kbd>Ctrl+Shift+S</kbd> to open panel
+        <kbd>Cmd+Shift+S</kbd> for panel · <kbd>Cmd+Shift+Y</kbd> for menu
       </div>
     </div>
   )

@@ -38,14 +38,45 @@ chrome.runtime.onInstalled.addListener(() => {
     contexts: ['page']
   })
 
-  // Set side panel behavior
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error)
+  chrome.contextMenus.create({
+    id: 'cherry-open-window',
+    title: 'Open Cherry Studio in Window',
+    contexts: ['all']
+  })
+
+  // Don't configure default behavior - we'll handle it with onClicked
+})
+
+// Handle extension icon click - open sidepanel
+chrome.action.onClicked.addListener(async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  if (tab?.id) {
+    // Programmatically set and open side panel for this tab
+    await chrome.sidePanel.setOptions({
+      tabId: tab.id,
+      path: 'src/extension/sidepanel.html',
+      enabled: true
+    })
+    await chrome.sidePanel.open({ tabId: tab.id })
+  }
 })
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const tabId = tab?.id
   if (!tabId) return
+
+  // Handle "Open in Window" separately
+  if (info.menuItemId === 'cherry-open-window') {
+    await chrome.windows.create({
+      url: chrome.runtime.getURL('src/extension/window.html'),
+      type: 'popup',
+      width: 1200,
+      height: 800,
+      focused: true
+    })
+    return
+  }
 
   const actionMap: Record<string, string> = {
     'cherry-ask': 'ask',
@@ -74,10 +105,26 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 // Handle keyboard commands
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'open_side_panel') {
+    // Side panel access via keyboard shortcut
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (tab?.id) {
-      chrome.sidePanel.open({ tabId: tab.id })
+      // Programmatically set and open side panel for this tab
+      await chrome.sidePanel.setOptions({
+        tabId: tab.id,
+        path: 'src/extension/sidepanel.html',
+        enabled: true
+      })
+      await chrome.sidePanel.open({ tabId: tab.id })
     }
+  } else if (command === 'open_window') {
+    // Window access via keyboard shortcut or icon click
+    await chrome.windows.create({
+      url: chrome.runtime.getURL('src/extension/window.html'),
+      type: 'popup',
+      width: 1200,
+      height: 800,
+      focused: true
+    })
   }
 })
 

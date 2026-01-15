@@ -4,11 +4,11 @@
  * This configuration builds the Cherry Studio renderer as a Chrome extension,
  * reusing the existing React UI with the window.api shim.
  */
-import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
-import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react-swc'
+import { copyFileSync, cpSync,existsSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
-import { copyFileSync, mkdirSync, existsSync, cpSync } from 'fs'
+import { defineConfig } from 'vite'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -47,11 +47,7 @@ function copyExtensionFiles() {
 }
 
 export default defineConfig({
-  plugins: [
-    tailwindcss(),
-    react({ tsDecorators: true }),
-    copyExtensionFiles()
-  ],
+  plugins: [tailwindcss(), react({ tsDecorators: true }), copyExtensionFiles()],
 
   define: {
     // Mark as extension build
@@ -98,8 +94,15 @@ export default defineConfig({
 
     rollupOptions: {
       input: {
+        // Shim initialization (loaded as regular script, not ES module)
+        'shim-init': resolve(__dirname, 'src/extension/shim-init.js'),
+        // Shim must be built first as a separate module
+        shim: resolve(__dirname, 'src/extension/shim.ts'),
+        // Minimal sidepanel entry (chat-only)
+        'sidepanel-minimal': resolve(__dirname, 'src/extension/sidepanel-minimal.tsx'),
         // Main UI entry points
         sidepanel: resolve(__dirname, 'src/extension/sidepanel.html'),
+        window: resolve(__dirname, 'src/extension/window.html'),
         popup: resolve(__dirname, 'src/extension/popup.html'),
         // Background service worker
         background: resolve(__dirname, 'src/extension/background.ts'),
@@ -109,7 +112,13 @@ export default defineConfig({
       output: {
         entryFileNames: '[name].js',
         chunkFileNames: 'chunks/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]'
+        assetFileNames: (assetInfo) => {
+          // Put HTML files at root
+          if (assetInfo.name?.endsWith('.html')) {
+            return '[name][extname]'
+          }
+          return 'assets/[name]-[hash][extname]'
+        }
       },
       onwarn(warning, warn) {
         // Ignore certain warnings
