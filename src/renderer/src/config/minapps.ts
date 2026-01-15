@@ -145,7 +145,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'dashscope',
     name: i18n.t('minapps.qwen'),
-    url: 'https://www.tongyi.com/',
+    url: 'https://www.qianwen.com',
     logo: QwenModelLogo
   },
   {
@@ -328,9 +328,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'qwenlm',
-    name: 'QwenLM',
+    name: 'QwenChat',
     logo: QwenlmAppLogo,
-    url: 'https://qwenlm.ai/'
+    url: 'https://chat.qwen.ai'
   },
   {
     id: 'flowith',
