@@ -1,94 +1,147 @@
 /**
  * Minimal Chat Component for Chrome Extension Sidepanel
  *
- * Provides a simplified chat interface with:
- * - "Open Full App" button
- * - Simple message display
- * - Basic text input
+ * Provides full chat functionality with a simplified layout:
+ * - Full conversation and messaging (using existing Chat component)
+ * - "Open Full App" button to open in separate window
+ * - No sidebar tabs (topics accessed via ChatNavbar)
+ * - Compact layout optimized for sidepanel width
  */
 
-import { useCallback } from 'react'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useActiveTopic } from '@renderer/hooks/useTopic'
+import Chat from '@renderer/pages/home/Chat'
+import type { Assistant, Topic } from '@renderer/types'
+import { ExternalLink } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import styled from 'styled-components'
 
 export default function MinimalChat() {
+  const { assistants } = useAssistants()
+  const [activeAssistant, setActiveAssistantState] = useState<Assistant | undefined>(assistants[0])
+  const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '')
+
+  const setActiveAssistant = useCallback(
+    (newAssistant: Assistant) => {
+      if (newAssistant.id === activeAssistant?.id) return
+      setActiveAssistantState(newAssistant)
+      const newTopic = newAssistant.topics[0]
+      if (newTopic) {
+        _setActiveTopic(newTopic)
+      }
+    },
+    [activeAssistant?.id, _setActiveTopic]
+  )
+
+  const setActiveTopic = useCallback(
+    (newTopic: Topic) => {
+      _setActiveTopic(newTopic)
+    },
+    [_setActiveTopic]
+  )
+
   const openFullApp = useCallback(async () => {
-    await chrome.windows.create({
-      url: chrome.runtime.getURL('src/extension/window.html'),
-      type: 'popup',
-      width: 1200,
-      height: 800,
-      focused: true
-    })
+     
+    const chromeApi = (globalThis as any).chrome
+    if (chromeApi?.windows?.create) {
+      await chromeApi.windows.create({
+        url: chromeApi.runtime.getURL('src/extension/window.html'),
+        type: 'popup',
+        width: 1200,
+        height: 800,
+        focused: true
+      })
+    }
   }, [])
+
+  // Show loading state if no assistant or topic is available
+  if (!activeAssistant || !activeTopic) {
+    return (
+      <Container>
+        <Header>
+          <Logo>Cherry Studio</Logo>
+          <OpenFullAppButton onClick={openFullApp} title="Open full app in window">
+            <ExternalLink size={14} />
+            <span>Full App</span>
+          </OpenFullAppButton>
+        </Header>
+        <LoadingContainer>
+          <LoadingText>Loading...</LoadingText>
+        </LoadingContainer>
+      </Container>
+    )
+  }
 
   return (
     <Container>
+      {/* Compact header with Open Full App button */}
       <Header>
-        <Title>Cherry Studio</Title>
-        <OpenWindowButton onClick={openFullApp} title="Open Cherry Studio in a separate window">
-          <WindowIcon>🪟</WindowIcon>
-          <span>Open Full App</span>
-        </OpenWindowButton>
+        <Logo>Cherry Studio</Logo>
+        <OpenFullAppButton onClick={openFullApp} title="Open full app in window">
+          <ExternalLink size={14} />
+          <span>Full App</span>
+        </OpenFullAppButton>
       </Header>
 
-      <MessagesArea>
-        <WelcomeMessage>
-          <h2>Welcome to Cherry Studio!</h2>
-          <p>Click "Open Full App" above to access all features.</p>
-          <FeatureList>
-            <li>✨ Multiple AI Model Support</li>
-            <li>💬 Advanced Chat Interface</li>
-            <li>🎨 Customizable Themes</li>
-            <li>🔧 Powerful Tools & Extensions</li>
-          </FeatureList>
-        </WelcomeMessage>
-      </MessagesArea>
+      {/* Full Chat component with all features */}
+      <ChatWrapper>
+        <ErrorBoundary>
+          <Chat
+            assistant={activeAssistant}
+            activeTopic={activeTopic}
+            setActiveTopic={setActiveTopic}
+            setActiveAssistant={setActiveAssistant}
+          />
+        </ErrorBoundary>
+      </ChatWrapper>
     </Container>
   )
 }
 
+// Styled Components
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--color-background);
-  color: var(--color-text);
+  width: 100%;
+  background-color: var(--color-background);
+  overflow: hidden;
 `
 
-const Header = styled.div`
+const Header = styled.header`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-background-soft);
-  gap: 12px;
+  background-color: var(--color-background-soft);
+  flex-shrink: 0;
+  min-height: 40px;
 `
 
-const Title = styled.h1`
-  font-size: 18px;
+const Logo = styled.span`
+  font-size: 14px;
   font-weight: 600;
-  margin: 0;
   color: var(--color-text);
 `
 
-const OpenWindowButton = styled.button`
+const OpenFullAppButton = styled.button`
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: var(--color-primary);
-  color: white;
+  gap: 4px;
+  padding: 4px 10px;
   border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
+  border-radius: 6px;
+  background-color: var(--color-primary, #7c3aed);
+  color: white;
+  font-size: 12px;
   font-weight: 500;
-  white-space: nowrap;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  transition: all 0.15s;
 
   &:hover {
-    opacity: 0.9;
+    background-color: var(--color-primary-dark, #6d28d9);
     transform: translateY(-1px);
   }
 
@@ -97,48 +150,35 @@ const OpenWindowButton = styled.button`
   }
 `
 
-const WindowIcon = styled.span`
-  font-size: 16px;
+const ChatWrapper = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+
+  /* Override some Chat styles for sidepanel layout */
+  #chat {
+    height: 100%;
+  }
+
+  #chat-main {
+    max-width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* Hide the topic sidebar in sidepanel - use ChatNavbar dropdown instead */
+  .topic-sidebar {
+    display: none;
+  }
 `
 
-const MessagesArea = styled.div`
+const LoadingContainer = styled.div`
   flex: 1;
-  overflow: auto;
-  padding: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
 `
 
-const WelcomeMessage = styled.div`
-  text-align: center;
-  max-width: 500px;
-
-  h2 {
-    font-size: 24px;
-    margin-bottom: 12px;
-    color: var(--color-text);
-  }
-
-  p {
-    font-size: 16px;
-    color: var(--color-text-secondary);
-    margin-bottom: 24px;
-  }
-`
-
-const FeatureList = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  text-align: left;
-
-  li {
-    padding: 12px;
-    margin-bottom: 8px;
-    background: var(--color-background-soft);
-    border-radius: 8px;
-    font-size: 14px;
-    color: var(--color-text);
-  }
+const LoadingText = styled.span`
+  color: var(--color-text-secondary);
+  font-size: 14px;
 `
