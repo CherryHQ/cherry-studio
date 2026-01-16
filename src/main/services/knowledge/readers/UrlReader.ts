@@ -9,7 +9,6 @@ import { loggerService } from '@logger'
 import type { UrlItemData } from '@shared/data/types/knowledge'
 import type { Document } from '@vectorstores/core'
 import { HTMLReader } from '@vectorstores/readers/html'
-import md5 from 'md5'
 
 import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
 import {
@@ -32,21 +31,15 @@ export class UrlReader implements ContentReader {
    * Read URL content and split into chunks
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
-    const { base, item, itemId } = context
+    const { base, item } = context
     const urlData = item.data as UrlItemData
     const url = urlData.url
 
-    const uniqueId = `UrlReader_${md5(url)}`
-
-    logger.debug(`Reading URL ${url} for item ${itemId}`)
+    logger.debug(`Reading URL ${url} for item ${item.id}`)
 
     if (!url || !this.isValidUrl(url)) {
       logger.warn(`Invalid URL: ${url}`)
-      return {
-        nodes: [],
-        uniqueId,
-        readerType: 'UrlReader'
-      }
+      return { nodes: [] }
     }
 
     const chunkSize = base.chunkSize ?? DEFAULT_CHUNK_SIZE
@@ -82,11 +75,7 @@ export class UrlReader implements ContentReader {
 
       if (documents.length === 0) {
         logger.warn(`No content extracted from URL: ${url}`)
-        return {
-          nodes: [],
-          uniqueId,
-          readerType: 'UrlReader'
-        }
+        return { nodes: [] }
       }
 
       // Split documents into chunks
@@ -96,17 +85,13 @@ export class UrlReader implements ContentReader {
       nodes.forEach((node) => {
         node.metadata = {
           ...node.metadata,
-          external_id: itemId
+          external_id: item.id
         }
       })
 
       logger.debug(`URL ${url} read with ${nodes.length} chunks`)
 
-      return {
-        nodes,
-        uniqueId,
-        readerType: 'UrlReader'
-      }
+      return { nodes }
     } catch (error) {
       logger.error(`Failed to read URL ${url}:`, error as Error)
       throw error

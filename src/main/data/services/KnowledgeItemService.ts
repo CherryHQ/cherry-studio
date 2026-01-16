@@ -178,12 +178,7 @@ export class KnowledgeItemService {
     knowledgeQueueManager.cancel(id)
     knowledgeQueueManager.clearProgress(id)
 
-    await knowledgeServiceV2.remove({
-      base,
-      externalId: item.id,
-      uniqueId: '',
-      uniqueIds: []
-    })
+    await knowledgeServiceV2.remove({ base, item })
 
     await db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
 
@@ -370,12 +365,7 @@ export class KnowledgeItemService {
 
   private async removeItemVectors(base: KnowledgeBase, item: KnowledgeItem): Promise<void> {
     try {
-      await knowledgeServiceV2.remove({
-        base,
-        externalId: item.id,
-        uniqueId: '',
-        uniqueIds: []
-      })
+      await knowledgeServiceV2.remove({ base, item })
     } catch (error) {
       logger.warn('Failed to remove knowledge item vectors', { itemId: item.id, error })
     }

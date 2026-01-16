@@ -7,8 +7,8 @@ export type {
   ContentReader,
   FileContent,
   ItemContent,
-  KnowledgeItemType,
   ReaderContext,
   ReaderResult,
   StringContent
 } from '../types'
+export type { KnowledgeItemType } from '@shared/data/types/knowledge'

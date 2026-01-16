@@ -19,7 +19,6 @@ import { JSONReader } from '@vectorstores/readers/json'
 import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
-import md5 from 'md5'
 
 import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
 import {
@@ -70,23 +69,18 @@ export class FileReader implements ContentReader {
    * Read file content and split into chunks
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
-    const { base, item, itemId } = context
+    const { base, item } = context
     const fileData = item.data as FileItemData
     const file = fileData.file
     const ext = file.ext.toLowerCase()
 
-    const uniqueId = `FileReader_${md5(file.path)}`
     const totalStartTime = Date.now()
 
     logger.debug(`[FileReader] Starting read for ${file.path} (ext: ${ext})`)
 
     if (!fs.existsSync(file.path)) {
       logger.warn(`File not found: ${file.path}`)
-      return {
-        nodes: [],
-        uniqueId,
-        readerType: 'FileReader'
-      }
+      return { nodes: [] }
     }
 
     const config = FILE_CONFIG_MAP[ext] || DEFAULT_CONFIG
@@ -112,7 +106,7 @@ export class FileReader implements ContentReader {
       nodes.forEach((node) => {
         node.metadata = {
           ...node.metadata,
-          external_id: itemId,
+          external_id: item.id,
           source: file.path,
           type: 'file'
         }
@@ -123,11 +117,7 @@ export class FileReader implements ContentReader {
         `[FileReader] Read completed in ${totalDuration}ms (load: ${loadDuration}ms, split: ${splitDuration}ms), nodes: ${nodes.length}`
       )
 
-      return {
-        nodes,
-        uniqueId,
-        readerType: 'FileReader'
-      }
+      return { nodes }
     } catch (error) {
       const totalDuration = Date.now() - totalStartTime
       logger.error(`[FileReader] Failed to read file ${file.path} after ${totalDuration}ms:`, error as Error)

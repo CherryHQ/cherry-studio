@@ -7,7 +7,6 @@
 import { loggerService } from '@logger'
 import type { NoteItemData } from '@shared/data/types/knowledge'
 import { Document } from '@vectorstores/core'
-import md5 from 'md5'
 
 import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
 import {
@@ -30,22 +29,16 @@ export class NoteReader implements ContentReader {
    * Read note content and split into chunks
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
-    const { base, item, itemId } = context
+    const { base, item } = context
     const noteData = item.data as NoteItemData
     const content = noteData.content
     const sourceUrl = noteData.sourceUrl
 
-    const uniqueId = `NoteReader_${md5(content + (sourceUrl || ''))}`
-
-    logger.debug(`Reading note for item ${itemId}, content length: ${content.length}`)
+    logger.debug(`Reading note for item ${item.id}, content length: ${content.length}`)
 
     if (!content || content.trim().length === 0) {
-      logger.warn(`Empty note content for item ${itemId}`)
-      return {
-        nodes: [],
-        uniqueId,
-        readerType: 'NoteReader'
-      }
+      logger.warn(`Empty note content for item ${item.id}`)
+      return { nodes: [] }
     }
 
     // Create initial document
@@ -67,16 +60,12 @@ export class NoteReader implements ContentReader {
     nodes.forEach((node) => {
       node.metadata = {
         ...node.metadata,
-        external_id: itemId
+        external_id: item.id
       }
     })
 
-    logger.debug(`Note split into ${nodes.length} chunks for item ${itemId}`)
+    logger.debug(`Note split into ${nodes.length} chunks for item ${item.id}`)
 
-    return {
-      nodes,
-      uniqueId,
-      readerType: 'NoteReader'
-    }
+    return { nodes }
   }
 }

@@ -9,7 +9,6 @@ import { loggerService } from '@logger'
 import type { SitemapItemData } from '@shared/data/types/knowledge'
 import type { Document } from '@vectorstores/core'
 import { HTMLReader } from '@vectorstores/readers/html'
-import md5 from 'md5'
 import Sitemapper from 'sitemapper'
 
 import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
@@ -33,21 +32,15 @@ export class SitemapReader implements ContentReader {
    * Read sitemap content and split into chunks
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
-    const { base, item, itemId } = context
+    const { base, item } = context
     const sitemapData = item.data as SitemapItemData
     const url = sitemapData.url
 
-    const uniqueId = `SitemapReader_${md5(url)}`
-
-    logger.debug(`Reading sitemap ${url} for item ${itemId}`)
+    logger.debug(`Reading sitemap ${url} for item ${item.id}`)
 
     if (!url || !this.isValidUrl(url)) {
       logger.warn(`Invalid sitemap URL: ${url}`)
-      return {
-        nodes: [],
-        uniqueId,
-        readerType: 'SitemapReader'
-      }
+      return { nodes: [] }
     }
 
     const chunkSize = base.chunkSize ?? DEFAULT_CHUNK_SIZE
@@ -63,11 +56,7 @@ export class SitemapReader implements ContentReader {
 
       if (sites.length === 0) {
         logger.warn(`No URLs found in sitemap: ${url}`)
-        return {
-          nodes: [],
-          uniqueId,
-          readerType: 'SitemapReader'
-        }
+        return { nodes: [] }
       }
 
       // 2. Fetch and parse each URL
@@ -103,11 +92,7 @@ export class SitemapReader implements ContentReader {
 
       if (documents.length === 0) {
         logger.warn(`No content extracted from sitemap: ${url}`)
-        return {
-          nodes: [],
-          uniqueId,
-          readerType: 'SitemapReader'
-        }
+        return { nodes: [] }
       }
 
       // Split documents into chunks
@@ -117,17 +102,13 @@ export class SitemapReader implements ContentReader {
       nodes.forEach((node) => {
         node.metadata = {
           ...node.metadata,
-          external_id: itemId
+          external_id: item.id
         }
       })
 
       logger.debug(`Sitemap ${url} read with ${nodes.length} chunks`)
 
-      return {
-        nodes,
-        uniqueId,
-        readerType: 'SitemapReader'
-      }
+      return { nodes }
     } catch (error) {
       logger.error(`Failed to read sitemap ${url}:`, error as Error)
       throw error

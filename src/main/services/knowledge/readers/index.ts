@@ -4,7 +4,9 @@
  * Provides a registry of all content readers and utility functions.
  */
 
-import type { ContentReader, KnowledgeItemType, ReaderContext, ReaderResult } from '../types'
+import type { KnowledgeItemType } from '@shared/data/types/knowledge'
+
+import type { ContentReader, ReaderContext, ReaderResult } from '../types'
 import { DirectoryReader } from './DirectoryReader'
 import { FileReader } from './FileReader'
 import { NoteReader } from './NoteReader'
@@ -79,7 +81,7 @@ export function getReader(type: KnowledgeItemType): ContentReader | undefined {
  * Read content using the appropriate reader
  */
 export async function readContent(context: ReaderContext): Promise<ReaderResult> {
-  const reader = readerRegistry.get(context.item.type as KnowledgeItemType)
+  const reader = readerRegistry.get(context.item.type)
   if (!reader) {
     throw new Error(`No reader registered for type: ${context.item.type}`)
   }

@@ -15,7 +15,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { Document } from '@vectorstores/core'
 import { FILE_EXT_TO_READER, SimpleDirectoryReader } from '@vectorstores/readers/directory'
 import { TextFileReader } from '@vectorstores/readers/text'
-import { v4 as uuidv4 } from 'uuid'
 
 import { TextChunkSplitter } from '../splitters/TextChunkSplitter'
 import {
@@ -38,22 +37,16 @@ export class DirectoryReader implements ContentReader {
    * Read all files in directory using SimpleDirectoryReader
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
-    const { base, item, itemId } = context
+    const { base, item } = context
     const directoryData = item.data as DirectoryItemData
     const directoryPath = directoryData.groupName
 
-    const uniqueId = `DirectoryReader_${uuidv4()}`
-
-    logger.debug(`Reading directory ${directoryPath} for item ${itemId}`)
+    logger.debug(`Reading directory ${directoryPath} for item ${item.id}`)
 
     // Validate directory exists
     if (!fs.existsSync(directoryPath)) {
       logger.warn(`Directory not found: ${directoryPath}`)
-      return {
-        nodes: [],
-        uniqueId,
-        readerType: 'DirectoryReader'
-      }
+      return { nodes: [] }
     }
 
     // Track progress for IPC updates
@@ -65,7 +58,7 @@ export class DirectoryReader implements ContentReader {
       if (category === 'file' && status === 1) {
         // ReaderStatus.COMPLETE = 1
         processedFiles++
-        this.sendProgressUpdate(itemId, totalFiles, processedFiles)
+        this.sendProgressUpdate(item.id, totalFiles, processedFiles)
       }
       return true // Continue processing
     })
@@ -78,11 +71,7 @@ export class DirectoryReader implements ContentReader {
 
     if (documents.length === 0) {
       logger.warn(`No valid files found in directory: ${directoryPath}`)
-      return {
-        nodes: [],
-        uniqueId,
-        readerType: 'DirectoryReader'
-      }
+      return { nodes: [] }
     }
 
     logger.debug(`Found ${documents.length} documents in directory ${directoryPath}`)
@@ -112,7 +101,7 @@ export class DirectoryReader implements ContentReader {
       const source = node.metadata?.source || node.metadata?.file_path || 'unknown'
       node.metadata = {
         ...node.metadata,
-        external_id: itemId,
+        external_id: item.id,
         source,
         type: 'directory'
       }
@@ -120,11 +109,7 @@ export class DirectoryReader implements ContentReader {
 
     logger.debug(`Directory ${directoryPath} read with ${nodes.length} total chunks from ${filteredDocs.length} files`)
 
-    return {
-      nodes,
-      uniqueId,
-      readerType: 'DirectoryReader'
-    }
+    return { nodes }
   }
 
   /**

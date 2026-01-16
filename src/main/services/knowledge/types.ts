@@ -3,19 +3,15 @@
  */
 
 import type { FileMetadata } from '@shared/data/types/file'
-import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import type {
+  KnowledgeBase,
+  KnowledgeItem,
+  KnowledgeItemType,
+  KnowledgeSearchResult
+} from '@shared/data/types/knowledge'
 import type { BaseNode, Metadata } from '@vectorstores/core'
 
 import type { ResolvedKnowledgeBase } from './KnowledgeProviderAdapter'
-
-// ============================================================================
-// Reader Types
-// ============================================================================
-
-/**
- * Knowledge item type for reader selection
- */
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory'
 
 /**
  * Result returned by all content readers
@@ -23,10 +19,6 @@ export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory
 export interface ReaderResult {
   /** Nodes ready for embedding (without embeddings yet) */
   nodes: BaseNode<Metadata>[]
-  /** Unique identifier for this read operation */
-  uniqueId: string
-  /** Type name for debugging/logging */
-  readerType: string
 }
 
 /**
@@ -37,8 +29,6 @@ export interface ReaderContext {
   base: ResolvedKnowledgeBase
   /** Item being read */
   item: KnowledgeItem
-  /** external_id for tracking (maps to item.id) */
-  itemId: string
   /** User ID for preprocessing services */
   userId?: string
 }
@@ -81,21 +71,18 @@ export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBase
   item: KnowledgeItem
   userId?: string
-  signal?: AbortSignal
-  onStageChange?: (stage: KnowledgeProcessingStage) => void
-  onProgress?: (stage: KnowledgeProcessingStage, progress: number) => void
-  runStage?: KnowledgeStageRunner
+  signal: AbortSignal
+  onStageChange: (stage: KnowledgeProcessingStage) => void
+  onProgress: (stage: KnowledgeProcessingStage, progress: number) => void
+  runStage: KnowledgeStageRunner
 }
 
 /**
  * Options for removing items from knowledge base
  */
 export interface KnowledgeBaseRemoveOptions {
-  uniqueId: string
-  uniqueIds: string[]
   base: KnowledgeBase
-  externalId?: string
-  itemType?: KnowledgeItem['type']
+  item: KnowledgeItem
 }
 
 /**
@@ -104,10 +91,6 @@ export interface KnowledgeBaseRemoveOptions {
 export interface SearchOptions {
   search: string
   base: KnowledgeBase
-  /** Search mode: vector (default), bm25, or hybrid */
-  mode?: 'default' | 'bm25' | 'hybrid'
-  /** Alpha value for hybrid search (0-1, default 0.5) */
-  alpha?: number
 }
 
 /**
