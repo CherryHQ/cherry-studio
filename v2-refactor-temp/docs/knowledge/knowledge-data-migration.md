@@ -60,6 +60,8 @@
 | `retryCount`                                        | **移除**                  | 不再需要                        |
 | `isPreprocessed`                                    | **移除**                  | 不再需要                        |
 
+> **状态值说明**: V2 的 `status` 字段使用 `'idle' | 'pending' | 'ocr' | 'read' | 'embed' | 'completed' | 'failed'`
+
 ### 1.5 KnowledgeItemData 类型转换
 
 V1 的 `content` 字段根据 `type` 存储不同类型的数据，V2 使用 Discriminated Union 实现类型安全：

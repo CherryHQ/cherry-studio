@@ -1,5 +1,10 @@
 # KnowledgeFacade 设计文档
 
+> **状态: 计划功能 (尚未实现)**
+>
+> 本文档描述的 KnowledgeFacade 是计划中的功能，旨在为 MCP Tools、HTTP API、Agent 提供统一的简化接口。
+> 当前访问知识库的方式是通过 DataApi handlers 或 IPC 直接调用服务层。
+
 ## 概述
 
 `KnowledgeFacade` 是知识库系统对外的统一接口层，为 MCP Tools、HTTP API、Agent 等外部调用者提供简洁、安全的 API。
@@ -130,7 +135,7 @@ interface SearchOptions {
 
 interface AddDocumentResult {
   itemId: string
-  status: 'queued' | 'processing' | 'completed' | 'failed'
+  status: 'pending' | 'ocr' | 'read' | 'embed' | 'completed' | 'failed'
 }
 
 interface SearchResult {
@@ -142,7 +147,7 @@ interface SearchResult {
 }
 
 interface JobStatus {
-  status: 'queued' | 'processing' | 'completed' | 'failed'
+  status: 'idle' | 'pending' | 'ocr' | 'read' | 'embed' | 'completed' | 'failed'
   progress: number
   error?: string
   stage?: 'ocr' | 'read' | 'embed'

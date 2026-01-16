@@ -63,8 +63,10 @@ Renderer
        ▼
 Main Process
   ├─ KnowledgeItemService (CRUD + 状态更新)
-  ├─ KnowledgeScheduler (全局/每库调度)
-  ├─ KnowledgeServiceV2 (read/embed/write)
+  ├─ KnowledgeOrchestrator (协调层 - 状态管理)
+  ├─ KnowledgeQueueManager (全局/每库调度)
+  ├─ KnowledgeProcessor (处理层 - OCR/Read/Embed)
+  ├─ KnowledgeServiceV2 (存储层 - 向量操作)
   ├─ SQLite (knowledge_item)
   └─ Vector Store (LibSQL)
        ▲
@@ -76,47 +78,51 @@ Main Process
 - **Job**：以 item 为单位的任务载体
   `{ baseId, itemId, type, createdAt }`
 - **Stage**：内部执行阶段
-  `read -> embed -> write`
-  对外状态仍使用现有 `ItemStatus`（pending/preprocessing/embedding/completed/failed）
-- **Scheduler**：全局队列 + 每库子队列 + 资源池并发限制
+  `ocr -> read -> embed`
+  对外状态使用 `ItemStatus`（`idle` | `pending` | `ocr` | `read` | `embed` | `completed` | `failed`）
+- **QueueManager**：全局队列 + 每库子队列 + 资源池并发限制
 
 ## 调度策略
 
 1. **全局在途上限**：限制已启动但未完成的任务数量，防止内存/排队膨胀
 2. **每库并发上限**：防止某个知识库占满资源
 3. **轮询公平**：按 baseId 轮询从子队列取任务（Round-robin）
-4. **阶段并发分离**：IO、Embedding、写入各自有并发上限
+4. **阶段并发分离**：OCR、IO（读取）、Embedding 各自有并发上限
 5. **背压**：阶段资源耗尽时任务停留在队列中，避免 IO/Embedding 堵死
 
-### 调度器接口（草案）
+### 队列管理器接口
 
 ```ts
-export type KnowledgeJobStage = "read" | "embed" | "write";
+export type KnowledgeStage = "ocr" | "read" | "embed";
 
 export type KnowledgeJob = {
   baseId: string;
   itemId: string;
-  type: KnowledgeItemType;
+  type?: KnowledgeItemType;
   createdAt: number;
 };
 
 export type SchedulerConfig = {
   globalConcurrency: number;
   perBaseConcurrency: number;
+  ocrConcurrency: number;
   ioConcurrency: number;
   embeddingConcurrency: number;
-  writeConcurrency: number;
   maxQueueSize?: number;
 };
 
-export interface KnowledgeScheduler {
-  enqueue(job: KnowledgeJob): Promise<void>;
+export interface KnowledgeQueueManager {
+  enqueue<T>(job: KnowledgeJob, task: KnowledgeJobTask<T>): Promise<T>;
   cancel(itemId: string): { status: "cancelled" | "ignored" };
+  isQueued(itemId: string): boolean;
+  isProcessing(itemId: string): boolean;
   getStatus(): {
     queueSize: number;
     processingCount: number;
     perBaseQueue: Record<string, number>;
   };
+  getProgress(itemId: string): number | undefined;
+  updateProgress(itemId: string, progress: number): void;
 }
 ```
 
@@ -129,16 +135,20 @@ export interface KnowledgeScheduler {
 
 ### 并发与阶段池
 
-- 任务管线：`read` 占用 IO → `embed` 占用 → `write` 占用，阶段完成即释放
+- 任务管线：`ocr` 占用 OCR 池 → `read` 占用 IO 池 → `embed` 占用 Embedding 池，阶段完成即释放
 - `globalConcurrency` 用于限制"已启动但未完成"的任务总数，阶段池决定实际并发
 - `globalConcurrency` 过低会导致阶段池空转；过高会造成等待积压
+- 三个并发池独立控制：
+  - **OCR Pool** (`ocrConcurrency: 2`)：文档预处理
+  - **IO Pool** (`ioConcurrency: 3`)：内容读取与分块
+  - **Embedding Pool** (`embeddingConcurrency: 3`)：向量嵌入与存储
 
 ## 处理流水线（统一类型）
 
 1. **入队**：`POST /knowledge-bases/:id/items` 创建记录，`status=pending`，入队
-2. **读取与分块**：`KnowledgeServiceV2` 通过 reader 将任意类型转换为 nodes
-3. **嵌入**：批次 embedding，避免一次性内存峰值
-4. **写入**：批次写入 LibSQL 向量库
+2. **OCR/预处理**：文档预处理阶段（PDF 解析等），`status=ocr`
+3. **读取与分块**：`KnowledgeProcessor` 通过 reader 将任意类型转换为 nodes，`status=read`
+4. **嵌入与存储**：批次 embedding 并写入 LibSQL 向量库，`status=embed`
 5. **完成/失败**：`status=completed | failed`，`error` 写入 DB
 
 ## 目录处理策略
@@ -168,11 +178,12 @@ export interface KnowledgeScheduler {
 ## 进度与状态
 
 - **单一百分比**：UI 只显示 0–100%，不区分阶段文本
-- **权重合成**：`read 60%`，`embed+write 40%`（可配置）
+- **权重合成**：`ocr+read 60%`，`embed 40%`（可配置）
 - **进度读取**：`GET /knowledge-items/:id` 返回 `progress`（仅内存维护，不落库）
 - **阶段映射**：
-  - `read` → `ItemStatus=preprocessing`
-  - `embed + write` → `ItemStatus=embedding`
+  - `ocr` → `ItemStatus=ocr`（文档预处理）
+  - `read` → `ItemStatus=read`（内容读取与分块）
+  - `embed` → `ItemStatus=embed`（向量嵌入与存储）
   - 完成 → `completed`
   - 中止/错误 → `failed`（记录 error）
 - **进度存储**：主进程内存 `ProgressTracker`（例如 `Map<itemId, number>`），短 TTL 清理
@@ -234,7 +245,7 @@ const updateProgress = throttle((itemId: string, progress: number) => {
 
 ### 定义
 
-**孤儿任务**：应用崩溃或关闭时处于 `pending`/`preprocessing`/`embedding` 的任务；重启后 DB 仍为中间态，但内存队列中无对应任务。
+**孤儿任务**：应用崩溃或关闭时处于 `pending`/`ocr`/`read`/`embed` 的任务；重启后 DB 仍为中间态，但内存队列中无对应任务。
 
 ### 检测机制
 
@@ -242,7 +253,7 @@ const updateProgress = throttle((itemId: string, progress: number) => {
 
 ```ts
 const isOrphan = (item: KnowledgeItem): boolean => {
-  const incompleteStatuses = ["pending", "preprocessing", "embedding"];
+  const incompleteStatuses = ["pending", "ocr", "read", "embed"];
   return incompleteStatuses.includes(item.status) && !activeJobs.has(item.id);
 };
 ```
@@ -253,6 +264,7 @@ const isOrphan = (item: KnowledgeItem): boolean => {
 | ------------------------------------ | ------ | ------------------------------------------------ |
 | `/knowledge-bases/:id/queue`         | GET    | 获取指定知识库的队列状态（含孤儿任务、活跃任务） |
 | `/knowledge-bases/:id/queue/recover` | POST   | 恢复指定知识库的孤儿任务（重新入队）             |
+| `/knowledge-bases/:id/queue/ignore`  | POST   | 忽略指定知识库的孤儿任务（标记为 failed）        |
 
 ### UI 交互
 
@@ -274,6 +286,7 @@ const isOrphan = (item: KnowledgeItem): boolean => {
 | `/knowledge-bases/:id/items`         | GET    | 查询 items 列表                      |
 | `/knowledge-bases/:id/queue`         | GET    | 获取该知识库的队列状态（含孤儿任务） |
 | `/knowledge-bases/:id/queue/recover` | POST   | 恢复该知识库的孤儿任务               |
+| `/knowledge-bases/:id/queue/ignore`  | POST   | 忽略该知识库的孤儿任务               |
 
 ## DataApi 返回结构与合并规则
 
@@ -286,7 +299,7 @@ const isOrphan = (item: KnowledgeItem): boolean => {
   "id": "...",
   "baseId": "...",
   "type": "file",
-  "status": "embedding",
+  "status": "embed",
   "error": null,
   "createdAt": "...",
   "updatedAt": "...",
@@ -323,16 +336,16 @@ const isOrphan = (item: KnowledgeItem): boolean => {
 ## 轮询策略（渲染端）
 
 - 初次加载同步一次 `GET /knowledge-bases/:id/items`
-- 存在 `pending` / `preprocessing` / `embedding` 状态时，每 500ms 轮询一次
+- 存在 `pending` / `ocr` / `read` / `embed` 状态时，每 500ms 轮询一次
 - 全部完成后停止轮询
 
 ## 推荐默认参数
 
 - 全局并发：4
 - 每库并发：2
-- IO 并发：2–3
-- Embedding 并发：2–4
-- 写入并发：2
+- OCR 并发：2
+- IO 并发：3
+- Embedding 并发：3
 
 ## 验收标准
 

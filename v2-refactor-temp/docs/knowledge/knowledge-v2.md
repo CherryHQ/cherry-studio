@@ -1,5 +1,8 @@
 ## 目标
 
+> **本文档描述的是 Agentic RAG 的目标愿景**，而非当前实现状态。
+> 当前实现状态请参考 [knowledge-service.md](./knowledge-service.md)。
+
 在Agent时代，打造一个为Agent使用的智能知识库。它不应该只是一个提供查询的"图书馆"，而应该是能由Agent进行 **自助阅读、自我学习、自我优化** 的动态数据库。
 
 ## 3种常见的RAG架构对比

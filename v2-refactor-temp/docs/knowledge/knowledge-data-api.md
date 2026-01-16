@@ -147,7 +147,7 @@ export const knowledgeItemTable = sqliteTable(
   (t) => [
     check(
       'knowledge_item_status_check',
-      sql`${t.status} IN ('idle', 'pending', 'preprocessing', 'embedding', 'completed', 'failed')`
+      sql`${t.status} IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')`
     ),
     check('knowledge_item_type_check', sql`${t.type} IN ('file', 'url', 'note', 'sitemap', 'directory')`)
   ]
@@ -247,6 +247,7 @@ function processItem(item: KnowledgeItem) {
 | ---- | ------ | ---- |
 | `/knowledge-bases/:id/queue` | GET | 获取指定知识库的队列状态（含孤儿任务列表、活跃任务） |
 | `/knowledge-bases/:id/queue/recover` | POST | 恢复指定知识库的孤儿任务（重新入队） |
+| `/knowledge-bases/:id/queue/ignore` | POST | 忽略指定知识库的孤儿任务（标记为 failed） |
 
 ### 端点清单（可选）
 
@@ -428,6 +429,12 @@ export interface KnowledgeSchemas {
       response: { recoveredCount: number }  // 直接恢复该知识库所有孤儿任务
     }
   }
+  '/knowledge-bases/:id/queue/ignore': {
+    POST: {
+      params: { id: string }
+      response: { ignoredCount: number }  // 忽略该知识库所有孤儿任务
+    }
+  }
 }
 
 // 知识库队列状态响应
@@ -460,7 +467,7 @@ useEffect(() => {
 // 有活动任务时轮询
 useEffect(() => {
   const hasActiveItems = items.some((item) =>
-    ['pending', 'preprocessing', 'embedding'].includes(item.status)
+    ['pending', 'ocr', 'read', 'embed'].includes(item.status)
   )
 
   if (!hasActiveItems) return
@@ -475,14 +482,14 @@ useEffect(() => {
 
 ### 状态字段
 
-- `status`: 持久化到数据库（idle | pending | preprocessing | embedding | completed | failed）
+- `status`: 持久化到数据库（`idle` | `pending` | `ocr` | `read` | `embed` | `completed` | `failed`）
 - `error`: 持久化到数据库（失败时的错误信息）
 - `progress`: **不持久化**，UI 可根据 status 显示简化进度
 
 ## 处理状态与队列协作
 
 - **创建/刷新 item**：进入处理队列，立即更新为 `status = pending` 并返回 202
-- **处理中**：状态依次更新为 `preprocessing` / `embedding`
+- **处理中**：状态依次更新为 `ocr` → `read` → `embed`
 - **完成**：`status = completed`
 - **失败**：`status = failed` 且写入 `error`
 - **进度**：UI 通过轮询 API 获取最新状态

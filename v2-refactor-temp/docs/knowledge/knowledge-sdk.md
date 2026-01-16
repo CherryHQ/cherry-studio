@@ -86,12 +86,15 @@ Redux KnowledgeItem:
 - [x] JSONReader
 - [x] MarkdownReader
 - [x] PDFReader
-- [x] TextFileReader(除了特殊的 reader 以外都是通用的文本文件读取器)
+- [x] TextFileReader (除了特殊的 reader 以外都是通用的文本文件读取器)
 - [x] SitemapReader
 - [x] URLReader
 - [x] EPUBReader
-- [] DirectoryReader
-- [] ObsidianReader
+- [x] DirectoryReader
+- [ ] ObsidianReader
+
+> 详细的 Reader 实现见 `src/main/services/knowledge/readers/` 目录。
+> Reader 注册模式见 [knowledge-service.md](./knowledge-service.md#6-readerregistry-内容读取器)
 
 ## 重要 tips
 
