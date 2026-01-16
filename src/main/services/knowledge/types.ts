@@ -4,6 +4,7 @@
 
 import type { FileMetadata } from '@shared/data/types/file'
 import type {
+  ItemStatus,
   KnowledgeBase,
   KnowledgeItem,
   KnowledgeItemType,
@@ -53,27 +54,22 @@ export interface ContentReader {
 // ============================================================================
 
 /**
- * Options for adding items to knowledge base
+ * Knowledge processing stages - derived from ItemStatus.
+ * - ocr: OCR/document preprocessing (PDF parsing, image recognition, etc.)
+ * - read: Reading content from source and chunking
+ * - embed: Generating embeddings and storing in vector database
  */
-export type KnowledgeProcessingStage = 'preprocessing' | 'embedding'
+export type KnowledgeStage = Extract<ItemStatus, 'ocr' | 'read' | 'embed'>
 
-/**
- * Stages for knowledge queue processing.
- * - read: Reading content from source (file, URL, etc.)
- * - embed: Generating embeddings for content nodes
- * - write: Writing embedded nodes to vector store
- */
-export type KnowledgeQueueStage = 'read' | 'embed' | 'write'
-
-export type KnowledgeStageRunner = <T>(stage: KnowledgeQueueStage, task: () => Promise<T>) => Promise<T>
+export type KnowledgeStageRunner = <T>(stage: KnowledgeStage, task: () => Promise<T>) => Promise<T>
 
 export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBase
   item: KnowledgeItem
   userId?: string
   signal: AbortSignal
-  onStageChange: (stage: KnowledgeProcessingStage) => void
-  onProgress: (stage: KnowledgeProcessingStage, progress: number) => void
+  onStageChange: (stage: KnowledgeStage) => void
+  onProgress: (stage: KnowledgeStage, progress: number) => void
   runStage: KnowledgeStageRunner
 }
 

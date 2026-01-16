@@ -23,9 +23,9 @@ export type QueueStatus = {
 export type SchedulerConfig = {
   globalConcurrency: number
   perBaseConcurrency: number
+  ocrConcurrency: number
   ioConcurrency: number
   embeddingConcurrency: number
-  writeConcurrency: number
   maxQueueSize?: number
 }
 
@@ -64,9 +64,9 @@ export type JobEntry<T> = {
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   globalConcurrency: 4,
   perBaseConcurrency: 2,
+  ocrConcurrency: 2,
   ioConcurrency: 3,
-  embeddingConcurrency: 3,
-  writeConcurrency: 2
+  embeddingConcurrency: 3
 } as const
 
 export const PROGRESS_THROTTLE_MS = 300

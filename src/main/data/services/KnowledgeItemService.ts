@@ -11,6 +11,7 @@ import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
 import { knowledgeServiceV2 } from '@main/services/knowledge/KnowledgeServiceV2'
 import { type KnowledgeJob, knowledgeQueueManager } from '@main/services/knowledge/queue'
+import type { KnowledgeStage } from '@main/services/knowledge/types'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   BaseQueueStatus,
@@ -191,7 +192,7 @@ export class KnowledgeItemService {
    */
   async getOrphanItems(baseId: string): Promise<KnowledgeItem[]> {
     const db = dbService.getDb()
-    const incompleteStatuses: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
+    const incompleteStatuses: ItemStatus[] = ['pending', 'ocr', 'read', 'embed']
 
     const rows = await db
       .select()
@@ -303,11 +304,14 @@ export class KnowledgeItemService {
             updateProgress(progress, options)
           }
 
-          const handleStageChange = async (stage: 'preprocessing' | 'embedding') => {
-            await updateStatus(stage, null)
+          const handleStageChange = async (stage: KnowledgeStage) => {
+            // Only 'ocr' and 'embed' are valid status values
+            if (stage === 'ocr' || stage === 'embed') {
+              await updateStatus(stage, null)
+            }
           }
 
-          const handleProgress = (_stage: 'preprocessing' | 'embedding', progress: number) => {
+          const handleProgress = (_stage: KnowledgeStage, progress: number) => {
             updateItemProgress(progress, { immediate: true })
           }
 

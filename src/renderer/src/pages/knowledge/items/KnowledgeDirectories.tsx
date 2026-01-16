@@ -66,7 +66,7 @@ const getLatestUpdateTime = (items: KnowledgeItemV2[]): string => {
 }
 
 const computeAggregateStatus = (items: KnowledgeItemV2[]): ItemStatus => {
-  const priority: ItemStatus[] = ['failed', 'pending', 'preprocessing', 'embedding', 'completed', 'idle']
+  const priority: ItemStatus[] = ['failed', 'pending', 'ocr', 'read', 'embed', 'completed', 'idle']
   for (const status of priority) {
     if (items.some((item) => item.status === status)) {
       return status

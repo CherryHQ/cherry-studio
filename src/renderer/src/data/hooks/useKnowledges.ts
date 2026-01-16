@@ -14,7 +14,7 @@ import type { ItemStatus, KnowledgeBase, KnowledgeItem } from '@shared/data/type
 import { useEffect, useMemo, useState } from 'react'
 
 /** Status values that indicate an item is still being processed */
-const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
+const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'ocr', 'read', 'embed']
 
 /** Polling interval in milliseconds when items are processing */
 const PROCESSING_POLL_INTERVAL = 1000
@@ -35,7 +35,7 @@ type KnowledgeQueuePath = `/knowledge-bases/${string}/queue`
  * Hook for fetching knowledge items with smart polling.
  *
  * Features:
- * - Automatic polling when items are being processed (pending/preprocessing/embedding)
+ * - Automatic polling when items are being processed (pending/ocr/read/embed)
  * - Polling stops automatically when all items are completed or failed
  * - Returns loading states and refetch function for manual refresh
  *

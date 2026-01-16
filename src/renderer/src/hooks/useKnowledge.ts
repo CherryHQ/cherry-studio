@@ -53,8 +53,9 @@ const mapV2StatusToV1 = (status: ItemStatus): KnowledgeItem['processingStatus'] 
   const statusMap: Record<ItemStatus, KnowledgeItem['processingStatus']> = {
     idle: 'pending',
     pending: 'pending',
-    preprocessing: 'processing',
-    embedding: 'processing',
+    ocr: 'processing',
+    read: 'processing',
+    embed: 'processing',
     completed: 'completed',
     failed: 'failed'
   }

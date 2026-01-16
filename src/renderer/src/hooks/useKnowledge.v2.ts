@@ -27,7 +27,7 @@ import { useMemo, useState } from 'react'
 const logger = loggerService.withContext('useKnowledge.v2')
 
 /** Status values that indicate an item is still being processed */
-const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'preprocessing', 'embedding']
+const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'ocr', 'read', 'embed']
 
 const buildDirectoryItems = async (
   directoryPath: string,

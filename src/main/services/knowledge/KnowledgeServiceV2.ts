@@ -170,9 +170,14 @@ class KnowledgeServiceV2 {
       userId
     }
 
-    onStageChange('preprocessing')
+    onStageChange('ocr')
 
-    // Step 1: Read content using appropriate reader
+    // Step 1: OCR preprocessing (placeholder for future OCR implementation)
+    // TODO: Add actual OCR processing here when needed
+
+    onStageChange('read')
+
+    // Step 2: Read content using appropriate reader
     const readerResult = await runStage('read', async () => await reader.read(context))
 
     if (readerResult.nodes.length === 0) {
@@ -180,18 +185,19 @@ class KnowledgeServiceV2 {
       return
     }
 
-    onStageChange('embedding')
+    onStageChange('embed')
 
-    // Step 2: Embed nodes with progress reporting
-    const embeddedNodes = await runStage(
-      'embed',
-      async () =>
-        await embedNodes(readerResult.nodes, resolvedBase, (progress) => onProgress('embedding', progress), signal)
-    )
-
-    // Step 3: Store in vector database
+    // Step 3: Embed nodes and store in vector database
     const store = this.ensureStore(resolvedBase)
-    await runStage('write', async () => await store.add(embeddedNodes))
+    await runStage('embed', async () => {
+      const embeddedNodes = await embedNodes(
+        readerResult.nodes,
+        resolvedBase,
+        (progress) => onProgress('embed', progress),
+        signal
+      )
+      await store.add(embeddedNodes)
+    })
 
     logger.info(`[KnowledgeV2] Add completed for item ${item.id}`)
   }

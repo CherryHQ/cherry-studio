@@ -32,9 +32,9 @@ export class KnowledgeQueueManager {
   private processingIds = new Set<string>()
   private isDraining = false
 
+  private ocrPool: ConcurrencyPool
   private ioPool: ConcurrencyPool
   private embeddingPool: ConcurrencyPool
-  private writePool: ConcurrencyPool
 
   private progressTracker = new ProgressTracker(PROGRESS_TTL_MS)
   private progressTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -42,9 +42,9 @@ export class KnowledgeQueueManager {
 
   constructor(config?: Partial<SchedulerConfig>) {
     this.config = this.normalizeConfig({ ...DEFAULT_SCHEDULER_CONFIG, ...config })
+    this.ocrPool = new ConcurrencyPool(this.config.ocrConcurrency)
     this.ioPool = new ConcurrencyPool(this.config.ioConcurrency)
     this.embeddingPool = new ConcurrencyPool(this.config.embeddingConcurrency)
-    this.writePool = new ConcurrencyPool(this.config.writeConcurrency)
   }
 
   enqueue<T>(job: KnowledgeJob, task: KnowledgeJobTask<T>): Promise<T>
@@ -174,12 +174,12 @@ export class KnowledgeQueueManager {
 
   private runStage: KnowledgeStageRunner = async (stage, task) => {
     switch (stage) {
+      case 'ocr':
+        return await this.ocrPool.run(task)
       case 'read':
         return await this.ioPool.run(task)
       case 'embed':
         return await this.embeddingPool.run(task)
-      case 'write':
-        return await this.writePool.run(task)
       default:
         return await task()
     }
@@ -399,9 +399,9 @@ export class KnowledgeQueueManager {
       ...config,
       globalConcurrency: normalize(config.globalConcurrency),
       perBaseConcurrency: normalize(config.perBaseConcurrency),
+      ocrConcurrency: normalize(config.ocrConcurrency),
       ioConcurrency: normalize(config.ioConcurrency),
-      embeddingConcurrency: normalize(config.embeddingConcurrency),
-      writeConcurrency: normalize(config.writeConcurrency)
+      embeddingConcurrency: normalize(config.embeddingConcurrency)
     }
   }
 }

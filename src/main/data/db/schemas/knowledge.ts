@@ -60,7 +60,7 @@ export const knowledgeItemTable = sqliteTable(
   (t) => [
     check(
       'knowledge_item_status_check',
-      sql`${t.status} IN ('idle', 'pending', 'preprocessing', 'embedding', 'completed', 'failed')`
+      sql`${t.status} IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')`
     ),
     check('knowledge_item_type_check', sql`${t.type} IN ('file', 'url', 'note', 'sitemap', 'directory')`)
   ]

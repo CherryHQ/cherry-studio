@@ -16,15 +16,16 @@ import type { ModelMeta } from './meta'
 export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory'
 
 /**
- * Item processing status (merged with processing stage)
+ * Item processing status
  * - idle: Not processed
  * - pending: Waiting to be processed
- * - preprocessing: Document preprocessing in progress
- * - embedding: Vector embedding in progress
+ * - ocr: OCR/document preprocessing in progress
+ * - read: Reading and chunking content
+ * - embed: Vector embedding and storing in progress
  * - completed: Processing completed
  * - failed: Processing failed
  */
-export type ItemStatus = 'idle' | 'pending' | 'preprocessing' | 'embedding' | 'completed' | 'failed'
+export type ItemStatus = 'idle' | 'pending' | 'ocr' | 'read' | 'embed' | 'completed' | 'failed'
 
 // ============================================================================
 // Configuration Types

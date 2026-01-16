@@ -40,11 +40,13 @@ const StatusIcon: FC<StatusIconProps> = ({ type, progress: propProgress, isPrepr
           </Tooltip>
         )
 
-      case 'preprocessing':
-      case 'embedding': {
-        const strokeColor = status === 'preprocessing' ? '#faad14' : '#1890ff' // 黄色 vs 蓝色
-        const tooltipContent =
-          status === 'preprocessing' ? t('knowledge.status_preprocessing') : t('knowledge.status_embedding')
+      case 'ocr':
+      case 'read':
+      case 'embed': {
+        // ocr: 黄色, read: 橙色, embed: 蓝色
+        const strokeColor = status === 'ocr' ? '#faad14' : status === 'read' ? '#fa8c16' : '#1890ff'
+        const tooltipKey = `knowledge.status_${status}` as const
+        const tooltipContent = t(tooltipKey)
 
         return resolvedType === 'directory' || resolvedType === 'file' ? (
           <Tooltip placement="left" content={`${tooltipContent} ${progress}%`}>
@@ -52,7 +54,7 @@ const StatusIcon: FC<StatusIconProps> = ({ type, progress: propProgress, isPrepr
           </Tooltip>
         ) : (
           <Tooltip placement="left" content={tooltipContent}>
-            <StatusDot $status={status === 'preprocessing' ? 'pending' : 'processing'} />
+            <StatusDot $status={status === 'ocr' ? 'pending' : 'processing'} />
           </Tooltip>
         )
       }
