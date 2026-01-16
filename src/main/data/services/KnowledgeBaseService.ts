@@ -181,24 +181,10 @@ export class KnowledgeBaseService {
       throw DataApiErrorFactory.validation({ search: ['Search query is required'] })
     }
 
-    let results = await knowledgeServiceV2.search({
+    return await knowledgeServiceV2.search({
       search: request.search,
       base
     })
-
-    if (request.rerank && base.rerankModelId) {
-      results = await knowledgeServiceV2.rerank({
-        search: request.search,
-        base,
-        results
-      })
-    }
-
-    if (request.limit && request.limit > 0) {
-      results = results.slice(0, request.limit)
-    }
-
-    return results
   }
 }
 

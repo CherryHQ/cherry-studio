@@ -63,16 +63,6 @@ export type KnowledgeStage = Extract<ItemStatus, 'ocr' | 'read' | 'embed'>
 
 export type KnowledgeStageRunner = <T>(stage: KnowledgeStage, task: () => Promise<T>) => Promise<T>
 
-export interface KnowledgeBaseAddItemOptions {
-  base: KnowledgeBase
-  item: KnowledgeItem
-  userId?: string
-  signal: AbortSignal
-  onStageChange: (stage: KnowledgeStage) => void
-  onProgress: (stage: KnowledgeStage, progress: number) => void
-  runStage: KnowledgeStageRunner
-}
-
 /**
  * Options for removing items from knowledge base
  */
@@ -152,3 +142,6 @@ export const DEFAULT_CHUNK_OVERLAP = 20
 
 /** 1 MB constant for workload estimation */
 export const MB = 1024 * 1024
+
+export const DEFAULT_DOCUMENT_COUNT = 6
+export const DEFAULT_RELEVANT_SCORE = 0

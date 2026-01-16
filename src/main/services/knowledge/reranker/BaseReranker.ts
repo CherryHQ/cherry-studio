@@ -4,7 +4,7 @@ import './providers'
 import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 
 import type { ResolvedKnowledgeBase } from '../KnowledgeProviderAdapter'
-import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '../utils/knowledge'
+import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '../types'
 import { resolveRerankProvider } from './registry'
 import type { MultiModalDocument, RerankProvider, RerankResultItem } from './types'
 

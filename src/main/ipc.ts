@@ -51,7 +51,7 @@ import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import { knowledgeMigrateService, knowledgeServiceV2 } from './services/knowledge'
+import { knowledgeMigrateService, knowledgeProcessor, knowledgeServiceV2 } from './services/knowledge'
 import { lanTransferClientService } from './services/lanTransfer'
 import { localTransferService } from './services/LocalTransferService'
 import mcpService from './services/MCPService'
@@ -681,7 +681,8 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.KnowledgeBase_Create, (_, base) => knowledgeServiceV2.create(base))
   ipcMain.handle(IpcChannel.KnowledgeBase_Reset, (_, base) => knowledgeServiceV2.reset(base))
   ipcMain.handle(IpcChannel.KnowledgeBase_Delete, (_, id) => knowledgeServiceV2.delete(id))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, (_, options) => knowledgeServiceV2.add(options))
+  // TODO: [v2-cleanup] Remove after migrating to DataApi - used only by WebSearchService
+  ipcMain.handle(IpcChannel.KnowledgeBase_Add, (_, options) => knowledgeProcessor.processDirect(options))
   ipcMain.handle(IpcChannel.KnowledgeBase_Remove, (_, options) => knowledgeServiceV2.remove(options))
   ipcMain.handle(IpcChannel.KnowledgeBase_Search, (_, options) => knowledgeServiceV2.search(options))
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, (_, options) => knowledgeServiceV2.rerank(options))

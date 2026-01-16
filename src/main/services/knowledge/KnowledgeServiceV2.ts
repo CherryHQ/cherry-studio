@@ -17,24 +17,20 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
-import type { KnowledgeBase, KnowledgeItemType, KnowledgeSearchResult } from '@shared/data/types/knowledge'
-import { MetadataMode } from '@vectorstores/core'
+import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import { type BaseNode, type Metadata, MetadataMode } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
 import Embeddings from './embeddings'
-import { embedNodes } from './embeddings/EmbeddingPipeline'
 import type { ResolvedKnowledgeBase } from './KnowledgeProviderAdapter'
 import { knowledgeProviderAdapter } from './KnowledgeProviderAdapter'
-import { getReader } from './readers'
 import Reranker from './reranker/Reranker'
 import {
-  type KnowledgeBaseAddItemOptions,
+  DEFAULT_DOCUMENT_COUNT,
   type KnowledgeBaseRemoveOptions,
-  type ReaderContext,
   type RerankOptions,
   type SearchOptions
 } from './types'
-import { DEFAULT_DOCUMENT_COUNT } from './utils/knowledge'
 
 const logger = loggerService.withContext('KnowledgeServiceV2')
 
@@ -145,61 +141,27 @@ class KnowledgeServiceV2 {
   // ============================================================================
 
   /**
-   * Add content to knowledge base
-   * This is the main entry point for adding any type of content
+   * Add embedded nodes to knowledge base
+   *
+   * This is a low-level method that stores already-embedded nodes.
+   * For full processing (read -> embed -> store), use KnowledgeProcessor.
+   *
+   * @param options - Contains base config and nodes to store
    */
-  public add = async (options: KnowledgeBaseAddItemOptions): Promise<void> => {
-    const { base, item, userId = '', signal, onStageChange, onProgress, runStage } = options
-    const itemType = item.type as KnowledgeItemType
+  public addNodes = async (options: { base: ResolvedKnowledgeBase; nodes: BaseNode<Metadata>[] }): Promise<void> => {
+    const { base, nodes } = options
 
-    logger.info(`[KnowledgeV2] Add called: type=${itemType}, base=${base.id}, item=${item.id}`)
-
-    // Check if reader exists for this type
-    const reader = getReader(itemType)
-    if (!reader) {
-      logger.warn(`[KnowledgeV2] No reader for type: ${itemType}`)
-      throw new Error(`Unsupported item type: ${itemType}`)
-    }
-
-    const resolvedBase = await knowledgeProviderAdapter.buildBaseParams(base, 'embeddingModelId')
-
-    // Create reader context
-    const context: ReaderContext = {
-      base: resolvedBase,
-      item,
-      userId
-    }
-
-    onStageChange('ocr')
-
-    // Step 1: OCR preprocessing (placeholder for future OCR implementation)
-    // TODO: Add actual OCR processing here when needed
-
-    onStageChange('read')
-
-    // Step 2: Read content using appropriate reader
-    const readerResult = await runStage('read', async () => await reader.read(context))
-
-    if (readerResult.nodes.length === 0) {
-      logger.warn(`[KnowledgeV2] No content read for item ${item.id}`)
+    if (nodes.length === 0) {
+      logger.warn(`[KnowledgeV2] addNodes called with empty nodes array for base ${base.id}`)
       return
     }
 
-    onStageChange('embed')
+    logger.info(`[KnowledgeV2] addNodes: storing ${nodes.length} nodes to base ${base.id}`)
 
-    // Step 3: Embed nodes and store in vector database
-    const store = this.ensureStore(resolvedBase)
-    await runStage('embed', async () => {
-      const embeddedNodes = await embedNodes(
-        readerResult.nodes,
-        resolvedBase,
-        (progress) => onProgress('embed', progress),
-        signal
-      )
-      await store.add(embeddedNodes)
-    })
+    const store = this.ensureStore(base)
+    await store.add(nodes)
 
-    logger.info(`[KnowledgeV2] Add completed for item ${item.id}`)
+    logger.info(`[KnowledgeV2] addNodes completed for base ${base.id}`)
   }
 
   /**
@@ -275,11 +237,19 @@ class KnowledgeServiceV2 {
       const nodes = queryResult.nodes ?? []
       const similarities = queryResult.similarities ?? []
 
-      return nodes.map((node, index) => ({
+      let results: KnowledgeSearchResult[] = nodes.map((node, index) => ({
         pageContent: node.getContent(MetadataMode.NONE),
         score: similarities[index] ?? 0,
         metadata: node.metadata ?? {}
       }))
+
+      // Rerank if rerank model is configured
+      if (base.rerankModelId && results.length > 0) {
+        results = await this.rerank({ search, base, results })
+        logger.info(`[KnowledgeV2] Reranked results: ${results.length}`)
+      }
+
+      return results
     } catch (error) {
       logger.error(`[KnowledgeV2] Search failed for base ${base.id}:`, error as Error)
       throw error

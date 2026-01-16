@@ -3,15 +3,13 @@
  * Knowledge Item Service (DataApi v2)
  *
  * Handles CRUD operations for knowledge items stored in SQLite,
- * and manages item processing via KnowledgeServiceV2.
+ * and manages item processing via KnowledgeOrchestrator.
  */
 
 import { dbService } from '@data/db/DbService'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { knowledgeServiceV2 } from '@main/services/knowledge/KnowledgeServiceV2'
-import { type KnowledgeJob, knowledgeQueueManager } from '@main/services/knowledge/queue'
-import type { KnowledgeStage } from '@main/services/knowledge/types'
+import { knowledgeOrchestrator } from '@main/services/knowledge/KnowledgeOrchestrator'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   BaseQueueStatus,
@@ -20,7 +18,7 @@ import type {
   RecoverResponse,
   UpdateKnowledgeItemDto
 } from '@shared/data/api/schemas/knowledges'
-import type { ItemStatus, KnowledgeBase, KnowledgeItem, KnowledgeItemData } from '@shared/data/types/knowledge'
+import type { ItemStatus, KnowledgeItem, KnowledgeItemData } from '@shared/data/types/knowledge'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
@@ -43,13 +41,12 @@ function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): Knowle
     error: row.error ?? undefined,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString(),
-    progress: knowledgeQueueManager.getProgress(row.id)
+    progress: knowledgeOrchestrator.getProgress(row.id)
   }
 }
 
 export class KnowledgeItemService {
   private static instance: KnowledgeItemService
-  private jobTokens = new Map<string, number>()
 
   private constructor() {}
 
@@ -100,7 +97,13 @@ export class KnowledgeItemService {
     const items = rows.map((row) => rowToKnowledgeItem(row))
 
     items.forEach((item) => {
-      void this.processItem(base, item)
+      void knowledgeOrchestrator.process({
+        base,
+        item,
+        onStatusChange: async (status, error) => {
+          await this.update(item.id, { status, error })
+        }
+      })
     })
 
     return { items }
@@ -148,8 +151,8 @@ export class KnowledgeItemService {
     const db = dbService.getDb()
 
     const item = await this.getById(id)
-    knowledgeQueueManager.cancel(id)
-    knowledgeQueueManager.clearProgress(id)
+    knowledgeOrchestrator.cancel(id)
+    knowledgeOrchestrator.clearProgress(id)
 
     const [row] = await db
       .update(knowledgeItemTable)
@@ -159,9 +162,16 @@ export class KnowledgeItemService {
 
     const updatedItem = rowToKnowledgeItem(row)
     const base = await knowledgeBaseService.getById(item.baseId)
+    const onStatusChange = async (status: ItemStatus, error: string | null) => {
+      await this.update(item.id, { status, error })
+    }
 
-    await this.removeItemVectors(base, updatedItem)
-    await this.processItem(base, updatedItem)
+    await knowledgeOrchestrator.removeVectors(base, updatedItem)
+    await knowledgeOrchestrator.process({
+      base,
+      item: updatedItem,
+      onStatusChange
+    })
 
     logger.info('Triggered reprocessing for knowledge item', { id })
 
@@ -176,10 +186,10 @@ export class KnowledgeItemService {
 
     const item = await this.getById(id)
     const base = await knowledgeBaseService.getById(item.baseId)
-    knowledgeQueueManager.cancel(id)
-    knowledgeQueueManager.clearProgress(id)
+    knowledgeOrchestrator.cancel(id)
+    knowledgeOrchestrator.clearProgress(id)
 
-    await knowledgeServiceV2.remove({ base, item })
+    await knowledgeOrchestrator.removeVectors(base, item)
 
     await db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
 
@@ -201,7 +211,7 @@ export class KnowledgeItemService {
 
     // Filter out items that are actually in the queue
     return rows
-      .filter((row) => !knowledgeQueueManager.isQueued(row.id) && !knowledgeQueueManager.isProcessing(row.id))
+      .filter((row) => !knowledgeOrchestrator.isQueued(row.id) && !knowledgeOrchestrator.isProcessing(row.id))
       .map(rowToKnowledgeItem)
   }
 
@@ -216,10 +226,10 @@ export class KnowledgeItemService {
     const allItems = await this.list(baseId)
 
     const activeItemIds = allItems
-      .filter((item) => knowledgeQueueManager.isQueued(item.id) || knowledgeQueueManager.isProcessing(item.id))
+      .filter((item) => knowledgeOrchestrator.isQueued(item.id) || knowledgeOrchestrator.isProcessing(item.id))
       .map((item) => item.id)
 
-    const queueStatus = knowledgeQueueManager.getStatus()
+    const queueStatus = knowledgeOrchestrator.getQueueStatus()
     const pendingCount = queueStatus.perBaseQueue[baseId] ?? 0
 
     return {
@@ -238,10 +248,16 @@ export class KnowledgeItemService {
 
     for (const item of orphanItems) {
       // Reset status and re-enqueue
-      await this.updateItemStatus(item.id, 'pending', null)
-      knowledgeQueueManager.clearProgress(item.id)
-      await this.removeItemVectors(base, item)
-      await this.processItem(base, { ...item, status: 'pending', error: undefined })
+      await this.update(item.id, { status: 'pending', error: null })
+      knowledgeOrchestrator.clearProgress(item.id)
+      await knowledgeOrchestrator.removeVectors(base, item)
+      await knowledgeOrchestrator.process({
+        base,
+        item: { ...item, status: 'pending', error: undefined },
+        onStatusChange: async (status, error) => {
+          await this.update(item.id, { status, error })
+        }
+      })
     }
 
     logger.info('Recovered orphan items', { baseId, count: orphanItems.length })
@@ -269,110 +285,6 @@ export class KnowledgeItemService {
 
     logger.info('Ignored orphan items', { baseId, count: orphanItems.length })
     return { ignoredCount: orphanItems.length }
-  }
-
-  private async processItem(base: KnowledgeBase, item: KnowledgeItem): Promise<void> {
-    try {
-      if (knowledgeQueueManager.isQueued(item.id) || knowledgeQueueManager.isProcessing(item.id)) {
-        logger.debug('Item already queued or processing, skipping enqueue', { itemId: item.id })
-        return
-      }
-
-      const createdAt = Date.now()
-      this.jobTokens.set(item.id, createdAt)
-
-      const job: KnowledgeJob = {
-        baseId: base.id,
-        itemId: item.id,
-        type: item.type,
-        createdAt
-      }
-
-      knowledgeQueueManager
-        .enqueue(job, async ({ signal, runStage, updateProgress }) => {
-          const isCurrentJob = () => this.jobTokens.get(item.id) === createdAt
-          const updateStatus = async (status: ItemStatus, errorMessage: string | null) => {
-            if (!isCurrentJob()) {
-              return
-            }
-            await this.updateItemStatus(item.id, status, errorMessage)
-          }
-          const updateItemProgress = (progress: number, options?: { immediate?: boolean }) => {
-            if (!isCurrentJob()) {
-              return
-            }
-            updateProgress(progress, options)
-          }
-
-          const handleStageChange = async (stage: KnowledgeStage) => {
-            // Only 'ocr' and 'embed' are valid status values
-            if (stage === 'ocr' || stage === 'embed') {
-              await updateStatus(stage, null)
-            }
-          }
-
-          const handleProgress = (_stage: KnowledgeStage, progress: number) => {
-            updateItemProgress(progress, { immediate: true })
-          }
-
-          try {
-            await knowledgeServiceV2.add({
-              base,
-              item,
-              signal,
-              onStageChange: handleStageChange,
-              onProgress: handleProgress,
-              runStage
-            })
-            await updateStatus('completed', null)
-            updateItemProgress(100, { immediate: true })
-          } catch (error) {
-            if (this.isAbortError(error)) {
-              await updateStatus('failed', 'Cancelled')
-              logger.info('Knowledge item processing cancelled', { itemId: item.id })
-              return
-            }
-
-            logger.error('Knowledge item processing failed', error as Error, { itemId: item.id, baseId: base.id })
-            await updateStatus('failed', error instanceof Error ? error.message : String(error))
-          } finally {
-            if (isCurrentJob()) {
-              this.jobTokens.delete(item.id)
-            }
-          }
-        })
-        .catch((error) => {
-          if (this.isAbortError(error)) {
-            logger.debug('Queue task aborted before start', { itemId: item.id })
-            this.jobTokens.delete(item.id)
-            return
-          }
-          logger.error('Failed to enqueue knowledge item', error as Error, { itemId: item.id })
-          this.jobTokens.delete(item.id)
-        })
-    } catch (error) {
-      this.jobTokens.delete(item.id)
-      logger.error('Knowledge item enqueue failed', error as Error, { itemId: item.id, baseId: base.id })
-      await this.updateItemStatus(item.id, 'failed', error instanceof Error ? error.message : String(error))
-    }
-  }
-
-  private async updateItemStatus(id: string, status: ItemStatus, errorMessage: string | null): Promise<void> {
-    const db = dbService.getDb()
-
-    await db.update(knowledgeItemTable).set({ status, error: errorMessage }).where(eq(knowledgeItemTable.id, id))
-  }
-
-  private isAbortError(error: unknown): boolean {
-    return error instanceof Error && error.name === 'AbortError'
-  }
-
-  private async removeItemVectors(base: KnowledgeBase, item: KnowledgeItem): Promise<void> {
-    try {
-      await knowledgeServiceV2.remove({ base, item })
-    } catch (error) {
-      logger.warn('Failed to remove knowledge item vectors', { itemId: item.id, error })
-    }
   }
 }
 
