@@ -1,5 +1,4 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, RowFlex, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
@@ -7,8 +6,8 @@ import { useKnowledgeBase, useKnowledgeItems, useKnowledgeQueueStatus } from '@r
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { Empty, Tabs, Tag } from 'antd'
-import { Book, Folder, Globe, Link, Notebook, RefreshCw, Search, Settings } from 'lucide-react'
+import { Empty } from 'antd'
+import { Book, Folder, Globe, Link, Notebook, RefreshCw, RotateCw, Search, Settings } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -188,21 +187,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
     }
   ]
 
-  const tabItems = knowledgeItems
-    .filter((item) => item.show)
-    .map((item) => ({
-      key: item.key,
-      label: (
-        <TabLabel>
-          {item.icon}
-          <span>{item.title}</span>
-          <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
-            {item.items.length}
-          </CustomTag>
-        </TabLabel>
-      ),
-      children: <TabContent>{item.content}</TabContent>
-    }))
+  const tabItems = knowledgeItems.filter((item) => item.show)
 
   return (
     <MainContainer>
@@ -217,10 +202,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
             </div>
             <Tooltip placement="bottom" content={providerName}>
               <div className="tag-column">
-                <Tag style={{ borderRadius: 20, margin: 0 }}>{base.model.name}</Tag>
+                <Badge>{base.model.name}</Badge>
               </div>
             </Tooltip>
-            {base.rerankModel && <Tag style={{ borderRadius: 20, margin: 0 }}>{base.rerankModel.name}</Tag>}
+            {base.rerankModel && <Badge>{base.rerankModel.name}</Badge>}
             {base.preprocessProvider && base.preprocessProvider.type === 'preprocess' && (
               <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
             )}
@@ -250,7 +235,24 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
           </NavbarIcon>
         </RowFlex>
       </HeaderContainer>
-      <StyledTabs activeKey={activeKey} onChange={setActiveKey} items={tabItems} type="line" size="small" />
+      <Tabs value={activeKey} onValueChange={setActiveKey} variant="line" className="flex-1">
+        <TabsList className="mx-4 h-12 justify-start gap-1 border-b-0 bg-transparent p-0">
+          {tabItems.map((item) => (
+            <TabsTrigger key={item.key} value={item.key} className="gap-1.5 px-3 py-3 text-[13px]">
+              {item.icon}
+              <span>{item.title}</span>
+              <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
+                {item.items.length}
+              </CustomTag>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {tabItems.map((item) => (
+          <TabsContent key={item.key} value={item.key} className="h-full overflow-hidden">
+            {item.content}
+          </TabsContent>
+        ))}
+      </Tabs>
     </MainContainer>
   )
 }
@@ -270,57 +272,6 @@ const MainContainer = styled.div`
   width: 100%;
   flex-direction: column;
   position: relative;
-`
-
-const TabLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 4px;
-  font-size: 14px;
-`
-
-const TabContent = styled.div``
-
-const StyledTabs = styled(Tabs)`
-  flex: 1;
-
-  .ant-tabs-nav {
-    padding: 0 16px;
-    margin: 0;
-    min-height: 48px;
-  }
-
-  .ant-tabs-tab {
-    padding: 12px 12px;
-    margin-right: 0;
-    font-size: 13px;
-
-    &:hover {
-      color: var(--color-primary);
-    }
-  }
-
-  .ant-tabs-tab-btn {
-    font-size: 13px;
-  }
-
-  .ant-tabs-content {
-    position: initial !important;
-  }
-
-  .ant-tabs-content-holder {
-    overflow: hidden;
-  }
-
-  .ant-tabs-tabpane {
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .ant-tabs-ink-bar {
-    height: 2px;
-  }
 `
 
 const HeaderContainer = styled.div`
@@ -398,10 +349,7 @@ export const StatusIconWrapper = styled.div`
   justify-content: center;
 `
 
-export const RefreshIcon = styled(RedoOutlined)`
-  font-size: 15px !important;
-  color: var(--color-text-2);
-`
+export const RefreshIcon = () => <RotateCw size={15} className="text-muted-foreground" />
 
 export const ClickableSpan = styled.span`
   cursor: pointer;

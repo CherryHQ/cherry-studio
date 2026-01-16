@@ -1,20 +1,24 @@
-import { InfoTooltip } from '@cherrystudio/ui'
+import { InfoTooltip, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import type { SelectProps } from 'antd'
-import { Alert, InputNumber, Select } from 'antd'
+import { Alert } from 'antd'
 import { TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsPanel } from './styles'
 
+interface SelectOption {
+  value: string
+  label: string
+}
+
 interface AdvancedSettingsPanelProps {
   newBase: KnowledgeBase
   selectedDocPreprocessProvider?: PreprocessProvider
-  docPreprocessSelectOptions: SelectProps['options']
+  docPreprocessSelectOptions: SelectOption[]
   handlers: {
     handleChunkSizeChange: (value: number | null) => void
     handleChunkOverlapChange: (value: number | null) => void
@@ -48,13 +52,19 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
           <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
         </div>
         <Select
-          value={selectedDocPreprocessProvider?.id}
-          style={{ width: '100%' }}
-          onChange={handleDocPreprocessChange}
-          placeholder={t('settings.tool.preprocess.provider_placeholder')}
-          options={docPreprocessSelectOptions}
-          allowClear
-        />
+          value={selectedDocPreprocessProvider?.id || ''}
+          onValueChange={(value) => handleDocPreprocessChange(value)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={t('settings.tool.preprocess.provider_placeholder')} />
+          </SelectTrigger>
+          <SelectContent>
+            {docPreprocessSelectOptions?.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </SettingsItem>
 
       <SettingsItem>
@@ -78,12 +88,13 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
           {t('knowledge.chunk_size')}
           <InfoTooltip content={t('knowledge.chunk_size_tooltip')} placement="right" />
         </div>
-        <InputNumber
-          style={{ width: '100%' }}
+        <Input
+          type="number"
+          className="w-full"
           min={100}
-          value={newBase.chunkSize}
+          value={newBase.chunkSize?.toString() || ''}
           placeholder={t('knowledge.chunk_size_placeholder')}
-          onChange={handleChunkSizeChange}
+          onChange={(e) => handleChunkSizeChange(e.target.value ? Number(e.target.value) : null)}
           aria-label={t('knowledge.chunk_size')}
         />
       </SettingsItem>
@@ -93,12 +104,13 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
           {t('knowledge.chunk_overlap')}
           <InfoTooltip content={t('knowledge.chunk_overlap_tooltip')} placement="right" />
         </div>
-        <InputNumber
-          style={{ width: '100%' }}
+        <Input
+          type="number"
+          className="w-full"
           min={0}
-          value={newBase.chunkOverlap}
+          value={newBase.chunkOverlap?.toString() || ''}
           placeholder={t('knowledge.chunk_overlap_placeholder')}
-          onChange={handleChunkOverlapChange}
+          onChange={(e) => handleChunkOverlapChange(e.target.value ? Number(e.target.value) : null)}
           aria-label={t('knowledge.chunk_overlap')}
         />
       </SettingsItem>
@@ -108,14 +120,15 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
           {t('knowledge.threshold')}
           <InfoTooltip content={t('knowledge.threshold_tooltip')} placement="right" />
         </div>
-        <InputNumber
-          style={{ width: '100%' }}
+        <Input
+          type="number"
+          className="w-full"
           step={0.1}
           min={0}
           max={1}
-          value={newBase.threshold}
+          value={newBase.threshold?.toString() || ''}
           placeholder={t('knowledge.threshold_placeholder')}
-          onChange={handleThresholdChange}
+          onChange={(e) => handleThresholdChange(e.target.value ? Number(e.target.value) : null)}
           aria-label={t('knowledge.threshold')}
         />
       </SettingsItem>

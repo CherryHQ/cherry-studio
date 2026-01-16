@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Dropzone, DropzoneEmptyState, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -11,12 +11,10 @@ import type { FileMetadata, FileTypes, KnowledgeBase } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import type { FileItemData, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
-import { Upload } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('KnowledgeFiles')
 
@@ -35,8 +33,6 @@ import {
   StatusIconWrapper
 } from '../KnowledgeContent'
 
-const { Dragger } = Upload
-
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
   progressMap: Map<string, number>
@@ -44,6 +40,33 @@ interface KnowledgeContentProps {
 }
 
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
+
+// 将文件扩展名数组转换为 Dropzone accept 格式
+const dropzoneAccept = fileTypes.reduce(
+  (acc, ext) => {
+    // 获取 MIME 类型的简单映射
+    const mimeMap: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.ppt': 'application/vnd.ms-powerpoint',
+      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      '.txt': 'text/plain',
+      '.md': 'text/markdown',
+      '.html': 'text/html',
+      '.epub': 'application/epub+zip'
+    }
+    const mime = mimeMap[ext] || 'application/octet-stream'
+    if (!acc[mime]) {
+      acc[mime] = []
+    }
+    acc[mime].push(ext)
+    return acc
+  },
+  {} as Record<string, string[]>
+)
 
 const getDisplayTime = (item: KnowledgeItemV2) => {
   const createdAt = Date.parse(item.createdAt)
@@ -165,24 +188,24 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
         </ResponsiveButton>
       </ItemHeader>
 
-      <ItemFlexColumn>
-        <div
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddFile()
-          }}>
-          <Dragger
-            showUploadList={false}
-            customRequest={({ file }) => handleDrop([file as File])}
-            multiple={true}
-            accept={fileTypes.join(',')}
-            openFileDialogOnClick={false}>
-            <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
-            <p className="ant-upload-hint">
-              {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
-            </p>
-          </Dragger>
-        </div>
+      <div className="flex flex-col gap-2.5 px-4 py-5">
+        <Dropzone
+          onDrop={(files) => handleDrop(files)}
+          accept={dropzoneAccept}
+          maxFiles={999}
+          disabled={disabled}
+          noClick>
+          <DropzoneEmptyState>
+            <div className="flex flex-col items-center justify-center">
+              <p className="my-2 w-full truncate text-wrap text-center font-medium text-sm">
+                {t('knowledge.drag_file')}
+              </p>
+              <p className="w-full text-wrap text-center text-muted-foreground text-xs">
+                {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
+              </p>
+            </div>
+          </DropzoneEmptyState>
+        </Dropzone>
         {v2FileItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
@@ -241,16 +264,9 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             }}
           </DynamicVirtualList>
         )}
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  display: flex;
-  flex-direction: column;
-  padding: 20px 16px;
-  gap: 10px;
-`
 
 export default KnowledgeFiles

@@ -1,9 +1,9 @@
+import { Badge } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import type { KnowledgeBase, PreprocessProviderId } from '@renderer/types'
-import { Tag } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -56,22 +56,18 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: PreprocessProviderId; quot
     if (quota === undefined) return null
     if (quota === QUOTA_UNLIMITED) {
       return (
-        <Tag color="orange" style={{ borderRadius: 20, margin: 0 }}>
+        <Badge className="border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
           {t('knowledge.quota_infinity', { name: provider.name })}
-        </Tag>
+        </Badge>
       )
     }
     if (quota === 0) {
-      return (
-        <Tag color="red" style={{ borderRadius: 20, margin: 0 }}>
-          {t('knowledge.quota_empty', { name: provider.name })}
-        </Tag>
-      )
+      return <Badge variant="destructive">{t('knowledge.quota_empty', { name: provider.name })}</Badge>
     }
     return (
-      <Tag color="orange" style={{ borderRadius: 20, margin: 0 }}>
+      <Badge className="border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
         {t('knowledge.quota', { name: provider.name, quota: quota })}
-      </Tag>
+      </Badge>
     )
   }
 
