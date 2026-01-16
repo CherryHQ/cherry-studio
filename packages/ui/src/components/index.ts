@@ -1,5 +1,6 @@
 // Primitive Components
 export { Avatar, AvatarGroup, type AvatarProps, EmojiAvatar } from './primitives/Avatar'
+export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
 export { default as CopyButton } from './primitives/copyButton'
 export { default as CustomTag } from './primitives/customTag'
 export { default as DividerWithText } from './primitives/dividerWithText'
