@@ -97,11 +97,14 @@ export class KnowledgeItemService {
     const items = rows.map((row) => rowToKnowledgeItem(row))
 
     items.forEach((item) => {
+      logger.info('[DEBUG] Starting orchestrator.process for item', { itemId: item.id, baseId })
       void knowledgeOrchestrator.process({
         base,
         item,
         onStatusChange: async (status, error) => {
+          logger.info('[DEBUG] onStatusChange callback called', { itemId: item.id, status, error })
           await this.update(item.id, { status, error })
+          logger.info('[DEBUG] onStatusChange callback completed', { itemId: item.id, status })
         }
       })
     })

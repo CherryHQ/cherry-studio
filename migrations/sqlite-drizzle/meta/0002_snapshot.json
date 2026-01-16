@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "1bacb2a1-84cc-4ab9-87d3-6d4bca35b902",
+  "id": "93eb435d-365c-4813-80f9-793a251a5698",
   "prevId": "a433b120-0ab8-4f3f-9d1d-766b48c216c8",
   "tables": {
     "app_state": {
@@ -287,7 +287,7 @@
       "checkConstraints": {
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'preprocessing', 'embedding', 'completed', 'failed')"
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')"
         },
         "knowledge_item_type_check": {
           "name": "knowledge_item_type_check",

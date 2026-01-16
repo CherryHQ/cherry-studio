@@ -24,6 +24,6 @@ CREATE TABLE `knowledge_item` (
 	`created_at` integer,
 	`updated_at` integer,
 	FOREIGN KEY (`base_id`) REFERENCES `knowledge_base`(`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "knowledge_item_status_check" CHECK("knowledge_item"."status" IN ('idle', 'pending', 'preprocessing', 'embedding', 'completed', 'failed')),
+	CONSTRAINT "knowledge_item_status_check" CHECK("knowledge_item"."status" IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
 	CONSTRAINT "knowledge_item_type_check" CHECK("knowledge_item"."type" IN ('file', 'url', 'note', 'sitemap', 'directory'))
 );

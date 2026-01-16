@@ -116,7 +116,7 @@ class KnowledgeProcessor {
     // ========================================================================
     // Stage 1: OCR Preprocessing
     // ========================================================================
-    onStageChange?.('ocr')
+    await onStageChange?.('ocr')
     await runStage('ocr', async () => {
       // TODO: Implement actual OCR processing when needed
       // This stage is a placeholder for future PDF parsing, image recognition, etc.
@@ -126,7 +126,7 @@ class KnowledgeProcessor {
     // ========================================================================
     // Stage 2: Content Reading
     // ========================================================================
-    onStageChange?.('read')
+    await onStageChange?.('read')
     const nodes = await runStage('read', async () => {
       const result = await reader.read(context)
       logger.debug(`[Processor] Read stage completed: ${result.nodes.length} nodes for item ${item.id}`)
@@ -141,7 +141,7 @@ class KnowledgeProcessor {
     // ========================================================================
     // Stage 3: Embedding and Storage
     // ========================================================================
-    onStageChange?.('embed')
+    await onStageChange?.('embed')
     await runStage('embed', async () => {
       // Generate embeddings for all nodes
       const embeddedNodes = await embedNodes(nodes, resolvedBase, onProgress, signal)

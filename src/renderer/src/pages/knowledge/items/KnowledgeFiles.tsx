@@ -56,6 +56,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   const { fileItems: v2FileItems, addFiles, deleteItem, refreshItem } = useKnowledgeFiles(selectedBase.id || '')
 
   const reversedItems = useMemo(() => [...v2FileItems].reverse(), [v2FileItems])
+  console.log('v2FileItems', v2FileItems)
 
   useEffect(() => {
     const handleResize = () => {
