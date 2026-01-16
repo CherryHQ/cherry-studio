@@ -310,6 +310,177 @@ CacheService.invalidate('presets')
 
 ---
 
+## 与 aiCore 集成
+
+### aiCore 架构概述
+
+`src/renderer/src/aiCore/` 是 Cherry Studio 的 AI 请求执行引擎，采用**双层架构**：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      aiCore 架构                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Modern Layer (index_new.ts)     Legacy Layer (legacy/)     │
+│  ─────────────────────────       ──────────────────────     │
+│  • AI SDK 实现                   • 原始提供商实现            │
+│  • 插件架构                      • 中间件模式               │
+│  • 流式处理                      • 图像生成 (降级使用)       │
+│                                                              │
+│  [主要路径]                      [兼容/降级路径]             │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 当前请求流程
+
+```
+用户请求 (React Component)
+     ↓
+ModernAiProvider.completions(model, params, config)
+     ↓
+┌────────────────────────────────────────────────────────────┐
+│ 1. Provider 解析                                            │
+│    ├─ getActualProvider(model) → 从 Redux 获取 Provider     │
+│    ├─ formatProviderApiHost() → 格式化 API URL              │
+│    └─ providerToAiSdkConfig() → 转换为 AI SDK 配置          │
+├────────────────────────────────────────────────────────────┤
+│ 2. 能力检测 (硬编码)                                         │
+│    ├─ isReasoningModel(model) → 150+ 正则检测               │
+│    ├─ isWebSearchModel(model) → 提供商特定检测              │
+│    └─ isGenerateImageModel(model) → 模式匹配                │
+├────────────────────────────────────────────────────────────┤
+│ 3. Middleware 构建                                          │
+│    ├─ buildAiSdkMiddlewares() → 根据能力选择中间件          │
+│    │   ├─ anthropicCacheMiddleware (Anthropic)             │
+│    │   ├─ extractReasoningMiddleware (OpenAI)              │
+│    │   ├─ qwenThinkingMiddleware (Qwen)                    │
+│    │   └─ ...                                              │
+│    └─ wrapLanguageModel() → 应用中间件到模型                │
+├────────────────────────────────────────────────────────────┤
+│ 4. Plugin 构建                                              │
+│    ├─ telemetryPlugin (开发模式)                            │
+│    ├─ webSearchPlugin (内置搜索)                            │
+│    ├─ searchOrchestrationPlugin (搜索编排)                  │
+│    └─ createPromptToolUsePlugin (工具调用)                  │
+├────────────────────────────────────────────────────────────┤
+│ 5. 参数准备                                                 │
+│    ├─ buildStreamTextParams() → 构建 AI SDK 参数            │
+│    │   ├─ 消息转换 (UI → SDK 格式)                          │
+│    │   ├─ 工具设置                                         │
+│    │   └─ 模型参数 (temperature, max_tokens)               │
+├────────────────────────────────────────────────────────────┤
+│ 6. 执行                                                     │
+│    └─ executor.streamText() → AI SDK 执行                   │
+├────────────────────────────────────────────────────────────┤
+│ 7. 流转换                                                   │
+│    └─ AiSdkToChunkAdapter → TextStreamPart → Chunk         │
+└────────────────────────────────────────────────────────────┘
+     ↓
+CompletionsResult { getText(): string }
+```
+
+### 目标集成流程
+
+重构后，Presets 将成为能力检测的**唯一数据源**：
+
+```
+用户请求 (React Component)
+     ↓
+ModernAiProvider.completions(uniqueModelId, params, config)
+     ↓
+┌────────────────────────────────────────────────────────────┐
+│ 1. 模型解析 (NEW)                                           │
+│    ├─ parseUniqueModelId(uniqueModelId)                    │
+│    │   → { providerId: 'anthropic', modelId: 'claude-4' }  │
+│    └─ resolveModelConfig(uniqueModelId)                    │
+│        ├─ 检查 user_model_override                         │
+│        ├─ 检查 user_model                                  │
+│        └─ 从 Presets 加载                                  │
+├────────────────────────────────────────────────────────────┤
+│ 2. 能力检测 (从 Presets 读取)                               │
+│    const capabilities = modelConfig.capabilities           │
+│    ├─ capabilities.includes('REASONING')                   │
+│    ├─ capabilities.includes('WEB_SEARCH')                  │
+│    ├─ capabilities.includes('IMAGE_GENERATION')            │
+│    └─ capabilities.includes('FUNCTION_CALL')               │
+├────────────────────────────────────────────────────────────┤
+│ 3. 推理配置 (从 Presets 读取)                               │
+│    const reasoning = modelConfig.reasoning                 │
+│    ├─ reasoning.type → 'anthropic' | 'openai_chat' | ...   │
+│    ├─ reasoning.supported_efforts → ['low', 'medium', ...] │
+│    └─ reasoning.budget_tokens_range → [1024, 128000]       │
+├────────────────────────────────────────────────────────────┤
+│ 4. Middleware 构建 (基于 Presets 配置)                      │
+│    buildAiSdkMiddlewares({                                 │
+│      model: modelConfig,                                   │
+│      reasoning: modelConfig.reasoning,                     │
+│      capabilities: modelConfig.capabilities                │
+│    })                                                      │
+├────────────────────────────────────────────────────────────┤
+│ 5-7. (保持不变)                                             │
+└────────────────────────────────────────────────────────────┘
+```
+
+### 关键变更点
+
+| 组件 | 当前 | 目标 |
+| --- | --- | --- |
+| **能力检测** | `isReasoningModel()` 等 150+ 函数 | `model.capabilities.includes()` |
+| **推理配置** | `MODEL_SUPPORTED_REASONING_EFFORT` 硬编码 | `model.reasoning` 从 Presets |
+| **模型参数** | `getActualProvider()` 查 Redux | `resolveModelConfig()` 合并 Presets + 用户覆盖 |
+| **Provider 映射** | `STATIC_PROVIDER_MAPPING` 硬编码 | Presets `providers.json` |
+
+### aiCore 核心文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `aiCore/index_new.ts` | 主入口，ModernAiProvider 类 |
+| `aiCore/provider/factory.ts` | Provider 创建工厂 |
+| `aiCore/provider/providerConfig.ts` | Provider 配置转换 (340+ 行) |
+| `aiCore/middleware/AiSdkMiddlewareBuilder.ts` | 中间件构建器 |
+| `aiCore/plugins/PluginBuilder.ts` | 插件构建器 |
+| `aiCore/prepareParams/parameterBuilder.ts` | 参数准备 |
+| `aiCore/chunk/AiSdkToChunkAdapter.ts` | 流转换适配器 |
+
+### 重构后的数据流
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    完整数据流                                │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  [1] Presets 加载                                           │
+│      PresetsLoader.init()                                   │
+│      ├─ 读取 models.json → Map<modelId, ModelConfig>        │
+│      ├─ 读取 providers.json → Map<providerId, Provider>     │
+│      └─ 读取 provider-models.json → 映射关系                │
+│                           ↓                                 │
+│  [2] 用户数据加载                                            │
+│      DataApi.getUserProviders()                             │
+│      DataApi.getUserModels()                                │
+│      DataApi.getUserModelOverrides()                        │
+│                           ↓                                 │
+│  [3] 模型解析                                               │
+│      resolveModelConfig('anthropic::claude-sonnet-4')       │
+│      ├─ merge(presetModel, userOverride)                   │
+│      └─ 返回完整 ModelConfig                                │
+│                           ↓                                 │
+│  [4] aiCore 执行                                            │
+│      ModernAiProvider.completions(modelConfig, ...)         │
+│      ├─ 从 modelConfig.capabilities 读取能力                │
+│      ├─ 从 modelConfig.reasoning 读取推理配置               │
+│      ├─ 构建 middleware/plugins                            │
+│      └─ 执行 AI 请求                                        │
+│                           ↓                                 │
+│  [5] 结果返回                                               │
+│      CompletionsResult → UI                                 │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 关键文件索引
 
 ### Presets 系统
@@ -320,7 +491,19 @@ CacheService.invalidate('presets')
 | `packages/catalog/src/schemas/provider.ts` | 提供商 Schema 定义 |
 | `packages/catalog/data/models.json` | 规范模型定义 (2779 条) |
 | `packages/catalog/data/providers.json` | 提供商配置 (51 条) |
-| `packages/catalog/data/overrides.json` | 提供商映射 (3407 条) → 重命名为 provider-models.json |
+| `packages/catalog/data/overrides.json` | 提供商映射 → 重命名为 provider-models.json |
+
+### aiCore 系统
+
+| 文件 | 说明 |
+| --- | --- |
+| `aiCore/index_new.ts` | 主入口，ModernAiProvider 类 |
+| `aiCore/provider/factory.ts` | Provider 创建工厂 |
+| `aiCore/provider/providerConfig.ts` | Provider 配置转换 |
+| `aiCore/middleware/AiSdkMiddlewareBuilder.ts` | 中间件构建器 |
+| `aiCore/plugins/PluginBuilder.ts` | 插件构建器 |
+| `aiCore/prepareParams/parameterBuilder.ts` | 参数准备 |
+| `aiCore/chunk/AiSdkToChunkAdapter.ts` | 流转换适配器 |
 
 ### 运行时检测 (需重构)
 
