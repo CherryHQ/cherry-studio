@@ -19,7 +19,7 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const AppShell = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab } = useTabs()
+  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs } = useTabs()
 
   // Sync internal navigation back to tab state with default title
   const handleUrlChange = (tabId: string, url: string) => {
@@ -35,6 +35,7 @@ export const AppShell = () => {
         setActiveTab={setActiveTab}
         closeTab={closeTab}
         addTab={addTab}
+        reorderTabs={reorderTabs}
       />
 
       {/* Zone 2: Main Area (Sidebar + Content) */}
