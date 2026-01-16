@@ -18,15 +18,30 @@ import '@ant-design/v5-patch-for-react-19'
 
 // Initialize logger
 import { loggerService } from '@logger'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import AntdProvider from '@renderer/context/AntdProvider'
+import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
+import { NotificationProvider } from '@renderer/context/NotificationProvider'
 // Context providers
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 // Redux store
 import store, { persistor } from '@renderer/store'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
+
+// Create React Query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      refetchOnWindowFocus: false
+    }
+  }
+})
 
 // Minimal chat component (conversation only)
 import MinimalChat from './MinimalChat'
@@ -49,13 +64,23 @@ function SidepanelApp() {
   return (
     <StrictMode>
       <Provider store={store}>
-        <PersistGate loading={<LoadingScreen />} persistor={persistor}>
+        <QueryClientProvider client={queryClient}>
           <StyleSheetManager>
             <ThemeProvider>
-              <MinimalChat />
+              <AntdProvider>
+                <NotificationProvider>
+                  <CodeStyleProvider>
+                    <QuickPanelProvider>
+                      <PersistGate loading={<LoadingScreen />} persistor={persistor}>
+                        <MinimalChat />
+                      </PersistGate>
+                    </QuickPanelProvider>
+                  </CodeStyleProvider>
+                </NotificationProvider>
+              </AntdProvider>
             </ThemeProvider>
           </StyleSheetManager>
-        </PersistGate>
+        </QueryClientProvider>
       </Provider>
     </StrictMode>
   )

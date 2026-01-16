@@ -48,16 +48,12 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 
 // Handle extension icon click - open sidepanel
-chrome.action.onClicked.addListener(async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (tab?.id) {
-    // Programmatically set and open side panel for this tab
-    await chrome.sidePanel.setOptions({
-      tabId: tab.id,
-      path: 'src/extension/sidepanel.html',
-      enabled: true
-    })
-    await chrome.sidePanel.open({ tabId: tab.id })
+// Note: sidePanel.open() must be called synchronously in response to user gesture
+chrome.action.onClicked.addListener((tab) => {
+  // Open the side panel for the current window
+  // Use the window ID from the tab to avoid the -2 (WINDOW_ID_CURRENT) issue
+  if (tab.windowId !== undefined) {
+    chrome.sidePanel.open({ windowId: tab.windowId })
   }
 })
 

@@ -6,7 +6,7 @@
  */
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react-swc'
-import { copyFileSync, cpSync,existsSync, mkdirSync } from 'fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
 import { defineConfig } from 'vite'
 
@@ -98,8 +98,8 @@ export default defineConfig({
         'shim-init': resolve(__dirname, 'src/extension/shim-init.js'),
         // Shim must be built first as a separate module
         shim: resolve(__dirname, 'src/extension/shim.ts'),
-        // Minimal sidepanel entry (chat-only)
-        'sidepanel-minimal': resolve(__dirname, 'src/extension/sidepanel-minimal.tsx'),
+        // Sidepanel entry (chat UI)
+        'sidepanel-app': resolve(__dirname, 'src/extension/sidepanel.tsx'),
         // Main UI entry points
         sidepanel: resolve(__dirname, 'src/extension/sidepanel.html'),
         window: resolve(__dirname, 'src/extension/window.html'),

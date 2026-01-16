@@ -8,14 +8,52 @@
  * - Compact layout optimized for sidepanel width
  */
 
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import Chat from '@renderer/pages/home/Chat'
 import type { Assistant, Topic } from '@renderer/types'
 import { ExternalLink } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { Component, useCallback, useState } from 'react'
 import styled from 'styled-components'
+
+// Custom error boundary for better debugging
+class DebugErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('[MinimalChat ErrorBoundary] Caught error:', error)
+    console.error('[MinimalChat ErrorBoundary] Error name:', error?.name)
+    console.error('[MinimalChat ErrorBoundary] Error message:', error?.message)
+    console.error('[MinimalChat ErrorBoundary] Error stack:', error?.stack)
+    console.error('[MinimalChat ErrorBoundary] Error info:', errorInfo)
+    console.error(
+      '[MinimalChat ErrorBoundary] Full error object:',
+      JSON.stringify(error, Object.getOwnPropertyNames(error))
+    )
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '20px', color: 'red' }}>
+          <h3>Error Details:</h3>
+          <p>Name: {this.state.error?.name}</p>
+          <p>Message: {this.state.error?.message}</p>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '12px' }}>{this.state.error?.stack}</pre>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
 
 export default function MinimalChat() {
   const { assistants } = useAssistants()
@@ -42,7 +80,6 @@ export default function MinimalChat() {
   )
 
   const openFullApp = useCallback(async () => {
-     
     const chromeApi = (globalThis as any).chrome
     if (chromeApi?.windows?.create) {
       await chromeApi.windows.create({
@@ -86,14 +123,14 @@ export default function MinimalChat() {
 
       {/* Full Chat component with all features */}
       <ChatWrapper>
-        <ErrorBoundary>
+        <DebugErrorBoundary>
           <Chat
             assistant={activeAssistant}
             activeTopic={activeTopic}
             setActiveTopic={setActiveTopic}
             setActiveAssistant={setActiveAssistant}
           />
-        </ErrorBoundary>
+        </DebugErrorBoundary>
       </ChatWrapper>
     </Container>
   )
