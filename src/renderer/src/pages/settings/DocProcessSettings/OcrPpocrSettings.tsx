@@ -5,7 +5,7 @@ import { Input } from 'antd'
 import { startTransition, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingRow, SettingRowTitle } from '..'
+import { SettingHelpLink, SettingHelpTextRow, SettingRow, SettingRowTitle } from '..'
 
 export const OcrPpocrSettings = () => {
   // Hack: Hard-coded for now
