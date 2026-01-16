@@ -148,7 +148,7 @@ class KnowledgeProcessor {
 
       // Store in vector database
       await knowledgeServiceV2.addNodes({
-        base: resolvedBase,
+        base,
         nodes: embeddedNodes
       })
 
