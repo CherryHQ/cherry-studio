@@ -1,8 +1,8 @@
 /**
- * Knowledge Base Form Hook v2 - Data API based
+ * Knowledge Base Form Hook - Data API based
  *
  * Manages the state and handlers for a knowledge base form using v2 types.
- * During migration, this coexists with useKnowledgeBaseForm.ts (v1 Redux-based).
+ * During migration, this coexists with the v1 Redux-based hook.
  *
  * @see {@link docs/en/references/data/README.md} for Data System reference
  * @see {@link v2-refactor-temp/docs/knowledge/knowledge-data-api.md} for Knowledge Data API design

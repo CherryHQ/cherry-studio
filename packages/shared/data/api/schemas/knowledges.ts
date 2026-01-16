@@ -43,6 +43,8 @@ export interface CreateKnowledgeBaseDto {
   chunkOverlap?: number
   /** Similarity threshold for search */
   threshold?: number
+  /** Number of documents to return in search results */
+  documentCount?: number
 }
 
 /**

@@ -69,6 +69,7 @@ export interface KnowledgeBase {
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  documentCount?: number
   createdAt: string
   updatedAt: string
 }

@@ -28,6 +28,7 @@ export const knowledgeBaseTable = sqliteTable('knowledge_base', {
   chunkSize: integer(),
   chunkOverlap: integer(),
   threshold: real(),
+  documentCount: integer(),
 
   ...createUpdateTimestamps
 })

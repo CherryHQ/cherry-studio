@@ -10,14 +10,12 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
 import { isMarkdownContent, markdownToPreviewText } from '@renderer/utils/markdownConverter'
 import type { KnowledgeItem as KnowledgeItemV2, NoteItemData } from '@shared/data/types/knowledge'
-import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import StatusIcon from '../components/StatusIcon'
 import {
   FlexAlignCenter,
   ItemContainer,
@@ -25,19 +23,14 @@ import {
   KnowledgeEmptyView,
   ResponsiveButton,
   StatusIconWrapper
-} from '../KnowledgeContent'
+} from '../components/KnowledgeItemLayout'
+import StatusIcon from '../components/StatusIcon'
+import { formatKnowledgeItemTime } from '../utils/time'
 
 const logger = loggerService.withContext('KnowledgeNotes')
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
-}
-
-const getDisplayTime = (item: KnowledgeItemV2) => {
-  const createdAt = Date.parse(item.createdAt)
-  const updatedAt = Date.parse(item.updatedAt)
-  const timestamp = updatedAt > createdAt ? updatedAt : createdAt
-  return dayjs(timestamp).format('MM-DD HH:mm')
 }
 
 const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
@@ -140,7 +133,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     </NotePreview>
                   ),
                   ext: isMarkdownContent(data.content) ? '.md' : '.txt',
-                  extra: getDisplayTime(note),
+                  extra: formatKnowledgeItemTime(note),
                   actions: (
                     <FlexAlignCenter>
                       <Button variant="ghost" onClick={() => handleEditNote(note)}>

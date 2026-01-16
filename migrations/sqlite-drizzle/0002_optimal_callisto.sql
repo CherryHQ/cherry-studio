@@ -10,6 +10,7 @@ CREATE TABLE `knowledge_base` (
 	`chunk_size` integer,
 	`chunk_overlap` integer,
 	`threshold` real,
+	`document_count` integer,
 	`created_at` integer,
 	`updated_at` integer
 );

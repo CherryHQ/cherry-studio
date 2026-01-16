@@ -9,14 +9,12 @@ import type { KnowledgeBase } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import type { DirectoryItemData, ItemStatus, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
 import { Collapse } from 'antd'
-import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import StatusIcon from '../components/StatusIcon'
 import {
   ClickableSpan,
   FlexAlignCenter,
@@ -26,7 +24,9 @@ import {
   RefreshIcon,
   ResponsiveButton,
   StatusIconWrapper
-} from '../KnowledgeContent'
+} from '../components/KnowledgeItemLayout'
+import StatusIcon from '../components/StatusIcon'
+import { formatKnowledgeItemTime, formatKnowledgeTimestamp } from '../utils/time'
 
 const logger = loggerService.withContext('KnowledgeDirectories')
 
@@ -45,13 +45,6 @@ interface DirectoryGroup {
   latestUpdate: string
 }
 
-const getDisplayTime = (item: KnowledgeItemV2) => {
-  const createdAt = Date.parse(item.createdAt)
-  const updatedAt = Date.parse(item.updatedAt)
-  const timestamp = updatedAt > createdAt ? updatedAt : createdAt
-  return dayjs(timestamp).format('MM-DD HH:mm')
-}
-
 const getLatestUpdateTime = (items: KnowledgeItemV2[]): string => {
   let latest = 0
   for (const item of items) {
@@ -62,7 +55,7 @@ const getLatestUpdateTime = (items: KnowledgeItemV2[]): string => {
       latest = timestamp
     }
   }
-  return dayjs(latest).format('MM-DD HH:mm')
+  return formatKnowledgeTimestamp(latest)
 }
 
 const computeAggregateStatus = (items: KnowledgeItemV2[]): ItemStatus => {
@@ -190,7 +183,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                     </ClickableSpan>
                   ),
                   ext: file.ext,
-                  extra: `${getDisplayTime(item)} · ${formatFileSize(file.size)}`,
+                  extra: `${formatKnowledgeItemTime(item)} · ${formatFileSize(file.size)}`,
                   actions: (
                     <FlexAlignCenter>
                       {item.status === 'completed' && (

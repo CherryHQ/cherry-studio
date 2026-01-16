@@ -8,15 +8,13 @@ import { useKnowledgeSitemaps } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
-import type { KnowledgeItem as KnowledgeItemV2, SitemapItemData } from '@shared/data/types/knowledge'
-import dayjs from 'dayjs'
+import type { SitemapItemData } from '@shared/data/types/knowledge'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import StatusIcon from '../components/StatusIcon'
 import {
   ClickableSpan,
   FlexAlignCenter,
@@ -26,19 +24,14 @@ import {
   RefreshIcon,
   ResponsiveButton,
   StatusIconWrapper
-} from '../KnowledgeContent'
+} from '../components/KnowledgeItemLayout'
+import StatusIcon from '../components/StatusIcon'
+import { formatKnowledgeItemTime } from '../utils/time'
 
 const logger = loggerService.withContext('KnowledgeSitemaps')
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
-}
-
-const getDisplayTime = (item: KnowledgeItemV2) => {
-  const createdAt = Date.parse(item.createdAt)
-  const updatedAt = Date.parse(item.updatedAt)
-  const timestamp = updatedAt > createdAt ? updatedAt : createdAt
-  return dayjs(timestamp).format('MM-DD HH:mm')
 }
 
 const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
@@ -124,7 +117,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     </ClickableSpan>
                   ),
                   ext: '.sitemap',
-                  extra: getDisplayTime(item),
+                  extra: formatKnowledgeItemTime(item),
                   actions: (
                     <FlexAlignCenter>
                       {item.status === 'completed' && (

@@ -1,4 +1,119 @@
-# Knowledge 页面 UI 迁移评估报告
+# Knowledge UI 组件结构重构方案（SOLID）
+
+## 概述
+
+本方案只重构 `/src/renderer/src/pages/knowledge/` 的组件结构与职责划分，不做 UI 库迁移、不修改样式与交互行为。核心目标是按 SOLID 原则拆分职责、降低耦合、提高可维护性与扩展性。
+
+## 范围
+
+- In: Knowledge 页面组件拆分、hooks 抽取、共享 UI 结构复用、工具函数集中化、目录结构整理
+- Out: antd/styled-components 迁移、UI 视觉改动、数据协议或业务流程改动、新功能新增
+
+## 现状问题（摘要）
+
+- `KnowledgeContent` 集中了数据获取、队列处理、IPC 监听、视图渲染等多重职责
+- `items/*` 依赖 `KnowledgeContent` 导出的样式组件，形成反向依赖与耦合
+- 时间格式化、列表排序等通用逻辑在多个 item 文件中重复出现
+- 右键菜单、快捷键、队列状态等跨域逻辑散落在页面组件中，不易复用或测试
+- 层级结构不清晰，新增 item 类型需要修改多个文件
+
+## 目标结构（建议）
+
+```
+src/renderer/src/pages/knowledge/
+  KnowledgePage.tsx
+  KnowledgeContent.tsx
+  components/
+    KnowledgeSideNav.tsx
+    KnowledgeHeader.tsx
+    KnowledgeTabs.tsx
+    KnowledgeItemLayout.tsx
+  hooks/
+    useKnowledgeBaseSelection.ts
+    useKnowledgeBaseMenu.ts
+    useKnowledgeQueueActions.ts
+    useKnowledgeProgress.ts
+    useKnowledgeTabs.ts
+  items/
+    KnowledgeFiles.tsx
+    KnowledgeNotes.tsx
+    KnowledgeDirectories.tsx
+    KnowledgeUrls.tsx
+    KnowledgeSitemaps.tsx
+  utils/
+    time.ts
+    knowledgeGroups.ts
+    knowledgeItems.ts
+```
+
+> 实际路径可按现有目录微调，核心是职责分层与依赖方向单向化。
+
+## 模块职责划分（对应 SOLID）
+
+- KnowledgePage（SRP）
+  - 只负责页面级容器与布局编排
+  - 使用 `useKnowledgeBaseSelection` 获取选中项
+  - 使用 `KnowledgeSideNav` 与 `KnowledgeContent` 组合页面
+
+- KnowledgeSideNav（SRP + ISP）
+  - 只负责左侧列表渲染
+  - 右键菜单与动作来自 `useKnowledgeBaseMenu`
+  - 不直接调用数据层
+
+- KnowledgeContent（SRP + DIP）
+  - 只负责中间区域结构（Header + Tabs + Items）
+  - 数据与副作用通过 hooks 注入
+  - 不输出供 items 复用的样式组件
+
+- KnowledgeItemLayout（SRP）
+  - 承载 item 区域共用布局：Header、Empty、Container、统一按钮样式
+  - items 只依赖该布局组件，不依赖 `KnowledgeContent`
+
+- useKnowledgeBaseSelection（SRP）
+  - 封装 bases 列表、选中 id、添加/编辑/删除后的选中逻辑
+
+- useKnowledgeBaseMenu（SRP + ISP）
+  - 仅生成菜单项与动作回调
+  - 与 UI 解耦，便于复用与单测
+
+- useKnowledgeQueueActions（SRP）
+  - 处理 orphan 队列状态、recover/ignore 行为与 toast 反馈
+
+- useKnowledgeProgress（SRP）
+  - 统一 IPC 监听与进度 map 管理，避免重复订阅
+
+- useKnowledgeTabs（OCP）
+  - 以配置方式注册 tabs
+  - 新增 item 类型只新增配置，不需要修改 `KnowledgeContent`
+
+## 迁移步骤（建议按阶段执行）
+
+1. 建立目标目录与空壳文件（不改行为）
+2. 抽出共享布局 `KnowledgeItemLayout`，让 `items/*` 改为引用该布局
+3. 抽取 `useKnowledgeProgress`，从 `KnowledgeContent` 移除 IPC 监听与 Map 状态
+4. 抽取 `useKnowledgeQueueActions`，集中 orphan 检测与处理逻辑
+5. 抽取 `useKnowledgeBaseSelection` 与 `useKnowledgeBaseMenu`，简化 `KnowledgePage`
+6. 抽取 `useKnowledgeTabs`，让 tabs 由配置生成（OCP）
+7. 集中通用工具方法到 `utils/`（时间格式、聚合状态、列表排序等）
+8. 清理非规范日志（移除 `console.log`，统一用 `loggerService`）
+
+## 风险与回滚
+
+- 风险：useEffect 依赖迁移导致状态更新时机变化
+- 风险：IPC 解绑遗漏导致重复监听或内存泄露
+- 风险：抽取 hooks 后数据刷新 key 变化导致 UI 不更新
+- 回滚：每阶段独立提交，逐步回退到上一稳定状态
+
+## 验证方式
+
+- `pnpm lint`
+- `pnpm test`
+- `pnpm format`
+- 手动检查 Knowledge 页面：切换知识库、添加/删除、队列恢复、搜索弹窗
+
+---
+
+# 附录 A：Knowledge 页面 UI 迁移评估（历史）
 
 ## 概述
 

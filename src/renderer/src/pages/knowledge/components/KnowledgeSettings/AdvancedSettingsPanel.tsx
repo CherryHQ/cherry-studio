@@ -1,4 +1,15 @@
-import { InfoTooltip, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  InfoTooltip,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -7,8 +18,6 @@ import type { KnowledgeBase, PreprocessProvider } from '@renderer/types'
 import { Alert } from 'antd'
 import { TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingsItem, SettingsPanel } from './styles'
 
 interface SelectOption {
   value: string
@@ -45,16 +54,16 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
   } = handlers
 
   return (
-    <SettingsPanel>
-      <SettingsItem>
-        <div className="settings-label">
+    <FieldGroup>
+      <Field>
+        <FieldLabel htmlFor="kb-preprocess">
           {t('settings.tool.preprocess.title')}
           <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
-        </div>
+        </FieldLabel>
         <Select
           value={selectedDocPreprocessProvider?.id || ''}
           onValueChange={(value) => handleDocPreprocessChange(value)}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id="kb-preprocess" className="w-full">
             <SelectValue placeholder={t('settings.tool.preprocess.provider_placeholder')} />
           </SelectTrigger>
           <SelectContent>
@@ -65,13 +74,13 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
             ))}
           </SelectContent>
         </Select>
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel>
           {t('models.rerank_model')}
           <InfoTooltip title={t('models.rerank_model_tooltip')} placement="right" />
-        </div>
+        </FieldLabel>
         <ModelSelector
           providers={providers}
           predicate={isRerankModel}
@@ -81,14 +90,15 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
           onChange={handleRerankModelChange}
           allowClear
         />
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel htmlFor="kb-chunk-size">
           {t('knowledge.chunk_size')}
           <InfoTooltip content={t('knowledge.chunk_size_tooltip')} placement="right" />
-        </div>
+        </FieldLabel>
         <Input
+          id="kb-chunk-size"
           type="number"
           className="w-full"
           min={100}
@@ -97,14 +107,15 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
           onChange={(e) => handleChunkSizeChange(e.target.value ? Number(e.target.value) : null)}
           aria-label={t('knowledge.chunk_size')}
         />
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel htmlFor="kb-chunk-overlap">
           {t('knowledge.chunk_overlap')}
           <InfoTooltip content={t('knowledge.chunk_overlap_tooltip')} placement="right" />
-        </div>
+        </FieldLabel>
         <Input
+          id="kb-chunk-overlap"
           type="number"
           className="w-full"
           min={0}
@@ -113,14 +124,15 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
           onChange={(e) => handleChunkOverlapChange(e.target.value ? Number(e.target.value) : null)}
           aria-label={t('knowledge.chunk_overlap')}
         />
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel htmlFor="kb-threshold">
           {t('knowledge.threshold')}
           <InfoTooltip content={t('knowledge.threshold_tooltip')} placement="right" />
-        </div>
+        </FieldLabel>
         <Input
+          id="kb-threshold"
           type="number"
           className="w-full"
           step={0.1}
@@ -131,7 +143,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
           onChange={(e) => handleThresholdChange(e.target.value ? Number(e.target.value) : null)}
           aria-label={t('knowledge.threshold')}
         />
-      </SettingsItem>
+      </Field>
 
       <Alert
         message={t('knowledge.chunk_size_change_warning')}
@@ -139,7 +151,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
         showIcon
         icon={<TriangleAlert size={16} className="lucide-custom" />}
       />
-    </SettingsPanel>
+    </FieldGroup>
   )
 }
 

@@ -11,14 +11,12 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
 import type { KnowledgeItem as KnowledgeItemV2, UrlItemData } from '@shared/data/types/knowledge'
 import { Dropdown } from 'antd'
-import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import StatusIcon from '../components/StatusIcon'
 import {
   ClickableSpan,
   FlexAlignCenter,
@@ -28,19 +26,14 @@ import {
   RefreshIcon,
   ResponsiveButton,
   StatusIconWrapper
-} from '../KnowledgeContent'
+} from '../components/KnowledgeItemLayout'
+import StatusIcon from '../components/StatusIcon'
+import { formatKnowledgeItemTime } from '../utils/time'
 
 const logger = loggerService.withContext('KnowledgeUrls')
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
-}
-
-const getDisplayTime = (item: KnowledgeItemV2) => {
-  const createdAt = Date.parse(item.createdAt)
-  const updatedAt = Date.parse(item.updatedAt)
-  const timestamp = updatedAt > createdAt ? updatedAt : createdAt
-  return dayjs(timestamp).format('MM-DD HH:mm')
 }
 
 const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
@@ -206,7 +199,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     </Dropdown>
                   ),
                   ext: '.url',
-                  extra: getDisplayTime(item),
+                  extra: formatKnowledgeItemTime(item),
                   actions: (
                     <FlexAlignCenter>
                       {item.status === 'completed' && (

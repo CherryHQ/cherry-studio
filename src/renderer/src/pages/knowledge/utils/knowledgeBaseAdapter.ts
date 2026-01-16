@@ -77,7 +77,7 @@ export const mapKnowledgeBaseV2ToV1 = (
     created_at: Number.isNaN(createdAt) ? Date.now() : createdAt,
     updated_at: Number.isNaN(updatedAt) ? Date.now() : updatedAt,
     version: 2,
-    documentCount: DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
+    documentCount: base.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
     chunkSize: base.chunkSize,
     chunkOverlap: base.chunkOverlap,
     threshold: base.threshold,

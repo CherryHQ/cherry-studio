@@ -10,8 +10,7 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import type { FileMetadata, FileTypes, KnowledgeBase } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import type { FileItemData, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
-import dayjs from 'dayjs'
+import type { FileItemData } from '@shared/data/types/knowledge'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +30,8 @@ import {
   RefreshIcon,
   ResponsiveButton,
   StatusIconWrapper
-} from '../KnowledgeContent'
+} from '../components/KnowledgeItemLayout'
+import { formatKnowledgeItemTime } from '../utils/time'
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
@@ -41,13 +41,6 @@ interface KnowledgeContentProps {
 
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
 
-const getDisplayTime = (item: KnowledgeItemV2) => {
-  const createdAt = Date.parse(item.createdAt)
-  const updatedAt = Date.parse(item.updatedAt)
-  const timestamp = updatedAt > createdAt ? updatedAt : createdAt
-  return dayjs(timestamp).format('MM-DD HH:mm')
-}
-
 const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, preprocessMap }) => {
   const { t } = useTranslation()
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
@@ -56,7 +49,6 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   const { fileItems: v2FileItems, addFiles, deleteItem, refreshItem } = useKnowledgeFiles(selectedBase.id || '')
 
   const reversedItems = useMemo(() => [...v2FileItems].reverse(), [v2FileItems])
-  console.log('v2FileItems', v2FileItems)
 
   useEffect(() => {
     const handleResize = () => {
@@ -222,7 +214,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                         </ClickableSpan>
                       ),
                       ext: file.ext,
-                      extra: `${getDisplayTime(item)} · ${formatFileSize(file.size)}`,
+                      extra: `${formatKnowledgeItemTime(item)} · ${formatFileSize(file.size)}`,
                       actions: (
                         <FlexAlignCenter>
                           {item.status === 'completed' && (

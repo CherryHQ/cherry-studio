@@ -1,5 +1,15 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@cherrystudio/ui'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,7 +24,7 @@ interface KnowledgeBaseFormModalProps {
   title?: React.ReactNode
   panels: PanelConfig[]
   onMoreSettings?: () => void
-  defaultExpandAdvanced?: boolean
+  defaultActiveTab?: string
   confirmLoading?: boolean
   okText?: string
   onOk?: (e: React.MouseEvent<HTMLButtonElement>) => void
@@ -27,7 +37,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
   title,
   panels,
   onMoreSettings,
-  defaultExpandAdvanced = false,
+  defaultActiveTab = 'general',
   confirmLoading,
   okText,
   onOk,
@@ -35,10 +45,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
   afterClose
 }) => {
   const { t } = useTranslation()
-  const [showAdvanced, setShowAdvanced] = useState(defaultExpandAdvanced)
-
-  const generalPanel = panels.find((p) => p.key === 'general')
-  const advancedPanel = panels.find((p) => p.key === 'advanced')
+  const [activeTab, setActiveTab] = useState(defaultActiveTab)
 
   return (
     <Dialog
@@ -49,34 +56,38 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
           afterClose?.()
         }
       }}>
-      <DialogContent className="max-w-[min(500px,60vw)] gap-0 overflow-hidden p-0">
-        <DialogHeader className="border-border border-b px-5 py-3">
+      <DialogContent className="flex h-[min(550px,70vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(700px,70vw)]">
+        <DialogHeader className="border-border border-b p-4">
           <DialogTitle className="font-medium text-sm">{title}</DialogTitle>
         </DialogHeader>
 
-        <div className="max-h-[70vh] overflow-y-auto px-2 py-4">
-          <div className="flex flex-col">
-            {/* General Settings */}
-            {generalPanel && <div>{generalPanel.panel}</div>}
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          orientation="vertical"
+          variant="line"
+          className="flex flex-1 overflow-hidden">
+          {/* Left Sidebar */}
+          <TabsList className="flex h-full w-35 flex-col justify-start border-border border-r p-2">
+            {panels.map((panel) => (
+              <TabsTrigger key={panel.key} value={panel.key} className="w-full justify-start">
+                {panel.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-            {/* Advanced Settings */}
-            {showAdvanced && advancedPanel && (
-              <div className="mt-4 border-border border-t pt-4">
-                <div className="mb-4 px-4 font-medium text-foreground text-sm">{advancedPanel.label}</div>
-                <div>{advancedPanel.panel}</div>
-              </div>
-            )}
+          {/* Right Content Area */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {panels.map((panel) => (
+              <TabsContent key={panel.key} value={panel.key} className="m-0 h-full">
+                {panel.panel}
+              </TabsContent>
+            ))}
           </div>
-        </div>
+        </Tabs>
 
-        <DialogFooter className="flex w-full items-center justify-between border-border border-t px-5 py-3">
+        <DialogFooter className="flex w-full items-center justify-between border-border border-t p-4">
           <div className="flex gap-2">
-            {advancedPanel && (
-              <Button variant="outline" onClick={() => setShowAdvanced(!showAdvanced)}>
-                {showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                {t('settings.advanced.title')}
-              </Button>
-            )}
             {onMoreSettings && (
               <Button variant="outline" onClick={onMoreSettings}>
                 {t('settings.moresetting.title')}

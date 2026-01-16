@@ -42,6 +42,7 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
     chunkSize: row.chunkSize ?? undefined,
     chunkOverlap: row.chunkOverlap ?? undefined,
     threshold: row.threshold ?? undefined,
+    documentCount: row.documentCount ?? undefined,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
   }
@@ -108,7 +109,8 @@ export class KnowledgeBaseService {
           preprocessProviderId: dto.preprocessProviderId,
           chunkSize: dto.chunkSize,
           chunkOverlap: dto.chunkOverlap,
-          threshold: dto.threshold
+          threshold: dto.threshold,
+          documentCount: dto.documentCount
         })
         .returning()
 
@@ -149,6 +151,7 @@ export class KnowledgeBaseService {
     if (dto.chunkSize !== undefined) updates.chunkSize = dto.chunkSize
     if (dto.chunkOverlap !== undefined) updates.chunkOverlap = dto.chunkOverlap
     if (dto.threshold !== undefined) updates.threshold = dto.threshold
+    if (dto.documentCount !== undefined) updates.documentCount = dto.documentCount
 
     const [row] = await db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning()
 
