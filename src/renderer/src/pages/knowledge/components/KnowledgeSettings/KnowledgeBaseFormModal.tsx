@@ -19,6 +19,7 @@ interface KnowledgeBaseFormModalProps {
   okText?: string
   onOk?: (e: React.MouseEvent<HTMLButtonElement>) => void
   onCancel?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  afterClose?: () => void
 }
 
 const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
@@ -30,7 +31,8 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
   confirmLoading,
   okText,
   onOk,
-  onCancel
+  onCancel,
+  afterClose
 }) => {
   const { t } = useTranslation()
   const [showAdvanced, setShowAdvanced] = useState(defaultExpandAdvanced)
@@ -39,10 +41,17 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
   const advancedPanel = panels.find((p) => p.key === 'advanced')
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel?.(undefined as any)}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onCancel?.(undefined as any)
+          afterClose?.()
+        }
+      }}>
       <DialogContent className="max-w-[min(500px,60vw)] gap-0 overflow-hidden p-0">
-        <DialogHeader className="border-b border-border px-5 py-3">
-          <DialogTitle className="text-sm font-medium">{title}</DialogTitle>
+        <DialogHeader className="border-border border-b px-5 py-3">
+          <DialogTitle className="font-medium text-sm">{title}</DialogTitle>
         </DialogHeader>
 
         <div className="max-h-[70vh] overflow-y-auto px-2 py-4">
@@ -52,15 +61,15 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
 
             {/* Advanced Settings */}
             {showAdvanced && advancedPanel && (
-              <div className="mt-4 border-t border-border pt-4">
-                <div className="mb-4 px-4 text-sm font-medium text-foreground">{advancedPanel.label}</div>
+              <div className="mt-4 border-border border-t pt-4">
+                <div className="mb-4 px-4 font-medium text-foreground text-sm">{advancedPanel.label}</div>
                 <div>{advancedPanel.panel}</div>
               </div>
             )}
           </div>
         </div>
 
-        <DialogFooter className="flex w-full items-center justify-between border-t border-border px-5 py-3">
+        <DialogFooter className="flex w-full items-center justify-between border-border border-t px-5 py-3">
           <div className="flex gap-2">
             {advancedPanel && (
               <Button variant="outline" onClick={() => setShowAdvanced(!showAdvanced)}>

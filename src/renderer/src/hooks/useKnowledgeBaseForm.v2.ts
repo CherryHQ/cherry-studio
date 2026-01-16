@@ -70,15 +70,10 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
 
   const docPreprocessSelectOptions = useMemo(() => {
     // TODO: Implement when preprocess providers are migrated to v2 Data API
-    const preprocessOptions = {
-      label: t('settings.tool.preprocess.provider'),
-      title: t('settings.tool.preprocess.provider'),
-      options: preprocessProviders
-        .filter((p) => p.apiKey !== '' || ['mineru', 'open-mineru'].includes(p.id))
-        .map((p) => ({ value: p.id, label: p.name }))
-    }
-    return [preprocessOptions]
-  }, [preprocessProviders, t])
+    return preprocessProviders
+      .filter((p) => p.apiKey !== '' || ['mineru', 'open-mineru'].includes(p.id))
+      .map((p) => ({ value: p.id, label: p.name }))
+  }, [preprocessProviders])
 
   // TODO: In v2, this should update embeddingModelId and embeddingModelMeta instead of model object
   const handleEmbeddingModelChange = useCallback(

@@ -94,12 +94,12 @@ const PopupContainer: React.FC<Props> = ({ baseId, resolve }) => {
             onKeyDown={(e) => e.key === 'Enter' && handleSearch(searchKeyword)}
           />
         </RowFlex>
-        <hr className="mx-0 mt-1 border-t-[0.5px] border-border" />
+        <hr className="mx-0 mt-1 border-border border-t-[0.5px]" />
 
         <div className="max-h-[70vh] overflow-y-auto px-4">
           {isSearching ? (
             <div className="flex h-[200px] items-center justify-center">
-              <Spinner size="lg" />
+              <Spinner text={t('common.loading')} />
             </div>
           ) : (
             <div className="divide-y divide-border">

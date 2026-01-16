@@ -1,14 +1,11 @@
-import { CopyOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
-import { Typography } from 'antd'
+import { Copy } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton, MetadataContainer, ScoreTag, TagContainer } from '.'
 import { useCopyText, useKnowledgeItemMetadata } from './hooks'
-
-const { Text } = Typography
 
 interface KnowledgeItemMetadataProps {
   item: KnowledgeSearchResult & {
@@ -24,12 +21,12 @@ export const KnowledgeItemMetadata: React.FC<KnowledgeItemMetadataProps> = ({ it
 
   return (
     <MetadataContainer>
-      <Text type="secondary">
+      <span className="text-muted-foreground text-sm">
         {t('knowledge.source')}:{' '}
-        <a href={sourceLink.href} target="_blank" rel="noreferrer">
+        <a href={sourceLink.href} target="_blank" rel="noreferrer" className="text-primary hover:underline">
           {sourceLink.text}
         </a>
-      </Text>
+      </span>
       {item.score !== 0 && <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>}
     </MetadataContainer>
   )
@@ -47,7 +44,7 @@ export const CopyButtonContainer: React.FC<CopyButtonContainerProps> = ({ textTo
     <TagContainer>
       <Tooltip content={tooltipTitle}>
         <CopyButton onClick={() => handleCopy(textToCopy)}>
-          <CopyOutlined />
+          <Copy size={14} />
         </CopyButton>
       </Tooltip>
     </TagContainer>

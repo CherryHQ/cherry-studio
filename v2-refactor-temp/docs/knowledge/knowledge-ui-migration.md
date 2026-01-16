@@ -8,44 +8,44 @@
 
 ## 组件对比评估
 
-### ✅ 可直接迁移的组件 (7个)
+### ✅ 可直接迁移的组件 (7 个)
 
-| antd 组件 | @cherrystudio/ui 替代 | 迁移难度 | 备注 |
-|-----------|----------------------|---------|------|
-| **Button** | `Button` | 🟢 低 | API 基本一致 |
-| **Input** | `Input` | 🟢 低 | 需调整 `variant="borderless"` → className |
-| **Tag** | `Badge` / `CustomTag` | 🟢 低 | 样式略有不同 |
-| **Select** | `Select` / `Combobox` | 🟢 低 | API 类似 |
-| **Spin** | `Spinner` | 🟢 低 | 直接替换 |
-| **Tooltip** | `Tooltip` | 🟢 低 | 已在项目中使用 |
-| **Slider** | `Slider` | 🟢 低 | ✅ **已支持 marks** |
+| antd 组件   | @cherrystudio/ui 替代 | 迁移难度 | 备注                                      |
+| ----------- | --------------------- | -------- | ----------------------------------------- |
+| **Button**  | `Button`              | 🟢 低    | API 基本一致                              |
+| **Input**   | `Input`               | 🟢 低    | 需调整 `variant="borderless"` → className |
+| **Tag**     | `Badge` / `CustomTag` | 🟢 低    | 样式略有不同                              |
+| **Select**  | `Select` / `Combobox` | 🟢 低    | API 类似                                  |
+| **Spin**    | `Spinner`             | 🟢 低    | 直接替换                                  |
+| **Tooltip** | `Tooltip`             | 🟢 低    | 已在项目中使用                            |
+| **Slider**  | `Slider`              | 🟢 低    | ✅ **已支持 marks**                       |
 
-### 🟡 需要适配的组件 (5个)
+### 🟡 需要适配的组件 (5 个)
 
-| antd 组件 | @cherrystudio/ui 替代 | 迁移难度 | 备注 |
-|-----------|----------------------|---------|------|
-| **Modal** | `Dialog` | 🟡 中 | 需重构为 Radix 组合式 API |
-| **Tabs** | `Tabs` | 🟡 中 | 支持 `variant="line"`，API 不同需重写 |
-| **Upload/Dragger** | `Dropzone` | 🟡 中 | 基于 react-dropzone，API 不同 |
-| **Dropdown (选择)** | `Select` / `Combobox` | 🟡 中 | 适用于普通下拉选择 |
-| **Typography** | 原生 HTML + Tailwind | 🟡 中 | 使用 `<p>`, `<span>` + Tailwind 类 |
+| antd 组件           | @cherrystudio/ui 替代 | 迁移难度 | 备注                                  |
+| ------------------- | --------------------- | -------- | ------------------------------------- |
+| **Modal**           | `Dialog`              | 🟡 中    | 需重构为 Radix 组合式 API             |
+| **Tabs**            | `Tabs`                | 🟡 中    | 支持 `variant="line"`，API 不同需重写 |
+| **Upload/Dragger**  | `Dropzone`            | 🟡 中    | 基于 react-dropzone，API 不同         |
+| **Dropdown (选择)** | `Select` / `Combobox` | 🟡 中    | 适用于普通下拉选择                    |
+| **Typography**      | 原生 HTML + Tailwind  | 🟡 中    | 使用 `<p>`, `<span>` + Tailwind 类    |
 
-### ⚠️ 需要新增的组件 (6个)
+### ⚠️ 需要新增的组件 (6 个)
 
-| antd 组件 | 问题 | 建议方案 | 优先级 |
-|-----------|------|---------|--------|
-| **Dropdown (右键菜单)** | UI 库无 ContextMenu | 新增 `ContextMenu` (基于 Radix) | 🔴 高 |
-| **Collapse** | UI 库无对应组件 | 新增 `Accordion` (基于 Radix) | 🔴 高 |
-| **Progress (circle)** | UI 库无圆形进度条 | 新增 `CircularProgress` (SVG) | 🔴 高 |
-| **Alert** | UI 库无对应组件 | 新增 `Alert` | 🟡 中 |
-| **Empty** | UI 库无对应组件 | 新增 `Empty` | 🟡 中 |
-| **InputNumber** | UI 库无对应组件 | 新增或用 `Input type="number"` 适配 | 🟢 低 |
+| antd 组件               | 问题                | 建议方案                            | 优先级 |
+| ----------------------- | ------------------- | ----------------------------------- | ------ |
+| **Dropdown (右键菜单)** | UI 库无 ContextMenu | 新增 `ContextMenu` (基于 Radix)     | 🔴 高  |
+| **Collapse**            | UI 库无对应组件     | 新增 `Accordion` (基于 Radix)       | 🔴 高  |
+| **Progress (circle)**   | UI 库无圆形进度条   | 新增 `CircularProgress` (SVG)       | 🔴 高  |
+| **Alert**               | UI 库无对应组件     | 新增 `Alert`                        | 🟡 中  |
+| **Empty**               | UI 库无对应组件     | 新增 `Empty`                        | 🟡 中  |
+| **InputNumber**         | UI 库无对应组件     | 新增或用 `Input type="number"` 适配 | 🟢 低  |
 
 ### 其他组件
 
-| antd 组件 | 处理方案 |
-|-----------|---------|
-| **List** | 用 `div` + `ListItem` 组合 |
+| antd 组件   | 处理方案                                       |
+| ----------- | ---------------------------------------------- |
+| **List**    | 用 `div` + `ListItem` 组合                     |
 | **Divider** | 已有 `DividerWithText`，可用 `<hr>` + Tailwind |
 
 ---
@@ -114,7 +114,7 @@
 
 ### 1. ContextMenu (右键菜单) - 🔴 高优先级
 
-**使用场景**：KnowledgePage.tsx, KnowledgeUrls.tsx (3处使用)
+**使用场景**：KnowledgePage.tsx, KnowledgeUrls.tsx (3 处使用)
 
 ```tsx
 // 期望 API
@@ -138,7 +138,7 @@
 
 ```tsx
 // 期望 API
-<Accordion type="multiple" defaultValue={['item-1', 'item-2']}>
+<Accordion type="multiple" defaultValue={["item-1", "item-2"]}>
   <AccordionItem value="item-1">
     <AccordionTrigger>标题</AccordionTrigger>
     <AccordionContent>内容</AccordionContent>
@@ -154,11 +154,7 @@
 
 ```tsx
 // 期望 API
-<CircularProgress
-  value={75}
-  size={14}
-  strokeColor="var(--color-primary)"
-/>
+<CircularProgress value={75} size={14} strokeColor="var(--color-primary)" />
 ```
 
 **实现方案**：SVG 实现，参考 Shadcn/UI 社区方案
@@ -181,10 +177,7 @@
 
 ```tsx
 // 期望 API
-<Empty
-  image="simple"
-  description="暂无数据"
-/>
+<Empty image="simple" description="暂无数据" />
 ```
 
 ---
@@ -193,42 +186,42 @@
 
 ### 高复杂度文件 (需重构)
 
-| 文件 | 原因 | 依赖缺失组件 |
-|------|------|-------------|
-| `KnowledgeBaseFormModal.tsx` | Modal + styled-components | - |
-| `KnowledgeDirectories.tsx` | Collapse + CSS 自定义 | Accordion |
-| `KnowledgeSearchPopup.tsx` | Modal + Input + List | - |
-| `StatusIcon.tsx` | 圆形 Progress | CircularProgress |
-| `KnowledgePage.tsx` | 右键菜单 + Empty | ContextMenu, Empty |
-| `KnowledgeUrls.tsx` | 右键菜单 | ContextMenu |
+| 文件                         | 原因                      | 依赖缺失组件       |
+| ---------------------------- | ------------------------- | ------------------ |
+| `KnowledgeBaseFormModal.tsx` | Modal + styled-components | -                  |
+| `KnowledgeDirectories.tsx`   | Collapse + CSS 自定义     | Accordion          |
+| `KnowledgeSearchPopup.tsx`   | Modal + Input + List      | -                  |
+| `StatusIcon.tsx`             | 圆形 Progress             | CircularProgress   |
+| `KnowledgePage.tsx`          | 右键菜单 + Empty          | ContextMenu, Empty |
+| `KnowledgeUrls.tsx`          | 右键菜单                  | ContextMenu        |
 
 ### 中复杂度文件
 
-| 文件 | 原因 | 依赖缺失组件 |
-|------|------|-------------|
-| `KnowledgeContent.tsx` | Tabs + Tag + Empty | Empty |
-| `AdvancedSettingsPanel.tsx` | InputNumber + Select + Alert | Alert |
-| `GeneralSettingsPanel.tsx` | Slider with marks | - |
-| `KnowledgeFiles.tsx` | Upload/Dragger | - |
+| 文件                        | 原因                         | 依赖缺失组件 |
+| --------------------------- | ---------------------------- | ------------ |
+| `KnowledgeContent.tsx`      | Tabs + Tag + Empty           | Empty        |
+| `AdvancedSettingsPanel.tsx` | InputNumber + Select + Alert | Alert        |
+| `GeneralSettingsPanel.tsx`  | Slider with marks            | -            |
+| `KnowledgeFiles.tsx`        | Upload/Dragger               | -            |
 
 ### 低复杂度文件 (可直接迁移)
 
-| 文件 | 原因 |
-|------|------|
-| `QuotaTag.tsx` | 仅 Tag → Badge |
+| 文件           | 原因                  |
+| -------------- | --------------------- |
+| `QuotaTag.tsx` | 仅 Tag → Badge        |
 | `TextItem.tsx` | Typography → Tailwind |
 
 ---
 
 ## 统计汇总
 
-| 分类 | 数量 | 详情 |
-|------|-----|------|
-| Knowledge 目录文件总数 | 13 | tsx 文件 |
-| 使用的 antd 组件 | 18 | 不重复计数 |
-| 可直接迁移 | 7 | Button, Input, Tag, Select, Spin, Tooltip, Slider |
-| 需要适配 | 5 | Modal, Tabs, Upload, Dropdown(选择), Typography |
-| 需要新增 | 6 | ContextMenu, Accordion, CircularProgress, Alert, Empty, InputNumber |
+| 分类                   | 数量 | 详情                                                                |
+| ---------------------- | ---- | ------------------------------------------------------------------- |
+| Knowledge 目录文件总数 | 13   | tsx 文件                                                            |
+| 使用的 antd 组件       | 18   | 不重复计数                                                          |
+| 可直接迁移             | 7    | Button, Input, Tag, Select, Spin, Tooltip, Slider                   |
+| 需要适配               | 5    | Modal, Tabs, Upload, Dropdown(选择), Typography                     |
+| 需要新增               | 6    | ContextMenu, Accordion, CircularProgress, Alert, Empty, InputNumber |
 
 ---
 
@@ -243,53 +236,93 @@
 
 根据策略，以下文件可以完整迁移（不依赖缺失组件）：
 
-### ✅ 可完整迁移 (4个文件)
+### ✅ 可完整迁移 (4 个文件)
 
-| 文件 | 迁移内容 | 难度 |
-|------|---------|------|
-| `QuotaTag.tsx` | Tag → Badge | 🟢 低 |
-| `TextItem.tsx` | Typography → Tailwind | 🟢 低 |
-| `GeneralSettingsPanel.tsx` | Slider (marks) + Input | 🟡 中 |
-| `KnowledgeFiles.tsx` | Upload.Dragger → Dropzone | 🟡 中 |
+| 文件                       | 迁移内容                  | 难度  |
+| -------------------------- | ------------------------- | ----- |
+| `QuotaTag.tsx`             | Tag → Badge               | 🟢 低 |
+| `TextItem.tsx`             | Typography → Tailwind     | 🟢 低 |
+| `GeneralSettingsPanel.tsx` | Slider (marks) + Input    | 🟡 中 |
+| `KnowledgeFiles.tsx`       | Upload.Dragger → Dropzone | 🟡 中 |
 
-### 🟡 可部分迁移 (4个文件)
+### 🟡 可部分迁移 (4 个文件)
 
-| 文件 | 可迁移 | 保留 antd | 难度 |
-|------|-------|----------|------|
-| `KnowledgeContent.tsx` | Tabs, Tag | Empty | 🟡 中 |
-| `AdvancedSettingsPanel.tsx` | Select, InputNumber(适配) | Alert | 🟡 中 |
-| `KnowledgeSearchPopup.tsx` | Modal→Dialog, Input | List(用div) | 🟠 中高 |
-| `KnowledgeBaseFormModal.tsx` | Modal→Dialog, 移除styled | - | 🟠 中高 |
+| 文件                         | 可迁移                    | 保留 antd    | 难度    |
+| ---------------------------- | ------------------------- | ------------ | ------- |
+| `KnowledgeContent.tsx`       | Tabs, Tag                 | Empty        | 🟡 中   |
+| `AdvancedSettingsPanel.tsx`  | Select, InputNumber(适配) | Alert        | 🟡 中   |
+| `KnowledgeSearchPopup.tsx`   | Modal→Dialog, Input       | List(用 div) | 🟠 中高 |
+| `KnowledgeBaseFormModal.tsx` | Modal→Dialog, 移除 styled | -            | 🟠 中高 |
 
-### ❌ 暂不迁移 (5个文件)
+### ❌ 暂不迁移 (4 个文件)
 
-| 文件 | 原因 |
-|------|------|
-| `KnowledgePage.tsx` | 依赖 ContextMenu + Empty |
-| `KnowledgeUrls.tsx` | 依赖 ContextMenu |
-| `KnowledgeDirectories.tsx` | 依赖 Accordion |
-| `StatusIcon.tsx` | 依赖 CircularProgress |
-| `components.tsx` (KnowledgeSearchItem) | Typography，可选迁移 |
+| 文件                       | 原因                     |
+| -------------------------- | ------------------------ |
+| `KnowledgePage.tsx`        | 依赖 ContextMenu + Empty |
+| `KnowledgeUrls.tsx`        | 依赖 ContextMenu         |
+| `KnowledgeDirectories.tsx` | 依赖 Accordion           |
+| `StatusIcon.tsx`           | 依赖 CircularProgress    |
 
 ---
 
 ## 执行计划
 
 ### 第一步：低难度文件
-1. `QuotaTag.tsx` - Tag → Badge
-2. `TextItem.tsx` - Typography → Tailwind
+
+1. ✅ `QuotaTag.tsx` - Tag → Badge
+2. ✅ `TextItem.tsx` - Typography → Tailwind
 
 ### 第二步：中难度文件
-3. `GeneralSettingsPanel.tsx` - Slider + Input
-4. `KnowledgeFiles.tsx` - Upload → Dropzone
-5. `KnowledgeContent.tsx` - Tabs + Tag (保留 Empty)
-6. `AdvancedSettingsPanel.tsx` - Select (保留 Alert)
+
+3. ✅ `GeneralSettingsPanel.tsx` - Slider + Input
+4. ✅ `KnowledgeFiles.tsx` - Upload → Dropzone
+5. ✅ `KnowledgeContent.tsx` - Tabs + Tag (保留 Empty)
+6. ✅ `AdvancedSettingsPanel.tsx` - Select (保留 Alert)
 
 ### 第三步：中高难度文件
-7. `KnowledgeSearchPopup.tsx` - Modal → Dialog
-8. `KnowledgeBaseFormModal.tsx` - Modal → Dialog + 移除 styled-components
+
+7. ✅ `KnowledgeSearchPopup.tsx` - Modal → Dialog
+8. ✅ `KnowledgeBaseFormModal.tsx` - Modal → Dialog + 移除 styled-components
+
+### 第四步：补充迁移
+
+9. ✅ `components.tsx` - Typography → Tailwind + CopyOutlined → lucide Copy
 
 ### 验证方式
+
 - 运行 `pnpm lint` 检查类型错误
 - 运行 `pnpm test:renderer` 确保测试通过
 - 手动测试 Knowledge 页面功能
+
+---
+
+## 迁移进度
+
+**已完成**: 9/9 文件 ✅
+
+### 已完成的迁移
+
+1. ✅ `QuotaTag.tsx` - Tag → Badge
+2. ✅ `TextItem.tsx` - Typography → Tailwind
+3. ✅ `GeneralSettingsPanel.tsx` - Slider + Input
+4. ✅ `KnowledgeFiles.tsx` - Upload → Dropzone
+5. ✅ `KnowledgeContent.tsx` - Tabs + Tag (保留 Empty)
+6. ✅ `AdvancedSettingsPanel.tsx` - Select (保留 Alert)
+7. ✅ `KnowledgeSearchPopup.tsx` - Modal → Dialog
+8. ✅ `KnowledgeBaseFormModal.tsx` - Modal → Dialog + 移除 styled-components
+9. ✅ `components.tsx` - Typography → Tailwind + CopyOutlined → lucide Copy
+
+### 已修复的类型错误
+
+1. ✅ `useKnowledgeBaseForm.v2.ts` - `docPreprocessSelectOptions` 类型修复为 `SelectOption[]`
+2. ✅ `KnowledgeBaseFormModal.tsx` - 添加 `afterClose` 属性支持
+3. ✅ `KnowledgeSearchPopup.tsx` - Spinner 添加 `text` 属性
+
+### 待迁移 (需要新增 UI 组件)
+
+| 文件                       | 依赖缺失组件             |
+| -------------------------- | ------------------------ |
+| `KnowledgePage.tsx`        | ContextMenu + Empty      |
+| `KnowledgeUrls.tsx`        | ContextMenu              |
+| `KnowledgeDirectories.tsx` | Accordion                |
+| `StatusIcon.tsx`           | CircularProgress         |

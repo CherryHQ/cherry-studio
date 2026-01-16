@@ -41,33 +41,6 @@ interface KnowledgeContentProps {
 
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
 
-// 将文件扩展名数组转换为 Dropzone accept 格式
-const dropzoneAccept = fileTypes.reduce(
-  (acc, ext) => {
-    // 获取 MIME 类型的简单映射
-    const mimeMap: Record<string, string> = {
-      '.pdf': 'application/pdf',
-      '.doc': 'application/msword',
-      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      '.xls': 'application/vnd.ms-excel',
-      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      '.ppt': 'application/vnd.ms-powerpoint',
-      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      '.txt': 'text/plain',
-      '.md': 'text/markdown',
-      '.html': 'text/html',
-      '.epub': 'application/epub+zip'
-    }
-    const mime = mimeMap[ext] || 'application/octet-stream'
-    if (!acc[mime]) {
-      acc[mime] = []
-    }
-    acc[mime].push(ext)
-    return acc
-  },
-  {} as Record<string, string[]>
-)
-
 const getDisplayTime = (item: KnowledgeItemV2) => {
   const createdAt = Date.parse(item.createdAt)
   const updatedAt = Date.parse(item.updatedAt)
@@ -114,11 +87,13 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     if (disabled) {
       return
     }
-    if (files) {
+    if (files && files.length > 0) {
       const _files: FileMetadata[] = files
         .map((file) => {
-          // 这个路径 filePath 很可能是在文件选择时的原始路径。
-          const filePath = window.api.file.getPathForFile(file)
+          // 在 Electron 中，拖拽的文件有 path 属性
+          // react-dropzone 的 File 对象可能需要通过 (file as any).path 访问
+          const filePath = (file as any).path || window.api.file.getPathForFile(file) || ''
+
           let nameFromPath = filePath
           const lastSlash = filePath.lastIndexOf('/')
           const lastBackslash = filePath.lastIndexOf('\\')
@@ -126,24 +101,45 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             nameFromPath = filePath.substring(Math.max(lastSlash, lastBackslash) + 1)
           }
 
-          // 从派生的文件名中获取扩展名
+          // 如果无法从路径获取文件名，使用 File 对象的 name
+          if (!nameFromPath) {
+            nameFromPath = file.name
+          }
+
+          // 从文件名中获取扩展名
           const extFromPath = nameFromPath.includes('.') ? `.${nameFromPath.split('.').pop()}` : ''
 
           return {
             id: uuid(),
-            name: nameFromPath, // 使用从路径派生的文件名
+            name: nameFromPath,
             path: filePath,
             size: file.size,
             ext: extFromPath.toLowerCase(),
             count: 1,
-            origin_name: file.name, // 保存 File 对象中原始的文件名
+            origin_name: file.name,
             type: file.type as FileTypes,
             created_at: new Date().toISOString()
           }
         })
-        .filter(({ ext }) => fileTypes.includes(ext))
-      processFiles(_files)
+        .filter((file) => {
+          if (!file.path) {
+            logger.warn('File dropped without path, skipping', { name: file.origin_name })
+            return false
+          }
+          return true
+        })
+
+      if (_files.length === 0 && files.length > 0) {
+        window.toast.error(t('knowledge.error.file_path_not_available'))
+      } else {
+        processFiles(_files)
+      }
     }
+  }
+
+  const handleDropError = (error: Error) => {
+    logger.error('Dropzone error', error)
+    window.toast.error(error.message)
   }
 
   const processFiles = async (files: FileMetadata[]) => {
@@ -189,12 +185,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
       </ItemHeader>
 
       <div className="flex flex-col gap-2.5 px-4 py-5">
-        <Dropzone
-          onDrop={(files) => handleDrop(files)}
-          accept={dropzoneAccept}
-          maxFiles={999}
-          disabled={disabled}
-          noClick>
+        <Dropzone onDrop={handleDrop} onError={handleDropError} maxFiles={999} disabled={disabled}>
           <DropzoneEmptyState>
             <div className="flex flex-col items-center justify-center">
               <p className="my-2 w-full truncate text-wrap text-center font-medium text-sm">
