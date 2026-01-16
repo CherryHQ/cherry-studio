@@ -722,15 +722,6 @@
       "view_full_content": "Voir le contenu complet"
     },
     "input": {
-      "activity_directory": {
-        "description": "Sélectionner le fichier dans le répertoire d'activité",
-        "loading": "Chargement des fichiers...",
-        "no_file_found": {
-          "description": "Aucun fichier disponible dans les répertoires accessibles",
-          "label": "Aucun fichier trouvé"
-        },
-        "title": "Répertoire d'activités"
-      },
       "auto_resize": "Ajustement automatique de la hauteur",
       "clear": {
         "content": "Êtes-vous sûr de vouloir effacer tous les messages de la conversation actuelle ?",
@@ -760,6 +751,24 @@
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
+      "resource_panel": {
+        "categories": {
+          "agents": "[to be translated]:Agents",
+          "files": "[to be translated]:Files",
+          "skills": "[to be translated]:Skills"
+        },
+        "description": "[to be translated]:Select from files, agents, or skills",
+        "loading": "[to be translated]:Loading...",
+        "no_file_found": {
+          "description": "[to be translated]:No files available in accessible directories",
+          "label": "[to be translated]:No File Found"
+        },
+        "no_items_found": {
+          "description": "[to be translated]:No files, agents, or skills available",
+          "label": "[to be translated]:No Items Found"
+        },
+        "title": "[to be translated]:Resources"
+      },
       "send": "Envoyer",
       "settings": "Paramètres",
       "slash_commands": {

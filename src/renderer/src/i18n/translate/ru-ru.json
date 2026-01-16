@@ -722,15 +722,6 @@
       "view_full_content": "Показать полное содержимое"
     },
     "input": {
-      "activity_directory": {
-        "description": "Выбрать файл из каталога активности",
-        "loading": "Загрузка файлов...",
-        "no_file_found": {
-          "description": "Нет доступных файлов в доступных каталогах",
-          "label": "Файл не найден"
-        },
-        "title": "Каталог активностей"
-      },
       "auto_resize": "Автоматическая высота",
       "clear": {
         "content": "Хотите очистить все сообщения текущего топика?",
@@ -760,6 +751,24 @@
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
+      "resource_panel": {
+        "categories": {
+          "agents": "[to be translated]:Agents",
+          "files": "[to be translated]:Files",
+          "skills": "[to be translated]:Skills"
+        },
+        "description": "[to be translated]:Select from files, agents, or skills",
+        "loading": "[to be translated]:Loading...",
+        "no_file_found": {
+          "description": "[to be translated]:No files available in accessible directories",
+          "label": "[to be translated]:No File Found"
+        },
+        "no_items_found": {
+          "description": "[to be translated]:No files, agents, or skills available",
+          "label": "[to be translated]:No Items Found"
+        },
+        "title": "[to be translated]:Resources"
+      },
       "send": "Отправить",
       "settings": "Настройки",
       "slash_commands": {

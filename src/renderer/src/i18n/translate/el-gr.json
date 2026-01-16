@@ -722,15 +722,6 @@
       "view_full_content": "Προβολή πλήρους περιεχομένου"
     },
     "input": {
-      "activity_directory": {
-        "description": "Επιλέξτε αρχείο από τον κατάλογο δραστηριότητας",
-        "loading": "Φόρτωση Αρχείων...",
-        "no_file_found": {
-          "description": "Δεν υπάρχουν διαθέσιμα αρχεία σε προσβάσιμους καταλόγους",
-          "label": "Δεν Βρέθηκε Αρχείο"
-        },
-        "title": "Κατάλογος Δραστηριοτήτων"
-      },
       "auto_resize": "Αυτόματη μείωση ύψους",
       "clear": {
         "content": "Είσαι σίγουρος ότι θέλεις να διαγράψεις όλα τα μηνύματα της τρέχουσας συζήτησης;",
@@ -760,6 +751,24 @@
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
+      "resource_panel": {
+        "categories": {
+          "agents": "[to be translated]:Agents",
+          "files": "[to be translated]:Files",
+          "skills": "[to be translated]:Skills"
+        },
+        "description": "[to be translated]:Select from files, agents, or skills",
+        "loading": "[to be translated]:Loading...",
+        "no_file_found": {
+          "description": "[to be translated]:No files available in accessible directories",
+          "label": "[to be translated]:No File Found"
+        },
+        "no_items_found": {
+          "description": "[to be translated]:No files, agents, or skills available",
+          "label": "[to be translated]:No Items Found"
+        },
+        "title": "[to be translated]:Resources"
+      },
       "send": "Αποστολή",
       "settings": "Ρυθμίσεις",
       "slash_commands": {

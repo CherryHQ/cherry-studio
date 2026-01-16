@@ -722,15 +722,6 @@
       "view_full_content": "查看完整内容"
     },
     "input": {
-      "activity_directory": {
-        "description": "从活动目录中选择文件",
-        "loading": "正在加载文件...",
-        "no_file_found": {
-          "description": "可访问目录中没有可用文件",
-          "label": "未找到文件"
-        },
-        "title": "活动目录"
-      },
       "auto_resize": "自动调整高度",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
@@ -760,6 +751,24 @@
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "文件",
+          "skills": "Skills"
+        },
+        "description": "从文件、Agents 或 Skills 中选择",
+        "loading": "加载中...",
+        "no_file_found": {
+          "description": "可访问目录中没有可用文件",
+          "label": "未找到文件"
+        },
+        "no_items_found": {
+          "description": "没有可用的文件、Agents 或 Skills",
+          "label": "未找到项目"
+        },
+        "title": "资源"
+      },
       "send": "发送",
       "settings": "设置",
       "slash_commands": {

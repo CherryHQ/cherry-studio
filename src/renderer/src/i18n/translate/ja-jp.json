@@ -722,15 +722,6 @@
       "view_full_content": "完全な内容を表示"
     },
     "input": {
-      "activity_directory": {
-        "description": "アクティビティディレクトリからファイルを選択",
-        "loading": "ファイルを読み込んでいます...",
-        "no_file_found": {
-          "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
-          "label": "ファイルが見つかりません"
-        },
-        "title": "アクティビティディレクトリ"
-      },
       "auto_resize": "高さを自動調整",
       "clear": {
         "content": "現在のトピックのすべてのメッセージをクリアしますか？",
@@ -760,6 +751,24 @@
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "resource_panel": {
+        "categories": {
+          "agents": "[to be translated]:Agents",
+          "files": "[to be translated]:Files",
+          "skills": "[to be translated]:Skills"
+        },
+        "description": "[to be translated]:Select from files, agents, or skills",
+        "loading": "[to be translated]:Loading...",
+        "no_file_found": {
+          "description": "[to be translated]:No files available in accessible directories",
+          "label": "[to be translated]:No File Found"
+        },
+        "no_items_found": {
+          "description": "[to be translated]:No files, agents, or skills available",
+          "label": "[to be translated]:No Items Found"
+        },
+        "title": "[to be translated]:Resources"
+      },
       "send": "送信",
       "settings": "設定",
       "slash_commands": {

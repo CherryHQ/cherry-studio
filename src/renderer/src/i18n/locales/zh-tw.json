@@ -722,15 +722,6 @@
       "view_full_content": "檢視完整內容"
     },
     "input": {
-      "activity_directory": {
-        "description": "從活動目錄中選擇檔案",
-        "loading": "載入檔案中...",
-        "no_file_found": {
-          "description": "可存取的目錄中沒有檔案",
-          "label": "找不到檔案"
-        },
-        "title": "活動目錄"
-      },
       "auto_resize": "自動調整高度",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
@@ -760,6 +751,24 @@
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "resource_panel": {
+        "categories": {
+          "agents": "[to be translated]:Agents",
+          "files": "[to be translated]:Files",
+          "skills": "[to be translated]:Skills"
+        },
+        "description": "[to be translated]:Select from files, agents, or skills",
+        "loading": "[to be translated]:Loading...",
+        "no_file_found": {
+          "description": "[to be translated]:No files available in accessible directories",
+          "label": "[to be translated]:No File Found"
+        },
+        "no_items_found": {
+          "description": "[to be translated]:No files, agents, or skills available",
+          "label": "[to be translated]:No Items Found"
+        },
+        "title": "[to be translated]:Resources"
+      },
       "send": "傳送",
       "settings": "設定",
       "slash_commands": {

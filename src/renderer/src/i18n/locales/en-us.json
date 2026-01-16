@@ -722,15 +722,6 @@
       "view_full_content": "View Full Content"
     },
     "input": {
-      "activity_directory": {
-        "description": "Select file from activity directory",
-        "loading": "Loading Files...",
-        "no_file_found": {
-          "description": "No files available in accessible directories",
-          "label": "No File Found"
-        },
-        "title": "Activity Directory"
-      },
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
@@ -760,6 +751,24 @@
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "Files",
+          "skills": "Skills"
+        },
+        "description": "Select from files, agents, or skills",
+        "loading": "Loading...",
+        "no_file_found": {
+          "description": "No files available in accessible directories",
+          "label": "No File Found"
+        },
+        "no_items_found": {
+          "description": "No files, agents, or skills available",
+          "label": "No Items Found"
+        },
+        "title": "Resources"
+      },
       "send": "Send",
       "settings": "Settings",
       "slash_commands": {
