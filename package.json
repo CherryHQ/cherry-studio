@@ -457,6 +457,7 @@
       "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch"
     },
     "onlyBuiltDependencies": [
+      "@j178/prek",
       "@kangfenmao/keyv-storage",
       "@paymoapp/electron-shutdown-handler",
       "@scarf/scarf",
