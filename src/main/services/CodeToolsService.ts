@@ -23,6 +23,22 @@ import { promisify } from 'util'
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')
 
+// Sensitive environment variable keys to redact in logs
+const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
+
+/**
+ * Sanitize environment variables for safe logging
+ * Redacts values of sensitive keys to prevent credential leakage
+ */
+function sanitizeEnvForLogging(env: Record<string, string>): Record<string, string> {
+  const sanitized: Record<string, string> = {}
+  for (const [key, value] of Object.entries(env)) {
+    const isSensitive = SENSITIVE_ENV_KEYS.some((k) => key.toUpperCase().includes(k))
+    sanitized[key] = isSensitive ? '<redacted>' : value
+  }
+  return sanitized
+}
+
 interface VersionInfo {
   installed: string | null
   latest: string | null
@@ -617,7 +633,7 @@ class CodeToolsService {
       }
 
       logger.info('Setting environment variables:', Object.keys(env))
-      logger.info('Environment variable values:', env)
+      logger.debug('Environment variable values:', sanitizeEnvForLogging(env))
 
       if (isWindows) {
         // Windows uses set command
@@ -640,8 +656,7 @@ class CodeToolsService {
           .map(([key, value]) => {
             const sanitizedValue = String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
             const exportCmd = `export ${key}="${sanitizedValue}"`
-            logger.info(`Setting env var: ${key}="${sanitizedValue}"`)
-            logger.info(`Export command: ${exportCmd}`)
+            logger.debug(`Setting env var: ${key}=<redacted>`)
             return exportCmd
           })
           .join(' && ')
