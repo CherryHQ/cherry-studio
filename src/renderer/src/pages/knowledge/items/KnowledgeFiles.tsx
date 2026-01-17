@@ -1,7 +1,6 @@
 import { Button, Dropzone, DropzoneEmptyState, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledge.v2'
-import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
@@ -15,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('KnowledgeFiles')
 
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { RotateCw, Trash2 } from 'lucide-react'
+import { Book, RotateCw, Trash2 } from 'lucide-react'
 
 import { formatKnowledgeItemTime } from '../utils/time'
 
@@ -167,45 +166,45 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           {(item) => {
             const file = (item.data as FileItemData).file
             return (
-              <FileItem
-                key={item.id}
-                fileInfo={{
-                  name: (
-                    <div onClick={() => window.api.file.openFileWithRelativePath(file)}>
-                      <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
-                    </div>
-                  ),
-                  ext: file.ext,
-                  extra: `${formatKnowledgeItemTime(item)} · ${formatFileSize(file.size)}`,
-                  actions: (
-                    <div className="flex items-center">
-                      {item.status === 'completed' && (
-                        <Button size="icon-sm" variant="ghost" onClick={() => refreshItem(item.id)}>
-                          <RotateCw size={16} className="text-foreground" />
-                        </Button>
-                      )}
-                      {showPreprocessIcon(item.id) && (
-                        <Button size="icon-sm" variant="ghost">
-                          <StatusIcon
-                            sourceId={item.id}
-                            item={item}
-                            type="file"
-                            isPreprocessed={preprocessMap.get(item.id) || false}
-                            progress={progressMap.get(item.id)}
-                          />
-                        </Button>
-                      )}
-                      <Button size="icon-sm" variant="ghost">
-                        <StatusIcon sourceId={item.id} item={item} type="file" />
-                      </Button>
+              <div
+                className="flex flex-row items-center justify-between rounded-3xs border border-border p-2"
+                key={item.id}>
+                <div className="flex cursor-pointer flex-row items-center gap-2">
+                  <Book size={18} className="text-foreground" />
+                  <div onClick={() => window.api.file.openFileWithRelativePath(file)}>
+                    <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
+                  </div>
+                  <div className="text-foreground-muted">|</div>
+                  <div className="text-foreground-muted">
+                    {formatKnowledgeItemTime(item)} · {formatFileSize(file.size)}
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  {item.status === 'completed' && (
+                    <Button size="icon-sm" variant="ghost" onClick={() => refreshItem(item.id)}>
+                      <RotateCw size={16} className="text-foreground" />
+                    </Button>
+                  )}
+                  {showPreprocessIcon(item.id) && (
+                    <Button size="icon-sm" variant="ghost">
+                      <StatusIcon
+                        sourceId={item.id}
+                        item={item}
+                        type="file"
+                        isPreprocessed={preprocessMap.get(item.id) || false}
+                        progress={progressMap.get(item.id)}
+                      />
+                    </Button>
+                  )}
+                  <Button size="icon-sm" variant="ghost">
+                    <StatusIcon sourceId={item.id} item={item} type="file" />
+                  </Button>
 
-                      <Button size="icon-sm" variant="ghost" onClick={() => deleteItem(item.id)}>
-                        <Trash2 size={16} className="text-red-600" />
-                      </Button>
-                    </div>
-                  )
-                }}
-              />
+                  <Button size="icon-sm" variant="ghost" onClick={() => deleteItem(item.id)}>
+                    <Trash2 size={16} className="text-red-600" />
+                  </Button>
+                </div>
+              </div>
             )
           }}
         </DynamicVirtualList>
