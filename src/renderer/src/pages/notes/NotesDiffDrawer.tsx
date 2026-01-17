@@ -1,5 +1,8 @@
 import { loggerService } from '@logger'
-import { Drawer, Empty, Select, Spin } from 'antd'
+import { useFileContentSync } from '@renderer/hooks/useNotesQuery'
+import { modalConfirm } from '@renderer/utils'
+import { formatErrorMessage } from '@renderer/utils/error'
+import { Button, Drawer, Empty, Select, Spin } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +21,10 @@ interface NotesDiffDrawerProps {
   onClose: () => void
   notesPath: string
   filePath?: string
+  /**
+   * 恢复前的钩子：用于取消笔记页面上的防抖保存、清理临时状态，避免恢复后被旧内容覆盖。
+   */
+  onBeforeRestore?: () => void
 }
 
 const getFileName = (filePath?: string) => {
@@ -69,16 +76,56 @@ const isHiddenDiffLine = (line: string) => {
   return false
 }
 
-const NotesDiffDrawer: FC<NotesDiffDrawerProps> = ({ open, onClose, notesPath, filePath }) => {
+const NotesDiffDrawer: FC<NotesDiffDrawerProps> = ({ open, onClose, notesPath, filePath, onBeforeRestore }) => {
   const { t } = useTranslation()
+  const { invalidateFileContent, refetchFileContent } = useFileContentSync()
   const [history, setHistory] = useState<CommitHistoryItem[]>([])
   const [selectedCommit, setSelectedCommit] = useState<string>()
   const [diff, setDiff] = useState('')
   const [diffTruncated, setDiffTruncated] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [loadingDiff, setLoadingDiff] = useState(false)
+  const [restoring, setRestoring] = useState(false)
 
   const fileName = useMemo(() => getFileName(filePath), [filePath])
+  const canRestore = Boolean(open && notesPath && filePath && selectedCommit && !loadingHistory && !restoring)
+
+  const handleRestoreToCommit = async () => {
+    if (!notesPath || !filePath || !selectedCommit) {
+      return
+    }
+
+    const commitShort = selectedCommit.slice(0, 7)
+    const confirmed = await modalConfirm({
+      title: t('notes.diff.restore_confirm_title'),
+      content: t('notes.diff.restore_confirm_content', {
+        commitHash: commitShort,
+        fileName: fileName || filePath
+      }),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel')
+    })
+    if (!confirmed) {
+      return
+    }
+
+    // 避免恢复后被未触发的防抖保存写回旧内容
+    onBeforeRestore?.()
+    setRestoring(true)
+    try {
+      await window.api.notesGit.restoreFile(notesPath, filePath, selectedCommit)
+      // 立即刷新内容：不要依赖主进程 watcher 的 1s 防抖
+      invalidateFileContent(filePath)
+      await refetchFileContent(filePath)
+      window.toast.success(t('notes.diff.restore_success'))
+      onClose()
+    } catch (error) {
+      logger.error('Failed to restore notes file:', error as Error)
+      window.toast.error(`${t('notes.diff.restore_failed')}: ${formatErrorMessage(error)}`)
+    } finally {
+      setRestoring(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -240,6 +287,15 @@ const NotesDiffDrawer: FC<NotesDiffDrawerProps> = ({ open, onClose, notesPath, f
               <DiffHeaderStats>
                 <DiffStat $type="add">+{diffStats.additions}</DiffStat>
                 <DiffStat $type="remove">-{diffStats.deletions}</DiffStat>
+                <Button
+                  danger
+                  size="small"
+                  type="primary"
+                  loading={restoring}
+                  disabled={!canRestore}
+                  onClick={handleRestoreToCommit}>
+                  {t('notes.diff.restore')}
+                </Button>
               </DiffHeaderStats>
             </DiffHeader>
             <DiffContainer>
@@ -326,7 +382,7 @@ const DiffHeaderStats = styled.div`
 `
 
 const DiffStat = styled.span<{ $type: 'add' | 'remove' }>`
-  color: ${({ $type }) => ($type === 'add' ? 'var(--color-status-success)' : 'var(--color-status-danger)')};
+  color: ${({ $type }) => ($type === 'add' ? 'var(--color-status-success)' : 'var(--color-status-error)')};
   font-weight: 600;
 `
 
@@ -344,20 +400,20 @@ const DiffLine = styled.div<{ $type: 'add' | 'remove' | 'meta' | 'normal' }>`
   overflow-wrap: anywhere;
   color: ${({ $type }) => {
     if ($type === 'add') return 'var(--color-status-success)'
-    if ($type === 'remove') return 'var(--color-status-danger)'
+    if ($type === 'remove') return 'var(--color-status-error)'
     if ($type === 'meta') return 'var(--color-text-3)'
     return 'var(--color-text-1)'
   }};
   background-color: ${({ $type }) => {
     if ($type === 'add') return 'color-mix(in srgb, var(--color-status-success) 12%, transparent)'
-    if ($type === 'remove') return 'color-mix(in srgb, var(--color-status-danger) 22%, transparent)'
+    if ($type === 'remove') return 'color-mix(in srgb, var(--color-status-error) 22%, transparent)'
     if ($type === 'meta') return 'var(--color-background-mute)'
     return 'transparent'
   }};
   border-left: 2px solid
     ${({ $type }) => {
       if ($type === 'add') return 'var(--color-status-success)'
-      if ($type === 'remove') return 'var(--color-status-danger)'
+      if ($type === 'remove') return 'var(--color-status-error)'
       if ($type === 'meta') return 'var(--color-border)'
       return 'transparent'
     }};

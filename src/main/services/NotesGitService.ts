@@ -247,6 +247,36 @@ export class NotesGitService {
     return { diff, truncated: false }
   }
 
+  /**
+   * 将指定文件恢复到某个提交的版本（通过 `git show <commit>:<path>` 取内容并写回工作区文件）。
+   * 注意：该操作会覆盖当前文件内容，需要由渲染进程先行确认。
+   */
+  public async restoreFile(notesPath: string, filePath: string, commitHash: string): Promise<void> {
+    const relativePath = this.getSafeRelativePath(notesPath, filePath)
+    if (!relativePath) {
+      throw new Error('Invalid file path')
+    }
+    if (!commitHash || !/^[0-9a-f]{7,40}$/i.test(commitHash)) {
+      throw new Error('Invalid commit hash')
+    }
+
+    // git object 内部路径固定使用 `/` 分隔，避免在 Windows 下出现 `\\` 导致 `git show` 失败。
+    const objectPath = relativePath.replaceAll('\\', '/')
+    const result = await this.runGitCommand(['show', `${commitHash}:${objectPath}`], notesPath)
+    if (result.code !== 0) {
+      throw new Error(result.stderr.trim() || 'Failed to restore file from git')
+    }
+
+    const resolvedNotesPath = path.resolve(notesPath)
+    const resolvedFilePath = path.resolve(filePath)
+    if (!isPathInside(resolvedFilePath, resolvedNotesPath) || resolvedFilePath === resolvedNotesPath) {
+      throw new Error('Invalid file path')
+    }
+
+    fs.mkdirSync(path.dirname(resolvedFilePath), { recursive: true })
+    fs.writeFileSync(resolvedFilePath, result.stdout, 'utf-8')
+  }
+
   private async ensureGitAvailable(notesPath: string): Promise<boolean> {
     const result = await this.runGitCommand(['--version'], notesPath)
     if (result.code !== 0) {

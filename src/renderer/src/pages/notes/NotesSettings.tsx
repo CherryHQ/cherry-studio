@@ -187,7 +187,7 @@ const NotesSettings: FC = () => {
         </SettingRow>
         <SettingHelpText>{t('notes.settings.git.description')}</SettingHelpText>
         {!gitAvailable && (
-          <SettingHelpText style={{ color: 'var(--color-status-danger)' }}>
+          <SettingHelpText style={{ color: 'var(--color-status-error)' }}>
             {getGitUnavailableReason(gitStatus?.reason)}
           </SettingHelpText>
         )}

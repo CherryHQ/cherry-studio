@@ -1021,6 +1021,12 @@ const NotesPage: FC = () => {
             onClose={handleCloseDiffDrawer}
             notesPath={notesPath}
             filePath={activeFilePath}
+            onBeforeRestore={() => {
+              // 恢复属于外部写入：取消本地防抖保存，避免把旧内容写回覆盖恢复结果
+              debouncedSaveRef.current?.cancel()
+              lastContentRef.current = ''
+              lastFilePathRef.current = undefined
+            }}
           />
           <NotesEditor
             activeNodeId={activeNode?.id}
