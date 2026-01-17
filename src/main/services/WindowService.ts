@@ -416,6 +416,23 @@ export class WindowService {
       }
 
       /**
+       * [Linux] Special handling for window activation
+       * When the window is visible but covered by other windows, simply calling show() and focus()
+       * is not enough to bring it to the front. We need to hide it first, then show it again.
+       * This mimics the "close to tray and reopen" behavior which works correctly.
+       */
+      if (isLinux && this.mainWindow.isVisible() && !this.mainWindow.isFocused()) {
+        this.mainWindow.hide()
+        setImmediate(() => {
+          if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.show()
+            this.mainWindow.focus()
+          }
+        })
+        return
+      }
+
+      /**
        * About setVisibleOnAllWorkspaces
        *
        * [macOS] Known Issue
