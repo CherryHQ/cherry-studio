@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: biome-format-js
+        name: Biome format (JS/TS)
+        language: system
+        entry: pnpm biome format --write --no-errors-on-unmatched
+        files: '\.(js|jsx|ts|tsx|cjs|mjs|cts|mts)$'
+        pass_filenames: true
+
+      - id: eslint-fix
+        name: ESLint fix
+        language: system
+        entry: pnpm eslint --fix
+        files: '\.(js|jsx|ts|tsx|cjs|mjs|cts|mts)$'
+        pass_filenames: true
+
+      - id: biome-format-other
+        name: Biome format (JSON/YAML/CSS/HTML)
+        language: system
+        entry: pnpm biome format --write --no-errors-on-unmatched
+        files: '\.(json|yml|yaml|css|html)$'
+        pass_filenames: true
