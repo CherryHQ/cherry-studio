@@ -546,8 +546,7 @@ class CodeToolsService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean; terminal?: string } = {},
-    codexConfig?: { providerId: string; baseUrl: string; apiKeyEnvVar: string }
+    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
   ) {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
@@ -658,17 +657,18 @@ class CodeToolsService {
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 
-    // Add configuration parameters for OpenAI Codex using command line args instead of env vars
-    if (cliTool === codeTools.openaiCodex && codexConfig) {
-      const { providerId, baseUrl, apiKeyEnvVar } = codexConfig
-      const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
+    // Add configuration parameters for OpenAI Codex using command line args
+    if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
+      const providerId = env.OPENAI_MODEL_PROVIDER
+      const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
+      const normalizedBaseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
       const model = _model
 
       const configParams = [
         `--config model_provider="${providerId}"`,
-        `--config model_providers.${providerId}.name="${providerId}"`,
+        `--config model_providers.${providerId}.name="${providerName}"`,
         `--config model_providers.${providerId}.base_url="${normalizedBaseUrl}"`,
-        `--config model_providers.${providerId}.env_key="${apiKeyEnvVar}"`,
+        `--config model_providers.${providerId}.env_key="OPENAI_API_KEY"`,
         `--config model_providers.${providerId}.wire_api="responses"`,
         `--config model="${model}"`
       ].join(' ')

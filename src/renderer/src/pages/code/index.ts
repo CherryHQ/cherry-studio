@@ -7,17 +7,6 @@ export interface LaunchValidationResult {
   message?: string
 }
 
-export interface CodexConfig {
-  providerId: string
-  baseUrl: string
-  apiKeyEnvVar: string
-}
-
-export interface ToolEnvironmentResult {
-  env: Record<string, string>
-  codexConfig?: CodexConfig
-}
-
 export interface ToolEnvironmentConfig {
   tool: codeTools
   model: Model
@@ -157,10 +146,9 @@ export const generateToolEnvironment = ({
   modelProvider: Provider
   apiKey: string
   baseUrl: string
-}): ToolEnvironmentResult => {
+}): { env: Record<string, string> } => {
   const env: Record<string, string> = {}
   const formattedBaseUrl = formatApiHost(baseUrl)
-  let codexConfig: CodexConfig | undefined
 
   switch (tool) {
     case codeTools.claudeCode:
@@ -189,21 +177,11 @@ export const generateToolEnvironment = ({
       env.OPENAI_MODEL = model.id
       break
     case codeTools.openaiCodex:
-      // For openai-response type providers, use command line config instead of env vars
-      // but still set the environment variable that Codex will read at runtime
-      if (modelProvider.type === 'openai-response') {
-        env.OPENAI_API_KEY = apiKey
-        codexConfig = {
-          providerId: modelProvider.name,
-          baseUrl: formattedBaseUrl,
-          apiKeyEnvVar: 'OPENAI_API_KEY'
-        }
-      } else {
-        env.OPENAI_API_KEY = apiKey
-        env.OPENAI_BASE_URL = formattedBaseUrl
-        env.OPENAI_MODEL = model.id
-        env.OPENAI_MODEL_PROVIDER = modelProvider.name
-      }
+      env.OPENAI_API_KEY = apiKey
+      env.OPENAI_BASE_URL = formattedBaseUrl
+      env.OPENAI_MODEL = model.id
+      env.OPENAI_MODEL_PROVIDER = modelProvider.id
+      env.OPENAI_MODEL_PROVIDER_NAME = modelProvider.name
       break
 
     case codeTools.iFlowCli:
@@ -223,7 +201,7 @@ export const generateToolEnvironment = ({
       break
   }
 
-  return { env, codexConfig }
+  return { env }
 }
 
 export { default } from './CodeToolsPage'

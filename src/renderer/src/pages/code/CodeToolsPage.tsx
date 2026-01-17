@@ -227,7 +227,6 @@ const CodeToolsPage: FC = () => {
   // 准备启动环境
   const prepareLaunchEnvironment = async (): Promise<{
     env: Record<string, string>
-    codexConfig?: { providerId: string; baseUrl: string; apiKeyEnvVar: string }
   } | null> => {
     if (selectedCliTool === codeTools.githubCopilotCli) {
       const userEnv = parseEnvironmentVariables(environmentVariables)
@@ -242,7 +241,7 @@ const CodeToolsPage: FC = () => {
     const apiKey = aiProvider.getApiKey()
 
     // 生成工具特定的环境变量
-    const { env: toolEnv, codexConfig } = generateToolEnvironment({
+    const { env: toolEnv } = generateToolEnvironment({
       tool: selectedCliTool,
       model: selectedModel,
       modelProvider,
@@ -253,27 +252,17 @@ const CodeToolsPage: FC = () => {
     // 合并用户自定义的环境变量
     const userEnv = parseEnvironmentVariables(environmentVariables)
 
-    return { env: { ...toolEnv, ...userEnv }, codexConfig }
+    return { env: { ...toolEnv, ...userEnv } }
   }
 
   // 执行启动操作
-  const executeLaunch = async (
-    env: Record<string, string>,
-    codexConfig?: { providerId: string; baseUrl: string; apiKeyEnvVar: string }
-  ) => {
+  const executeLaunch = async (env: Record<string, string>) => {
     const modelId = selectedCliTool === codeTools.githubCopilotCli ? '' : selectedModel?.id!
 
-    window.api.codeTools.run(
-      selectedCliTool,
-      modelId,
-      currentDirectory,
-      env,
-      {
-        autoUpdateToLatest,
-        terminal: selectedTerminal
-      },
-      codexConfig
-    )
+    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, {
+      autoUpdateToLatest,
+      terminal: selectedTerminal
+    })
     window.toast.success(t('code.launch.success'))
   }
 
@@ -320,7 +309,7 @@ const CodeToolsPage: FC = () => {
         return
       }
 
-      await executeLaunch(result.env, result.codexConfig)
+      await executeLaunch(result.env)
     } catch (error) {
       logger.error('start code tools failed:', error as Error)
       window.toast.error(t('code.launch.error'))
