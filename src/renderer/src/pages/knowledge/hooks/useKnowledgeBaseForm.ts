@@ -26,6 +26,10 @@ const createInitialKnowledgeBase = (): KnowledgeBase => ({
   version: 1
 })
 
+type UseKnowledgeBaseFormOptions = {
+  open?: boolean
+}
+
 /**
  * A hook that manages the state and handlers for a knowledge base form.
  *
@@ -44,7 +48,7 @@ const createInitialKnowledgeBase = (): KnowledgeBase => ({
  * @returns An object containing the new base state, a function to update the base, and handlers for various form actions.
  *          Also includes provider data for dropdown options and selected provider.
  */
-export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
+export const useKnowledgeBaseForm = (base?: KnowledgeBase, options?: UseKnowledgeBaseFormOptions) => {
   const { t } = useTranslation()
   const [newBase, setNewBase] = useState<KnowledgeBase>(base || createInitialKnowledgeBase())
   const { providers } = useProviders()
@@ -59,8 +63,13 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
   useEffect(() => {
     if (base) {
       setNewBase(base)
+      return
     }
-  }, [base])
+
+    if (options?.open) {
+      setNewBase(createInitialKnowledgeBase())
+    }
+  }, [base, options?.open])
 
   // TODO: Migrate to v2 - preprocessProvider structure will change to just preprocessProviderId
   const selectedDocPreprocessProvider = useMemo(

@@ -37,7 +37,7 @@ const KnowledgeBaseFormContainer: FC<KnowledgeBaseFormContainerProps> = ({
     setNewBase,
     handlers,
     providerData: { selectedDocPreprocessProvider, docPreprocessSelectOptions }
-  } = useKnowledgeBaseForm(initialBase)
+  } = useKnowledgeBaseForm(initialBase, { open })
 
   const panelConfigs: PanelConfig[] = [
     {

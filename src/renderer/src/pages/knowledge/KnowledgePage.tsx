@@ -1,11 +1,6 @@
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { Empty } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import AddKnowledgeBaseDialog from './components/AddKnowledgeBaseDialog'
 import EditKnowledgeBaseDialog from './components/EditKnowledgeBaseDialog'
@@ -15,7 +10,6 @@ import { useKnowledgeBaseSelection } from './hooks/useKnowledgeBaseSelection'
 import KnowledgeContent from './KnowledgeContent'
 
 const KnowledgePage: FC = () => {
-  const { t } = useTranslation()
   const {
     bases,
     selectedBaseId,
@@ -42,11 +36,8 @@ const KnowledgePage: FC = () => {
   })
 
   return (
-    <Container>
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
-      </Navbar>
-      <ContentContainer id="content-container">
+    <div className="flex h-[calc(100vh-var(--navbar-height))] flex-1 flex-col">
+      <div className="flex min-h-full flex-1 flex-row">
         <KnowledgeSideNav
           bases={bases}
           selectedBaseId={selectedBaseId}
@@ -54,14 +45,9 @@ const KnowledgePage: FC = () => {
           onAdd={handleAddKnowledgeBase}
           deleteKnowledgeBase={deleteKnowledgeBase}
         />
-        {bases.length === 0 ? (
-          <MainContent>
-            <Empty description={t('knowledge.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          </MainContent>
-        ) : selectedBaseId ? (
-          <KnowledgeContent selectedBaseId={selectedBaseId} />
-        ) : null}
-      </ContentContainer>
+        {bases.length === 0 && <div className="flex w-full" />}
+        {selectedBaseId && <KnowledgeContent selectedBaseId={selectedBaseId} />}
+      </div>
 
       {/* Dialogs */}
       <AddKnowledgeBaseDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onSuccess={handleAddSuccess} />
@@ -76,30 +62,8 @@ const KnowledgePage: FC = () => {
       {selectedBaseId && (
         <KnowledgeSearchDialog baseId={selectedBaseId} open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
       )}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  min-height: 100%;
-`
-
-const MainContent = styled(Scrollbar)`
-  padding: 15px 20px;
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  padding-bottom: 50px;
-`
 
 export default KnowledgePage
