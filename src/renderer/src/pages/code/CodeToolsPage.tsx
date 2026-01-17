@@ -86,6 +86,11 @@ const CodeToolsPage: FC = () => {
         if (m.provider === 'silicon') {
           return isSiliconAnthropicCompatibleModel(m.id)
         }
+        // Check if model belongs to an anthropic type provider (including custom providers)
+        const anthropicProvider = providers.find((p) => p.id === m.provider)
+        if (anthropicProvider?.type === 'anthropic') {
+          return true
+        }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }
 
@@ -101,6 +106,11 @@ const CodeToolsPage: FC = () => {
           return ['openai', 'openai-response'].some((type) =>
             m.supported_endpoint_types?.includes(type as EndpointType)
           )
+        }
+        // Check if model belongs to an openai or openai-response type provider (including custom providers)
+        const openaiProvider = providers.find((p) => p.id === m.provider)
+        if (openaiProvider?.type === 'openai' || openaiProvider?.type === 'openai-response') {
+          return true
         }
         return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
       }
@@ -120,7 +130,7 @@ const CodeToolsPage: FC = () => {
 
       return true
     },
-    [selectedCliTool]
+    [selectedCliTool, providers]
   )
 
   const availableProviders = useMemo(() => {

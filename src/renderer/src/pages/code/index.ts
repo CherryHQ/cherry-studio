@@ -58,7 +58,13 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
   [codeTools.openaiCodex]: (providers) =>
-    providers.filter((p) => p.id === 'openai' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
+    providers.filter(
+      (p) =>
+        p.type === 'openai' ||
+        p.type === 'openai-response' ||
+        p.id === 'openai' ||
+        OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)
+    ),
   [codeTools.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
   [codeTools.githubCopilotCli]: () => [],
   [codeTools.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai'))
