@@ -1,7 +1,7 @@
-import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import type { KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
 import { Progress } from 'antd'
+import { CheckCircle2, CircleX } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,7 +26,7 @@ const StatusIcon: FC<StatusIconProps> = ({ type, progress: propProgress, isPrepr
   return useMemo(() => {
     if (!status || status === 'idle') {
       return (
-        <Tooltip placement="left" content={t('knowledge.status_new')}>
+        <Tooltip placement="top" content={t('knowledge.status_new')}>
           <StatusDot $status="idle" />
         </Tooltip>
       )
@@ -35,7 +35,7 @@ const StatusIcon: FC<StatusIconProps> = ({ type, progress: propProgress, isPrepr
     switch (status) {
       case 'pending':
         return (
-          <Tooltip placement="left" content={t('knowledge.status_pending')}>
+          <Tooltip placement="top" content={t('knowledge.status_pending')}>
             <StatusDot $status="pending" />
           </Tooltip>
         )
@@ -49,11 +49,11 @@ const StatusIcon: FC<StatusIconProps> = ({ type, progress: propProgress, isPrepr
         const tooltipContent = t(tooltipKey)
 
         return resolvedType === 'directory' || resolvedType === 'file' ? (
-          <Tooltip placement="left" content={`${tooltipContent} ${progress}%`}>
+          <Tooltip placement="top" content={`${tooltipContent} ${progress}%`}>
             <Progress type="circle" size={14} percent={Number(progress?.toFixed(0))} strokeColor={strokeColor} />
           </Tooltip>
         ) : (
-          <Tooltip placement="left" content={tooltipContent}>
+          <Tooltip placement="top" content={tooltipContent}>
             <StatusDot $status={status === 'ocr' ? 'pending' : 'processing'} />
           </Tooltip>
         )
@@ -61,20 +61,20 @@ const StatusIcon: FC<StatusIconProps> = ({ type, progress: propProgress, isPrepr
       case 'completed':
         if (isPreprocessed && resolvedType === 'file') {
           return (
-            <Tooltip placement="left" content={t('knowledge.status_preprocess_completed')}>
-              <CheckCircleOutlined style={{ color: '#52c41a' }} />
+            <Tooltip placement="top" content={t('knowledge.status_preprocess_completed')}>
+              <CheckCircle2 size={16} className="text-primary" />
             </Tooltip>
           )
         }
         return (
-          <Tooltip placement="left" content={t('knowledge.status_completed')}>
-            <CheckCircleOutlined style={{ color: '#52c41a' }} />
+          <Tooltip placement="top" content={t('knowledge.status_completed')}>
+            <CheckCircle2 size={16} className="text-primary" />
           </Tooltip>
         )
       case 'failed':
         return (
-          <Tooltip placement="left" content={errorText || t('knowledge.status_failed')}>
-            <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+          <Tooltip placement="top" content={errorText || t('knowledge.status_failed')}>
+            <CircleX size={16} className="text-red-600" />
           </Tooltip>
         )
       default:

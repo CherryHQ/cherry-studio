@@ -19,13 +19,16 @@ interface UseKnowledgeTabsArgs {
   preprocessMap: Map<string, boolean>
 }
 
+export type TabKey = 'files' | 'notes' | 'directories' | 'urls' | 'sitemaps'
+
 interface KnowledgeTabItem {
-  key: string
+  key: TabKey
   title: string
   icon: ReactNode
   items: KnowledgeItemV2[]
   content: ReactNode
   show: boolean
+  addButtonLabel: string
 }
 
 const buildTabIcon = (Icon: typeof Book, isActive: boolean) => {
@@ -34,7 +37,7 @@ const buildTabIcon = (Icon: typeof Book, isActive: boolean) => {
 
 export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: UseKnowledgeTabsArgs) => {
   const { t } = useTranslation()
-  const [activeKey, setActiveKey] = useState('files')
+  const [activeKey, setActiveKey] = useState<TabKey>('files')
 
   const itemsByType = useMemo(() => groupKnowledgeItemsByType(items), [items])
 
@@ -50,7 +53,8 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
         icon: buildTabIcon(Book, activeKey === 'files'),
         items: itemsByType.files,
         content: <KnowledgeFiles selectedBase={base} progressMap={progressMap} preprocessMap={preprocessMap} />,
-        show: true
+        show: true,
+        addButtonLabel: t('knowledge.add_file')
       },
       {
         key: 'notes',
@@ -58,7 +62,8 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
         icon: buildTabIcon(Notebook, activeKey === 'notes'),
         items: itemsByType.notes,
         content: <KnowledgeNotes selectedBase={base} />,
-        show: true
+        show: true,
+        addButtonLabel: t('knowledge.add_note')
       },
       {
         key: 'directories',
@@ -66,7 +71,8 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
         icon: buildTabIcon(Folder, activeKey === 'directories'),
         items: itemsByType.directories,
         content: <KnowledgeDirectories selectedBase={base} progressMap={progressMap} />,
-        show: true
+        show: true,
+        addButtonLabel: t('knowledge.add_directory')
       },
       {
         key: 'urls',
@@ -74,7 +80,8 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
         icon: buildTabIcon(Link, activeKey === 'urls'),
         items: itemsByType.urls,
         content: <KnowledgeUrls selectedBase={base} />,
-        show: true
+        show: true,
+        addButtonLabel: t('knowledge.add_url')
       },
       {
         key: 'sitemaps',
@@ -82,7 +89,8 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
         icon: buildTabIcon(Globe, activeKey === 'sitemaps'),
         items: itemsByType.sitemaps,
         content: <KnowledgeSitemaps selectedBase={base} />,
-        show: true
+        show: true,
+        addButtonLabel: t('knowledge.add_sitemap')
       }
     ]
 

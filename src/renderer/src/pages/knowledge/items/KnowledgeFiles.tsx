@@ -1,7 +1,5 @@
 import { Button, Dropzone, DropzoneEmptyState, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import Ellipsis from '@renderer/components/Ellipsis'
-import { useFiles } from '@renderer/hooks/useFiles'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
@@ -9,7 +7,6 @@ import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { FileMetadata, FileTypes, KnowledgeBase } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
-import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import type { FileItemData } from '@shared/data/types/knowledge'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -17,20 +14,9 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('KnowledgeFiles')
 
-import { DeleteIcon } from '@renderer/components/Icons'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { PlusIcon } from 'lucide-react'
+import { RotateCw, Trash2 } from 'lucide-react'
 
-import {
-  ClickableSpan,
-  FlexAlignCenter,
-  ItemContainer,
-  ItemHeader,
-  KnowledgeEmptyView,
-  RefreshIcon,
-  ResponsiveButton,
-  StatusIconWrapper
-} from '../components/KnowledgeItemLayout'
 import { formatKnowledgeItemTime } from '../utils/time'
 
 interface KnowledgeContentProps {
@@ -39,12 +25,9 @@ interface KnowledgeContentProps {
   preprocessMap: Map<string, boolean>
 }
 
-const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
-
 const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, preprocessMap }) => {
   const { t } = useTranslation()
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
-  const { onSelectFile, selecting } = useFiles({ extensions: fileTypes })
 
   const { fileItems: v2FileItems, addFiles, deleteItem, refreshItem } = useKnowledgeFiles(selectedBase.id || '')
 
@@ -66,14 +49,6 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
 
   if (!selectedBase) {
     return null
-  }
-
-  const handleAddFile = async () => {
-    if (disabled || selecting) {
-      return
-    }
-    const selectedFiles = await onSelectFile({ multipleSelections: true })
-    processFiles(selectedFiles)
   }
 
   const handleDrop = async (files: File[]) => {
@@ -169,14 +144,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   }
 
   return (
-    <ItemContainer>
-      <ItemHeader>
-        <ResponsiveButton size="sm" variant="default" onClick={handleAddFile} disabled={disabled}>
-          <PlusIcon size={16} />
-          {t('knowledge.add_file')}
-        </ResponsiveButton>
-      </ItemHeader>
-
+    <div className="flex flex-col">
       <div className="flex flex-col gap-2.5 px-4 py-5">
         <Dropzone onDrop={handleDrop} onError={handleDropError} maxFiles={999} disabled={disabled}>
           <DropzoneEmptyState>
@@ -190,66 +158,59 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             </div>
           </DropzoneEmptyState>
         </Dropzone>
-        {v2FileItems.length === 0 ? (
-          <KnowledgeEmptyView />
-        ) : (
-          <DynamicVirtualList
-            list={reversedItems}
-            estimateSize={estimateSize}
-            overscan={2}
-            scrollerStyle={{ height: windowHeight - 270 }}
-            autoHideScrollbar>
-            {(item) => {
-              const file = (item.data as FileItemData).file
-              return (
-                <div style={{ height: '75px', paddingTop: '12px' }}>
-                  <FileItem
-                    key={item.id}
-                    fileInfo={{
-                      name: (
-                        <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
-                          <Ellipsis>
-                            <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
-                          </Ellipsis>
-                        </ClickableSpan>
-                      ),
-                      ext: file.ext,
-                      extra: `${formatKnowledgeItemTime(item)} · ${formatFileSize(file.size)}`,
-                      actions: (
-                        <FlexAlignCenter>
-                          {item.status === 'completed' && (
-                            <Button variant="ghost" onClick={() => refreshItem(item.id)}>
-                              <RefreshIcon />
-                            </Button>
-                          )}
-                          {showPreprocessIcon(item.id) && (
-                            <StatusIconWrapper>
-                              <StatusIcon
-                                sourceId={item.id}
-                                item={item}
-                                type="file"
-                                isPreprocessed={preprocessMap.get(item.id) || false}
-                                progress={progressMap.get(item.id)}
-                              />
-                            </StatusIconWrapper>
-                          )}
-                          <StatusIconWrapper>
-                            <StatusIcon sourceId={item.id} item={item} type="file" />
-                          </StatusIconWrapper>
-                          <Button variant="ghost" onClick={() => deleteItem(item.id)}>
-                            <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
-                          </Button>
-                        </FlexAlignCenter>
-                      )
-                    }}
-                  />
-                </div>
-              )
-            }}
-          </DynamicVirtualList>
-        )}
+        <DynamicVirtualList
+          list={reversedItems}
+          estimateSize={estimateSize}
+          overscan={2}
+          scrollerStyle={{ height: windowHeight - 270 }}
+          autoHideScrollbar>
+          {(item) => {
+            const file = (item.data as FileItemData).file
+            return (
+              <FileItem
+                key={item.id}
+                fileInfo={{
+                  name: (
+                    <div onClick={() => window.api.file.openFileWithRelativePath(file)}>
+                      <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
+                    </div>
+                  ),
+                  ext: file.ext,
+                  extra: `${formatKnowledgeItemTime(item)} · ${formatFileSize(file.size)}`,
+                  actions: (
+                    <div className="flex items-center">
+                      {item.status === 'completed' && (
+                        <Button size="icon-sm" variant="ghost" onClick={() => refreshItem(item.id)}>
+                          <RotateCw size={16} className="text-foreground" />
+                        </Button>
+                      )}
+                      {showPreprocessIcon(item.id) && (
+                        <Button size="icon-sm" variant="ghost">
+                          <StatusIcon
+                            sourceId={item.id}
+                            item={item}
+                            type="file"
+                            isPreprocessed={preprocessMap.get(item.id) || false}
+                            progress={progressMap.get(item.id)}
+                          />
+                        </Button>
+                      )}
+                      <Button size="icon-sm" variant="ghost">
+                        <StatusIcon sourceId={item.id} item={item} type="file" />
+                      </Button>
+
+                      <Button size="icon-sm" variant="ghost" onClick={() => deleteItem(item.id)}>
+                        <Trash2 size={16} className="text-red-600" />
+                      </Button>
+                    </div>
+                  )
+                }}
+              />
+            )
+          }}
+        </DynamicVirtualList>
       </div>
-    </ItemContainer>
+    </div>
   )
 }
 

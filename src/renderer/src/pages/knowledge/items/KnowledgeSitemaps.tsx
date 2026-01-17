@@ -1,49 +1,25 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import Ellipsis from '@renderer/components/Ellipsis'
-import { DeleteIcon } from '@renderer/components/Icons'
-import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledgeSitemaps } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
-import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
 import type { SitemapItemData } from '@shared/data/types/knowledge'
-import { PlusIcon } from 'lucide-react'
+import { RotateCw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import {
-  ClickableSpan,
-  FlexAlignCenter,
-  ItemContainer,
-  ItemHeader,
-  KnowledgeEmptyView,
-  RefreshIcon,
-  ResponsiveButton,
-  StatusIconWrapper
-} from '../components/KnowledgeItemLayout'
 import StatusIcon from '../components/StatusIcon'
 import { formatKnowledgeItemTime } from '../utils/time'
-
-const logger = loggerService.withContext('KnowledgeSitemaps')
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
 
 const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
-  const { t } = useTranslation()
-
   // v2 Data API hook for sitemap items
-  const { sitemapItems, addSitemap, isAddingSitemap, deleteItem, refreshItem } = useKnowledgeSitemaps(
-    selectedBase.id || ''
-  )
-
-  const providerName = getProviderName(selectedBase?.model)
-  const disabled = !selectedBase?.version || !providerName
+  const { sitemapItems, deleteItem, refreshItem } = useKnowledgeSitemaps(selectedBase.id || '')
+  const { t } = useTranslation()
 
   const reversedItems = [...sitemapItems].reverse()
   const estimateSize = useCallback(() => 75, [])
@@ -52,46 +28,10 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     return null
   }
 
-  const handleAddSitemap = async () => {
-    if (disabled || isAddingSitemap) {
-      return
-    }
-
-    const url = await PromptPopup.show({
-      title: t('knowledge.add_sitemap'),
-      message: '',
-      inputPlaceholder: t('knowledge.sitemap_placeholder'),
-      inputProps: {
-        maxLength: 1000,
-        rows: 1
-      }
-    })
-
-    if (url) {
-      try {
-        new URL(url)
-        const hasUrl = sitemapItems.some((item) => (item.data as SitemapItemData).url === url)
-        if (hasUrl) {
-          window.toast.success(t('knowledge.sitemap_added'))
-          return
-        }
-        addSitemap(url)
-      } catch (e) {
-        logger.error(`Invalid Sitemap URL: ${url}`)
-      }
-    }
-  }
-
   return (
-    <ItemContainer>
-      <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddSitemap} disabled={disabled || isAddingSitemap}>
-          <PlusIcon size={16} />
-          {t('knowledge.add_sitemap')}
-        </ResponsiveButton>
-      </ItemHeader>
-      <ItemFlexColumn>
-        {sitemapItems.length === 0 && <KnowledgeEmptyView />}
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-2.5 px-4 py-5">
+        {sitemapItems.length === 0 && <div className="text-center text-foreground-muted">{t('common.no_results')}</div>}
         <DynamicVirtualList
           list={reversedItems}
           estimateSize={estimateSize}
@@ -106,46 +46,37 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 key={item.id}
                 fileInfo={{
                   name: (
-                    <ClickableSpan>
-                      <Tooltip content={data.url}>
-                        <Ellipsis>
-                          <a href={data.url} target="_blank" rel="noopener noreferrer">
-                            {data.url}
-                          </a>
-                        </Ellipsis>
-                      </Tooltip>
-                    </ClickableSpan>
+                    <Tooltip content={data.url}>
+                      <a href={data.url} target="_blank" rel="noopener noreferrer">
+                        {data.url}
+                      </a>
+                    </Tooltip>
                   ),
                   ext: '.sitemap',
                   extra: formatKnowledgeItemTime(item),
                   actions: (
-                    <FlexAlignCenter>
+                    <div className="flex items-center">
                       {item.status === 'completed' && (
-                        <Button variant="ghost" onClick={() => refreshItem(item.id)}>
-                          <RefreshIcon />
+                        <Button size="icon-sm" variant="ghost" onClick={() => refreshItem(item.id)}>
+                          <RotateCw size={16} className="text-foreground" />
                         </Button>
                       )}
-                      <StatusIconWrapper>
+                      <Button size="icon-sm" variant="ghost">
                         <StatusIcon sourceId={item.id} item={item} type="sitemap" />
-                      </StatusIconWrapper>
-                      <Button variant="ghost" onClick={() => deleteItem(item.id)}>
-                        <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                       </Button>
-                    </FlexAlignCenter>
+                      <Button size="icon-sm" variant="ghost" onClick={() => deleteItem(item.id)}>
+                        <Trash2 size={16} className="text-red-600" />
+                      </Button>
+                    </div>
                   )
                 }}
               />
             )
           }}
         </DynamicVirtualList>
-      </ItemFlexColumn>
-    </ItemContainer>
+      </div>
+    </div>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeSitemaps

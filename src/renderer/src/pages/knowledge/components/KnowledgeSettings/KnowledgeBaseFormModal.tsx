@@ -56,7 +56,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
           afterClose?.()
         }
       }}>
-      <DialogContent className="flex h-[min(550px,70vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(700px,70vw)]">
+      <DialogContent className="flex h-[min(550px,70vh)] flex-col gap-0 overflow-hidden p-2 sm:max-w-[min(700px,70vw)]">
         <DialogHeader className="border-border border-b p-4">
           <DialogTitle className="font-medium text-sm">{title}</DialogTitle>
         </DialogHeader>

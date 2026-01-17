@@ -1,22 +1,22 @@
-import { Badge, Button, RowFlex, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, CustomTag, RowFlex, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledgeBase, useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { RefreshCw, Search, Settings } from 'lucide-react'
+import { PlusIcon, RefreshCw, Search, Settings } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import EditKnowledgeBaseDialog from './components/EditKnowledgeBaseDialog'
-import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
+import KnowledgeSearchDialog from './components/KnowledgeSearchDialog'
 import QuotaTag from './components/QuotaTag'
+import { useKnowledgeAddActions } from './hooks/useKnowledgeAddActions'
 import { useKnowledgeProgress } from './hooks/useKnowledgeProgress'
 import { useKnowledgeQueueActions } from './hooks/useKnowledgeQueueActions'
-import { useKnowledgeTabs } from './hooks/useKnowledgeTabs'
+import { type TabKey, useKnowledgeTabs } from './hooks/useKnowledgeTabs'
 import { mapKnowledgeBaseV2ToV1 } from './utils/knowledgeBaseAdapter'
 
 const logger = loggerService.withContext('KnowledgeContent')
@@ -43,8 +43,15 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
     preprocessMap
   })
 
+  // Add actions for the current tab
+  const addActions = useKnowledgeAddActions({ base: base ?? null })
+  const currentAction = addActions[activeKey as TabKey]
+  const currentTab = tabItems.find((t) => t.key === activeKey)
+
   // Edit dialog state (independent from sidebar's edit dialog)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  // Search dialog state
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false)
 
   const providerName = getProviderName(base?.model)
 
@@ -108,23 +115,35 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
             </Button>
           )}
           {/* 使用selected base导致修改设置后没有响应式更新 */}
-          <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ baseId: base.id })}>
+          <NavbarIcon onClick={() => setSearchDialogOpen(true)}>
             <Search size={18} />
           </NavbarIcon>
         </RowFlex>
       </HeaderContainer>
-      <Tabs value={activeKey} onValueChange={setActiveKey} variant="line" className="flex-1">
-        <TabsList className="mx-4 h-12 justify-start gap-1 border-b-0 bg-transparent p-0">
-          {tabItems.map((item) => (
-            <TabsTrigger key={item.key} value={item.key} className="gap-1.5 px-3 py-3 text-[13px]">
-              {item.icon}
-              <span>{item.title}</span>
-              <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
-                {item.items.length}
-              </CustomTag>
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <Tabs value={activeKey} onValueChange={(v) => setActiveKey(v as TabKey)} variant="line" className="flex-1">
+        <div className="mx-4 flex h-12 items-center justify-between border-b-0 bg-transparent p-0">
+          <TabsList className="h-full justify-start gap-1 bg-transparent p-0">
+            {tabItems.map((item) => (
+              <TabsTrigger key={item.key} value={item.key} className="gap-1.5 px-3 py-3 text-[13px]">
+                {item.icon}
+                <span>{item.title}</span>
+                <div></div>
+                <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
+                  {item.items.length}
+                </CustomTag>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Button
+            className="h-8 rounded-2xs"
+            size="sm"
+            variant="outline"
+            onClick={currentAction?.handler}
+            disabled={currentAction?.disabled || currentAction?.loading}>
+            <PlusIcon className="text-primary" />
+            {currentTab?.addButtonLabel}
+          </Button>
+        </div>
         {tabItems.map((item) => (
           <TabsContent key={item.key} value={item.key} className="h-full overflow-hidden">
             {item.content}
@@ -134,6 +153,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
 
       {/* Edit Dialog */}
       <EditKnowledgeBaseDialog baseId={base.id} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
+      {/* Search Dialog */}
+      <KnowledgeSearchDialog baseId={base.id} open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
     </MainContainer>
   )
 }

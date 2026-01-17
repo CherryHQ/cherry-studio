@@ -1,14 +1,15 @@
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
 import { Empty } from 'antd'
 import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AddKnowledgeBaseDialog from './components/AddKnowledgeBaseDialog'
 import EditKnowledgeBaseDialog from './components/EditKnowledgeBaseDialog'
+import KnowledgeSearchDialog from './components/KnowledgeSearchDialog'
 import KnowledgeSideNav from './components/KnowledgeSideNav'
 import { useKnowledgeBaseMenu } from './hooks/useKnowledgeBaseMenu'
 import { useKnowledgeBaseSelection } from './hooks/useKnowledgeBaseSelection'
@@ -41,9 +42,12 @@ const KnowledgePage: FC = () => {
     onSelectBase: selectBase
   })
 
+  // Search dialog state
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false)
+
   useShortcut('search_message', () => {
     if (selectedBaseId) {
-      KnowledgeSearchPopup.show({ baseId: selectedBaseId }).then()
+      setSearchDialogOpen(true)
     }
   })
 
@@ -78,6 +82,9 @@ const KnowledgePage: FC = () => {
           onOpenChange={handleEditDialogClose}
           onSuccess={handleEditSuccess}
         />
+      )}
+      {selectedBaseId && (
+        <KnowledgeSearchDialog baseId={selectedBaseId} open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
       )}
     </Container>
   )

@@ -1,34 +1,18 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import Ellipsis from '@renderer/components/Ellipsis'
-import { DeleteIcon } from '@renderer/components/Icons'
 import { useKnowledgeDirectories } from '@renderer/hooks/useKnowledge.v2'
 import FileItem from '@renderer/pages/files/FileItem'
-import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import type { DirectoryItemData, ItemStatus, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
 import { Collapse } from 'antd'
-import { PlusIcon } from 'lucide-react'
+import { RotateCw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import {
-  ClickableSpan,
-  FlexAlignCenter,
-  ItemContainer,
-  ItemHeader,
-  KnowledgeEmptyView,
-  RefreshIcon,
-  ResponsiveButton,
-  StatusIconWrapper
-} from '../components/KnowledgeItemLayout'
 import StatusIcon from '../components/StatusIcon'
 import { formatKnowledgeItemTime, formatKnowledgeTimestamp } from '../utils/time'
-
-const logger = loggerService.withContext('KnowledgeDirectories')
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
@@ -77,11 +61,9 @@ const computeAggregateProgress = (items: KnowledgeItemV2[], progressMap: Map<str
 const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progressMap }) => {
   const { t } = useTranslation()
 
-  const { directoryItems, addDirectory, isAddingDirectory, deleteItem, refreshItem, deleteGroup, refreshGroup } =
-    useKnowledgeDirectories(selectedBase.id || '')
-
-  const providerName = getProviderName(selectedBase?.model)
-  const disabled = !selectedBase?.version || !providerName
+  const { directoryItems, deleteItem, refreshItem, deleteGroup, refreshGroup } = useKnowledgeDirectories(
+    selectedBase.id || ''
+  )
 
   // Group items by groupId
   const groupedDirectories = useMemo((): DirectoryGroup[] => {
@@ -114,16 +96,6 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     return null
   }
 
-  const handleAddDirectory = async () => {
-    if (disabled || isAddingDirectory) {
-      return
-    }
-
-    const path = await window.api.file.selectFolder()
-    logger.info('Selected directory:', { path })
-    path && addDirectory(path)
-  }
-
   const collapseItems = reversedGroups.map((group) => ({
     key: group.groupId,
     label: (
@@ -131,37 +103,35 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
         <FileItem
           fileInfo={{
             name: (
-              <ClickableSpan
+              <div
                 onClick={(e) => {
                   e.stopPropagation()
                   window.api.file.openPath(group.groupName)
                 }}>
-                <Ellipsis>
-                  <Tooltip content={group.groupName}>{group.groupName}</Tooltip>
-                </Ellipsis>
-              </ClickableSpan>
+                <Tooltip content={group.groupName}>{group.groupName}</Tooltip>
+              </div>
             ),
             ext: '.folder',
             extra: `${group.fileCount} ${t('knowledge.files')} · ${group.latestUpdate}`,
             actions: (
-              <FlexAlignCenter onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
                 {group.aggregateStatus === 'completed' && (
-                  <Button variant="ghost" onClick={() => refreshGroup(group.groupId)}>
-                    <RefreshIcon />
+                  <Button size="icon-sm" variant="ghost" onClick={() => refreshGroup(group.groupId)}>
+                    <RotateCw size={16} className="text-foreground" />
                   </Button>
                 )}
-                <StatusIconWrapper>
+                <Button size="icon-sm" variant="ghost">
                   <StatusIcon
                     sourceId={group.groupId}
                     item={{ status: group.aggregateStatus, progress: group.aggregateProgress } as KnowledgeItemV2}
                     progress={group.aggregateProgress}
                     type="directory"
                   />
-                </StatusIconWrapper>
-                <Button variant="ghost" onClick={() => deleteGroup(group.groupId)}>
-                  <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                 </Button>
-              </FlexAlignCenter>
+                <Button size="icon-sm" variant="ghost" onClick={() => deleteGroup(group.groupId)}>
+                  <Trash2 size={16} className="text-red-600" />
+                </Button>
+              </div>
             )
           }}
         />
@@ -176,28 +146,26 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
               <FileItem
                 fileInfo={{
                   name: (
-                    <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
-                      <Ellipsis>
-                        <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
-                      </Ellipsis>
-                    </ClickableSpan>
+                    <div onClick={() => window.api.file.openFileWithRelativePath(file)}>
+                      <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
+                    </div>
                   ),
                   ext: file.ext,
                   extra: `${formatKnowledgeItemTime(item)} · ${formatFileSize(file.size)}`,
                   actions: (
-                    <FlexAlignCenter>
+                    <div className="flex items-center">
                       {item.status === 'completed' && (
-                        <Button variant="ghost" onClick={() => refreshItem(item.id)}>
-                          <RefreshIcon />
+                        <Button size="icon-sm" variant="ghost" onClick={() => refreshItem(item.id)}>
+                          <RotateCw size={16} className="text-foreground" />
                         </Button>
                       )}
-                      <StatusIconWrapper>
+                      <Button size="icon-sm" variant="ghost">
                         <StatusIcon sourceId={item.id} item={item} progress={progressMap.get(item.id)} type="file" />
-                      </StatusIconWrapper>
-                      <Button variant="ghost" onClick={() => deleteItem(item.id)}>
-                        <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                       </Button>
-                    </FlexAlignCenter>
+                      <Button size="icon-sm" variant="ghost" onClick={() => deleteItem(item.id)}>
+                        <Trash2 size={16} className="text-red-600" />
+                      </Button>
+                    </div>
                   )
                 }}
               />
@@ -220,30 +188,20 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
   }))
 
   return (
-    <ItemContainer>
-      <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddDirectory} disabled={disabled || isAddingDirectory}>
-          <PlusIcon size={16} />
-          {t('knowledge.add_directory')}
-        </ResponsiveButton>
-      </ItemHeader>
-      <ItemFlexColumn>
-        {groupedDirectories.length === 0 && <KnowledgeEmptyView />}
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-2.5 px-4 py-5">
+        {groupedDirectories.length === 0 && (
+          <div className="text-center text-foreground-muted">{t('common.no_results')}</div>
+        )}
         {groupedDirectories.length > 0 && (
           <CollapseContainer>
             <Collapse bordered={false} defaultActiveKey={reversedGroups.map((g) => g.groupId)} items={collapseItems} />
           </CollapseContainer>
         )}
-      </ItemFlexColumn>
-    </ItemContainer>
+      </div>
+    </div>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-  overflow-y: auto;
-`
 
 const CollapseContainer = styled.div`
   display: flex;

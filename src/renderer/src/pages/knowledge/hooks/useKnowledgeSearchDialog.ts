@@ -1,0 +1,118 @@
+import { loggerService } from '@logger'
+import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
+import { useKnowledgeBase } from '@renderer/data/hooks/useKnowledges'
+import { useKnowledgeSearch } from '@renderer/hooks/useKnowledge.v2'
+import { isValidUrl } from '@renderer/utils/fetch'
+import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useKnowledgeSearchDialog')
+
+interface UseKnowledgeSearchDialogOptions {
+  baseId: string
+}
+
+export const useKnowledgeSearchDialog = ({ baseId }: UseKnowledgeSearchDialogOptions) => {
+  const [results, setResults] = useState<KnowledgeSearchResult[]>([])
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const { t } = useTranslation()
+
+  const { search, isSearching } = useKnowledgeSearch(baseId)
+  const { base } = useKnowledgeBase(baseId, { enabled: !!baseId })
+
+  const handleSearch = useCallback(
+    async (value: string) => {
+      if (!value.trim()) {
+        setResults([])
+        setSearchKeyword('')
+        return
+      }
+
+      setSearchKeyword(value.trim())
+      try {
+        const limit = base?.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
+        const searchResults = await search({
+          search: value.trim(),
+          limit,
+          rerank: !!base?.rerankModelId
+        })
+        logger.debug(`Search Results: ${searchResults}`)
+        setResults(searchResults)
+      } catch (error) {
+        logger.error(`Failed to search knowledge base ${base?.name ?? baseId}:`, error as Error)
+        setResults([])
+      }
+    },
+    [base?.documentCount, base?.rerankModelId, base?.name, baseId, search]
+  )
+
+  const handleCopy = useCallback(
+    async (text: string) => {
+      try {
+        await navigator.clipboard.writeText(text)
+        window.toast.success(t('message.copied'))
+      } catch (error) {
+        logger.error('Failed to copy text:', error as Error)
+        window.toast.error(t('message.error.copy') || 'Failed to copy text')
+      }
+    },
+    [t]
+  )
+
+  const handleSourceClick = useCallback((item: KnowledgeSearchResult) => {
+    const { metadata } = item
+    const type = (metadata?.type as string) || 'file'
+    const source = metadata?.source as string | undefined
+
+    if (!source) {
+      logger.warn('No source found for item')
+      return
+    }
+
+    switch (type) {
+      case 'file':
+        window.api.file.openPath(source)
+        break
+      case 'directory':
+        window.api.file.showInFolder(source)
+        break
+      case 'url':
+      case 'sitemap':
+        if (isValidUrl(source)) {
+          window.api.shell.openExternal(source)
+        }
+        break
+      case 'note':
+        break
+      default:
+        break
+    }
+  }, [])
+
+  const getSourceText = useCallback((item: KnowledgeSearchResult) => {
+    const source = item.metadata?.source as string | undefined
+    if (!source) return ''
+    if (isValidUrl(source)) {
+      return source
+    }
+    return source.split('/').pop() || source
+  }, [])
+
+  const reset = useCallback(() => {
+    setSearchKeyword('')
+    setResults([])
+  }, [])
+
+  return {
+    searchKeyword,
+    setSearchKeyword,
+    results,
+    isSearching,
+    handleSearch,
+    handleCopy,
+    handleSourceClick,
+    getSourceText,
+    reset
+  }
+}

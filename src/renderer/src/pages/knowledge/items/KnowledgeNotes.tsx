@@ -1,6 +1,5 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
@@ -10,20 +9,11 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
 import { isMarkdownContent, markdownToPreviewText } from '@renderer/utils/markdownConverter'
 import type { KnowledgeItem as KnowledgeItemV2, NoteItemData } from '@shared/data/types/knowledge'
-import { PlusIcon } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import {
-  FlexAlignCenter,
-  ItemContainer,
-  ItemHeader,
-  KnowledgeEmptyView,
-  ResponsiveButton,
-  StatusIconWrapper
-} from '../components/KnowledgeItemLayout'
 import StatusIcon from '../components/StatusIcon'
 import { formatKnowledgeItemTime } from '../utils/time'
 
@@ -37,7 +27,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
   // v2 Data API hook for note items
-  const { noteItems, addNote, isAddingNote, deleteItem } = useKnowledgeNotes(selectedBase.id || '')
+  const { noteItems, deleteItem } = useKnowledgeNotes(selectedBase.id || '')
 
   // v2 Data API hook for updating note content
   const itemsRefreshKey = selectedBase.id ? `/knowledges/${selectedBase.id}/items` : ''
@@ -75,20 +65,6 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     return null
   }
 
-  const handleAddNote = async () => {
-    if (disabled || isAddingNote) {
-      return
-    }
-
-    const note = await RichEditPopup.show({
-      content: '',
-      modalProps: {
-        title: t('knowledge.add_note')
-      }
-    })
-    note && addNote(note)
-  }
-
   const handleEditNote = async (note: KnowledgeItemV2) => {
     if (disabled) {
       return
@@ -105,15 +81,9 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   }
 
   return (
-    <ItemContainer>
-      <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddNote} disabled={disabled || isAddingNote}>
-          <PlusIcon size={16} />
-          {t('knowledge.add_note')}
-        </ResponsiveButton>
-      </ItemHeader>
-      <ItemFlexColumn>
-        {noteItems.length === 0 && <KnowledgeEmptyView />}
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-2.5 px-4 py-5">
+        {noteItems.length === 0 && <div className="text-center text-foreground-muted">{t('common.no_results')}</div>}
         <DynamicVirtualList
           list={reversedItems}
           estimateSize={estimateSize}
@@ -128,48 +98,33 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 key={note.id}
                 fileInfo={{
                   name: (
-                    <NotePreview onClick={() => handleEditNote(note)}>
+                    <div className="cursor-pointer" onClick={() => handleEditNote(note)}>
                       {markdownToPreviewText(data.content, 50)}
-                    </NotePreview>
+                    </div>
                   ),
                   ext: isMarkdownContent(data.content) ? '.md' : '.txt',
                   extra: formatKnowledgeItemTime(note),
                   actions: (
-                    <FlexAlignCenter>
-                      <Button variant="ghost" onClick={() => handleEditNote(note)}>
-                        <EditIcon size={14} />
+                    <div className="flex items-center">
+                      <Button size="icon-sm" variant="ghost" onClick={() => handleEditNote(note)}>
+                        <Pencil size={16} className="text-foreground" />
                       </Button>
-                      <StatusIconWrapper>
+                      <Button size="icon-sm" variant="ghost">
                         <StatusIcon sourceId={note.id} item={note} type="note" />
-                      </StatusIconWrapper>
-                      <Button variant="ghost" onClick={() => deleteItem(note.id)}>
-                        <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                       </Button>
-                    </FlexAlignCenter>
+                      <Button size="icon-sm" variant="ghost" onClick={() => deleteItem(note.id)}>
+                        <Trash2 size={16} className="text-red-600" />
+                      </Button>
+                    </div>
                   )
                 }}
               />
             )
           }}
         </DynamicVirtualList>
-      </ItemFlexColumn>
-    </ItemContainer>
+      </div>
+    </div>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
-
-const NotePreview = styled.span`
-  cursor: pointer;
-  color: var(--color-text-1);
-
-  &:hover {
-    color: var(--color-primary);
-    text-decoration: underline;
-  }
-`
 
 export default KnowledgeNotes

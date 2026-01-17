@@ -1,7 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import Ellipsis from '@renderer/components/Ellipsis'
-import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
@@ -11,22 +9,11 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
 import type { KnowledgeItem as KnowledgeItemV2, UrlItemData } from '@shared/data/types/knowledge'
 import { Dropdown } from 'antd'
-import { PlusIcon } from 'lucide-react'
+import { Copy, Pencil, RotateCw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import {
-  ClickableSpan,
-  FlexAlignCenter,
-  ItemContainer,
-  ItemHeader,
-  KnowledgeEmptyView,
-  RefreshIcon,
-  ResponsiveButton,
-  StatusIconWrapper
-} from '../components/KnowledgeItemLayout'
 import StatusIcon from '../components/StatusIcon'
 import { formatKnowledgeItemTime } from '../utils/time'
 
@@ -40,7 +27,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
   // v2 Data API hook for URL items
-  const { urlItems, addUrl, isAddingUrl, deleteItem, refreshItem } = useKnowledgeUrls(selectedBase.id || '')
+  const { urlItems, deleteItem, refreshItem } = useKnowledgeUrls(selectedBase.id || '')
 
   // v2 Data API hook for updating item remark
   const itemsRefreshKey = selectedBase.id ? `/knowledges/${selectedBase.id}/items` : ''
@@ -80,43 +67,6 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     return null
   }
 
-  const handleAddUrl = async () => {
-    if (disabled || isAddingUrl) {
-      return
-    }
-
-    const urlInput = await PromptPopup.show({
-      title: t('knowledge.add_url'),
-      message: '',
-      inputPlaceholder: t('knowledge.url_placeholder'),
-      inputProps: {
-        rows: 10,
-        onPressEnter: () => {}
-      }
-    })
-
-    if (urlInput) {
-      // Split input by newlines and filter out empty lines
-      const urls = urlInput.split('\n').filter((url) => url.trim())
-
-      for (const url of urls) {
-        try {
-          new URL(url.trim())
-          const trimmedUrl = url.trim()
-          const hasUrl = urlItems.some((item) => (item.data as UrlItemData).url === trimmedUrl)
-          if (!hasUrl) {
-            addUrl(trimmedUrl)
-          } else {
-            window.toast.success(t('knowledge.url_added'))
-          }
-        } catch (e) {
-          // Skip invalid URLs silently
-          continue
-        }
-      }
-    }
-  }
-
   const handleEditRemark = async (item: KnowledgeItemV2) => {
     if (disabled) {
       return
@@ -142,15 +92,9 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   }
 
   return (
-    <ItemContainer>
-      <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddUrl} disabled={disabled || isAddingUrl}>
-          <PlusIcon size={16} />
-          {t('knowledge.add_url')}
-        </ResponsiveButton>
-      </ItemHeader>
-      <ItemFlexColumn>
-        {urlItems.length === 0 && <KnowledgeEmptyView />}
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-2.5 px-4 py-5">
+        {urlItems.length === 0 && <div className="text-center text-foreground-muted">{t('common.no_results')}</div>}
         <DynamicVirtualList
           list={reversedItems}
           estimateSize={estimateSize}
@@ -171,13 +115,13 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         items: [
                           {
                             key: 'edit',
-                            icon: <EditIcon size={14} />,
+                            icon: <Pencil size={14} />,
                             label: t('knowledge.edit_remark'),
                             onClick: () => handleEditRemark(item)
                           },
                           {
                             key: 'copy',
-                            icon: <CopyIcon size={14} />,
+                            icon: <Copy size={14} />,
                             label: t('common.copy'),
                             onClick: () => {
                               navigator.clipboard.writeText(data.url)
@@ -187,47 +131,38 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         ]
                       }}
                       trigger={['contextMenu']}>
-                      <ClickableSpan>
-                        <Tooltip content={data.url}>
-                          <Ellipsis>
-                            <a href={data.url} target="_blank" rel="noopener noreferrer">
-                              {displayName}
-                            </a>
-                          </Ellipsis>
-                        </Tooltip>
-                      </ClickableSpan>
+                      <Tooltip content={data.url}>
+                        <a href={data.url} target="_blank" rel="noopener noreferrer">
+                          {displayName}
+                        </a>
+                      </Tooltip>
                     </Dropdown>
                   ),
                   ext: '.url',
                   extra: formatKnowledgeItemTime(item),
                   actions: (
-                    <FlexAlignCenter>
+                    <div className="flex items-center">
                       {item.status === 'completed' && (
-                        <Button variant="ghost" onClick={() => refreshItem(item.id)}>
-                          <RefreshIcon />
+                        <Button size="icon-sm" variant="ghost" onClick={() => refreshItem(item.id)}>
+                          <RotateCw size={16} className="text-foreground" />
                         </Button>
                       )}
-                      <StatusIconWrapper>
+                      <Button size="icon-sm" variant="ghost">
                         <StatusIcon sourceId={item.id} item={item} type="url" />
-                      </StatusIconWrapper>
-                      <Button variant="ghost" onClick={() => deleteItem(item.id)}>
-                        <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                       </Button>
-                    </FlexAlignCenter>
+                      <Button size="icon-sm" variant="ghost" onClick={() => deleteItem(item.id)}>
+                        <Trash2 size={16} className="text-red-600" />
+                      </Button>
+                    </div>
                   )
                 }}
               />
             )
           }}
         </DynamicVirtualList>
-      </ItemFlexColumn>
-    </ItemContainer>
+      </div>
+    </div>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeUrls

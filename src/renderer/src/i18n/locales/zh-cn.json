@@ -1624,6 +1624,7 @@
     "sitemap_placeholder": "请输入站点地图 URL",
     "sitemaps": "网站",
     "source": "来源",
+    "relevance": "匹配度",
     "status": "状态",
     "status_completed": "已完成",
     "status_embed": "嵌入中",
