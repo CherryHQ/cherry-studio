@@ -26,8 +26,7 @@ import {
   isSerializedError
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
-import { formatFileSize } from '@renderer/utils/file'
-import { KB } from '@shared/config/constant'
+import { parseDataUrl } from '@shared/utils'
 import { Button } from 'antd'
 import { Modal } from 'antd'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -40,29 +39,27 @@ interface ErrorDetailModalProps {
   error?: SerializedError
 }
 
-const MAX_DISPLAY_SIZE = 100 * KB
-
 const truncateLargeData = (
   data: string,
   t: (key: string) => string
 ): { content: string; truncated: boolean; isLikelyBase64: boolean } => {
-  if (!data || data.length <= MAX_DISPLAY_SIZE) {
-    return { content: data, truncated: false, isLikelyBase64: false }
-  }
+  const parsed = parseDataUrl(data)
+  const isLikelyBase64 = parsed?.isBase64 ?? false
 
-  const isLikelyBase64 = data.includes('data:image/') && data.includes(';base64,')
-  const formattedSize = formatFileSize(data.length)
+  if (!data || data.length <= 100_000) {
+    return { content: data, truncated: false, isLikelyBase64 }
+  }
 
   if (isLikelyBase64) {
     return {
-      content: `[${t('error.base64DataTruncated')} ~${formattedSize}]`,
+      content: `[${t('error.base64DataTruncated')}]`,
       truncated: true,
       isLikelyBase64: true
     }
   }
 
   return {
-    content: data.slice(0, MAX_DISPLAY_SIZE) + `\n\n... [${t('error.truncated')} ${formattedSize}]`,
+    content: data.slice(0, 100_000) + `\n\n... [${t('error.truncated')}]`,
     truncated: true,
     isLikelyBase64: false
   }

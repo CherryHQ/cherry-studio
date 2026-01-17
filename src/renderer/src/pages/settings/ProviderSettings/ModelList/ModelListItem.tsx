@@ -43,12 +43,15 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
 
   const hasFailedResult = useMemo(() => healthResults.some((r) => r.status === HealthStatus.FAILED), [healthResults])
 
-  const handleErrorClick = useCallback((result: HealthResult) => {
-    if (result.error) {
-      setSelectedError(result.error)
-      setShowErrorModal(true)
+  const handleErrorClick = useMemo(() => {
+    if (!hasFailedResult) return undefined
+    return (result: HealthResult) => {
+      if (result.error) {
+        setSelectedError(result.error)
+        setShowErrorModal(true)
+      }
     }
-  }, [])
+  }, [hasFailedResult])
 
   const handleCloseErrorModal = useCallback(() => {
     setShowErrorModal(false)
@@ -85,7 +88,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
             results={healthResults}
             loading={isChecking}
             showLatency
-            onErrorClick={hasFailedResult ? handleErrorClick : undefined}
+            onErrorClick={handleErrorClick}
           />
           <HStack alignItems="center" gap={0}>
             <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
