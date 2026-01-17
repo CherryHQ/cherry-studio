@@ -797,6 +797,11 @@
       "showByList": "Vizualizare listă",
       "showByTags": "Vizualizare etichete"
     },
+    "move_all": {
+      "confirm": "[to be translated]:Move all topics from \"{{from}}\" to \"{{to}}\" and merge?",
+      "dedupe": "[to be translated]:Deduplicate (by topic name)",
+      "title": "[to be translated]:Move all topics to"
+    },
     "presets": {
       "add": {
         "button": "Adaugă la asistent",
@@ -1378,6 +1383,8 @@
       "title": "Întrebări sugerate"
     },
     "thinking": "Gândire ({{seconds}} secunde)",
+    "thinking_effort_in_progress": "[to be translated]:Thinking ({{effort}}) ({{seconds}} seconds)",
+    "thought_done": "[to be translated]:Thought ({{effort}}) ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "Redenumire automată",
       "clear": {
@@ -1473,6 +1480,24 @@
         "unpinned": "Subiecte nefixate"
       },
       "move_to": "Mută la",
+      "multi_select": {
+        "batch_rename": "[to be translated]:Batch rename topics",
+        "batch_rename_failed": "[to be translated]:Rename failed: {{name}}",
+        "batch_rename_skip_empty": "[to be translated]:Skipped {{name}} (no messages)",
+        "batch_rename_success": "[to be translated]:Renamed: {{name}}",
+        "clear": "[to be translated]:Clear",
+        "delete": "[to be translated]:Delete Selected",
+        "empty": "[to be translated]:Please select topics first",
+        "exit": "[to be translated]:Exit Multi-select",
+        "export": "[to be translated]:Export as ChatGPT JSON",
+        "label": "[to be translated]:Multi-select",
+        "move": "[to be translated]:Move Selected",
+        "select": "[to be translated]:Select",
+        "select_all": "[to be translated]:Select All",
+        "select_all_unique": "[to be translated]:Select all (dedup titles)",
+        "selected_count": "[to be translated]:{{count}} selected",
+        "unselect": "[to be translated]:Unselect"
+      },
       "new": "Subiect nou",
       "pin": "Fixează subiectul",
       "prompt": {
@@ -1485,6 +1510,12 @@
       "search": {
         "placeholder": "Caută subiecte...",
         "title": "Caută"
+      },
+      "sort": {
+        "created": "[to be translated]:By created time",
+        "label": "[to be translated]:Sort",
+        "name": "[to be translated]:By name",
+        "updated": "[to be translated]:By updated time"
       },
       "title": "Subiecte",
       "unpin": "Detașează subiectul"
@@ -1968,6 +1999,15 @@
       "label": "Ești sigur că vrei să imporți date externe?"
     },
     "content": "Selectează fișierul de conversație din aplicația externă pentru import; momentan acceptă doar fișiere în format JSON ChatGPT",
+    "gemini": {
+      "assistant_name": "[to be translated]:Gemini Import",
+      "error": {
+        "no_conversations": "[to be translated]:No Gemini conversations found",
+        "no_valid_conversations": "[to be translated]:No valid Gemini conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "title": "Importă conversații externe"
   },
   "knowledge": {
@@ -2119,7 +2159,9 @@
   },
   "launchpad": {
     "apps": "Aplicații",
-    "minapps": "Mini-aplicații"
+    "assistant": "[to be translated]:Assistant",
+    "minapps": "Mini-aplicații",
+    "topic": "[to be translated]:Topic"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2583,9 +2625,18 @@
   "minapp": {
     "add_to_launchpad": "Adaugă în Launchpad",
     "add_to_sidebar": "Adaugă în bara laterală",
+    "export": {
+      "error": "[to be translated]:Export failed: {{error}}",
+      "no_conversations": "[to be translated]:No conversations found",
+      "no_webview": "[to be translated]:WebView is not ready, please try again",
+      "success": "[to be translated]:Exported successfully! Assistant \"{{name}}\" created with {{count}} conversations",
+      "unknown": "[to be translated]:Unknown error"
+    },
     "popup": {
       "close": "Închide MinApp",
       "devtools": "Instrumente dezvoltator",
+      "export": "[to be translated]:Export chats",
+      "exporting": "[to be translated]:Exporting...",
       "goBack": "Mergi înapoi",
       "goForward": "Mergi înainte",
       "minimize": "Minimizează MinApp",
@@ -2759,6 +2810,22 @@
     "delete_confirm": "Ești sigur că vrei să ștergi acest {{type}}?",
     "delete_folder_confirm": "Ești sigur că vrei să ștergi dosarul \"{{name}}\" și tot conținutul său?",
     "delete_note_confirm": "Ești sigur că vrei să ștergi notița \"{{name}}\"?",
+    "diff": {
+      "disabled": "[to be translated]:Local Git versioning is disabled",
+      "edited": "[to be translated]:Edited",
+      "no_changes": "[to be translated]:No differences between the selected commit and the working copy",
+      "no_file": "[to be translated]:Please select a note file first",
+      "no_history": "[to be translated]:No commit history yet",
+      "no_message": "[to be translated]:No commit message",
+      "open": "[to be translated]:View diff",
+      "select_commit": "[to be translated]:Select a commit",
+      "title": "[to be translated]:Version Diff",
+      "truncated": "[to be translated]:Diff output is too large and has been truncated",
+      "unavailable": "[to be translated]:Git is unavailable",
+      "unavailable_git_not_found": "[to be translated]:Git command not found",
+      "unavailable_notes_path": "[to be translated]:Notes directory is not set",
+      "unavailable_notes_path_invalid": "[to be translated]:Notes directory is invalid or unavailable"
+    },
     "drop_markdown_hint": "Trage fișiere sau dosare .md aici pentru a importa",
     "empty": "Încă nu există notițe disponibile",
     "expand": "Extinde",
@@ -2834,6 +2901,19 @@
           "title": "Vizualizare implicită"
         },
         "view_mode_description": "Setează modul de vizualizare implicit pentru pagina filă nouă."
+      },
+      "git": {
+        "description": "[to be translated]:Automatically initializes the notes repository and commits every 5 minutes when changes exist",
+        "interval": {
+          "description": "[to be translated]:Choose the auto-commit interval for the current notes directory",
+          "option": "[to be translated]:{{minutes}} minutes",
+          "title": "[to be translated]:Auto-commit interval"
+        },
+        "title": "[to be translated]:Local Git versioning",
+        "unavailable": "[to be translated]:Git is unavailable and related features are disabled",
+        "unavailable_git_not_found": "[to be translated]:Git command not found. Please install Git first",
+        "unavailable_notes_path": "[to be translated]:Notes directory is not set",
+        "unavailable_notes_path_invalid": "[to be translated]:Notes directory is invalid or unavailable"
       },
       "title": "Notițe"
     },
@@ -5555,6 +5635,7 @@
       "actions": "Comandă",
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
+      "close_tab": "[to be translated]:Close tab",
       "copy_last_message": "Copiază ultimul mesaj",
       "edit_last_user_message": "Editează ultimul mesaj al utilizatorului",
       "enabled": "Activează",

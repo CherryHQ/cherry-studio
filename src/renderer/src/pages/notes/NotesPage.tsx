@@ -49,6 +49,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import HeaderNavbar from './HeaderNavbar'
+import NotesDiffDrawer from './NotesDiffDrawer'
 import NotesEditor from './NotesEditor'
 import NotesSidebar from './NotesSidebar'
 
@@ -69,6 +70,8 @@ const NotesPage: FC = () => {
 
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
+  const [gitStatus, setGitStatus] = useState<{ available: boolean; reason?: string } | null>(null)
+  const [isDiffDrawerOpen, setIsDiffDrawerOpen] = useState(false)
   const starredSet = useMemo(() => new Set(starredPaths), [starredPaths])
   const expandedSet = useMemo(() => new Set(expandedPaths), [expandedPaths])
   const { activeNode } = useActiveNode(notesTree)
@@ -86,6 +89,35 @@ const NotesPage: FC = () => {
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
+  const gitAvailable = gitStatus?.available ?? true
+
+  const getGitUnavailableReason = useCallback(
+    (reason?: string) => {
+      if (!reason) {
+        return t('notes.diff.unavailable')
+      }
+      if (reason === 'notes_path_missing') {
+        return t('notes.diff.unavailable_notes_path')
+      }
+      if (reason === 'notes_path_invalid') {
+        return t('notes.diff.unavailable_notes_path_invalid')
+      }
+      if (reason === 'git_not_found') {
+        return t('notes.diff.unavailable_git_not_found')
+      }
+      return t('notes.diff.unavailable')
+    },
+    [t]
+  )
+
+  const diffDisabled = !activeFilePath || !settings.enableGit || !gitAvailable
+  const diffDisabledReason = !activeFilePath
+    ? t('notes.diff.no_file')
+    : !settings.enableGit
+      ? t('notes.diff.disabled')
+      : !gitAvailable
+        ? getGitUnavailableReason(gitStatus?.reason)
+        : ''
 
   const updateStarredPaths = useCallback(
     (updater: (paths: string[]) => string[]) => {
@@ -165,6 +197,34 @@ const NotesPage: FC = () => {
   useEffect(() => {
     void refreshTree()
   }, [refreshTree])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadGitStatus = async () => {
+      if (!notesPath) {
+        setGitStatus({ available: false, reason: 'notes_path_missing' })
+        return
+      }
+
+      try {
+        const status = await window.api.notesGit.getStatus(notesPath)
+        if (!cancelled) {
+          setGitStatus(status)
+        }
+      } catch (error) {
+        logger.error('Failed to fetch notes git status:', error as Error)
+        if (!cancelled) {
+          setGitStatus({ available: false, reason: 'git_status_failed' })
+        }
+      }
+    }
+
+    loadGitStatus()
+    return () => {
+      cancelled = true
+    }
+  }, [notesPath])
 
   // Re-merge tree state when starred or expanded paths change
   useEffect(() => {
@@ -859,6 +919,14 @@ const NotesPage: FC = () => {
     }
   }, [currentContent, settings.defaultEditMode])
 
+  const handleOpenDiffDrawer = useCallback(() => {
+    setIsDiffDrawerOpen(true)
+  }, [])
+
+  const handleCloseDiffDrawer = useCallback(() => {
+    setIsDiffDrawerOpen(false)
+  }, [])
+
   // Listen for external requests to locate a specific line in a note
   useEffect(() => {
     const handleLocateNoteLine = ({
@@ -944,6 +1012,15 @@ const NotesPage: FC = () => {
             onToggleStar={handleToggleStar}
             onExpandPath={handleExpandPath}
             onRenameNode={handleRenameNode}
+            onOpenDiff={handleOpenDiffDrawer}
+            diffDisabled={diffDisabled}
+            diffDisabledReason={diffDisabledReason}
+          />
+          <NotesDiffDrawer
+            open={isDiffDrawerOpen}
+            onClose={handleCloseDiffDrawer}
+            notesPath={notesPath}
+            filePath={activeFilePath}
           />
           <NotesEditor
             activeNodeId={activeNode?.id}

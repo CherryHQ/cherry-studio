@@ -274,6 +274,13 @@ const api = {
     },
     showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path)
   },
+  notesGit: {
+    getStatus: (notesPath: string) => ipcRenderer.invoke(IpcChannel.NotesGit_GetStatus, notesPath),
+    getFileHistory: (notesPath: string, filePath: string) =>
+      ipcRenderer.invoke(IpcChannel.NotesGit_GetFileHistory, notesPath, filePath),
+    getFileDiff: (notesPath: string, filePath: string, commitHash: string) =>
+      ipcRenderer.invoke(IpcChannel.NotesGit_GetFileDiff, notesPath, filePath, commitHash)
+  },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)

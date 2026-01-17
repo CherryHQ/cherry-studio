@@ -2810,6 +2810,22 @@
     "delete_confirm": "确定要删除这个{{type}}吗？",
     "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
     "delete_note_confirm": "确定要删除笔记 \"{{name}}\" 吗？",
+    "diff": {
+      "disabled": "已关闭 Git 版本管理",
+      "edited": "已编辑",
+      "no_changes": "当前提交与工作区无差异",
+      "no_file": "请先选择笔记文件",
+      "no_history": "暂无提交记录",
+      "no_message": "无提交说明",
+      "open": "查看差异",
+      "select_commit": "选择历史提交",
+      "title": "版本差异",
+      "truncated": "差异内容过大，已截断显示",
+      "unavailable": "Git 不可用",
+      "unavailable_git_not_found": "未检测到 Git 命令",
+      "unavailable_notes_path": "笔记目录未设置",
+      "unavailable_notes_path_invalid": "笔记目录无效或不可用"
+    },
     "drop_markdown_hint": "拖拽 .md 文件或目录到此处导入",
     "empty": "暂无笔记",
     "expand": "展开",
@@ -2885,6 +2901,19 @@
           "title": "默认视图"
         },
         "view_mode_description": "设置新标签页的默认视图模式。"
+      },
+      "git": {
+        "description": "开启后自动初始化笔记仓库并按设置间隔提交（无变更不提交）",
+        "interval": {
+          "description": "选择自动提交频率，适用于当前笔记目录",
+          "option": "{{minutes}} 分钟",
+          "title": "自动提交间隔"
+        },
+        "title": "本地 Git 版本管理",
+        "unavailable": "Git 不可用，相关功能已禁用",
+        "unavailable_git_not_found": "未检测到 Git 命令，请先安装 Git",
+        "unavailable_notes_path": "笔记目录未设置",
+        "unavailable_notes_path_invalid": "笔记目录无效或不可用"
       },
       "title": "笔记"
     },

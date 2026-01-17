@@ -29,6 +29,7 @@ import mcpService from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
 import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
+import notesGitService from './services/NotesGitService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
@@ -188,6 +189,9 @@ if (!app.requestSingleInstanceLock()) {
     registerShortcuts(mainWindow)
 
     await registerIpc(mainWindow, app)
+    notesGitService.start().catch((error) => {
+      logger.error('Failed to start notes git service', error as Error)
+    })
     localTransferService.startDiscovery({ resetList: true })
 
     replaceDevtoolsFont(mainWindow)

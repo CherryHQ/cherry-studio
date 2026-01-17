@@ -165,6 +165,10 @@ export enum IpcChannel {
   Gemini_ListFiles = 'gemini:list-files',
   Gemini_DeleteFile = 'gemini:delete-file',
 
+  NotesGit_GetStatus = 'notes-git:get-status',
+  NotesGit_GetFileHistory = 'notes-git:get-file-history',
+  NotesGit_GetFileDiff = 'notes-git:get-file-diff',
+
   // VertexAI
   VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
   VertexAI_GetAccessToken = 'vertexai:get-access-token',

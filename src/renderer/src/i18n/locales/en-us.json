@@ -2810,6 +2810,22 @@
     "delete_confirm": "Are you sure you want to delete this {{type}}?",
     "delete_folder_confirm": "Are you sure you want to delete the folder \"{{name}}\" and all of its contents?",
     "delete_note_confirm": "Are you sure you want to delete the note \"{{name}}\"?",
+    "diff": {
+      "disabled": "Local Git versioning is disabled",
+      "edited": "Edited",
+      "no_changes": "No differences between the selected commit and the working copy",
+      "no_file": "Please select a note file first",
+      "no_history": "No commit history yet",
+      "no_message": "No commit message",
+      "open": "View diff",
+      "select_commit": "Select a commit",
+      "title": "Version Diff",
+      "truncated": "Diff output is too large and has been truncated",
+      "unavailable": "Git is unavailable",
+      "unavailable_git_not_found": "Git command not found",
+      "unavailable_notes_path": "Notes directory is not set",
+      "unavailable_notes_path_invalid": "Notes directory is invalid or unavailable"
+    },
     "drop_markdown_hint": "Drop .md files or folders here to import",
     "empty": "No notes available yet",
     "expand": "unfold",
@@ -2885,6 +2901,19 @@
           "title": "Default view"
         },
         "view_mode_description": "Sets the default view mode for the new tab page."
+      },
+      "git": {
+        "description": "Automatically initializes the notes repository and commits based on your interval when changes exist",
+        "interval": {
+          "description": "Choose the auto-commit interval for the current notes directory",
+          "option": "{{minutes}} minutes",
+          "title": "Auto-commit interval"
+        },
+        "title": "Local Git versioning",
+        "unavailable": "Git is unavailable and related features are disabled",
+        "unavailable_git_not_found": "Git command not found. Please install Git first",
+        "unavailable_notes_path": "Notes directory is not set",
+        "unavailable_notes_path_invalid": "Notes directory is invalid or unavailable"
       },
       "title": "Notes"
     },

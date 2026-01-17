@@ -2810,6 +2810,22 @@
     "delete_confirm": "確定要刪除此 {{type}} 嗎？",
     "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",
     "delete_note_confirm": "確定要刪除筆記 \"{{name}}\" 嗎？",
+    "diff": {
+      "disabled": "已關閉 Git 版本管理",
+      "edited": "已編輯",
+      "no_changes": "目前提交與工作區沒有差異",
+      "no_file": "請先選取筆記檔案",
+      "no_history": "暫無提交記錄",
+      "no_message": "無提交說明",
+      "open": "查看差異",
+      "select_commit": "選擇歷史提交",
+      "title": "版本差異",
+      "truncated": "差異內容過大，已截斷顯示",
+      "unavailable": "Git 無法使用",
+      "unavailable_git_not_found": "未偵測到 Git 指令",
+      "unavailable_notes_path": "筆記目錄尚未設定",
+      "unavailable_notes_path_invalid": "筆記目錄無效或不可用"
+    },
     "drop_markdown_hint": "拖曳 .md 檔案或資料夾到此處匯入",
     "empty": "暫無筆記",
     "expand": "展開",
@@ -2885,6 +2901,19 @@
           "title": "預設檢視"
         },
         "view_mode_description": "設定新標籤頁的預設檢視模式。"
+      },
+      "git": {
+        "description": "開啟後自動初始化筆記倉庫並依設定間隔提交（無變更不提交）",
+        "interval": {
+          "description": "選擇自動提交頻率，適用於目前筆記目錄",
+          "option": "{{minutes}} 分鐘",
+          "title": "自動提交間隔"
+        },
+        "title": "本機 Git 版本管理",
+        "unavailable": "Git 無法使用，相關功能已停用",
+        "unavailable_git_not_found": "未偵測到 Git 指令，請先安裝 Git",
+        "unavailable_notes_path": "筆記目錄尚未設定",
+        "unavailable_notes_path_invalid": "筆記目錄無效或不可用"
       },
       "title": "更多選項"
     },

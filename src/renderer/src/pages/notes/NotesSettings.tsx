@@ -27,11 +27,40 @@ const NotesSettings: FC = () => {
   const { settings, updateSettings, notesPath, updateNotesPath } = useNotesSettings()
   const [tempPath, setTempPath] = useState<string>(notesPath || '')
   const [isSelecting, setIsSelecting] = useState(false)
+  const [gitStatus, setGitStatus] = useState<{ available: boolean; reason?: string } | null>(null)
 
   // Update tempPath when notesPath changes (e.g., after initialization)
   useEffect(() => {
     if (notesPath) {
       setTempPath(notesPath)
+    }
+  }, [notesPath])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadGitStatus = async () => {
+      if (!notesPath) {
+        setGitStatus({ available: false, reason: 'notes_path_missing' })
+        return
+      }
+
+      try {
+        const status = await window.api.notesGit.getStatus(notesPath)
+        if (!cancelled) {
+          setGitStatus(status)
+        }
+      } catch (error) {
+        logger.error('Failed to fetch notes git status:', error as Error)
+        if (!cancelled) {
+          setGitStatus({ available: false, reason: 'git_status_failed' })
+        }
+      }
+    }
+
+    loadGitStatus()
+    return () => {
+      cancelled = true
     }
   }, [notesPath])
 
@@ -89,6 +118,28 @@ const NotesSettings: FC = () => {
   }
 
   const isPathChanged = tempPath !== notesPath
+  const gitAvailable = gitStatus?.available ?? true
+  const gitToggleDisabled = !gitAvailable && !settings.enableGit
+  const commitIntervalOptions = [1, 5, 10, 30, 60].map((minutes) => ({
+    label: t('notes.settings.git.interval.option', { minutes }),
+    value: minutes
+  }))
+
+  const getGitUnavailableReason = (reason?: string) => {
+    if (!reason) {
+      return t('notes.settings.git.unavailable')
+    }
+    if (reason === 'notes_path_missing') {
+      return t('notes.settings.git.unavailable_notes_path')
+    }
+    if (reason === 'notes_path_invalid') {
+      return t('notes.settings.git.unavailable_notes_path_invalid')
+    }
+    if (reason === 'git_not_found') {
+      return t('notes.settings.git.unavailable_git_not_found')
+    }
+    return t('notes.settings.git.unavailable')
+  }
 
   return (
     <SettingContainer theme={theme} style={{ background: 'transparent' }}>
@@ -125,6 +176,34 @@ const NotesSettings: FC = () => {
         <SettingRow>
           <SettingHelpText>{t('notes.settings.data.work_directory_description')}</SettingHelpText>
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('notes.settings.git.title')}</SettingRowTitle>
+          <Switch
+            checked={settings.enableGit}
+            onChange={(checked) => updateSettings({ enableGit: checked })}
+            disabled={gitToggleDisabled}
+          />
+        </SettingRow>
+        <SettingHelpText>{t('notes.settings.git.description')}</SettingHelpText>
+        {!gitAvailable && (
+          <SettingHelpText style={{ color: 'var(--color-status-danger)' }}>
+            {getGitUnavailableReason(gitStatus?.reason)}
+          </SettingHelpText>
+        )}
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('notes.settings.git.interval.title')}</SettingRowTitle>
+          <Selector
+            options={commitIntervalOptions}
+            value={settings.gitCommitIntervalMinutes}
+            onChange={(value: string | number) =>
+              updateSettings({ gitCommitIntervalMinutes: Number(value) || settings.gitCommitIntervalMinutes })
+            }
+            disabled={!gitAvailable || !settings.enableGit}
+          />
+        </SettingRow>
+        <SettingHelpText>{t('notes.settings.git.interval.description')}</SettingHelpText>
       </SettingGroup>
 
       {/* Editor Settings */}

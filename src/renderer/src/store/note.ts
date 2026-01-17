@@ -29,6 +29,8 @@ export interface NotesSettings {
   defaultEditMode: Omit<EditorView, 'read'>
   showTabStatus: boolean
   showWorkspace: boolean
+  enableGit: boolean
+  gitCommitIntervalMinutes: number
 }
 
 export interface NoteState {
@@ -52,7 +54,9 @@ export const initialState: NoteState = {
     defaultViewMode: 'edit',
     defaultEditMode: 'preview',
     showTabStatus: true,
-    showWorkspace: true
+    showWorkspace: true,
+    enableGit: true,
+    gitCommitIntervalMinutes: 5
   },
   notesPath: '',
   sortType: 'sort_a2z',

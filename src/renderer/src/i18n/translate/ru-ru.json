@@ -2810,6 +2810,22 @@
     "delete_confirm": "Вы уверены, что хотите удалить этот объект {{type}}?",
     "delete_folder_confirm": "Вы уверены, что хотите удалить папку \"{{name}}\" со всем ее содержимым?",
     "delete_note_confirm": "Вы действительно хотите удалить заметку \"{{name}}\"?",
+    "diff": {
+      "disabled": "[to be translated]:Local Git versioning is disabled",
+      "edited": "[to be translated]:Edited",
+      "no_changes": "[to be translated]:No differences between the selected commit and the working copy",
+      "no_file": "[to be translated]:Please select a note file first",
+      "no_history": "[to be translated]:No commit history yet",
+      "no_message": "[to be translated]:No commit message",
+      "open": "[to be translated]:View diff",
+      "select_commit": "[to be translated]:Select a commit",
+      "title": "[to be translated]:Version Diff",
+      "truncated": "[to be translated]:Diff output is too large and has been truncated",
+      "unavailable": "[to be translated]:Git is unavailable",
+      "unavailable_git_not_found": "[to be translated]:Git command not found",
+      "unavailable_notes_path": "[to be translated]:Notes directory is not set",
+      "unavailable_notes_path_invalid": "[to be translated]:Notes directory is invalid or unavailable"
+    },
     "drop_markdown_hint": "Перетащите сюда файлы или папки .md для импорта",
     "empty": "заметок пока нет",
     "expand": "развернуть",
@@ -2885,6 +2901,19 @@
           "title": "По умолчанию представление"
         },
         "view_mode_description": "Устанавливает режим просмотра по умолчанию для новой страницы вкладки."
+      },
+      "git": {
+        "description": "[to be translated]:Automatically initializes the notes repository and commits every 5 minutes when changes exist",
+        "interval": {
+          "description": "[to be translated]:Choose the auto-commit interval for the current notes directory",
+          "option": "[to be translated]:{{minutes}} minutes",
+          "title": "[to be translated]:Auto-commit interval"
+        },
+        "title": "[to be translated]:Local Git versioning",
+        "unavailable": "[to be translated]:Git is unavailable and related features are disabled",
+        "unavailable_git_not_found": "[to be translated]:Git command not found. Please install Git first",
+        "unavailable_notes_path": "[to be translated]:Notes directory is not set",
+        "unavailable_notes_path_invalid": "[to be translated]:Notes directory is invalid or unavailable"
       },
       "title": "Больше вариантов"
     },

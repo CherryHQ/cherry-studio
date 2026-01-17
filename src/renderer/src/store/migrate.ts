@@ -3153,6 +3153,9 @@ const migrateConfig = {
   '193': (state: RootState) => {
     try {
       addPreprocessProviders(state, 'paddleocr')
+      if (state.note?.settings?.enableGit === undefined) {
+        state.note.settings.enableGit = true
+      }
       logger.info('migrate 193 success')
       return state
     } catch (error) {
@@ -3182,11 +3185,16 @@ const migrateConfig = {
       })
       // Initialize mini app region filter setting
       state.settings.minAppRegion ??= 'auto'
+      if (state.note?.settings?.gitCommitIntervalMinutes === undefined) {
+        state.note.settings.gitCommitIntervalMinutes = 5
+      }
+      logger.info('migrate 194 success')
       return state
     } catch (error) {
       logger.error('migrate 194 error', error as Error)
       return state
     }
+  },
   },
   '195': (state: RootState) => {
     try {
