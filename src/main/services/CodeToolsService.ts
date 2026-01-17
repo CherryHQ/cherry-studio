@@ -546,7 +546,8 @@ class CodeToolsService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string } = {},
+    codexConfig?: { providerId: string; baseUrl: string; apiKeyEnvVar: string }
   ) {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
@@ -657,19 +658,19 @@ class CodeToolsService {
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 
-    // Add configuration parameters for OpenAI Codex
-    if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER && env.OPENAI_MODEL_PROVIDER != 'openai') {
-      const provider = env.OPENAI_MODEL_PROVIDER
-      const model = env.OPENAI_MODEL
-      // delete the latest /
-      const baseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
+    // Add configuration parameters for OpenAI Codex using command line args instead of env vars
+    if (cliTool === codeTools.openaiCodex && codexConfig) {
+      const { providerId, baseUrl, apiKeyEnvVar } = codexConfig
+      const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
+      const model = _model
 
       const configParams = [
-        `--config model_provider="${provider}"`,
-        `--config model="${model}"`,
-        `--config model_providers.${provider}.name="${provider}"`,
-        `--config model_providers.${provider}.base_url="${baseUrl}"`,
-        `--config model_providers.${provider}.env_key="OPENAI_API_KEY"`
+        `--config model_provider="${providerId}"`,
+        `--config model_providers.${providerId}.name="${providerId}"`,
+        `--config model_providers.${providerId}.base_url="${normalizedBaseUrl}"`,
+        `--config model_providers.${providerId}.env_key="${apiKeyEnvVar}"`,
+        `--config model_providers.${providerId}.wire_api="responses"`,
+        `--config model="${model}"`
       ].join(' ')
       baseCommand = `${baseCommand} ${configParams}`
     }
