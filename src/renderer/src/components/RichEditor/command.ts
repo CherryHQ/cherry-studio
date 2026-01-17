@@ -331,6 +331,19 @@ const DEFAULT_COMMANDS: Command[] = [
     }
   },
   {
+    id: 'compareBlock',
+    title: 'Compare Block',
+    description: 'Insert a collapsible compare area',
+    category: CommandCategory.STRUCTURE,
+    icon: Minus,
+    keywords: ['compare', 'draft', 'ai', 'reference', '对照', '留白'],
+    isAvailable: (editor: Editor) => Boolean((editor as any)?.commands?.insertCompareBlock),
+    handler: (editor: Editor) => {
+      if (!(editor as any)?.commands?.insertCompareBlock) return
+      editor.chain().focus().insertCompareBlock().run()
+    }
+  },
+  {
     id: 'image',
     title: 'Image',
     description: 'Insert an image',

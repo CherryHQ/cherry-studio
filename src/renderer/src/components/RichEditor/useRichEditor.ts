@@ -25,15 +25,22 @@ import Typography from '@tiptap/extension-typography'
 import { useEditor, useEditorState } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { t } from 'i18next'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { commandSuggestion } from './command'
 import { CodeBlockShiki } from './extensions/code-block-shiki/code-block-shiki'
+import { CompareBlock } from './extensions/compare-block/compare-block'
 import { EnhancedImage } from './extensions/enhanced-image'
 import { EnhancedLink } from './extensions/enhanced-link'
 import { EnhancedMath } from './extensions/enhanced-math'
 import { Placeholder } from './extensions/placeholder'
 import { YamlFrontMatter } from './extensions/yaml-front-matter'
+import {
+  appendCompareMetaToMarkdown,
+  type CompareBlockMeta,
+  extractCompareMetaFromMarkdown,
+  replaceCompareMarkersForHtml
+} from './helpers/compareBlockCodec'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 
 const logger = loggerService.withContext('useRichEditor')
@@ -86,6 +93,8 @@ export interface UseRichEditorOptions {
   enableTableOfContents?: boolean
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** 是否启用“段落对照留白区”（默认开启） */
+  enableCompareBlock?: boolean
   /** Show table action menu (row/column) with concrete actions and position */
   onShowTableActionMenu?: (payload: {
     type: 'row' | 'column'
@@ -101,6 +110,8 @@ export interface UseRichEditorReturn {
   editor: Editor
   /** Current markdown content */
   markdown: string
+  /** 用于持久化保存的 Markdown（包含隐藏元数据尾注） */
+  persistedMarkdown: string
   /** Current HTML content (converted from markdown) */
   html: string
   /** Preview text for display */
@@ -156,16 +167,29 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     placeholder = '',
     editable = true,
     enableSpellCheck = false,
+    enableCompareBlock = true,
     onShowTableActionMenu,
     scrollParent
   } = options
 
-  const [markdown, setMarkdownState] = useState<string>(initialContent)
+  const initialExtract = useMemo((): { cleanMarkdown: string; meta: CompareBlockMeta | null } => {
+    if (!initialContent || typeof initialContent !== 'string') return { cleanMarkdown: '', meta: null }
+    if (!isMarkdownContent(initialContent)) return { cleanMarkdown: initialContent, meta: null }
+    return extractCompareMetaFromMarkdown(initialContent)
+  }, [initialContent])
+
+  const [markdown, setMarkdownState] = useState<string>(initialExtract.cleanMarkdown)
+  const [persistedMarkdown, setPersistedMarkdown] = useState<string>(() =>
+    appendCompareMetaToMarkdown(initialExtract.cleanMarkdown, initialExtract.meta)
+  )
+  const lastBodyMarkdownRef = useRef<string>(initialExtract.cleanMarkdown)
+  const initialCompareMetaRef = useRef<CompareBlockMeta | null>(initialExtract.meta)
 
   const html = useMemo(() => {
     if (!markdown) return ''
-    return markdownToHtml(markdown)
-  }, [markdown])
+    const mdForHtml = enableCompareBlock ? replaceCompareMarkersForHtml(markdown) : markdown
+    return markdownToHtml(mdForHtml)
+  }, [markdown, enableCompareBlock])
 
   const previewText = useMemo(() => {
     if (!markdown) return ''
@@ -175,6 +199,36 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const isMarkdown = useMemo(() => {
     return isMarkdownContent(markdown)
   }, [markdown])
+
+  const buildPersistedMarkdown = useCallback(
+    (bodyMarkdown: string, currentEditor: Editor): string => {
+      if (!enableCompareBlock) return appendCompareMetaToMarkdown(bodyMarkdown, null)
+
+      const ids = new Set<string>()
+      currentEditor.state.doc.descendants((node) => {
+        if (node.type.name === 'compareBlock') {
+          const id = String((node.attrs as any)?.id || '')
+          if (id) ids.add(id)
+        }
+      })
+
+      const storage = (currentEditor.storage as any)?.compareBlock as
+        | {
+            blocks?: Record<string, { content: string }>
+          }
+        | undefined
+
+      const blocks: Record<string, { content: string }> = {}
+      for (const id of ids) {
+        const content = storage?.blocks?.[id]?.content
+        blocks[id] = { content: typeof content === 'string' ? content : '' }
+      }
+
+      const meta: CompareBlockMeta | null = Object.keys(blocks).length > 0 ? { v: 1, blocks } : null
+      return appendCompareMetaToMarkdown(bodyMarkdown, meta)
+    },
+    [enableCompareBlock]
+  )
 
   // Get theme and language mapping from CodeStyleProvider
   const { activeShikiTheme } = useCodeStyle()
@@ -345,6 +399,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           }
         }
       }),
+      ...(enableCompareBlock ? [CompareBlock] : []),
       EnhancedImage,
       Placeholder.configure({
         placeholder,
@@ -383,7 +438,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       })
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd]
+    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, enableCompareBlock]
   )
 
   const editor = useEditor({
@@ -454,9 +509,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       const content = editor.getText()
       const htmlContent = editor.getHTML()
       try {
-        const convertedMarkdown = htmlToMarkdown(htmlContent)
-        setMarkdownState(convertedMarkdown)
-        onChange?.(convertedMarkdown)
+        const convertedBodyMarkdown = htmlToMarkdown(htmlContent)
+        lastBodyMarkdownRef.current = convertedBodyMarkdown
+        setMarkdownState(convertedBodyMarkdown)
+
+        const nextPersisted = buildPersistedMarkdown(convertedBodyMarkdown, editor)
+        setPersistedMarkdown(nextPersisted)
+        onChange?.(nextPersisted)
 
         onContentChange?.(content)
         if (onHtmlChange) {
@@ -471,6 +530,23 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     onCreate: ({ editor: currentEditor }) => {
       migrateMathStrings(currentEditor)
+      if (enableCompareBlock) {
+        const storage = (currentEditor.storage as any)?.compareBlock as
+          | {
+              blocks: Record<string, { content: string }>
+              onMetaChange?: () => void
+            }
+          | undefined
+
+        if (storage) {
+          storage.blocks = initialCompareMetaRef.current?.blocks ? { ...initialCompareMetaRef.current.blocks } : {}
+          storage.onMetaChange = () => {
+            const nextPersisted = buildPersistedMarkdown(lastBodyMarkdownRef.current, currentEditor)
+            setPersistedMarkdown(nextPersisted)
+            onChange?.(nextPersisted)
+          }
+        }
+      }
       try {
         currentEditor.commands.focus('end')
       } catch (error) {
@@ -760,62 +836,123 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const setMarkdown = useCallback(
     (content: string) => {
       try {
-        setMarkdownState(content)
-        onChange?.(content)
+        const extracted =
+          typeof content === 'string' && isMarkdownContent(content)
+            ? extractCompareMetaFromMarkdown(content)
+            : { cleanMarkdown: content ?? '', meta: null }
 
-        const convertedHtml = markdownToHtml(content)
+        const cleanMarkdown = extracted.cleanMarkdown
+        lastBodyMarkdownRef.current = cleanMarkdown
+        setMarkdownState(cleanMarkdown)
 
+        // 更新 storage（对照区内容）
+        if (enableCompareBlock) {
+          const storage = (editor.storage as any)?.compareBlock as
+            | { blocks: Record<string, { content: string }> }
+            | undefined
+          if (storage) {
+            storage.blocks = extracted.meta?.blocks ? { ...extracted.meta.blocks } : {}
+          }
+        }
+
+        const mdForHtml = enableCompareBlock ? replaceCompareMarkersForHtml(cleanMarkdown) : cleanMarkdown
+        const convertedHtml = markdownToHtml(mdForHtml)
         editor.commands.setContent(convertedHtml)
-
         onHtmlChange?.(convertedHtml)
+
+        const nextPersisted = buildPersistedMarkdown(cleanMarkdown, editor)
+        setPersistedMarkdown(nextPersisted)
+        onChange?.(nextPersisted)
       } catch (error) {
         logger.error('Error setting markdown content:', error as Error)
       }
     },
-    [editor.commands, onChange, onHtmlChange]
+    [buildPersistedMarkdown, editor, enableCompareBlock, onChange, onHtmlChange]
   )
 
   const setHtml = useCallback(
     (htmlContent: string) => {
       try {
-        const convertedMarkdown = htmlToMarkdown(htmlContent)
-        setMarkdownState(convertedMarkdown)
-        onChange?.(convertedMarkdown)
+        const convertedBodyMarkdown = htmlToMarkdown(htmlContent)
+        lastBodyMarkdownRef.current = convertedBodyMarkdown
+        setMarkdownState(convertedBodyMarkdown)
 
         editor.commands.setContent(htmlContent)
 
         onHtmlChange?.(htmlContent)
+
+        // 设置 HTML 时默认不携带对照区元数据
+        if (enableCompareBlock) {
+          const storage = (editor.storage as any)?.compareBlock as
+            | { blocks: Record<string, { content: string }> }
+            | undefined
+          if (storage) storage.blocks = {}
+        }
+
+        const nextPersisted = buildPersistedMarkdown(convertedBodyMarkdown, editor)
+        setPersistedMarkdown(nextPersisted)
+        onChange?.(nextPersisted)
       } catch (error) {
         logger.error('Error setting HTML content:', error as Error)
       }
     },
-    [editor.commands, onChange, onHtmlChange]
+    [buildPersistedMarkdown, editor, enableCompareBlock, onChange, onHtmlChange]
   )
 
   const clear = useCallback(() => {
     setMarkdownState('')
+    lastBodyMarkdownRef.current = ''
+    setPersistedMarkdown('')
+
+    if (enableCompareBlock) {
+      const storage = (editor.storage as any)?.compareBlock as
+        | { blocks: Record<string, { content: string }> }
+        | undefined
+      if (storage) storage.blocks = {}
+    }
+
     onChange?.('')
     onHtmlChange?.('')
-  }, [onChange, onHtmlChange])
+  }, [editor, enableCompareBlock, onChange, onHtmlChange])
 
   // Utility methods
-  const toHtml = useCallback((content: string): string => {
-    try {
-      return markdownToHtml(content)
-    } catch (error) {
-      logger.error('Error converting markdown to HTML:', error as Error)
-      return ''
-    }
-  }, [])
+  const toHtml = useCallback(
+    (content: string): string => {
+      try {
+        const extracted =
+          typeof content === 'string' && isMarkdownContent(content)
+            ? extractCompareMetaFromMarkdown(content)
+            : { cleanMarkdown: content ?? '', meta: null }
+        const mdForHtml = enableCompareBlock
+          ? replaceCompareMarkersForHtml(extracted.cleanMarkdown)
+          : extracted.cleanMarkdown
+        return markdownToHtml(mdForHtml)
+      } catch (error) {
+        logger.error('Error converting markdown to HTML:', error as Error)
+        return ''
+      }
+    },
+    [enableCompareBlock]
+  )
 
-  const toSafeHtml = useCallback((content: string): string => {
-    try {
-      return markdownToHtml(content)
-    } catch (error) {
-      logger.error('Error converting markdown to safe HTML:', error as Error)
-      return ''
-    }
-  }, [])
+  const toSafeHtml = useCallback(
+    (content: string): string => {
+      try {
+        const extracted =
+          typeof content === 'string' && isMarkdownContent(content)
+            ? extractCompareMetaFromMarkdown(content)
+            : { cleanMarkdown: content ?? '', meta: null }
+        const mdForHtml = enableCompareBlock
+          ? replaceCompareMarkersForHtml(extracted.cleanMarkdown)
+          : extracted.cleanMarkdown
+        return markdownToHtml(mdForHtml)
+      } catch (error) {
+        logger.error('Error converting markdown to safe HTML:', error as Error)
+        return ''
+      }
+    },
+    [enableCompareBlock]
+  )
 
   const toMarkdown = useCallback((htmlContent: string): string => {
     try {
@@ -844,6 +981,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
     // State
     markdown,
+    persistedMarkdown,
     html,
     previewText,
     isMarkdown,

@@ -3608,6 +3608,10 @@
         "description": "建立分欄版面",
         "title": "分欄"
       },
+      "compareBlock": {
+        "description": "插入可折疊的對照留白區",
+        "title": "對照留白區"
+      },
       "date": {
         "description": "插入目前日期",
         "title": "日期"

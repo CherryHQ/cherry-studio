@@ -3608,6 +3608,10 @@
         "description": "Create column layout",
         "title": "Columns"
       },
+      "compareBlock": {
+        "description": "Insert a collapsible compare area",
+        "title": "Compare Block"
+      },
       "date": {
         "description": "Insert current date",
         "title": "Date"
