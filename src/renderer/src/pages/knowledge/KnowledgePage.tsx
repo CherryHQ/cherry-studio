@@ -11,7 +11,6 @@ import AddKnowledgeBaseDialog from './components/AddKnowledgeBaseDialog'
 import EditKnowledgeBaseDialog from './components/EditKnowledgeBaseDialog'
 import KnowledgeSearchDialog from './components/KnowledgeSearchDialog'
 import KnowledgeSideNav from './components/KnowledgeSideNav'
-import { useKnowledgeBaseMenu } from './hooks/useKnowledgeBaseMenu'
 import { useKnowledgeBaseSelection } from './hooks/useKnowledgeBaseSelection'
 import KnowledgeContent from './KnowledgeContent'
 
@@ -22,8 +21,6 @@ const KnowledgePage: FC = () => {
     selectedBaseId,
     selectBase,
     handleAddKnowledgeBase,
-    handleEditKnowledgeBase,
-    renameKnowledgeBase,
     deleteKnowledgeBase,
     // Dialog states and handlers
     addDialogOpen,
@@ -34,13 +31,6 @@ const KnowledgePage: FC = () => {
     handleEditSuccess,
     handleEditDialogClose
   } = useKnowledgeBaseSelection()
-
-  const { getMenuItems } = useKnowledgeBaseMenu({
-    renameKnowledgeBase,
-    deleteKnowledgeBase,
-    onOpenSettings: handleEditKnowledgeBase,
-    onSelectBase: selectBase
-  })
 
   // Search dialog state
   const [searchDialogOpen, setSearchDialogOpen] = useState(false)
@@ -62,7 +52,7 @@ const KnowledgePage: FC = () => {
           selectedBaseId={selectedBaseId}
           onSelect={selectBase}
           onAdd={handleAddKnowledgeBase}
-          getMenuItems={getMenuItems}
+          deleteKnowledgeBase={deleteKnowledgeBase}
         />
         {bases.length === 0 ? (
           <MainContent>

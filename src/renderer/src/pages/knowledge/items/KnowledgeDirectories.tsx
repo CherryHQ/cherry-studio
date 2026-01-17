@@ -69,7 +69,7 @@ const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({
     <div>
       {/* Header */}
       <div
-        className="flex cursor-pointer items-center justify-between border-b border-border px-4 py-2"
+        className="flex cursor-pointer items-center justify-between border-border border-b px-4 py-2"
         onClick={onToggle}>
         <div className="flex flex-1 items-center gap-2">
           {isExpanded ? (

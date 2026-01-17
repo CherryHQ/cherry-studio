@@ -1,113 +1,75 @@
-import ListItem from '@renderer/components/ListItem'
+import { Button } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
-import { Book, Plus } from 'lucide-react'
-import type { FC } from 'react'
+import { Book, Plus, Trash2 } from 'lucide-react'
+import { type FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface KnowledgeSideNavProps {
   bases: KnowledgeBase[]
   selectedBaseId?: string
-  onSelect: (baseId: string) => void
+  onSelect: (baseId?: string) => void
   onAdd: () => void
-  getMenuItems: (base: KnowledgeBase) => MenuProps['items']
+  deleteKnowledgeBase: (id: string) => Promise<void>
 }
 
-const KnowledgeSideNav: FC<KnowledgeSideNavProps> = ({ bases, selectedBaseId, onSelect, onAdd, getMenuItems }) => {
+const KnowledgeSideNav: FC<KnowledgeSideNavProps> = ({
+  bases,
+  selectedBaseId,
+  onSelect,
+  onAdd,
+  deleteKnowledgeBase
+}) => {
   const { t } = useTranslation()
 
+  const handleDelete = useCallback(
+    (base: KnowledgeBase) => {
+      window.modal.confirm({
+        title: t('knowledge.delete_confirm'),
+        centered: true,
+        onOk: async () => {
+          onSelect(undefined)
+          await deleteKnowledgeBase(base.id)
+        }
+      })
+    },
+    [deleteKnowledgeBase, t, onSelect]
+  )
+
   return (
-    <SideNav>
+    <Scrollbar className="flex w-[calc(var(--settings-width))] flex-col gap-2 border-border border-r px-2.5 py-3">
       {bases.map((base) => (
-        <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
-          <div>
-            <ListItem
-              active={selectedBaseId === base.id}
-              icon={<Book size={16} />}
-              title={base.name}
-              onClick={() => onSelect(base.id)}
-            />
+        <div
+          className={`group cursor-pointer rounded-3xs pl-3 hover:opacity-70 ${
+            selectedBaseId === base.id ? 'bg-foreground/5' : ''
+          }`}
+          key={base.id}
+          onClick={() => onSelect(base.id)}>
+          <div className="flex flex-row items-center justify-between">
+            <div className="flex flex-row items-center gap-2 text-[13px]">
+              <Book size={16} />
+              {base.name}
+            </div>
+            <div className="opacity-0 transition-opacity group-hover:opacity-100">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDelete(base)
+                }}>
+                <Trash2 className="text-red-600" size={14} />
+              </Button>
+            </div>
           </div>
-        </Dropdown>
+        </div>
       ))}
-      <AddKnowledgeItem onClick={onAdd}>
-        <AddKnowledgeName>
-          <Plus size={18} />
-          {t('button.add')}
-        </AddKnowledgeName>
-      </AddKnowledgeItem>
-      <div style={{ minHeight: '10px' }}></div>
-    </SideNav>
+      <div className="flex cursor-pointer items-center gap-2 pl-3 hover:opacity-70" onClick={onAdd}>
+        <Plus size={18} />
+        {t('button.add')}
+      </div>
+    </Scrollbar>
   )
 }
-
-const SideNav = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-
-  width: calc(var(--settings-width) + 100px);
-  border-right: 0.5px solid var(--color-border);
-  padding: 12px 10px;
-
-  .ant-menu {
-    border-inline-end: none !important;
-    background: transparent;
-    flex: 1;
-  }
-
-  .ant-menu-item {
-    height: 40px;
-    line-height: 40px;
-    margin: 4px 0;
-    width: 100%;
-
-    &:hover {
-      background-color: var(--color-background-soft);
-    }
-
-    &.ant-menu-item-selected {
-      background-color: var(--color-background-soft);
-      color: var(--color-primary);
-    }
-  }
-
-  > div {
-    margin-bottom: 8px;
-
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-`
-
-const AddKnowledgeItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 7px 12px;
-  position: relative;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid transparent;
-  cursor: pointer;
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
-`
-
-const AddKnowledgeName = styled.div`
-  color: var(--color-text);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 13px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-`
 
 export default KnowledgeSideNav
