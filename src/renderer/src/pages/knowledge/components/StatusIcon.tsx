@@ -1,118 +1,99 @@
-import { Tooltip } from '@cherrystudio/ui'
-import type { KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
-import { Progress } from 'antd'
-import { CheckCircle2, CircleX } from 'lucide-react'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import type { ItemStatus, KnowledgeItem } from '@shared/data/types/knowledge'
+import { CheckCircle2, CircleDashed, CircleX, Clock, type LucideIcon, ScanText, TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-interface StatusIconProps {
-  sourceId: string
-  type: string
-  progress?: number
-  isPreprocessed?: boolean
-  item?: KnowledgeItemV2
+interface StatusConfig {
+  icon: LucideIcon
+  i18nKey: string
+  showProgress?: boolean
+  containerClass: string
+  iconClass: string
 }
 
-const StatusIcon: FC<StatusIconProps> = ({ type, progress: propProgress, isPreprocessed, item }) => {
+const STATUS_CONFIG: Partial<Record<ItemStatus, StatusConfig>> = {
+  idle: {
+    icon: Clock,
+    i18nKey: 'knowledge.status_idle',
+    containerClass:
+      'flex flex-row items-center justify-center gap-2 rounded-2xs border px-2 text-zinc-400 border-zinc-400/20 bg-zinc-400/10',
+    iconClass: 'text-zinc-400'
+  },
+  pending: {
+    icon: TriangleAlert,
+    i18nKey: 'knowledge.status_pending',
+    containerClass:
+      'flex flex-row items-center justify-center gap-2 rounded-2xs border px-2 text-yellow-400 border-yellow-400/20 bg-yellow-400/10',
+    iconClass: 'text-yellow-400'
+  },
+  ocr: {
+    icon: ScanText,
+    i18nKey: 'knowledge.status_ocr',
+    showProgress: true,
+    containerClass:
+      'flex flex-row items-center justify-center gap-2 rounded-2xs border px-2 text-teal-500 border-teal-500/20 bg-teal-500/10',
+    iconClass: 'text-teal-500'
+  },
+  read: {
+    icon: CircleDashed,
+    i18nKey: 'knowledge.status_read',
+    showProgress: true,
+    containerClass:
+      'flex flex-row items-center justify-center gap-2 rounded-2xs border px-2 text-amber-400 border-amber-400/20 bg-amber-400/10',
+    iconClass: 'text-amber-400'
+  },
+  embed: {
+    icon: CircleDashed,
+    i18nKey: 'knowledge.status_embed',
+    showProgress: true,
+    containerClass:
+      'flex flex-row items-center justify-center gap-2 rounded-2xs border px-2 text-amber-400 border-amber-400/20 bg-amber-400/10',
+    iconClass: 'text-amber-400'
+  }
+}
+
+interface StatusIconProps {
+  item: KnowledgeItem
+}
+
+export const StatusIcon: FC<StatusIconProps> = ({ item }) => {
   const { t } = useTranslation()
-  const status = item?.status
-  const errorText = item?.error
-  const resolvedType = item?.type ?? type
-  // Use item.progress if available, otherwise fall back to the prop
-  const progress = item?.progress ?? propProgress ?? 0
+  const { status, progress, error } = item
 
   return useMemo(() => {
-    if (!status || status === 'idle') {
+    if (status === 'completed') {
       return (
-        <Tooltip placement="top" content={t('knowledge.status_new')}>
-          <StatusDot $status="idle" />
-        </Tooltip>
+        <Button size="icon-sm" variant="ghost">
+          <CheckCircle2 size={16} className="text-primary" />
+        </Button>
       )
     }
 
-    switch (status) {
-      case 'pending':
-        return (
-          <Tooltip placement="top" content={t('knowledge.status_pending')}>
-            <StatusDot $status="pending" />
-          </Tooltip>
-        )
-
-      case 'ocr':
-      case 'read':
-      case 'embed': {
-        // ocr: 黄色, read: 橙色, embed: 蓝色
-        const strokeColor = status === 'ocr' ? '#faad14' : status === 'read' ? '#fa8c16' : '#1890ff'
-        const tooltipKey = `knowledge.status_${status}` as const
-        const tooltipContent = t(tooltipKey)
-
-        return resolvedType === 'directory' || resolvedType === 'file' ? (
-          <Tooltip placement="top" content={`${tooltipContent} ${progress}%`}>
-            <Progress type="circle" size={14} percent={Number(progress?.toFixed(0))} strokeColor={strokeColor} />
-          </Tooltip>
-        ) : (
-          <Tooltip placement="top" content={tooltipContent}>
-            <StatusDot $status={status === 'ocr' ? 'pending' : 'processing'} />
-          </Tooltip>
-        )
-      }
-      case 'completed':
-        if (isPreprocessed && resolvedType === 'file') {
-          return (
-            <Tooltip placement="top" content={t('knowledge.status_preprocess_completed')}>
-              <CheckCircle2 size={16} className="text-primary" />
-            </Tooltip>
-          )
-        }
-        return (
-          <Tooltip placement="top" content={t('knowledge.status_completed')}>
-            <CheckCircle2 size={16} className="text-primary" />
-          </Tooltip>
-        )
-      case 'failed':
-        return (
-          <Tooltip placement="top" content={errorText || t('knowledge.status_failed')}>
+    if (status === 'failed') {
+      return (
+        <Button size="icon-sm" variant="ghost">
+          <Tooltip placement="top" content={error}>
             <CircleX size={16} className="text-red-600" />
           </Tooltip>
-        )
-      default:
-        return null
+        </Button>
+      )
     }
-  }, [status, resolvedType, t, isPreprocessed, errorText, progress])
+
+    const config = STATUS_CONFIG[status]
+    if (!config) {
+      return null
+    }
+
+    const { icon: Icon, i18nKey, showProgress, containerClass, iconClass } = config
+
+    return (
+      <div className={containerClass}>
+        <Icon size={16} className={iconClass} />
+        <div>{t(i18nKey)}</div>
+        {showProgress && <div>{progress}%</div>}
+      </div>
+    )
+  }, [status, progress, error, t])
 }
-
-const StatusDot = styled.div<{ $status: 'idle' | 'pending' | 'processing' }>`
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background-color: ${(props) =>
-    props.$status === 'pending' ? '#faad14' : props.$status === 'idle' ? '#918999' : '#1890ff'};
-  animation: ${(props) => (props.$status === 'processing' ? 'pulse 2s infinite' : 'none')};
-  cursor: pointer;
-
-  @keyframes pulse {
-    0% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.4;
-    }
-    100% {
-      opacity: 1;
-    }
-  }
-`
-
-export default React.memo(StatusIcon, (prevProps, nextProps) => {
-  return (
-    prevProps.sourceId === nextProps.sourceId &&
-    prevProps.type === nextProps.type &&
-    prevProps.progress === nextProps.progress &&
-    prevProps.isPreprocessed === nextProps.isPreprocessed &&
-    prevProps.item?.status === nextProps.item?.status &&
-    prevProps.item?.error === nextProps.item?.error &&
-    prevProps.item?.progress === nextProps.item?.progress
-  )
-})

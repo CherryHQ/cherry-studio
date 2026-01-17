@@ -70,7 +70,7 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
         title: t('knowledge.directories'),
         icon: buildTabIcon(Folder, activeKey === 'directories'),
         items: itemsByType.directories,
-        content: <KnowledgeDirectories selectedBase={base} progressMap={progressMap} />,
+        content: <KnowledgeDirectories selectedBase={base} />,
         show: true,
         addButtonLabel: t('knowledge.add_directory')
       },

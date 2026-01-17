@@ -1631,6 +1631,7 @@
     "status_embedding_completed": "嵌入完成",
     "status_embedding_failed": "嵌入失败",
     "status_failed": "失败",
+    "status_idle": "空闲",
     "status_new": "已添加",
     "status_pending": "等待中",
     "status_preprocess_completed": "预处理完成",
