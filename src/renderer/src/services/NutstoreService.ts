@@ -7,7 +7,7 @@ import { NUTSTORE_HOST } from '@shared/config/nutstore'
 import dayjs from 'dayjs'
 import { type CreateDirectoryOptions } from 'webdav'
 
-import { handleData } from './BackupService'
+import { handleData, recordBackupSuccess, resolveBackupPayload } from './BackupService'
 
 const logger = loggerService.withContext('NutstoreService')
 
@@ -143,6 +143,7 @@ export async function backupToNutstore({
 
   store.dispatch(setNutstoreSyncState({ syncing: true, lastSyncError: null }))
 
+  const { data: backupData, manifest } = await resolveBackupPayload()
   const skipBackupFile = store.getState().nutstore.nutstoreSkipBackupFile
   const maxBackups = store.getState().nutstore.nutstoreMaxBackups
 
@@ -150,13 +151,18 @@ export async function backupToNutstore({
     // 先清理旧备份
     await cleanupOldBackups(config, maxBackups)
 
-    const isSuccess = await window.api.backup.backupToWebdav({
-      ...config,
-      fileName: finalFileName,
-      skipBackupFile: skipBackupFile
-    })
+    const isSuccess = await window.api.backup.backupToWebdav(
+      backupData,
+      {
+        ...config,
+        fileName: finalFileName,
+        skipBackupFile: skipBackupFile
+      },
+      JSON.stringify(manifest)
+    )
 
     if (isSuccess) {
+      recordBackupSuccess(manifest)
       store.dispatch(setNutstoreSyncState({ lastSyncError: null }))
       showMessage && window.toast.success(i18n.t('message.backup.success'))
     } else {

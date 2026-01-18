@@ -135,20 +135,29 @@ class BackupManager {
   }
 
   /**
-   * Direct backup method - copies IndexedDB and Local Storage directories directly.
-   * No JSON serialization, better performance for large databases.
-   * @param _ - Electron IPC event
-   * @param fileName - Name of the backup file
-   * @param destinationPath - Path to save the backup (defaults to this.backupDir)
-   * @param skipBackupFile - Whether to skip backing up the Data directory
-   * @returns Path to the created backup file
+   * 兼容两种备份格式：
+   * 1. 旧直拷格式：backup(fileName, destinationPath, skipBackupFile)
+   * 2. 增量/JSON 格式：backup(fileName, data, destinationPath, skipBackupFile, manifest)
    */
   async backup(
     _: Electron.IpcMainInvokeEvent,
     fileName: string,
-    destinationPath: string = this.backupDir,
-    skipBackupFile: boolean = false
+    dataOrDestinationPath: string = this.backupDir,
+    destinationPathOrSkipBackupFile?: string | boolean,
+    skipBackupFileOrManifest: boolean | string = false,
+    manifest?: string
   ): Promise<string> {
+    if (typeof destinationPathOrSkipBackupFile === 'string') {
+      const data = dataOrDestinationPath
+      const destinationPath = destinationPathOrSkipBackupFile || this.backupDir
+      const skipBackupFile = typeof skipBackupFileOrManifest === 'boolean' ? skipBackupFileOrManifest : false
+      const resolvedManifest = typeof skipBackupFileOrManifest === 'string' ? skipBackupFileOrManifest : manifest
+
+      return await this.backupLegacy(_, fileName, data, destinationPath, skipBackupFile, resolvedManifest)
+    }
+
+    const destinationPath = dataOrDestinationPath || this.backupDir
+    const skipBackupFile = typeof destinationPathOrSkipBackupFile === 'boolean' ? destinationPathOrSkipBackupFile : false
     const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
 
     try {
@@ -257,7 +266,8 @@ class BackupManager {
     fileName: string,
     data: string,
     destinationPath: string = this.backupDir,
-    skipBackupFile: boolean = false
+    skipBackupFile: boolean = false,
+    manifest?: string
   ): Promise<string> {
     const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
 
@@ -279,6 +289,11 @@ class BackupManager {
 
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
+      if (manifest) {
+        const manifestPath = path.join(this.tempDir, 'manifest.json')
+        await fs.writeFile(manifestPath, manifest, 'utf-8')
+      }
+
       logger.debug(`BackupManager IPC, skipBackupFile: ${skipBackupFile}`)
 
       if (!skipBackupFile) {
@@ -286,16 +301,20 @@ class BackupManager {
         const sourcePath = path.join(app.getPath('userData'), 'Data')
         const tempDataDir = path.join(this.tempDir, 'Data')
 
-        // Get total size of source directory
-        const totalSize = await this.getDirSize(sourcePath)
-        let copiedSize = 0
+        if (await fs.pathExists(sourcePath)) {
+          // Get total size of source directory
+          const totalSize = await this.getDirSize(sourcePath)
+          let copiedSize = 0
 
-        // Use streaming copy
-        await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
-          copiedSize += size
-          const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
-          onProgress({ stage: 'copying_files', progress, total: 100 })
-        })
+          // Use streaming copy
+          await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
+            copiedSize += size
+            const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
+            onProgress({ stage: 'copying_files', progress, total: 100 })
+          })
+        } else {
+          logger.debug('[backupLegacy] Data directory not found, skipping')
+        }
 
         onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
       } else {
@@ -412,13 +431,15 @@ class BackupManager {
    */
   async backupToLocalDir(
     _: Electron.IpcMainInvokeEvent,
+    data: string,
     fileName: string,
-    localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
+    localConfig: { localBackupDir?: string; skipBackupFile?: boolean },
+    manifest?: string
   ) {
     try {
       const backupDir = localConfig.localBackupDir || this.backupDir
       await fs.ensureDir(backupDir)
-      return await this.backup(_, fileName, backupDir, localConfig.skipBackupFile)
+      return await this.backup(_, fileName, data, backupDir, localConfig.skipBackupFile ?? false, manifest)
     } catch (error) {
       logger.error('[backupToLocalDir] Local backup failed:', error as Error)
       throw error
@@ -432,9 +453,9 @@ class BackupManager {
    * @param webdavConfig - WebDAV configuration including server URL, credentials, and options
    * @returns Result from WebDAV upload operation
    */
-  async backupToWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
+  async backupToWebdav(_: Electron.IpcMainInvokeEvent, data: string, webdavConfig: WebDavConfig, manifest?: string) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const backupedFilePath = await this.backup(_, filename, undefined, webdavConfig.skipBackupFile)
+    const backupedFilePath = await this.backup(_, filename, data, this.backupDir, webdavConfig.skipBackupFile, manifest)
     const webdavClient = this.getWebDavInstance(webdavConfig)
     try {
       let result
@@ -463,7 +484,7 @@ class BackupManager {
    * @param s3Config - S3 configuration including endpoint, bucket, credentials, and options
    * @returns Result from S3 upload operation
    */
-  async backupToS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
+  async backupToS3(_: Electron.IpcMainInvokeEvent, data: string, s3Config: S3Config, manifest?: string) {
     const os = require('os')
     const deviceName = os.hostname ? os.hostname() : 'device'
     const timestamp = new Date()
@@ -474,7 +495,7 @@ class BackupManager {
 
     logger.debug(`[backupToS3] Starting S3 backup to ${filename}`)
 
-    const backupedFilePath = await this.backup(_, filename, undefined, s3Config.skipBackupFile)
+    const backupedFilePath = await this.backup(_, filename, data, this.backupDir, s3Config.skipBackupFile, manifest)
     const s3Client = this.getS3Storage(s3Config)
     try {
       const fileBuffer = await fs.promises.readFile(backupedFilePath)
@@ -516,6 +537,16 @@ class BackupManager {
       // Check for backup type: direct (version 6+) or legacy (version <= 5)
       const metadataPath = path.join(this.tempDir, 'metadata.json')
       const isDirectBackup = await fs.pathExists(metadataPath)
+      const manifestPath = path.join(this.tempDir, 'manifest.json')
+      let manifest: Record<string, any> | null = null
+
+      if (await fs.pathExists(manifestPath)) {
+        try {
+          manifest = JSON.parse(await fs.readFile(manifestPath, 'utf-8'))
+        } catch (error) {
+          logger.warn('[BackupManager] Failed to parse manifest.json, fallback to full restore', error as Error)
+        }
+      }
 
       if (isDirectBackup) {
         // Direct backup format (version 6+)
@@ -529,7 +560,17 @@ class BackupManager {
       // Legacy backup format (version <= 5)
       logger.debug('Detected legacy backup format (version <= 5)')
 
-      const data = await this.restoreLegacy()
+      const data = await this.restoreLegacy(manifest?.backupType === 'incremental' ? 'incremental' : 'full')
+
+      if (manifest) {
+        try {
+          const parsed = JSON.parse(data)
+          parsed.manifest = manifest
+          return JSON.stringify(parsed)
+        } catch (error) {
+          logger.warn('[BackupManager] Failed to attach manifest to restored data', error as Error)
+        }
+      }
 
       return data
     } catch (error) {
@@ -643,7 +684,7 @@ class BackupManager {
    * @param onProgress - Callback function to report restore progress
    * @returns The data string read from data.json
    */
-  private async restoreLegacy(): Promise<string> {
+  private async restoreLegacy(backupType: 'full' | 'incremental' = 'full'): Promise<string> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, false)
 
     try {
@@ -656,30 +697,34 @@ class BackupManager {
 
       logger.debug('[restoreLegacy] restore Data directory')
 
-      // Restore Data directory
-      const restoreSuffix = isWin ? '.restore' : ''
-      const userDataPath = app.getPath('userData')
-      const dataSourcePath = path.join(this.tempDir, 'Data')
-      const dataDestPath = path.join(userDataPath, 'Data' + restoreSuffix)
+      if (backupType !== 'incremental') {
+        // Restore Data directory
+        const restoreSuffix = isWin ? '.restore' : ''
+        const userDataPath = app.getPath('userData')
+        const dataSourcePath = path.join(this.tempDir, 'Data')
+        const dataDestPath = path.join(userDataPath, 'Data' + restoreSuffix)
 
-      const dataExists = await fs.pathExists(dataSourcePath)
-      const dataFiles = dataExists ? await fs.readdir(dataSourcePath) : []
+        const dataExists = await fs.pathExists(dataSourcePath)
+        const dataFiles = dataExists ? await fs.readdir(dataSourcePath) : []
 
-      if (dataExists && dataFiles.length > 0) {
-        // Get total size of source directory
-        const dataTotalSize = await this.getDirSize(dataSourcePath)
-        let copiedSize = 0
+        if (dataExists && dataFiles.length > 0) {
+          // Get total size of source directory
+          const dataTotalSize = await this.getDirSize(dataSourcePath)
+          let copiedSize = 0
 
-        await fs.remove(dataDestPath)
+          await fs.remove(dataDestPath)
 
-        // Use streaming copy
-        await this.copyDirWithProgress(dataSourcePath, dataDestPath, (size) => {
-          copiedSize += size
-          const progress = Math.min(85, 35 + Math.floor((copiedSize / dataTotalSize) * 50))
-          onProgress({ stage: 'copying_files', progress, total: 100 })
-        })
+          // Use streaming copy
+          await this.copyDirWithProgress(dataSourcePath, dataDestPath, (size) => {
+            copiedSize += size
+            const progress = Math.min(85, 35 + Math.floor((copiedSize / dataTotalSize) * 50))
+            onProgress({ stage: 'copying_files', progress, total: 100 })
+          })
+        } else {
+          logger.debug('[restoreLegacy] skipBackupFile is true, skip restoring Data directory')
+        }
       } else {
-        logger.debug('[restoreLegacy] skipBackupFile is true, skip restoring Data directory')
+        logger.debug('[restoreLegacy] Incremental backup detected, skip restoring Data directory')
       }
 
       // Clean up temp directory
@@ -1096,7 +1141,7 @@ class BackupManager {
   async createLanTransferBackup(
     _: Electron.IpcMainInvokeEvent,
     data: string,
-    destinationPath?: string
+    manifest?: string
   ): Promise<string> {
     const timestamp = new Date()
       .toISOString()
@@ -1105,13 +1150,9 @@ class BackupManager {
 
     const fileName = `cherry-studio.${timestamp}.zip`
     const tempPath = path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer')
-    const targetPath = destinationPath || tempPath
-
-    // Ensure temp directory exists
-    await fs.ensureDir(targetPath)
 
     // Create backup with skipBackupFile=true (no Data folder)
-    const backupedFilePath = await this.backupLegacy(_, fileName, data, targetPath, true)
+    const backupedFilePath = await this.backup(_, fileName, data, tempPath, true, manifest)
 
     logger.info(`[BackupManager] Created LAN transfer backup at: ${backupedFilePath}`)
 

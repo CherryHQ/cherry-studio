@@ -94,6 +94,15 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   })
 }))
 
+vi.mock('@renderer/services/ProviderService', () => ({
+  // 测试环境不依赖默认系统 Provider，避免空列表导致找不到 provider
+  getProviderById: vi.fn((id) => ({
+    id,
+    name: 'Mock Provider',
+    type: 'openai-response'
+  }))
+}))
+
 vi.mock('@renderer/services/AssistantService', () => ({
   getDefaultAssistant: vi.fn(() => ({
     id: 'default',

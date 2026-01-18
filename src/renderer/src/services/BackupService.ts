@@ -64,25 +64,26 @@ async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavC
 
 export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
+  const { data: backupData, manifest } = await resolveBackupPayload()
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
-    // Use direct backup method - copy IndexedDB/LocalStorage directories directly
-    await window.api.backup.backup(filename, selectFolder, skipBackupFile)
+    await window.api.backup.backup(filename, backupData, selectFolder, skipBackupFile, JSON.stringify(manifest))
+    recordBackupSuccess(manifest)
     window.toast.success(i18n.t('message.backup.success'))
   }
 }
 
 export async function backupToLanTransfer() {
-  // Let user select save location first
   const savePath = await window.api.file.selectFolder()
 
   if (!savePath) {
     return
   }
 
-  // Create backup directly in the selected location
-  const backupData = await getBackupData()
-  await window.api.backup.createLanTransferBackup(backupData, savePath)
+  const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
+  const { data: backupData, manifest } = await resolveBackupPayload()
+  await window.api.backup.backup(filename, backupData, savePath, true, JSON.stringify(manifest))
+  recordBackupSuccess(manifest)
 
   window.toast.success(i18n.t('settings.data.export_to_phone.file.export_success'))
 }
@@ -219,19 +220,24 @@ export async function backupToWebdav({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
+  const { data: backupData, manifest } = await resolveBackupPayload()
 
-  // 上传文件 - Use direct backup method (copy IndexedDB/LocalStorage directories)
   try {
-    const success = await window.api.backup.backupToWebdav({
-      webdavHost,
-      webdavUser,
-      webdavPass,
-      webdavPath,
-      fileName: finalFileName,
-      skipBackupFile: webdavSkipBackupFile,
-      disableStream: webdavDisableStream
-    })
+    const success = await window.api.backup.backupToWebdav(
+      backupData,
+      {
+        webdavHost,
+        webdavUser,
+        webdavPass,
+        webdavPath,
+        fileName: finalFileName,
+        skipBackupFile: webdavSkipBackupFile,
+        disableStream: webdavDisableStream
+      },
+      JSON.stringify(manifest)
+    )
     if (success) {
+      recordBackupSuccess(manifest)
       store.dispatch(
         setWebDAVSyncState({
           lastSyncError: null
@@ -400,15 +406,20 @@ export async function backupToS3({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
+  const { data: backupData, manifest } = await resolveBackupPayload()
 
   try {
-    // Use direct backup method (copy IndexedDB/LocalStorage directories)
-    const success = await window.api.backup.backupToS3({
-      ...s3Config,
-      fileName: finalFileName
-    })
+    const success = await window.api.backup.backupToS3(
+      backupData,
+      {
+        ...s3Config,
+        fileName: finalFileName
+      },
+      JSON.stringify(manifest)
+    )
 
     if (success) {
+      recordBackupSuccess(manifest)
       store.dispatch(
         setS3SyncState({
           lastSyncError: null,
@@ -1016,15 +1027,21 @@ export async function backupToLocal({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
+  const { data: backupData, manifest } = await resolveBackupPayload()
 
   try {
-    // Use direct backup method (copy IndexedDB/LocalStorage directories)
-    const result = await window.api.backup.backupToLocalDir(finalFileName, {
-      localBackupDir,
-      skipBackupFile: localBackupSkipBackupFile
-    })
+    const result = await window.api.backup.backupToLocalDir(
+      backupData,
+      finalFileName,
+      {
+        localBackupDir,
+        skipBackupFile: localBackupSkipBackupFile
+      },
+      JSON.stringify(manifest)
+    )
 
     if (result) {
+      recordBackupSuccess(manifest)
       store.dispatch(
         setLocalBackupSyncState({
           lastSyncError: null
