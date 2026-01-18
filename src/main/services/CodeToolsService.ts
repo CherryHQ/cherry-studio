@@ -653,7 +653,8 @@ class CodeToolsService {
 
     // Special handling for kimi-cli: use uvx instead of bun
     if (cliTool === codeTools.kimiCli) {
-      baseCommand = `uvx ${packageName}`
+      const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
+      baseCommand = `${uvPath} tool run ${packageName}`
     }
 
     // Add configuration parameters for OpenAI Codex
