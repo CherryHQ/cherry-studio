@@ -10,6 +10,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const ImportMenuOptions: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+
   return (
     <SettingGroup theme={theme}>
       <SettingRow>
@@ -19,7 +20,18 @@ const ImportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
         <RowFlex className="justify-between gap-[5px]">
-          <Button onClick={ImportPopup.show}>{t('settings.data.import_settings.button')}</Button>
+          <Button onClick={() => ImportPopup.show('chatgpt')}>{t('settings.data.import_settings.button')}</Button>
+        </RowFlex>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>
+          {t('settings.data.import_settings.claude', { defaultValue: 'Import from Claude' })}
+        </SettingRowTitle>
+        <RowFlex className="justify-between gap-[5px]">
+          <Button onClick={() => ImportPopup.show('claude')}>
+            {t('settings.data.import_settings.button_folder', { defaultValue: 'Import Folder' })}
+          </Button>
         </RowFlex>
       </SettingRow>
     </SettingGroup>
