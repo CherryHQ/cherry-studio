@@ -58,7 +58,7 @@
     "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format:check",
     "format": "biome format --write && biome lint --write",
     "format:check": "biome format && biome lint",
-    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && prek install",
     "claude": "dotenv -e .env -- claude",
     "release:aicore:alpha": "pnpm --filter @cherrystudio/ai-core version prerelease --preid alpha && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag alpha --access public",
     "release:aicore:beta": "pnpm --filter @cherrystudio/ai-core version prerelease --preid beta && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag beta --access public",
@@ -148,6 +148,7 @@
     "@floating-ui/dom": "1.7.3",
     "@google/genai": "1.0.1",
     "@hello-pangea/dnd": "^18.0.1",
+    "@j178/prek": "^0.2.28",
     "@kangfenmao/keyv-storage": "^0.1.3",
     "@langchain/community": "^1.0.0",
     "@langchain/core": "1.0.2",
@@ -310,7 +311,6 @@
     "html-to-image": "^1.11.13",
     "html-to-text": "^9.0.5",
     "htmlparser2": "^10.0.0",
-    "husky": "^9.1.7",
     "i18next": "^23.11.5",
     "iconv-lite": "^0.6.3",
     "ipaddr.js": "^2.2.0",
@@ -323,7 +323,6 @@
     "katex": "0.16.22",
     "ky": "1.8.1",
     "linguist-languages": "^8.1.0",
-    "lint-staged": "^15.5.0",
     "lodash": "^4.17.21",
     "lru-cache": "^11.1.0",
     "lucide-react": "^0.525.0",
@@ -458,6 +457,7 @@
       "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch"
     },
     "onlyBuiltDependencies": [
+      "@j178/prek",
       "@kangfenmao/keyv-storage",
       "@paymoapp/electron-shutdown-handler",
       "@scarf/scarf",
@@ -475,15 +475,6 @@
     ]
   },
   "packageManager": "pnpm@10.27.0",
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
-      "biome format --write --no-errors-on-unmatched",
-      "eslint --fix"
-    ],
-    "*.{json,yml,yaml,css,html}": [
-      "biome format --write --no-errors-on-unmatched"
-    ]
-  },
   "optionalDependencies": {
     "@img/sharp-darwin-arm64": "0.34.3",
     "@img/sharp-darwin-x64": "0.34.3",
