@@ -4219,9 +4219,6 @@
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"
     },
-    "mineru": {
-      "api_key": "MinerU ahora ofrece un cupo gratuito de 500 páginas diarias, no es necesario que ingrese una clave."
-    },
     "miniapps": {
       "cache_change_notice": "Los cambios surtirán efecto cuando el número de miniaplicaciones abiertas aumente o disminuya hasta alcanzar el valor configurado",
       "cache_description": "Establece el número máximo de miniaplicaciones que pueden permanecer activas simultáneamente",
