@@ -4,7 +4,6 @@
 
 import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
-import { configManager } from '@main/services/ConfigManager'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { and, eq, sql } from 'drizzle-orm'
@@ -71,7 +70,7 @@ export class PreferencesMigrator extends BaseMigrator {
 
           // Read from source
           if (item.source === 'electronStore') {
-            originalValue = configManager.get(item.originalKey)
+            originalValue = ctx.sources.electronStore.get(item.originalKey)
           } else if (item.source === 'redux' && item.sourceCategory) {
             originalValue = ctx.sources.reduxState.get(item.sourceCategory, item.originalKey)
           }
@@ -108,7 +107,7 @@ export class PreferencesMigrator extends BaseMigrator {
             const sourceValues: Record<string, unknown> = {}
             for (const [name, def] of Object.entries(mapping.sources)) {
               if (def.source === 'electronStore') {
-                sourceValues[name] = configManager.get(def.key)
+                sourceValues[name] = ctx.sources.electronStore.get(def.key)
               } else if (def.source === 'redux' && def.category) {
                 sourceValues[name] = ctx.sources.reduxState.get(def.category, def.key)
               }
