@@ -118,7 +118,6 @@ const CodeToolsPage: FC = () => {
         return true
       }
 
-
       return true
     },
     [selectedCliTool]
