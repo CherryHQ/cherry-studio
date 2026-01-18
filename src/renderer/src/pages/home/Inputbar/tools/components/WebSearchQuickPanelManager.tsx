@@ -16,7 +16,7 @@ import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
+import { getEffectiveMcpMode, type WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isPromptToolUse } from '@renderer/utils/mcp-tools'
@@ -27,15 +27,7 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebSearchQuickPanel')
 
-export const WebSearchProviderIcon = ({
-  pid,
-  size = 18,
-  color
-}: {
-  pid?: WebSearchProviderId
-  size?: number
-  color?: string
-}) => {
+export const WebSearchProviderIcon = ({ pid, size = 18, color }: { pid?: string; size?: number; color?: string }) => {
   switch (pid) {
     case 'bocha':
       return <BochaLogo className="icon" width={size} height={size} color={color} />
@@ -133,15 +125,15 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
         ...providers
           .map((p) => ({
             label: p.name,
-            description: WebSearchService.isWebSearchEnabled(p.id as WebSearchProviderId)
+            description: WebSearchService.isWebSearchEnabled(p.id)
               ? hasObjectKey(p, 'apiKey')
                 ? t('settings.tool.websearch.apikey')
                 : t('settings.tool.websearch.free')
               : t('chat.input.web_search.enable_content'),
-            icon: <WebSearchProviderIcon size={13} pid={p.id as WebSearchProviderId} />,
+            icon: <WebSearchProviderIcon size={13} pid={p.id} />,
             isSelected: p.id === assistant?.webSearchProviderId,
-            disabled: !WebSearchService.isWebSearchEnabled(p.id as WebSearchProviderId),
-            action: () => updateQuickPanelItem(p.id as WebSearchProviderId)
+            disabled: !WebSearchService.isWebSearchEnabled(p.id),
+            action: () => updateQuickPanelItem(p.id)
           }))
           .filter((item) => !item.disabled)
       )

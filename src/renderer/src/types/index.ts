@@ -619,6 +619,9 @@ export type ExternalToolResult = {
   memories?: MemoryItem[]
 }
 
+/**
+ * @deprecated Use string type directly. Kept for ApiKeyListPopup compatibility.
+ */
 export const WebSearchProviderIds = {
   zhipu: 'zhipu',
   tavily: 'tavily',
@@ -631,14 +634,20 @@ export const WebSearchProviderIds = {
   'local-baidu': 'local-baidu'
 } as const
 
+/**
+ * @deprecated Use string type directly. Kept for ApiKeyListPopup compatibility.
+ */
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds
 
+/**
+ * @deprecated Use provider.type field instead. Kept for ApiKeyListPopup compatibility.
+ */
 export const isWebSearchProviderId = (id: string): id is WebSearchProviderId => {
   return Object.hasOwn(WebSearchProviderIds, id)
 }
 
 export type WebSearchProvider = {
-  id: WebSearchProviderId
+  id: string
   name: string
   apiKey?: string
   apiHost?: string

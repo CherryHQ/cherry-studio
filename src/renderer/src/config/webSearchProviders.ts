@@ -1,4 +1,4 @@
-import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+import type { WebSearchProvider } from '@renderer/types'
 
 type WebSearchProviderConfig = {
   websites: {
@@ -7,7 +7,7 @@ type WebSearchProviderConfig = {
   }
 }
 
-export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchProviderConfig> = {
+export const WEB_SEARCH_PROVIDER_CONFIG: Record<string, WebSearchProviderConfig> = {
   zhipu: {
     websites: {
       official: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',

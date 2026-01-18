@@ -14,7 +14,7 @@ import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearch'
 import WebSearchService from '@renderer/services/WebSearchService'
-import type { WebSearchProviderId } from '@renderer/types'
+import type { WebSearchProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
 import { Divider, Form, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
@@ -56,7 +56,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     return null
   }
 
-  const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id as WebSearchProviderId]
+  const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
   const officialWebsite = webSearchProviderConfig?.websites?.official
 
@@ -121,7 +121,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
     try {
       setApiChecking(true)
-      const { valid, error } = await WebSearchService.checkSearch(provider)
+      const { valid, error } = await WebSearchService.checkSearch(provider as unknown as WebSearchProvider)
 
       const errorMessage = error && error?.message ? ' ' + error?.message : ''
       window.toast[valid ? 'success' : 'error']({

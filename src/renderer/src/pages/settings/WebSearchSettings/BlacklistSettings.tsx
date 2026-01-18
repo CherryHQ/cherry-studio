@@ -70,7 +70,7 @@ const BlacklistSettings: FC = () => {
         onValueChange={setBlacklistInput}
         placeholder={t('settings.tool.websearch.blacklist_tooltip')}
         rows={4}
-        className="min-h-[100px] max-h-[200px]"
+        className="max-h-[200px] min-h-[100px]"
       />
       <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
         {t('common.save')}

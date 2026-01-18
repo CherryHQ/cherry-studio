@@ -1,5 +1,4 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import type { WebSearchProviderId } from '@renderer/types'
 import { useParams } from '@tanstack/react-router'
 import type { FC } from 'react'
 
@@ -18,7 +17,7 @@ const WebSearchProviderSettings: FC = () => {
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
-        <WebSearchProviderSetting providerId={providerId as WebSearchProviderId} />
+        <WebSearchProviderSetting providerId={providerId} />
       </SettingGroup>
     </SettingContainer>
   )
