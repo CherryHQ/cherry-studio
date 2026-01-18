@@ -7,7 +7,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n from '@renderer/i18n'
-import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
 import { useAppDispatch } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
@@ -152,10 +151,6 @@ export function useAppInit() {
       cacheService.set('app.path.files', info.filesPath)
       cacheService.set('app.path.resources', info.resourcesPath)
     })
-  }, [])
-
-  useEffect(() => {
-    KnowledgeQueue.checkAllBases()
   }, [])
 
   useEffect(() => {

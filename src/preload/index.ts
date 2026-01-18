@@ -31,6 +31,7 @@ import type {
   FileMetadata,
   FileUploadResponse,
   GetApiServerStatusResult,
+  KnowledgeBase,
   KnowledgeBaseParams,
   KnowledgeItem,
   KnowledgeSearchResult,
@@ -291,8 +292,22 @@ const api = {
       userId?: string
       forceReload?: boolean
     }) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Add, { base, item, forceReload, userId }),
-    remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, { uniqueId, uniqueIds, base }),
+    remove: ({
+      uniqueId,
+      uniqueIds,
+      base,
+      externalId,
+      itemType,
+      fileExt
+    }: {
+      uniqueId: string
+      uniqueIds: string[]
+      base: KnowledgeBaseParams
+      externalId?: string
+      itemType?: KnowledgeItem['type']
+      fileExt?: string
+    }) =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, { uniqueId, uniqueIds, base, externalId, itemType, fileExt }),
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
     rerank: (
@@ -300,7 +315,9 @@ const api = {
       context?: SpanContext
     ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results }),
     checkQuota: ({ base, userId }: { base: KnowledgeBaseParams; userId: string }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Check_Quota, base, userId)
+      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Check_Quota, base, userId),
+    migrateV2: (base: KnowledgeBase): Promise<{ success: boolean; migratedCount: number; error?: string }> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeBase_MigrateV2, base)
   },
   memory: {
     add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>

@@ -266,8 +266,8 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     onSuccess?: (data: ResponseForPath<TPath, TMethod>) => void
     /** Callback when mutation fails */
     onError?: (error: Error) => void
-    /** API paths to revalidate on success */
-    refresh?: ConcreteApiPaths[]
+    /** API paths to revalidate on success (can be concrete paths or dynamic path strings) */
+    refresh?: (ConcreteApiPaths | string)[]
     /** If provided, updates cache immediately (with auto-rollback on error) */
     optimisticData?: ResponseForPath<TPath, TMethod>
     /** Override SWR mutation configuration (fetcher, onSuccess, onError are handled internally) */

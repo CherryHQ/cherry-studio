@@ -1,345 +1,132 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/Tags/CustomTag'
-import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
-import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase } from '@renderer/types'
-import { Empty, Tabs, Tag } from 'antd'
-import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
+import { Button, CustomTag, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { useKnowledgeBase, useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
+import { History, PlusIcon, Search, Settings } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
-import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
-import QuotaTag from './components/QuotaTag'
-import KnowledgeDirectories from './items/KnowledgeDirectories'
-import KnowledgeFiles from './items/KnowledgeFiles'
-import KnowledgeNotes from './items/KnowledgeNotes'
-import KnowledgeSitemaps from './items/KnowledgeSitemaps'
-import KnowledgeUrls from './items/KnowledgeUrls'
-import KnowledgeVideos from './items/KnowledgeVideos'
-
-const logger = loggerService.withContext('KnowledgeContent')
+import EditKnowledgeBaseDialog from './components/EditKnowledgeBaseDialog'
+import KnowledgeSearchDialog from './components/KnowledgeSearchDialog'
+import { useKnowledgeAddActions } from './hooks/useKnowledgeAddActions'
+import { useKnowledgeQueueActions } from './hooks/useKnowledgeQueueActions'
+import { type TabKey, useKnowledgeTabs } from './hooks/useKnowledgeTabs'
 interface KnowledgeContentProps {
-  selectedBase: KnowledgeBase
+  selectedBaseId: string
 }
 
-const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
+const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
   const { t } = useTranslation()
-  const { base, urlItems, fileItems, directoryItems, noteItems, sitemapItems, videoItems } = useKnowledge(
-    selectedBase.id || ''
-  )
-  const [activeKey, setActiveKey] = useState('files')
-  const [quota, setQuota] = useState<number | undefined>(undefined)
-  const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
-  const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
+  const { base } = useKnowledgeBase(selectedBaseId)
+  const { items } = useKnowledgeItems(selectedBaseId)
 
-  const providerName = getProviderName(base?.model)
+  const { hasOrphans, orphanCount, handleRecover, handleIgnore, isRecovering, isIgnoring } =
+    useKnowledgeQueueActions(selectedBaseId)
+  const { activeKey, setActiveKey, tabItems } = useKnowledgeTabs({
+    base: base ?? null,
+    items
+  })
 
-  useEffect(() => {
-    const handlers = [
-      window.electron.ipcRenderer.on('file-preprocess-finished', (_, { itemId, quota }) => {
-        setPreprocessMap((prev) => new Map(prev).set(itemId, true))
-        if (quota) {
-          setQuota(quota)
-        }
-      }),
+  // Add actions for the current tab
+  const addActions = useKnowledgeAddActions({ base: base ?? null })
+  const currentAction = addActions[activeKey as TabKey]
+  const currentTab = tabItems.find((t) => t.key === activeKey)
 
-      window.electron.ipcRenderer.on('file-preprocess-progress', (_, { itemId, progress }) => {
-        setProgressMap((prev) => new Map(prev).set(itemId, progress))
-      }),
-
-      window.electron.ipcRenderer.on('file-ocr-progress', (_, { itemId, progress }) => {
-        setProgressMap((prev) => new Map(prev).set(itemId, progress))
-      }),
-
-      window.electron.ipcRenderer.on('directory-processing-percent', (_, { itemId, percent }) => {
-        logger.debug('[Progress] Directory:', itemId, percent)
-        setProgressMap((prev) => new Map(prev).set(itemId, percent))
-      })
-    ]
-
-    return () => {
-      handlers.forEach((cleanup) => cleanup())
-    }
-  }, [])
-  const knowledgeItems = [
-    {
-      key: 'files',
-      title: t('files.title'),
-      icon: activeKey === 'files' ? <Book size={16} color="var(--color-primary)" /> : <Book size={16} />,
-      items: fileItems,
-      content: <KnowledgeFiles selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />,
-      show: true
-    },
-
-    {
-      key: 'notes',
-      title: t('knowledge.notes'),
-      icon: activeKey === 'notes' ? <Notebook size={16} color="var(--color-primary)" /> : <Notebook size={16} />,
-      items: noteItems,
-      content: <KnowledgeNotes selectedBase={selectedBase} />,
-      show: true
-    },
-    {
-      key: 'directories',
-      title: t('knowledge.directories'),
-      icon: activeKey === 'directories' ? <Folder size={16} color="var(--color-primary)" /> : <Folder size={16} />,
-      items: directoryItems,
-      content: <KnowledgeDirectories selectedBase={selectedBase} progressMap={progressMap} />,
-      show: true
-    },
-    {
-      key: 'urls',
-      title: t('knowledge.urls'),
-      icon: activeKey === 'urls' ? <Link size={16} color="var(--color-primary)" /> : <Link size={16} />,
-      items: urlItems,
-      content: <KnowledgeUrls selectedBase={selectedBase} />,
-      show: true
-    },
-    {
-      key: 'sitemaps',
-      title: t('knowledge.sitemaps'),
-      icon: activeKey === 'sitemaps' ? <Globe size={16} color="var(--color-primary)" /> : <Globe size={16} />,
-      items: sitemapItems,
-      content: <KnowledgeSitemaps selectedBase={selectedBase} />,
-      show: true
-    },
-    // 暂时不显示，后续实现
-    {
-      key: 'videos',
-      title: t('knowledge.videos'),
-      icon: activeKey === 'videos' ? <Video size={16} color="var(--color-primary)" /> : <Video size={16} />,
-      items: videoItems,
-      content: <KnowledgeVideos selectedBase={selectedBase} />,
-      show: false
-    }
-  ]
+  // Edit dialog state (independent from sidebar's edit dialog)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  // Search dialog state
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false)
 
   if (!base) {
     return null
   }
 
-  const tabItems = knowledgeItems
-    .filter((item) => item.show)
-    .map((item) => ({
-      key: item.key,
-      label: (
-        <TabLabel>
-          {item.icon}
-          <span>{item.title}</span>
-          <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
-            {item.items.length}
-          </CustomTag>
-        </TabLabel>
-      ),
-      children: <TabContent>{item.content}</TabContent>
-    }))
-
   return (
-    <MainContainer>
-      <HeaderContainer>
-        <ModelInfo>
-          <Button variant="ghost" size="icon-sm" onClick={() => EditKnowledgeBasePopup.show({ base })}>
+    <div className="flex w-full flex-col">
+      <div className="flex flex-row items-center justify-between border-border border-b px-4 py-2">
+        <div className="flex flex-row items-center gap-2">
+          <Button variant="ghost" size="icon-sm" onClick={() => setEditDialogOpen(true)}>
             <Settings size={18} color="var(--color-icon)" />
           </Button>
-          <div className="model-row">
-            <div className="label-column">
-              <label>{t('models.embedding_model')}</label>
-            </div>
-            <Tooltip placement="bottom" content={providerName}>
-              <div className="tag-column">
-                <Tag style={{ borderRadius: 20, margin: 0 }}>{base.model.name}</Tag>
-              </div>
-            </Tooltip>
-            {base.rerankModel && <Tag style={{ borderRadius: 20, margin: 0 }}>{base.rerankModel.name}</Tag>}
-            {base.preprocessProvider && base.preprocessProvider.type === 'preprocess' && (
-              <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
-            )}
+          <div className="rounded-3xs border border-amber-400/20 bg-amber-400/10 px-2 text-amber-400 text-xs">
+            {base.embeddingModelMeta?.name ?? base.embeddingModelId}
           </div>
-        </ModelInfo>
-        <RowFlex className="items-center gap-2">
-          {/* 使用selected base导致修改设置后没有响应式更新 */}
-          <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
+          {base.rerankModelMeta && (
+            <div className="rounded-3xs border border-orange-400/20 bg-orange-400/10 px-2 text-orange-400 text-xs">
+              {base.rerankModelMeta.name}
+            </div>
+          )}
+          {base.preprocessProviderId && (
+            <div className="rounded-3xs border border-teal-500/20 bg-teal-500/10 px-2 text-teal-500 text-xs">
+              {base.preprocessProviderId}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-row items-center gap-2">
+          {hasOrphans && (
+            <>
+              <Button
+                className="h-8 rounded-2xs"
+                variant="secondary"
+                size="sm"
+                onClick={handleRecover}
+                disabled={isRecovering || isIgnoring}>
+                <History size={14} className={isRecovering ? 'animate-spin' : ''} />
+                {t('knowledge.recover_orphans', { count: orphanCount })}
+              </Button>
+              <Button
+                className="h-8 rounded-2xs"
+                variant="secondary"
+                size="sm"
+                onClick={handleIgnore}
+                disabled={isRecovering || isIgnoring}>
+                {t('knowledge.ignore_orphans')}
+              </Button>
+            </>
+          )}
+
+          <Button className="hover:opacity-70" size="icon-sm" variant="ghost" onClick={() => setSearchDialogOpen(true)}>
             <Search size={18} />
-          </NavbarIcon>
-        </RowFlex>
-      </HeaderContainer>
-      <StyledTabs activeKey={activeKey} onChange={setActiveKey} items={tabItems} type="line" size="small" />
-    </MainContainer>
+          </Button>
+        </div>
+      </div>
+
+      <Tabs value={activeKey} onValueChange={(v) => setActiveKey(v as TabKey)} variant="line" className="flex-1">
+        <div className="mx-4 flex h-12 items-center justify-between border-b-0 bg-transparent p-0">
+          <TabsList className="h-full justify-start gap-1 bg-transparent p-0">
+            {tabItems.map((item) => (
+              <TabsTrigger key={item.key} value={item.key} className="gap-1.5 px-3 py-3 text-[13px]">
+                {item.icon}
+                <span>{item.title}</span>
+                <div></div>
+                <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
+                  {item.items.length}
+                </CustomTag>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Button
+            className="h-8 rounded-2xs"
+            size="sm"
+            variant="outline"
+            onClick={currentAction?.handler}
+            disabled={currentAction?.disabled || currentAction?.loading}>
+            <PlusIcon className="text-primary" />
+            {currentTab?.addButtonLabel}
+          </Button>
+        </div>
+        {tabItems.map((item) => (
+          <TabsContent key={item.key} value={item.key} className="h-full overflow-hidden">
+            {item.content}
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      {/* Edit Dialog */}
+      <EditKnowledgeBaseDialog base={base} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
+      {/* Search Dialog */}
+      <KnowledgeSearchDialog base={base} open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
+    </div>
   )
 }
-
-export const KnowledgeEmptyView = () => <Empty style={{ margin: 20 }} styles={{ image: { display: 'none' } }} />
-
-export const ItemHeaderLabel = ({ label }: { label: string }) => {
-  return (
-    <RowFlex className="items-center gap-2.5">
-      <label style={{ fontWeight: 600 }}>{label}</label>
-    </RowFlex>
-  )
-}
-
-const MainContainer = styled.div`
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  position: relative;
-`
-
-const TabLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 4px;
-  font-size: 14px;
-`
-
-const TabContent = styled.div``
-
-const StyledTabs = styled(Tabs)`
-  flex: 1;
-
-  .ant-tabs-nav {
-    padding: 0 16px;
-    margin: 0;
-    min-height: 48px;
-  }
-
-  .ant-tabs-tab {
-    padding: 12px 12px;
-    margin-right: 0;
-    font-size: 13px;
-
-    &:hover {
-      color: var(--color-primary);
-    }
-  }
-
-  .ant-tabs-tab-btn {
-    font-size: 13px;
-  }
-
-  .ant-tabs-content {
-    position: initial !important;
-  }
-
-  .ant-tabs-content-holder {
-    overflow: hidden;
-  }
-
-  .ant-tabs-tabpane {
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .ant-tabs-ink-bar {
-    height: 2px;
-  }
-`
-
-const HeaderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 16px;
-  border-bottom: 0.5px solid var(--color-border);
-`
-
-const ModelInfo = styled.div`
-  display: flex;
-  color: var(--color-text-3);
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  height: 45px;
-
-  .model-header {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .model-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .label-column {
-    flex-shrink: 0;
-  }
-
-  .tag-column {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    align-items: center;
-  }
-
-  label {
-    color: var(--color-text-2);
-  }
-`
-
-export const ItemContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  height: 100%;
-  flex: 1;
-`
-
-export const ItemHeader = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  position: absolute;
-  right: 16px;
-  z-index: 1000;
-  top: calc(var(--navbar-height) + 12px);
-  [navbar-position='top'] & {
-    top: calc(var(--navbar-height) + 10px);
-  }
-`
-
-export const StatusIconWrapper = styled.div`
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-export const RefreshIcon = styled(RedoOutlined)`
-  font-size: 15px !important;
-  color: var(--color-text-2);
-`
-
-export const ClickableSpan = styled.span`
-  cursor: pointer;
-  flex: 1;
-  width: 0;
-`
-
-export const FlexAlignCenter = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-export const ResponsiveButton = styled(Button)`
-  @media (max-width: 1080px) {
-    [data-slot="icon"] + [data-slot="label"] {
-      display: none;
-    }
-  }
-`
 
 export default KnowledgeContent
