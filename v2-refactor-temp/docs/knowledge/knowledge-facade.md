@@ -1,5 +1,7 @@
 # KnowledgeFacade 设计文档
 
+> **最后更新**: 2026-01-18
+>
 > **状态: 计划功能 (尚未实现)**
 >
 > 本文档描述的 KnowledgeFacade 是计划中的功能，旨在为 MCP Tools、HTTP API、Agent 提供统一的简化接口。

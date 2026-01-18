@@ -1,6 +1,22 @@
 # Knowledge 服务层架构
 
+> **最后更新**: 2026-01-18
+
 本文档描述知识库系统的服务层架构，包括各核心服务的职责、接口和协作关系。
+
+## 实现状态
+
+| 服务 | 文件 | 状态 |
+|------|------|------|
+| KnowledgeServiceV2 | `src/main/services/knowledge/KnowledgeServiceV2.ts` | ✅ 已实现 |
+| KnowledgeOrchestrator | `src/main/services/knowledge/KnowledgeOrchestrator.ts` | ✅ 已实现 |
+| KnowledgeProcessor | `src/main/services/knowledge/KnowledgeProcessor.ts` | ✅ 已实现 |
+| KnowledgeQueueManager | `src/main/services/knowledge/queue/KnowledgeQueueManager.ts` | ✅ 已实现 |
+| KnowledgeProviderAdapter | `src/main/services/knowledge/KnowledgeProviderAdapter.ts` | ✅ 已实现 |
+| KnowledgeMigrateService | `src/main/services/knowledge/KnowledgeMigrateService.ts` | ✅ 已实现 |
+| ReaderRegistry | `src/main/services/knowledge/readers/index.ts` | ✅ 已实现 |
+| Reranker | `src/main/services/knowledge/reranker/` | ✅ 已实现 |
+| Embeddings | `src/main/services/knowledge/embeddings/` | ✅ 已实现 |
 
 ## 架构概览
 
@@ -295,7 +311,20 @@ class KnowledgeProviderAdapter {
 
 ---
 
-### 6. ReaderRegistry (内容读取器)
+### 6. KnowledgeMigrateService (迁移服务)
+
+**文件**: `src/main/services/knowledge/KnowledgeMigrateService.ts`
+
+**职责**: 处理知识库数据从 v1 架构迁移到 v2 架构。
+
+**特性**:
+- 从 Dexie (IndexedDB) 迁移元数据到 SQLite
+- 处理向量数据格式转换
+- 支持增量迁移
+
+---
+
+### 7. ReaderRegistry (内容读取器)
 
 **文件**: `src/main/services/knowledge/readers/index.ts`
 

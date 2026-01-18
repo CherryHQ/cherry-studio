@@ -1,5 +1,7 @@
 # 知识库迁移：embedjs → vectorstores
 
+> **最后更新**: 2026-01-18
+
 本文档描述知识库从 embedjs libsql 迁移到 vectorstores libsql 的数据结构和流程。
 
 ## 数据结构对比

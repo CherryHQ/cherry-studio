@@ -1,6 +1,19 @@
 # Knowledge 队列与调度系统设计（v2 后端）
 
+> **最后更新**: 2026-01-18
+
 本设计将知识库入队与调度完全放在主进程，通过 DataApi 对外提供 CRUD 与状态查询。渲染端只发起请求并显示整体进度（单一百分比），同时兼顾多类型 item、一致的取消/删除和跨库公平调度。
+
+## 实现状态
+
+| 模块 | 文件 | 状态 |
+|------|------|------|
+| KnowledgeQueueManager | `src/main/services/knowledge/queue/KnowledgeQueueManager.ts` | ✅ 已实现 |
+| ConcurrencyPool | `src/main/services/knowledge/queue/ConcurrencyPool.ts` | ✅ 已实现 |
+| ProgressTracker | `src/main/services/knowledge/queue/ProgressTracker.ts` | ✅ 已实现 |
+| 孤儿任务恢复 API | `POST /knowledge-bases/:id/queue/recover` | ✅ 已实现 |
+| 孤儿任务忽略 API | `POST /knowledge-bases/:id/queue/ignore` | ✅ 已实现 |
+| 队列状态 API | `GET /knowledge-bases/:id/queue` | ✅ 已实现 |
 
 ## 快速导航
 

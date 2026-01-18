@@ -15,7 +15,6 @@ import { isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import { Alert } from 'antd'
 import { TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -145,13 +144,10 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
         />
       </Field>
 
-      <Alert
-        className="h-8"
-        message={t('knowledge.chunk_size_change_warning')}
-        type="warning"
-        showIcon
-        icon={<TriangleAlert size={16} className="lucide-custom" />}
-      />
+      <div className="h-8 flex flex-row items-center gap-2 border border-amber-400/40 text-amber-400 bg-amber-400/10 rounded-2xs px-2">
+        <TriangleAlert size={16} className="text-amber-400" />
+        {t('knowledge.chunk_size_change_warning')}
+      </div>
     </FieldGroup>
   )
 }

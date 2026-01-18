@@ -1,6 +1,18 @@
 # Knowledge Data API 设计方案
 
+> **最后更新**: 2026-01-18
+
 本文档描述 Knowledge 模块从 Redux/Dexie 迁移到 v2 Data API 架构的完整设计方案。
+
+## 实现状态
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| Database Schema | ✅ 已实现 | `src/main/data/db/schemas/knowledge.ts` |
+| DataApi Handlers | ✅ 已实现 | `src/main/data/api/handlers/knowledges.ts` |
+| Service Layer | ✅ 已实现 | KnowledgeBaseService, KnowledgeItemService |
+| 队列端点 | ✅ 已实现 | recover, ignore, queue 状态 |
+| 搜索端点 | ✅ 已实现 | 向量检索 + 重排序 |
 
 ## 目标
 
@@ -58,7 +70,7 @@
 | `chunkSize`                              | `chunkSize`                               | 独立列（非 JSON）                             |
 | `chunkOverlap`                           | `chunkOverlap`                            | 独立列（非 JSON）                             |
 | `threshold`                              | `threshold`                               | 独立列（非 JSON）                             |
-| `documentCount`                          | 移除                                      | 不再需要                                      |
+| `documentCount`                          | `documentCount`                           | 保留，用于统计                                |
 | `items: KnowledgeItem[]`                 | **移除**                                  | 通过外键关联，不内嵌                          |
 | `version`                                | **移除**                                  | 不再需要                                      |
 | `created_at` / `updated_at`              | `createdAt` / `updatedAt`                 | 命名规范化                                    |
@@ -116,6 +128,7 @@ export const knowledgeBaseTable = sqliteTable('knowledge_base', {
   chunkSize: integer(),
   chunkOverlap: integer(),
   threshold: real(),
+  documentCount: integer(),
 
   ...createUpdateTimestamps
 })
@@ -286,6 +299,7 @@ export interface KnowledgeBase {
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  documentCount?: number
   createdAt: string
   updatedAt: string
 }

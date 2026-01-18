@@ -1,5 +1,9 @@
 # 知识库 V1 → V2 数据迁移方案
 
+> **最后更新**: 2026-01-18
+>
+> **实现状态**: `KnowledgeMigrateService` 已实现于 `src/main/services/knowledge/KnowledgeMigrateService.ts`
+
 本文档描述知识库从 V1 架构迁移到 V2 架构的完整方案。
 
 ## 概述
