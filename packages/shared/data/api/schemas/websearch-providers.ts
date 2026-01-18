@@ -160,3 +160,82 @@ export interface WebSearchProviderSchemas {
     }
   }
 }
+
+// ============================================================================
+// Default Providers
+// ============================================================================
+
+/**
+ * Default websearch providers for seeding
+ * These are pre-configured providers available out of the box
+ */
+export const DefaultWebSearchProviders: CreateWebSearchProviderDto[] = [
+  // API-based providers
+  {
+    id: 'zhipu',
+    name: 'Zhipu',
+    type: 'api',
+    apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search',
+    apiKey: null
+  },
+  {
+    id: 'tavily',
+    name: 'Tavily',
+    type: 'api',
+    apiHost: 'https://api.tavily.com',
+    apiKey: null
+  },
+  {
+    id: 'searxng',
+    name: 'Searxng',
+    type: 'api',
+    apiHost: null,
+    apiKey: null,
+    basicAuthUsername: null,
+    basicAuthPassword: null,
+    engines: null
+  },
+  {
+    id: 'exa',
+    name: 'Exa',
+    type: 'api',
+    apiHost: 'https://api.exa.ai',
+    apiKey: null
+  },
+  {
+    id: 'exa-mcp',
+    name: 'ExaMCP',
+    type: 'api',
+    apiHost: 'https://mcp.exa.ai/mcp',
+    apiKey: null
+  },
+  {
+    id: 'bocha',
+    name: 'Bocha',
+    type: 'api',
+    apiHost: 'https://api.bochaai.com',
+    apiKey: null
+  },
+  // Local browser-based providers
+  {
+    id: 'local-google',
+    name: 'Google',
+    type: 'local',
+    apiHost: 'https://www.google.com/search?q=%s',
+    usingBrowser: true
+  },
+  {
+    id: 'local-bing',
+    name: 'Bing',
+    type: 'local',
+    apiHost: 'https://cn.bing.com/search?q=%s&ensearch=1',
+    usingBrowser: true
+  },
+  {
+    id: 'local-baidu',
+    name: 'Baidu',
+    type: 'local',
+    apiHost: 'https://www.baidu.com/s?wd=%s',
+    usingBrowser: true
+  }
+]

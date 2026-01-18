@@ -1,7 +1,9 @@
 import PreferenceSeeding from './preferenceSeeding'
+import WebSearchProviderSeeding from './websearchProviderSeeding'
 
 const seedingList = {
-  preference: PreferenceSeeding
+  preference: PreferenceSeeding,
+  websearchProvider: WebSearchProviderSeeding
 }
 
 export default seedingList

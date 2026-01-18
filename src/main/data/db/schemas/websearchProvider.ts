@@ -1,6 +1,6 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps } from './_columnHelpers'
 
 /**
  * WebSearch Provider table - stores web search provider configurations
@@ -11,7 +11,7 @@ import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
  */
 export const websearchProviderTable = sqliteTable('websearch_provider', {
   // User-specified unique identifier (e.g., 'tavily', 'searxng', 'local-google')
-  id: uuidPrimaryKey(),
+  id: text().primaryKey(),
   // Display name
   name: text().notNull(),
   // Provider type: 'api' | 'local'

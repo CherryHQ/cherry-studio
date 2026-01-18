@@ -1,5 +1,46 @@
 # WebSearch V2 架构概览
 
+## 实施计划
+
+### 阶段 1: 数据层迁移 (Redux → Preference/DataApi)
+
+> Service 保持在 Renderer 进程，仅迁移数据源
+
+| 任务 | 说明 |
+|------|------|
+| Hooks 迁移 | `useWebSearchProviders.ts` 改用 Preference/DataApi |
+| UI 组件迁移 | Settings 页面改用 `usePreference` |
+| Service 配置读取 | 从 Redux 改为 Preference（Service 仍在 Renderer） |
+| **验证点** | 搜索流程完整可用 ✅ |
+
+### 阶段 2: Service 迁移到 Main Process
+
+> 将搜索逻辑从 Renderer 迁移到 Main
+
+| 任务 | 说明 |
+|------|------|
+| 创建 Main 端 Service | `src/main/services/WebSearchService.ts` |
+| 迁移 Provider 实现 | 各搜索供应商实现移到 Main |
+| 添加 Search Handler | `POST /websearch/search` 端点 |
+| Renderer 改为调用 DataApi | `useMutation('/websearch/search')` |
+| **验证点** | 搜索流程通过 DataApi 完整可用 ✅ |
+
+### 阶段 3: 清理
+
+| 任务 | 说明 |
+|------|------|
+| 删除 Renderer 端旧 Service | `src/renderer/src/services/WebSearchService.ts` |
+| 删除 Redux store | `src/renderer/src/store/websearch.ts` |
+| 删除旧 Provider 实现 | `src/renderer/src/providers/WebSearchProvider/` |
+
+### 实施原则
+
+1. **增量迁移** - 每阶段有独立验证点，出问题易定位
+2. **风险分散** - 数据层和逻辑层分开迁移，可随时暂停
+3. **可独立交付** - 阶段 1 完成后即可合并，不阻塞后续工作
+
+---
+
 ## 架构设计
 
 ### 设计原则
