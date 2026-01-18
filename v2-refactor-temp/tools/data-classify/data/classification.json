@@ -2722,90 +2722,72 @@
           "originalKey": "defaultProvider",
           "type": "string",
           "defaultValue": "local-bing",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "deleted",
           "targetKey": null
         },
         {
           "originalKey": "providers",
           "type": "string",
           "defaultValue": "WEB_SEARCH_PROVIDERS",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "dataapi",
           "targetKey": null
         },
         {
           "originalKey": "searchWithTime",
           "type": "boolean",
           "defaultValue": true,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "websearch.search_with_time"
         },
         {
           "originalKey": "maxResults",
           "type": "number",
           "defaultValue": 5,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "websearch.max_results"
         },
         {
           "originalKey": "excludeDomains",
-          "type": "array",
+          "type": "string[]",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "websearch.exclude_domains"
         },
         {
           "originalKey": "subscribeSources",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "deleted",
           "targetKey": null
         },
         {
           "originalKey": "overwrite",
           "type": "boolean",
           "defaultValue": false,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "deleted",
           "targetKey": null
         },
         {
           "originalKey": "compressionConfig",
-          "type": "unknown",
-          "defaultValue": "{ method: 'none', cutoffUnit: 'char' }",
-          "status": "pending",
-          "category": null,
-          "targetKey": null,
-          "children": [
-            {
-              "category": null,
-              "defaultValue": "none",
-              "originalKey": "method",
-              "status": "pending",
-              "targetKey": null,
-              "type": "string"
-            },
-            {
-              "category": null,
-              "defaultValue": "char",
-              "originalKey": "cutoffUnit",
-              "status": "pending",
-              "targetKey": null,
-              "type": "string"
-            }
-          ]
+          "type": "PreferenceTypes.WebSearchCompressionConfig",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "websearch.compression"
         },
         {
           "originalKey": "providerConfig",
           "type": "object",
           "defaultValue": {},
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "deleted",
           "targetKey": null
         }
       ],

@@ -8,7 +8,7 @@
 | `searchWithTime` | **Preference** | `websearch.search_with_time` |
 | `maxResults` | **Preference** | `websearch.max_results` |
 | `excludeDomains` | **Preference** | `websearch.exclude_domains` |
-| `compressionConfig` | **Preference** | 拆分为多个 key |
+| `compressionConfig` | **Preference** | `websearch.compression` (聚合对象) |
 | `subscribeSources` | ❌ **移除** | 功能弃用，使用率低 |
 | `defaultProvider` | ❌ **移除** | 已废弃 |
 | `overwrite` | ❌ **移除** | 已废弃 |
@@ -121,17 +121,6 @@ CREATE TABLE websearch_provider (
 
 # WebSearch Preference 设计
 
-## 类型定义
-
-```typescript
-import type { ModelMeta } from '@shared/data/types/meta'
-
-// 继承 ModelMeta，添加 embedding 特有属性
-interface EmbeddingModelMeta extends ModelMeta {
-  dimensions?: number
-}
-```
-
 ## Preference Keys
 
 ### 基础设置
@@ -146,30 +135,57 @@ interface EmbeddingModelMeta extends ModelMeta {
 
 | Key | 类型 | 默认值 | 说明 |
 |-----|------|--------|------|
-| `websearch.compression.method` | `'none'` \| `'cutoff'` \| `'rag'` | `'none'` | 压缩方式 |
-| `websearch.compression.cutoff_limit` | number \| null | `null` | 截断限制值 |
-| `websearch.compression.cutoff_unit` | `'char'` \| `'token'` | `'char'` | 截断单位 |
-| `websearch.compression.document_count` | number \| null | `null` | 每个结果的文档数量 |
+| `websearch.compression` | `WebSearchCompressionConfig \| null` | `null` | 压缩配置对象 |
 
-### Embedding Model
+#### WebSearchCompressionConfig 类型定义
 
-| Key | 类型 | 默认值 | 说明 |
-|-----|------|--------|------|
-| `websearch.compression.embedding_model_id` | string \| null | `null` | Embedding 模型 ID |
-| `websearch.compression.embedding_model_meta` | EmbeddingModelMeta \| null | `null` | Embedding 模型元信息（含 dimensions） |
+```typescript
+import type { ModelMeta } from '@shared/data/types/meta'
 
-### Rerank Model
+// Embedding 模型元信息（扩展 ModelMeta）
+interface EmbeddingModelMeta extends ModelMeta {
+  dimensions?: number
+}
 
-| Key | 类型 | 默认值 | 说明 |
-|-----|------|--------|------|
-| `websearch.compression.rerank_model_id` | string \| null | `null` | Rerank 模型 ID |
-| `websearch.compression.rerank_model_meta` | ModelMeta \| null | `null` | Rerank 模型元信息 |
+// 压缩配置对象
+interface WebSearchCompressionConfig {
+  // 压缩方式
+  method: 'none' | 'cutoff' | 'rag'
+
+  // Cutoff 相关（method = 'cutoff' 时使用）
+  cutoffLimit?: number          // 截断限制值
+  cutoffUnit?: 'char' | 'token' // 截断单位，默认 'char'
+
+  // RAG 相关（method = 'rag' 时使用）
+  documentCount?: number              // 每个结果的文档数量
+  embeddingModelId?: string           // Embedding 模型 ID
+  embeddingModelMeta?: EmbeddingModelMeta  // Embedding 模型元信息
+  rerankModelId?: string              // Rerank 模型 ID
+  rerankModelMeta?: ModelMeta         // Rerank 模型元信息
+}
+```
+
+#### 设计理由
+
+采用**聚合对象**而非拆分为多个 key，原因：
+
+1. **逻辑耦合强** - `method` 是控制字段，决定其他字段是否生效：
+   - `method = 'none'` → 其他字段全部无效
+   - `method = 'cutoff'` → 只有 `cutoffLimit`, `cutoffUnit` 有效
+   - `method = 'rag'` → 只有 embedding/rerank 相关字段有效
+
+2. **现有代码模式** - Service 和 UI 都是整体操作 config 对象，不是单独操作某个字段
+
+3. **避免状态不一致** - 拆分后 `method = 'none'` 时其他 key 仍有值，语义混乱
+
+4. **项目已有先例** - `feature.selection.action_items` 存储复杂对象数组
 
 ## 设计原则
 
-1. **扁平 key 结构** - 符合 Preference 现有模式，不使用嵌套对象
-2. **Model 引用模式** - `model_id` + `model_meta`，保留显示信息防止模型删除后丢失
-3. **EmbeddingModelMeta** - 扩展 ModelMeta，包含 `dimensions` 属性
+1. **基础设置扁平化** - `search_with_time`, `max_results`, `exclude_domains` 使用扁平 key
+2. **复杂配置聚合** - `compression` 作为逻辑单元，使用对象存储
+3. **Model 引用模式** - `model_id` + `model_meta`，保留显示信息防止模型删除后丢失
+4. **EmbeddingModelMeta** - 扩展 ModelMeta，包含 `dimensions` 属性
 
 ---
 
