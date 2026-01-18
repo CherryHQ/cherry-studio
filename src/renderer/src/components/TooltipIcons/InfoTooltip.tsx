@@ -1,21 +1,15 @@
-import type { TooltipProps } from 'antd'
-import { Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 
-type InheritedTooltipProps = Omit<TooltipProps, 'children'>
+import IconTooltip, { type IconTooltipProps } from './IconTooltip'
 
-interface InfoTooltipProps extends InheritedTooltipProps {
-  iconColor?: string
-  iconSize?: string | number
-  iconStyle?: React.CSSProperties
-}
+type InfoTooltipProps = Omit<IconTooltipProps, 'icon' | 'ariaLabel'>
 
-const InfoTooltip = ({ iconColor = 'var(--color-text-2)', iconSize = 14, iconStyle, ...rest }: InfoTooltipProps) => {
-  return (
-    <Tooltip {...rest}>
-      <Info size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
-    </Tooltip>
-  )
+/**
+ * A tooltip with an info icon.
+ * Used for providing additional information or context.
+ */
+const InfoTooltip = ({ iconColor = 'var(--color-text-2)', ...rest }: InfoTooltipProps) => {
+  return <IconTooltip icon={Info} iconColor={iconColor} ariaLabel="Information" {...rest} />
 }
 
 export default InfoTooltip

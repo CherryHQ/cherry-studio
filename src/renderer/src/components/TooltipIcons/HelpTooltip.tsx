@@ -1,21 +1,15 @@
-import type { TooltipProps } from 'antd'
-import { Tooltip } from 'antd'
 import { HelpCircle } from 'lucide-react'
 
-type InheritedTooltipProps = Omit<TooltipProps, 'children'>
+import IconTooltip, { type IconTooltipProps } from './IconTooltip'
 
-interface HelpTooltipProps extends InheritedTooltipProps {
-  iconColor?: string
-  iconSize?: string | number
-  iconStyle?: React.CSSProperties
-}
+type HelpTooltipProps = Omit<IconTooltipProps, 'icon' | 'ariaLabel'>
 
-const HelpTooltip = ({ iconColor = 'var(--color-text-2)', iconSize = 14, iconStyle, ...rest }: HelpTooltipProps) => {
-  return (
-    <Tooltip {...rest}>
-      <HelpCircle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Help" />
-    </Tooltip>
-  )
+/**
+ * A tooltip with a help icon.
+ * Used for providing help or guidance.
+ */
+const HelpTooltip = ({ iconColor = 'var(--color-text-2)', ...rest }: HelpTooltipProps) => {
+  return <IconTooltip icon={HelpCircle} iconColor={iconColor} ariaLabel="Help" {...rest} />
 }
 
 export default HelpTooltip

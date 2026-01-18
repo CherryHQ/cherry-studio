@@ -1,26 +1,15 @@
-import type { TooltipProps } from 'antd'
-import { Tooltip } from 'antd'
 import { AlertTriangle } from 'lucide-react'
 
-type InheritedTooltipProps = Omit<TooltipProps, 'children'>
+import IconTooltip, { type IconTooltipProps } from './IconTooltip'
 
-interface WarnTooltipProps extends InheritedTooltipProps {
-  iconColor?: string
-  iconSize?: string | number
-  iconStyle?: React.CSSProperties
-}
+type WarnTooltipProps = Omit<IconTooltipProps, 'icon' | 'ariaLabel'>
 
-const WarnTooltip = ({
-  iconColor = 'var(--color-status-warning)',
-  iconSize = 14,
-  iconStyle,
-  ...rest
-}: WarnTooltipProps) => {
-  return (
-    <Tooltip {...rest}>
-      <AlertTriangle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
-    </Tooltip>
-  )
+/**
+ * A tooltip with a warning icon.
+ * Used for displaying warnings or cautions.
+ */
+const WarnTooltip = ({ iconColor = 'var(--color-status-warning)', ...rest }: WarnTooltipProps) => {
+  return <IconTooltip icon={AlertTriangle} iconColor={iconColor} ariaLabel="Warning" {...rest} />
 }
 
 export default WarnTooltip
