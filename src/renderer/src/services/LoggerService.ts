@@ -1,6 +1,7 @@
 /* eslint-disable no-restricted-syntax */
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/config/logger'
+import { IpcChannel } from '@shared/IpcChannel'
 
 // check if the current process is a worker
 const IS_WORKER = typeof window === 'undefined'
@@ -180,7 +181,7 @@ class LoggerService {
 
       // In renderer process, use window.api.logToMain to send log to main process
       if (!IS_WORKER) {
-        window.api.logToMain(source, level, message, data)
+        window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data)
       } else {
         //TODO support worker to send log to main process
       }
