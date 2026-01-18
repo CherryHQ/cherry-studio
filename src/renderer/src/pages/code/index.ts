@@ -194,9 +194,9 @@ export const generateToolEnvironment = ({
       break
 
     case codeTools.kimiCli:
-      env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = formattedBaseUrl
-      env.OPENAI_MODEL = model.id
+      env.KIMI_API_KEY = apiKey
+      env.KIMI_BASE_URL = formattedBaseUrl
+      env.KIMI_MODEL_NAME = model.id
       break
   }
 
