@@ -88,25 +88,6 @@ export interface CreateKnowledgeItemsDto {
 export interface KnowledgeSearchRequest {
   /** Search query text */
   search: string
-  /** Search mode: default, vector, bm25, or hybrid */
-  mode?: 'default' | 'vector' | 'bm25' | 'hybrid'
-  /** Alpha for hybrid search (0 = BM25 only, 1 = vector only) */
-  alpha?: number
-  /** Maximum number of results */
-  limit?: number
-  /** Whether to apply rerank model */
-  rerank?: boolean
-  /** Filter conditions */
-  filters?: {
-    /** Filter by item types */
-    type?: KnowledgeItemType[]
-    /** Filter by item statuses */
-    status?: ItemStatus[]
-    /** Filter by creation date (after) */
-    createdAfter?: string
-    /** Filter by creation date (before) */
-    createdBefore?: string
-  }
 }
 
 // ============================================================================

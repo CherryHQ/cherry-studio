@@ -1,6 +1,5 @@
 import { useKnowledgeSitemaps } from '@renderer/hooks/useKnowledge.v2'
-import type { KnowledgeBase } from '@renderer/types'
-import type { SitemapItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, SitemapItemData } from '@shared/data/types/knowledge'
 import { Globe } from 'lucide-react'
 import type { FC } from 'react'
 

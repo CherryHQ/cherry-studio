@@ -1,5 +1,5 @@
-import type { KnowledgeBase } from '@renderer/types'
-import type { KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import type { KnowledgeBase, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
 import { Book, Folder, Globe, Link, Notebook } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
@@ -15,8 +15,6 @@ import { groupKnowledgeItemsByType } from '../utils/knowledgeItems'
 interface UseKnowledgeTabsArgs {
   base: KnowledgeBase | null
   items: KnowledgeItemV2[]
-  progressMap: Map<string, number>
-  preprocessMap: Map<string, boolean>
 }
 
 export type TabKey = 'files' | 'notes' | 'directories' | 'urls' | 'sitemaps'
@@ -31,11 +29,7 @@ interface KnowledgeTabItem {
   addButtonLabel: string
 }
 
-const buildTabIcon = (Icon: typeof Book, isActive: boolean) => {
-  return <Icon size={16} color={isActive ? 'var(--color-primary)' : undefined} />
-}
-
-export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: UseKnowledgeTabsArgs) => {
+export const useKnowledgeTabs = ({ base, items }: UseKnowledgeTabsArgs) => {
   const { t } = useTranslation()
   const [activeKey, setActiveKey] = useState<TabKey>('files')
 
@@ -50,16 +44,16 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
       {
         key: 'files',
         title: t('files.title'),
-        icon: buildTabIcon(Book, activeKey === 'files'),
+        icon: <Book size={16} className={cn(activeKey === 'files' ? 'text-primary' : undefined)} />,
         items: itemsByType.files,
-        content: <KnowledgeFiles selectedBase={base} progressMap={progressMap} preprocessMap={preprocessMap} />,
+        content: <KnowledgeFiles selectedBase={base} />,
         show: true,
         addButtonLabel: t('knowledge.add_file')
       },
       {
         key: 'notes',
         title: t('knowledge.notes'),
-        icon: buildTabIcon(Notebook, activeKey === 'notes'),
+        icon: <Notebook size={16} className={cn(activeKey === 'notes' ? 'text-primary' : undefined)} />,
         items: itemsByType.notes,
         content: <KnowledgeNotes selectedBase={base} />,
         show: true,
@@ -68,7 +62,7 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
       {
         key: 'directories',
         title: t('knowledge.directories'),
-        icon: buildTabIcon(Folder, activeKey === 'directories'),
+        icon: <Folder size={16} className={cn(activeKey === 'directories' ? 'text-primary' : undefined)} />,
         items: itemsByType.directories,
         content: <KnowledgeDirectories selectedBase={base} />,
         show: true,
@@ -77,7 +71,7 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
       {
         key: 'urls',
         title: t('knowledge.urls'),
-        icon: buildTabIcon(Link, activeKey === 'urls'),
+        icon: <Link size={16} className={cn(activeKey === 'urls' ? 'text-primary' : undefined)} />,
         items: itemsByType.urls,
         content: <KnowledgeUrls selectedBase={base} />,
         show: true,
@@ -86,7 +80,7 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
       {
         key: 'sitemaps',
         title: t('knowledge.sitemaps'),
-        icon: buildTabIcon(Globe, activeKey === 'sitemaps'),
+        icon: <Globe size={16} className={cn(activeKey === 'sitemaps' ? 'text-primary' : undefined)} />,
         items: itemsByType.sitemaps,
         content: <KnowledgeSitemaps selectedBase={base} />,
         show: true,
@@ -95,7 +89,7 @@ export const useKnowledgeTabs = ({ base, items, progressMap, preprocessMap }: Us
     ]
 
     return knowledgeItems.filter((item) => item.show)
-  }, [activeKey, base, itemsByType, preprocessMap, progressMap, t])
+  }, [activeKey, base, itemsByType, t])
 
   return { activeKey, setActiveKey, tabItems }
 }

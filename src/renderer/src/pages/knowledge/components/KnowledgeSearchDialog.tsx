@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogContent, InputGroup, InputGroupAddon, InputGroupInput, Spinner } from '@cherrystudio/ui'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { CircleX, Copy, Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,12 +7,12 @@ import { useTranslation } from 'react-i18next'
 import { useKnowledgeSearchDialog } from '../hooks/useKnowledgeSearchDialog'
 
 interface KnowledgeSearchDialogProps {
-  baseId: string
+  base: KnowledgeBase
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-const KnowledgeSearchDialog: FC<KnowledgeSearchDialogProps> = ({ baseId, open, onOpenChange }) => {
+const KnowledgeSearchDialog: FC<KnowledgeSearchDialogProps> = ({ base, open, onOpenChange }) => {
   const { t } = useTranslation()
   const {
     searchKeyword,
@@ -23,7 +24,7 @@ const KnowledgeSearchDialog: FC<KnowledgeSearchDialogProps> = ({ baseId, open, o
     handleSourceClick,
     getSourceText,
     reset
-  } = useKnowledgeSearchDialog({ baseId })
+  } = useKnowledgeSearchDialog(base)
 
   const onClose = () => {
     reset()

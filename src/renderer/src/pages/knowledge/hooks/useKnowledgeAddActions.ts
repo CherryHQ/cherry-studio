@@ -15,10 +15,8 @@ import {
   useKnowledgeUrls
 } from '@renderer/hooks/useKnowledge.v2'
 import FileManager from '@renderer/services/FileManager'
-import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase } from '@renderer/types'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import type { SitemapItemData, UrlItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, SitemapItemData, UrlItemData } from '@shared/data/types/knowledge'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,9 +42,8 @@ export const useKnowledgeAddActions = ({ base }: UseKnowledgeAddActionsArgs): Ad
   const { t } = useTranslation()
   const baseId = base?.id || ''
 
-  // Common disabled state
-  const providerName = getProviderName(base?.model)
-  const baseDisabled = !base?.version || !providerName
+  // Common disabled state - V2 bases are valid when they have an embeddingModelId
+  const baseDisabled = !base?.embeddingModelId
 
   // Hooks for each type
   const { addFiles, isAddingFiles } = useKnowledgeFiles(baseId)

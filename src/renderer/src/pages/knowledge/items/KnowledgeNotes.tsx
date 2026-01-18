@@ -3,10 +3,8 @@ import { loggerService } from '@logger'
 import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeNotes } from '@renderer/hooks/useKnowledge.v2'
-import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase } from '@renderer/types'
 import { markdownToPreviewText } from '@renderer/utils/markdownConverter'
-import type { KnowledgeItem as KnowledgeItemV2, NoteItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItem as KnowledgeItemV2, NoteItemData } from '@shared/data/types/knowledge'
 import { Notebook } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
@@ -50,8 +48,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     [invalidateCache, itemsRefreshKey]
   )
 
-  const providerName = getProviderName(selectedBase?.model)
-  const disabled = !selectedBase?.version || !providerName
+  const disabled = !selectedBase?.embeddingModelId
 
   const handleEditNote = async (note: KnowledgeItemV2) => {
     if (disabled) return

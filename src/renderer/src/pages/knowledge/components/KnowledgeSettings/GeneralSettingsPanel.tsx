@@ -28,6 +28,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, se
         <FieldLabel htmlFor="kb-name">{t('common.name')}</FieldLabel>
         <Input
           id="kb-name"
+          className="rounded-2xs"
           placeholder={t('common.name')}
           value={newBase.name}
           onChange={(e) => setNewBase((prev) => ({ ...prev, name: e.target.value }))}

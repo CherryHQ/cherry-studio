@@ -1,46 +1,29 @@
-import { Badge, Button, CustomTag, RowFlex, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
+import { Button, CustomTag, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { useKnowledgeBase, useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
-import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
-import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
-import { getProviderName } from '@renderer/services/ProviderService'
-import { PlusIcon, RefreshCw, Search, Settings } from 'lucide-react'
+import { History, PlusIcon, Search, Settings } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import EditKnowledgeBaseDialog from './components/EditKnowledgeBaseDialog'
 import KnowledgeSearchDialog from './components/KnowledgeSearchDialog'
-import QuotaTag from './components/QuotaTag'
 import { useKnowledgeAddActions } from './hooks/useKnowledgeAddActions'
-import { useKnowledgeProgress } from './hooks/useKnowledgeProgress'
 import { useKnowledgeQueueActions } from './hooks/useKnowledgeQueueActions'
 import { type TabKey, useKnowledgeTabs } from './hooks/useKnowledgeTabs'
-import { mapKnowledgeBaseV2ToV1 } from './utils/knowledgeBaseAdapter'
-
-const logger = loggerService.withContext('KnowledgeContent')
 interface KnowledgeContentProps {
   selectedBaseId: string
 }
 
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
   const { t } = useTranslation()
-  const { base: baseV2 } = useKnowledgeBase(selectedBaseId, { enabled: !!selectedBaseId })
-  const { items } = useKnowledgeItems(selectedBaseId, { enabled: !!selectedBaseId })
-  const { preprocessProviders } = usePreprocessProviders()
-  const base = useMemo(
-    () => (baseV2 ? mapKnowledgeBaseV2ToV1(baseV2, preprocessProviders) : undefined),
-    [baseV2, preprocessProviders]
-  )
-  const { quota, progressMap, preprocessMap } = useKnowledgeProgress()
+  const { base } = useKnowledgeBase(selectedBaseId)
+  const { items } = useKnowledgeItems(selectedBaseId)
+
   const { hasOrphans, orphanCount, handleRecover, handleIgnore, isRecovering, isIgnoring } =
     useKnowledgeQueueActions(selectedBaseId)
   const { activeKey, setActiveKey, tabItems } = useKnowledgeTabs({
     base: base ?? null,
-    items,
-    progressMap,
-    preprocessMap
+    items
   })
 
   // Add actions for the current tab
@@ -53,73 +36,60 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
   // Search dialog state
   const [searchDialogOpen, setSearchDialogOpen] = useState(false)
 
-  const providerName = getProviderName(base?.model)
-
-  const handleMigrateV2 = useCallback(async () => {
-    if (!base || base.version !== 1) return
-    try {
-      const result = await window.api.knowledgeBase.migrateV2(base)
-      if (result.success) {
-        window.toast.success(t('knowledge.migrate_v2_success'))
-      } else {
-        window.toast.error(result.error || t('knowledge.migrate_v2_failed'))
-      }
-    } catch (error) {
-      window.toast.error(t('knowledge.migrate_v2_failed'))
-      logger.error('Migration failed:', error as Error)
-    }
-  }, [base, t])
-
   if (!base) {
     return null
   }
 
   return (
-    <MainContainer>
-      <HeaderContainer>
-        <ModelInfo>
+    <div className="flex w-full flex-col">
+      <div className="flex flex-row items-center justify-between border-border border-b px-4 py-2">
+        <div className="flex flex-row items-center gap-2">
           <Button variant="ghost" size="icon-sm" onClick={() => setEditDialogOpen(true)}>
             <Settings size={18} color="var(--color-icon)" />
           </Button>
-          <div className="model-row">
-            <div className="label-column">
-              <label>{t('models.embedding_model')}</label>
-            </div>
-            <Tooltip placement="bottom" content={providerName}>
-              <div className="tag-column">
-                <Badge>{base.model.name}</Badge>
-              </div>
-            </Tooltip>
-            {base.rerankModel && <Badge>{base.rerankModel.name}</Badge>}
-            {base.preprocessProvider && base.preprocessProvider.type === 'preprocess' && (
-              <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
-            )}
+          <div className="rounded-3xs border border-amber-400/20 bg-amber-400/10 px-2 text-amber-400 text-xs">
+            {base.embeddingModelMeta?.name ?? base.embeddingModelId}
           </div>
-        </ModelInfo>
-        <RowFlex className="items-center gap-2">
+          {base.rerankModelMeta && (
+            <div className="rounded-3xs border border-orange-400/20 bg-orange-400/10 px-2 text-orange-400 text-xs">
+              {base.rerankModelMeta.name}
+            </div>
+          )}
+          {base.preprocessProviderId && (
+            <div className="rounded-3xs border border-teal-500/20 bg-teal-500/10 px-2 text-teal-500 text-xs">
+              {base.preprocessProviderId}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-row items-center gap-2">
           {hasOrphans && (
             <>
-              <Button variant="outline" size="sm" onClick={handleRecover} disabled={isRecovering || isIgnoring}>
-                <RefreshCw size={14} className={isRecovering ? 'animate-spin' : ''} />
+              <Button
+                className="h-8 rounded-2xs"
+                variant="secondary"
+                size="sm"
+                onClick={handleRecover}
+                disabled={isRecovering || isIgnoring}>
+                <History size={14} className={isRecovering ? 'animate-spin' : ''} />
                 {t('knowledge.recover_orphans', { count: orphanCount })}
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleIgnore} disabled={isRecovering || isIgnoring}>
+              <Button
+                className="h-8 rounded-2xs"
+                variant="secondary"
+                size="sm"
+                onClick={handleIgnore}
+                disabled={isRecovering || isIgnoring}>
                 {t('knowledge.ignore_orphans')}
               </Button>
             </>
           )}
-          {base.version === 1 && (
-            <Button variant="outline" size="sm" onClick={handleMigrateV2}>
-              <RefreshCw size={14} />
-              {t('knowledge.migrate_v2')}
-            </Button>
-          )}
-          {/* 使用selected base导致修改设置后没有响应式更新 */}
-          <NavbarIcon onClick={() => setSearchDialogOpen(true)}>
+
+          <Button className="hover:opacity-70" size="icon-sm" variant="ghost" onClick={() => setSearchDialogOpen(true)}>
             <Search size={18} />
-          </NavbarIcon>
-        </RowFlex>
-      </HeaderContainer>
+          </Button>
+        </div>
+      </div>
+
       <Tabs value={activeKey} onValueChange={(v) => setActiveKey(v as TabKey)} variant="line" className="flex-1">
         <div className="mx-4 flex h-12 items-center justify-between border-b-0 bg-transparent p-0">
           <TabsList className="h-full justify-start gap-1 bg-transparent p-0">
@@ -152,63 +122,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
       </Tabs>
 
       {/* Edit Dialog */}
-      <EditKnowledgeBaseDialog baseId={base.id} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
+      <EditKnowledgeBaseDialog base={base} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
       {/* Search Dialog */}
-      <KnowledgeSearchDialog baseId={base.id} open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
-    </MainContainer>
+      <KnowledgeSearchDialog base={base} open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
+    </div>
   )
 }
-
-const MainContainer = styled.div`
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  position: relative;
-`
-
-const HeaderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 16px;
-  border-bottom: 0.5px solid var(--color-border);
-`
-
-const ModelInfo = styled.div`
-  display: flex;
-  color: var(--color-text-3);
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  height: 45px;
-
-  .model-header {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .model-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .label-column {
-    flex-shrink: 0;
-  }
-
-  .tag-column {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    align-items: center;
-  }
-
-  label {
-    color: var(--color-text-2);
-  }
-`
 
 export default KnowledgeContent

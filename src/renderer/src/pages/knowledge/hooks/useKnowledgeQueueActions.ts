@@ -6,39 +6,31 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useKnowledgeQueueActions')
 
-export const useKnowledgeQueueActions = (baseId?: string) => {
+export const useKnowledgeQueueActions = (baseId: string) => {
   const { t } = useTranslation()
-  const resolvedBaseId = baseId ?? ''
 
-  const {
-    hasOrphans,
-    orphanCount,
-    refetch: refetchQueue
-  } = useKnowledgeQueueStatus(resolvedBaseId, {
-    enabled: !!baseId
-  })
+  const { hasOrphans, orphanCount, refetch: refetchQueue } = useKnowledgeQueueStatus(baseId)
 
   const { trigger: recoverOrphans, isLoading: isRecovering } = useMutation(
     'POST',
-    `/knowledge-bases/${resolvedBaseId}/queue/recover`,
+    `/knowledge-bases/${baseId}/queue/recover`,
     {
-      refresh: [`/knowledge-bases/${resolvedBaseId}/items`]
+      refresh: [`/knowledge-bases/${baseId}/items`]
     }
   )
 
   const { trigger: ignoreOrphans, isLoading: isIgnoring } = useMutation(
     'POST',
-    `/knowledge-bases/${resolvedBaseId}/queue/ignore`,
+    `/knowledge-bases/${baseId}/queue/ignore`,
     {
-      refresh: [`/knowledge-bases/${resolvedBaseId}/items`]
+      refresh: [`/knowledge-bases/${baseId}/items`]
     }
   )
 
   const handleRecover = useCallback(async () => {
     try {
-      const result = await recoverOrphans({})
-      await refetchQueue()
-      window.toast.success(t('knowledge.orphan_recovered', { count: result.recoveredCount }))
+      await recoverOrphans({})
+      refetchQueue()
     } catch (error) {
       window.toast.error(t('knowledge.orphan_recover_failed'))
       logger.error('Recover orphans failed:', error as Error)
@@ -47,9 +39,8 @@ export const useKnowledgeQueueActions = (baseId?: string) => {
 
   const handleIgnore = useCallback(async () => {
     try {
-      const result = await ignoreOrphans({})
-      await refetchQueue()
-      window.toast.info(t('knowledge.orphan_ignored', { count: result.ignoredCount }))
+      await ignoreOrphans({})
+      refetchQueue()
     } catch (error) {
       window.toast.error(t('knowledge.orphan_ignore_failed'))
       logger.error('Ignore orphans failed:', error as Error)

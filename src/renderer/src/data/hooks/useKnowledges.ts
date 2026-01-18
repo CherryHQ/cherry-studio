@@ -40,32 +40,17 @@ type KnowledgeQueuePath = `/knowledge-bases/${string}/queue`
  * - Returns loading states and refetch function for manual refresh
  *
  * @param baseId - The knowledge base ID to fetch items for
- * @param options - Optional configuration
- * @param options.enabled - Set to false to disable fetching (default: true)
  * @returns Query result with items, loading states, and controls
  *
  * @example
  * ```typescript
- * // Basic usage
  * const { items, isLoading, hasProcessingItems } = useKnowledgeItems(baseId)
- *
- * // With options
- * const { items, refetch } = useKnowledgeItems(baseId, {
- *   enabled: !!baseId
- * })
  *
  * // Conditional rendering based on processing state
  * {hasProcessingItems && <ProcessingIndicator />}
  * ```
  */
-export function useKnowledgeItems(
-  baseId: string,
-  options?: {
-    /** Set to false to disable fetching (default: true) */
-    enabled?: boolean
-  }
-) {
-  const enabled = options?.enabled !== false && !!baseId
+export function useKnowledgeItems(baseId: string) {
   const path: KnowledgeBaseItemsPath = `/knowledge-bases/${baseId}/items`
 
   // Track if we have processing items (use state to persist across renders)
@@ -73,7 +58,6 @@ export function useKnowledgeItems(
 
   // Single query with conditional polling
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
-    enabled,
     swrOptions: {
       // Only poll when we have processing items
       refreshInterval: hasProcessingItems ? PROCESSING_POLL_INTERVAL : 0,
@@ -114,23 +98,12 @@ export function useKnowledgeItems(
  * Hook for fetching a single knowledge base.
  *
  * @param baseId - The knowledge base ID to fetch
- * @param options - Optional configuration
- * @param options.enabled - Set to false to disable fetching (default: true)
  * @returns Query result with base data and loading states
  */
-export function useKnowledgeBase(
-  baseId: string,
-  options?: {
-    /** Set to false to disable fetching (default: true) */
-    enabled?: boolean
-  }
-) {
-  const enabled = options?.enabled !== false && !!baseId
+export function useKnowledgeBase(baseId: string) {
   const path: KnowledgeBasePath = `/knowledge-bases/${baseId}`
 
-  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
-    enabled
-  })
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path)
 
   const base = data as KnowledgeBase | undefined
 
@@ -152,12 +125,9 @@ export function useKnowledgeBase(
 
 /**
  * Hook for fetching queue status of a knowledge base.
- *
  * Used to detect orphan tasks (tasks stuck after app crash).
  *
  * @param baseId - The knowledge base ID to check queue status for
- * @param options - Optional configuration
- * @param options.enabled - Set to false to disable fetching (default: true)
  * @returns Query result with queue status and orphan detection
  *
  * @example
@@ -169,17 +139,10 @@ export function useKnowledgeBase(
  * }
  * ```
  */
-export function useKnowledgeQueueStatus(
-  baseId: string,
-  options?: {
-    /** Set to false to disable fetching (default: true) */
-    enabled?: boolean
-  }
-) {
-  const enabled = options?.enabled !== false && !!baseId
+export function useKnowledgeQueueStatus(baseId: string) {
   const path: KnowledgeQueuePath = `/knowledge-bases/${baseId}/queue`
 
-  const { data, isLoading, error, refetch } = useQuery(path, { enabled })
+  const { data, isLoading, error, refetch } = useQuery(path)
   const queueStatus = data as BaseQueueStatus | undefined
 
   return {
@@ -202,8 +165,6 @@ export function useKnowledgeQueueStatus(
  * Hook for fetching a single knowledge item with smart polling.
  *
  * @param itemId - The knowledge item ID to fetch
- * @param options - Optional configuration
- * @param options.enabled - Set to false to disable fetching (default: true)
  * @returns Query result with item data and loading states
  *
  * @example
@@ -215,14 +176,7 @@ export function useKnowledgeQueueStatus(
  * }
  * ```
  */
-export function useKnowledgeItem(
-  itemId: string,
-  options?: {
-    /** Set to false to disable fetching (default: true) */
-    enabled?: boolean
-  }
-) {
-  const enabled = options?.enabled !== false && !!itemId
+export function useKnowledgeItem(itemId: string) {
   const path: KnowledgeItemPath = `/knowledge-items/${itemId}`
 
   // Track if item is processing (use state to persist across renders)
@@ -230,7 +184,6 @@ export function useKnowledgeItem(
 
   // Single query with conditional polling
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
-    enabled,
     swrOptions: {
       // Only poll when item is processing
       refreshInterval: isProcessing ? PROCESSING_POLL_INTERVAL : 0
@@ -277,8 +230,6 @@ export function useKnowledgeItem(
  * - Rename knowledge base
  * - Delete knowledge base
  *
- * @param options - Optional configuration
- * @param options.enabled - Set to false to disable fetching (default: true)
  * @returns Query result with bases, mutations, and loading states
  *
  * @example
@@ -295,20 +246,14 @@ export function useKnowledgeItem(
  * await deleteKnowledgeBase(baseId)
  * ```
  */
-export function useKnowledgeBases(options?: {
-  /** Set to false to disable fetching (default: true) */
-  enabled?: boolean
-}) {
-  const enabled = options?.enabled !== false
+export function useKnowledgeBases() {
   const [isCreating, setIsCreating] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const invalidate = useInvalidateCache()
 
   // Fetch knowledge bases list
-  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/knowledge-bases', {
-    enabled
-  })
+  const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/knowledge-bases')
 
   const bases = useMemo<KnowledgeBase[]>(() => (data as KnowledgeBase[] | undefined) ?? [], [data])
 

@@ -4,9 +4,7 @@ import { loggerService } from '@logger'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeUrls } from '@renderer/hooks/useKnowledge.v2'
-import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase } from '@renderer/types'
-import type { KnowledgeItem as KnowledgeItemV2, UrlItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItem as KnowledgeItemV2, UrlItemData } from '@shared/data/types/knowledge'
 import { Link } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
@@ -54,8 +52,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     [invalidateCache, itemsRefreshKey]
   )
 
-  const providerName = getProviderName(selectedBase?.model)
-  const disabled = !selectedBase?.version || !providerName
+  const disabled = !selectedBase?.embeddingModelId
 
   const handleEditRemark = async (item: KnowledgeItemV2) => {
     if (disabled) return

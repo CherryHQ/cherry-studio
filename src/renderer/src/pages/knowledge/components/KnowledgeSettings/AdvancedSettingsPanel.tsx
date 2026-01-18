@@ -100,7 +100,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
         <Input
           id="kb-chunk-size"
           type="number"
-          className="w-full"
+          className="w-full rounded-2xs"
           min={100}
           value={newBase.chunkSize?.toString() || ''}
           placeholder={t('knowledge.chunk_size_placeholder')}
@@ -117,7 +117,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
         <Input
           id="kb-chunk-overlap"
           type="number"
-          className="w-full"
+          className="w-full rounded-2xs"
           min={0}
           value={newBase.chunkOverlap?.toString() || ''}
           placeholder={t('knowledge.chunk_overlap_placeholder')}
@@ -134,7 +134,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
         <Input
           id="kb-threshold"
           type="number"
-          className="w-full"
+          className="w-full rounded-2xs"
           step={0.1}
           min={0}
           max={1}
@@ -146,6 +146,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
       </Field>
 
       <Alert
+        className="h-8"
         message={t('knowledge.chunk_size_change_warning')}
         type="warning"
         showIcon

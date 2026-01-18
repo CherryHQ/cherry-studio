@@ -1,25 +1,18 @@
 import { loggerService } from '@logger'
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
-import { useKnowledgeBase } from '@renderer/data/hooks/useKnowledges'
 import { useKnowledgeSearch } from '@renderer/hooks/useKnowledge.v2'
 import { isValidUrl } from '@renderer/utils/fetch'
-import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useKnowledgeSearchDialog')
 
-interface UseKnowledgeSearchDialogOptions {
-  baseId: string
-}
-
-export const useKnowledgeSearchDialog = ({ baseId }: UseKnowledgeSearchDialogOptions) => {
+export const useKnowledgeSearchDialog = (base: KnowledgeBase) => {
   const [results, setResults] = useState<KnowledgeSearchResult[]>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
 
-  const { search, isSearching } = useKnowledgeSearch(baseId)
-  const { base } = useKnowledgeBase(baseId, { enabled: !!baseId })
+  const { search, isSearching } = useKnowledgeSearch(base.id)
 
   const handleSearch = useCallback(
     async (value: string) => {
@@ -31,20 +24,17 @@ export const useKnowledgeSearchDialog = ({ baseId }: UseKnowledgeSearchDialogOpt
 
       setSearchKeyword(value.trim())
       try {
-        const limit = base?.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
         const searchResults = await search({
-          search: value.trim(),
-          limit,
-          rerank: !!base?.rerankModelId
+          search: value.trim()
         })
         logger.debug(`Search Results: ${searchResults}`)
         setResults(searchResults)
       } catch (error) {
-        logger.error(`Failed to search knowledge base ${base?.name ?? baseId}:`, error as Error)
+        logger.error(`Failed to search knowledge base ${base.id}:`, error as Error)
         setResults([])
       }
     },
-    [base?.documentCount, base?.rerankModelId, base?.name, baseId, search]
+    [base.id, search]
   )
 
   const handleCopy = useCallback(

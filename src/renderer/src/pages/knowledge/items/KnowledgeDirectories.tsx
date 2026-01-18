@@ -1,8 +1,12 @@
 import { Button } from '@cherrystudio/ui'
 import { useKnowledgeDirectories } from '@renderer/hooks/useKnowledge.v2'
-import type { KnowledgeBase } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import type { DirectoryItemData, ItemStatus, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
+import type {
+  DirectoryItemData,
+  ItemStatus,
+  KnowledgeBase,
+  KnowledgeItem as KnowledgeItemV2
+} from '@shared/data/types/knowledge'
 import { Book, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderOpen, RotateCw, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'

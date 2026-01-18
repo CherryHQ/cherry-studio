@@ -65,19 +65,22 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
           value={activeTab}
           onValueChange={setActiveTab}
           orientation="vertical"
-          variant="line"
+          variant="default"
           className="flex flex-1 overflow-hidden">
           {/* Left Sidebar */}
-          <TabsList className="flex h-full w-35 flex-col justify-start border-border border-r p-2">
+          <TabsList className="flex w-35 flex-col items-center justify-center bg-transparent p-2">
             {panels.map((panel) => (
-              <TabsTrigger key={panel.key} value={panel.key} className="w-full justify-start">
+              <TabsTrigger
+                key={panel.key}
+                value={panel.key}
+                className="w-full justify-start rounded-2xs hover:opacity-70 data-[state=active]:bg-foreground/5 data-[state=active]:shadow-none">
                 {panel.label}
               </TabsTrigger>
             ))}
           </TabsList>
 
           {/* Right Content Area */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto border-border border-l p-4">
             {panels.map((panel) => (
               <TabsContent key={panel.key} value={panel.key} className="m-0 h-full">
                 {panel.panel}

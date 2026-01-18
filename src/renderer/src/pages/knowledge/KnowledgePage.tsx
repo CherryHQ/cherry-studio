@@ -1,10 +1,7 @@
-import { useShortcut } from '@renderer/hooks/useShortcuts'
-import type { FC } from 'react'
-import { useState } from 'react'
+import { type FC, useMemo } from 'react'
 
 import AddKnowledgeBaseDialog from './components/AddKnowledgeBaseDialog'
 import EditKnowledgeBaseDialog from './components/EditKnowledgeBaseDialog'
-import KnowledgeSearchDialog from './components/KnowledgeSearchDialog'
 import KnowledgeSideNav from './components/KnowledgeSideNav'
 import { useKnowledgeBaseSelection } from './hooks/useKnowledgeBaseSelection'
 import KnowledgeContent from './KnowledgeContent'
@@ -26,14 +23,7 @@ const KnowledgePage: FC = () => {
     handleEditDialogClose
   } = useKnowledgeBaseSelection()
 
-  // Search dialog state
-  const [searchDialogOpen, setSearchDialogOpen] = useState(false)
-
-  useShortcut('search_message', () => {
-    if (selectedBaseId) {
-      setSearchDialogOpen(true)
-    }
-  })
+  const editingBase = useMemo(() => bases.find((b) => b.id === editingBaseId), [bases, editingBaseId])
 
   return (
     <div className="flex h-[calc(100vh-var(--navbar-height))] flex-1 flex-col">
@@ -51,16 +41,13 @@ const KnowledgePage: FC = () => {
 
       {/* Dialogs */}
       <AddKnowledgeBaseDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onSuccess={handleAddSuccess} />
-      {editingBaseId && (
+      {editingBase && (
         <EditKnowledgeBaseDialog
-          baseId={editingBaseId}
+          base={editingBase}
           open={editDialogOpen}
           onOpenChange={handleEditDialogClose}
           onSuccess={handleEditSuccess}
         />
-      )}
-      {selectedBaseId && (
-        <KnowledgeSearchDialog baseId={selectedBaseId} open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
       )}
     </div>
   )

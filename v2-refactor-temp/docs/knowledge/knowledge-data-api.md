@@ -333,16 +333,6 @@ export interface CreateKnowledgeItemsDto {
 
 export interface KnowledgeSearchRequest {
   search: string
-  mode?: 'default' | 'vector' | 'bm25' | 'hybrid'
-  alpha?: number
-  limit?: number
-  rerank?: boolean
-  filters?: {
-    type?: KnowledgeItemType[]
-    status?: ItemStatus[]
-    createdAfter?: string
-    createdBefore?: string
-  }
 }
 
 export interface KnowledgeSearchResult {

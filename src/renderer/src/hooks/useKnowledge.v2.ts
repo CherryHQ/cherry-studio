@@ -69,7 +69,9 @@ const buildDirectoryItems = async (
         data: { groupId, groupName, file } satisfies DirectoryItemData
       }))
   } catch (error) {
-    logger.error('Failed to build directory items', error as Error, { directoryPath })
+    logger.error('Failed to build directory items', error as Error, {
+      directoryPath
+    })
     throw error
   }
 }
@@ -78,7 +80,7 @@ const buildDirectoryItems = async (
  * Hook for adding files to a knowledge base via v2 Data API
  */
 export const useKnowledgeFiles = (baseId: string) => {
-  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const { items } = useKnowledgeItems(baseId)
   const fileItems = useMemo(() => items.filter((item) => item.type === 'file'), [items])
   const hasProcessingItems = useMemo(
     () => fileItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
@@ -116,7 +118,10 @@ export const useKnowledgeFiles = (baseId: string) => {
 
       const createdItems = result.items
 
-      logger.info('Files added via v2 API', { baseId, count: createdItems.length })
+      logger.info('Files added via v2 API', {
+        baseId,
+        count: createdItems.length
+      })
       return createdItems
     } catch (error) {
       logger.error('Failed to add files via v2 API', error as Error)
@@ -148,7 +153,10 @@ export const useKnowledgeFiles = (baseId: string) => {
       await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
-      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+      logger.error('Failed to refresh item', error as Error, {
+        itemId,
+        baseId
+      })
     }
   }
 
@@ -168,7 +176,7 @@ export const useKnowledgeFiles = (baseId: string) => {
  * Hook for adding directories to a knowledge base via v2 Data API
  */
 export const useKnowledgeDirectories = (baseId: string) => {
-  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const { items } = useKnowledgeItems(baseId)
   const directoryItems = useMemo(() => items.filter((item) => item.type === 'directory'), [items])
   const hasProcessingItems = useMemo(
     () => directoryItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
@@ -232,7 +240,10 @@ export const useKnowledgeDirectories = (baseId: string) => {
       await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
-      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+      logger.error('Failed to refresh item', error as Error, {
+        itemId,
+        baseId
+      })
     }
   }
 
@@ -248,9 +259,16 @@ export const useKnowledgeDirectories = (baseId: string) => {
 
     try {
       await Promise.all(itemsToDelete.map((item) => deleteKnowledgeItem(baseId, item.id)))
-      logger.info('Directory group deleted', { groupId, baseId, count: itemsToDelete.length })
+      logger.info('Directory group deleted', {
+        groupId,
+        baseId,
+        count: itemsToDelete.length
+      })
     } catch (error) {
-      logger.error('Failed to delete directory group', error as Error, { groupId, baseId })
+      logger.error('Failed to delete directory group', error as Error, {
+        groupId,
+        baseId
+      })
       throw error
     }
   }
@@ -270,9 +288,16 @@ export const useKnowledgeDirectories = (baseId: string) => {
     try {
       await Promise.all(itemsToRefresh.map((item) => dataApiService.post(`/knowledge-items/${item.id}/reprocess`, {})))
       await invalidate(`/knowledge-bases/${baseId}/items`)
-      logger.info('Directory group refresh triggered', { groupId, baseId, count: itemsToRefresh.length })
+      logger.info('Directory group refresh triggered', {
+        groupId,
+        baseId,
+        count: itemsToRefresh.length
+      })
     } catch (error) {
-      logger.error('Failed to refresh directory group', error as Error, { groupId, baseId })
+      logger.error('Failed to refresh directory group', error as Error, {
+        groupId,
+        baseId
+      })
       throw error
     }
   }
@@ -295,7 +320,7 @@ export const useKnowledgeDirectories = (baseId: string) => {
  * Hook for adding URLs to a knowledge base via v2 Data API
  */
 export const useKnowledgeUrls = (baseId: string) => {
-  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const { items } = useKnowledgeItems(baseId)
   const urlItems = useMemo(() => items.filter((item) => item.type === 'url'), [items])
   const hasProcessingItems = useMemo(
     () => urlItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
@@ -356,7 +381,10 @@ export const useKnowledgeUrls = (baseId: string) => {
       await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
-      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+      logger.error('Failed to refresh item', error as Error, {
+        itemId,
+        baseId
+      })
     }
   }
 
@@ -376,7 +404,7 @@ export const useKnowledgeUrls = (baseId: string) => {
  * Hook for adding sitemaps to a knowledge base via v2 Data API
  */
 export const useKnowledgeSitemaps = (baseId: string) => {
-  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const { items } = useKnowledgeItems(baseId)
   const sitemapItems = useMemo(() => items.filter((item) => item.type === 'sitemap'), [items])
   const hasProcessingItems = useMemo(
     () => sitemapItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
@@ -441,7 +469,10 @@ export const useKnowledgeSitemaps = (baseId: string) => {
       await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
-      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+      logger.error('Failed to refresh item', error as Error, {
+        itemId,
+        baseId
+      })
     }
   }
 
@@ -461,7 +492,7 @@ export const useKnowledgeSitemaps = (baseId: string) => {
  * Hook for adding notes to a knowledge base via v2 Data API
  */
 export const useKnowledgeNotes = (baseId: string) => {
-  const { items } = useKnowledgeItems(baseId, { enabled: !!baseId })
+  const { items } = useKnowledgeItems(baseId)
   const noteItems = useMemo(() => items.filter((item) => item.type === 'note'), [items])
   const hasProcessingItems = useMemo(
     () => noteItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
@@ -522,7 +553,10 @@ export const useKnowledgeNotes = (baseId: string) => {
       await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Item refresh triggered', { itemId, baseId })
     } catch (error) {
-      logger.error('Failed to refresh item', error as Error, { itemId, baseId })
+      logger.error('Failed to refresh item', error as Error, {
+        itemId,
+        baseId
+      })
     }
   }
 
@@ -581,9 +615,7 @@ export const useKnowledgeSearch = (baseId: string) => {
   /**
    * Search knowledge base via v2 API
    */
-  const search = async (
-    request: Omit<KnowledgeSearchRequest, 'search'> & { search: string }
-  ): Promise<KnowledgeSearchResult[]> => {
+  const search = async (request: KnowledgeSearchRequest): Promise<KnowledgeSearchResult[]> => {
     if (!request.search?.trim()) {
       return []
     }
@@ -593,7 +625,10 @@ export const useKnowledgeSearch = (baseId: string) => {
       const results = await dataApiService.get(`/knowledge-bases/${baseId}/search`, {
         query: request
       })
-      logger.info('Knowledge base search completed', { baseId, resultCount: results.length })
+      logger.info('Knowledge base search completed', {
+        baseId,
+        resultCount: results.length
+      })
       return results
     } catch (error) {
       logger.error('Knowledge base search failed', error as Error)
