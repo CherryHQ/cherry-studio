@@ -15,6 +15,7 @@ import type { ApiImplementation } from '@shared/data/api/apiTypes'
 import { messageHandlers } from './messages'
 import { testHandlers } from './test'
 import { topicHandlers } from './topics'
+import { websearchProviderHandlers } from './websearch-providers'
 
 /**
  * Complete API handlers implementation
@@ -26,5 +27,6 @@ import { topicHandlers } from './topics'
 export const apiHandlers: ApiImplementation = {
   ...testHandlers,
   ...topicHandlers,
-  ...messageHandlers
+  ...messageHandlers,
+  ...websearchProviderHandlers
 }
