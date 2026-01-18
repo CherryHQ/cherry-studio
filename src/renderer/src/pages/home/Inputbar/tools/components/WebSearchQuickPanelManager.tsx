@@ -12,7 +12,7 @@ import {
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
@@ -133,15 +133,15 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
         ...providers
           .map((p) => ({
             label: p.name,
-            description: WebSearchService.isWebSearchEnabled(p.id)
+            description: WebSearchService.isWebSearchEnabled(p.id as WebSearchProviderId)
               ? hasObjectKey(p, 'apiKey')
                 ? t('settings.tool.websearch.apikey')
                 : t('settings.tool.websearch.free')
               : t('chat.input.web_search.enable_content'),
-            icon: <WebSearchProviderIcon size={13} pid={p.id} />,
+            icon: <WebSearchProviderIcon size={13} pid={p.id as WebSearchProviderId} />,
             isSelected: p.id === assistant?.webSearchProviderId,
-            disabled: !WebSearchService.isWebSearchEnabled(p.id),
-            action: () => updateQuickPanelItem(p.id)
+            disabled: !WebSearchService.isWebSearchEnabled(p.id as WebSearchProviderId),
+            action: () => updateQuickPanelItem(p.id as WebSearchProviderId)
           }))
           .filter((item) => !item.disabled)
       )

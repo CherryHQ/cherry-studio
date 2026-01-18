@@ -1,5 +1,5 @@
 import { InfoTooltip } from '@cherrystudio/ui'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { Input, Select, Space } from 'antd'
 import { ChevronDown } from 'lucide-react'
@@ -9,14 +9,14 @@ const INPUT_BOX_WIDTH = '200px'
 
 const CutoffSettings = () => {
   const { t } = useTranslation()
-  const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
+  const { compression, setCompression } = useWebSearchSettings()
 
   const handleCutoffLimitChange = (value: number | null) => {
-    updateCompressionConfig({ cutoffLimit: value || undefined })
+    setCompression({ method: 'cutoff', ...compression, cutoffLimit: value || undefined })
   }
 
   const handleCutoffUnitChange = (unit: 'char' | 'token') => {
-    updateCompressionConfig({ cutoffUnit: unit })
+    setCompression({ method: 'cutoff', ...compression, cutoffUnit: unit })
   }
 
   const unitOptions = [
@@ -42,7 +42,7 @@ const CutoffSettings = () => {
         <Input
           style={{ maxWidth: '60%' }}
           placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
-          value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
+          value={compression?.cutoffLimit === undefined ? '' : compression.cutoffLimit}
           onChange={(e) => {
             const value = e.target.value
             if (value === '') {
@@ -53,7 +53,7 @@ const CutoffSettings = () => {
           }}
         />
         <Select
-          value={compressionConfig?.cutoffUnit || 'char'}
+          value={compression?.cutoffUnit || 'char'}
           style={{ minWidth: '40%' }}
           onChange={handleCutoffUnitChange}
           options={unitOptions}

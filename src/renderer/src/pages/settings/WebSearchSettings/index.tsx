@@ -9,11 +9,10 @@ import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import DividerWithText from '@renderer/components/DividerWithText'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
-import type { WebSearchProviderId } from '@renderer/types'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { hasObjectKey } from '@renderer/utils'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { Flex, Tag } from 'antd'
+import { Flex } from 'antd'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +21,6 @@ import styled from 'styled-components'
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
   const { providers } = useWebSearchProviders()
-  const { provider: defaultProvider } = useDefaultWebSearchProvider()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -51,7 +49,7 @@ const WebSearchSettings: FC = () => {
   const localProviders = providers.filter((p) => p.id.startsWith('local'))
 
   // Provider logos map
-  const getProviderLogo = (providerId: WebSearchProviderId): string | undefined => {
+  const getProviderLogo = (providerId: string): string | undefined => {
     switch (providerId) {
       case 'zhipu':
         return ZhipuLogo
@@ -89,7 +87,6 @@ const WebSearchSettings: FC = () => {
           <DividerWithText text={t('settings.tool.websearch.api_providers')} style={{ margin: '10px 0 8px 0' }} />
           {apiProviders.map((provider) => {
             const logo = getProviderLogo(provider.id)
-            const isDefault = defaultProvider?.id === provider.id
             return (
               <ListItem
                 key={provider.id}
@@ -106,13 +103,6 @@ const WebSearchSettings: FC = () => {
                   )
                 }
                 titleStyle={{ fontWeight: 500 }}
-                rightContent={
-                  isDefault ? (
-                    <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                      {t('common.default')}
-                    </Tag>
-                  ) : undefined
-                }
               />
             )
           })}
@@ -121,7 +111,6 @@ const WebSearchSettings: FC = () => {
               <DividerWithText text={t('settings.tool.websearch.local_providers')} style={{ margin: '10px 0 8px 0' }} />
               {localProviders.map((provider) => {
                 const logo = getProviderLogo(provider.id)
-                const isDefault = defaultProvider?.id === provider.id
                 return (
                   <ListItem
                     key={provider.id}
@@ -138,13 +127,6 @@ const WebSearchSettings: FC = () => {
                       )
                     }
                     titleStyle={{ fontWeight: 500 }}
-                    rightContent={
-                      isDefault ? (
-                        <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                          {t('common.default')}
-                        </Tag>
-                      ) : undefined
-                    }
                   />
                 )
               })}

@@ -1,4 +1,4 @@
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { Select } from 'antd'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +11,7 @@ const INPUT_BOX_WIDTH_RAG = 'min(350px, 60%)'
 
 const CompressionSettings = () => {
   const { t } = useTranslation()
-  const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
+  const { compression, setCompression } = useWebSearchSettings()
 
   const compressionMethodOptions = [
     { value: 'none', label: t('settings.tool.websearch.compression.method.none') },
@@ -20,7 +20,7 @@ const CompressionSettings = () => {
   ]
 
   const handleCompressionMethodChange = (method: 'none' | 'cutoff' | 'rag') => {
-    updateCompressionConfig({ method })
+    setCompression({ ...compression, method })
   }
 
   return (
@@ -31,16 +31,16 @@ const CompressionSettings = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.websearch.compression.method.label')}</SettingRowTitle>
         <Select
-          value={compressionConfig?.method || 'none'}
-          style={{ width: compressionConfig?.method === 'rag' ? INPUT_BOX_WIDTH_RAG : INPUT_BOX_WIDTH_CUTOFF }}
+          value={compression?.method || 'none'}
+          style={{ width: compression?.method === 'rag' ? INPUT_BOX_WIDTH_RAG : INPUT_BOX_WIDTH_CUTOFF }}
           onChange={handleCompressionMethodChange}
           options={compressionMethodOptions}
         />
       </SettingRow>
       <SettingDivider />
 
-      {compressionConfig?.method === 'cutoff' && <CutoffSettings />}
-      {compressionConfig?.method === 'rag' && <RagSettings />}
+      {compression?.method === 'cutoff' && <CutoffSettings />}
+      {compression?.method === 'rag' && <RagSettings />}
     </SettingGroup>
   )
 }

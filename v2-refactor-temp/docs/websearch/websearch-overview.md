@@ -2,16 +2,36 @@
 
 ## 实施计划
 
-### 阶段 1: 数据层迁移 (Redux → Preference/DataApi)
+### 阶段 1: 数据层迁移 (Redux → Preference/DataApi) - 进行中
 
 > Service 保持在 Renderer 进程，仅迁移数据源
 
-| 任务 | 说明 |
-|------|------|
-| Hooks 迁移 | `useWebSearchProviders.ts` 改用 Preference/DataApi |
-| UI 组件迁移 | Settings 页面改用 `usePreference` |
-| Service 配置读取 | 从 Redux 改为 Preference（Service 仍在 Renderer） |
-| **验证点** | 搜索流程完整可用 ✅ |
+| 任务 | 状态 | 说明 |
+|------|------|------|
+| Hooks 迁移 | ✅ | `useWebSearch.ts` 已完成（DataApi + Preference） |
+| UI 组件迁移 (Settings) | ✅ | Settings 页面已改用新 hooks，详见 [UI 迁移文档](./websearch-ui-migration.md) |
+| UI 组件迁移 (其他) | ⏳ | 仍依赖旧 hooks 的组件，见下方列表 |
+| Service 类型兼容 | ⏳ | `WebSearchService.checkSearch` 需适配新类型 |
+| 删除废弃文件 | ⏳ | `AddSubscribePopup.tsx` ✅, `useWebSearchProviders.ts` ⏳ |
+| **验证点** | ⏳ | `pnpm build:check` 通过 + 搜索流程可用 |
+
+**待迁移组件**（仍使用旧 `useWebSearchProviders.ts`）：
+
+| 文件 | 使用的 Hook | 迁移状态 |
+|------|------------|----------|
+| `pages/settings/WebSearchSettings/CompressionSettings/RagSettings.tsx` | `useWebSearchSettings` | ⏳ 类型结构不同 |
+| `components/Popups/ApiKeyListPopup/list.tsx` | `useWebSearchProvider` | ⏳ 类型不兼容 |
+
+**已迁移组件**：
+
+| 文件 | 原 Hook | 新 Hook |
+|------|---------|---------|
+| `pages/settings/WebSearchSettings/CompressionSettings/index.tsx` | `useWebSearchSettings` | ✅ `useWebSearch` |
+| `pages/settings/WebSearchSettings/CompressionSettings/CutoffSettings.tsx` | `useWebSearchSettings` | ✅ `useWebSearch` |
+| `pages/home/Inputbar/tools/components/WebSearchQuickPanelManager.tsx` | `useWebSearchProviders` | ✅ `useWebSearch` |
+
+**当前阻塞项**：
+- `WebSearchService.checkSearch(provider)` 期望 `WebSearchProviderId` 类型，但新 hook 返回 `id: string`
 
 ### 阶段 2: Service 迁移到 Main Process
 
@@ -32,6 +52,8 @@
 | 删除 Renderer 端旧 Service | `src/renderer/src/services/WebSearchService.ts` |
 | 删除 Redux store | `src/renderer/src/store/websearch.ts` |
 | 删除旧 Provider 实现 | `src/renderer/src/providers/WebSearchProvider/` |
+| 删除旧 hooks | `src/renderer/src/hooks/useWebSearchProviders.ts` |
+| 删除废弃 UI 组件 | `src/renderer/src/pages/settings/WebSearchSettings/AddSubscribePopup.tsx` |
 
 ### 实施原则
 
@@ -56,6 +78,7 @@
 │ UI                                              │
 │  ├─ usePreference('websearch.*')   → 配置      │
 │  ├─ useQuery('/websearch-providers') → 供应商   │
+│  ├─ useMutation('/websearch-providers/:id/test') → 测试 │
 │  └─ useMutation('/websearch/search') → 搜索    │
 └─────────────────────┬───────────────────────────┘
                       │ DataApi (内部 IPC)
@@ -137,7 +160,7 @@ src/main/
 ```
 src/renderer/src/
 ├─ hooks/
-│   └─ useWebSearch.ts              # 搜索 hooks
+│   └─ useWebSearch.ts              # 搜索 hooks（providers/provider/test/settings）
 ├─ pages/settings/WebSearchSettings/
 │   ├─ BasicSettings.tsx            # 基础设置 (usePreference)
 │   ├─ BlacklistSettings.tsx        # 排除域名 (usePreference)
@@ -159,6 +182,7 @@ packages/shared/data/
 
 ## 相关文档
 
+- [WebSearch UI 迁移](./websearch-ui-migration.md) - UI 组件迁移详情
 - [WebSearch Data API](./websearch-data-api.md) - 详细 API 设计
 - [Preference Overview](../data/preference-overview.md) - Preference 系统
 - [DataApi Overview](../data/data-api-overview.md) - DataApi 系统

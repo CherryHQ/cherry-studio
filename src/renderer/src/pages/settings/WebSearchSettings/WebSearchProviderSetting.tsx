@@ -12,7 +12,7 @@ import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchProvider } from '@renderer/hooks/useWebSearch'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
@@ -28,22 +28,35 @@ import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, S
 
 const logger = loggerService.withContext('WebSearchProviderSetting')
 interface Props {
-  providerId: WebSearchProviderId
+  providerId: string
 }
 
 const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
-  const { provider, updateProvider } = useWebSearchProvider(providerId)
-  const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
+  const { provider, updateProvider, isLoading } = useWebSearchProvider(providerId)
   const { t } = useTranslation()
-  const [apiKey, setApiKey] = useState(provider.apiKey || '')
-  const [apiHost, setApiHost] = useState(provider.apiHost || '')
+  const [apiKey, setApiKey] = useState('')
+  const [apiHost, setApiHost] = useState('')
   const [apiChecking, setApiChecking] = useState(false)
-  const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
-  const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
+  const [basicAuthUsername, setBasicAuthUsername] = useState('')
+  const [basicAuthPassword, setBasicAuthPassword] = useState('')
   const [apiValid, setApiValid] = useState(false)
   const { setTimeoutTimer } = useTimer()
 
-  const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
+  // Sync state when provider loads
+  useEffect(() => {
+    if (provider) {
+      setApiKey(provider.apiKey ?? '')
+      setApiHost(provider.apiHost ?? '')
+      setBasicAuthUsername(provider.basicAuthUsername ?? '')
+      setBasicAuthPassword(provider.basicAuthPassword ?? '')
+    }
+  }, [provider])
+
+  if (isLoading || !provider) {
+    return null
+  }
+
+  const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id as WebSearchProviderId]
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
   const officialWebsite = webSearchProviderConfig?.websites?.official
 
@@ -132,14 +145,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }
 
-  useEffect(() => {
-    setApiKey(provider.apiKey ?? '')
-    setApiHost(provider.apiHost ?? '')
-    setBasicAuthUsername(provider.basicAuthUsername ?? '')
-    setBasicAuthPassword(provider.basicAuthPassword ?? '')
-  }, [provider.apiKey, provider.apiHost, provider.basicAuthUsername, provider.basicAuthPassword])
-
-  const getWebSearchProviderLogo = (providerId: WebSearchProviderId) => {
+  const getWebSearchProviderLogo = (providerId: string) => {
     switch (providerId) {
       case 'zhipu':
         return ZhipuLogo
@@ -174,40 +180,21 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const providerLogo = getWebSearchProviderLogo(provider.id)
 
-  // Check if this provider is already the default
-  const isDefault = defaultProvider?.id === provider.id
-
-  // Check if provider needs API key but doesn't have one configured
-  const needsApiKey = hasObjectKey(provider, 'apiKey')
-  const hasApiKey = provider.apiKey && provider.apiKey.trim() !== ''
-  const canSetAsDefault = !isDefault && (!needsApiKey || hasApiKey)
-
-  const handleSetAsDefault = () => {
-    if (canSetAsDefault) {
-      setDefaultProvider(provider)
-    }
-  }
-
   return (
     <>
       <SettingTitle>
-        <Flex className="items-center justify-between" style={{ width: '100%' }}>
-          <Flex className="items-center gap-2">
-            {providerLogo ? (
-              <img src={providerLogo} alt={provider.name} className="h-5 w-5 object-contain" />
-            ) : (
-              <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
-            )}
-            <ProviderName> {provider.name}</ProviderName>
-            {officialWebsite && webSearchProviderConfig?.websites && (
-              <Link target="_blank" href={webSearchProviderConfig.websites.official}>
-                <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
-              </Link>
-            )}
-          </Flex>
-          <Button variant="default" disabled={!canSetAsDefault} onClick={handleSetAsDefault}>
-            {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
-          </Button>
+        <Flex className="items-center gap-2">
+          {providerLogo ? (
+            <img src={providerLogo} alt={provider.name} className="h-5 w-5 object-contain" />
+          ) : (
+            <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
+          )}
+          <ProviderName> {provider.name}</ProviderName>
+          {officialWebsite && webSearchProviderConfig?.websites && (
+            <Link target="_blank" href={webSearchProviderConfig.websites.official}>
+              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
+            </Link>
+          )}
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
