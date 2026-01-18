@@ -118,6 +118,15 @@ const CodeToolsPage: FC = () => {
         return true
       }
 
+      if (selectedCliTool === codeTools.kimiCli) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        return true
+      }
+
       return true
     },
     [selectedCliTool]
