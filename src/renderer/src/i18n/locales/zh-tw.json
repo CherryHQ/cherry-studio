@@ -1581,6 +1581,15 @@
       "title": "匯入 ChatGPT 對話",
       "untitled_conversation": "未命名對話"
     },
+    "claude": {
+      "assistant_name": "Claude 匯入",
+      "description": "僅匯入對話文字，不攜帶圖片和附件",
+      "error": {
+        "no_conversations": "檔案中未找到任何對話",
+        "no_valid_conversations": "沒有可匯入的有效對話"
+      },
+      "untitled_conversation": "未命名對話"
+    },
     "confirm": {
       "button": "選擇匯入檔案",
       "label": "確定要匯入外部資料嗎？"

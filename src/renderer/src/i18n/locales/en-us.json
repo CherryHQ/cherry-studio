@@ -1581,12 +1581,47 @@
       "title": "Import ChatGPT Conversations",
       "untitled_conversation": "Untitled Conversation"
     },
+    "claude": {
+      "assistant_name": "Claude Import",
+      "description": "Import conversations from Claude. Only text content is imported; images and attachments are not included.",
+      "error": {
+        "no_conversations": "No conversations found in file",
+        "no_json_files": "No JSON files found in the selected folder. Make sure you selected the Claude export folder.",
+        "no_valid_conversations": "No valid conversations to import"
+      },
+      "help": {
+        "note": "Artifacts (code), thinking blocks, and tool calls are preserved.",
+        "step1": "1. Install the Claude Exporter extension (agoramachina/claude-exporter)",
+        "step2": "2. Go to Claude.ai and open the extension",
+        "step3": "3. Click \"Export All\" or select specific conversations",
+        "step4": "4. Choose JSON format and enable \"Include Thinking\" for extended thinking",
+        "step5": "5. Select the exported folder (contains one JSON per conversation)",
+        "title": "How to export from Claude"
+      },
+      "option": {
+        "allBranches": "Import all branches (includes edit history and regenerations)"
+      },
+      "selectFolder": "Select Claude Export Folder",
+      "title": "Import from Claude",
+      "untitled_conversation": "Untitled Conversation"
+    },
+    "button": {
+      "folder": "Select Folder"
+    },
     "confirm": {
       "button": "Select Import File",
       "label": "Are you sure you want to import external data?"
     },
     "content": "Select external application conversation file to import, currently only supports ChatGPT JSON format files",
-    "title": "Import External Conversations"
+    "description": "Import conversations from external AI assistants. Only text content is imported; images and attachments are not included.",
+    "importing": "Importing conversations...",
+    "importing_progress": "Importing file {{current}} of {{total}}...",
+    "source": {
+      "auto": "Auto-detect",
+      "label": "Source:"
+    },
+    "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
+    "title": "Import Conversations"
   },
   "knowledge": {
     "add": {
@@ -3613,7 +3648,9 @@
       "hour_interval_other": "{{count}} hours",
       "import_settings": {
         "button": "Import Json File",
+        "button_folder": "Import Folder",
         "chatgpt": "Import from ChatGPT",
+        "claude": "Import from Claude",
         "title": "Import Outside Application Data"
       },
       "joplin": {

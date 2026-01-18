@@ -1581,6 +1581,15 @@
       "title": "导入 ChatGPT 对话",
       "untitled_conversation": "未命名对话"
     },
+    "claude": {
+      "assistant_name": "Claude 导入",
+      "description": "仅导入对话文字，不携带图片和附件",
+      "error": {
+        "no_conversations": "文件中未找到任何对话",
+        "no_valid_conversations": "没有可导入的有效对话"
+      },
+      "untitled_conversation": "未命名对话"
+    },
     "confirm": {
       "button": "选择导入文件",
       "label": "确定要导入外部数据吗？"
