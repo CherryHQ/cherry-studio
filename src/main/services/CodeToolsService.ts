@@ -807,14 +807,15 @@ class CodeToolsService {
           terminalArgs = args
         }
 
-        // Set cleanup task (delete temp file after 5 minutes)
+        // Set cleanup task (delete temp file after 60 seconds)
+        // Windows Terminal (UWP app) may take longer to initialize and read the file
         setTimeout(() => {
           try {
             fs.existsSync(batFilePath) && fs.unlinkSync(batFilePath)
           } catch (error) {
             logger.warn(`Failed to cleanup temp bat file: ${error}`)
           }
-        }, 10 * 1000) // Delete temp file after 10 seconds
+        }, 60 * 1000) // Delete temp file after 60 seconds
 
         break
       }
