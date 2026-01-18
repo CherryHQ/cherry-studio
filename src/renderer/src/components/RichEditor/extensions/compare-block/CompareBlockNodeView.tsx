@@ -1,7 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import { NodeViewWrapper } from '@tiptap/react'
 import { Button } from 'antd'
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback } from 'react'
 import styled from 'styled-components'
 
 import type { CompareBlockStorage } from './compare-block'
@@ -24,7 +24,7 @@ export const CompareBlockNodeView: React.FC<CompareBlockNodeViewProps> = ({ node
   const collapsed = Boolean(node?.attrs?.collapsed ?? true)
 
   const storage = getCompareBlockStorage(editor)
-  const initialContent = useMemo(() => storage?.blocks[id]?.content ?? '', [storage, id])
+  const initialContent = storage?.blocks[id]?.content ?? ''
 
   const open = !collapsed
 
