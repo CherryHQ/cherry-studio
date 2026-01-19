@@ -2491,6 +2491,10 @@
       "remix": "Remix",
       "upscale": "Upscale"
     },
+    "edit": {
+      "image_file": "Input Image",
+      "image_required": "Please upload an image to edit first"
+    },
     "model": "Model",
     "model_and_pricing": "Model & Pricing",
     "moderation": "Moderation",
@@ -2578,6 +2582,27 @@
       "resemblance": "Similarity",
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
+    },
+    "watermark": "Add Watermark",
+    "seed_random": "Random",
+    "ppio": {
+      "use_pre_llm_tip": "Enable text expansion to optimize the prompt. Recommended for short prompts, disable for long ones",
+      "watermark_tip": "Whether to add watermark to generated images, disabled by default",
+      "watermark_position": "Watermark Position",
+      "watermark_position.bottom_right": "Bottom Right",
+      "watermark_position.bottom_left": "Bottom Left",
+      "watermark_position.top_left": "Top Left",
+      "watermark_position.top_right": "Top Right",
+      "watermark_language": "Watermark Language",
+      "watermark_language.chinese": "Chinese",
+      "watermark_language.english": "English",
+      "watermark_opacity": "Watermark Opacity",
+      "seed_tip": "Random seed, same seed and parameters can produce similar images, -1 means random",
+      "resolution": "Target Resolution",
+      "output_format": "Output Format",
+      "mask_image": "Mask Image",
+      "mask_image_tip": "Used to indicate the area to be erased. Areas to erase should be white, areas to keep should be black",
+      "edit_prompt_tip": "Used to specify the object or area to remove from the image, e.g., 'dog' or 'hat'"
     }
   },
   "plugins": {
