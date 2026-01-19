@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectPendingPermission, selectResolvedInput, toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import { Button, Checkbox, Radio, Tag } from 'antd'
 import { CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react'
@@ -242,7 +242,6 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolResponse.toolCallId))
-  const resolvedInput = useAppSelector((state) => selectResolvedInput(state.toolPermissions, toolResponse.toolCallId))
 
   const isPending = toolResponse.status === 'pending' && !!request
 
@@ -250,7 +249,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     ? parseAskUserQuestionToolInput(request?.input)
     : parseAskUserQuestionToolInput(toolResponse.arguments)
 
-  const storeAnswers = (resolvedInput?.answers as Record<string, string>) ?? {}
+  const persistedAnswers = (toolResponse.arguments as { answers?: Record<string, string> })?.answers ?? {}
 
   const questions = useMemo(() => questionInput?.questions ?? [], [questionInput?.questions])
 
@@ -260,7 +259,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   const [showCustomInput, setShowCustomInput] = useState<Record<string, boolean>>({})
   const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, string>>({})
 
-  const displayAnswers = Object.keys(storeAnswers).length > 0 ? storeAnswers : submittedAnswers
+  const displayAnswers = Object.keys(persistedAnswers).length > 0 ? persistedAnswers : submittedAnswers
 
   const isSubmitting = request?.status === 'submitting-allow'
   const currentQuestion = questions[currentIndex]

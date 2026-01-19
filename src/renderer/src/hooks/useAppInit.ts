@@ -6,16 +6,19 @@ import db from '@renderer/databases'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppStore } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
 import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
+import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import {
   type ToolPermissionRequestPayload,
   type ToolPermissionResultPayload,
   toolPermissionsActions
 } from '@renderer/store/toolPermissions'
+import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
@@ -35,6 +38,7 @@ const logger = loggerService.withContext('useAppInit')
 export function useAppInit() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const store = useAppStore()
   const {
     proxyUrl,
     proxyBypassRules,
@@ -227,6 +231,43 @@ export function useAppInit() {
       })
       dispatch(toolPermissionsActions.requestResolved(payload))
 
+      // Persist updatedInput to message block for AskUserQuestion answers
+      if (payload.behavior === 'allow' && payload.updatedInput && payload.toolCallId) {
+        const state = store.getState()
+        const allBlocks = messageBlocksSelectors.selectAll(state)
+
+        const targetBlock = allBlocks.find((block): block is ToolMessageBlock => {
+          if (block.type !== MessageBlockType.TOOL) return false
+          const toolBlock = block as ToolMessageBlock
+          const toolResponse = toolBlock.metadata?.rawMcpToolResponse
+          return toolResponse?.toolCallId === payload.toolCallId
+        })
+
+        if (targetBlock) {
+          const updatedMetadata = {
+            ...targetBlock.metadata,
+            rawMcpToolResponse: {
+              ...targetBlock.metadata?.rawMcpToolResponse,
+              arguments: payload.updatedInput
+            }
+          }
+
+          dispatch(
+            updateOneBlock({
+              id: targetBlock.id,
+              changes: {
+                metadata: updatedMetadata
+              }
+            })
+          )
+
+          logger.debug('Updated message block with resolved input', {
+            blockId: targetBlock.id,
+            toolCallId: payload.toolCallId
+          })
+        }
+      }
+
       if (payload.behavior === 'deny') {
         const message =
           payload.reason === 'timeout'
@@ -261,7 +302,7 @@ export function useAppInit() {
     ]
 
     return () => removeListeners.forEach((removeListener) => removeListener())
-  }, [dispatch, t])
+  }, [dispatch, store, t])
 
   useEffect(() => {
     // TODO: init data collection

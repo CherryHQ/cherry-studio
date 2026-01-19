@@ -139,11 +139,4 @@ export const selectPendingPermission = (
   return activeEntries[0]
 }
 
-export const selectResolvedInput = (
-  state: ToolPermissionsState,
-  toolCallId: string
-): Record<string, unknown> | undefined => {
-  return state.resolvedInputs[toolCallId]
-}
-
 export default toolPermissionsSlice.reducer
