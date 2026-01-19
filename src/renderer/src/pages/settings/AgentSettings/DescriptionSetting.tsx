@@ -1,5 +1,5 @@
+import { Textarea } from '@cherrystudio/ui'
 import type { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
-import TextArea from 'antd/es/input/TextArea'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,9 +26,9 @@ export const DescriptionSetting = ({ base, update }: DescriptionSettingProps) =>
   return (
     <SettingsItem divider={false}>
       <SettingsTitle>{t('common.description')}</SettingsTitle>
-      <TextArea
+      <Textarea.Input
         value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        onValueChange={setDescription}
         rows={4}
         onBlur={() => {
           if (description !== base.description) {
