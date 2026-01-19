@@ -249,9 +249,8 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     ? parseAskUserQuestionToolInput(request?.input)
     : parseAskUserQuestionToolInput(toolResponse.arguments)
 
-  const persistedAnswers = (toolResponse.arguments as { answers?: Record<string, string> })?.answers ?? {}
-
   const questions = useMemo(() => questionInput?.questions ?? [], [questionInput?.questions])
+  const answers = useMemo(() => questionInput?.answers ?? [], [questionInput?.answers])
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({})
@@ -259,7 +258,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   const [showCustomInput, setShowCustomInput] = useState<Record<string, boolean>>({})
   const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, string>>({})
 
-  const displayAnswers = Object.keys(persistedAnswers).length > 0 ? persistedAnswers : submittedAnswers
+  const displayAnswers = Object.keys(answers).length > 0 ? answers : submittedAnswers
 
   const isSubmitting = request?.status === 'submitting-allow'
   const currentQuestion = questions[currentIndex]

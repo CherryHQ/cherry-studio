@@ -346,12 +346,13 @@ export const AskUserQuestionItemSchema = z.object({
   multiSelect: z.boolean()
 })
 
+export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
+
 export const AskUserQuestionToolInputSchema = z.object({
   /** Questions to ask the user (1-4 questions) */
-  questions: z.array(AskUserQuestionItemSchema)
+  questions: z.array(AskUserQuestionItemSchema),
+  answers: AskUserQuestionAnswerSchema.optional()
 })
-
-export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
 
 export const AskUserQuestionToolOutputSchema = z.object({
   /** User answers collected by the permission component */

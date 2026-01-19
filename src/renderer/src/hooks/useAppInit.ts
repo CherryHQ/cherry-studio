@@ -10,14 +10,13 @@ import { useAppDispatch, useAppStore } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
 import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
-import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import {
   type ToolPermissionRequestPayload,
   type ToolPermissionResultPayload,
   toolPermissionsActions
 } from '@renderer/store/toolPermissions'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
@@ -231,40 +230,18 @@ export function useAppInit() {
       })
       dispatch(toolPermissionsActions.requestResolved(payload))
 
-      // Persist updatedInput to message block for AskUserQuestion answers
       if (payload.behavior === 'allow' && payload.updatedInput && payload.toolCallId) {
         const state = store.getState()
         const allBlocks = messageBlocksSelectors.selectAll(state)
 
-        const targetBlock = allBlocks.find((block): block is ToolMessageBlock => {
+        const targetBlock = allBlocks.find((block) => {
           if (block.type !== MessageBlockType.TOOL) return false
-          const toolBlock = block as ToolMessageBlock
-          const toolResponse = toolBlock.metadata?.rawMcpToolResponse
-          return toolResponse?.toolCallId === payload.toolCallId
+          const toolBlock = block as { metadata?: { rawMcpToolResponse?: { toolCallId?: string } } }
+          return toolBlock.metadata?.rawMcpToolResponse?.toolCallId === payload.toolCallId
         })
 
-        if (targetBlock) {
-          const updatedMetadata = {
-            ...targetBlock.metadata,
-            rawMcpToolResponse: {
-              ...targetBlock.metadata?.rawMcpToolResponse,
-              arguments: payload.updatedInput
-            }
-          }
-
-          dispatch(
-            updateOneBlock({
-              id: targetBlock.id,
-              changes: {
-                metadata: updatedMetadata
-              }
-            })
-          )
-
-          logger.debug('Updated message block with resolved input', {
-            blockId: targetBlock.id,
-            toolCallId: payload.toolCallId
-          })
+        if (!targetBlock) {
+          logger.warn('Target block not found for toolCallId', { toolCallId: payload.toolCallId })
         }
       }
 
