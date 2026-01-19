@@ -448,8 +448,8 @@ export interface PreferenceSchemas {
     'websearch.exclude_domains': string[]
     // redux/websearch/maxResults
     'websearch.max_results': number
-    // v2: websearch provider configs (user-modifiable settings)
-    'websearch.providers': PreferenceTypes.WebSearchProviderConfigs
+    // v2: websearch provider configs
+    'websearch.providers': PreferenceTypes.WebSearchProviders
     // redux/websearch/searchWithTime
     'websearch.search_with_time': boolean
   }
@@ -721,7 +721,107 @@ export const DefaultPreferences: PreferenceSchemas = {
     'websearch.compression': null,
     'websearch.exclude_domains': [],
     'websearch.max_results': 5,
-    'websearch.providers': {},
+    'websearch.providers': [
+      {
+        apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'zhipu',
+        name: 'Zhipu',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://api.tavily.com',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'tavily',
+        name: 'Tavily',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: '',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'searxng',
+        name: 'Searxng',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://api.exa.ai',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'exa',
+        name: 'Exa',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://mcp.exa.ai/mcp',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'exa-mcp',
+        name: 'ExaMCP',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://api.bochaai.com',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'bocha',
+        name: 'Bocha',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://www.google.com/search?q=%s',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'local-google',
+        name: 'Google',
+        type: 'local',
+        usingBrowser: true
+      },
+      {
+        apiHost: 'https://cn.bing.com/search?q=%s&ensearch=1',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'local-bing',
+        name: 'Bing',
+        type: 'local',
+        usingBrowser: true
+      },
+      {
+        apiHost: 'https://www.baidu.com/s?wd=%s',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'local-baidu',
+        name: 'Baidu',
+        type: 'local',
+        usingBrowser: true
+      }
+    ],
     'websearch.search_with_time': true
   }
 }

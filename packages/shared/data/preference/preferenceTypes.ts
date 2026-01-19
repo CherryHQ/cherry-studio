@@ -110,25 +110,35 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 // ============================================================================
 
 /**
- * WebSearch Provider 用户配置
- * 用户可修改的字段，存储在 Preference 中
+ * 完整的 WebSearch Provider 配置
+ * 存储在 Preference 中，包含所有字段
  */
-export interface WebSearchProviderConfig {
-  apiKey?: string
-  apiHost?: string
-  engines?: string[]
-  usingBrowser?: boolean
-  basicAuthUsername?: string
-  basicAuthPassword?: string
+export interface WebSearchProvider {
+  /** Unique provider identifier */
+  id: string
+  /** Display name */
+  name: string
+  /** Provider type: 'api' for API-based, 'local' for browser-based */
+  type: 'api' | 'local'
+  /** API key */
+  apiKey: string
+  /** API host */
+  apiHost: string
+  /** Search engines (for SearXNG) */
+  engines: string[]
+  /** Whether to use browser for search */
+  usingBrowser: boolean
+  /** Basic auth username */
+  basicAuthUsername: string
+  /** Basic auth password */
+  basicAuthPassword: string
 }
 
 /**
- * 所有 Provider 的配置集合
- * key 为 provider ID (如 'tavily', 'searxng')
+ * 所有 Provider 的配置数组
+ * 存储在 websearch.providers 中
  */
-export type WebSearchProviderConfigs = {
-  [providerId: string]: WebSearchProviderConfig
-}
+export type WebSearchProviders = WebSearchProvider[]
 
 // ============================================================================
 // WebSearch Compression Types

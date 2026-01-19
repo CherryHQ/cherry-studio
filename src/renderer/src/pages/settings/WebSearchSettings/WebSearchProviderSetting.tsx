@@ -10,12 +10,12 @@ import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
-import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import { getProviderWebsites } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearch'
 import WebSearchService from '@renderer/services/WebSearchService'
-import type { WebSearchProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { Divider, Form, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
@@ -32,7 +32,7 @@ interface Props {
 }
 
 const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
-  const { provider, updateProvider, isLoading } = useWebSearchProvider(providerId)
+  const { provider, updateProvider } = useWebSearchProvider(providerId)
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState('')
   const [apiHost, setApiHost] = useState('')
@@ -52,13 +52,13 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }, [provider])
 
-  if (isLoading || !provider) {
+  if (!provider) {
     return null
   }
 
-  const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
-  const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
-  const officialWebsite = webSearchProviderConfig?.websites?.official
+  const websites = getProviderWebsites(provider.id)
+  const apiKeyWebsite = websites?.apiKey
+  const officialWebsite = websites?.official
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
@@ -190,8 +190,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
           )}
           <ProviderName> {provider.name}</ProviderName>
-          {officialWebsite && webSearchProviderConfig?.websites && (
-            <Link target="_blank" href={webSearchProviderConfig.websites.official}>
+          {officialWebsite && websites && (
+            <Link target="_blank" href={websites.official}>
               <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
             </Link>
           )}

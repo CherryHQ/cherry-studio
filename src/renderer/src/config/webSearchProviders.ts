@@ -1,21 +1,9 @@
 /**
- * WebSearch Provider Template Definitions
+ * WebSearch Provider Static Metadata
  *
- * Static provider templates - immutable configuration that defines available providers.
- * User-modifiable settings (apiKey, apiHost, etc.) are stored in Preference system.
- *
- * Runtime Usage:
- * - Template data: from this file (id, name, type, websites, defaultApiHost)
- * - User config: from Preference ('websearch.providers')
- * - Merged result: template + user config = complete provider object
+ * Contains static metadata for providers that doesn't need to be stored in Preference.
+ * Provider configuration (id, name, type, apiHost, etc.) is stored in Preference.
  */
-
-/**
- * Provider type
- * - 'api': API-based providers (Tavily, Exa, etc.)
- * - 'local': Browser-based providers (Google, Bing, etc.)
- */
-export type WebSearchProviderType = 'api' | 'local'
 
 /**
  * Provider website links for documentation and API key management
@@ -28,148 +16,58 @@ export interface WebSearchProviderWebsites {
 }
 
 /**
- * Static provider template - immutable configuration
+ * Provider website links
+ * Accessed via WEB_SEARCH_PROVIDER_WEBSITES[providerId]
  */
-export interface WebSearchProviderTemplate {
-  /** Unique provider identifier */
-  id: string
-  /** Display name */
-  name: string
-  /** Provider type */
-  type: WebSearchProviderType
-  /** Website links */
-  websites: WebSearchProviderWebsites
-  /** Default API host (can be overridden by user) */
-  defaultApiHost?: string
-}
-
-/**
- * Provider template definitions
- * These are the 9 pre-configured providers available in the app
- */
-export const WEB_SEARCH_PROVIDER_TEMPLATES: WebSearchProviderTemplate[] = [
-  // API-based providers
-  {
-    id: 'zhipu',
-    name: 'Zhipu',
-    type: 'api',
-    websites: {
-      official: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
-      apiKey: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
-    },
-    defaultApiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search'
+export const WEB_SEARCH_PROVIDER_WEBSITES: Record<string, WebSearchProviderWebsites> = {
+  zhipu: {
+    official: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
+    apiKey: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
   },
-  {
-    id: 'tavily',
-    name: 'Tavily',
-    type: 'api',
-    websites: {
-      official: 'https://tavily.com',
-      apiKey: 'https://app.tavily.com/home'
-    },
-    defaultApiHost: 'https://api.tavily.com'
+  tavily: {
+    official: 'https://tavily.com',
+    apiKey: 'https://app.tavily.com/home'
   },
-  {
-    id: 'searxng',
-    name: 'Searxng',
-    type: 'api',
-    websites: {
-      official: 'https://docs.searxng.org'
-    }
-    // No default apiHost - user must configure their own SearxNG instance
+  searxng: {
+    official: 'https://docs.searxng.org'
   },
-  {
-    id: 'exa',
-    name: 'Exa',
-    type: 'api',
-    websites: {
-      official: 'https://exa.ai',
-      apiKey: 'https://dashboard.exa.ai/api-keys'
-    },
-    defaultApiHost: 'https://api.exa.ai'
+  exa: {
+    official: 'https://exa.ai',
+    apiKey: 'https://dashboard.exa.ai/api-keys'
   },
-  {
-    id: 'exa-mcp',
-    name: 'ExaMCP',
-    type: 'api',
-    websites: {
-      official: 'https://exa.ai'
-    },
-    defaultApiHost: 'https://mcp.exa.ai/mcp'
+  'exa-mcp': {
+    official: 'https://exa.ai'
   },
-  {
-    id: 'bocha',
-    name: 'Bocha',
-    type: 'api',
-    websites: {
-      official: 'https://bochaai.com',
-      apiKey: 'https://open.bochaai.com/overview'
-    },
-    defaultApiHost: 'https://api.bochaai.com'
+  bocha: {
+    official: 'https://bochaai.com',
+    apiKey: 'https://open.bochaai.com/overview'
   },
-  // Local browser-based providers
-  {
-    id: 'local-google',
-    name: 'Google',
-    type: 'local',
-    websites: {
-      official: 'https://www.google.com'
-    },
-    defaultApiHost: 'https://www.google.com/search?q=%s'
+  'local-google': {
+    official: 'https://www.google.com'
   },
-  {
-    id: 'local-bing',
-    name: 'Bing',
-    type: 'local',
-    websites: {
-      official: 'https://www.bing.com'
-    },
-    defaultApiHost: 'https://cn.bing.com/search?q=%s&ensearch=1'
+  'local-bing': {
+    official: 'https://www.bing.com'
   },
-  {
-    id: 'local-baidu',
-    name: 'Baidu',
-    type: 'local',
-    websites: {
-      official: 'https://www.baidu.com'
-    },
-    defaultApiHost: 'https://www.baidu.com/s?wd=%s'
+  'local-baidu': {
+    official: 'https://www.baidu.com'
   }
-]
-
-/**
- * Get provider template by ID
- */
-export function getProviderTemplate(id: string): WebSearchProviderTemplate | undefined {
-  return WEB_SEARCH_PROVIDER_TEMPLATES.find((p) => p.id === id)
 }
 
 /**
- * Check if a provider ID is valid
+ * Get provider websites by ID
  */
-export function isValidProviderId(id: string): boolean {
-  return WEB_SEARCH_PROVIDER_TEMPLATES.some((p) => p.id === id)
+export function getProviderWebsites(id: string): WebSearchProviderWebsites | undefined {
+  return WEB_SEARCH_PROVIDER_WEBSITES[id]
 }
 
 // =============================================================================
 // Legacy exports for backward compatibility
-// TODO: Remove in future version after migration is complete
+// TODO: Remove after Redux store migration is complete
 // =============================================================================
 
-/**
- * @deprecated Use WEB_SEARCH_PROVIDER_TEMPLATES instead
- */
-export const WEB_SEARCH_PROVIDER_CONFIG = Object.fromEntries(
-  WEB_SEARCH_PROVIDER_TEMPLATES.map((p) => [p.id, { websites: p.websites }])
-)
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 /**
- * @deprecated Use WEB_SEARCH_PROVIDER_TEMPLATES instead
+ * @deprecated Use Preference 'websearch.providers' instead
  */
-export const WEB_SEARCH_PROVIDERS = WEB_SEARCH_PROVIDER_TEMPLATES.map((p) => ({
-  id: p.id,
-  name: p.name,
-  apiHost: p.defaultApiHost ?? '',
-  apiKey: '',
-  ...(p.type === 'local' ? { url: p.defaultApiHost } : {})
-}))
+export const WEB_SEARCH_PROVIDERS = DefaultPreferences.default['websearch.providers']
