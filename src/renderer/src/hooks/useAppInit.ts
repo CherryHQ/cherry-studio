@@ -236,8 +236,7 @@ export function useAppInit() {
 
         const targetBlock = allBlocks.find((block) => {
           if (block.type !== MessageBlockType.TOOL) return false
-          const toolBlock = block as { metadata?: { rawMcpToolResponse?: { toolCallId?: string } } }
-          return toolBlock.metadata?.rawMcpToolResponse?.toolCallId === payload.toolCallId
+          return block.metadata?.rawMcpToolResponse?.toolCallId === payload.toolCallId
         })
 
         if (!targetBlock) {
