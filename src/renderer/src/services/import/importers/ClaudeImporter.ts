@@ -88,6 +88,36 @@ export class ClaudeImporter implements ConversationImporter {
   }
 
   /**
+   * Extract model bucket info for batch import grouping.
+   * Returns { key, label } for model-based assistant grouping, or null if unknown.
+   * @implements ConversationImporter.getModelBucket
+   */
+  getModelBucket(fileContent: string): { key: string; label: string } | null {
+    try {
+      const parsed = JSON.parse(fileContent)
+      const conversations = Array.isArray(parsed) ? parsed : [parsed]
+      const models = new Set<string>()
+
+      for (const conversation of conversations) {
+        const model = typeof conversation?.model === 'string' ? conversation.model.trim() : ''
+        if (model) models.add(model)
+      }
+
+      if (models.size === 1) {
+        const modelKey = Array.from(models)[0]
+        return { key: modelKey, label: this.getAssistantModelLabel(modelKey) }
+      }
+      if (models.size > 1) {
+        // Use generic i18n key for user-visible string
+        return { key: '__mixed__', label: i18n.t('import.model.mixed', { defaultValue: 'Mixed Models' }) }
+      }
+      return null // Unknown - ImportService will use fallback with i18n
+    } catch {
+      return null
+    }
+  }
+
+  /**
    * Parse Claude conversations and convert to unified format
    * @param options.importAllBranches - If true, imports ALL branches (edit history, regenerations)
    *                                    If false (default), imports only the current/main branch
@@ -383,7 +413,7 @@ export class ClaudeImporter implements ConversationImporter {
 
   public getAssistantModelLabel(modelString: string | null): string {
     if (!modelString) {
-      return 'Unknown Model'
+      return i18n.t('import.model.unknown', { defaultValue: 'Unknown Model' })
     }
 
     const displayName = this.getModelDisplayName(modelString)
@@ -612,7 +642,14 @@ export class ClaudeImporter implements ConversationImporter {
 
       // Use conversation name as topic name (with branch suffix for non-main branches)
       const baseName = conversation.name || i18n.t('import.claude.untitled_conversation')
-      const topicName = branchIndex === 0 ? baseName : `${baseName} (branch ${branchIndex + 1})`
+      const topicName =
+        branchIndex === 0
+          ? baseName
+          : i18n.t('import.claude.branch_name', {
+              name: baseName,
+              index: branchIndex + 1,
+              defaultValue: `${baseName} (branch ${branchIndex + 1})`
+            })
 
       // Create topic
       const topic: Topic = {

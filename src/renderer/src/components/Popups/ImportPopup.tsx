@@ -68,16 +68,19 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
 
     logger.info('Found files', { count: filePaths?.length, sample: filePaths?.slice(0, 5) })
 
+    // Helper: check for absolute path on both Unix and Windows
+    const isAbsolutePath = (p: string) => p.startsWith('/') || /^[A-Za-z]:/.test(p)
+
     // Log any non-absolute paths for debugging
-    const invalidPaths = (filePaths || []).filter((p: string) => !p.startsWith('/'))
+    const invalidPaths = (filePaths || []).filter((p: string) => !isAbsolutePath(p))
     if (invalidPaths.length > 0) {
       logger.warn('Found non-absolute paths', { count: invalidPaths.length, sample: invalidPaths.slice(0, 5) })
     }
 
     // Filter to only JSON files (exclude summary files and artifacts folders)
     const jsonFilePaths = (filePaths || []).filter((filePath: string) => {
-      // Must be an absolute path (starts with /)
-      if (!filePath.startsWith('/')) return false
+      // Must be an absolute path (Unix: /... or Windows: C:/...)
+      if (!isAbsolutePath(filePath)) return false
       const fileName = filePath.split('/').pop() || ''
       const isJson = fileName.endsWith('.json')
       const isNotSummary = fileName !== '.json' // Exclude summary file at root
