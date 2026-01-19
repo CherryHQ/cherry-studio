@@ -439,10 +439,6 @@ export interface PpioPainting extends PaintingParams {
   ppioSeed?: number // 使用 ppioSeed 避免与其他 Painting 类型的 seed (string) 冲突
   usePreLlm?: boolean
   addWatermark?: boolean
-  watermarkPosition?: number
-  watermarkLanguage?: number
-  watermarkOpacity?: number
-  watermarkText?: string
   taskId?: string
   ppioStatus?: 'pending' | 'processing' | 'succeeded' | 'failed'
   // Edit 模式相关

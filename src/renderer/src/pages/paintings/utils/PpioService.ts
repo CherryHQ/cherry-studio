@@ -176,10 +176,7 @@ class PpioService {
     // 水印配置
     if (painting.addWatermark) {
       params.logo_info = {
-        add_logo: true,
-        position: painting.watermarkPosition ?? 0,
-        language: painting.watermarkLanguage ?? 0,
-        opacity: painting.watermarkOpacity ?? 1
+        add_logo: true
       }
     }
 
