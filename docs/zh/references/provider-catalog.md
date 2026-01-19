@@ -40,7 +40,7 @@ Model Provider Presets 是一个元数据驱动的模型管理系统，旨在统
 │   Presets (packages/catalog)        │
 │   ─────────────────────────────────│
 │   ✓ 2779 个模型（含能力标记）        │
-│   ✓ 8 种推理实现类型                 │
+│   ✓ 9 种推理实现类型                 │
 │   ✓ 3407 条提供商映射               │
 │   ✓ Zod Schema 验证                │
 └─────────────────────────────────────┘
@@ -78,7 +78,7 @@ overrides.json
 
 ## 模型能力类型
 
-Presets 定义了 18 种模型能力类型：
+Presets 定义了 17 种模型能力类型：
 
 | 能力类型 | 说明 |
 | --- | --- |
@@ -104,7 +104,7 @@ Presets 定义了 18 种模型能力类型：
 
 ## 推理配置类型
 
-### Presets Schema (8 种)
+### Presets Schema (9 种)
 
 ```typescript
 Reasoning =
@@ -116,6 +116,7 @@ Reasoning =
   | Qwen            // enable_thinking + budgetTokens
   | Doubao          // enabled|disabled|auto
   | DashScope       // enable_thinking + incremental_output
+  | Self-Hosted     // chat_template_kwargs
 ```
 
 ### 运行时配置 (31 种) - 需迁移
@@ -213,40 +214,15 @@ packages/catalog/              →    packages/model-provider-presets/
 
 ### 用户数据 Schema
 
-```sql
--- 用户自定义提供商
-CREATE TABLE user_provider (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  api_host TEXT NOT NULL,
-  api_key TEXT,           -- 加密存储
-  settings JSON,
-  created_at INTEGER,
-  updated_at INTEGER
-);
+用户自定义数据存入 SQLite，包含三张表：
 
--- 用户添加的模型
-CREATE TABLE user_model (
-  id TEXT PRIMARY KEY,
-  provider_id TEXT NOT NULL,
-  model_id TEXT NOT NULL,
-  display_name TEXT,
-  settings JSON,
-  created_at INTEGER,
-  updated_at INTEGER,
-  UNIQUE(provider_id, model_id)
-);
+| 表名 | 用途 |
+| --- | --- |
+| `user_provider` | 用户创建的全新提供商 |
+| `user_model` | 用户添加的全新模型 |
+| `user_model_override` | 用户对预设模型的覆盖 |
 
--- 用户对预设模型的覆盖
-CREATE TABLE user_model_override (
-  provider_id TEXT NOT NULL,
-  model_id TEXT NOT NULL,
-  override_data JSON,
-  created_at INTEGER,
-  updated_at INTEGER,
-  PRIMARY KEY(provider_id, model_id)
-);
-```
+> 详细表结构见下文 [Schema 调整计划 - 用户数据 Schema](#4-用户数据-schema-sqlite) 章节。
 
 ### 唯一 ModelId 设计
 
@@ -558,10 +534,9 @@ ModernAiProvider.completions(uniqueModelId, params, config)
 │    └─ capabilities.includes('FUNCTION_CALL')               │
 ├────────────────────────────────────────────────────────────┤
 │ 3. 推理配置 (从 Presets 读取)                               │
-│    const reasoning = modelConfig.reasoning                 │
-│    ├─ reasoning.type → 'anthropic' | 'openai_chat' | ...   │
-│    ├─ reasoning.supported_efforts → ['low', 'medium', ...] │
-│    └─ reasoning.budget_tokens_range → [1024, 128000]       │
+│    ├─ modelConfig.reasoning.type → 'anthropic' | ...       │
+│    ├─ modelConfig.supported_reasoning_efforts              │
+│    └─ modelConfig.thinking_token_limits                    │
 ├────────────────────────────────────────────────────────────┤
 │ 4. Middleware 构建 (基于 Presets 配置)                      │
 │    buildAiSdkMiddlewares({                                 │
@@ -869,23 +844,8 @@ data/overrides.json → data/provider-models.json
 
 ### 4. 用户数据 Schema (SQLite)
 
-#### 字段设计原则
-
-**Catalog Schema** (Presets):
-- 完整元数据 (capabilities, pricing, reasoning, parameters, modalities...)
-- 用于验证 JSON 文件格式
-- **只读**，不允许用户修改
-
-**User Data Schema** (SQLite):
-- 仅存储**用户自定义部分**
-- `user_provider`: 用户创建的全新提供商 (不在 Presets 中)
-- `user_model`: 用户添加的全新模型 (不在 Presets 中)
-- `user_model_override`: 对 Presets 模型的部分覆盖 (仅存储差异)
-
-**Runtime Type**:
-- 合并后的最终类型
-- aiCore 和 UI 组件使用此类型
-- 包含来源追踪 (`source: 'preset' | 'user' | 'api'`)
+> **注意**: 用户数据 Schema 仅存储用户自定义部分，Catalog Presets 数据不写入数据库。
+> 三种 Schema 类型的对比见上文"三种 Schema 类型对比"章节。
 
 #### user_provider 表
 
