@@ -310,6 +310,158 @@ CacheService.invalidate('presets')
 
 ---
 
+## 用户添加模型流程
+
+### 当前流程
+
+用户有**三种方式**添加模型：
+
+#### 方式 1: 手动输入 (AddModelPopup)
+
+```
+用户点击 "添加模型"
+     ↓
+┌────────────────────────────────────────┐
+│ AddModelPopup                          │
+│ ├─ Model ID (必填，支持逗号分隔批量添加) │
+│ ├─ Model Name (可选，默认 = ID大写)     │
+│ └─ Group (可选，自动从ID推断)           │
+└────────────────────────────────────────┘
+     ↓
+验证 (重复检测)
+     ↓
+enrichModel()
+├─ supported_text_delta = !isNotSupportTextDeltaModel()
+├─ name = name || id.toUpperCase()
+└─ group = group || getDefaultGroupName(id)
+     ↓
+dispatch(addModel({ providerId, model }))
+     ↓
+Redux: state.llm.providers[providerId].models.push(model)
+     ↓
+LocalStorage 持久化
+```
+
+#### 方式 2: 从提供商获取 (ManageModelsPopup)
+
+```
+用户点击 "管理模型"
+     ↓
+fetchModels(provider) → 调用 /v1/models API
+     ↓
+┌────────────────────────────────────────┐
+│ ManageModelsPopup                      │
+│ ├─ 合并: systemModels + fetchedModels │
+│ ├─ 分组显示 (按 group 字段)            │
+│ ├─ 筛选: All/Reasoning/Vision/...     │
+│ └─ 搜索: 模糊匹配                      │
+└────────────────────────────────────────┘
+     ↓
+用户勾选要添加的模型
+     ↓
+dispatch(addModel(...)) × N
+```
+
+#### 方式 3: NewApi 特殊处理
+
+```
+NewApiAddModelPopup
+├─ Model ID
+├─ Model Name
+├─ Group
+└─ Endpoint Type (必填: chat/embedding/image-generation/...)
+```
+
+### 模型数据结构
+
+```typescript
+type Model = {
+  id: string                        // 模型标识符
+  provider: string                  // 提供商ID
+  name: string                      // 显示名称
+  group: string                     // 分组 (如 "GPT-4", "Claude")
+
+  // 可选字段
+  owned_by?: string
+  description?: string
+  capabilities?: ModelCapability[]  // 能力标记 (当前未使用)
+  type?: ModelType[]
+  pricing?: ModelPricing
+  endpoint_type?: EndpointType
+  supported_text_delta?: boolean    // 是否支持流式
+}
+```
+
+### 存储位置
+
+```
+Redux Store (store/llm.ts)
+├─ state.llm.providers[]
+│   └─ models[]
+│       ├─ 用户添加的模型
+│       └─ 从 API 获取的模型
+│
+└─ 持久化到 LocalStorage (redux-persist)
+```
+
+### 目标流程
+
+重构后，用户添加的模型将存入 SQLite：
+
+```
+用户添加模型
+     ↓
+┌────────────────────────────────────────┐
+│ AddModelPopup (保持不变)               │
+│ ├─ Model ID                            │
+│ ├─ Model Name                          │
+│ └─ Group                               │
+└────────────────────────────────────────┘
+     ↓
+检查 Presets 是否有此模型定义
+├─ 有 → 创建 user_model_override (只存覆盖字段)
+└─ 无 → 创建 user_model (完整定义)
+     ↓
+DataApi.createUserModel() 或 DataApi.createUserModelOverride()
+     ↓
+SQLite 持久化
+     ↓
+CacheService.invalidate('models')
+```
+
+### 模型合并优先级
+
+```
+resolveModelConfig(uniqueModelId)
+     ↓
+┌─────────────────────────────────────────────────────────────┐
+│                     优先级 (高 → 低)                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1. user_model_override    用户对预设模型的覆盖              │
+│         ↓                                                   │
+│  2. user_model             用户完全自定义的模型              │
+│         ↓                                                   │
+│  3. provider-models.json   提供商-模型映射                  │
+│         ↓                                                   │
+│  4. models.json            规范模型定义                     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 关键文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `ModelList/AddModelPopup.tsx` | 手动添加模型弹窗 |
+| `ModelList/ManageModelsPopup.tsx` | 从 API 获取并管理模型 |
+| `ModelList/NewApiAddModelPopup.tsx` | NewApi 特殊处理 |
+| `store/llm.ts` | Redux actions: addModel/removeModel/updateModel |
+| `hooks/useProvider.ts` | React Hook 封装 |
+| `services/ApiService.ts` | `fetchModels()` 远程获取 |
+
+---
+
 ## 与 aiCore 集成
 
 ### aiCore 架构概述
@@ -512,6 +664,511 @@ ModernAiProvider.completions(uniqueModelId, params, config)
 | `src/renderer/src/config/models/reasoning.ts` | 777 | 推理模型检测 |
 | `src/renderer/src/config/models/default.ts` | 1857 | 默认模型列表 |
 | `src/renderer/src/config/models/vision.ts` | 264 | 视觉模型检测 |
+
+---
+
+## Schema 调整计划
+
+### 概述
+
+将双系统架构（Presets + 运行时正则检测）统一为基于 capabilities 的模型管理系统。
+
+### 三种 Schema 类型对比
+
+| 层级 | 位置 | 用途 | 数据来源 |
+|------|------|------|----------|
+| **Catalog Schema** | `packages/catalog/src/schemas/` | 验证 Presets JSON | 打包在应用中的模板数据 |
+| **User Data Schema** | `src/main/data/db/schemas/` | 持久化用户数据 | 用户自定义/覆盖 |
+| **Runtime Type** | `packages/shared/src/types/` | 应用运行时使用 | Presets + User Data 合并结果 |
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      数据流向                                │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Catalog JSON (Presets)          User SQLite (自定义)       │
+│  ─────────────────────          ────────────────────        │
+│  models.json (2779条)           user_model (用户添加)       │
+│  providers.json (51条)          user_provider (用户创建)    │
+│  provider-models.json           user_model_override (覆盖)  │
+│                                                              │
+│          ↓                              ↓                    │
+│          └──────────────┬───────────────┘                   │
+│                         ↓                                    │
+│                  resolveModelConfig()                        │
+│                         ↓                                    │
+│                  RuntimeModel / RuntimeProvider              │
+│                  (运行时统一类型)                            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 1. ModelSchema (Presets) 调整
+
+**文件**: `packages/catalog/src/schemas/model.ts`
+
+#### 新增字段
+
+```typescript
+// 1. 支持的推理努力级别 (替代 reasoning.ts 中 65 行硬编码)
+supported_reasoning_efforts: z.array(
+  z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'auto'])
+).optional()
+
+// 2. 默认推理努力级别
+default_reasoning_effort: z.enum([
+  'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'auto'
+]).optional()
+
+// 3. 流式输出支持 (替代 supported_text_delta)
+supports_streaming: z.boolean().default(true)
+
+// 4. 模型标签 (UI 筛选用)
+tags: z.array(z.string()).optional()  // ['free', 'preview', 'deprecated']
+
+// 5. 思考 Token 限制范围 (替代 THINKING_TOKEN_MAP 23 正则)
+thinking_token_limits: z.object({
+  min: z.number().optional(),
+  max: z.number().optional(),
+  default: z.number().optional()
+}).optional()
+```
+
+#### 关于 reasoning.type
+
+**无需新增字段**。现有 `reasoning.type` 已定义 9 种 discriminated union：
+
+| reasoning.type | 说明 |
+|----------------|------|
+| `openai-chat` | OpenAI Chat API (reasoning_effort) |
+| `openai-responses` | OpenAI Responses API (effort + summary) |
+| `anthropic` | Anthropic (budgetTokens) |
+| `gemini` | Gemini (thinking_config / thinking_level) |
+| `openrouter` | OpenRouter (effort / max_tokens) |
+| `qwen` | Qwen (enable_thinking + thinking_budget) |
+| `doubao` | Doubao (enabled/disabled/auto) |
+| `dashscope` | DashScope (enable_thinking + incremental_output) |
+| `self-hosted` | 自托管 (chat_template_kwargs) |
+
+运行时 `reasoning.ts` 中 31 种硬编码类型本质是将模型 ID 模式匹配到这 9 种 API 配置类型。重构后：
+- **不需要 `thinking_model_type` 字段**
+- 直接使用 `reasoning.type` 字段
+- 模型 → reasoning.type 的映射通过 Presets 数据完成，不再硬编码
+
+---
+
+### 2. ProviderSchema (Presets) 调整
+
+**文件**: `packages/catalog/src/schemas/provider.ts`
+
+#### 新增字段
+
+```typescript
+// 1. Provider 类型 (用于 aiCore 路由)
+provider_type: z.enum([
+  'openai', 'openai-response', 'anthropic', 'gemini',
+  'azure-openai', 'vertexai', 'mistral', 'aws-bedrock',
+  'vertex-anthropic', 'new-api', 'gateway', 'ollama'
+]).optional()
+
+// 2. Service Tier 支持 (OpenAI/Groq)
+service_tier_support: z.object({
+  supported: z.boolean().default(false),
+  options: z.array(z.enum([
+    'auto', 'default', 'flex', 'priority', 'on_demand'
+  ])).optional()
+}).optional()
+
+// 3. Anthropic 缓存控制
+cache_control_support: z.object({
+  supported: z.boolean().default(false),
+  default_token_threshold: z.number().optional(),
+  default_cache_system_message: z.boolean().optional(),
+  default_cache_last_n_messages: z.number().optional()
+}).optional()
+
+// 4. 默认速率限制
+default_rate_limit: z.number().optional()
+
+// 5. 额外 Headers 模板
+extra_headers_template: z.record(z.string(), z.string()).optional()
+```
+
+#### 重命名字段
+
+```typescript
+// api_compatibility → api_features (语义更清晰)
+api_features: z.object({
+  supports_array_content: z.boolean().default(true),
+  supports_stream_options: z.boolean().default(true),
+  supports_developer_role: z.boolean().default(true),
+  supports_service_tier: z.boolean().default(false),
+  supports_thinking_control: z.boolean().default(true),
+  supports_api_version: z.boolean().default(true),
+  supports_verbosity: z.boolean().default(true)  // 新增
+}).optional()
+```
+
+---
+
+### 3. OverrideSchema → ProviderModelsSchema
+
+**文件**: `packages/catalog/src/schemas/override.ts` → `provider-models.ts`
+
+#### 重命名与重构
+
+```typescript
+// 主 Schema：提供商-模型映射
+export const ProviderModelMappingSchema = z.object({
+  // 复合键
+  provider_id: ProviderIdSchema,
+  model_id: ModelIdSchema,
+
+  // 可用性
+  enabled: z.boolean().default(true),
+
+  // 提供商特定 Model ID (如与规范 ID 不同)
+  provider_model_id: z.string().optional(),
+
+  // 覆盖项
+  capabilities_override: CapabilityOverrideSchema.optional(),
+  limits_override: LimitsOverrideSchema.optional(),
+  pricing_override: PricingOverrideSchema.optional(),
+  reasoning_override: ReasoningOverrideSchema.optional(),  // 覆盖 reasoning.type 等
+
+  // 端点类型覆盖
+  endpoint_type_override: z.enum([
+    'openai', 'openai-response', 'anthropic', 'gemini',
+    'image-generation', 'jina-rerank'
+  ]).optional(),
+
+  // 废弃
+  deprecated: z.boolean().default(false),
+  replace_with: ModelIdSchema.optional(),
+
+  // 排序
+  priority: z.number().default(0)
+})
+
+// 容器 Schema
+export const ProviderModelsListSchema = z.object({
+  version: VersionSchema,
+  mappings: z.array(ProviderModelMappingSchema)
+})
+```
+
+#### 文件重命名
+
+```
+data/overrides.json → data/provider-models.json
+```
+
+---
+
+### 4. 用户数据 Schema (SQLite)
+
+#### 字段设计原则
+
+**Catalog Schema** (Presets):
+- 完整元数据 (capabilities, pricing, reasoning, parameters, modalities...)
+- 用于验证 JSON 文件格式
+- **只读**，不允许用户修改
+
+**User Data Schema** (SQLite):
+- 仅存储**用户自定义部分**
+- `user_provider`: 用户创建的全新提供商 (不在 Presets 中)
+- `user_model`: 用户添加的全新模型 (不在 Presets 中)
+- `user_model_override`: 对 Presets 模型的部分覆盖 (仅存储差异)
+
+**Runtime Type**:
+- 合并后的最终类型
+- aiCore 和 UI 组件使用此类型
+- 包含来源追踪 (`source: 'preset' | 'user' | 'api'`)
+
+#### user_provider 表
+
+**文件**: `src/main/data/db/schemas/userProvider.ts` (新建)
+
+```typescript
+export const userProviderTable = sqliteTable('user_provider', {
+  id: uuidPrimaryKey(),
+
+  // 核心标识
+  name: text().notNull(),
+  type: text().notNull().default('openai'),
+
+  // 连接设置
+  apiHost: text().notNull(),
+  apiKey: text(),  // 加密存储
+  apiVersion: text(),
+
+  // 功能选项 (JSON)
+  apiOptions: text({ mode: 'json' }).$type<ProviderApiOptions>(),
+
+  // 提供商特定设置 (JSON)
+  settings: text({ mode: 'json' }),
+
+  // 状态
+  enabled: integer({ mode: 'boolean' }).default(true),
+
+  ...createUpdateTimestamps
+})
+```
+
+#### user_model 表
+
+**文件**: `src/main/data/db/schemas/userModel.ts` (新建)
+
+```typescript
+export const userModelTable = sqliteTable('user_model', {
+  // 使用 UniqueModelId 作为主键
+  id: text().primaryKey(),  // 格式: providerId::modelId
+
+  // 分解字段 (便于查询)
+  providerId: text().notNull(),
+  modelId: text().notNull(),
+
+  // 显示
+  displayName: text(),
+  group: text(),
+  description: text(),
+
+  // 能力 (JSON 数组)
+  capabilities: text({ mode: 'json' }).$type<string[]>(),
+
+  // 配置 (JSON)
+  config: text({ mode: 'json' }).$type<Partial<ModelConfig>>(),
+
+  // 路由
+  endpointType: text(),
+
+  // 流式支持
+  supportsStreaming: integer({ mode: 'boolean' }).default(true),
+
+  ...createUpdateTimestamps
+})
+```
+
+#### user_model_override 表
+
+**文件**: `src/main/data/db/schemas/userModelOverride.ts` (新建)
+
+```typescript
+export const userModelOverrideTable = sqliteTable(
+  'user_model_override',
+  {
+    // 复合主键
+    providerId: text().notNull(),
+    modelId: text().notNull(),
+
+    // 能力覆盖
+    capabilitiesAdd: text({ mode: 'json' }).$type<string[]>(),
+    capabilitiesRemove: text({ mode: 'json' }).$type<string[]>(),
+
+    // 显示覆盖
+    displayName: text(),
+    group: text(),
+
+    // 配置覆盖 (JSON)
+    configOverride: text({ mode: 'json' }),
+
+    // 隐藏
+    hidden: integer({ mode: 'boolean' }).default(false),
+
+    ...createUpdateTimestamps
+  },
+  (t) => [primaryKey({ columns: [t.providerId, t.modelId] })]
+)
+```
+
+---
+
+### 5. 运行时类型调整
+
+#### RuntimeModel 类型
+
+**文件**: `packages/shared/src/types/model.ts` (新建)
+
+```typescript
+// UniqueModelId 格式
+export type UniqueModelId = `${string}::${string}`
+
+export type RuntimeModel = {
+  // 核心标识
+  uniqueId: UniqueModelId
+  id: string
+  provider: string
+  name: string
+  group: string
+
+  // 元数据
+  owned_by?: string
+  description?: string
+
+  // 能力 (从 Presets 填充)
+  capabilities: ModelCapabilityType[]
+
+  // 推理配置 (从 Presets reasoning 字段填充)
+  reasoning?: Reasoning  // 包含 type: 'openai-chat' | 'anthropic' | ... 9 种
+  supportedReasoningEfforts?: readonly string[]
+  thinkingTokenLimits?: { min?: number; max?: number; default?: number }
+
+  // Token 限制
+  contextWindow?: number
+  maxOutputTokens?: number
+  maxInputTokens?: number
+
+  // 定价
+  pricing?: RuntimeModelPricing
+
+  // 路由
+  endpointType?: RuntimeEndpointType
+  supportedEndpointTypes?: RuntimeEndpointType[]
+
+  // 流式
+  supportsStreaming: boolean
+
+  // 来源追踪
+  source: 'preset' | 'user' | 'api'
+
+  // 标签
+  tags?: string[]
+}
+```
+
+#### RuntimeProvider 类型
+
+**文件**: `packages/shared/src/types/provider.ts` (新建)
+
+```typescript
+export type RuntimeProvider = {
+  // 核心标识
+  id: string
+  name: string
+  type: RuntimeProviderType
+
+  // 连接
+  apiHost: string
+  apiKey?: string
+  apiVersion?: string
+
+  // 模型列表
+  models: RuntimeModel[]
+
+  // 状态
+  enabled: boolean
+  isSystem: boolean
+  isAuthed: boolean
+
+  // API 选项 (从 Presets + 用户合并)
+  apiOptions: ResolvedApiOptions
+
+  // OpenAI/Groq 特定
+  serviceTier?: RuntimeServiceTier
+  verbosity?: RuntimeVerbosity
+
+  // 速率限制
+  rateLimit?: number
+
+  // Anthropic 缓存
+  anthropicCacheControl?: AnthropicCacheControlSettings
+
+  // 额外 Headers
+  extraHeaders?: Record<string, string>
+
+  // 来源追踪
+  source: 'preset' | 'user'
+}
+
+export type RuntimeProviderType =
+  | 'openai' | 'openai-response' | 'anthropic' | 'gemini'
+  | 'azure-openai' | 'vertexai' | 'mistral' | 'aws-bedrock'
+  | 'vertex-anthropic' | 'new-api' | 'gateway' | 'ollama'
+```
+
+---
+
+### 6. 共享类型包
+
+#### 包结构
+
+```
+packages/shared/
+├── package.json
+├── src/
+│   ├── index.ts
+│   ├── types/
+│   │   ├── index.ts
+│   │   ├── model.ts        # RuntimeModel, UniqueModelId
+│   │   ├── provider.ts     # RuntimeProvider
+│   │   └── capability.ts   # 重导出 catalog 类型
+│   └── utils/
+│       ├── uniqueModelId.ts  # 解析/格式化工具
+│       └── mergeConfig.ts    # 配置合并工具
+```
+
+#### UniqueModelId 工具函数
+
+```typescript
+// packages/shared/src/utils/uniqueModelId.ts
+
+const SEPARATOR = '::'
+
+export function formatUniqueModelId(
+  providerId: string,
+  modelId: string
+): UniqueModelId {
+  return `${providerId}${SEPARATOR}${modelId}` as UniqueModelId
+}
+
+export function parseUniqueModelId(
+  uniqueId: UniqueModelId
+): { providerId: string; modelId: string } {
+  const idx = uniqueId.indexOf(SEPARATOR)
+  if (idx === -1) throw new Error(`Invalid UniqueModelId: ${uniqueId}`)
+  return {
+    providerId: uniqueId.slice(0, idx),
+    modelId: uniqueId.slice(idx + SEPARATOR.length)
+  }
+}
+
+export function isUniqueModelId(value: string): value is UniqueModelId {
+  return value.includes(SEPARATOR)
+}
+```
+
+---
+
+### 7. 关键变更对照
+
+| 组件 | 当前 | 目标 |
+|------|------|------|
+| 推理类型 | 31 种硬编码 (reasoning.ts) | `reasoning.type` (9 种 discriminated union) |
+| 推理努力 | `MODEL_SUPPORTED_REASONING_EFFORT` | `supported_reasoning_efforts` 字段 |
+| Token 限制 | `THINKING_TOKEN_MAP` (23 正则) | `thinking_token_limits` 字段 |
+| 流式支持 | `supported_text_delta` | `supports_streaming` |
+| 能力检测 | 150+ 正则函数 | `capabilities.includes()` |
+| Provider 类型 | 运行时推断 | `provider_type` 字段 |
+| 模型标识 | `provider` + `id` 分离 | `UniqueModelId` (`providerId::modelId`) |
+
+---
+
+### 8. 关键文件索引
+
+| 文件 | 操作 | 优先级 |
+|------|------|--------|
+| `packages/catalog/src/schemas/model.ts` | 新增 5 个字段 + 说明 reasoning.type | 高 |
+| `packages/catalog/src/schemas/provider.ts` | 新增 5 个字段，重命名 1 个 | 高 |
+| `packages/catalog/src/schemas/override.ts` | 重命名为 provider-models.ts，重构 | 高 |
+| `packages/catalog/data/overrides.json` | 重命名为 provider-models.json | 高 |
+| `src/main/data/db/schemas/userProvider.ts` | 新建 | 高 |
+| `src/main/data/db/schemas/userModel.ts` | 新建 | 高 |
+| `src/main/data/db/schemas/userModelOverride.ts` | 新建 | 高 |
+| `packages/shared/` | 新建包 | 中 |
+| `src/renderer/src/types/index.ts` | 更新 Model 类型 | 中 |
+| `src/renderer/src/types/provider.ts` | 更新 Provider 类型 | 中 |
 
 ---
 
