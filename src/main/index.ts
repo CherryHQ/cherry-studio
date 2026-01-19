@@ -153,7 +153,6 @@ if (!app.requestSingleInstanceLock()) {
       await dbService.init()
       await dbService.migrateDb()
       await dbService.migrateSeed('preference')
-      await dbService.migrateSeed('websearchProvider')
     } catch (error) {
       logger.error('Failed to initialize database', error as Error)
       //TODO for v2 testing only:

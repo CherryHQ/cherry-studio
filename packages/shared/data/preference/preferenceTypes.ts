@@ -106,6 +106,31 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
 // ============================================================================
+// WebSearch Types
+// ============================================================================
+
+/**
+ * WebSearch Provider 用户配置
+ * 用户可修改的字段，存储在 Preference 中
+ */
+export interface WebSearchProviderConfig {
+  apiKey?: string
+  apiHost?: string
+  engines?: string[]
+  usingBrowser?: boolean
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+
+/**
+ * 所有 Provider 的配置集合
+ * key 为 provider ID (如 'tavily', 'searxng')
+ */
+export type WebSearchProviderConfigs = {
+  [providerId: string]: WebSearchProviderConfig
+}
+
+// ============================================================================
 // WebSearch Compression Types
 // ============================================================================
 

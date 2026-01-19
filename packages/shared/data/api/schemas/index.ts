@@ -23,7 +23,6 @@ import type { AssertValidSchemas } from '../apiTypes'
 import type { MessageSchemas } from './messages'
 import type { TestSchemas } from './test'
 import type { TopicSchemas } from './topics'
-import type { WebSearchProviderSchemas } from './websearch-providers'
 
 /**
  * Merged API Schemas - single source of truth for all API endpoints
@@ -37,4 +36,4 @@ import type { WebSearchProviderSchemas } from './websearch-providers'
  * 1. Create the schema file (e.g., topic.ts)
  * 2. Import and add to intersection below
  */
-export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas & MessageSchemas & WebSearchProviderSchemas>
+export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas & MessageSchemas>

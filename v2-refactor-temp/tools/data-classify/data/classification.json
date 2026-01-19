@@ -2731,8 +2731,8 @@
           "type": "string",
           "defaultValue": "WEB_SEARCH_PROVIDERS",
           "status": "classified",
-          "category": "dataapi",
-          "targetKey": null
+          "category": "preferences",
+          "targetKey": "websearch.providers"
         },
         {
           "originalKey": "searchWithTime",

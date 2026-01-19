@@ -448,6 +448,8 @@ export interface PreferenceSchemas {
     'websearch.exclude_domains': string[]
     // redux/websearch/maxResults
     'websearch.max_results': number
+    // v2: websearch provider configs (user-modifiable settings)
+    'websearch.providers': PreferenceTypes.WebSearchProviderConfigs
     // redux/websearch/searchWithTime
     'websearch.search_with_time': boolean
   }
@@ -719,6 +721,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'websearch.compression': null,
     'websearch.exclude_domains': [],
     'websearch.max_results': 5,
+    'websearch.providers': {},
     'websearch.search_with_time': true
   }
 }
