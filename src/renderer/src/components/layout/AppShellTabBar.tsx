@@ -1,4 +1,4 @@
-import type { DragEndEvent, DragStartEvent, UniqueIdentifier } from '@dnd-kit/core'
+import type { DragEndEvent, DragMoveEvent, DragStartEvent, UniqueIdentifier } from '@dnd-kit/core'
 import { closestCenter, DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
@@ -20,6 +20,9 @@ type AppShellTabBarProps = {
   closeTab: (id: string) => void
   addTab: (tab: Tab) => void
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
+  detachTab?: (tabId: string) => void
+  /** 是否为分离窗口模式（隐藏 Home tab、"+" 按钮、close icon） */
+  isDetached?: boolean
 }
 
 const TabCornerRight = () => (
@@ -60,12 +63,14 @@ const TabContent = ({
   tab,
   isActive,
   isDragging,
-  onClose
+  onClose,
+  showClose = true
 }: {
   tab: Tab
   isActive: boolean
   isDragging?: boolean
   onClose?: () => void
+  showClose?: boolean
 }) => (
   <>
     {isActive && (
@@ -86,7 +91,7 @@ const TabContent = ({
       style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
       {tab.title}
     </span>
-    {isActive && onClose && !isDragging && (
+    {isActive && onClose && !isDragging && showClose && (
       <div
         role="button"
         tabIndex={0}
@@ -111,12 +116,14 @@ const SortableTabItem = ({
   tab,
   isActive,
   onSelect,
-  onClose
+  onClose,
+  showClose = true
 }: {
   tab: Tab
   isActive: boolean
   onSelect: () => void
   onClose: () => void
+  showClose?: boolean
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id })
 
@@ -142,7 +149,7 @@ const SortableTabItem = ({
           ? 'rounded-t-xs bg-background text-foreground'
           : 'rounded-2xs text-foreground-secondary hover:bg-gray-500/10 hover:text-foreground'
       )}>
-      <TabContent tab={tab} isActive={isActive} isDragging={isDragging} onClose={onClose} />
+      <TabContent tab={tab} isActive={isActive} isDragging={isDragging} onClose={onClose} showClose={showClose} />
     </button>
   )
 }
@@ -254,7 +261,9 @@ export const AppShellTabBar = ({
   setActiveTab,
   closeTab,
   addTab,
-  reorderTabs
+  reorderTabs,
+  detachTab,
+  isDetached = false
 }: AppShellTabBarProps) => {
   const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
     const pinned: Tab[] = []
@@ -276,6 +285,10 @@ export const AppShellTabBar = ({
 
   // 记录拖拽元素的宽度
   const draggedWidthRef = useRef<number>(0)
+  // tabbar 容器 ref，用于检测拖出边界
+  const tabBarRef = useRef<HTMLDivElement>(null)
+  // 追踪拖拽位置（因为 onDragEnd 中 rect.translated 是 null）
+  const lastDragPositionRef = useRef<{ x: number; y: number } | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -308,6 +321,7 @@ export const AppShellTabBar = ({
 
   const handleNormalTabsDragStart = (event: DragStartEvent) => {
     setActiveNormalTabId(event.active.id)
+    lastDragPositionRef.current = null
     // 获取拖拽元素的实际宽度
     const element = document.querySelector(`[data-tab-id="${event.active.id}"]`)
     if (element) {
@@ -315,11 +329,42 @@ export const AppShellTabBar = ({
     }
   }
 
+  const handleNormalTabsDragMove = (event: DragMoveEvent) => {
+    // 追踪拖拽位置
+    const { activatorEvent, delta } = event
+    if (activatorEvent instanceof PointerEvent) {
+      lastDragPositionRef.current = {
+        x: activatorEvent.clientX + delta.x,
+        y: activatorEvent.clientY + delta.y
+      }
+    }
+  }
+
   const handleNormalTabsDragEnd = (event: DragEndEvent) => {
     setActiveNormalTabId(null)
     draggedWidthRef.current = 0
     const { active, over } = event
-    if (over && active.id !== over.id) {
+
+    // 检测是否拖出 tabbar 边界
+    if (tabBarRef.current && lastDragPositionRef.current && detachTab) {
+      const tabBarRect = tabBarRef.current.getBoundingClientRect()
+      const { y } = lastDragPositionRef.current
+
+      // 如果拖拽位置超出 tabbar 垂直范围，触发 detach
+      if (y < tabBarRect.top || y > tabBarRect.bottom) {
+        lastDragPositionRef.current = null
+        detachTab(active.id as string)
+        return
+      }
+    }
+
+    lastDragPositionRef.current = null
+
+    if (!over) {
+      return
+    }
+
+    if (active.id !== over.id) {
       const oldIndex = normalTabs.findIndex((t) => t.id === active.id)
       const newIndex = normalTabs.findIndex((t) => t.id === over.id)
       reorderTabs('normal', oldIndex, newIndex)
@@ -328,12 +373,13 @@ export const AppShellTabBar = ({
 
   return (
     <header
+      ref={tabBarRef}
       className={cn(
         'flex h-10 w-full items-center gap-[4px] bg-neutral-100 [-webkit-app-region:drag] dark:bg-neutral-900',
         isWin || isLinux ? 'pr-36' : 'pr-4',
         isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-4'
       )}>
-      <HomeTab isActive={activeTabId === HOME_TAB_ID} onClick={handleHomeClick} />
+      {!isDetached && <HomeTab isActive={activeTabId === HOME_TAB_ID} onClick={handleHomeClick} />}
 
       {pinnedTabs.length > 0 && (
         <PinnedTabs
@@ -348,8 +394,8 @@ export const AppShellTabBar = ({
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
-          modifiers={[restrictToHorizontalAxis]}
           onDragStart={handleNormalTabsDragStart}
+          onDragMove={handleNormalTabsDragMove}
           onDragEnd={handleNormalTabsDragEnd}>
           <SortableContext items={normalTabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
             {normalTabs.map((tab) => (
@@ -359,6 +405,7 @@ export const AppShellTabBar = ({
                 isActive={tab.id === activeTabId}
                 onSelect={() => setActiveTab(tab.id)}
                 onClose={() => closeTab(tab.id)}
+                showClose={!isDetached}
               />
             ))}
           </SortableContext>
@@ -378,13 +425,15 @@ export const AppShellTabBar = ({
             ) : null}
           </DragOverlay>
         </DndContext>
-        <button
-          type="button"
-          onClick={handleAddTab}
-          className="flex shrink-0 items-center justify-center p-[8px] [-webkit-app-region:no-drag] hover:bg-[rgba(107,114,128,0.1)]"
-          title="New Tab">
-          <Plus className="size-5" />
-        </button>
+        {!isDetached && (
+          <button
+            type="button"
+            onClick={handleAddTab}
+            className="flex shrink-0 items-center justify-center p-[8px] [-webkit-app-region:no-drag] hover:bg-[rgba(107,114,128,0.1)]"
+            title="New Tab">
+            <Plus className="size-5" />
+          </button>
+        )}
       </div>
     </header>
   )

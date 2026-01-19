@@ -4,7 +4,8 @@ import { TabLRUManager } from '@renderer/services/TabLRUManager'
 import { uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
-import { createContext, ReactNode, use, useCallback, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('TabsContext')
 
@@ -56,6 +57,9 @@ export interface TabsContextValue {
 
   // Drag and drop
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
+
+  // Detach
+  detachTab: (tabId: string) => void
 }
 
 const TabsContext = createContext<TabsContextValue | null>(null)
@@ -358,6 +362,51 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   )
 
   /**
+   * Detach a tab to a new window
+   */
+  const detachTab = useCallback(
+    (tabId: string) => {
+      const tab = tabs.find((t) => t.id === tabId)
+      if (!tab) return
+
+      // Send IPC message to create new window
+      window.electron.ipcRenderer.send('tab:detach', {
+        tabId: tab.id,
+        url: tab.url,
+        title: tab.title,
+        type: tab.type,
+        isPinned: tab.isPinned
+      })
+
+      // Close tab in current window
+      // If it's a pinned tab, we unpin it first to remove it from the list
+      if (tab.isPinned) {
+        setPinnedTabs((prev) => prev.filter((t) => t.id !== tabId))
+      }
+      setNormalTabs((prev) => prev.filter((t) => t.id !== tabId))
+
+      // If it was the active tab, closeTab logic will handle switching to another tab
+      // But since we manually removed it from lists above, we need to handle active tab switch manually if needed
+      // Actually, standard closeTab handles both removal and active switch.
+      // Let's just use closeTab?
+      // closeTab handles pinned/normal distinction.
+      // But for pinned tabs, closeTab only removes it if we unpin it first (or if we modify closeTab).
+      // Wait, normal closeTab logic:
+      /*
+      if (tab.isPinned) {
+        setPinnedTabs((prev) => prev.filter((t) => t.id !== id))
+      } else {
+        setNormalTabs((prev) => prev.filter((t) => t.id !== id))
+      }
+      */
+      // So closeTab is sufficient for removal.
+
+      closeTab(tabId)
+    },
+    [tabs, closeTab, setPinnedTabs] // setPinnedTabs added to deps
+  )
+
+  /**
    * Get the currently active tab
    */
   const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId), [tabs, activeTabId])
@@ -384,6 +433,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     wakeTab,
     pinTab,
     unpinTab,
+
+    // Detach
+    detachTab,
 
     // Drag and drop
     reorderTabs
