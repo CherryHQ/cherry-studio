@@ -160,6 +160,10 @@
 | BasicSettings.tsx | `useDefaultWebSearchProvider`, `useWebSearchProviders`, `useWebSearchSettings` + Redux | `useWebSearchSettings` |
 | BlacklistSettings.tsx | `useBlacklist` + Redux | `useWebSearchSettings` |
 | WebSearchProviderSetting.tsx | `useDefaultWebSearchProvider`, `useWebSearchProvider` | `useWebSearchProvider` |
+| CompressionSettings/RagSettings.tsx | `useWebSearchSettings` | `useWebSearchSettings` |
+| ApiKeyListPopup/list.tsx | `useWebSearchProvider` | `useWebSearchProvider` |
+
+> 所有组件现统一从 `@renderer/hooks/useWebSearch` 导入。
 
 ---
 
@@ -174,21 +178,23 @@
 - [x] maxResults 滑块正常保存
 - [x] excludeDomains 黑名单正常保存
 - [x] Compression 设置正常工作
-- [ ] 运行 `pnpm build:check` 通过(需要迁移check search)
+- [x] 运行 `pnpm build:check` 通过
 
 ---
 
 ## 文件路径汇总
 
-**需要修改**:
-- `src/renderer/src/pages/settings/WebSearchSettings/index.tsx`
-- `src/renderer/src/pages/settings/WebSearchSettings/BasicSettings.tsx`
-- `src/renderer/src/pages/settings/WebSearchSettings/BlacklistSettings.tsx`
-- `src/renderer/src/pages/settings/WebSearchSettings/WebSearchProviderSetting.tsx`
+**已修改**:
+- `src/renderer/src/pages/settings/WebSearchSettings/index.tsx` ✅
+- `src/renderer/src/pages/settings/WebSearchSettings/BasicSettings.tsx` ✅
+- `src/renderer/src/pages/settings/WebSearchSettings/BlacklistSettings.tsx` ✅
+- `src/renderer/src/pages/settings/WebSearchSettings/WebSearchProviderSetting.tsx` ✅
+- `src/renderer/src/pages/settings/WebSearchSettings/CompressionSettings/RagSettings.tsx` ✅
+- `src/renderer/src/components/Popups/ApiKeyListPopup/list.tsx` ✅
 
-**可删除**:
-- `src/renderer/src/pages/settings/WebSearchSettings/AddSubscribePopup.tsx`
+**已删除**:
+- `src/renderer/src/pages/settings/WebSearchSettings/AddSubscribePopup.tsx` ✅
+- `src/renderer/src/hooks/useWebSearchProviders.ts` ✅
 
-**旧代码（迁移完成后删除）**:
-- `src/renderer/src/hooks/useWebSearchProviders.ts`
+**待删除（阶段 2 清理）**:
 - `src/renderer/src/store/websearch.ts`

@@ -13,15 +13,12 @@
 | UI 组件迁移 (其他) | ⏳ | 仍依赖旧 hooks 的组件，见下方列表 |
 | Service 类型兼容 | ✅ | `WebSearchService.checkSearch` 已适配（使用类型断言） |
 | 移除 WebSearchProviderId | ✅ | 已改用 `id: string`，旧类型标记为 `@deprecated` |
-| 删除废弃文件 | ⏳ | `AddSubscribePopup.tsx` ✅, `useWebSearchProviders.ts` ⏳ |
+| 删除废弃文件 | ✅ | `AddSubscribePopup.tsx` ✅, `useWebSearchProviders.ts` ✅ |
 | **验证点** | ✅ | `pnpm build:check` 通过 |
 
-**待迁移组件**（仍使用旧 `useWebSearchProviders.ts`）：
+**待迁移组件**：
 
-| 文件 | 使用的 Hook | 迁移状态 |
-|------|------------|----------|
-| `pages/settings/WebSearchSettings/CompressionSettings/RagSettings.tsx` | `useWebSearchSettings` | ⏳ 类型结构不同 |
-| `components/Popups/ApiKeyListPopup/list.tsx` | `useWebSearchProvider` | ⏳ 类型不兼容 |
+> ✅ 全部组件已迁移至 `useWebSearch.ts`，旧 hooks 文件 `useWebSearchProviders.ts` 已删除。
 
 **已迁移组件**：
 
@@ -29,29 +26,22 @@
 |------|---------|---------|
 | `pages/settings/WebSearchSettings/CompressionSettings/index.tsx` | `useWebSearchSettings` | ✅ `useWebSearch` |
 | `pages/settings/WebSearchSettings/CompressionSettings/CutoffSettings.tsx` | `useWebSearchSettings` | ✅ `useWebSearch` |
+| `pages/settings/WebSearchSettings/CompressionSettings/RagSettings.tsx` | `useWebSearchSettings` | ✅ `useWebSearch` |
 | `pages/home/Inputbar/tools/components/WebSearchQuickPanelManager.tsx` | `useWebSearchProviders` | ✅ `useWebSearch` |
+| `components/Popups/ApiKeyListPopup/list.tsx` | `useWebSearchProvider` | ✅ `useWebSearch` |
 
 **类型迁移说明**：
 
-`WebSearchProviderId` 类型已从代码中移除，改用 `id: string`。以下导出标记为 `@deprecated`，仅为 ApiKeyListPopup 保持向后兼容：
-
-```typescript
-// @deprecated - 仅为向后兼容保留
-export const WebSearchProviderIds = { ... } as const
-export type WebSearchProviderId = keyof typeof WebSearchProviderIds
-export const isWebSearchProviderId = (id: string): id is WebSearchProviderId => { ... }
-```
-
-待 ApiKeyListPopup 迁移完成后可彻底删除。
+`WebSearchProviderId` 类型已从代码中移除，改用 `id: string`。
 
 ### 阶段 2: 清理
 
-| 任务 | 说明 |
-|------|------|
-| 删除 Redux store | `src/renderer/src/store/websearch.ts` |
-| 删除旧 hooks | `src/renderer/src/hooks/useWebSearchProviders.ts` |
-| 删除废弃 UI 组件 | `src/renderer/src/pages/settings/WebSearchSettings/AddSubscribePopup.tsx` |
-| 删除废弃类型 | `WebSearchProviderIds`, `WebSearchProviderId`, `isWebSearchProviderId` (待 ApiKeyListPopup 迁移后) |
+| 任务 | 状态 | 说明 |
+|------|------|------|
+| 删除 Redux store | ⏳ | `src/renderer/src/store/websearch.ts` |
+| 删除旧 hooks | ✅ | `src/renderer/src/hooks/useWebSearchProviders.ts` |
+| 删除废弃 UI 组件 | ✅ | `src/renderer/src/pages/settings/WebSearchSettings/AddSubscribePopup.tsx` |
+| 删除废弃类型 | ✅ | `WebSearchProviderIds`, `WebSearchProviderId`, `isWebSearchProviderId` |
 
 ### 实施原则
 
