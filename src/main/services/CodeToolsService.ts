@@ -87,6 +87,8 @@ class CodeToolsService {
         return '@iflow-ai/iflow-cli'
       case codeTools.githubCopilotCli:
         return '@github/copilot'
+      case codeTools.kimiCli:
+        return 'kimi-cli' // Python package
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -106,6 +108,8 @@ class CodeToolsService {
         return 'iflow'
       case codeTools.githubCopilotCli:
         return 'copilot'
+      case codeTools.kimiCli:
+        return 'kimi'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -647,6 +651,12 @@ class CodeToolsService {
 
     let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
 
+    // Special handling for kimi-cli: use uvx instead of bun
+    if (cliTool === codeTools.kimiCli) {
+      const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
+      baseCommand = `${uvPath} tool run ${packageName}`
+    }
+
     // Add configuration parameters for OpenAI Codex
     if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER && env.OPENAI_MODEL_PROVIDER != 'openai') {
       const provider = env.OPENAI_MODEL_PROVIDER
@@ -666,7 +676,11 @@ class CodeToolsService {
 
     const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
 
-    if (isInstalled) {
+    // Special handling for kimi-cli: uvx handles installation automatically
+    if (cliTool === codeTools.kimiCli) {
+      // uvx will automatically download and run kimi-cli, no need to install
+      // Just use the base command directly
+    } else if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
       if (updateMessage) {
         baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
