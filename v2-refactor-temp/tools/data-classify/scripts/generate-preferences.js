@@ -8,6 +8,7 @@ class PreferencesGenerator {
     this.dataDir = path.resolve(__dirname, '../data')
     this.targetFile = path.resolve(__dirname, '../../../../packages/shared/data/preference/preferenceSchemas.ts')
     this.classificationFile = path.join(this.dataDir, 'classification.json')
+    this.targetKeyDefinitionsFile = path.join(this.dataDir, 'target-key-definitions.json')
   }
 
   generate() {
@@ -17,7 +18,13 @@ class PreferencesGenerator {
     const classification = this.loadClassification()
 
     // 提取preferences相关数据
-    const preferencesData = this.extractPreferencesData(classification)
+    const classificationData = this.extractPreferencesData(classification)
+
+    // 读取target-key-definitions.json（复杂映射的target key定义）
+    const targetKeyDefinitions = this.loadTargetKeyDefinitions()
+
+    // 合并数据：target-key-definitions 覆盖 classification
+    const preferencesData = this.mergeDataSources(classificationData, targetKeyDefinitions)
 
     // 构建类型结构
     const typeStructure = this.buildTypeStructure(preferencesData)
@@ -30,6 +37,84 @@ class PreferencesGenerator {
 
     console.log('preferences.ts 生成完成！')
     this.printSummary(preferencesData)
+  }
+
+  /**
+   * Load target-key-definitions.json for complex mapping target keys
+   * These definitions override or extend classification.json
+   */
+  loadTargetKeyDefinitions() {
+    if (!fs.existsSync(this.targetKeyDefinitionsFile)) {
+      console.log('target-key-definitions.json 不存在，跳过')
+      return { definitions: [] }
+    }
+
+    const content = fs.readFileSync(this.targetKeyDefinitionsFile, 'utf8')
+    const data = JSON.parse(content)
+    console.log(`读取 target-key-definitions.json: ${data.definitions?.length || 0} 项定义`)
+    return data
+  }
+
+  /**
+   * Merge classification data with target-key-definitions
+   * Target-key-definitions take priority (can override or disable keys)
+   */
+  mergeDataSources(classificationData, targetKeyDefinitions) {
+    // Use Map to deduplicate by targetKey, definitions take priority
+    const targetKeyMap = new Map()
+
+    // First add classification data
+    for (const item of classificationData) {
+      if (item.targetKey) {
+        targetKeyMap.set(item.targetKey, {
+          ...item,
+          _source: 'classification'
+        })
+      }
+    }
+
+    const definitionsCount = {
+      added: 0,
+      overridden: 0,
+      disabled: 0
+    }
+
+    // Then process target-key-definitions (override or disable)
+    for (const def of targetKeyDefinitions.definitions || []) {
+      if (def.status === 'classified') {
+        const existed = targetKeyMap.has(def.targetKey)
+        targetKeyMap.set(def.targetKey, {
+          targetKey: def.targetKey,
+          type: def.type,
+          defaultValue: def.defaultValue,
+          source: 'target-key-definitions',
+          sourceCategory: def.source || 'complex',
+          originalKey: def.source || 'complex',
+          fullPath: `target-key-definitions/${def.targetKey}`,
+          _source: 'target-key-definitions'
+        })
+        if (existed) {
+          definitionsCount.overridden++
+          console.log(`  覆盖: ${def.targetKey}`)
+        } else {
+          definitionsCount.added++
+          console.log(`  新增: ${def.targetKey}`)
+        }
+      } else if (def.status === 'pending' && targetKeyMap.has(def.targetKey)) {
+        // status: pending can disable keys from classification
+        targetKeyMap.delete(def.targetKey)
+        definitionsCount.disabled++
+        console.log(`  禁用: ${def.targetKey}`)
+      }
+    }
+
+    if (definitionsCount.added + definitionsCount.overridden + definitionsCount.disabled > 0) {
+      console.log(
+        `target-key-definitions 处理完成: 新增 ${definitionsCount.added}, 覆盖 ${definitionsCount.overridden}, 禁用 ${definitionsCount.disabled}`
+      )
+    }
+
+    return Array.from(targetKeyMap.values())
   }
 
   loadClassification() {
