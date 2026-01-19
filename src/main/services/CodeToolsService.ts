@@ -451,7 +451,7 @@ class CodeToolsService {
       }
     }
 
-    const needsUpdate = !!(installedVersion && latestVersion && installedVersion !== latestVersion)
+    const needsUpdate = !!(latestVersion && isInstalled && (!installedVersion || installedVersion !== latestVersion))
     logger.info(
       `Version check result for ${cliTool}: installed=${installedVersion}, latest=${latestVersion}, needsUpdate=${needsUpdate}`
     )
