@@ -375,6 +375,84 @@ export interface AskUserQuestionToolOutput {
   answers?: AskUserQuestionAnswer
 }
 
+// ==================== Type Guards ====================
+
+/**
+ * Type guard to check if a value is a valid AskUserQuestionOption
+ */
+export function isAskUserQuestionOption(value: unknown): value is AskUserQuestionOption {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  const obj = value as Record<string, unknown>
+  return typeof obj.label === 'string' && (obj.description === undefined || typeof obj.description === 'string')
+}
+
+/**
+ * Type guard to check if a value is a valid AskUserQuestionItem
+ */
+export function isAskUserQuestionItem(value: unknown): value is AskUserQuestionItem {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  const obj = value as Record<string, unknown>
+  return (
+    typeof obj.question === 'string' &&
+    typeof obj.header === 'string' &&
+    Array.isArray(obj.options) &&
+    obj.options.every(isAskUserQuestionOption) &&
+    typeof obj.multiSelect === 'boolean'
+  )
+}
+
+/**
+ * Type guard to check if a value is a valid AskUserQuestionToolInput
+ */
+export function isAskUserQuestionToolInput(value: unknown): value is AskUserQuestionToolInput {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  const obj = value as Record<string, unknown>
+  return Array.isArray(obj.questions) && obj.questions.every(isAskUserQuestionItem)
+}
+
+/**
+ * Type guard to check if a value is a valid AskUserQuestionAnswer
+ */
+export function isAskUserQuestionAnswer(value: unknown): value is AskUserQuestionAnswer {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  return Object.values(value).every((v) => typeof v === 'string')
+}
+
+/**
+ * Type guard to check if a value is a valid AskUserQuestionToolOutput
+ */
+export function isAskUserQuestionToolOutput(value: unknown): value is AskUserQuestionToolOutput {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  const obj = value as Record<string, unknown>
+  return obj.answers === undefined || isAskUserQuestionAnswer(obj.answers)
+}
+
+/**
+ * Safely parse AskUserQuestionToolInput from unknown data.
+ * Returns undefined if the data doesn't match the expected structure.
+ */
+export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
+  return isAskUserQuestionToolInput(value) ? value : undefined
+}
+
+/**
+ * Safely parse AskUserQuestionToolOutput from unknown data.
+ * Returns undefined if the data doesn't match the expected structure.
+ */
+export function parseAskUserQuestionToolOutput(value: unknown): AskUserQuestionToolOutput | undefined {
+  return isAskUserQuestionToolOutput(value) ? value : undefined
+}
+
 // ListMcpResourcesToolInput
 export type ListMcpResourcesToolInput = {
   /**
