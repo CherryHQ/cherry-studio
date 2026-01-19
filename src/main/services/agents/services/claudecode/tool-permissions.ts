@@ -56,6 +56,7 @@ type RendererPermissionResultPayload = {
   message?: string
   reason: 'response' | 'timeout' | 'aborted' | 'no-window'
   toolCallId?: string
+  updatedInput?: Record<string, unknown>
 }
 
 const pendingRequests = new Map<string, PendingPermissionRequest>()
@@ -150,7 +151,8 @@ const finalizeRequest = (
     behavior: update.behavior,
     message: update.behavior === 'deny' ? update.message : undefined,
     reason,
-    toolCallId: pending.toolCallId
+    toolCallId: pending.toolCallId,
+    updatedInput: update.behavior === 'allow' ? update.updatedInput : undefined
   }
 
   const dispatched = broadcastToRenderer(IpcChannel.AgentToolPermission_Result, resultPayload)

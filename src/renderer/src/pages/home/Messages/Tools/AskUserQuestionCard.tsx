@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { selectPendingPermission, selectResolvedInput, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import { Button, Checkbox, Radio, Tag } from 'antd'
 import { CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react'
@@ -11,9 +11,7 @@ import { useTranslation } from 'react-i18next'
 import {
   type AskUserQuestionItem,
   type AskUserQuestionToolInput,
-  type AskUserQuestionToolOutput,
-  parseAskUserQuestionToolInput,
-  parseAskUserQuestionToolOutput
+  parseAskUserQuestionToolInput
 } from './MessageAgentTools/types'
 
 const logger = loggerService.withContext('AskUserQuestionCard')
@@ -244,6 +242,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolResponse.toolCallId))
+  const resolvedInput = useAppSelector((state) => selectResolvedInput(state.toolPermissions, toolResponse.toolCallId))
 
   const isPending = toolResponse.status === 'pending' && !!request
 
@@ -251,8 +250,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     ? parseAskUserQuestionToolInput(request?.input)
     : parseAskUserQuestionToolInput(toolResponse.arguments)
 
-  const completedOutput: AskUserQuestionToolOutput | undefined = parseAskUserQuestionToolOutput(toolResponse.response)
-  const completedAnswers = completedOutput?.answers ?? {}
+  const storeAnswers = (resolvedInput?.answers as Record<string, string>) ?? {}
 
   const questions = useMemo(() => questionInput?.questions ?? [], [questionInput?.questions])
 
@@ -260,6 +258,9 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({})
   const [customInputs, setCustomInputs] = useState<Record<string, string>>({})
   const [showCustomInput, setShowCustomInput] = useState<Record<string, boolean>>({})
+  const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, string>>({})
+
+  const displayAnswers = Object.keys(storeAnswers).length > 0 ? storeAnswers : submittedAnswers
 
   const isSubmitting = request?.status === 'submitting-allow'
   const currentQuestion = questions[currentIndex]
@@ -330,7 +331,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
       }
     }
 
-    logger.debug('Submitting AskUserQuestion answers', { requestId: request.requestId, answers })
+    setSubmittedAnswers(answers)
     dispatch(toolPermissionsActions.submissionSent({ requestId: request.requestId, behavior: 'allow' }))
 
     try {
@@ -341,9 +342,8 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
       })
 
       if (!response?.success) throw new Error('Response rejected by main process')
-      logger.debug('AskUserQuestion answers submitted successfully', { requestId: request.requestId })
     } catch (error) {
-      logger.error('Failed to submit AskUserQuestion answers', error as Error)
+      logger.error('Failed to submit AskUserQuestion answers', { error })
       window.toast?.error?.(t('agent.toolPermission.error.sendFailed'))
       dispatch(toolPermissionsActions.submissionFailed({ requestId: request.requestId }))
     }
@@ -366,7 +366,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     )
   }
 
-  const answeredCount = Object.keys(completedAnswers).length
+  const answeredCount = Object.keys(displayAnswers).length
 
   return (
     <div className="w-full max-w-xl rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
@@ -394,7 +394,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
             onCustomInputChange={(value) => setCustomInputs((prev) => ({ ...prev, [currentQuestion.question]: value }))}
           />
         ) : (
-          <CompletedContent question={currentQuestion} answer={completedAnswers[currentQuestion.question]} />
+          <CompletedContent question={currentQuestion} answer={displayAnswers[currentQuestion.question]} />
         )}
 
         {totalQuestions > 1 && (
