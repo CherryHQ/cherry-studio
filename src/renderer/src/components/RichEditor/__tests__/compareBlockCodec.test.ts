@@ -1,53 +1,27 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  appendCompareMetaToMarkdown,
-  buildCompareBlockMarkerLine,
-  extractCompareMetaFromMarkdown,
-  parseCompareBlockMarkerLine,
-  replaceCompareMarkersForHtml
-} from '../helpers/compareBlockCodec'
+import { buildCaretBlock, encodeBase64Utf8, replaceCaretBlocksForHtml } from '../helpers/compareBlockCodec'
 
 describe('compareBlockCodec', () => {
-  it('roundtrips meta tag (utf-8 safe)', () => {
-    const body = '# 标题\n\n正文\n'
-    const meta = {
-      v: 1 as const,
-      blocks: {
-        cb_1: { content: '对照内容 ✅\n- 列表' }
-      }
-    }
-
-    const full = appendCompareMetaToMarkdown(body, meta)
-    const extracted = extractCompareMetaFromMarkdown(full)
-
-    expect(extracted.cleanMarkdown).toBe(body.trimEnd())
-    expect(extracted.meta).toEqual(meta)
+  it('builds caret block', () => {
+    const content = '第一行\n第二行'
+    expect(buildCaretBlock(content)).toBe(`^^\n${content}\n^^`)
   })
 
-  it('does not strip invalid meta tag to avoid data loss', () => {
-    const body = '正文'
-    const full = `${body}\n\n<cs-compare-meta data-v="1" data-json="not-base64"></cs-compare-meta>\n`
-    const extracted = extractCompareMetaFromMarkdown(full)
+  it('replaces caret blocks for html', () => {
+    const content = 'line1\nline2'
+    const md = ['a', '^^', 'line1', 'line2', '^^', 'b'].join('\n')
+    const out = replaceCaretBlocksForHtml(md)
+    const encoded = encodeBase64Utf8(content)
 
-    expect(extracted.meta).toBeNull()
-    expect(extracted.cleanMarkdown).toBe(full)
-  })
-
-  it('parses and builds compare marker line', () => {
-    const line = '--- <!-- cs-compare-block:cb_abc collapsed=0 -->'
-    const parsed = parseCompareBlockMarkerLine(line)
-    expect(parsed).toEqual({ id: 'cb_abc', collapsed: false })
-
-    const rebuilt = buildCompareBlockMarkerLine({ id: 'cb_abc', collapsed: false })
-    expect(rebuilt).toBe(line)
-  })
-
-  it('replaces marker lines for html', () => {
-    const md = ['a', '--- <!-- cs-compare-block:cb_x collapsed=1 -->', 'b'].join('\n')
-    const out = replaceCompareMarkersForHtml(md)
     expect(out).toContain('<cs-compare-block')
-    expect(out).toContain('data-id="cb_x"')
+    expect(out).toContain(`data-content="${encoded}"`)
     expect(out).toContain('data-collapsed="1"')
+  })
+
+  it('keeps caret delimiter when closing is missing', () => {
+    const md = ['^^', 'line1', 'line2'].join('\n')
+    const out = replaceCaretBlocksForHtml(md)
+    expect(out).toBe(md)
   })
 })

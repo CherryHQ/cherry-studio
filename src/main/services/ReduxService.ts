@@ -17,23 +17,50 @@
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
+import { EventEmitter } from 'events'
 
 import { windowService } from './WindowService'
 
 type StoreValue = any
+type Unsubscribe = () => void
 
 const logger = loggerService.withContext('ReduxService')
 const STORE_READY_TIMEOUT = 10000
 
-export class ReduxService {
+export class ReduxService extends EventEmitter {
   private isReady = false
   private resolveReady!: () => void
   private readyPromise = new Promise<void>((r) => (this.resolveReady = r))
+  private stateCache: any = {}
+
+  private readonly STATUS_CHANGE_EVENT = 'statusChange'
 
   constructor() {
+    super()
+
     ipcMain.handle(IpcChannel.ReduxStoreReady, () => {
       this.isReady = true
       this.resolveReady()
+      this.emit('ready')
+    })
+
+    ipcMain.on(IpcChannel.ReduxStateChange, (_event, payload, enableGit, gitCommitIntervalMinutes) => {
+      let nextState = payload
+
+      if (!payload || typeof payload !== 'object') {
+        nextState = {
+          note: {
+            notesPath: typeof payload === 'string' ? payload : '',
+            settings: {
+              enableGit: Boolean(enableGit),
+              gitCommitIntervalMinutes: gitCommitIntervalMinutes ?? null
+            }
+          }
+        }
+      }
+
+      this.stateCache = nextState
+      this.emit(this.STATUS_CHANGE_EVENT, nextState)
     })
   }
 
@@ -60,9 +87,30 @@ export class ReduxService {
     return mainWindow.webContents
   }
 
+  getStateSync() {
+    return this.stateCache
+  }
+
+  selectSync<T = StoreValue>(selector: string): T | undefined {
+    try {
+      const selectorFn = new Function('state', `return ${selector}`)
+      return selectorFn(this.stateCache)
+    } catch (error) {
+      logger.debug('Failed to select from cache:', error as Error)
+      return undefined
+    }
+  }
+
   // Select state from renderer process
   async select<T = StoreValue>(selector: string): Promise<T> {
     try {
+      if (this.isReady) {
+        const cachedValue = this.selectSync<T>(selector)
+        if (cachedValue !== undefined) {
+          return cachedValue
+        }
+      }
+
       const webContents = await this.getWebContents()
       return await webContents.executeJavaScript(`
         (() => {
@@ -84,6 +132,60 @@ export class ReduxService {
     } catch (error) {
       logger.error('Failed to dispatch action:', error as Error)
       throw error
+    }
+  }
+
+  async subscribe(selector: string, callback: (newValue: any) => void): Promise<Unsubscribe> {
+    const mainWindow = windowService.getMainWindow()
+    if (!mainWindow) {
+      throw new Error('Main window is not available')
+    }
+
+    await this.waitForStoreReady()
+
+    await mainWindow.webContents.executeJavaScript(
+      `
+      if (!window._reduxStateChangeSubscribed) {
+        if (!window._storeSubscriptions) {
+          window._storeSubscriptions = new Set();
+        } else {
+          window._storeSubscriptions.forEach((unsub) => {
+            try {
+              unsub();
+            } catch {
+              // 忽略旧订阅清理失败
+            }
+          });
+          window._storeSubscriptions.clear();
+        }
+
+        const unsubscribe = window.store.subscribe(() => {
+          const state = window.store.getState();
+          const notesPath = typeof state.note?.notesPath === 'string' ? state.note.notesPath : '';
+          const enableGit = Boolean(state.note?.settings?.enableGit);
+          const interval = state.note?.settings?.gitCommitIntervalMinutes ?? null;
+          window.electron.ipcRenderer.send('${IpcChannel.ReduxStateChange}', notesPath, enableGit, interval);
+        });
+
+        window._storeSubscriptions.add(unsubscribe);
+        window._reduxStateChangeSubscribed = true;
+      }
+    `
+    )
+
+    const handler = async () => {
+      try {
+        const newValue = await this.select(selector)
+        callback(newValue)
+      } catch (error) {
+        logger.error('Error in subscription handler:', error as Error)
+      }
+    }
+
+    this.on(this.STATUS_CHANGE_EVENT, handler)
+
+    return () => {
+      this.off(this.STATUS_CHANGE_EVENT, handler)
     }
   }
 

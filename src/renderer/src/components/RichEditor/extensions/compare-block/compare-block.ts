@@ -4,17 +4,8 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Transaction } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 
+import { decodeBase64Utf8, encodeBase64Utf8 } from '../../helpers/compareBlockCodec'
 import { CompareBlockNodeView } from './CompareBlockNodeView'
-
-export interface CompareBlockData {
-  content: string
-}
-
-export interface CompareBlockStorage {
-  blocks: Record<string, CompareBlockData>
-  /** 用于触发“只更新元数据”的持久化回写（正文不变也能保存） */
-  onMetaChange?: () => void
-}
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -23,16 +14,6 @@ declare module '@tiptap/core' {
       insertCompareBlock: () => ReturnType
     }
   }
-}
-
-function nanoIdLike(length = 8): string {
-  // 避免引入额外依赖：优先使用 crypto.randomUUID
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return (crypto as any).randomUUID().replace(/-/g, '').slice(0, length)
-  }
-  return Math.random()
-    .toString(16)
-    .slice(2, 2 + length)
 }
 
 function insertAfterCurrentBlock(editor: Editor, node: ProseMirrorNode): boolean {
@@ -61,24 +42,20 @@ export const CompareBlock = Node.create({
   draggable: true,
   selectable: true,
 
-  addStorage() {
-    const storage: CompareBlockStorage = {
-      blocks: {}
-    }
-    return storage
-  },
-
   addAttributes() {
     return {
-      id: {
-        default: '',
-        parseHTML: (element: HTMLElement) => element.getAttribute('data-id') || '',
-        renderHTML: (attrs: { id: string }) => ({ 'data-id': attrs.id })
-      },
       collapsed: {
         default: true,
         parseHTML: (element: HTMLElement) => (element.getAttribute('data-collapsed') || '1') !== '0',
         renderHTML: (attrs: { collapsed: boolean }) => ({ 'data-collapsed': attrs.collapsed ? '1' : '0' })
+      },
+      content: {
+        default: '',
+        parseHTML: (element: HTMLElement) => {
+          const raw = element.getAttribute('data-content') || ''
+          return decodeBase64Utf8(raw) ?? ''
+        },
+        renderHTML: (attrs: { content: string }) => ({ 'data-content': encodeBase64Utf8(attrs.content || '') })
       }
     }
   },
@@ -104,14 +81,10 @@ export const CompareBlock = Node.create({
       insertCompareBlock:
         () =>
         ({ editor }) => {
-          const id = `cb_${nanoIdLike(10)}`
           const node = editor.schema.nodes.compareBlock.create({
-            id,
-            collapsed: false
+            collapsed: false,
+            content: ''
           })
-          // 初始化空内容，便于立刻粘贴
-          const storage = (editor.storage as any).compareBlock as CompareBlockStorage
-          storage.blocks[id] = storage.blocks[id] ?? { content: '' }
           const ok = insertAfterCurrentBlock(editor, node)
           return ok
         }

@@ -28,6 +28,7 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!src-tauri{,/**}"
   - "!config"
   - "!patches"
   - "!app-upgrade-config.json"

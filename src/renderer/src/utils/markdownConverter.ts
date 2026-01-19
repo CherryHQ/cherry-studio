@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
+import { buildCaretBlock, decodeBase64Utf8 } from '@renderer/components/RichEditor/helpers/compareBlockCodec'
 import type { TurndownPlugin } from '@truto/turndown-plugin-gfm'
 import he from 'he'
 import htmlTags, { type HtmlTags } from 'html-tags'
@@ -13,7 +14,7 @@ const logger = loggerService.withContext('markdownConverter')
 function escapeCustomTags(html: string) {
   // 自定义标签白名单：需要参与 HTML -> Markdown 转换的标签
   // 注意：这些标签会被 Turndown 规则显式处理，不能被转义为纯文本。
-  const allowedCustomTags = new Set(['cs-compare-block', 'cs-compare-meta'])
+  const allowedCustomTags = new Set(['cs-compare-block'])
 
   let result = ''
   let currentPos = 0
@@ -27,7 +28,11 @@ function escapeCustomTags(html: string) {
       // Add content before this tag
       result += html.slice(currentPos, startPos)
 
-      if (!htmlTags.includes(tagname as HtmlTags) && !allowedCustomTags.has(tagname)) {
+      const normalizedTagName = tagname.toLowerCase()
+      const isStandardTag = htmlTags.includes(normalizedTagName as HtmlTags)
+      const isAllowedCustomTag = allowedCustomTags.has(normalizedTagName)
+
+      if (!isStandardTag && !isAllowedCustomTag) {
         // This is a custom tag, escape it
         const tagHtml = html.slice(startPos, endPos + 1)
         result += tagHtml.replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -54,8 +59,11 @@ function escapeCustomTags(html: string) {
       const actualTagHtml = html.slice(startPos, endPos + 1)
       const actualTagMatch = actualTagHtml.match(/<\/([^>]+)>/)
       const actualTagName = actualTagMatch ? actualTagMatch[1] : tagname
+      const normalizedTagName = actualTagName.toLowerCase()
+      const isStandardTag = htmlTags.includes(normalizedTagName as HtmlTags)
+      const isAllowedCustomTag = allowedCustomTags.has(normalizedTagName)
 
-      if (!htmlTags.includes(actualTagName as HtmlTags) && !allowedCustomTags.has(actualTagName)) {
+      if (!isStandardTag && !isAllowedCustomTag) {
         // This is a custom tag, escape it
         result += html.slice(currentPos, startPos)
         result += actualTagHtml.replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -578,15 +586,15 @@ turndownService.addRule('br', {
   replacement: () => '<br>'
 })
 
-// Compare block marker: <cs-compare-block data-id="..." data-collapsed="0|1"></cs-compare-block>
+// Compare block: <cs-compare-block data-content="BASE64" data-collapsed="0|1"></cs-compare-block>
 turndownService.addRule('compareBlock', {
-  filter: (node: Element) => node.nodeName === 'CS-COMPARE-BLOCK',
+  filter: (node: Element) => node.nodeName?.toLowerCase?.() === 'cs-compare-block',
   replacement: (_content: string, node: Node) => {
     const element = node as Element
-    const id = element.getAttribute?.('data-id') || ''
-    if (!id) return ''
-    const collapsed = element.getAttribute?.('data-collapsed') === '1'
-    return `--- <!-- cs-compare-block:${id} collapsed=${collapsed ? '1' : '0'} -->\n\n`
+    const encoded = element.getAttribute?.('data-content') || ''
+    const decoded = encoded ? decodeBase64Utf8(encoded) : ''
+    const content = decoded ?? ''
+    return `${buildCaretBlock(content)}\n\n`
   }
 })
 
@@ -962,7 +970,8 @@ export const isMarkdownContent = (content: string): boolean => {
     /```/, // Code blocks
     /^>/, // Blockquotes
     /\[.*\]\(.*\)/, // Links
-    /!\[.*\]\(.*\)/ // Images
+    /!\[.*\]\(.*\)/, // Images
+    /^\^\^\s*$/m // Caret 折叠块
   ]
 
   return markdownPatterns.some((pattern) => pattern.test(content))
