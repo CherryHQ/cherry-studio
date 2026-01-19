@@ -1,4 +1,5 @@
 import type { CollapseProps } from 'antd'
+import * as z from 'zod'
 
 export enum AgentToolsType {
   Skill = 'Skill',
@@ -326,123 +327,51 @@ export type ExitPlanModeToolInput = {
 }
 export type ExitPlanModeToolOutput = string
 
-// AskUserQuestion 工具的类型定义
-export interface AskUserQuestionOption {
-  /**
-   * The display text for this option
-   */
-  label: string
-  /**
-   * Explanation of what this option means
-   */
-  description?: string
-}
+// AskUserQuestion 工具的类型定义 (使用 Zod)
+export const AskUserQuestionOptionSchema = z.object({
+  /** The display text for this option */
+  label: z.string(),
+  /** Explanation of what this option means */
+  description: z.string().optional()
+})
 
-export interface AskUserQuestionItem {
-  /**
-   * The complete question to ask the user
-   */
-  question: string
-  /**
-   * Very short label displayed as a chip/tag (max 12 chars)
-   */
-  header: string
-  /**
-   * The available choices for this question (2-4 options)
-   */
-  options: AskUserQuestionOption[]
-  /**
-   * Set to true to allow multiple selections
-   */
-  multiSelect: boolean
-}
+export const AskUserQuestionItemSchema = z.object({
+  /** The complete question to ask the user */
+  question: z.string(),
+  /** Very short label displayed as a chip/tag (max 12 chars) */
+  header: z.string(),
+  /** The available choices for this question (2-4 options) */
+  options: z.array(AskUserQuestionOptionSchema),
+  /** Set to true to allow multiple selections */
+  multiSelect: z.boolean()
+})
 
-export interface AskUserQuestionToolInput {
-  /**
-   * Questions to ask the user (1-4 questions)
-   */
-  questions: AskUserQuestionItem[]
-}
+export const AskUserQuestionToolInputSchema = z.object({
+  /** Questions to ask the user (1-4 questions) */
+  questions: z.array(AskUserQuestionItemSchema)
+})
 
-export interface AskUserQuestionAnswer {
-  [questionHeader: string]: string
-}
+export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
 
-export interface AskUserQuestionToolOutput {
-  /**
-   * User answers collected by the permission component
-   */
-  answers?: AskUserQuestionAnswer
-}
+export const AskUserQuestionToolOutputSchema = z.object({
+  /** User answers collected by the permission component */
+  answers: AskUserQuestionAnswerSchema.optional()
+})
 
-// ==================== Type Guards ====================
-
-/**
- * Type guard to check if a value is a valid AskUserQuestionOption
- */
-export function isAskUserQuestionOption(value: unknown): value is AskUserQuestionOption {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const obj = value as Record<string, unknown>
-  return typeof obj.label === 'string' && (obj.description === undefined || typeof obj.description === 'string')
-}
-
-/**
- * Type guard to check if a value is a valid AskUserQuestionItem
- */
-export function isAskUserQuestionItem(value: unknown): value is AskUserQuestionItem {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const obj = value as Record<string, unknown>
-  return (
-    typeof obj.question === 'string' &&
-    typeof obj.header === 'string' &&
-    Array.isArray(obj.options) &&
-    obj.options.every(isAskUserQuestionOption) &&
-    typeof obj.multiSelect === 'boolean'
-  )
-}
-
-/**
- * Type guard to check if a value is a valid AskUserQuestionToolInput
- */
-export function isAskUserQuestionToolInput(value: unknown): value is AskUserQuestionToolInput {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const obj = value as Record<string, unknown>
-  return Array.isArray(obj.questions) && obj.questions.every(isAskUserQuestionItem)
-}
-
-/**
- * Type guard to check if a value is a valid AskUserQuestionAnswer
- */
-export function isAskUserQuestionAnswer(value: unknown): value is AskUserQuestionAnswer {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  return Object.values(value).every((v) => typeof v === 'string')
-}
-
-/**
- * Type guard to check if a value is a valid AskUserQuestionToolOutput
- */
-export function isAskUserQuestionToolOutput(value: unknown): value is AskUserQuestionToolOutput {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const obj = value as Record<string, unknown>
-  return obj.answers === undefined || isAskUserQuestionAnswer(obj.answers)
-}
+// 从 Zod schema 推断类型
+export type AskUserQuestionOption = z.infer<typeof AskUserQuestionOptionSchema>
+export type AskUserQuestionItem = z.infer<typeof AskUserQuestionItemSchema>
+export type AskUserQuestionToolInput = z.infer<typeof AskUserQuestionToolInputSchema>
+export type AskUserQuestionAnswer = z.infer<typeof AskUserQuestionAnswerSchema>
+export type AskUserQuestionToolOutput = z.infer<typeof AskUserQuestionToolOutputSchema>
 
 /**
  * Safely parse AskUserQuestionToolInput from unknown data.
  * Returns undefined if the data doesn't match the expected structure.
  */
 export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
-  return isAskUserQuestionToolInput(value) ? value : undefined
+  const result = AskUserQuestionToolInputSchema.safeParse(value)
+  return result.success ? result.data : undefined
 }
 
 /**
@@ -450,7 +379,8 @@ export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionTo
  * Returns undefined if the data doesn't match the expected structure.
  */
 export function parseAskUserQuestionToolOutput(value: unknown): AskUserQuestionToolOutput | undefined {
-  return isAskUserQuestionToolOutput(value) ? value : undefined
+  const result = AskUserQuestionToolOutputSchema.safeParse(value)
+  return result.success ? result.data : undefined
 }
 
 // ListMcpResourcesToolInput
