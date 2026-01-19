@@ -42,6 +42,18 @@ const createMockCallbacks = (
 
 // Mock external dependencies
 vi.mock('@renderer/config/models', () => ({
+  glm45FlashModel: {
+    id: 'glm-4.5-flash',
+    name: 'GLM-4.5-Flash',
+    provider: 'cherryai',
+    group: 'GLM-4.5'
+  },
+  qwen38bModel: {
+    id: 'Qwen/Qwen3-8B',
+    name: 'Qwen3-8B',
+    provider: 'cherryai',
+    group: 'Qwen'
+  },
   SYSTEM_MODELS: {
     defaultModel: [{}, {}, {}],
     silicon: [],
@@ -100,7 +112,6 @@ vi.mock('@renderer/config/models', () => ({
   isFunctionCallingModel: vi.fn(() => false),
   isEmbeddingModel: vi.fn(() => false),
   isReasoningModel: vi.fn(() => false)
-  // ... 其他需要用到的函数也可以在这里 mock
 }))
 
 vi.mock('@renderer/databases', () => ({
