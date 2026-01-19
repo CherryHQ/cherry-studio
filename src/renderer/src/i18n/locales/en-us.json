@@ -1559,6 +1559,10 @@
     "split": "Split"
   },
   "import": {
+    "assistant_name_pattern": "{{model}} (Import)",
+    "button": {
+      "folder": "Select Folder"
+    },
     "chatgpt": {
       "assistant_name": "ChatGPT Import",
       "button": "Select File",
@@ -1583,6 +1587,7 @@
     },
     "claude": {
       "assistant_name": "Claude Import",
+      "branch_name": "{{name}} (branch {{index}})",
       "description": "Import conversations from Claude. Only text content is imported; images and attachments are not included.",
       "error": {
         "no_conversations": "No conversations found in file",
@@ -1605,17 +1610,23 @@
       "title": "Import from Claude",
       "untitled_conversation": "Untitled Conversation"
     },
-    "button": {
-      "folder": "Select Folder"
-    },
     "confirm": {
       "button": "Select Import File",
       "label": "Are you sure you want to import external data?"
     },
     "content": "Select external application conversation file to import, currently only supports ChatGPT JSON format files",
     "description": "Import conversations from external AI assistants. Only text content is imported; images and attachments are not included.",
+    "error": {
+      "invalid_format": "Invalid {{importer}} format",
+      "unknown": "Unknown error",
+      "unsupported_format": "Unsupported file format"
+    },
     "importing": "Importing conversations...",
     "importing_progress": "Importing file {{current}} of {{total}}...",
+    "model": {
+      "mixed": "Mixed Models",
+      "unknown": "Unknown Model"
+    },
     "source": {
       "auto": "Auto-detect",
       "label": "Source:"

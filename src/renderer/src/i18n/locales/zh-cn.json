@@ -1559,6 +1559,10 @@
     "split": "分屏"
   },
   "import": {
+    "assistant_name_pattern": "{{model}} (导入)",
+    "button": {
+      "folder": "选择文件夹"
+    },
     "chatgpt": {
       "assistant_name": "ChatGPT 导入",
       "button": "选择文件",
@@ -1583,11 +1587,27 @@
     },
     "claude": {
       "assistant_name": "Claude 导入",
+      "branch_name": "{{name}} (分支 {{index}})",
       "description": "仅导入对话文字，不携带图片和附件",
       "error": {
         "no_conversations": "文件中未找到任何对话",
+        "no_json_files": "所选文件夹中未找到 JSON 文件。请确保选择了 Claude 导出文件夹。",
         "no_valid_conversations": "没有可导入的有效对话"
       },
+      "help": {
+        "note": "代码工件、思考过程和工具调用均会被保留。",
+        "step1": "1. 安装 Claude Exporter 浏览器扩展 (agoramachina/claude-exporter)",
+        "step2": "2. 访问 Claude.ai 并打开该扩展",
+        "step3": "3. 点击「全部导出」或选择特定对话",
+        "step4": "4. 选择 JSON 格式并启用「包含思考过程」以导出扩展思考",
+        "step5": "5. 选择导出的文件夹（每个对话一个 JSON 文件）",
+        "title": "如何从 Claude 导出对话？"
+      },
+      "option": {
+        "allBranches": "导入所有分支（包含编辑历史和重新生成）"
+      },
+      "selectFolder": "选择 Claude 导出文件夹",
+      "title": "从 Claude 导入",
       "untitled_conversation": "未命名对话"
     },
     "confirm": {
@@ -1595,6 +1615,23 @@
       "label": "确定要导入外部数据吗？"
     },
     "content": "选择要导入的外部应用对话文件，暂时仅支持ChatGPT的JSON格式文件",
+    "description": "从外部 AI 助手导入对话。仅导入文字内容，不包括图片和附件。",
+    "error": {
+      "invalid_format": "无效的 {{importer}} 格式",
+      "unknown": "未知错误",
+      "unsupported_format": "不支持的文件格式"
+    },
+    "importing": "正在导入对话...",
+    "importing_progress": "正在导入第 {{current}}/{{total}} 个文件...",
+    "model": {
+      "mixed": "混合模型",
+      "unknown": "未知模型"
+    },
+    "source": {
+      "auto": "自动检测",
+      "label": "来源："
+    },
+    "success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
     "title": "导入外部对话"
   },
   "knowledge": {
@@ -3622,7 +3659,9 @@
       "hour_interval_other": "{{count}} 小时",
       "import_settings": {
         "button": "导入文件",
+        "button_folder": "导入文件夹",
         "chatgpt": "导入 ChatGPT 数据",
+        "claude": "从 Claude 导入",
         "title": "导入外部应用数据"
       },
       "joplin": {

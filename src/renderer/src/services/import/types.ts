@@ -60,4 +60,12 @@ export interface ConversationImporter {
    * @returns Parsed topics, messages, and blocks
    */
   parse(fileContent: string, assistantId: string, options?: ImportOptions): Promise<ImportResult>
+
+  /**
+   * Optional: Extract model bucket info for grouping conversations during batch imports.
+   * If implemented, ImportService will create separate assistants for each unique model key.
+   * @param fileContent - Raw file content to analyze
+   * @returns { key: model identifier, label: display name } or null if not applicable
+   */
+  getModelBucket?(fileContent: string): { key: string; label: string } | null
 }
