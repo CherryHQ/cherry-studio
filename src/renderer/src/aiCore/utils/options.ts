@@ -653,6 +653,10 @@ function buildGenericProviderOptions(
     }
   }
 
+  if (isOpenAIModel(model)) {
+    providerOptions.strictJsonSchema = false
+  }
+
   return {
     [providerId]: providerOptions
   }
