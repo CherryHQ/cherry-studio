@@ -2440,13 +2440,8 @@
     },
     "custom_size": "自定义尺寸",
     "edit": {
-      "image_file": "编辑的图像",
-      "magic_prompt_option_tip": "智能优化编辑提示词",
-      "model_tip": "支持 V3 和 V2 版本",
-      "number_images_tip": "生成的编辑结果数量",
-      "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
-      "seed_tip": "控制编辑结果的随机性",
-      "style_type_tip": "编辑后的图像风格，仅适用于 V_2 及以上版本"
+      "image_file": "输入图片",
+      "image_required": "请先上传需要编辑的图片"
     },
     "generate": {
       "height": "高度",
@@ -2491,10 +2486,6 @@
       "remix": "混合",
       "upscale": "高清增强"
     },
-    "edit": {
-      "image_file": "输入图片",
-      "image_required": "请先上传需要编辑的图片"
-    },
     "model": "模型",
     "model_and_pricing": "模型与定价",
     "moderation": "敏感度",
@@ -2514,6 +2505,16 @@
       "allow_adult": "允许成人",
       "allow_all": "允许所有",
       "allow_none": "不允许"
+    },
+    "ppio": {
+      "edit_prompt_tip": "用于指定要从图像中移除的对象或区域，例如：'dog' 或 'hat'",
+      "mask_image": "遮罩图像",
+      "mask_image_tip": "用于指示要擦除的区域。要擦除的区域应为白色，要保留的区域应为黑色",
+      "output_format": "输出格式",
+      "resolution": "目标分辨率",
+      "seed_tip": "随机种子，相同的种子和参数可以生成相似的图片，-1 表示随机",
+      "use_pre_llm_tip": "开启文本扩写，会针对输入提示词进行扩写优化。提示词较短建议开启，较长建议关闭",
+      "watermark_tip": "是否在生成的图片上添加水印，默认不添加"
     },
     "pricing": "定价",
     "prompt_enhancement": "提示词增强",
@@ -2557,6 +2558,7 @@
     "required_field": "必填项",
     "seed": "随机种子",
     "seed_desc_tip": "相同的种子和提示词可以生成相似的图片，设置 -1 每次生成都不一样",
+    "seed_random": "随机",
     "seed_tip": "相同的种子和提示词可以生成相似的图片",
     "select_model": "选择模型",
     "style_type": "风格",
@@ -2583,18 +2585,7 @@
       "resemblance_tip": "控制放大结果与原图的相似程度",
       "seed_tip": "控制放大结果的随机性"
     },
-    "watermark": "添加水印",
-    "seed_random": "随机",
-    "ppio": {
-      "use_pre_llm_tip": "开启文本扩写，会针对输入提示词进行扩写优化。提示词较短建议开启，较长建议关闭",
-      "watermark_tip": "是否在生成的图片上添加水印，默认不添加",
-      "seed_tip": "随机种子，相同的种子和参数可以生成相似的图片，-1 表示随机",
-      "resolution": "目标分辨率",
-      "output_format": "输出格式",
-      "mask_image": "遮罩图像",
-      "mask_image_tip": "用于指示要擦除的区域。要擦除的区域应为白色，要保留的区域应为黑色",
-      "edit_prompt_tip": "用于指定要从图像中移除的对象或区域，例如：'dog' 或 'hat'"
-    }
+    "watermark": "添加水印"
   },
   "plugins": {
     "actions": "操作",
