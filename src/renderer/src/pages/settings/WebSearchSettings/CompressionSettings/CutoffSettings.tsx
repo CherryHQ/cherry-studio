@@ -1,12 +1,8 @@
-import { InfoTooltip } from '@cherrystudio/ui'
+import { InfoTooltip, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import type { WebSearchCompressionCutoffUnit } from '@shared/data/preference/preferenceTypes'
-import { Input, Select, Space } from 'antd'
-import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-const INPUT_BOX_WIDTH = '200px'
 
 const CutoffSettings = () => {
   const { t } = useTranslation()
@@ -19,11 +15,6 @@ const CutoffSettings = () => {
   const handleCutoffUnitChange = (unit: WebSearchCompressionCutoffUnit) => {
     setCutoffUnit(unit)
   }
-
-  const unitOptions = [
-    { value: 'char', label: t('settings.tool.websearch.compression.cutoff.unit.char') },
-    { value: 'token', label: t('settings.tool.websearch.compression.cutoff.unit.token') }
-  ]
 
   return (
     <SettingRow>
@@ -39,9 +30,9 @@ const CutoffSettings = () => {
           }}
         />
       </SettingRowTitle>
-      <Space.Compact style={{ width: INPUT_BOX_WIDTH }}>
+      <div className="flex w-[200px]">
         <Input
-          style={{ maxWidth: '60%' }}
+          className="w-3/5 rounded-r-none border-r-0 focus-visible:relative focus-visible:z-10"
           placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
           value={cutoffLimit === null ? '' : cutoffLimit}
           onChange={(e) => {
@@ -53,14 +44,16 @@ const CutoffSettings = () => {
             }
           }}
         />
-        <Select
-          value={cutoffUnit}
-          style={{ minWidth: '40%' }}
-          onChange={handleCutoffUnitChange}
-          options={unitOptions}
-          suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
-        />
-      </Space.Compact>
+        <Select value={cutoffUnit} onValueChange={handleCutoffUnitChange}>
+          <SelectTrigger className="w-2/5 rounded-l-none">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="char">{t('settings.tool.websearch.compression.cutoff.unit.char')}</SelectItem>
+            <SelectItem value="token">{t('settings.tool.websearch.compression.cutoff.unit.token')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </SettingRow>
   )
 }

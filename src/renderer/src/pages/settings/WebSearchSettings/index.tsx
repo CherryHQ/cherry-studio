@@ -4,11 +4,9 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { getProviderLogo } from '@renderer/config/webSearch'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { Flex } from 'antd'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
@@ -41,9 +39,9 @@ const WebSearchSettings: FC = () => {
   const localProviders = providers.filter((p) => p.id.startsWith('local'))
 
   return (
-    <Container>
-      <MainContainer>
-        <MenuList>
+    <div className="flex flex-1">
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
+        <Scrollbar className="flex h-[calc(100vh-var(--navbar-height))] w-[var(--settings-width)] flex-col gap-[5px] border-[var(--color-border)] border-r p-3 pb-12">
           <ListItem
             title={t('settings.tool.websearch.title')}
             active={activeView === 'general'}
@@ -104,43 +102,13 @@ const WebSearchSettings: FC = () => {
               })}
             </>
           )}
-        </MenuList>
-        <RightContainer>
+        </Scrollbar>
+        <div className="relative flex flex-1">
           <Outlet />
-        </RightContainer>
-      </MainContainer>
-    </Container>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const Container = styled(Flex)`
-  flex: 1;
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  width: 100%;
-  height: calc(100vh - var(--navbar-height) - 6px);
-  overflow: hidden;
-`
-
-const MenuList = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  width: var(--settings-width);
-  padding: 12px;
-  padding-bottom: 48px;
-  border-right: 0.5px solid var(--color-border);
-  height: calc(100vh - var(--navbar-height));
-`
-
-const RightContainer = styled.div`
-  flex: 1;
-  position: relative;
-  display: flex;
-`
 
 export default WebSearchSettings

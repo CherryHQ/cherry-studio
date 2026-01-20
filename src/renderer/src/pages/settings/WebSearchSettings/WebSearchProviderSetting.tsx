@@ -1,5 +1,4 @@
-import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, InfoTooltip, Input, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getProviderLogo, getProviderWebsites } from '@renderer/config/webSearch'
@@ -8,13 +7,10 @@ import { useWebSearchProvider } from '@renderer/hooks/useWebSearch'
 import WebSearchService from '@renderer/services/webSearch/WebSearchService'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
-import { Divider, Form, Input } from 'antd'
-import Link from 'antd/es/typography/Link'
-import { List } from 'lucide-react'
+import { Check, ExternalLink, Eye, EyeOff, List, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 
@@ -32,6 +28,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const [basicAuthUsername, setBasicAuthUsername] = useState('')
   const [basicAuthPassword, setBasicAuthPassword] = useState('')
   const [apiValid, setApiValid] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [showBasicAuthPassword, setShowBasicAuthPassword] = useState(false)
   const { setTimeoutTimer } = useTimer()
 
   // Sync state when provider loads
@@ -158,22 +156,22 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           ) : (
             <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
           )}
-          <ProviderName> {provider.name}</ProviderName>
+          <span className="font-medium text-sm">{provider.name}</span>
           {officialWebsite && websites && (
-            <Link target="_blank" href={websites.official}>
-              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
-            </Link>
+            <a target="_blank" href={websites.official} rel="noopener noreferrer">
+              <ExternalLink size={12} className="text-[var(--color-text)]" />
+            </a>
           )}
         </Flex>
       </SettingTitle>
-      <Divider style={{ width: '100%', margin: '10px 0' }} />
+      <div className="my-2.5 h-px w-full bg-[var(--color-border)]" />
       {isLocalProvider && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.tool.websearch.local_provider.settings')}
           </SettingSubtitle>
           <Button variant="default" onClick={openLocalProviderSettings}>
-            <ExportOutlined />
+            <ExternalLink size={14} />
             {t('settings.tool.websearch.local_provider.open_settings', { provider: provider.name })}
           </Button>
           <SettingHelpTextRow style={{ marginTop: 10 }}>
@@ -199,20 +197,29 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             </Tooltip>
           </SettingSubtitle>
           <Flex className="gap-2">
-            <Input.Password
-              value={apiKey}
-              placeholder={t('settings.provider.api_key.label')}
-              onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
-              onBlur={onUpdateApiKey}
-              spellCheck={false}
-              type="password"
-              autoFocus={apiKey === ''}
-            />
+            <div className="relative flex-1">
+              <Input
+                type={showApiKey ? 'text' : 'password'}
+                value={apiKey}
+                placeholder={t('settings.provider.api_key.label')}
+                onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
+                onBlur={onUpdateApiKey}
+                spellCheck={false}
+                autoFocus={apiKey === ''}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="-translate-y-1/2 absolute top-1/2 right-2 text-[var(--color-icon)] hover:text-[var(--color-text)]">
+                {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
             <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={apiChecking}>
               {apiChecking ? (
-                <LoadingOutlined spin />
+                <Loader2 size={16} className="animate-spin" />
               ) : apiValid ? (
-                <CheckOutlined />
+                <Check size={16} />
               ) : (
                 t('settings.tool.websearch.check')
               )}
@@ -261,53 +268,46 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               }}
             />
           </SettingSubtitle>
-          <Flex>
-            <Form
-              layout="vertical"
-              style={{ width: '100%' }}
-              initialValues={{
-                username: basicAuthUsername,
-                password: basicAuthPassword
-              }}
-              onValuesChange={(changedValues) => {
-                // Update local state when form values change
-                if ('username' in changedValues) {
-                  setBasicAuthUsername(changedValues.username || '')
-                }
-                if ('password' in changedValues) {
-                  setBasicAuthPassword(changedValues.password || '')
-                }
-              }}>
-              <Form.Item label={t('settings.provider.basic_auth.user_name.label')} name="username">
-                <Input
-                  placeholder={t('settings.provider.basic_auth.user_name.tip')}
-                  onBlur={onUpdateBasicAuthUsername}
-                />
-              </Form.Item>
-              <Form.Item
-                label={t('settings.provider.basic_auth.password.label')}
-                name="password"
-                rules={[{ required: !!basicAuthUsername, validateTrigger: ['onBlur', 'onChange'] }]}
-                help=""
-                hidden={!basicAuthUsername}>
-                <Input.Password
-                  placeholder={t('settings.provider.basic_auth.password.tip')}
-                  onBlur={onUpdateBasicAuthPassword}
-                  disabled={!basicAuthUsername}
-                  visibilityToggle={true}
-                />
-              </Form.Item>
-            </Form>
-          </Flex>
+          <div className="flex w-full flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="font-medium text-[var(--color-text-1)] text-sm">
+                {t('settings.provider.basic_auth.user_name.label')}
+              </label>
+              <Input
+                value={basicAuthUsername}
+                placeholder={t('settings.provider.basic_auth.user_name.tip')}
+                onChange={(e) => setBasicAuthUsername(e.target.value)}
+                onBlur={onUpdateBasicAuthUsername}
+              />
+            </div>
+            {basicAuthUsername && (
+              <div className="flex flex-col gap-1.5">
+                <label className="font-medium text-[var(--color-text-1)] text-sm">
+                  {t('settings.provider.basic_auth.password.label')}
+                </label>
+                <div className="relative">
+                  <Input
+                    type={showBasicAuthPassword ? 'text' : 'password'}
+                    value={basicAuthPassword}
+                    placeholder={t('settings.provider.basic_auth.password.tip')}
+                    onChange={(e) => setBasicAuthPassword(e.target.value)}
+                    onBlur={onUpdateBasicAuthPassword}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowBasicAuthPassword(!showBasicAuthPassword)}
+                    className="-translate-y-1/2 absolute top-1/2 right-2 text-[var(--color-icon)] hover:text-[var(--color-text)]">
+                    {showBasicAuthPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
 
 export default WebSearchProviderSetting

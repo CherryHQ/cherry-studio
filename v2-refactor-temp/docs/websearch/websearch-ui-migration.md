@@ -2,7 +2,11 @@
 
 ## 概述
 
-将 WebSearch Settings UI 从旧 Redux hooks 迁移到新的 `useWebSearch.ts` hooks。
+WebSearch Settings UI 迁移分为三个阶段：
+
+1. **第一阶段**: 数据层迁移 (Redux → Preference API) ✅ 已完成
+2. **第二阶段**: UI 组件库迁移 (antd → CherryUI + Tailwind) ✅ 已完成
+3. **第三阶段**: Setting 组件迁移 (styled-components → Tailwind) ⏳ 待开始
 
 **迁移范围**：
 - 保留功能：使用新 hooks
@@ -198,3 +202,538 @@
 - `src/renderer/src/pages/settings/WebSearchSettings/AddSubscribePopup.tsx` ✅
 - `src/renderer/src/hooks/useWebSearchProviders.ts` ✅
 - `src/renderer/src/store/websearch.ts` ✅ (Redux store 已完全移除)
+
+---
+
+# 第二阶段：UI 组件库迁移 (antd → CherryUI + Tailwind) ✅ 已完成
+
+## 概述
+
+在数据层迁移完成后，将剩余的 antd 组件迁移到 CherryUI (@cherrystudio/ui) + Tailwind CSS。
+
+**数据层状态**: ✅ 已完成 (Redux → Preference API)
+**UI 层状态**: ✅ 已完成 (antd → CherryUI)
+
+---
+
+## 已迁移文件和组件
+
+| 文件 | antd 组件 | 状态 |
+|------|----------|------|
+| `CompressionSettings/RagSettings.tsx` | Slider | ✅ 已完成 |
+| `CompressionSettings/index.tsx` | Select | ✅ 已完成 |
+| `CompressionSettings/CutoffSettings.tsx` | Input, Select, Space.Compact | ✅ 已完成 |
+| `BlacklistSettings.tsx` | Alert, 图标 | ✅ 已完成 |
+| `index.tsx` | Flex, styled-components | ✅ 已完成 |
+| `WebSearchProviderSetting.tsx` | Form, Input, Input.Password, Divider, Link, 图标, styled-components | ✅ 已完成 |
+
+---
+
+## 迁移步骤
+
+### 阶段 1: RagSettings.tsx
+
+**路径**: `src/renderer/src/pages/settings/WebSearchSettings/CompressionSettings/RagSettings.tsx`
+
+替换 antd Slider → CherryUI Slider:
+
+```tsx
+// 前
+import { Slider } from 'antd'
+<Slider value={ragDocumentCount} min={1} max={10} onChange={handleChange} marks={{ 1: '1', 3: '3' }} />
+
+// 后
+import { Slider } from '@cherrystudio/ui'
+<Slider value={[ragDocumentCount]} min={1} max={10} onValueChange={(v) => handleChange(v[0])} marks={[{ value: 1, label: '1' }, { value: 3, label: '3' }]} />
+```
+
+---
+
+### 阶段 2: CompressionSettings/index.tsx
+
+**路径**: `src/renderer/src/pages/settings/WebSearchSettings/CompressionSettings/index.tsx`
+
+替换 antd Select → CherryUI Select:
+
+```tsx
+// 前
+import { Select } from 'antd'
+<Select value={compressionMethod} onChange={handleChange} options={compressionMethodOptions} />
+
+// 后
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+<Select value={compressionMethod} onValueChange={handleChange}>
+  <SelectTrigger><SelectValue /></SelectTrigger>
+  <SelectContent>
+    <SelectItem value="none">{t('...')}</SelectItem>
+    <SelectItem value="cutoff">{t('...')}</SelectItem>
+    <SelectItem value="rag">{t('...')}</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+---
+
+### 阶段 3: CutoffSettings.tsx
+
+**路径**: `src/renderer/src/pages/settings/WebSearchSettings/CompressionSettings/CutoffSettings.tsx`
+
+替换 Space.Compact + Input + Select:
+
+```tsx
+// 前
+<Space.Compact>
+  <Input style={{ maxWidth: '60%' }} ... />
+  <Select style={{ minWidth: '40%' }} options={unitOptions} />
+</Space.Compact>
+
+// 后
+<div className="flex w-[200px]">
+  <Input className="w-3/5 rounded-r-none border-r-0" ... />
+  <Select>
+    <SelectTrigger className="w-2/5 rounded-l-none"><SelectValue /></SelectTrigger>
+    <SelectContent>
+      <SelectItem value="char">{t('...')}</SelectItem>
+      <SelectItem value="token">{t('...')}</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+```
+
+---
+
+### 阶段 4: BlacklistSettings.tsx
+
+**路径**: `src/renderer/src/pages/settings/WebSearchSettings/BlacklistSettings.tsx`
+
+1. 替换图标: `InfoCircleOutlined` → `Info` (lucide-react)
+2. 替换 Alert:
+
+```tsx
+// 前
+<Alert message={t('...')} type="error" />
+
+// 后
+<div className="mt-2.5 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950">
+  <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+  <span className="text-sm text-red-700 dark:text-red-300">{t('...')}</span>
+</div>
+```
+
+---
+
+### 阶段 5: index.tsx
+
+**路径**: `src/renderer/src/pages/settings/WebSearchSettings/index.tsx`
+
+移除 styled-components，改用 Tailwind:
+
+| styled-component | Tailwind 类 |
+|-----------------|------------|
+| `Container` | `flex flex-1` |
+| `MainContainer` | `flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden` |
+| `MenuList` | `flex h-[calc(100vh-var(--navbar-height))] w-[var(--settings-width)] flex-col gap-[5px] border-r border-[var(--color-border)] p-3 pb-12` |
+| `RightContainer` | `relative flex flex-1` |
+
+---
+
+### 阶段 6: WebSearchProviderSetting.tsx (最复杂)
+
+**路径**: `src/renderer/src/pages/settings/WebSearchSettings/WebSearchProviderSetting.tsx`
+
+#### 6.1 图标替换
+
+| antd 图标 | lucide-react |
+|----------|--------------|
+| `CheckOutlined` | `Check` |
+| `ExportOutlined` | `ExternalLink` |
+| `LoadingOutlined` | `Loader2` + `animate-spin` |
+
+#### 6.2 Divider → Tailwind
+
+```tsx
+// 前
+<Divider style={{ margin: '10px 0' }} />
+
+// 后
+<div className="my-2.5 h-px w-full bg-[var(--color-border)]" />
+```
+
+#### 6.3 Link → 原生 a 标签
+
+```tsx
+// 前
+<Link target="_blank" href={url}><ExportOutlined /></Link>
+
+// 后
+<a target="_blank" href={url} rel="noopener noreferrer"><ExternalLink size={12} /></a>
+```
+
+#### 6.4 Input.Password → InputGroup
+
+```tsx
+// 前
+<Input.Password value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+
+// 后
+const [showPassword, setShowPassword] = useState(false)
+<InputGroup>
+  <InputGroupInput type={showPassword ? 'text' : 'password'} value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+  <InputGroupAddon align="inline-end">
+    <InputGroupButton variant="ghost" size="icon-xs" onClick={() => setShowPassword(!showPassword)}>
+      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+    </InputGroupButton>
+  </InputGroupAddon>
+</InputGroup>
+```
+
+#### 6.5 Form/Form.Item → Tailwind 布局
+
+```tsx
+// 前
+<Form layout="vertical">
+  <Form.Item label="Username"><Input /></Form.Item>
+</Form>
+
+// 后
+<div className="flex flex-col gap-4">
+  <div className="flex flex-col gap-1.5">
+    <label className="text-sm font-medium">Username</label>
+    <Input />
+  </div>
+</div>
+```
+
+#### 6.6 styled-components → Tailwind
+
+```tsx
+// 前
+const ProviderName = styled.span`font-size: 14px; font-weight: 500;`
+
+// 后
+<span className="text-sm font-medium">...</span>
+```
+
+---
+
+## 关键 API 差异
+
+### CherryUI Slider vs antd Slider
+
+| 属性 | antd | CherryUI |
+|-----|------|----------|
+| value | `number` | `number[]` |
+| onChange | `(value: number) => void` | `onValueChange: (values: number[]) => void` |
+| marks | `{ [value]: label }` | `[{ value, label }]` |
+
+### CherryUI Select vs antd Select
+
+| 属性 | antd | CherryUI |
+|-----|------|----------|
+| 结构 | 单组件 + options prop | 复合组件 (Select, SelectTrigger, SelectContent, SelectItem) |
+| onChange | `(value) => void` | `onValueChange: (value) => void` |
+| options | `[{ value, label }]` | 通过 SelectItem 子组件定义 |
+
+---
+
+## UI 组件库迁移验证清单
+
+- [x] `pnpm lint` 无错误
+- [x] `pnpm test` 通过
+- [x] `pnpm build:check` 通过
+- [x] 功能验证:
+  - [x] Provider 列表正常显示
+  - [x] API Key 输入、密码显示/隐藏、检查功能正常
+  - [x] Compression 设置 (none/cutoff/rag) 正常
+  - [x] Blacklist 保存和错误提示正常
+  - [x] 深色模式样式正确
+
+---
+
+## 迁移总结
+
+### 移除的依赖
+
+**antd 组件**:
+- `Slider`, `Select`, `Input`, `Input.Password`, `Form`, `Form.Item`, `Divider`, `Alert`, `Flex`, `Space.Compact`
+- `Link` (from `antd/es/typography/Link`)
+
+**@ant-design/icons**:
+- `CheckOutlined`, `ExportOutlined`, `LoadingOutlined`, `InfoCircleOutlined`
+
+**styled-components**:
+- `Container`, `MainContainer`, `MenuList`, `RightContainer`, `ProviderName`
+
+### 新增的依赖
+
+**@cherrystudio/ui**:
+- `Slider`, `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `Input`
+
+**lucide-react**:
+- `Check`, `ExternalLink`, `Loader2`, `Eye`, `EyeOff`, `AlertCircle`, `Info`
+
+**Tailwind CSS**:
+- 布局类: `flex`, `flex-col`, `gap-*`, `w-*`, `h-*`
+- 样式类: `rounded-*`, `border-*`, `bg-*`, `text-*`
+- 响应式 Alert 组件 (支持深色模式)
+
+---
+
+# 第三阶段：Setting 组件迁移 (styled-components → Tailwind) ⏳ 待开始
+
+## 概述
+
+将 `src/renderer/src/pages/settings/index.tsx` 中的 styled-components 设置组件迁移到 Tailwind CSS，实现完全去除 styled-components 依赖。
+
+**目标**:
+- 移除 styled-components
+- 移除 antd `Divider` 和 `Link`
+- 使用 Tailwind CSS 原生实现
+
+---
+
+## 待迁移组件
+
+| 组件 | 当前实现 | 使用文件 |
+|------|---------|---------|
+| `SettingContainer` | styled.div | WebSearchGeneralSettings.tsx, WebSearchProviderSettings.tsx |
+| `SettingGroup` | styled.div | BlacklistSettings.tsx, BasicSettings.tsx, WebSearchProviderSettings.tsx |
+| `SettingTitle` | styled.div | BlacklistSettings.tsx, BasicSettings.tsx, WebSearchProviderSetting.tsx |
+| `SettingSubtitle` | ✅ 已使用 Tailwind | WebSearchProviderSetting.tsx |
+| `SettingDivider` | styled(antd.Divider) | 所有文件 |
+| `SettingRow` | styled.div | BlacklistSettings.tsx, BasicSettings.tsx, CompressionSettings/ |
+| `SettingRowTitle` | styled.div | BlacklistSettings.tsx, BasicSettings.tsx, CompressionSettings/ |
+| `SettingHelpTextRow` | styled.div | WebSearchProviderSetting.tsx |
+| `SettingHelpText` | styled.div | WebSearchProviderSetting.tsx |
+| `SettingHelpLink` | styled(antd.Link) | WebSearchProviderSetting.tsx |
+
+---
+
+## 迁移方案
+
+### SettingContainer
+
+```tsx
+// 前 (styled-components)
+export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 15px 18px;
+  overflow-y: scroll;
+  background: ${(props) => (props.theme === 'dark' ? 'transparent' : 'var(--color-background-soft)')};
+  &::-webkit-scrollbar { display: none; }
+`
+
+// 后 (Tailwind)
+<div className={cn(
+  "flex flex-1 flex-col overflow-y-scroll p-[15px_18px] scrollbar-none",
+  theme === 'dark' ? 'bg-transparent' : 'bg-[var(--color-background-soft)]'
+)}>
+```
+
+### SettingGroup
+
+```tsx
+// 前 (styled-components)
+export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
+  margin-bottom: 20px;
+  border-radius: var(--list-item-border-radius);
+  border: 0.5px solid var(--color-border);
+  padding: 16px;
+  background: ${(props) => (props.theme === 'dark' ? '#00000010' : 'var(--color-background)')};
+`
+
+// 后 (Tailwind)
+<div className={cn(
+  "mb-5 rounded-[var(--list-item-border-radius)] border border-[var(--color-border)] p-4",
+  theme === 'dark' ? 'bg-black/[0.06]' : 'bg-[var(--color-background)]'
+)}>
+```
+
+### SettingTitle
+
+```tsx
+// 前 (styled-components)
+export const SettingTitle = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  font-size: 14px;
+  font-weight: bold;
+`
+
+// 后 (Tailwind)
+<div className="flex select-none items-center justify-between text-sm font-bold">
+```
+
+### SettingDivider
+
+```tsx
+// 前 (styled-components + antd)
+export const SettingDivider = styled(Divider)`
+  margin: 10px 0;
+  border-block-start: 0.5px solid var(--color-border);
+`
+
+// 后 (Tailwind)
+<div className="my-2.5 h-px w-full bg-[var(--color-border)]" />
+```
+
+### SettingRow
+
+```tsx
+// 前 (styled-components)
+export const SettingRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 24px;
+`
+
+// 后 (Tailwind)
+<div className="flex min-h-6 items-center justify-between">
+```
+
+### SettingRowTitle
+
+```tsx
+// 前 (styled-components)
+export const SettingRowTitle = styled.div`
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--color-text-1);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+`
+
+// 后 (Tailwind)
+<div className="flex items-center text-sm leading-[18px] text-[var(--color-text-1)]">
+```
+
+### SettingHelpTextRow
+
+```tsx
+// 前 (styled-components)
+export const SettingHelpTextRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 5px 0;
+`
+
+// 后 (Tailwind)
+<div className="flex items-center py-[5px]">
+```
+
+### SettingHelpText
+
+```tsx
+// 前 (styled-components)
+export const SettingHelpText = styled.div`
+  font-size: 11px;
+  color: var(--color-text);
+  opacity: 0.4;
+`
+
+// 后 (Tailwind)
+<span className="text-[11px] text-[var(--color-text)] opacity-40">
+```
+
+### SettingHelpLink
+
+```tsx
+// 前 (styled-components + antd)
+export const SettingHelpLink = styled(Link)`
+  font-size: 11px;
+  margin: 0 5px;
+`
+
+// 后 (Tailwind)
+<a className="mx-[5px] text-[11px] text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+```
+
+---
+
+## 迁移策略
+
+### 方案 A: 直接内联替换 (推荐)
+
+直接在使用处替换为 Tailwind 类：
+
+```tsx
+// 前
+<SettingGroup theme={theme}>
+  <SettingTitle>标题</SettingTitle>
+  <SettingDivider />
+  <SettingRow>
+    <SettingRowTitle>标签</SettingRowTitle>
+    <Switch />
+  </SettingRow>
+</SettingGroup>
+
+// 后
+<div className={cn(
+  "mb-5 rounded-[var(--list-item-border-radius)] border border-[var(--color-border)] p-4",
+  theme === 'dark' ? 'bg-black/[0.06]' : 'bg-[var(--color-background)]'
+)}>
+  <div className="flex select-none items-center justify-between text-sm font-bold">标题</div>
+  <div className="my-2.5 h-px w-full bg-[var(--color-border)]" />
+  <div className="flex min-h-6 items-center justify-between">
+    <div className="flex items-center text-sm leading-[18px] text-[var(--color-text-1)]">标签</div>
+    <Switch />
+  </div>
+</div>
+```
+
+### 方案 B: 创建 Tailwind 组件
+
+在 `@cherrystudio/ui` 中创建新组件：
+
+```tsx
+// packages/ui/src/components/composites/Settings/index.tsx
+export const SettingsGroup = ({ children, className }: Props) => (
+  <div className={cn("mb-5 rounded-lg border border-border p-4 bg-card", className)}>
+    {children}
+  </div>
+)
+
+export const SettingsTitle = ({ children, className }: Props) => (
+  <div className={cn("flex select-none items-center justify-between text-sm font-bold", className)}>
+    {children}
+  </div>
+)
+
+// ... 其他组件
+```
+
+---
+
+## 待迁移文件
+
+| 文件 | 使用的组件 |
+|------|-----------|
+| `BasicSettings.tsx` | SettingGroup, SettingTitle, SettingDivider, SettingRow, SettingRowTitle |
+| `BlacklistSettings.tsx` | SettingGroup, SettingTitle, SettingDivider, SettingRow, SettingRowTitle |
+| `WebSearchGeneralSettings.tsx` | SettingContainer |
+| `WebSearchProviderSettings.tsx` | SettingContainer, SettingGroup |
+| `WebSearchProviderSetting.tsx` | SettingTitle, SettingSubtitle, SettingDivider, SettingHelpTextRow, SettingHelpText, SettingHelpLink |
+| `CompressionSettings/index.tsx` | SettingGroup, SettingTitle, SettingDivider, SettingRow, SettingRowTitle |
+| `CompressionSettings/CutoffSettings.tsx` | SettingRow, SettingRowTitle |
+| `CompressionSettings/RagSettings.tsx` | SettingDivider, SettingRow, SettingRowTitle |
+
+---
+
+## 验证清单
+
+- [ ] `pnpm lint` 无错误
+- [ ] `pnpm test` 通过
+- [ ] `pnpm build:check` 通过
+- [ ] 功能验证:
+  - [ ] 设置页面布局正确
+  - [ ] 深色/浅色主题切换正常
+  - [ ] 所有交互功能正常
