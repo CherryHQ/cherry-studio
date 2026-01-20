@@ -9,7 +9,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const BasicSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { searchWithTime, maxResults, compression, setSearchWithTime, setMaxResults } = useWebSearchSettings()
+  const { searchWithTime, maxResults, compressionMethod, setSearchWithTime, setMaxResults } = useWebSearchSettings()
 
   return (
     <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
@@ -23,7 +23,7 @@ const BasicSettings: FC = () => {
       <SettingRow style={{ height: 40 }}>
         <SettingRowTitle style={{ minWidth: 120 }}>
           {t('settings.tool.websearch.search_max_result.label')}
-          {maxResults > 20 && compression?.method === 'none' && (
+          {maxResults > 20 && compressionMethod === 'none' && (
             <InfoTooltip
               content={t('settings.tool.websearch.search_max_result.tooltip')}
               iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ml-1 cursor-pointer' }}

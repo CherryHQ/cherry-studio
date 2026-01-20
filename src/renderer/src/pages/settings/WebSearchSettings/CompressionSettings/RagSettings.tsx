@@ -4,8 +4,9 @@ import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_RERANK_PROVIDERS } from '@renderer/config/providers'
+import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
@@ -19,7 +20,24 @@ const INPUT_BOX_WIDTH = 'min(350px, 60%)'
 const RagSettings = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
+  const {
+    ragDocumentCount,
+    setRagDocumentCount,
+    ragEmbeddingModelId,
+    ragEmbeddingProviderId,
+    setRagEmbeddingModelId,
+    setRagEmbeddingProviderId,
+    ragEmbeddingDimensions,
+    setRagEmbeddingDimensions,
+    ragRerankModelId,
+    ragRerankProviderId,
+    setRagRerankModelId,
+    setRagRerankProviderId
+  } = useWebSearchSettings()
+
+  // Get the actual model objects from stored ids
+  const embeddingModel = useModel(ragEmbeddingModelId ?? undefined, ragEmbeddingProviderId ?? undefined)
+  const rerankModel = useModel(ragRerankModelId ?? undefined, ragRerankProviderId ?? undefined)
 
   const embeddingModels = useMemo(() => {
     return providers.flatMap((p) => p.models).filter((model) => isEmbeddingModel(model))
@@ -35,20 +53,31 @@ const RagSettings = () => {
 
   const handleEmbeddingModelChange = (modelValue: string) => {
     const selectedModel = find(embeddingModels, JSON.parse(modelValue)) as Model
-    updateCompressionConfig({ embeddingModel: selectedModel })
+    if (selectedModel) {
+      setRagEmbeddingModelId(selectedModel.id)
+      setRagEmbeddingProviderId(selectedModel.provider)
+    }
   }
 
   const handleRerankModelChange = (modelValue?: string) => {
-    const selectedModel = modelValue ? (find(rerankModels, JSON.parse(modelValue)) as Model) : undefined
-    updateCompressionConfig({ rerankModel: selectedModel })
+    if (modelValue) {
+      const selectedModel = find(rerankModels, JSON.parse(modelValue)) as Model
+      if (selectedModel) {
+        setRagRerankModelId(selectedModel.id)
+        setRagRerankProviderId(selectedModel.provider)
+      }
+    } else {
+      setRagRerankModelId(null)
+      setRagRerankProviderId(null)
+    }
   }
 
   const handleEmbeddingDimensionsChange = (value: number | null) => {
-    updateCompressionConfig({ embeddingDimensions: value || undefined })
+    setRagEmbeddingDimensions(value)
   }
 
   const handleDocumentCountChange = (value: number) => {
-    updateCompressionConfig({ documentCount: value })
+    setRagDocumentCount(value)
   }
 
   return (
@@ -58,7 +87,7 @@ const RagSettings = () => {
         <ModelSelector
           providers={providers}
           predicate={isEmbeddingModel}
-          value={compressionConfig?.embeddingModel ? getModelUniqId(compressionConfig.embeddingModel) : undefined}
+          value={embeddingModel ? getModelUniqId(embeddingModel) : undefined}
           style={{ width: INPUT_BOX_WIDTH }}
           placeholder={t('settings.models.empty')}
           onChange={handleEmbeddingModelChange}
@@ -80,10 +109,10 @@ const RagSettings = () => {
           />
         </SettingRowTitle>
         <InputEmbeddingDimension
-          value={compressionConfig?.embeddingDimensions}
+          value={ragEmbeddingDimensions ?? undefined}
           onChange={handleEmbeddingDimensionsChange}
-          model={compressionConfig?.embeddingModel}
-          disabled={!compressionConfig?.embeddingModel}
+          model={embeddingModel}
+          disabled={!embeddingModel}
           style={{ width: INPUT_BOX_WIDTH }}
         />
       </SettingRow>
@@ -94,7 +123,7 @@ const RagSettings = () => {
         <ModelSelector
           providers={rerankProviders}
           predicate={isRerankModel}
-          value={compressionConfig?.rerankModel ? getModelUniqId(compressionConfig.rerankModel) : undefined}
+          value={rerankModel ? getModelUniqId(rerankModel) : undefined}
           style={{ width: INPUT_BOX_WIDTH }}
           placeholder={t('settings.models.empty')}
           onChange={handleRerankModelChange}
@@ -117,7 +146,7 @@ const RagSettings = () => {
         </SettingRowTitle>
         <div style={{ width: INPUT_BOX_WIDTH }}>
           <Slider
-            value={compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT}
+            value={ragDocumentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT}
             min={1}
             max={10}
             step={1}

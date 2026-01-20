@@ -2723,7 +2723,7 @@
           "type": "string",
           "defaultValue": "local-bing",
           "status": "classified",
-          "category": "deleted",
+          "category": "preferences",
           "targetKey": null
         },
         {
@@ -2732,7 +2732,7 @@
           "defaultValue": "WEB_SEARCH_PROVIDERS",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "websearch.providers"
+          "targetKey": "chat.websearch.providers"
         },
         {
           "originalKey": "searchWithTime",
@@ -2740,7 +2740,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "websearch.search_with_time"
+          "targetKey": "chat.websearch.search_with_time"
         },
         {
           "originalKey": "maxResults",
@@ -2748,7 +2748,7 @@
           "defaultValue": 5,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "websearch.max_results"
+          "targetKey": "chat.websearch.max_results"
         },
         {
           "originalKey": "excludeDomains",
@@ -2756,14 +2756,14 @@
           "defaultValue": [],
           "status": "classified",
           "category": "preferences",
-          "targetKey": "websearch.exclude_domains"
+          "targetKey": "chat.websearch.exclude_domains"
         },
         {
           "originalKey": "subscribeSources",
           "type": "array",
           "defaultValue": [],
           "status": "classified",
-          "category": "deleted",
+          "category": "preferences",
           "targetKey": null
         },
         {
@@ -2771,7 +2771,7 @@
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
-          "category": "deleted",
+          "category": "preferences",
           "targetKey": null
         },
         {
@@ -2780,14 +2780,15 @@
           "defaultValue": null,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "websearch.compression"
+          "targetKey": null,
+          "migrationNote": "Flattened to: chat.websearch.compression.method, chat.websearch.compression.cutoff_limit, chat.websearch.compression.cutoff_unit, chat.websearch.compression.rag_*"
         },
         {
           "originalKey": "providerConfig",
           "type": "object",
           "defaultValue": {},
           "status": "classified",
-          "category": "deleted",
+          "category": "preferences",
           "targetKey": null
         }
       ],

@@ -174,6 +174,32 @@ export interface PreferenceSchemas {
     'chat.message.thought.auto_collapse': boolean
     // redux/settings/narrowMode
     'chat.narrow_mode': boolean
+    // v2: websearch compression method
+    'chat.websearch.compression.cutoff_limit': number | null
+    // v2: websearch compression cutoff unit
+    'chat.websearch.compression.cutoff_unit': PreferenceTypes.WebSearchCompressionCutoffUnit
+    // v2: websearch compression method
+    'chat.websearch.compression.method': PreferenceTypes.WebSearchCompressionMethod
+    // v2: websearch compression rag document count
+    'chat.websearch.compression.rag_document_count': number
+    // v2: websearch compression rag embedding dimensions
+    'chat.websearch.compression.rag_embedding_dimensions': number | null
+    // v2: websearch compression rag embedding model id
+    'chat.websearch.compression.rag_embedding_model_id': string | null
+    // v2: websearch compression rag embedding provider id
+    'chat.websearch.compression.rag_embedding_provider_id': string | null
+    // v2: websearch compression rag rerank model id
+    'chat.websearch.compression.rag_rerank_model_id': string | null
+    // v2: websearch compression rag rerank provider id
+    'chat.websearch.compression.rag_rerank_provider_id': string | null
+    // v2: websearch exclude domains
+    'chat.websearch.exclude_domains': string[]
+    // v2: websearch max results
+    'chat.websearch.max_results': number
+    // v2: websearch provider configs
+    'chat.websearch.providers': PreferenceTypes.WebSearchProviders
+    // v2: websearch search with time
+    'chat.websearch.search_with_time': boolean
     // redux/settings/skipBackupFile
     'data.backup.general.skip_backup_file': boolean
     // redux/settings/localBackupAutoSync
@@ -442,16 +468,6 @@ export interface PreferenceSchemas {
     'ui.theme_user.font_family': string
     // redux/settings/windowStyle
     'ui.window_style': PreferenceTypes.WindowStyle
-    // redux/websearch/compressionConfig
-    'websearch.compression': PreferenceTypes.WebSearchCompressionConfig | null
-    // redux/websearch/excludeDomains
-    'websearch.exclude_domains': string[]
-    // redux/websearch/maxResults
-    'websearch.max_results': number
-    // v2: websearch provider configs
-    'websearch.providers': PreferenceTypes.WebSearchProviders
-    // redux/websearch/searchWithTime
-    'websearch.search_with_time': boolean
   }
 }
 
@@ -527,6 +543,119 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.style': 'plain',
     'chat.message.thought.auto_collapse': true,
     'chat.narrow_mode': false,
+    'chat.websearch.compression.cutoff_limit': null,
+    'chat.websearch.compression.cutoff_unit': 'char',
+    'chat.websearch.compression.method': 'none',
+    'chat.websearch.compression.rag_document_count': 1,
+    'chat.websearch.compression.rag_embedding_dimensions': null,
+    'chat.websearch.compression.rag_embedding_model_id': null,
+    'chat.websearch.compression.rag_embedding_provider_id': null,
+    'chat.websearch.compression.rag_rerank_model_id': null,
+    'chat.websearch.compression.rag_rerank_provider_id': null,
+    'chat.websearch.exclude_domains': [],
+    'chat.websearch.max_results': 5,
+    'chat.websearch.providers': [
+      {
+        apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'zhipu',
+        name: 'Zhipu',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://api.tavily.com',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'tavily',
+        name: 'Tavily',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: '',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'searxng',
+        name: 'Searxng',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://api.exa.ai',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'exa',
+        name: 'Exa',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://mcp.exa.ai/mcp',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'exa-mcp',
+        name: 'ExaMCP',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://api.bochaai.com',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'bocha',
+        name: 'Bocha',
+        type: 'api',
+        usingBrowser: false
+      },
+      {
+        apiHost: 'https://www.google.com/search?q=%s',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'local-google',
+        name: 'Google',
+        type: 'local',
+        usingBrowser: true
+      },
+      {
+        apiHost: 'https://cn.bing.com/search?q=%s&ensearch=1',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'local-bing',
+        name: 'Bing',
+        type: 'local',
+        usingBrowser: true
+      },
+      {
+        apiHost: 'https://www.baidu.com/s?wd=%s',
+        apiKey: '',
+        basicAuthPassword: '',
+        basicAuthUsername: '',
+        engines: [],
+        id: 'local-baidu',
+        name: 'Baidu',
+        type: 'local',
+        usingBrowser: true
+      }
+    ],
+    'chat.websearch.search_with_time': true,
     'data.backup.general.skip_backup_file': false,
     'data.backup.local.auto_sync': false,
     'data.backup.local.dir': '',
@@ -717,112 +846,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'ui.theme_user.code_font_family': '',
     'ui.theme_user.color_primary': '#00b96b',
     'ui.theme_user.font_family': '',
-    'ui.window_style': 'opaque',
-    'websearch.compression': null,
-    'websearch.exclude_domains': [],
-    'websearch.max_results': 5,
-    'websearch.providers': [
-      {
-        apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'zhipu',
-        name: 'Zhipu',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://api.tavily.com',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'tavily',
-        name: 'Tavily',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: '',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'searxng',
-        name: 'Searxng',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://api.exa.ai',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'exa',
-        name: 'Exa',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://mcp.exa.ai/mcp',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'exa-mcp',
-        name: 'ExaMCP',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://api.bochaai.com',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'bocha',
-        name: 'Bocha',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://www.google.com/search?q=%s',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'local-google',
-        name: 'Google',
-        type: 'local',
-        usingBrowser: true
-      },
-      {
-        apiHost: 'https://cn.bing.com/search?q=%s&ensearch=1',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'local-bing',
-        name: 'Bing',
-        type: 'local',
-        usingBrowser: true
-      },
-      {
-        apiHost: 'https://www.baidu.com/s?wd=%s',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'local-baidu',
-        name: 'Baidu',
-        type: 'local',
-        usingBrowser: true
-      }
-    ],
-    'websearch.search_with_time': true
+    'ui.window_style': 'opaque'
   }
 }
 

@@ -1,4 +1,3 @@
-import type { ModelMeta } from '../types/meta'
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -136,38 +135,22 @@ export interface WebSearchProvider {
 
 /**
  * 所有 Provider 的配置数组
- * 存储在 websearch.providers 中
+ * 存储在 chat.websearch.providers 中
  */
 export type WebSearchProviders = WebSearchProvider[]
 
 // ============================================================================
-// WebSearch Compression Types
+// WebSearch Compression Types (v2 - Flattened)
 // ============================================================================
 
 /**
- * Embedding 模型元信息（扩展 ModelMeta）
- * 用于 WebSearch RAG 压缩配置
+ * 压缩方式类型
+ * 存储在 chat.websearch.compression.method 中
  */
-export interface EmbeddingModelMeta extends ModelMeta {
-  dimensions?: number
-}
+export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
 
 /**
- * WebSearch 压缩配置对象
- * 作为聚合对象存储，因为 method 字段决定其他字段的有效性
+ * Cutoff 单位类型
+ * 存储在 chat.websearch.compression.cutoff_unit 中
  */
-export interface WebSearchCompressionConfig {
-  /** 压缩方式 */
-  method: 'none' | 'cutoff' | 'rag'
-
-  /** Cutoff 相关（method = 'cutoff' 时使用） */
-  cutoffLimit?: number
-  cutoffUnit?: 'char' | 'token'
-
-  /** RAG 相关（method = 'rag' 时使用） */
-  documentCount?: number
-  embeddingModelId?: string
-  embeddingModelMeta?: EmbeddingModelMeta
-  rerankModelId?: string
-  rerankModelMeta?: ModelMeta
-}
+export type WebSearchCompressionCutoffUnit = 'char' | 'token'

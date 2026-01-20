@@ -3,24 +3,17 @@
  *
  * Provider configuration is stored directly in Preference system.
  * No merge logic needed - providers are read directly from Preference.
+ *
+ * Compression configuration is now flattened into individual preference keys.
  */
 
 import { usePreference } from "@data/hooks/usePreference";
-import type { WebSearchProvider } from "@shared/data/preference/preferenceTypes";
+import type {
+  WebSearchCompressionCutoffUnit,
+  WebSearchCompressionMethod,
+  WebSearchProvider,
+} from "@shared/data/preference/preferenceTypes";
 import { useCallback, useMemo } from "react";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Test provider connection result
- */
-export interface TestProviderResult {
-  success: boolean;
-  message: string;
-  latencyMs?: number;
-}
 
 // ============================================================================
 // Provider Hooks (Preference-based)
@@ -32,7 +25,7 @@ export interface TestProviderResult {
  * Providers are stored directly in Preference, no merge needed.
  */
 export function useWebSearchProviders() {
-  const [providers, setProviders] = usePreference("websearch.providers");
+  const [providers, setProviders] = usePreference("chat.websearch.providers");
 
   /**
    * Update a specific provider by ID
@@ -94,6 +87,132 @@ export function useWebSearchProvider(providerId: string) {
 }
 
 // ============================================================================
+// Compression Hooks (v2 - Flattened)
+// ============================================================================
+
+/**
+ * Hook for websearch compression settings (flattened preference keys)
+ */
+export function useWebSearchCompression() {
+  // Method
+  const [method, setMethod] = usePreference(
+    "chat.websearch.compression.method",
+  );
+
+  // Cutoff settings
+  const [cutoffLimit, setCutoffLimit] = usePreference(
+    "chat.websearch.compression.cutoff_limit",
+  );
+  const [cutoffUnit, setCutoffUnit] = usePreference(
+    "chat.websearch.compression.cutoff_unit",
+  );
+
+  // RAG settings
+  const [ragDocumentCount, setRagDocumentCount] = usePreference(
+    "chat.websearch.compression.rag_document_count",
+  );
+  const [ragEmbeddingModelId, setRagEmbeddingModelId] = usePreference(
+    "chat.websearch.compression.rag_embedding_model_id",
+  );
+  const [ragEmbeddingProviderId, setRagEmbeddingProviderId] = usePreference(
+    "chat.websearch.compression.rag_embedding_provider_id",
+  );
+  const [ragEmbeddingDimensions, setRagEmbeddingDimensions] = usePreference(
+    "chat.websearch.compression.rag_embedding_dimensions",
+  );
+  const [ragRerankModelId, setRagRerankModelId] = usePreference(
+    "chat.websearch.compression.rag_rerank_model_id",
+  );
+  const [ragRerankProviderId, setRagRerankProviderId] = usePreference(
+    "chat.websearch.compression.rag_rerank_provider_id",
+  );
+
+  /**
+   * Update compression method
+   */
+  const updateMethod = useCallback(
+    async (newMethod: WebSearchCompressionMethod) => {
+      await setMethod(newMethod);
+    },
+    [setMethod],
+  );
+
+  /**
+   * Update cutoff settings
+   */
+  const updateCutoff = useCallback(
+    async (limit: number | null, unit?: WebSearchCompressionCutoffUnit) => {
+      await setCutoffLimit(limit);
+      if (unit !== undefined) {
+        await setCutoffUnit(unit);
+      }
+    },
+    [setCutoffLimit, setCutoffUnit],
+  );
+
+  /**
+   * Update RAG embedding model
+   */
+  const updateRagEmbeddingModel = useCallback(
+    async (
+      modelId: string | null,
+      providerId: string | null,
+      dimensions?: number | null,
+    ) => {
+      await setRagEmbeddingModelId(modelId);
+      await setRagEmbeddingProviderId(providerId);
+      if (dimensions !== undefined) {
+        await setRagEmbeddingDimensions(dimensions);
+      }
+    },
+    [
+      setRagEmbeddingModelId,
+      setRagEmbeddingProviderId,
+      setRagEmbeddingDimensions,
+    ],
+  );
+
+  /**
+   * Update RAG rerank model
+   */
+  const updateRagRerankModel = useCallback(
+    async (modelId: string | null, providerId: string | null) => {
+      await setRagRerankModelId(modelId);
+      await setRagRerankProviderId(providerId);
+    },
+    [setRagRerankModelId, setRagRerankProviderId],
+  );
+
+  return {
+    // Values
+    method,
+    cutoffLimit,
+    cutoffUnit,
+    ragDocumentCount,
+    ragEmbeddingModelId,
+    ragEmbeddingProviderId,
+    ragEmbeddingDimensions,
+    ragRerankModelId,
+    ragRerankProviderId,
+    // Individual setters
+    setMethod,
+    setCutoffLimit,
+    setCutoffUnit,
+    setRagDocumentCount,
+    setRagEmbeddingModelId,
+    setRagEmbeddingProviderId,
+    setRagEmbeddingDimensions,
+    setRagRerankModelId,
+    setRagRerankProviderId,
+    // Convenience update functions
+    updateMethod,
+    updateCutoff,
+    updateRagEmbeddingModel,
+    updateRagRerankModel,
+  };
+}
+
+// ============================================================================
 // Settings Hooks (Preference)
 // ============================================================================
 
@@ -102,24 +221,74 @@ export function useWebSearchProvider(providerId: string) {
  */
 export function useWebSearchSettings() {
   const [searchWithTime, setSearchWithTime] = usePreference(
-    "websearch.search_with_time",
+    "chat.websearch.search_with_time",
   );
-  const [maxResults, setMaxResults] = usePreference("websearch.max_results");
+  const [maxResults, setMaxResults] = usePreference(
+    "chat.websearch.max_results",
+  );
   const [excludeDomains, setExcludeDomains] = usePreference(
-    "websearch.exclude_domains",
+    "chat.websearch.exclude_domains",
   );
-  const [compression, setCompression] = usePreference("websearch.compression");
+
+  // Use the compression hook
+  const {
+    method: compressionMethod,
+    setMethod: setCompressionMethod,
+    cutoffLimit,
+    setCutoffLimit,
+    cutoffUnit,
+    setCutoffUnit,
+    ragDocumentCount,
+    setRagDocumentCount,
+    ragEmbeddingModelId,
+    setRagEmbeddingModelId,
+    ragEmbeddingProviderId,
+    setRagEmbeddingProviderId,
+    ragEmbeddingDimensions,
+    setRagEmbeddingDimensions,
+    ragRerankModelId,
+    setRagRerankModelId,
+    ragRerankProviderId,
+    setRagRerankProviderId,
+    updateMethod,
+    updateCutoff,
+    updateRagEmbeddingModel,
+    updateRagRerankModel,
+  } = useWebSearchCompression();
 
   return {
-    // Values
+    // Basic settings
     searchWithTime,
     maxResults,
     excludeDomains,
-    compression,
-    // Setters
+    // Setters for basic settings
     setSearchWithTime,
     setMaxResults,
     setExcludeDomains,
-    setCompression,
+    // Compression individual values
+    compressionMethod,
+    cutoffLimit,
+    cutoffUnit,
+    ragDocumentCount,
+    ragEmbeddingModelId,
+    ragEmbeddingProviderId,
+    ragEmbeddingDimensions,
+    ragRerankModelId,
+    ragRerankProviderId,
+    // Compression setters
+    setCompressionMethod,
+    setCutoffLimit,
+    setCutoffUnit,
+    setRagDocumentCount,
+    setRagEmbeddingModelId,
+    setRagEmbeddingProviderId,
+    setRagEmbeddingDimensions,
+    setRagRerankModelId,
+    setRagRerankProviderId,
+    // Convenience update functions
+    updateMethod,
+    updateCutoff,
+    updateRagEmbeddingModel,
+    updateRagRerankModel,
   };
 }
