@@ -19,6 +19,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [API Design Guidelines](./api-design-guidelines.md) - RESTful design rules
 - [Database Patterns](./database-patterns.md) - DB naming, schema patterns
 - [API Types](./api-types.md) - API type system, schemas, error handling
+- [Preference Schema Guide](./preference-schema-guide.md) - Adding new preference keys
 - [V2 Migration Guide](./v2-migration-guide.md) - Migration system
 
 ### Testing

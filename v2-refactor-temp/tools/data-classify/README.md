@@ -477,6 +477,17 @@ npm run validate:gen
 | `classified`         | 已分类           | 分类完成，可用于代码生成                 |
 | `classified-deleted` | 已分类但源已删除 | 源代码中已不存在，保留历史记录           |
 
+### targetKey 值说明
+
+对于 `status: "classified"` 的项，`targetKey` 有两种情况：
+
+| targetKey | 说明 | 生成行为 |
+| --------- | ---- | -------- |
+| 有效值（如 `"ui.theme"`） | 需要迁移到新系统 | 会生成到 preferenceSchemas.ts |
+| `null` | 已分类，但不需要迁移 | 不会生成到 preferenceSchemas.ts |
+
+**使用场景**：当一个数据项经过分析后，确定在新系统中不需要该配置（如已废弃、被其他配置替代、或不再需要持久化），应设置 `status: "classified"` 且 `targetKey: null`。这表示"已完成分类决策，决策结果是不加载该项"。
+
 ---
 
 ## 复杂映射支持
