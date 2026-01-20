@@ -9,6 +9,7 @@ export interface UseInPlaceEditOptions {
   onError?: (error: unknown) => void
   autoSelectOnStart?: boolean
   trimOnSave?: boolean
+  saveOnBlur?: boolean
 }
 
 export interface UseInPlaceEditReturn {
@@ -27,10 +28,11 @@ export interface UseInPlaceEditReturn {
  * @param options.onCancel - Optional callback function called when editing is cancelled
  * @param options.autoSelectOnStart - Whether to automatically select text when editing starts (default: true)
  * @param options.trimOnSave - Whether to trim whitespace when saving (default: true)
+ * @param options.saveOnBlur - Whether to automatically save when input loses focus (default: true)
  * @returns An object containing the editing state and handler functions
  */
 export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditReturn {
-  const { onSave, onCancel, onError, autoSelectOnStart = true, trimOnSave = true } = options
+  const { onSave, onCancel, onError, autoSelectOnStart = true, trimOnSave = true, saveOnBlur = true } = options
   const { t } = useTranslation()
 
   const [isSaving, setIsSaving] = useState(false)
@@ -109,14 +111,10 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   }, [])
 
   const handleBlur = useCallback(() => {
-    // 这里的逻辑需要注意：
-    // 如果点击了“取消”按钮，可能会先触发 Blur 保存。
-    // 通常 InPlaceEdit 的逻辑是 Blur 即 Save。
-    // 如果不想 Blur 保存，可以去掉这一行，或者判断 relatedTarget。
-    if (!isSaving) {
+    if (saveOnBlur && !isSaving) {
       saveEdit()
     }
-  }, [saveEdit, isSaving])
+  }, [saveEdit, isSaving, saveOnBlur])
 
   return {
     isEditing,
