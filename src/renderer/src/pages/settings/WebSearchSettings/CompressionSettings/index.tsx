@@ -1,6 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import type { WebSearchCompressionMethod } from '@shared/data/preference/preferenceTypes'
 import { useTranslation } from 'react-i18next'
 
@@ -16,14 +15,14 @@ const CompressionSettings = () => {
   }
 
   return (
-    <SettingGroup>
-      <SettingTitle>{t('settings.tool.websearch.compression.title')}</SettingTitle>
-      <SettingDivider />
+    <div className="flex flex-col gap-2 px-4 py-2">
+      <div>{t('settings.tool.websearch.compression.title')}</div>
+      <div className="border-border border-b" />
 
-      <SettingRow>
-        <SettingRowTitle>{t('settings.tool.websearch.compression.method.label')}</SettingRowTitle>
+      <div className="flex flex-row items-center justify-between">
+        <div>{t('settings.tool.websearch.compression.method.label')}</div>
         <Select value={compressionMethod} onValueChange={handleCompressionMethodChange}>
-          <SelectTrigger className={compressionMethod === 'rag' ? 'w-[min(350px,60%)]' : 'w-[200px]'}>
+          <SelectTrigger className={compressionMethod === 'rag' ? 'w-[min(350px,60%)]' : 'w-50'}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -32,12 +31,11 @@ const CompressionSettings = () => {
             <SelectItem value="rag">{t('settings.tool.websearch.compression.method.rag')}</SelectItem>
           </SelectContent>
         </Select>
-      </SettingRow>
-      <SettingDivider />
+      </div>
 
       {compressionMethod === 'cutoff' && <CutoffSettings />}
       {compressionMethod === 'rag' && <RagSettings />}
-    </SettingGroup>
+    </div>
   )
 }
 

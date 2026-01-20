@@ -1,20 +1,19 @@
-import { useTheme } from '@renderer/context/ThemeProvider'
 import type { FC } from 'react'
 
-import { SettingContainer } from '..'
 import BasicSettings from './BasicSettings'
 import BlacklistSettings from './BlacklistSettings'
 import CompressionSettings from './CompressionSettings'
 
 const WebSearchGeneralSettings: FC = () => {
-  const { theme } = useTheme()
-
   return (
-    <SettingContainer theme={theme}>
+    <div className="flex w-full flex-col gap-1">
       <BasicSettings />
+      <div className="border-border border-b" />
       <CompressionSettings />
+      <div className="border-border border-b" />
       <BlacklistSettings />
-    </SettingContainer>
+      <div className="border-border border-b" />
+    </div>
   )
 }
 

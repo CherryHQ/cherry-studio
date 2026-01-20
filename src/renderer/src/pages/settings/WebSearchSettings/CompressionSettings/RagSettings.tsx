@@ -7,7 +7,6 @@ import { NOT_SUPPORTED_RERANK_PROVIDERS } from '@renderer/config/providers'
 import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { find } from 'lodash'
@@ -80,9 +79,9 @@ const RagSettings = () => {
   }
 
   return (
-    <>
-      <SettingRow>
-        <SettingRowTitle>{t('models.embedding_model')}</SettingRowTitle>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-row justify-between">
+        <div>{t('models.embedding_model')}</div>
         <ModelSelector
           providers={providers}
           predicate={isEmbeddingModel}
@@ -92,11 +91,11 @@ const RagSettings = () => {
           onChange={handleEmbeddingModelChange}
           allowClear={false}
         />
-      </SettingRow>
-      <SettingDivider />
+      </div>
+      <div className="border-border border-b" />
 
-      <SettingRow>
-        <SettingRowTitle>
+      <div className="flex flex-row justify-between">
+        <div className="flex flex-row items-center gap-1">
           {t('models.embedding_dimensions')}
           <InfoTooltip
             content={t('knowledge.dimensions_size_tooltip')}
@@ -106,7 +105,7 @@ const RagSettings = () => {
               className: 'ml-1 cursor-pointer'
             }}
           />
-        </SettingRowTitle>
+        </div>
         <InputEmbeddingDimension
           value={ragEmbeddingDimensions ?? undefined}
           onChange={handleEmbeddingDimensionsChange}
@@ -114,11 +113,11 @@ const RagSettings = () => {
           disabled={!embeddingModel}
           style={{ width: INPUT_BOX_WIDTH }}
         />
-      </SettingRow>
-      <SettingDivider />
+      </div>
+      <div className="border-border border-b" />
 
-      <SettingRow>
-        <SettingRowTitle>{t('models.rerank_model')}</SettingRowTitle>
+      <div className="flex flex-row justify-between">
+        <div>{t('models.rerank_model')}</div>
         <ModelSelector
           providers={rerankProviders}
           predicate={isRerankModel}
@@ -128,11 +127,11 @@ const RagSettings = () => {
           onChange={handleRerankModelChange}
           allowClear
         />
-      </SettingRow>
-      <SettingDivider />
+      </div>
+      <div className="border-border border-b" />
 
-      <SettingRow>
-        <SettingRowTitle>
+      <div className="flex flex-row justify-between">
+        <div className="flex flex-row items-center gap-1">
           {t('settings.tool.websearch.compression.rag.document_count.label')}
           <InfoTooltip
             content={t('settings.tool.websearch.compression.rag.document_count.tooltip')}
@@ -142,7 +141,7 @@ const RagSettings = () => {
               className: 'ml-1 cursor-pointer'
             }}
           />
-        </SettingRowTitle>
+        </div>
         <div style={{ width: INPUT_BOX_WIDTH }}>
           <Slider
             value={[ragDocumentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT]}
@@ -157,8 +156,8 @@ const RagSettings = () => {
             ]}
           />
         </div>
-      </SettingRow>
-    </>
+      </div>
+    </div>
   )
 }
 

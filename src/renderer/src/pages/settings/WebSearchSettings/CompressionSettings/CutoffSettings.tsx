@@ -1,6 +1,5 @@
 import { InfoTooltip, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import type { WebSearchCompressionCutoffUnit } from '@shared/data/preference/preferenceTypes'
 import { useTranslation } from 'react-i18next'
 
@@ -17,8 +16,8 @@ const CutoffSettings = () => {
   }
 
   return (
-    <SettingRow>
-      <SettingRowTitle>
+    <div className="flex flex-row justify-between">
+      <div className="flex flex-row items-center gap-1">
         {t('settings.tool.websearch.compression.cutoff.limit.label')}
         <InfoTooltip
           placement="right"
@@ -29,7 +28,7 @@ const CutoffSettings = () => {
             className: 'ml-1 cursor-pointer'
           }}
         />
-      </SettingRowTitle>
+      </div>
       <div className="flex w-[200px]">
         <Input
           className="w-3/5 rounded-r-none border-r-0 focus-visible:relative focus-visible:z-10"
@@ -54,7 +53,7 @@ const CutoffSettings = () => {
           </SelectContent>
         </Select>
       </div>
-    </SettingRow>
+    </div>
   )
 }
 

@@ -1,5 +1,4 @@
 import { Button, Textarea } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { parseMatchPattern } from '@renderer/utils/blacklistMatchPattern'
 import { t } from 'i18next'
@@ -7,13 +6,10 @@ import { AlertCircle, Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-
 const BlacklistSettings: FC = () => {
   const [errFormat, setErrFormat] = useState(false)
   const [blacklistInput, setBlacklistInput] = useState('')
   const { excludeDomains, setExcludeDomains } = useWebSearchSettings()
-  const { theme } = useTheme()
 
   useEffect(() => {
     if (excludeDomains) {
@@ -58,20 +54,17 @@ const BlacklistSettings: FC = () => {
   }
 
   return (
-    <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
-      <SettingDivider />
-      <SettingRow style={{ marginBottom: 10 }}>
-        <SettingRowTitle>{t('settings.tool.websearch.blacklist_description')}</SettingRowTitle>
-      </SettingRow>
+    <div className="flex flex-col gap-2 px-4 py-2">
+      <div>{t('settings.tool.websearch.blacklist')}</div>
+      <div className="text-muted-foreground text-sm">{t('settings.tool.websearch.blacklist_description')}</div>
       <Textarea.Input
         value={blacklistInput}
         onValueChange={setBlacklistInput}
         placeholder={t('settings.tool.websearch.blacklist_tooltip')}
         rows={4}
-        className="max-h-[200px] min-h-[100px]"
+        className="max-h-50 min-h-25 border-2 border-border"
       />
-      <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
+      <Button className="w-20 rounded-2xs" onClick={() => updateManualBlacklist(blacklistInput)}>
         {t('common.save')}
       </Button>
       {errFormat && (
@@ -82,7 +75,7 @@ const BlacklistSettings: FC = () => {
           </span>
         </div>
       )}
-    </SettingGroup>
+    </div>
   )
 }
 
