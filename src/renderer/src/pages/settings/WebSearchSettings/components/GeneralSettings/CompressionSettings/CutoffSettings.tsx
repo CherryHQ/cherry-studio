@@ -29,9 +29,9 @@ const CutoffSettings = () => {
           }}
         />
       </div>
-      <div className="flex w-[200px]">
+      <div className="flex w-1/3">
         <Input
-          className="w-3/5 rounded-r-none border-r-0 focus-visible:relative focus-visible:z-10"
+          className="w-3/5 rounded-3xs rounded-r-none border-r-0 focus-visible:relative focus-visible:z-10"
           placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
           value={cutoffLimit === null ? '' : cutoffLimit}
           onChange={(e) => {

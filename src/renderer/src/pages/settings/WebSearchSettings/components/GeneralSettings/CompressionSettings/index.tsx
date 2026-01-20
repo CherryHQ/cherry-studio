@@ -3,7 +3,8 @@ import { useCompressionMethod } from '@renderer/hooks/useWebSearch'
 import type { WebSearchCompressionMethod } from '@shared/data/preference/preferenceTypes'
 import { useTranslation } from 'react-i18next'
 
-import { getCompressionRenderer } from './CompressionMethodRegistry'
+import CutoffSettings from './CutoffSettings'
+import RagSettings from './RagSettings'
 
 const CompressionSettings = () => {
   const { t } = useTranslation()
@@ -21,7 +22,7 @@ const CompressionSettings = () => {
       <div className="flex flex-row items-center justify-between">
         <div>{t('settings.tool.websearch.compression.method.label')}</div>
         <Select value={method} onValueChange={handleCompressionMethodChange}>
-          <SelectTrigger className={method === 'rag' ? 'w-[min(350px,60%)]' : 'w-50'}>
+          <SelectTrigger className={method === 'none' ? 'w-50' : 'w-1/3'}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -32,7 +33,8 @@ const CompressionSettings = () => {
         </Select>
       </div>
 
-      {getCompressionRenderer(method)}
+      {method === 'cutoff' && <CutoffSettings />}
+      {method === 'rag' && <RagSettings />}
     </div>
   )
 }

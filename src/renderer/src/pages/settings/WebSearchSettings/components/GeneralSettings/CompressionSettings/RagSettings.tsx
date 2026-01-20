@@ -13,8 +13,6 @@ import { find } from 'lodash'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const INPUT_BOX_WIDTH = 'min(350px, 60%)'
-
 const RagSettings = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
@@ -79,14 +77,14 @@ const RagSettings = () => {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex w-full flex-col gap-2">
       <div className="flex flex-row justify-between">
         <div>{t('models.embedding_model')}</div>
         <ModelSelector
+          className="w-1/3"
           providers={providers}
           predicate={isEmbeddingModel}
           value={embeddingModel ? getModelUniqId(embeddingModel) : undefined}
-          style={{ width: INPUT_BOX_WIDTH }}
           placeholder={t('settings.models.empty')}
           onChange={handleEmbeddingModelChange}
           allowClear={false}
@@ -107,11 +105,11 @@ const RagSettings = () => {
           />
         </div>
         <InputEmbeddingDimension
+          style={{ width: '33%' }}
           value={ragEmbeddingDimensions ?? undefined}
           onChange={handleEmbeddingDimensionsChange}
           model={embeddingModel}
           disabled={!embeddingModel}
-          style={{ width: INPUT_BOX_WIDTH }}
         />
       </div>
       <div className="border-border border-b" />
@@ -119,10 +117,10 @@ const RagSettings = () => {
       <div className="flex flex-row justify-between">
         <div>{t('models.rerank_model')}</div>
         <ModelSelector
+          className="w-1/3"
           providers={rerankProviders}
           predicate={isRerankModel}
           value={rerankModel ? getModelUniqId(rerankModel) : undefined}
-          style={{ width: INPUT_BOX_WIDTH }}
           placeholder={t('settings.models.empty')}
           onChange={handleRerankModelChange}
           allowClear
@@ -142,20 +140,19 @@ const RagSettings = () => {
             }}
           />
         </div>
-        <div style={{ width: INPUT_BOX_WIDTH }}>
-          <Slider
-            value={[ragDocumentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT]}
-            min={1}
-            max={10}
-            step={1}
-            onValueChange={(values) => handleDocumentCountChange(values[0])}
-            marks={[
-              { value: 1, label: t('common.default') },
-              { value: 3, label: '3' },
-              { value: 10, label: '10' }
-            ]}
-          />
-        </div>
+        <Slider
+          className="w-1/3"
+          value={[ragDocumentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT]}
+          min={1}
+          max={10}
+          step={1}
+          onValueChange={(values) => handleDocumentCountChange(values[0])}
+          marks={[
+            { value: 1, label: t('common.default') },
+            { value: 3, label: '3' },
+            { value: 10, label: '10' }
+          ]}
+        />
       </div>
     </div>
   )
