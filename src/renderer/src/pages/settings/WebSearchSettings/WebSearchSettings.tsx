@@ -3,6 +3,7 @@ import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getProviderLogo } from '@renderer/config/webSearch'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { isApiProvider, isLocalProvider } from '@renderer/utils/websearch'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
@@ -35,13 +36,13 @@ const WebSearchSettings: FC = () => {
   const activeView = getActiveView()
 
   // Filter providers that have API settings (apiKey or apiHost)
-  const apiProviders = providers.filter((p) => !p.id.startsWith('local'))
-  const localProviders = providers.filter((p) => p.id.startsWith('local'))
+  const apiProviders = providers.filter(isApiProvider)
+  const localProviders = providers.filter(isLocalProvider)
 
   return (
     <div className="flex flex-1">
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
-        <Scrollbar className="flex h-[calc(100vh-var(--navbar-height))] w-[var(--settings-width)] flex-col gap-[5px] border-[var(--color-border)] border-r p-3 pb-12">
+        <Scrollbar className="flex h-[calc(100vh-var(--navbar-height))] w-(--settings-width) flex-col gap-2.5 border-border border-r p-3 pb-12">
           <ListItem
             title={t('settings.tool.websearch.title')}
             active={activeView === 'general'}
@@ -65,7 +66,7 @@ const WebSearchSettings: FC = () => {
                   logo ? (
                     <img src={logo} alt={provider.name} className="h-5 w-5 rounded object-contain" />
                   ) : (
-                    <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
+                    <div className="h-5 w-5 rounded" />
                   )
                 }
                 titleStyle={{ fontWeight: 500 }}
@@ -93,7 +94,7 @@ const WebSearchSettings: FC = () => {
                       logo ? (
                         <img src={logo} alt={provider.name} className="h-5 w-5 rounded object-contain" />
                       ) : (
-                        <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
+                        <div className="h-5 w-5 rounded" />
                       )
                     }
                     titleStyle={{ fontWeight: 500 }}

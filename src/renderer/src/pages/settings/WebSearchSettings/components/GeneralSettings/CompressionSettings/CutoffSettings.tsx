@@ -1,11 +1,11 @@
 import { InfoTooltip, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
+import { useCutoffCompression } from '@renderer/hooks/useWebSearch'
 import type { WebSearchCompressionCutoffUnit } from '@shared/data/preference/preferenceTypes'
 import { useTranslation } from 'react-i18next'
 
 const CutoffSettings = () => {
   const { t } = useTranslation()
-  const { cutoffLimit, setCutoffLimit, cutoffUnit, setCutoffUnit } = useWebSearchSettings()
+  const { cutoffLimit, setCutoffLimit, cutoffUnit, setCutoffUnit } = useCutoffCompression()
 
   const handleCutoffLimitChange = (value: number | null) => {
     setCutoffLimit(value)

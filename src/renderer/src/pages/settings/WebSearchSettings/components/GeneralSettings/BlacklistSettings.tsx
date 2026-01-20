@@ -1,6 +1,6 @@
 import { Button, Textarea } from '@cherrystudio/ui'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import { parseMatchPattern } from '@renderer/utils/blacklistMatchPattern'
+import { useBasicWebSearchSettings } from '@renderer/hooks/useWebSearch'
+import { parseDomains, validateDomains } from '@renderer/validators/blacklistValidator'
 import { t } from 'i18next'
 import { AlertCircle, Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
 const BlacklistSettings: FC = () => {
   const [errFormat, setErrFormat] = useState(false)
   const [blacklistInput, setBlacklistInput] = useState('')
-  const { excludeDomains, setExcludeDomains } = useWebSearchSettings()
+  const { excludeDomains, setExcludeDomains } = useBasicWebSearchSettings()
 
   useEffect(() => {
     if (excludeDomains) {
@@ -18,34 +18,13 @@ const BlacklistSettings: FC = () => {
   }, [excludeDomains])
 
   function updateManualBlacklist(blacklist: string) {
-    const blacklistDomains = blacklist.split('\n').filter((url) => url.trim() !== '')
-    const validDomains: string[] = []
-    const hasError = blacklistDomains.some((domain) => {
-      const trimmedDomain = domain.trim()
-      // 正则表达式
-      if (trimmedDomain.startsWith('/') && trimmedDomain.endsWith('/')) {
-        try {
-          const regexPattern = trimmedDomain.slice(1, -1)
-          new RegExp(regexPattern, 'i')
-          validDomains.push(trimmedDomain)
-          return false
-        } catch (error) {
-          return true
-        }
-      } else {
-        const parsed = parseMatchPattern(trimmedDomain)
-        if (parsed === null) {
-          return true
-        }
-        validDomains.push(trimmedDomain)
-        return false
-      }
-    })
+    const domains = parseDomains(blacklist)
+    const { valid, invalid } = validateDomains(domains)
 
-    setErrFormat(hasError)
-    if (hasError) return
+    setErrFormat(invalid.length > 0)
+    if (invalid.length > 0) return
 
-    setExcludeDomains(validDomains)
+    setExcludeDomains(valid)
     window.toast.info({
       title: t('message.save.success.title'),
       timeout: 4000,

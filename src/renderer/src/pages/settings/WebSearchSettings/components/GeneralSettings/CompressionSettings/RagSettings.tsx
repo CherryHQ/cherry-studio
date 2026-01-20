@@ -6,7 +6,7 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_RERANK_PROVIDERS } from '@renderer/config/providers'
 import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
+import { useRagCompression } from '@renderer/hooks/useWebSearch'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { find } from 'lodash'
@@ -31,7 +31,7 @@ const RagSettings = () => {
     ragRerankProviderId,
     setRagRerankModelId,
     setRagRerankProviderId
-  } = useWebSearchSettings()
+  } = useRagCompression()
 
   // Get the actual model objects from stored ids
   const embeddingModel = useModel(ragEmbeddingModelId ?? undefined, ragEmbeddingProviderId ?? undefined)

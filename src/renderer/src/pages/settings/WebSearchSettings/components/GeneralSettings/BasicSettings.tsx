@@ -1,11 +1,12 @@
 import { InfoTooltip, Slider, Switch } from '@cherrystudio/ui'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
+import { useBasicWebSearchSettings, useCompressionMethod } from '@renderer/hooks/useWebSearch'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const BasicSettings: FC = () => {
   const { t } = useTranslation()
-  const { searchWithTime, maxResults, compressionMethod, setSearchWithTime, setMaxResults } = useWebSearchSettings()
+  const { searchWithTime, maxResults, setSearchWithTime, setMaxResults } = useBasicWebSearchSettings()
+  const { method: compressionMethod } = useCompressionMethod()
 
   return (
     <div className="flex flex-col gap-2 px-4 py-2">

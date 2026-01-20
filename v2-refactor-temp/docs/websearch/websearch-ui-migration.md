@@ -2,11 +2,12 @@
 
 ## 概述
 
-WebSearch Settings UI 迁移分为三个阶段：
+WebSearch Settings UI 迁移分为四个阶段：
 
 1. **第一阶段**: 数据层迁移 (Redux → Preference API) ✅ 已完成
 2. **第二阶段**: UI 组件库迁移 (antd → CherryUI + Tailwind) ✅ 已完成
-3. **第三阶段**: Setting 组件迁移 (styled-components → Tailwind) ⏳ 待开始
+3. **第三阶段**: Setting 组件迁移 (styled-components → Tailwind) ✅ 已完成
+4. **第四阶段**: SOLID 架构重构 ⏳ 待开始
 
 **迁移范围**：
 - 保留功能：使用新 hooks
@@ -479,7 +480,7 @@ const ProviderName = styled.span`font-size: 14px; font-weight: 500;`
 
 ---
 
-# 第三阶段：Setting 组件迁移 (styled-components → Tailwind) ⏳ 待开始
+# 第三阶段：Setting 组件迁移 (styled-components → Tailwind) ✅ 已完成
 
 ## 概述
 
@@ -730,10 +731,439 @@ export const SettingsTitle = ({ children, className }: Props) => (
 
 ## 验证清单
 
+- [x] `pnpm lint` 无错误
+- [x] `pnpm test` 通过
+- [x] `pnpm build:check` 通过
+- [x] 功能验证:
+  - [x] 设置页面布局正确
+  - [x] 深色/浅色主题切换正常
+  - [x] 所有交互功能正常
+
+---
+
+# 第四阶段：SOLID 架构重构 ⏳ 待开始
+
+## 概述
+
+基于 SOLID 原则对 WebSearchSettings 模块进行架构重构，解决以下核心问题：
+
+| 问题 | SOLID 原则 | 严重性 | 描述 |
+|------|-----------|--------|------|
+| Hook 返回 32+ 属性 | ISP 违反 | 高 | 组件订阅大量不需要的数据 |
+| 组件混合多种职责 | SRP 违反 | 高 | 验证、UI、状态管理混在一起 |
+| Provider 类型检查硬编码 | OCP 违反 | 中 | 多处重复 `id.startsWith('local-')` |
+| 压缩方法条件渲染硬编码 | OCP 违反 | 中 | 添加新方法需修改多处代码 |
+| 直接依赖具体服务 | DIP 违反 | 中 | 难以测试和替换 |
+
+---
+
+## 架构设计
+
+### 4.1 Hook 拆分 (ISP + SRP)
+
+将 `useWebSearchSettings()` 拆分为专用 hooks：
+
+```
+useWebSearch.ts
+├── useWebSearchProviders()        # Provider 管理 (已有)
+├── useWebSearchProvider(id)       # 单个 Provider (已有)
+├── useBasicWebSearchSettings()    # 基础设置 (新增，6 items)
+├── useCompressionMethod()         # 压缩方法选择 (新增，2 items)
+├── useCutoffCompression()         # Cutoff 设置 (新增，5 items)
+└── useRagCompression()            # RAG 设置 (新增，12 items)
+```
+
+**拆分前**：
+```typescript
+// 组件获取 32+ 属性，但只用其中 2-3 个
+const { searchWithTime, setSearchWithTime, maxResults, setMaxResults, /* 28+ 更多 */ } = useWebSearchSettings()
+```
+
+**拆分后**：
+```typescript
+// 组件只获取需要的属性
+const { searchWithTime, setSearchWithTime, maxResults, setMaxResults } = useBasicWebSearchSettings()
+```
+
+### 4.2 Provider Discriminator (OCP + SRP)
+
+**文件**: `src/renderer/src/utils/webSearchProviderUtils.ts`
+
+```typescript
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+
+/**
+ * 判断是否为本地 Provider
+ */
+export function isLocalProvider(provider: WebSearchProvider): boolean {
+  return provider.id.startsWith('local-')
+}
+
+/**
+ * 判断是否为 API Provider
+ */
+export function isApiProvider(provider: WebSearchProvider): boolean {
+  return !provider.id.startsWith('local-')
+}
+
+/**
+ * 获取 Provider 类型
+ */
+export function getProviderType(provider: WebSearchProvider): 'local' | 'api' {
+  return isLocalProvider(provider) ? 'local' : 'api'
+}
+```
+
+**应用场景**：
+```typescript
+// index.tsx - 分类 providers
+const localProviders = providers.filter(isLocalProvider)
+const apiProviders = providers.filter(isApiProvider)
+
+// WebSearchProviderSetting.tsx - 条件分发
+const type = getProviderType(provider)
+if (type === 'local') {
+  return <LocalProviderSettings provider={provider} />
+}
+return <ApiProviderSettings provider={provider} updateProvider={updateProvider} />
+```
+
+### 4.3 验证逻辑分离 (SRP)
+
+**文件**: `src/renderer/src/validators/blacklistValidator.ts`
+
+```typescript
+import { parseMatchPattern } from '@renderer/utils/matchPatternParser'
+
+/**
+ * 验证 Regex 模式
+ */
+export function isValidRegexPattern(pattern: string): boolean {
+  try {
+    new RegExp(pattern.slice(1, -1), 'i')
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 验证单个域名/模式
+ */
+export function isValidDomain(domain: string): boolean {
+  const trimmed = domain.trim()
+  if (!trimmed) return false
+
+  // Regex pattern: /pattern/
+  if (trimmed.startsWith('/') && trimmed.endsWith('/')) {
+    return isValidRegexPattern(trimmed)
+  }
+
+  // Match pattern
+  return parseMatchPattern(trimmed) !== null
+}
+
+/**
+ * 批量验证域名
+ */
+export function validateDomains(domains: string[]): { valid: string[]; invalid: string[] } {
+  const valid: string[] = []
+  const invalid: string[] = []
+
+  for (const domain of domains) {
+    const trimmed = domain.trim()
+    if (!trimmed) continue
+
+    if (isValidDomain(trimmed)) {
+      valid.push(trimmed)
+    } else {
+      invalid.push(trimmed)
+    }
+  }
+
+  return { valid, invalid }
+}
+
+/**
+ * 解析文本为域名数组
+ */
+export function parseDomains(text: string): string[] {
+  return text.split('\n').map(d => d.trim()).filter(d => d !== '')
+}
+```
+
+**应用**:
+```typescript
+// BlacklistSettings.tsx
+import { validateDomains, parseDomains } from '@renderer/validators/blacklistValidator'
+
+function updateManualBlacklist(blacklist: string) {
+  const domains = parseDomains(blacklist)
+  const { valid, invalid } = validateDomains(domains)
+
+  if (invalid.length > 0) {
+    setErrFormat(true)
+    return
+  }
+
+  setErrFormat(false)
+  setExcludeDomains(valid)
+}
+```
+
+### 4.4 压缩方法 Registry (OCP)
+
+**文件**: `src/renderer/src/pages/settings/WebSearchSettings/CompressionSettings/CompressionMethodRegistry.tsx`
+
+```typescript
+import type { WebSearchCompressionMethod } from '@shared/data/preference/preferenceTypes'
+import type { ReactNode } from 'react'
+import { lazy, Suspense } from 'react'
+
+// 懒加载组件
+const CutoffSettings = lazy(() => import('./CutoffSettings'))
+const RagSettings = lazy(() => import('./RagSettings'))
+
+type CompressionRenderer = () => ReactNode
+
+// 方法注册表
+const registry: Record<WebSearchCompressionMethod, CompressionRenderer | null> = {
+  none: null,
+  cutoff: () => <CutoffSettings />,
+  rag: () => <RagSettings />
+}
+
+/**
+ * 获取压缩方法的渲染器
+ */
+export function getCompressionRenderer(method: WebSearchCompressionMethod): ReactNode {
+  const renderer = registry[method]
+  if (!renderer) return null
+
+  return (
+    <Suspense fallback={<div className="p-4">Loading...</div>}>
+      {renderer()}
+    </Suspense>
+  )
+}
+
+/**
+ * 注册新的压缩方法（扩展点）
+ */
+export function registerCompressionMethod(
+  method: WebSearchCompressionMethod,
+  renderer: CompressionRenderer
+): void {
+  registry[method] = renderer
+}
+```
+
+**应用**:
+```typescript
+// CompressionSettings/index.tsx
+import { getCompressionRenderer } from './CompressionMethodRegistry'
+
+const CompressionSettings: FC = () => {
+  const { method, setMethod } = useCompressionMethod()
+
+  return (
+    <SettingGroupTw theme={theme}>
+      <SettingTitleTw>{t('settings.websearch.compression.title')}</SettingTitleTw>
+      <SettingDividerTw />
+      <SettingRowTw>
+        <SettingRowTitleTw>{t('settings.websearch.compression.method')}</SettingRowTitleTw>
+        <Select value={method} onValueChange={setMethod}>
+          {/* options */}
+        </Select>
+      </SettingRowTw>
+      {getCompressionRenderer(method)}
+    </SettingGroupTw>
+  )
+}
+```
+
+---
+
+## 详细实施步骤
+
+### Step 4.1: 新增专用 Hooks
+
+**文件**: `src/renderer/src/hooks/useWebSearch.ts`
+
+```typescript
+// ============================================================================
+// Specialized Hooks (Phase 4 - ISP Compliance)
+// ============================================================================
+
+/**
+ * 基础 WebSearch 设置 (6 items)
+ * 用于: BasicSettings.tsx
+ */
+export function useBasicWebSearchSettings() {
+  const [searchWithTime, setSearchWithTime] = usePreference('chat.websearch.search_with_time')
+  const [maxResults, setMaxResults] = usePreference('chat.websearch.max_results')
+  const [excludeDomains, setExcludeDomains] = usePreference('chat.websearch.exclude_domains')
+
+  return {
+    searchWithTime,
+    setSearchWithTime,
+    maxResults,
+    setMaxResults,
+    excludeDomains,
+    setExcludeDomains
+  }
+}
+
+/**
+ * 压缩方法选择 (2 items)
+ * 用于: CompressionSettings/index.tsx
+ */
+export function useCompressionMethod() {
+  const [method, setMethod] = usePreference('chat.websearch.compression.method')
+  return { method, setMethod }
+}
+
+/**
+ * Cutoff 压缩设置 (5 items)
+ * 用于: CompressionSettings/CutoffSettings.tsx
+ */
+export function useCutoffCompression() {
+  const [cutoffLimit, setCutoffLimit] = usePreference('chat.websearch.compression.cutoff_limit')
+  const [cutoffUnit, setCutoffUnit] = usePreference('chat.websearch.compression.cutoff_unit')
+
+  const updateCutoff = useCallback(
+    async (limit: number | null, unit?: WebSearchCompressionCutoffUnit) => {
+      await setCutoffLimit(limit)
+      if (unit !== undefined) {
+        await setCutoffUnit(unit)
+      }
+    },
+    [setCutoffLimit, setCutoffUnit]
+  )
+
+  return { cutoffLimit, setCutoffLimit, cutoffUnit, setCutoffUnit, updateCutoff }
+}
+
+/**
+ * RAG 压缩设置 (12 items)
+ * 用于: CompressionSettings/RagSettings.tsx
+ */
+export function useRagCompression() {
+  const [ragDocumentCount, setRagDocumentCount] = usePreference('chat.websearch.compression.rag_document_count')
+  const [ragEmbeddingModelId, setRagEmbeddingModelId] = usePreference('chat.websearch.compression.rag_embedding_model_id')
+  const [ragEmbeddingProviderId, setRagEmbeddingProviderId] = usePreference('chat.websearch.compression.rag_embedding_provider_id')
+  const [ragEmbeddingDimensions, setRagEmbeddingDimensions] = usePreference('chat.websearch.compression.rag_embedding_dimensions')
+  const [ragRerankModelId, setRagRerankModelId] = usePreference('chat.websearch.compression.rag_rerank_model_id')
+  const [ragRerankProviderId, setRagRerankProviderId] = usePreference('chat.websearch.compression.rag_rerank_provider_id')
+
+  const updateRagEmbeddingModel = useCallback(
+    async (modelId: string | null, providerId: string | null, dimensions?: number | null) => {
+      await setRagEmbeddingModelId(modelId)
+      await setRagEmbeddingProviderId(providerId)
+      if (dimensions !== undefined) {
+        await setRagEmbeddingDimensions(dimensions)
+      }
+    },
+    [setRagEmbeddingModelId, setRagEmbeddingProviderId, setRagEmbeddingDimensions]
+  )
+
+  const updateRagRerankModel = useCallback(
+    async (modelId: string | null, providerId: string | null) => {
+      await setRagRerankModelId(modelId)
+      await setRagRerankProviderId(providerId)
+    },
+    [setRagRerankModelId, setRagRerankProviderId]
+  )
+
+  return {
+    ragDocumentCount,
+    setRagDocumentCount,
+    ragEmbeddingModelId,
+    setRagEmbeddingModelId,
+    ragEmbeddingProviderId,
+    setRagEmbeddingProviderId,
+    ragEmbeddingDimensions,
+    setRagEmbeddingDimensions,
+    ragRerankModelId,
+    setRagRerankModelId,
+    ragRerankProviderId,
+    setRagRerankProviderId,
+    updateRagEmbeddingModel,
+    updateRagRerankModel
+  }
+}
+```
+
+### Step 4.2: 创建 Provider Discriminator
+
+**文件**: `src/renderer/src/utils/webSearchProviderUtils.ts` (新建)
+
+### Step 4.3: 创建 Blacklist Validator
+
+**文件**: `src/renderer/src/validators/blacklistValidator.ts` (新建)
+
+### Step 4.4: 创建压缩方法 Registry
+
+**文件**: `src/renderer/src/pages/settings/WebSearchSettings/CompressionSettings/CompressionMethodRegistry.tsx` (新建)
+
+### Step 4.5: 迁移组件
+
+按以下顺序迁移各组件：
+
+1. `BasicSettings.tsx` - 使用 `useBasicWebSearchSettings`
+2. `BlacklistSettings.tsx` - 使用 `blacklistValidator` + `useBasicWebSearchSettings`
+3. `CompressionSettings/index.tsx` - 使用 `useCompressionMethod` + Registry
+4. `CompressionSettings/CutoffSettings.tsx` - 使用 `useCutoffCompression`
+5. `CompressionSettings/RagSettings.tsx` - 使用 `useRagCompression`
+6. `index.tsx` - 使用 `webSearchProviderUtils`
+7. `WebSearchProviderSetting.tsx` - 使用 `webSearchProviderUtils`
+
+---
+
+## 文件修改清单
+
+| 文件 | 操作 | 描述 |
+|------|------|------|
+| `hooks/useWebSearch.ts` | 修改 | 添加 4 个专用 hooks |
+| `utils/webSearchProviderUtils.ts` | **新建** | Provider 类型判断工具 |
+| `validators/blacklistValidator.ts` | **新建** | 黑名单验证工具 |
+| `CompressionSettings/CompressionMethodRegistry.tsx` | **新建** | 压缩方法注册表 |
+| `WebSearchSettings/index.tsx` | 修改 | 使用 Provider Discriminator + Tailwind |
+| `WebSearchSettings/BasicSettings.tsx` | 修改 | 使用 `useBasicWebSearchSettings` + Tailwind |
+| `WebSearchSettings/BlacklistSettings.tsx` | 修改 | 使用 `blacklistValidator` + Tailwind |
+| `WebSearchSettings/WebSearchGeneralSettings.tsx` | 修改 | Tailwind 迁移 |
+| `WebSearchSettings/WebSearchProviderSettings.tsx` | 修改 | Tailwind 迁移 |
+| `WebSearchSettings/WebSearchProviderSetting.tsx` | 修改 | 使用 Provider Discriminator + Tailwind |
+| `CompressionSettings/index.tsx` | 修改 | 使用 Registry + Tailwind |
+| `CompressionSettings/CutoffSettings.tsx` | 修改 | 使用 `useCutoffCompression` + Tailwind |
+| `CompressionSettings/RagSettings.tsx` | 修改 | 使用 `useRagCompression` + Tailwind |
+
+---
+
+## 验证清单
+
 - [ ] `pnpm lint` 无错误
 - [ ] `pnpm test` 通过
 - [ ] `pnpm build:check` 通过
 - [ ] 功能验证:
-  - [ ] 设置页面布局正确
-  - [ ] 深色/浅色主题切换正常
+  - [ ] Provider 列表正常显示
+  - [ ] Provider 设置（API Key、Host）保存正常
+  - [ ] 基础设置 (searchWithTime, maxResults) 正常保存
+  - [ ] 黑名单验证和保存正常
+  - [ ] 压缩方法切换正常
+  - [ ] Cutoff 配置正常保存
+  - [ ] RAG 配置正常保存
+  - [ ] 深色/浅色主题样式正确
   - [ ] 所有交互功能正常
+
+---
+
+## 优先级
+
+| 优先级 | 任务 | 影响范围 |
+|-------|------|---------|
+| P0 | Hook 拆分 | 性能、可维护性 |
+| P0 | Validator 分离 | 可测试性、可复用性 |
+| P1 | Provider Discriminator | 代码复用、可维护性 |
+| P1 | 压缩方法 Registry | 可扩展性 |
+| P2 | Tailwind 组件迁移 | 统一技术栈 |

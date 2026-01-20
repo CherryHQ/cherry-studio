@@ -1,4 +1,5 @@
 import type { KnowledgeReference, WebSearchProviderResult } from '@renderer/types'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 /**
  * 将检索到的知识片段按源URL整合为搜索结果
@@ -113,4 +114,16 @@ export function selectReferences(
   }
 
   return selected
+}
+
+export function isLocalProvider(provider: WebSearchProvider): boolean {
+  return provider.type === 'local'
+}
+
+export function isApiProvider(provider: WebSearchProvider): boolean {
+  return provider.type === 'api'
+}
+
+export function getProviderType(provider: WebSearchProvider): 'local' | 'api' {
+  return isLocalProvider(provider) ? 'local' : 'api'
 }

@@ -1,17 +1,16 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
+import { useCompressionMethod } from '@renderer/hooks/useWebSearch'
 import type { WebSearchCompressionMethod } from '@shared/data/preference/preferenceTypes'
 import { useTranslation } from 'react-i18next'
 
-import CutoffSettings from './CutoffSettings'
-import RagSettings from './RagSettings'
+import { getCompressionRenderer } from './CompressionMethodRegistry'
 
 const CompressionSettings = () => {
   const { t } = useTranslation()
-  const { compressionMethod, setCompressionMethod } = useWebSearchSettings()
+  const { method, setMethod } = useCompressionMethod()
 
   const handleCompressionMethodChange = (method: WebSearchCompressionMethod) => {
-    setCompressionMethod(method)
+    setMethod(method)
   }
 
   return (
@@ -21,8 +20,8 @@ const CompressionSettings = () => {
 
       <div className="flex flex-row items-center justify-between">
         <div>{t('settings.tool.websearch.compression.method.label')}</div>
-        <Select value={compressionMethod} onValueChange={handleCompressionMethodChange}>
-          <SelectTrigger className={compressionMethod === 'rag' ? 'w-[min(350px,60%)]' : 'w-50'}>
+        <Select value={method} onValueChange={handleCompressionMethodChange}>
+          <SelectTrigger className={method === 'rag' ? 'w-[min(350px,60%)]' : 'w-50'}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -33,8 +32,7 @@ const CompressionSettings = () => {
         </Select>
       </div>
 
-      {compressionMethod === 'cutoff' && <CutoffSettings />}
-      {compressionMethod === 'rag' && <RagSettings />}
+      {getCompressionRenderer(method)}
     </div>
   )
 }

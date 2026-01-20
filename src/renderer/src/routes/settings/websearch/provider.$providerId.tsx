@@ -1,6 +1,6 @@
-import WebSearchProviderSettings from '@renderer/pages/settings/WebSearchSettings/WebSearchProviderSettings'
+import WebSearchProviderSetting from '@renderer/pages/settings/WebSearchSettings/components/ProviderSettings'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings/websearch/provider/$providerId')({
-  component: WebSearchProviderSettings
+  component: WebSearchProviderSetting
 })

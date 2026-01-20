@@ -8,11 +8,7 @@
  */
 
 import { usePreference } from '@data/hooks/usePreference'
-import type {
-  WebSearchCompressionCutoffUnit,
-  WebSearchCompressionMethod,
-  WebSearchProvider
-} from '@shared/data/preference/preferenceTypes'
+import type { WebSearchCompressionCutoffUnit, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useMemo } from 'react'
 
 // ============================================================================
@@ -61,7 +57,7 @@ export function useWebSearchProviders() {
     (providerId?: string): boolean => {
       const provider = providers.find((p) => p.id === providerId)
       if (!provider) return false
-      if (provider.id.startsWith('local-')) return true
+      if (provider.type === 'local') return true
       if (provider.apiKey !== '') return true
       if (provider.apiHost !== '') return true
       return false
@@ -100,21 +96,65 @@ export function useWebSearchProvider(providerId: string) {
 }
 
 // ============================================================================
-// Compression Hooks (v2 - Flattened)
+// Specialized Settings Hooks (Phase 4 - ISP Compliance)
 // ============================================================================
 
 /**
- * Hook for websearch compression settings (flattened preference keys)
+ * Basic websearch settings (6 items)
  */
-export function useWebSearchCompression() {
-  // Method
-  const [method, setMethod] = usePreference('chat.websearch.compression.method')
+export function useBasicWebSearchSettings() {
+  const [searchWithTime, setSearchWithTime] = usePreference('chat.websearch.search_with_time')
+  const [maxResults, setMaxResults] = usePreference('chat.websearch.max_results')
+  const [excludeDomains, setExcludeDomains] = usePreference('chat.websearch.exclude_domains')
 
-  // Cutoff settings
+  return {
+    searchWithTime,
+    setSearchWithTime,
+    maxResults,
+    setMaxResults,
+    excludeDomains,
+    setExcludeDomains
+  }
+}
+
+/**
+ * Compression method selection (2 items)
+ */
+export function useCompressionMethod() {
+  const [method, setMethod] = usePreference('chat.websearch.compression.method')
+  return { method, setMethod }
+}
+
+/**
+ * Cutoff compression settings (5 items)
+ */
+export function useCutoffCompression() {
   const [cutoffLimit, setCutoffLimit] = usePreference('chat.websearch.compression.cutoff_limit')
   const [cutoffUnit, setCutoffUnit] = usePreference('chat.websearch.compression.cutoff_unit')
 
-  // RAG settings
+  const updateCutoff = useCallback(
+    async (limit: number | null, unit?: WebSearchCompressionCutoffUnit) => {
+      await setCutoffLimit(limit)
+      if (unit !== undefined) {
+        await setCutoffUnit(unit)
+      }
+    },
+    [setCutoffLimit, setCutoffUnit]
+  )
+
+  return {
+    cutoffLimit,
+    setCutoffLimit,
+    cutoffUnit,
+    setCutoffUnit,
+    updateCutoff
+  }
+}
+
+/**
+ * RAG compression settings (12 items)
+ */
+export function useRagCompression() {
   const [ragDocumentCount, setRagDocumentCount] = usePreference('chat.websearch.compression.rag_document_count')
   const [ragEmbeddingModelId, setRagEmbeddingModelId] = usePreference(
     'chat.websearch.compression.rag_embedding_model_id'
@@ -130,32 +170,6 @@ export function useWebSearchCompression() {
     'chat.websearch.compression.rag_rerank_provider_id'
   )
 
-  /**
-   * Update compression method
-   */
-  const updateMethod = useCallback(
-    async (newMethod: WebSearchCompressionMethod) => {
-      await setMethod(newMethod)
-    },
-    [setMethod]
-  )
-
-  /**
-   * Update cutoff settings
-   */
-  const updateCutoff = useCallback(
-    async (limit: number | null, unit?: WebSearchCompressionCutoffUnit) => {
-      await setCutoffLimit(limit)
-      if (unit !== undefined) {
-        await setCutoffUnit(unit)
-      }
-    },
-    [setCutoffLimit, setCutoffUnit]
-  )
-
-  /**
-   * Update RAG embedding model
-   */
   const updateRagEmbeddingModel = useCallback(
     async (modelId: string | null, providerId: string | null, dimensions?: number | null) => {
       await setRagEmbeddingModelId(modelId)
@@ -167,9 +181,6 @@ export function useWebSearchCompression() {
     [setRagEmbeddingModelId, setRagEmbeddingProviderId, setRagEmbeddingDimensions]
   )
 
-  /**
-   * Update RAG rerank model
-   */
   const updateRagRerankModel = useCallback(
     async (modelId: string | null, providerId: string | null) => {
       await setRagRerankModelId(modelId)
@@ -179,54 +190,6 @@ export function useWebSearchCompression() {
   )
 
   return {
-    // Values
-    method,
-    cutoffLimit,
-    cutoffUnit,
-    ragDocumentCount,
-    ragEmbeddingModelId,
-    ragEmbeddingProviderId,
-    ragEmbeddingDimensions,
-    ragRerankModelId,
-    ragRerankProviderId,
-    // Individual setters
-    setMethod,
-    setCutoffLimit,
-    setCutoffUnit,
-    setRagDocumentCount,
-    setRagEmbeddingModelId,
-    setRagEmbeddingProviderId,
-    setRagEmbeddingDimensions,
-    setRagRerankModelId,
-    setRagRerankProviderId,
-    // Convenience update functions
-    updateMethod,
-    updateCutoff,
-    updateRagEmbeddingModel,
-    updateRagRerankModel
-  }
-}
-
-// ============================================================================
-// Settings Hooks (Preference)
-// ============================================================================
-
-/**
- * Hook for websearch settings (all preference-based settings)
- */
-export function useWebSearchSettings() {
-  const [searchWithTime, setSearchWithTime] = usePreference('chat.websearch.search_with_time')
-  const [maxResults, setMaxResults] = usePreference('chat.websearch.max_results')
-  const [excludeDomains, setExcludeDomains] = usePreference('chat.websearch.exclude_domains')
-
-  // Use the compression hook
-  const {
-    method: compressionMethod,
-    setMethod: setCompressionMethod,
-    cutoffLimit,
-    setCutoffLimit,
-    cutoffUnit,
-    setCutoffUnit,
     ragDocumentCount,
     setRagDocumentCount,
     ragEmbeddingModelId,
@@ -239,44 +202,6 @@ export function useWebSearchSettings() {
     setRagRerankModelId,
     ragRerankProviderId,
     setRagRerankProviderId,
-    updateMethod,
-    updateCutoff,
-    updateRagEmbeddingModel,
-    updateRagRerankModel
-  } = useWebSearchCompression()
-
-  return {
-    // Basic settings
-    searchWithTime,
-    maxResults,
-    excludeDomains,
-    // Setters for basic settings
-    setSearchWithTime,
-    setMaxResults,
-    setExcludeDomains,
-    // Compression individual values
-    compressionMethod,
-    cutoffLimit,
-    cutoffUnit,
-    ragDocumentCount,
-    ragEmbeddingModelId,
-    ragEmbeddingProviderId,
-    ragEmbeddingDimensions,
-    ragRerankModelId,
-    ragRerankProviderId,
-    // Compression setters
-    setCompressionMethod,
-    setCutoffLimit,
-    setCutoffUnit,
-    setRagDocumentCount,
-    setRagEmbeddingModelId,
-    setRagEmbeddingProviderId,
-    setRagEmbeddingDimensions,
-    setRagRerankModelId,
-    setRagRerankProviderId,
-    // Convenience update functions
-    updateMethod,
-    updateCutoff,
     updateRagEmbeddingModel,
     updateRagRerankModel
   }
