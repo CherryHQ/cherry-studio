@@ -18,6 +18,8 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
+import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -78,6 +80,38 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // WebSearch providers migration (add missing type field)
+  {
+    id: 'websearch_providers_migrate',
+    description: 'Migrate websearch providers array, adding type field and other missing fields',
+    sources: {
+      providers: { source: 'redux', category: 'websearch', key: 'providers' }
+    },
+    targetKeys: ['chat.websearch.providers'],
+    transform: migrateWebSearchProviders
+  },
+
+  // WebSearch compression config flattening
+  {
+    id: 'websearch_compression_flatten',
+    description: 'Flatten websearch compressionConfig object into separate preference keys',
+    sources: {
+      compressionConfig: { source: 'redux', category: 'websearch', key: 'compressionConfig' }
+    },
+    targetKeys: [
+      'chat.websearch.compression.method',
+      'chat.websearch.compression.cutoff_limit',
+      'chat.websearch.compression.cutoff_unit',
+      'chat.websearch.compression.rag_document_count',
+      'chat.websearch.compression.rag_embedding_model_id',
+      'chat.websearch.compression.rag_embedding_provider_id',
+      'chat.websearch.compression.rag_embedding_dimensions',
+      'chat.websearch.compression.rag_rerank_model_id',
+      'chat.websearch.compression.rag_rerank_provider_id'
+    ],
+    transform: flattenCompressionConfig
+  }
+
   // Example mappings (commented out - uncomment when needed):
   //
   // {

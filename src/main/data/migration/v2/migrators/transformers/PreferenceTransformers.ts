@@ -194,3 +194,158 @@ export function isValidNumber(value: unknown): value is number {
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
+
+// ============================================================================
+// WebSearch Transformers
+// ============================================================================
+
+/**
+ * WebSearch compression config source type
+ * Matches the actual Redux websearch.compressionConfig structure
+ */
+interface WebSearchCompressionConfigSource {
+  method?: string
+  cutoffLimit?: number | null
+  cutoffUnit?: string
+  documentCount?: number
+  embeddingModel?: { id?: string; provider?: string } | null
+  embeddingDimensions?: number | null
+  rerankModel?: { id?: string; provider?: string } | null
+}
+
+/**
+ * Flatten websearch compressionConfig object into separate preference keys.
+ *
+ * Transforms nested model objects (embeddingModel, rerankModel) into flat id/provider keys.
+ *
+ * @example
+ * Input: {
+ *   compressionConfig: {
+ *     method: 'rag',
+ *     documentCount: 5,
+ *     embeddingModel: { id: 'model-1', provider: 'openai' },
+ *     rerankModel: { id: 'rerank-1', provider: 'cohere' }
+ *   }
+ * }
+ * Output: {
+ *   'chat.websearch.compression.method': 'rag',
+ *   'chat.websearch.compression.rag_document_count': 5,
+ *   'chat.websearch.compression.rag_embedding_model_id': 'model-1',
+ *   'chat.websearch.compression.rag_embedding_provider_id': 'openai',
+ *   ...
+ * }
+ */
+export function flattenCompressionConfig(sources: {
+  compressionConfig?: WebSearchCompressionConfigSource
+}): TransformResult {
+  const config = sources.compressionConfig
+
+  // If no config, return defaults
+  if (!config) {
+    return {
+      'chat.websearch.compression.method': 'none',
+      'chat.websearch.compression.cutoff_limit': null,
+      'chat.websearch.compression.cutoff_unit': 'char',
+      'chat.websearch.compression.rag_document_count': 5,
+      'chat.websearch.compression.rag_embedding_model_id': null,
+      'chat.websearch.compression.rag_embedding_provider_id': null,
+      'chat.websearch.compression.rag_embedding_dimensions': null,
+      'chat.websearch.compression.rag_rerank_model_id': null,
+      'chat.websearch.compression.rag_rerank_provider_id': null
+    }
+  }
+
+  return {
+    'chat.websearch.compression.method': config.method ?? 'none',
+    'chat.websearch.compression.cutoff_limit': config.cutoffLimit ?? null,
+    'chat.websearch.compression.cutoff_unit': config.cutoffUnit ?? 'char',
+    'chat.websearch.compression.rag_document_count': config.documentCount ?? 5,
+    'chat.websearch.compression.rag_embedding_model_id': config.embeddingModel?.id ?? null,
+    'chat.websearch.compression.rag_embedding_provider_id': config.embeddingModel?.provider ?? null,
+    'chat.websearch.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
+    'chat.websearch.compression.rag_rerank_model_id': config.rerankModel?.id ?? null,
+    'chat.websearch.compression.rag_rerank_provider_id': config.rerankModel?.provider ?? null
+  }
+}
+
+/**
+ * Old WebSearch provider structure from Redux (missing type and other fields)
+ */
+interface OldWebSearchProvider {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
+  url?: string
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+
+/**
+ * New WebSearch provider structure with all required fields
+ */
+interface NewWebSearchProvider {
+  id: string
+  name: string
+  type: 'api' | 'local'
+  apiKey: string
+  apiHost: string
+  engines: string[]
+  usingBrowser: boolean
+  basicAuthUsername: string
+  basicAuthPassword: string
+}
+
+/**
+ * Migrate websearch providers array, adding missing fields.
+ *
+ * The old Redux data doesn't have 'type' field, which is required by the new system.
+ * This function:
+ * - Adds 'type' field based on provider id (local-* = 'local', others = 'api')
+ * - Adds missing fields with default values (engines, usingBrowser, etc.)
+ *
+ * @example
+ * Input: {
+ *   providers: [
+ *     { id: 'tavily', name: 'Tavily', apiKey: '...', apiHost: '...' },
+ *     { id: 'local-google', name: 'Google', url: '...' }
+ *   ]
+ * }
+ * Output: {
+ *   'chat.websearch.providers': [
+ *     { id: 'tavily', name: 'Tavily', type: 'api', apiKey: '...', apiHost: '...', engines: [], ... },
+ *     { id: 'local-google', name: 'Google', type: 'local', apiKey: '', apiHost: '', engines: [], ... }
+ *   ]
+ * }
+ */
+export function migrateWebSearchProviders(sources: { providers?: OldWebSearchProvider[] }): TransformResult {
+  const providers = sources.providers
+
+  // If no providers, return empty array
+  if (!providers || !Array.isArray(providers)) {
+    return {
+      'chat.websearch.providers': []
+    }
+  }
+
+  const migratedProviders: NewWebSearchProvider[] = providers.map((p) => {
+    // Determine type based on id prefix
+    const type: 'api' | 'local' = p.id.startsWith('local-') ? 'local' : 'api'
+
+    return {
+      id: p.id,
+      name: p.name,
+      type,
+      apiKey: p.apiKey ?? '',
+      apiHost: p.apiHost ?? '',
+      engines: [],
+      usingBrowser: false,
+      basicAuthUsername: p.basicAuthUsername ?? '',
+      basicAuthPassword: p.basicAuthPassword ?? ''
+    }
+  })
+
+  return {
+    'chat.websearch.providers': migratedProviders
+  }
+}
