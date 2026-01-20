@@ -1,12 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
-import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
-
-export interface WebSearchConfig {
-  maxResults: number
-  excludeDomains: string[]
-  searchWithTime: boolean
-}
+import type { WebSearchConfig, WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 export default abstract class BaseWebSearchProvider {
   // @ts-ignore this

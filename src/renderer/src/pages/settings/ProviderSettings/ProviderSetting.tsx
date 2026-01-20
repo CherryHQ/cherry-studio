@@ -10,12 +10,11 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { useAppDispatch } from '@renderer/store'
-import { updateWebSearchProvider } from '@renderer/store/websearch'
 import type { SystemProviderId } from '@renderer/types'
 import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
@@ -106,7 +105,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const { t, i18n } = useTranslation()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
-  const dispatch = useAppDispatch()
+  const { updateProvider: updateWebSearchProviderConfig } = useWebSearchProviders()
 
   const isAzureOpenAI = isAzureOpenAIProvider(provider)
   const isDmxapi = provider.id === 'dmxapi'
@@ -132,9 +131,11 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
-      provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+      if (provider.id === 'zhipu') {
+        updateWebSearchProviderConfig('zhipu', { apiKey: apiKey.split(',')[0] })
+      }
     },
-    [dispatch, provider.id]
+    [updateWebSearchProviderConfig, provider.id]
   )
 
   const debouncedUpdateApiKey = useMemo(

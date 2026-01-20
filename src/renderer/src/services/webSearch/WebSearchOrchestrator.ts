@@ -1,7 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { ExtractResults } from '@renderer/utils/extract'
@@ -37,27 +36,13 @@ export class WebSearchOrchestrator {
     const questions = extractResults.websearch.question
     const links = extractResults.websearch.links
 
-    const span = webSearchProvider.topicId
-      ? await addSpan({
-          topicId: webSearchProvider.topicId,
-          name: 'WebSearch',
-          inputs: { question: questions, provider: webSearchProvider.id },
-          tag: 'Web',
-          parentSpanId: webSearchProvider.parentSpanId,
-          modelName: webSearchProvider.modelName
-        })
-      : undefined
-
     if (questions[0] === 'summarize' && links && links.length > 0) {
       const contents = await fetchWebContents(links, undefined, undefined, { signal })
-      if (webSearchProvider.topicId) {
-        endSpan({ topicId: webSearchProvider.topicId, outputs: contents, modelName: webSearchProvider.modelName, span })
-      }
       return { query: 'summaries', results: contents }
     }
 
     const searchWithTime = await preferenceService.get('chat.websearch.search_with_time')
-    const webSearchEngine = new WebSearchEngineProvider(webSearchProvider, span?.spanContext().spanId)
+    const webSearchEngine = new WebSearchEngineProvider(webSearchProvider)
 
     const searchPromises = questions.map(async (q) => {
       const formattedQuery = searchWithTime ? `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${q}` : q
@@ -91,14 +76,6 @@ export class WebSearchOrchestrator {
 
     if (finalResults.length === 0) {
       await this.statusTracker.setStatus(requestId, { phase: 'default' })
-      if (webSearchProvider.topicId) {
-        endSpan({
-          topicId: webSearchProvider.topicId,
-          outputs: finalResults,
-          modelName: webSearchProvider.modelName,
-          span
-        })
-      }
       return { query: questions.join(' | '), results: [] }
     }
 
@@ -133,15 +110,6 @@ export class WebSearchOrchestrator {
     }
 
     await this.statusTracker.setStatus(requestId, { phase: 'default' })
-
-    if (webSearchProvider.topicId) {
-      endSpan({
-        topicId: webSearchProvider.topicId,
-        outputs: finalResults,
-        modelName: webSearchProvider.modelName,
-        span
-      })
-    }
 
     return { query: questions.join(' | '), results: finalResults }
   }

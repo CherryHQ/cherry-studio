@@ -17,8 +17,8 @@ export interface SearchItem {
 
 export default class LocalSearchProvider extends BaseWebSearchProvider {
   constructor(provider: WebSearchProvider) {
-    if (!provider || !provider.url) {
-      throw new Error('Provider URL is required')
+    if (!provider || !provider.apiHost) {
+      throw new Error('Provider apiHost is required')
     }
     super(provider)
   }
@@ -30,15 +30,15 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
       }
-      if (!this.provider.url) {
-        throw new Error('Provider URL is required')
+      if (!this.provider.apiHost) {
+        throw new Error('Provider apiHost is required')
       }
 
       const { maxResults } = await this.getSearchConfig()
 
       const cleanedQuery = query.split('\r\n')[1] ?? query
       const queryWithLanguage = language ? this.applyLanguageFilter(cleanedQuery, language) : cleanedQuery
-      const url = this.provider.url.replace('%s', encodeURIComponent(queryWithLanguage))
+      const url = this.provider.apiHost.replace('%s', encodeURIComponent(queryWithLanguage))
       let content: string = ''
       const promisesToRace: [Promise<string>] = [window.api.searchService.openUrlInSearchWindow(uid, url)]
       if (httpOptions?.signal) {

@@ -3,8 +3,8 @@
  * Tests for web search parameters generation utilities
  */
 
-import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
+import type { WebSearchConfig } from '@renderer/types/webSearch'
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildProviderBuiltinWebSearchConfig, getWebSearchParams } from '../websearch'
@@ -94,7 +94,7 @@ describe('websearch utils', () => {
   })
 
   describe('buildProviderBuiltinWebSearchConfig', () => {
-    const defaultWebSearchConfig: CherryWebSearchConfig = {
+    const defaultWebSearchConfig: WebSearchConfig = {
       searchWithTime: true,
       maxResults: 50,
       excludeDomains: []
@@ -102,7 +102,7 @@ describe('websearch utils', () => {
 
     describe('openai provider', () => {
       it('should return low search context size for low maxResults', () => {
-        const config: CherryWebSearchConfig = {
+        const config: WebSearchConfig = {
           searchWithTime: true,
           maxResults: 20,
           excludeDomains: []
@@ -118,7 +118,7 @@ describe('websearch utils', () => {
       })
 
       it('should return medium search context size for medium maxResults', () => {
-        const config: CherryWebSearchConfig = {
+        const config: WebSearchConfig = {
           searchWithTime: true,
           maxResults: 50,
           excludeDomains: []
@@ -134,7 +134,7 @@ describe('websearch utils', () => {
       })
 
       it('should return high search context size for high maxResults', () => {
-        const config: CherryWebSearchConfig = {
+        const config: WebSearchConfig = {
           searchWithTime: true,
           maxResults: 80,
           excludeDomains: []
@@ -150,7 +150,7 @@ describe('websearch utils', () => {
       })
 
       it('should use medium for deep research models regardless of maxResults', () => {
-        const config: CherryWebSearchConfig = {
+        const config: WebSearchConfig = {
           searchWithTime: true,
           maxResults: 100,
           excludeDomains: []
@@ -174,7 +174,7 @@ describe('websearch utils', () => {
 
     describe('openai-chat provider', () => {
       it('should return correct search context size', () => {
-        const config: CherryWebSearchConfig = {
+        const config: WebSearchConfig = {
           searchWithTime: true,
           maxResults: 50,
           excludeDomains: []
@@ -190,7 +190,7 @@ describe('websearch utils', () => {
       })
 
       it('should handle deep research models', () => {
-        const config: CherryWebSearchConfig = {
+        const config: WebSearchConfig = {
           searchWithTime: true,
           maxResults: 100,
           excludeDomains: []
@@ -225,7 +225,7 @@ describe('websearch utils', () => {
       })
 
       it('should include blockedDomains when excludeDomains provided', () => {
-        const config: CherryWebSearchConfig = {
+        const config: WebSearchConfig = {
           searchWithTime: true,
           maxResults: 30,
           excludeDomains: ['example.com', 'test.com']
@@ -268,7 +268,7 @@ describe('websearch utils', () => {
       })
 
       it('should limit excluded websites to 5', () => {
-        const config: CherryWebSearchConfig = {
+        const config: WebSearchConfig = {
           searchWithTime: true,
           maxResults: 40,
           excludeDomains: ['site1.com', 'site2.com', 'site3.com', 'site4.com', 'site5.com', 'site6.com', 'site7.com']
@@ -310,7 +310,7 @@ describe('websearch utils', () => {
       })
 
       it('should respect custom maxResults', () => {
-        const config: CherryWebSearchConfig = {
+        const config: WebSearchConfig = {
           searchWithTime: true,
           maxResults: 75,
           excludeDomains: []
@@ -348,34 +348,34 @@ describe('websearch utils', () => {
     describe('edge cases', () => {
       it('should handle maxResults at boundary values', () => {
         // Test boundary at 33 (low/medium)
-        const config33: CherryWebSearchConfig = { searchWithTime: true, maxResults: 33, excludeDomains: [] }
+        const config33: WebSearchConfig = { searchWithTime: true, maxResults: 33, excludeDomains: [] }
         const result33 = buildProviderBuiltinWebSearchConfig('openai', config33)
         expect(result33?.openai?.searchContextSize).toBe('low')
 
         // Test boundary at 34 (medium)
-        const config34: CherryWebSearchConfig = { searchWithTime: true, maxResults: 34, excludeDomains: [] }
+        const config34: WebSearchConfig = { searchWithTime: true, maxResults: 34, excludeDomains: [] }
         const result34 = buildProviderBuiltinWebSearchConfig('openai', config34)
         expect(result34?.openai?.searchContextSize).toBe('medium')
 
         // Test boundary at 66 (medium)
-        const config66: CherryWebSearchConfig = { searchWithTime: true, maxResults: 66, excludeDomains: [] }
+        const config66: WebSearchConfig = { searchWithTime: true, maxResults: 66, excludeDomains: [] }
         const result66 = buildProviderBuiltinWebSearchConfig('openai', config66)
         expect(result66?.openai?.searchContextSize).toBe('medium')
 
         // Test boundary at 67 (high)
-        const config67: CherryWebSearchConfig = { searchWithTime: true, maxResults: 67, excludeDomains: [] }
+        const config67: WebSearchConfig = { searchWithTime: true, maxResults: 67, excludeDomains: [] }
         const result67 = buildProviderBuiltinWebSearchConfig('openai', config67)
         expect(result67?.openai?.searchContextSize).toBe('high')
       })
 
       it('should handle zero maxResults', () => {
-        const config: CherryWebSearchConfig = { searchWithTime: true, maxResults: 0, excludeDomains: [] }
+        const config: WebSearchConfig = { searchWithTime: true, maxResults: 0, excludeDomains: [] }
         const result = buildProviderBuiltinWebSearchConfig('openai', config)
         expect(result?.openai?.searchContextSize).toBe('low')
       })
 
       it('should handle very large maxResults', () => {
-        const config: CherryWebSearchConfig = { searchWithTime: true, maxResults: 1000, excludeDomains: [] }
+        const config: WebSearchConfig = { searchWithTime: true, maxResults: 1000, excludeDomains: [] }
         const result = buildProviderBuiltinWebSearchConfig('openai', config)
         expect(result?.openai?.searchContextSize).toBe('high')
       })

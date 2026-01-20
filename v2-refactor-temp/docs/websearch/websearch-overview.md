@@ -2,16 +2,16 @@
 
 ## 实施计划
 
-### 阶段 1: 数据层迁移 (Redux → Preference/DataApi) - 进行中
+### 阶段 1: 数据层迁移 (Redux → Preference) - 进行中
 
 > Service 保持在 Renderer 进程，仅迁移数据源
 
 | 任务 | 状态 | 说明 |
 |------|------|------|
-| Hooks 迁移 | ✅ | `useWebSearch.ts` 已完成（DataApi + Preference） |
+| Hooks 迁移 | ✅ | `useWebSearch.ts` 已完成（Preference） |
 | UI 组件迁移 (Settings) | ✅ | Settings 页面已改用新 hooks，详见 [UI 迁移文档](./websearch-ui-migration.md) |
 | UI 组件迁移 (其他) | ⏳ | 仍依赖旧 hooks 的组件，见下方列表 |
-| Service 类型兼容 | ✅ | `WebSearchService.checkSearch` 已适配（使用类型断言） |
+| Service 类型兼容 | ✅ | `WebSearchService` 已统一使用共享 Preference 类型 |
 | 移除 WebSearchProviderId | ✅ | 已改用 `id: string`，旧类型标记为 `@deprecated` |
 | 删除废弃文件 | ✅ | `AddSubscribePopup.tsx` ✅, `useWebSearchProviders.ts` ✅ |
 | **验证点** | ✅ | `pnpm build:check` 通过 |
@@ -63,7 +63,7 @@
 ```
 ┌─ Renderer ──────────────────────────────────────┐
 │ UI                                              │
-│  └─ usePreference('websearch.*')   → 配置      │
+│  └─ usePreference('chat.websearch.*') → 配置   │
 │                                                 │
 │ Service                                         │
 │  └─ WebSearchService                            │
@@ -77,18 +77,26 @@
 
 | 数据类型 | 系统 | Key |
 |----------|------|-----|
-| 供应商配置 | Preference | `websearch.providers` |
-| 搜索设置 | Preference | `websearch.*` |
+| 供应商配置 | Preference | `chat.websearch.providers` |
+| 搜索设置 | Preference | `chat.websearch.*` |
 | 搜索状态 | Cache | `chat.websearch.active_searches` |
 
 ## Preference Keys
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `websearch.search_with_time` | boolean | true | 添加时间信息 |
-| `websearch.max_results` | number | 5 | 最大结果数 |
-| `websearch.exclude_domains` | string[] | [] | 排除域名 |
-| `websearch.compression` | object | null | 压缩配置 |
+| `chat.websearch.search_with_time` | boolean | true | 添加时间信息 |
+| `chat.websearch.max_results` | number | 5 | 最大结果数 |
+| `chat.websearch.exclude_domains` | string[] | [] | 排除域名 |
+| `chat.websearch.compression.method` | `WebSearchCompressionMethod` | `none` | 压缩方式 |
+| `chat.websearch.compression.cutoff_limit` | number \| null | null | 截断限制 |
+| `chat.websearch.compression.cutoff_unit` | `WebSearchCompressionCutoffUnit` | `char` | 截断单位 |
+| `chat.websearch.compression.rag_document_count` | number | 1 | RAG 文档数量 |
+| `chat.websearch.compression.rag_embedding_model_id` | string \| null | null | Embedding 模型 ID |
+| `chat.websearch.compression.rag_embedding_provider_id` | string \| null | null | Embedding 提供商 ID |
+| `chat.websearch.compression.rag_embedding_dimensions` | number \| null | null | Embedding 维度 |
+| `chat.websearch.compression.rag_rerank_model_id` | string \| null | null | Rerank 模型 ID |
+| `chat.websearch.compression.rag_rerank_provider_id` | string \| null | null | Rerank 提供商 ID |
 
 ## 与 v1 对比
 
@@ -123,8 +131,8 @@ src/renderer/src/
 ```
 packages/shared/data/
 └─ preference/
-    ├─ preferenceTypes.ts           # WebSearchCompressionConfig, WebSearchProviderConfigs
-    └─ preferenceSchemas.ts         # websearch.* keys
+    ├─ preferenceTypes.ts           # WebSearchProvider, WebSearchProviders, WebSearchCompression*
+    └─ preferenceSchemas.ts         # chat.websearch.* keys & defaults
 ```
 
 ## 相关文档

@@ -7,7 +7,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearch'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import type { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
+import type { PreprocessProviderId } from '@renderer/types'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { Card, List, Popconfirm, Space, Typography } from 'antd'
@@ -183,7 +183,7 @@ interface SpecificApiKeyListProps {
 }
 
 type WebSearchApiKeyList = SpecificApiKeyListProps & {
-  providerId: WebSearchProviderId
+  providerId: string
 }
 
 type DocPreprocessApiKeyListProps = SpecificApiKeyListProps & {

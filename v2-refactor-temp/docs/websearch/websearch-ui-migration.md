@@ -19,7 +19,7 @@
 | `searchWithTime` | 保留 | `useWebSearchSettings().setSearchWithTime` |
 | `maxResults` | 保留 | `useWebSearchSettings().setMaxResults` |
 | `excludeDomains` | 保留 | `useWebSearchSettings().setExcludeDomains` |
-| `compression` | 保留 | `useWebSearchSettings().setCompression` |
+| `compression` | 保留 | `useWebSearchCompression()` / `useWebSearchSettings()` |
 | `defaultProvider` | 废弃 | 移除 UI |
 | `subscribeSources` | 废弃 | 移除 UI |
 
@@ -27,13 +27,15 @@
 
 ## 类型变更
 
-新的 DataApi 返回的 provider 类型与旧 Redux 类型不同：
+新的 Preference 返回的 provider 类型与旧 Redux 类型不同：
 
-| 字段 | 旧类型 (Redux) | 新类型 (DataApi) |
+| 字段 | 旧类型 (Redux) | 新类型 (Preference) |
 |------|---------------|-----------------|
 | `provider.id` | `WebSearchProviderId` (字面量联合) | `string` |
 
 **影响**：需要将使用 `WebSearchProviderId` 作为参数的函数改为接受 `string` 类型。
+
+类型定义来自 `@shared/data/preference/preferenceTypes`。
 
 ---
 
@@ -70,7 +72,7 @@
 | 移除 UI | 整个 "Search Provider" SettingGroup（默认 provider 选择器） |
 | dispatch 修改 | `dispatch(setSearchWithTime(checked))` → `setSearchWithTime(checked)` |
 | dispatch 修改 | `dispatch(setMaxResult(value))` → `setMaxResults(value)` |
-| 变量重命名 | `compressionConfig` → `compression` |
+| 状态来源 | `compressionMethod` 来自 `useWebSearchSettings` |
 
 **Slider 组件迁移** (antd → @cherrystudio/ui):
 

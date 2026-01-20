@@ -47,7 +47,6 @@ import shortcuts from './shortcuts'
 import tabs from './tabs'
 import toolPermissions from './toolPermissions'
 import translate from './translate'
-import websearch from './websearch'
 
 const logger = loggerService.withContext('Store')
 
@@ -63,7 +62,6 @@ const rootReducer = combineReducers({
   shortcuts,
   knowledge,
   minapps,
-  websearch,
   mcp,
   memory,
   copilot,

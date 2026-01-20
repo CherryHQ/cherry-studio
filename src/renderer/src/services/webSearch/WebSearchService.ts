@@ -1,7 +1,8 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchProviderResponse } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 import { CompressionStrategyFactory } from './compression'
 import WebSearchEngineProvider from './providers/WebSearchEngineProvider'
@@ -41,10 +42,9 @@ class WebSearchService {
   public async search(
     provider: WebSearchProvider,
     query: string,
-    httpOptions?: RequestInit,
-    spanId?: string
+    httpOptions?: RequestInit
   ): Promise<WebSearchProviderResponse> {
-    const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
+    const webSearchEngine = new WebSearchEngineProvider(provider)
     return await webSearchEngine.search(query, httpOptions)
   }
 

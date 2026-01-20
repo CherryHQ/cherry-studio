@@ -101,7 +101,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const openApiKeyList = async () => {
     await ApiKeyListPopup.show({
       providerId: provider.id,
-      title: `${provider.name} ${t('settings.provider.api.key.list.title')}`
+      title: `${provider.name} ${t('settings.provider.api.key.list.title')}`,
+      providerType: 'webSearch'
     })
   }
 
