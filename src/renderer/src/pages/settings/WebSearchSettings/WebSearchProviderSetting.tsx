@@ -1,16 +1,8 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
-import BingLogo from '@renderer/assets/images/search/bing.svg'
-import BochaLogo from '@renderer/assets/images/search/bocha.webp'
-import ExaLogo from '@renderer/assets/images/search/exa.png'
-import GoogleLogo from '@renderer/assets/images/search/google.svg'
-import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
-import TavilyLogo from '@renderer/assets/images/search/tavily.png'
-import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
-import { getProviderWebsites } from '@renderer/config/webSearchProviders'
+import { getProviderLogo, getProviderWebsites } from '@renderer/config/webSearch'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearch'
 import WebSearchService from '@renderer/services/webSearch/WebSearchService'
@@ -146,30 +138,6 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }
 
-  const getWebSearchProviderLogo = (providerId: string) => {
-    switch (providerId) {
-      case 'zhipu':
-        return ZhipuLogo
-      case 'tavily':
-        return TavilyLogo
-      case 'searxng':
-        return SearxngLogo
-      case 'exa':
-      case 'exa-mcp':
-        return ExaLogo
-      case 'bocha':
-        return BochaLogo
-      case 'local-google':
-        return GoogleLogo
-      case 'local-bing':
-        return BingLogo
-      case 'local-baidu':
-        return BaiduLogo
-      default:
-        return undefined
-    }
-  }
-
   const isLocalProvider = provider.id.startsWith('local')
 
   const openLocalProviderSettings = async () => {
@@ -179,7 +147,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }
 
-  const providerLogo = getWebSearchProviderLogo(provider.id)
+  const providerLogo = getProviderLogo(provider.id)
 
   return (
     <>

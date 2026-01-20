@@ -2,7 +2,7 @@
 
 ## 实施计划
 
-### 阶段 1: 数据层迁移 (Redux → Preference) - 进行中
+### 阶段 1: 数据层迁移 (Redux → Preference) ✅ 已完成
 
 > Service 保持在 Renderer 进程，仅迁移数据源
 
@@ -10,15 +10,11 @@
 |------|------|------|
 | Hooks 迁移 | ✅ | `useWebSearch.ts` 已完成（Preference） |
 | UI 组件迁移 (Settings) | ✅ | Settings 页面已改用新 hooks，详见 [UI 迁移文档](./websearch-ui-migration.md) |
-| UI 组件迁移 (其他) | ⏳ | 仍依赖旧 hooks 的组件，见下方列表 |
+| UI 组件迁移 (其他) | ✅ | 所有组件已迁移 |
 | Service 类型兼容 | ✅ | `WebSearchService` 已统一使用共享 Preference 类型 |
 | 移除 WebSearchProviderId | ✅ | 已改用 `id: string`，旧类型标记为 `@deprecated` |
 | 删除废弃文件 | ✅ | `AddSubscribePopup.tsx` ✅, `useWebSearchProviders.ts` ✅ |
 | **验证点** | ✅ | `pnpm build:check` 通过 |
-
-**待迁移组件**：
-
-> ✅ 全部组件已迁移至 `useWebSearch.ts`，旧 hooks 文件 `useWebSearchProviders.ts` 已删除。
 
 **已迁移组件**：
 
@@ -29,19 +25,24 @@
 | `pages/settings/WebSearchSettings/CompressionSettings/RagSettings.tsx` | `useWebSearchSettings` | ✅ `useWebSearch` |
 | `pages/home/Inputbar/tools/components/WebSearchQuickPanelManager.tsx` | `useWebSearchProviders` | ✅ `useWebSearch` |
 | `components/Popups/ApiKeyListPopup/list.tsx` | `useWebSearchProvider` | ✅ `useWebSearch` |
+| `pages/settings/ProviderSettings/ProviderSetting.tsx` | Redux `updateWebSearchProvider` | ✅ `useWebSearchProviders` |
+| `aiCore/prepareParams/parameterBuilder.ts` | Redux `store.getState()` | ✅ `preferenceService` |
 
 **类型迁移说明**：
 
-`WebSearchProviderId` 类型已从代码中移除，改用 `id: string`。
+- `WebSearchProviderId` 类型已从代码中移除，改用 `id: string`
+- `CherryWebSearchConfig` 已迁移至 `types/webSearch.ts` 中的 `WebSearchConfig`
 
-### 阶段 2: 清理
+### 阶段 2: 清理 ✅ 已完成
 
 | 任务 | 状态 | 说明 |
 |------|------|------|
-| 删除 Redux store | ⏳ | `src/renderer/src/store/websearch.ts` |
+| 删除 Redux store | ✅ | `src/renderer/src/store/websearch.ts` 已删除 |
+| 从 store/index.ts 移除 reducer | ✅ | `websearch` reducer 已从 rootReducer 移除 |
+| 删除 migrate.ts 中 websearch 逻辑 | ✅ | 所有 `state.websearch` 相关迁移代码已删除 |
 | 删除旧 hooks | ✅ | `src/renderer/src/hooks/useWebSearchProviders.ts` |
 | 删除废弃 UI 组件 | ✅ | `src/renderer/src/pages/settings/WebSearchSettings/AddSubscribePopup.tsx` |
-| 删除废弃类型 | ✅ | `WebSearchProviderIds`, `WebSearchProviderId`, `isWebSearchProviderId` |
+| 删除废弃类型 | ✅ | `WebSearchProviderIds`, `WebSearchProviderId`, `isWebSearchProviderId` (标记为 @deprecated) |
 
 ### 实施原则
 

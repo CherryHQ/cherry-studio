@@ -1,5 +1,7 @@
 # WebSearch 数据迁移设计
 
+> ✅ **迁移状态**: 已完成。Redux store (`store/websearch.ts`) 已删除，所有数据现在使用 Preference API。
+
 ## 数据分类概览
 
 | 原 Redux 字段 | v2 系统 | 说明 |

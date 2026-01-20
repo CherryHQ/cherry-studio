@@ -197,6 +197,4 @@
 **已删除**:
 - `src/renderer/src/pages/settings/WebSearchSettings/AddSubscribePopup.tsx` ✅
 - `src/renderer/src/hooks/useWebSearchProviders.ts` ✅
-
-**待删除（阶段 2 清理）**:
-- `src/renderer/src/store/websearch.ts`
+- `src/renderer/src/store/websearch.ts` ✅ (Redux store 已完全移除)
