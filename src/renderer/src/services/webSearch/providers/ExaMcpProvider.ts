@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
@@ -53,15 +52,13 @@ export default class ExaMcpProvider extends BaseWebSearchProvider {
     }
   }
 
-  public async search(
-    query: string,
-    websearch: WebSearchState,
-    httpOptions?: RequestInit
-  ): Promise<WebSearchProviderResponse> {
+  public async search(query: string, httpOptions?: RequestInit): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
       }
+
+      const { maxResults } = await this.getSearchConfig()
 
       const searchRequest: McpSearchRequest = {
         jsonrpc: '2.0',
@@ -72,7 +69,7 @@ export default class ExaMcpProvider extends BaseWebSearchProvider {
           arguments: {
             query,
             type: 'auto',
-            numResults: websearch.maxResults || DEFAULT_NUM_RESULTS,
+            numResults: maxResults || DEFAULT_NUM_RESULTS,
             livecrawl: 'fallback'
           }
         }
@@ -105,7 +102,7 @@ export default class ExaMcpProvider extends BaseWebSearchProvider {
 
         return {
           query: searchResults.autopromptString || query,
-          results: (searchResults.results || []).slice(0, websearch.maxResults).map((result) => ({
+          results: (searchResults.results || []).slice(0, maxResults).map((result) => ({
             title: result.title || 'No title',
             content: result.text || '',
             url: result.url || ''

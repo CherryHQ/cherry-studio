@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import type { BochaSearchParams, BochaSearchResponse } from '@renderer/utils/bocha'
 
@@ -18,11 +17,13 @@ export default class BochaProvider extends BaseWebSearchProvider {
     }
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
+  public async search(query: string): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
       }
+
+      const { maxResults, excludeDomains, searchWithTime } = await this.getSearchConfig()
 
       const headers = {
         'Content-Type': 'application/json',
@@ -31,9 +32,9 @@ export default class BochaProvider extends BaseWebSearchProvider {
 
       const params: BochaSearchParams = {
         query,
-        count: websearch.maxResults,
-        exclude: websearch.excludeDomains.join(','),
-        freshness: websearch.searchWithTime ? 'oneDay' : 'noLimit',
+        count: maxResults,
+        exclude: excludeDomains.join(','),
+        freshness: searchWithTime ? 'oneDay' : 'noLimit',
         summary: true,
         page: 1
       }

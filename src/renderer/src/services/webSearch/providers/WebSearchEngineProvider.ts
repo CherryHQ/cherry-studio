@@ -1,5 +1,4 @@
 import { withSpanResult } from '@renderer/services/SpanManagerService'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { filterResultWithBlacklist } from '@renderer/utils/blacklistMatchPattern'
 
@@ -21,13 +20,9 @@ export default class WebSearchEngineProvider {
     this.modelName = provider.modelName
   }
 
-  public async search(
-    query: string,
-    websearch: WebSearchState,
-    httpOptions?: RequestInit
-  ): Promise<WebSearchProviderResponse> {
-    const callSearch = async ({ query, websearch }) => {
-      return await this.sdk.search(query, websearch, httpOptions)
+  public async search(query: string, httpOptions?: RequestInit): Promise<WebSearchProviderResponse> {
+    const callSearch = async ({ query }: { query: string }) => {
+      return await this.sdk.search(query, httpOptions)
     }
 
     const traceParams = {
@@ -38,8 +33,8 @@ export default class WebSearchEngineProvider {
       modelName: this.modelName
     }
 
-    const result = await withSpanResult(callSearch, traceParams, { query, websearch })
+    const result = await withSpanResult(callSearch, traceParams, { query })
 
-    return await filterResultWithBlacklist(result, websearch)
+    return await filterResultWithBlacklist(result)
   }
 }

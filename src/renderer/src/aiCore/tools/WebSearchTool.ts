@@ -1,4 +1,4 @@
-import WebSearchService from '@renderer/services/WebSearchService'
+import WebSearchService from '@renderer/services/webSearch/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
@@ -17,8 +17,6 @@ export const webSearchToolWithPreExtractedKeywords = (
   },
   requestId: string
 ) => {
-  const webSearchProvider = WebSearchService.getWebSearchProvider(webSearchProviderId)
-
   return tool({
     name: 'builtin_web_search',
     description: `Web search tool for finding current information, news, and real-time data from the internet.
@@ -41,6 +39,8 @@ You can use this tool as-is to search with the prepared queries, or provide addi
     }),
 
     execute: async ({ additionalContext }) => {
+      const webSearchProvider = await WebSearchService.getWebSearchProvider(webSearchProviderId)
+
       let finalQueries = [...extractedKeywords.question]
 
       if (additionalContext?.trim()) {

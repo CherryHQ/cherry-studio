@@ -1,7 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
 import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
@@ -24,11 +23,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
     super(provider)
   }
 
-  public async search(
-    query: string,
-    websearch: WebSearchState,
-    httpOptions?: RequestInit
-  ): Promise<WebSearchProviderResponse> {
+  public async search(query: string, httpOptions?: RequestInit): Promise<WebSearchProviderResponse> {
     const uid = nanoid()
     const language = await preferenceService.get('app.language')
     try {
@@ -38,6 +33,8 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       if (!this.provider.url) {
         throw new Error('Provider URL is required')
       }
+
+      const { maxResults } = await this.getSearchConfig()
 
       const cleanedQuery = query.split('\r\n')[1] ?? query
       const queryWithLanguage = language ? this.applyLanguageFilter(cleanedQuery, language) : cleanedQuery
@@ -51,11 +48,11 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       content = await Promise.race(promisesToRace)
 
       // Parse the content to extract URLs and metadata
-      const searchItems = this.parseValidUrls(content).slice(0, websearch.maxResults)
+      const searchItems = this.parseValidUrls(content).slice(0, maxResults)
 
       const validItems = searchItems
         .filter((item) => item.url.startsWith('http') || item.url.startsWith('https'))
-        .slice(0, websearch.maxResults)
+        .slice(0, maxResults)
       // Logger.log('Valid search items:', validItems)
 
       // Fetch content for each URL concurrently

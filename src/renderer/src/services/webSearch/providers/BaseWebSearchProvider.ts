@@ -1,6 +1,12 @@
 import { cacheService } from '@data/CacheService'
-import type { WebSearchState } from '@renderer/store/websearch'
+import { preferenceService } from '@data/PreferenceService'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+
+export interface WebSearchConfig {
+  maxResults: number
+  excludeDomains: string[]
+  searchWithTime: boolean
+}
 
 export default abstract class BaseWebSearchProvider {
   // @ts-ignore this
@@ -14,11 +20,16 @@ export default abstract class BaseWebSearchProvider {
     this.apiKey = this.getApiKey()
   }
 
-  abstract search(
-    query: string,
-    websearch: WebSearchState,
-    httpOptions?: RequestInit
-  ): Promise<WebSearchProviderResponse>
+  abstract search(query: string, httpOptions?: RequestInit): Promise<WebSearchProviderResponse>
+
+  protected async getSearchConfig(): Promise<WebSearchConfig> {
+    const [maxResults, excludeDomains, searchWithTime] = await Promise.all([
+      preferenceService.get('chat.websearch.max_results'),
+      preferenceService.get('chat.websearch.exclude_domains'),
+      preferenceService.get('chat.websearch.search_with_time')
+    ])
+    return { maxResults, excludeDomains, searchWithTime }
+  }
 
   public getApiHost() {
     return this.provider.apiHost

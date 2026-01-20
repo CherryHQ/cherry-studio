@@ -1,6 +1,5 @@
 import { SearxngClient } from '@agentic/searxng'
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 import axios from 'axios'
@@ -95,7 +94,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
     }
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
+  public async search(query: string): Promise<WebSearchProviderResponse> {
     try {
       if (!query) {
         throw new Error('Search query cannot be empty')
@@ -105,6 +104,8 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       if (!this.isInitialized) {
         await this.initEngines().catch(() => {}) // Ignore errors
       }
+
+      const { maxResults } = await this.getSearchConfig()
 
       const result = await this.searxng.search({
         query: query,
@@ -118,7 +119,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
 
       const validItems = result.results
         .filter((item) => item.url.startsWith('http') || item.url.startsWith('https'))
-        .slice(0, websearch.maxResults)
+        .slice(0, maxResults)
       // Logger.log('Valid search items:', validItems)
 
       // Fetch content for each URL concurrently

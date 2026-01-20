@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
@@ -43,11 +42,13 @@ export default class ZhipuProvider extends BaseWebSearchProvider {
     }
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
+  public async search(query: string): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
       }
+
+      const { maxResults } = await this.getSearchConfig()
 
       const requestBody: ZhipuWebSearchRequest = {
         search_query: query,
@@ -75,7 +76,7 @@ export default class ZhipuProvider extends BaseWebSearchProvider {
 
       return {
         query: query,
-        results: data.search_result.slice(0, websearch.maxResults).map((result) => {
+        results: data.search_result.slice(0, maxResults).map((result) => {
           return {
             title: result.title || 'No title',
             content: result.content || '',

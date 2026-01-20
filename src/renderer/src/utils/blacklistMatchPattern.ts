@@ -1,5 +1,5 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProviderResponse } from '@renderer/types'
 
 const logger = loggerService.withContext('BlacklistMatchPattern')
@@ -240,37 +240,26 @@ export function mapRegexToPatterns(patterns: string[]): string[] {
 }
 
 export async function filterResultWithBlacklist(
-  response: WebSearchProviderResponse,
-  websearch: WebSearchState
+  response: WebSearchProviderResponse
 ): Promise<WebSearchProviderResponse> {
   logger.debug('[filterResultWithBlacklist]', response)
 
+  // Get excludeDomains from preference
+  const excludeDomains = await preferenceService.get('chat.websearch.exclude_domains')
+
   // 没有结果或者没有黑名单规则时，直接返回原始结果
-  if (
-    !(response.results as any[])?.length ||
-    (!websearch?.excludeDomains?.length && !websearch?.subscribeSources?.length)
-  ) {
+  if (!(response.results as any[])?.length || !excludeDomains?.length) {
     return response
   }
 
   // 创建匹配模式映射实例
   const patternMap = new MatchPatternMap<string>()
 
-  // 合并所有黑名单规则
-  const blacklistPatterns: string[] = [
-    ...websearch.excludeDomains,
-    ...(websearch.subscribeSources?.length
-      ? websearch.subscribeSources.reduce<string[]>((acc, source) => {
-          return acc.concat(source.blacklist || [])
-        }, [])
-      : [])
-  ]
-
   // 正则表达式规则集合
   const regexPatterns: RegExp[] = []
 
   // 分类处理黑名单规则
-  blacklistPatterns.forEach((pattern) => {
+  excludeDomains.forEach((pattern) => {
     if (pattern.startsWith('/') && pattern.endsWith('/')) {
       // 处理正则表达式格式
       try {
