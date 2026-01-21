@@ -2,6 +2,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
 
+import { configManager } from './ConfigManager'
+
 /**
  * init the useragent of the webview session
  * remove the CherryStudio and Electron from the useragent
@@ -13,9 +15,11 @@ export function initSessionUserAgent() {
 
   wvSession.setUserAgent(newUA)
   wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
+    const language = configManager.getLanguage()
     const headers = {
       ...details.requestHeaders,
-      'User-Agent': details.url.includes('google.com') ? originUA : newUA
+      'User-Agent': details.url.includes('google.com') ? originUA : newUA,
+      'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
     }
     cb({ requestHeaders: headers })
   })
