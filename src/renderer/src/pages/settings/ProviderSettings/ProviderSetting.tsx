@@ -298,7 +298,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     if (isAzureOpenAIProvider(provider)) {
       const apiVersion = provider.apiVersion || ''
       const path = !['preview', 'v1'].includes(apiVersion)
-        ? `/v1/chat/completion?apiVersion=v1`
+        ? `/v1/chat/completions?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`
       return formattedApiHost + path
     }

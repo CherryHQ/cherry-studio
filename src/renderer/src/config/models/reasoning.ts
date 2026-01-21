@@ -646,8 +646,8 @@ export const isBaichuanReasoningModel = (model?: Model): boolean => {
   }
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  // 只有 Baichuan-M2 是推理模型（注意：M2-Plus 不是推理模型）
-  return modelId.includes('baichuan-m2') && !modelId.includes('plus')
+  // Baichuan-M2 和 Baichuan-M3 是推理模型（注意：M2-Plus 不是推理模型）
+  return (modelId.includes('baichuan-m2') && !modelId.includes('plus')) || modelId.includes('baichuan-m3')
 }
 
 export function isReasoningModel(model?: Model): boolean {
@@ -732,7 +732,8 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   },
 
   // Baichuan models
-  'baichuan-m2$': { min: 0, max: 30_000 }
+  'baichuan-m2$': { min: 0, max: 30_000 },
+  'baichuan-m3$': { min: 0, max: 30_000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
