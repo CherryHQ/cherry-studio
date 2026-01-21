@@ -669,6 +669,10 @@
         "title": "Crear nuevo tema"
       }
     },
+    "alerts": {
+      "create_session": "[to be translated]:Create a session",
+      "select_agent": "[to be translated]:Select an agent"
+    },
     "artifacts": {
       "button": {
         "download": "Descargar",
@@ -1202,6 +1206,8 @@
     "cancel": "Cancelar",
     "chat": "Chat",
     "clear": "Limpiar",
+    "clear_all": "[to be translated]:Clear All",
+    "click_to_replace": "[to be translated]:Click to replace",
     "close": "Cerrar",
     "collapse": "Colapsar",
     "completed": "Completado",
@@ -1236,9 +1242,15 @@
     "footnote": "Nota al pie",
     "footnotes": "Notas al pie",
     "fullscreen": "En modo pantalla completa, presione F11 para salir",
+    "generate_random_seed": "[to be translated]:Generate random seed",
+    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
     "go_to_settings": "Ir a la configuración",
+    "html_preview": "[to be translated]:HTML Preview",
     "i_know": "Entendido",
     "ignore": "Ignorar",
+    "image_preview": "[to be translated]:Image preview",
+    "image_url": "[to be translated]:Image URL",
+    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
     "inspect": "Inspeccionar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de conocimiento",
@@ -1248,6 +1260,7 @@
     "models": "Modelos",
     "more": "Más",
     "name": "Nombre",
+    "next_match": "[to be translated]:Next match",
     "no_results": "Sin resultados",
     "none": "无",
     "off": "Apagado",
@@ -1259,13 +1272,17 @@
         "model": "Seleccionar modelo"
       }
     },
+    "powered_by": "[to be translated]:Powered by ",
     "preview": "Vista previa",
+    "previous_match": "[to be translated]:Previous match",
     "prompt": "Prompt",
     "provider": "Proveedor",
     "reasoning_content": "Pensamiento profundo",
     "refresh": "Actualizar",
     "regenerate": "Regenerar",
+    "remove_image": "[to be translated]:Remove image",
     "rename": "Renombrar",
+    "required_field": "[to be translated]:Required field",
     "reset": "Restablecer",
     "save": "Guardar",
     "saved": "Guardado",
@@ -1288,13 +1305,24 @@
     "success": "Éxito",
     "swap": "Intercambiar",
     "topics": "Temas",
+    "translate_text": "[to be translated]:Translate text",
     "unknown": "Desconocido",
     "unnamed": "Sin nombre",
     "unsubscribe": "Cancelar suscripción",
     "update_success": "Actualización exitosa",
     "upload_files": "Subir archivo",
+    "upload_image": "[to be translated]:Upload image file",
+    "uploaded_image": "[to be translated]:Uploaded image",
     "warning": "Advertencia",
     "you": "Usuario"
+  },
+  "dialog": {
+    "all_files": "[to be translated]:All Files",
+    "open_file": "[to be translated]:Open File",
+    "png_image": "[to be translated]:PNG Image",
+    "save_file": "[to be translated]:Save File",
+    "select_folder": "[to be translated]:Select Folder",
+    "word_document": "[to be translated]:Word Document"
   },
   "docs": {
     "title": "Documentación de Ayuda"
@@ -2042,6 +2070,7 @@
       "pending": "Pendiente",
       "preview": "Vista previa",
       "raw": "Crudo",
+      "runningCount": "[to be translated]:{{count}} tools running",
       "sections": {
         "command": "[to be translated]:Command",
         "exitCode": "[to be translated]:Exit Code",
@@ -2493,6 +2522,10 @@
       }
     },
     "custom_size": "Tamaño personalizado",
+    "dmxapi": {
+      "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "style": "[to be translated]:, Style: "
+    },
     "edit": {
       "image_file": "Imagen editada",
       "magic_prompt_option_tip": "Optimización inteligente de las palabras clave de edición",
@@ -2517,6 +2550,7 @@
       "style_type_tip": "Estilo de generación de imágenes, solo aplicable para la versión V_2 y posteriores",
       "width": "Ancho"
     },
+    "generate_failed": "[to be translated]:Failed to generate image",
     "generated_image": "Generar imagen",
     "go_to_settings": "Ir a configuración",
     "guidance_scale": "Escala de guía",
@@ -2527,6 +2561,7 @@
     "image_file_required": "Por favor, carga una imagen primero",
     "image_file_retry": "Vuelve a cargar la imagen",
     "image_handle_required": "Por favor, suba primero una imagen",
+    "image_mix_failed": "[to be translated]:Failed to mix images",
     "image_placeholder": "No hay imágenes por ahora",
     "image_retry": "Reintentar",
     "image_size_options": {
@@ -2536,6 +2571,7 @@
     "inference_steps_tip": "Número de pasos de inferencia a realizar. Cuantos más pasos, mejor la calidad pero más tiempo tarda",
     "input_image": "Imagen de entrada",
     "input_parameters": "Parámetros de entrada",
+    "invalid_image_url": "[to be translated]:Invalid image URL format",
     "learn_more": "Más información",
     "magic_prompt_option": "Mejora de indicación",
     "mode": {
@@ -2557,6 +2593,7 @@
     "no_image_generation_model": "No hay modelos disponibles para generación de imágenes. Por favor, agregue un modelo y configure el tipo de punto final como {{endpoint_type}}",
     "number_images": "Cantidad de imágenes generadas",
     "number_images_tip": "Número de imágenes generadas por vez (1-4)",
+    "operation_failed": "[to be translated]:Operation failed, please try again later",
     "paint_course": "Tutorial",
     "per_image": "Por imagen",
     "per_images": "Por imagen",
@@ -2632,6 +2669,13 @@
       "resemblance": "Similitud",
       "resemblance_tip": "Controla el nivel de similitud entre el resultado ampliado y la imagen original",
       "seed_tip": "Controla la aleatoriedad del resultado de la ampliación"
+    },
+    "zhipu": {
+      "custom_size_divisible": "[to be translated]:Custom size must be divisible by 16",
+      "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
+      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
+      "custom_size_required": "[to be translated]:Please set custom width and height"
     }
   },
   "plugins": {
@@ -2642,6 +2686,20 @@
     "category": "Categoría",
     "commands": "comando",
     "confirm_uninstall": "¿Estás seguro de que quieres desinstalar {{name}}?",
+    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "detail": {
+      "allowed_tools": "[to be translated]:Allowed Tools",
+      "author": "[to be translated]:Author",
+      "content": "[to be translated]:Content",
+      "description": "[to be translated]:Description",
+      "file": "[to be translated]:File",
+      "installed": "[to be translated]:Installed",
+      "metadata": "[to be translated]:Metadata",
+      "size": "[to be translated]:Size",
+      "source": "[to be translated]:Source",
+      "tags": "[to be translated]:Tags",
+      "tools": "[to be translated]:Tools"
+    },
     "install": "instalación",
     "install_plugins_from_browser": "Explora los complementos disponibles para empezar a usar",
     "installing": "Instalando...",
@@ -2991,6 +3049,11 @@
         "search": "Buscar",
         "summary": "Resumen",
         "translate": "Traducir"
+      },
+      "prompt": {
+        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
+        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
         "smart_translate_tips": "Traducción inteligente: el contenido se traducirá primero al idioma de destino; si el contenido ya está en el idioma de destino, se traducirá al idioma alternativo"
@@ -4085,6 +4148,10 @@
       "jsonModeHint": "Edite la representación JSON de la configuración del servidor MCP. Asegúrese de que el formato sea correcto antes de guardar.",
       "jsonSaveError": "Fallo al guardar la configuración JSON",
       "jsonSaveSuccess": "Configuración JSON guardada exitosamente",
+      "lanyun": {
+        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+        "name": "[to be translated]:Lanyun Technology"
+      },
       "logoUrl": "URL del logotipo",
       "logs": "Registros",
       "longRunning": "Modo de ejecución prolongada",
@@ -4181,6 +4248,14 @@
         "getToken": "Obtener token de API",
         "getTokenDescription": "Obtener un token de API personal desde su cuenta",
         "noServersAvailable": "No hay servidores MCP disponibles",
+        "providerDescriptions": {
+          "302ai": "[to be translated]:302.AI Platform MCP Service",
+          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
+          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
+          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+        },
         "selectProvider": "Seleccionar proveedor:",
         "setToken": "Ingrese su token",
         "success": "Servidor MCP sincronizado correctamente",
@@ -4658,6 +4733,9 @@
         "title": "Eliminar proveedor"
       },
       "dmxapi": {
+        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
+        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
         "select_platform": "Seleccionar Plataforma"
       },
       "docs_check": "Ver",

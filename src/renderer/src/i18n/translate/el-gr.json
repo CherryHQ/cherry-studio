@@ -669,6 +669,10 @@
         "title": "Δημιουργία νέου θέματος"
       }
     },
+    "alerts": {
+      "create_session": "[to be translated]:Create a session",
+      "select_agent": "[to be translated]:Select an agent"
+    },
     "artifacts": {
       "button": {
         "download": "Λήψη",
@@ -1202,6 +1206,8 @@
     "cancel": "Άκυρο",
     "chat": "Συζήτηση",
     "clear": "Καθαρισμός",
+    "clear_all": "[to be translated]:Clear All",
+    "click_to_replace": "[to be translated]:Click to replace",
     "close": "Κλείσιμο",
     "collapse": "Σύμπτυξη",
     "completed": "Ολοκληρώθηκε",
@@ -1236,9 +1242,15 @@
     "footnote": "Παραπομπή",
     "footnotes": "Παραπομπές",
     "fullscreen": "Εισήχθη σε πλήρη οθόνη, πατήστε F11 για να έξω",
+    "generate_random_seed": "[to be translated]:Generate random seed",
+    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
+    "html_preview": "[to be translated]:HTML Preview",
     "i_know": "Το έχω καταλάβει",
     "ignore": "Αγνόησε",
+    "image_preview": "[to be translated]:Image preview",
+    "image_url": "[to be translated]:Image URL",
+    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
     "inspect": "Επιθεώρηση",
     "invalid_value": "Μη έγκυρη τιμή",
     "knowledge_base": "Βάση Γνώσεων",
@@ -1248,6 +1260,7 @@
     "models": "Μοντέλα",
     "more": "Περισσότερα",
     "name": "Όνομα",
+    "next_match": "[to be translated]:Next match",
     "no_results": "Δεν βρέθηκαν αποτελέσματα",
     "none": "Χωρίς",
     "off": "Κλειστό",
@@ -1259,13 +1272,17 @@
         "model": "Επιλέξτε μοντέλο"
       }
     },
+    "powered_by": "[to be translated]:Powered by ",
     "preview": "Προεπισκόπηση",
+    "previous_match": "[to be translated]:Previous match",
     "prompt": "Ενδεικτικός ρήματος",
     "provider": "Παρέχων",
     "reasoning_content": "Έχει σκεφτεί πολύ καλά",
     "refresh": "Ανανέωση",
     "regenerate": "Ξαναπαραγωγή",
+    "remove_image": "[to be translated]:Remove image",
     "rename": "Μετονομασία",
+    "required_field": "[to be translated]:Required field",
     "reset": "Επαναφορά",
     "save": "Αποθήκευση",
     "saved": "Αποθηκεύτηκε",
@@ -1288,13 +1305,24 @@
     "success": "Επιτυχία",
     "swap": "Εναλλαγή",
     "topics": "Θέματα",
+    "translate_text": "[to be translated]:Translate text",
     "unknown": "Άγνωστο",
     "unnamed": "Χωρίς όνομα",
     "unsubscribe": "Απεγγραφή",
     "update_success": "Επιτυχής ενημέρωση",
     "upload_files": "Ανέβασμα αρχείου",
+    "upload_image": "[to be translated]:Upload image file",
+    "uploaded_image": "[to be translated]:Uploaded image",
     "warning": "Προσοχή",
     "you": "Εσείς"
+  },
+  "dialog": {
+    "all_files": "[to be translated]:All Files",
+    "open_file": "[to be translated]:Open File",
+    "png_image": "[to be translated]:PNG Image",
+    "save_file": "[to be translated]:Save File",
+    "select_folder": "[to be translated]:Select Folder",
+    "word_document": "[to be translated]:Word Document"
   },
   "docs": {
     "title": "Βοήθεια"
@@ -2042,6 +2070,7 @@
       "pending": "Εκκρεμεί",
       "preview": "Προεπισκόπηση",
       "raw": "Ακατέργαστο",
+      "runningCount": "[to be translated]:{{count}} tools running",
       "sections": {
         "command": "[to be translated]:Command",
         "exitCode": "[to be translated]:Exit Code",
@@ -2493,6 +2522,10 @@
       }
     },
     "custom_size": "Προσαρμοσμένο μέγεθος",
+    "dmxapi": {
+      "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "style": "[to be translated]:, Style: "
+    },
     "edit": {
       "image_file": "Επεξεργασμένη εικόνα",
       "magic_prompt_option_tip": "Έξυπνη βελτιστοποίηση της πρότασης επεξεργασίας",
@@ -2517,6 +2550,7 @@
       "style_type_tip": "Στυλ δημιουργίας εικόνας, ισχύει μόνο για την έκδοση V_2 και μεταγενέστερες",
       "width": "Πλάτος"
     },
+    "generate_failed": "[to be translated]:Failed to generate image",
     "generated_image": "Δημιουργία εικόνας",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
     "guidance_scale": "Κλίμακα προσαρμογής",
@@ -2527,6 +2561,7 @@
     "image_file_required": "Παρακαλώ ανεβάστε πρώτα μια εικόνα",
     "image_file_retry": "Παρακαλώ ανεβάστε ξανά την εικόνα",
     "image_handle_required": "Παρακαλώ ανεβάστε πρώτα μια εικόνα",
+    "image_mix_failed": "[to be translated]:Failed to mix images",
     "image_placeholder": "Δεν υπάρχει εικόνα για τη στιγμή",
     "image_retry": "Δοκιμάστε ξανά",
     "image_size_options": {
@@ -2536,6 +2571,7 @@
     "inference_steps_tip": "Το πλήθος των βημάτων επεξεργασίας που πρέπει να εκτελεστούν. Περισσότερα βήματα = χαμηλότερη ποιότητα και μεγαλύτερος χρόνος εκτέλεσης",
     "input_image": "Εικόνα εισόδου",
     "input_parameters": "Παράμετροι εισόδου",
+    "invalid_image_url": "[to be translated]:Invalid image URL format",
     "learn_more": "Μάθετε περισσότερα",
     "magic_prompt_option": "Ενίσχυση προτροπής",
     "mode": {
@@ -2557,6 +2593,7 @@
     "no_image_generation_model": "Δεν υπάρχει διαθέσιμο μοντέλο δημιουργίας εικόνας. Προσθέστε ένα μοντέλο και ορίστε τον τύπο τερματικού σημείου ως {{endpoint_type}}",
     "number_images": "Ποσότητα δημιουργιών",
     "number_images_tip": "Ποσότητα εικόνων που θα δημιουργηθούν μια φορά (1-4)",
+    "operation_failed": "[to be translated]:Operation failed, please try again later",
     "paint_course": "Εκπαίδευση",
     "per_image": "Ανά εικόνα",
     "per_images": "Ανά εικόνα",
@@ -2632,6 +2669,13 @@
       "resemblance": "Ομοιότητα",
       "resemblance_tip": "Ρυθμίστε την ομοιότητα της μεγεθυσμένης εικόνας με την αρχική",
       "seed_tip": "Ελέγχει την τυχαιότητα του αποτελέσματος μεγέθυνσης"
+    },
+    "zhipu": {
+      "custom_size_divisible": "[to be translated]:Custom size must be divisible by 16",
+      "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
+      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
+      "custom_size_required": "[to be translated]:Please set custom width and height"
     }
   },
   "plugins": {
@@ -2642,6 +2686,20 @@
     "category": "Κατηγορία",
     "commands": "εντολή",
     "confirm_uninstall": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε το {{name}};",
+    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "detail": {
+      "allowed_tools": "[to be translated]:Allowed Tools",
+      "author": "[to be translated]:Author",
+      "content": "[to be translated]:Content",
+      "description": "[to be translated]:Description",
+      "file": "[to be translated]:File",
+      "installed": "[to be translated]:Installed",
+      "metadata": "[to be translated]:Metadata",
+      "size": "[to be translated]:Size",
+      "source": "[to be translated]:Source",
+      "tags": "[to be translated]:Tags",
+      "tools": "[to be translated]:Tools"
+    },
     "install": "εγκατάσταση",
     "install_plugins_from_browser": "Περιηγηθείτε στα διαθέσιμα πρόσθετα για να ξεκινήσετε",
     "installing": "Εγκατάσταση...",
@@ -2991,6 +3049,11 @@
         "search": "Αναζήτηση",
         "summary": "Σύνοψη",
         "translate": "Μετάφραση"
+      },
+      "prompt": {
+        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
+        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
         "smart_translate_tips": "Έξυπνη μετάφραση: το περιεχόμενο θα μεταφραστεί προτεραιακά στη στόχος γλώσσα· αν το περιεχόμενο είναι ήδη στη στόχος γλώσσα, θα μεταφραστεί στην εναλλακτική γλώσσα"
@@ -4085,6 +4148,10 @@
       "jsonModeHint": "Επεξεργασία της εκφώνησης JSON του διακομιστή MCP. Παρακαλώ εξασφαλίστε ότι το μορφοποίηση είναι σωστό πριν από την αποθήκευση.",
       "jsonSaveError": "Αποτυχία αποθήκευσης της διαμορφωτικής ρύθμισης JSON",
       "jsonSaveSuccess": "Η διαμορφωτική ρύθμιση JSON αποθηκεύτηκε επιτυχώς",
+      "lanyun": {
+        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+        "name": "[to be translated]:Lanyun Technology"
+      },
       "logoUrl": "URL Λογότυπου",
       "logs": "Αρχεία καταγραφής",
       "longRunning": "Μακροχρόνια λειτουργία",
@@ -4181,6 +4248,14 @@
         "getToken": "Λήψη API Τοκεν",
         "getTokenDescription": "Λήψη ενός προσωπικού API τοκεν από τον λογαριασμό σας",
         "noServersAvailable": "Δεν υπάρχουν διαθέσιμοι MCP διακομιστές",
+        "providerDescriptions": {
+          "302ai": "[to be translated]:302.AI Platform MCP Service",
+          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
+          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
+          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+        },
         "selectProvider": "Επιλέξτε Πάροχο:",
         "setToken": "Εισαγάγετε το τοκεν σας",
         "success": "Ο συγχρονισμός MCP διακομιστή ολοκληρώθηκε επιτυχώς",
@@ -4658,6 +4733,9 @@
         "title": "Διαγραφή παρόχου"
       },
       "dmxapi": {
+        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
+        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
         "select_platform": "Επιλέξτε πλατφόρμα"
       },
       "docs_check": "Άνοιγμα",
