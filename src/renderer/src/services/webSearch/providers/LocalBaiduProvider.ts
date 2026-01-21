@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { formatErrorMessage } from '@renderer/utils/error'
 
 import type { SearchItem } from './LocalSearchProvider'
 import LocalSearchProvider from './LocalSearchProvider'
@@ -26,6 +27,7 @@ export default class LocalBaiduProvider extends LocalSearchProvider {
       })
     } catch (error) {
       logger.error('Failed to parse Baidu search HTML:', error as Error)
+      throw new Error(`Failed to parse Baidu search results: ${formatErrorMessage(error)}`)
     }
     logger.info('Parsed Baidu search results:', results)
     return results

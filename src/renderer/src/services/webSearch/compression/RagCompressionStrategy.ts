@@ -2,6 +2,7 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { getModel } from '@renderer/hooks/useModel'
+import i18n from '@renderer/i18n'
 import { getKnowledgeBaseParams, getKnowledgeSourceUrl, searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeReference, Model, WebSearchProviderResult } from '@renderer/types'
 import { removeSpecialCharactersForFileName, uuid } from '@renderer/utils'
@@ -108,12 +109,30 @@ export class RagCompressionStrategy implements ICompressionStrategy {
       logger.debug(`Cleaned up search base: ${searchBase.id}`)
     } catch (error) {
       logger.warn(`Failed to cleanup search base ${searchBase.id}:`, error as Error)
+      window.toast.warning({
+        timeout: 5000,
+        title: i18n.t('settings.tool.websearch.compression.error.cleanup_failed')
+      })
     }
   }
 
   private async querySearchBase(questions: string[], searchBase: KnowledgeBase): Promise<KnowledgeReference[]> {
     const searchPromises = questions.map((question) => searchKnowledgeBase(question, searchBase))
-    const allResults = await Promise.all(searchPromises)
+    const settledResults = await Promise.allSettled(searchPromises)
+
+    const allResults: Awaited<ReturnType<typeof searchKnowledgeBase>>[] = []
+    for (const result of settledResults) {
+      if (result.status === 'fulfilled') {
+        allResults.push(result.value)
+      } else {
+        logger.warn('Failed to search knowledge base for question:', { reason: result.reason })
+      }
+    }
+
+    if (allResults.length === 0 && settledResults.length > 0) {
+      throw new Error('All knowledge base searches failed')
+    }
+
     const flatResults = allResults.flat().sort((a, b) => b.score - a.score)
 
     logger.debug(`Found ${flatResults.length} result(s) in search base related to question(s): `, questions)

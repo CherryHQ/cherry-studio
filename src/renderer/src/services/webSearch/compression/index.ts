@@ -1,5 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n'
 
 import type { ICompressionStrategy } from '../interfaces'
 import { CutoffCompressionStrategy } from './CutoffCompressionStrategy'
@@ -25,6 +26,10 @@ export class CompressionStrategyFactory {
 
     if (!strategy) {
       logger.warn(`Unknown compression method: ${selected}, falling back to none`)
+      window.toast.warning({
+        timeout: 5000,
+        title: i18n.t('settings.tool.websearch.compression.error.unknown_method', { method: selected })
+      })
       return this.strategies.get('none')!
     }
 

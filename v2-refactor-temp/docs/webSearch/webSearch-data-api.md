@@ -34,7 +34,7 @@
 export interface WebSearchProvider {
   id: string
   name: string
-  type: 'api' | 'local'
+  type: 'api' | 'local' | 'mcp'
   apiKey: string
   apiHost: string
   engines: string[]
@@ -101,7 +101,7 @@ export type WebSearchProviders = WebSearchProvider[]
 
 默认 provider 列表位于 `packages/shared/data/preference/preferenceSchemas.ts` 中的
 `chat.websearch.providers`。Provider 的站点链接配置保留在
-`src/renderer/src/config/webSearchProviders.ts`（`WEB_SEARCH_PROVIDER_WEBSITES`）。
+`src/renderer/src/config/webSearch.ts`（`WEB_SEARCH_PROVIDER_WEBSITES`）。
 
 ### 基础设置
 
@@ -118,7 +118,7 @@ export type WebSearchProviders = WebSearchProvider[]
 | `chat.websearch.compression.method` | `WebSearchCompressionMethod` | `none` | 压缩方式 |
 | `chat.websearch.compression.cutoff_limit` | number \| null | `null` | Cutoff 限制 |
 | `chat.websearch.compression.cutoff_unit` | `WebSearchCompressionCutoffUnit` | `char` | Cutoff 单位 |
-| `chat.websearch.compression.rag_document_count` | number | `1` | RAG 文档数量 |
+| `chat.websearch.compression.rag_document_count` | number | `5` | RAG 文档数量 |
 | `chat.websearch.compression.rag_embedding_model_id` | string \| null | `null` | Embedding 模型 ID |
 | `chat.websearch.compression.rag_embedding_provider_id` | string \| null | `null` | Embedding 提供商 ID |
 | `chat.websearch.compression.rag_embedding_dimensions` | number \| null | `null` | Embedding 维度 |

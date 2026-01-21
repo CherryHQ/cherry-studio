@@ -37,7 +37,7 @@ export interface WebSearchProviderTemplate {
  * All available WebSearch provider templates
  * Template data is immutable and stored in code, not in Preference
  */
-export const WEB_SEARCH_PROVIDER_TEMPLATES: WebSearchProviderTemplate[] = [
+export const WEB_SEARCH_PROVIDER_TEMPLATES = [
   {
     id: 'zhipu',
     name: 'Zhipu',
@@ -101,7 +101,7 @@ export const WEB_SEARCH_PROVIDER_TEMPLATES: WebSearchProviderTemplate[] = [
     usingBrowser: true,
     defaultApiHost: 'https://www.baidu.com/s?wd=%s'
   }
-]
+] as const satisfies readonly WebSearchProviderTemplate[]
 
 /**
  * Get provider template by ID

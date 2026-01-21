@@ -35,13 +35,17 @@ class WebSearchService {
   }
 
   public async getWebSearchProvider(providerId?: string): Promise<WebSearchProvider | undefined> {
-    if (!providerId) return undefined
+    if (!providerId) {
+      logger.debug('No provider ID provided')
+      return undefined
+    }
 
     // Get template first
     const template = getProviderTemplate(providerId)
     if (!template) {
-      logger.warn(`Unknown provider ID: ${providerId}`)
-      return undefined
+      const errorMsg = `Web search provider "${providerId}" not found. Please check your configuration.`
+      logger.error(errorMsg)
+      throw new Error(errorMsg)
     }
 
     // Get user configs from preference
@@ -69,6 +73,10 @@ class WebSearchService {
       logger.debug('Search response:', response)
       return { valid: response.results !== undefined, error: undefined }
     } catch (error) {
+      logger.warn('Search check failed for provider:', {
+        providerId: provider.id,
+        error: error instanceof Error ? error.message : error
+      })
       return { valid: false, error }
     }
   }

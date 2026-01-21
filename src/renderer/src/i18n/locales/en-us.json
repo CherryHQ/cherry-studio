@@ -4812,7 +4812,10 @@
             }
           },
           "error": {
-            "rag_failed": "RAG failed"
+            "cleanup_failed": "Failed to cleanup temporary search base",
+            "cutoff_limit_not_set": "Cutoff limit is not configured, compression skipped",
+            "rag_failed": "RAG failed",
+            "unknown_method": "Unknown compression method: {{method}}, falling back to none"
           },
           "info": {
             "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"

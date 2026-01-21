@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { formatErrorMessage } from '@renderer/utils/error'
 
 import type { SearchItem } from './LocalSearchProvider'
 import LocalSearchProvider from './LocalSearchProvider'
@@ -27,6 +28,7 @@ export default class LocalGoogleProvider extends LocalSearchProvider {
       })
     } catch (error) {
       logger.error('Failed to parse Google search HTML:', error as Error)
+      throw new Error(`Failed to parse Google search results: ${formatErrorMessage(error)}`)
     }
     return results
   }

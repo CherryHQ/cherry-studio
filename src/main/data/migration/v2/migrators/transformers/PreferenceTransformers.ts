@@ -153,6 +153,8 @@
  * ```
  */
 
+import type { WebSearchProviderUserConfig } from '@shared/data/preference/preferenceTypes'
+
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
 // Re-export TransformResult for convenience
@@ -277,23 +279,9 @@ interface OldWebSearchProvider {
   apiKey?: string
   apiHost?: string
   url?: string
+  engines?: string[]
   basicAuthUsername?: string
   basicAuthPassword?: string
-}
-
-/**
- * New WebSearch provider structure with all required fields
- */
-interface NewWebSearchProvider {
-  id: string
-  name: string
-  type: 'api' | 'local' | 'mcp'
-  apiKey: string
-  apiHost: string
-  engines: string[]
-  usingBrowser: boolean
-  basicAuthUsername: string
-  basicAuthPassword: string
 }
 
 /**
@@ -323,29 +311,44 @@ interface NewWebSearchProvider {
 export function migrateWebSearchProviders(sources: { providers?: OldWebSearchProvider[] }): TransformResult {
   const providers = sources.providers
 
-  // If no providers, return empty array
   if (!providers || !Array.isArray(providers)) {
     return {
       'chat.websearch.providers': []
     }
   }
 
-  const migratedProviders: NewWebSearchProvider[] = providers.map((p) => {
-    // Determine type based on id
-    const type: 'api' | 'local' | 'mcp' = p.id.startsWith('local-') ? 'local' : p.id === 'exa-mcp' ? 'mcp' : 'api'
+  const migratedProviders = providers
+    .map((provider): WebSearchProviderUserConfig | null => {
+      const config: WebSearchProviderUserConfig = { id: provider.id }
 
-    return {
-      id: p.id,
-      name: p.name,
-      type,
-      apiKey: p.apiKey ?? '',
-      apiHost: p.apiHost ?? '',
-      engines: [],
-      usingBrowser: false,
-      basicAuthUsername: p.basicAuthUsername ?? '',
-      basicAuthPassword: p.basicAuthPassword ?? ''
-    }
-  })
+      const apiKey = provider.apiKey?.trim()
+      if (apiKey) {
+        config.apiKey = apiKey
+      }
+
+      const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url
+      const apiHost = rawApiHost?.trim()
+      if (apiHost) {
+        config.apiHost = apiHost
+      }
+
+      if (provider.engines && provider.engines.length > 0) {
+        config.engines = provider.engines
+      }
+
+      const basicAuthUsername = provider.basicAuthUsername?.trim()
+      if (basicAuthUsername) {
+        config.basicAuthUsername = basicAuthUsername
+      }
+
+      const basicAuthPassword = provider.basicAuthPassword?.trim()
+      if (basicAuthPassword) {
+        config.basicAuthPassword = basicAuthPassword
+      }
+
+      return Object.keys(config).length > 1 ? config : null
+    })
+    .filter((provider): provider is WebSearchProviderUserConfig => provider !== null)
 
   return {
     'chat.websearch.providers': migratedProviders

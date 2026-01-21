@@ -198,9 +198,14 @@ export default class ExaMcpProvider extends BaseWebSearchProvider {
       }
     } catch {
       // Ignore parsing errors
-      logger.warn('Failed to parse direct JSON response:', { responseText })
+      logger.warn('Failed to parse direct JSON response')
     }
 
-    return { results: [] }
+    // All parsing methods failed - throw error instead of returning empty
+    logger.error('All parsing methods failed for Exa MCP response', {
+      responseLength: responseText.length,
+      responsePreview: responseText.substring(0, 200)
+    })
+    throw new Error('Failed to parse Exa MCP response: unrecognized response format')
   }
 }

@@ -1,5 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n'
 import type { WebSearchProviderResult } from '@renderer/types'
 import { sliceByTokens } from 'tokenx'
 
@@ -22,6 +23,10 @@ export class CutoffCompressionStrategy implements ICompressionStrategy {
 
     if (!cutoffLimit) {
       logger.warn('Cutoff limit is not set, skipping compression')
+      window.toast.warning({
+        timeout: 5000,
+        title: i18n.t('settings.tool.websearch.compression.error.cutoff_limit_not_set')
+      })
       return results
     }
 

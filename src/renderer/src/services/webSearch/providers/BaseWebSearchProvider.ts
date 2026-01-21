@@ -3,8 +3,7 @@ import { preferenceService } from '@data/PreferenceService'
 import type { WebSearchConfig, WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 export default abstract class BaseWebSearchProvider {
-  // @ts-ignore this
-  protected provider: WebSearchProvider
+  protected readonly provider: WebSearchProvider
   protected apiHost?: string
   protected apiKey: string
 

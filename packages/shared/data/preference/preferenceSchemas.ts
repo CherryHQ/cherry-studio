@@ -546,7 +546,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.websearch.compression.cutoff_limit': null,
     'chat.websearch.compression.cutoff_unit': 'char',
     'chat.websearch.compression.method': 'none',
-    'chat.websearch.compression.rag_document_count': 1,
+    'chat.websearch.compression.rag_document_count': 5,
     'chat.websearch.compression.rag_embedding_dimensions': null,
     'chat.websearch.compression.rag_embedding_model_id': null,
     'chat.websearch.compression.rag_embedding_provider_id': null,

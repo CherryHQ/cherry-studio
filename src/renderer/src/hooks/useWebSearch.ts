@@ -66,7 +66,7 @@ function hasNonIdFields(config: WebSearchProviderUserConfig): boolean {
  * Returns merged full providers for runtime use.
  */
 export function useWebSearchProviders() {
-  const [userConfigs, setUserConfigs] = usePreference('chat.websearch.providers')
+  const [userConfigs, setUserConfigs] = usePreference('chat.websearch.providers', { optimistic: false })
 
   // Merge templates with user configs to get full providers
   const providers = useMemo(() => getAllProviders(userConfigs), [userConfigs])
@@ -125,6 +125,13 @@ export function useWebSearchProviders() {
 
   /**
    * Check if a provider is enabled (has required config)
+   *
+   * Enabled conditions by provider type:
+   * - 'local': Always enabled (uses browser for search)
+   * - 'api'/'mcp': Enabled if apiKey OR apiHost is configured
+   *
+   * @param providerId - The provider ID to check
+   * @returns true if the provider is enabled, false otherwise
    */
   const isProviderEnabled = useCallback(
     (providerId?: string): boolean => {
@@ -169,7 +176,9 @@ export function useWebSearchProvider(providerId: string) {
 }
 
 // ============================================================================
-// Specialized Settings Hooks (Phase 4 - ISP Compliance)
+// Specialized Settings Hooks (Interface Segregation Principle)
+// These hooks provide focused APIs for specific UI components,
+// avoiding the need to import all settings when only a subset is needed.
 // ============================================================================
 
 /**

@@ -115,11 +115,13 @@ export type WebSearchResponse = {
 
 export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
 
-export type WebSearchStatus = {
-  phase: WebSearchPhase
-  countBefore?: number
-  countAfter?: number
-}
+export type WebSearchStatus =
+  | { phase: 'default' }
+  | { phase: 'fetch_complete'; countAfter: number }
+  | { phase: 'rag' }
+  | { phase: 'rag_complete'; countBefore: number; countAfter: number }
+  | { phase: 'rag_failed' }
+  | { phase: 'cutoff' }
 
 export interface WebSearchConfig {
   maxResults: number

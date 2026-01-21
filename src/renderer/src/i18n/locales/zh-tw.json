@@ -4812,7 +4812,10 @@
             }
           },
           "error": {
-            "rag_failed": "RAG 失敗"
+            "cleanup_failed": "清理臨時搜尋庫失敗",
+            "cutoff_limit_not_set": "未設定截斷限制，跳過壓縮",
+            "rag_failed": "RAG 失敗",
+            "unknown_method": "未知壓縮方法: {{method}}，已回退到無壓縮"
           },
           "info": {
             "dimensions_auto_success": "維度自動取得成功，維度為 {{dimensions}}"

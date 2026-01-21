@@ -78,7 +78,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
             engine.categories.includes('general') &&
             engine.categories.includes('web')
         )
-        .map((engine) => engine.name)
+        .map((engine: { enabled: boolean; categories: string[]; name: string }) => engine.name)
 
       if (this.engines.length === 0) {
         throw new Error('No enabled general web search engines found in SearxNG configuration')
@@ -102,7 +102,14 @@ export default class SearxngProvider extends BaseWebSearchProvider {
 
       // Wait for initialization if it's the first search
       if (!this.isInitialized) {
-        await this.initEngines().catch(() => {}) // Ignore errors
+        try {
+          await this.initEngines()
+        } catch (error) {
+          logger.error('SearxNG initialization failed during search:', error as Error)
+          throw new Error(
+            `SearxNG is not initialized: ${error instanceof Error ? error.message : 'Unknown initialization error'}`
+          )
+        }
       }
 
       const { maxResults } = await this.getSearchConfig()

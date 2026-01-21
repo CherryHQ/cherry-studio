@@ -208,52 +208,26 @@ describe('PreferenceTransformers', () => {
       expect(result['chat.websearch.providers']).toEqual([])
     })
 
-    it('should add type field based on id prefix', () => {
+    it('should keep only non-empty user fields', () => {
       const result = migrateWebSearchProviders({
         providers: [
-          { id: 'tavily', name: 'Tavily', apiKey: 'key1', apiHost: 'https://api.tavily.com' },
+          { id: 'tavily', name: 'Tavily', apiKey: ' key1 ', apiHost: 'https://api.tavily.com' },
           { id: 'local-google', name: 'Google' }
         ]
       })
 
-      const providers = result['chat.websearch.providers'] as Array<{ id: string; type: string }>
-      expect(providers[0].id).toBe('tavily')
-      expect(providers[0].type).toBe('api')
-      expect(providers[1].id).toBe('local-google')
-      expect(providers[1].type).toBe('local')
-    })
-
-    it('should set type to mcp for exa-mcp provider', () => {
-      const result = migrateWebSearchProviders({
-        providers: [{ id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' }]
-      })
-
-      const providers = result['chat.websearch.providers'] as Array<{ id: string; type: string }>
-      expect(providers[0].id).toBe('exa-mcp')
-      expect(providers[0].type).toBe('mcp')
-    })
-
-    it('should add missing fields with defaults', () => {
-      const result = migrateWebSearchProviders({
-        providers: [{ id: 'tavily', name: 'Tavily' }]
-      })
-
       const providers = result['chat.websearch.providers'] as Array<Record<string, unknown>>
-      expect(providers[0].apiKey).toBe('')
-      expect(providers[0].apiHost).toBe('')
-      expect(providers[0].engines).toEqual([])
-      expect(providers[0].usingBrowser).toBe(false)
-      expect(providers[0].basicAuthUsername).toBe('')
-      expect(providers[0].basicAuthPassword).toBe('')
+      expect(providers).toEqual([{ id: 'tavily', apiKey: 'key1', apiHost: 'https://api.tavily.com' }])
     })
 
-    it('should preserve existing field values', () => {
+    it('should map url to apiHost and preserve auth fields', () => {
       const result = migrateWebSearchProviders({
         providers: [
           {
-            id: 'searxng',
-            name: 'Searxng',
-            apiHost: 'http://localhost:8080',
+            id: 'local-bing',
+            name: 'Bing',
+            url: 'https://www.bing.com/search?q=%s',
+            engines: ['news'],
             basicAuthUsername: 'user',
             basicAuthPassword: 'pass'
           }
@@ -261,9 +235,15 @@ describe('PreferenceTransformers', () => {
       })
 
       const providers = result['chat.websearch.providers'] as Array<Record<string, unknown>>
-      expect(providers[0].apiHost).toBe('http://localhost:8080')
-      expect(providers[0].basicAuthUsername).toBe('user')
-      expect(providers[0].basicAuthPassword).toBe('pass')
+      expect(providers).toEqual([
+        {
+          id: 'local-bing',
+          apiHost: 'https://www.bing.com/search?q=%s',
+          engines: ['news'],
+          basicAuthUsername: 'user',
+          basicAuthPassword: 'pass'
+        }
+      ])
     })
   })
 })
