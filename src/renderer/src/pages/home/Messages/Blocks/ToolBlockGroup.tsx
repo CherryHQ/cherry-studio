@@ -1,7 +1,7 @@
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, type CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -11,32 +11,54 @@ interface Props {
   blocks: ToolMessageBlock[]
 }
 
-const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
+const GroupHeaderContent = React.memo(({ count }: { count: number }) => {
   const { t } = useTranslation()
+  return (
+    <GroupHeader>
+      <Wrench size={14} className="tool-icon" />
+      <span className="tool-count">{t('message.tools.groupHeader', { count })}</span>
+    </GroupHeader>
+  )
+})
+GroupHeaderContent.displayName = 'GroupHeaderContent'
+
+const MemoizedToolItem = React.memo(({ block }: { block: ToolMessageBlock }) => <MessageTools block={block} />)
+MemoizedToolItem.displayName = 'MemoizedToolItem'
+
+const ToolListContent = React.memo(({ blocks }: { blocks: ToolMessageBlock[] }) => (
+  <ToolList>
+    {blocks.map((block) => (
+      <MemoizedToolItem key={block.id} block={block} />
+    ))}
+  </ToolList>
+))
+ToolListContent.displayName = 'ToolListContent'
+
+const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
   const [expanded, setExpanded] = useState(false)
+
+  const hasPendingApproval = useMemo(() => {
+    return blocks.some((block) => {
+      const toolResponse = block.metadata?.rawMcpToolResponse
+      return toolResponse?.status === 'pending'
+    })
+  }, [blocks])
+
+  useEffect(() => {
+    if (hasPendingApproval && !expanded) {
+      setExpanded(true)
+    }
+  }, [hasPendingApproval, expanded])
 
   const items: CollapseProps['items'] = useMemo(() => {
     return [
       {
         key: 'tool-group',
-        label: (
-          <GroupHeader>
-            <Wrench size={14} className="tool-icon" />
-            <span className="tool-count">{t('message.tools.groupHeader', { count: blocks.length })}</span>
-          </GroupHeader>
-        ),
-        children: (
-          <ToolList>
-            {blocks.map((block) => (
-              <ToolItem key={block.id}>
-                <MessageTools block={block} />
-              </ToolItem>
-            ))}
-          </ToolList>
-        )
+        label: <GroupHeaderContent count={blocks.length} />,
+        children: <ToolListContent blocks={blocks} />
       }
     ]
-  }, [blocks, t])
+  }, [blocks])
 
   return (
     <Container>
@@ -108,5 +130,3 @@ const ToolList = styled.div`
   flex-direction: column;
   gap: 4px;
 `
-
-const ToolItem = styled.div``
