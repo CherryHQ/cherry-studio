@@ -6,13 +6,148 @@ import GoogleLogo from '@renderer/assets/images/search/google.svg'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
+import type {
+  WebSearchProvider,
+  WebSearchProviderType,
+  WebSearchProviderUserConfig
+} from '@shared/data/preference/preferenceTypes'
+
+// ============================================================================
+// Provider Templates (Immutable Data)
+// ============================================================================
 
 /**
- * WebSearch Provider Static Metadata
- *
- * Contains static metadata for providers that doesn't need to be stored in Preference.
- * Provider configuration (id, name, type, apiHost, etc.) is stored in Preference.
+ * WebSearch Provider Template
+ * Contains immutable data that doesn't need to be stored in Preference
  */
+export interface WebSearchProviderTemplate {
+  /** Unique provider identifier */
+  id: string
+  /** Display name */
+  name: string
+  /** Provider type */
+  type: WebSearchProviderType
+  /** Whether to use browser for search */
+  usingBrowser: boolean
+  /** Default API host (used when user hasn't overridden) */
+  defaultApiHost: string
+}
+
+/**
+ * All available WebSearch provider templates
+ * Template data is immutable and stored in code, not in Preference
+ */
+export const WEB_SEARCH_PROVIDER_TEMPLATES: WebSearchProviderTemplate[] = [
+  {
+    id: 'zhipu',
+    name: 'Zhipu',
+    type: 'api',
+    usingBrowser: false,
+    defaultApiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search'
+  },
+  {
+    id: 'tavily',
+    name: 'Tavily',
+    type: 'api',
+    usingBrowser: false,
+    defaultApiHost: 'https://api.tavily.com'
+  },
+  {
+    id: 'searxng',
+    name: 'Searxng',
+    type: 'api',
+    usingBrowser: false,
+    defaultApiHost: ''
+  },
+  {
+    id: 'exa',
+    name: 'Exa',
+    type: 'api',
+    usingBrowser: false,
+    defaultApiHost: 'https://api.exa.ai'
+  },
+  {
+    id: 'exa-mcp',
+    name: 'ExaMCP',
+    type: 'mcp',
+    usingBrowser: false,
+    defaultApiHost: 'https://mcp.exa.ai/mcp'
+  },
+  {
+    id: 'bocha',
+    name: 'Bocha',
+    type: 'api',
+    usingBrowser: false,
+    defaultApiHost: 'https://api.bochaai.com'
+  },
+  {
+    id: 'local-google',
+    name: 'Google',
+    type: 'local',
+    usingBrowser: true,
+    defaultApiHost: 'https://www.google.com/search?q=%s'
+  },
+  {
+    id: 'local-bing',
+    name: 'Bing',
+    type: 'local',
+    usingBrowser: true,
+    defaultApiHost: 'https://cn.bing.com/search?q=%s&ensearch=1'
+  },
+  {
+    id: 'local-baidu',
+    name: 'Baidu',
+    type: 'local',
+    usingBrowser: true,
+    defaultApiHost: 'https://www.baidu.com/s?wd=%s'
+  }
+]
+
+/**
+ * Get provider template by ID
+ */
+export function getProviderTemplate(id: string): WebSearchProviderTemplate | undefined {
+  return WEB_SEARCH_PROVIDER_TEMPLATES.find((t) => t.id === id)
+}
+
+/**
+ * Merge template with user config to create full provider
+ * @param template - Provider template (immutable)
+ * @param userConfig - User config (sparse object, optional)
+ * @returns Full WebSearchProvider for runtime use
+ */
+export function mergeProviderConfig(
+  template: WebSearchProviderTemplate,
+  userConfig?: WebSearchProviderUserConfig
+): WebSearchProvider {
+  return {
+    id: template.id,
+    name: template.name,
+    type: template.type,
+    usingBrowser: template.usingBrowser,
+    apiHost: userConfig?.apiHost || template.defaultApiHost,
+    apiKey: userConfig?.apiKey || '',
+    engines: userConfig?.engines || [],
+    basicAuthUsername: userConfig?.basicAuthUsername || '',
+    basicAuthPassword: userConfig?.basicAuthPassword || ''
+  }
+}
+
+/**
+ * Get all providers merged with user configs
+ * @param userConfigs - Array of user configs from preference
+ * @returns Array of full WebSearchProvider for runtime use
+ */
+export function getAllProviders(userConfigs: WebSearchProviderUserConfig[]): WebSearchProvider[] {
+  return WEB_SEARCH_PROVIDER_TEMPLATES.map((template) => {
+    const userConfig = userConfigs.find((c) => c.id === template.id)
+    return mergeProviderConfig(template, userConfig)
+  })
+}
+
+// ============================================================================
+// Provider Static Metadata (Websites, Logos)
+// ============================================================================
 
 /**
  * Provider website links for documentation and API key management

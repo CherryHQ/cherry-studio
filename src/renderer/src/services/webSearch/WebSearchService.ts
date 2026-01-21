@@ -1,5 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { getProviderTemplate, mergeProviderConfig } from '@renderer/config/webSearch'
 import type { WebSearchProviderResponse } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
@@ -34,9 +35,23 @@ class WebSearchService {
   }
 
   public async getWebSearchProvider(providerId?: string): Promise<WebSearchProvider | undefined> {
-    const providers = await preferenceService.get('chat.websearch.providers')
-    logger.debug('providers', providers)
-    return providers.find((provider) => provider.id === providerId)
+    if (!providerId) return undefined
+
+    // Get template first
+    const template = getProviderTemplate(providerId)
+    if (!template) {
+      logger.warn(`Unknown provider ID: ${providerId}`)
+      return undefined
+    }
+
+    // Get user configs from preference
+    const userConfigs = await preferenceService.get('chat.websearch.providers')
+    const userConfig = userConfigs.find((c) => c.id === providerId)
+
+    // Merge template with user config
+    const provider = mergeProviderConfig(template, userConfig)
+    logger.debug('provider', provider)
+    return provider
   }
 
   public async search(

@@ -19,6 +19,28 @@ export type { WebSearchProvider }
 // =============================================================================
 
 /**
+ * @deprecated Legacy WebSearch Provider type for migration compatibility
+ * Used only by migrate.ts for backward compatibility
+ * New code should use WebSearchProvider instead
+ */
+export interface LegacyWebSearchProvider {
+  id: string
+  name: string
+  type?: 'api' | 'local' | 'mcp'
+  apiKey?: string
+  apiHost?: string
+  engines?: string[]
+  usingBrowser?: boolean
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+
+/**
+ * @deprecated Legacy array type for migration compatibility
+ */
+export type LegacyWebSearchProviders = LegacyWebSearchProvider[]
+
+/**
  * @deprecated Use string type directly. Kept for ApiKeyListPopup compatibility.
  */
 export const WebSearchProviderIds = {

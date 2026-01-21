@@ -12,7 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { getProviderWebsites } from '@renderer/config/webSearch'
 import { formatApiKeys } from '@renderer/utils'
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProvider, WebSearchProviderUserConfig } from '@shared/data/preference/preferenceTypes'
 import { Check, Eye, EyeOff, List, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +21,7 @@ import { useApiProviderSettings } from '../../hooks/useApiProviderSettings'
 
 interface Props {
   provider: WebSearchProvider
-  updateProvider: (updates: Partial<WebSearchProvider>) => void
+  updateProvider: (updates: Partial<WebSearchProviderUserConfig>) => void
 }
 
 const ApiProviderSettings: FC<Props> = ({ provider, updateProvider }) => {

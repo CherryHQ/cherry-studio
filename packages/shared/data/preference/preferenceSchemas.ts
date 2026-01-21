@@ -196,8 +196,8 @@ export interface PreferenceSchemas {
     'chat.websearch.exclude_domains': string[]
     // v2: websearch max results
     'chat.websearch.max_results': number
-    // v2: websearch provider configs
-    'chat.websearch.providers': PreferenceTypes.WebSearchProviders
+    // v2: websearch provider user configs (sparse object, only stores user modifications)
+    'chat.websearch.providers': PreferenceTypes.WebSearchProviderUserConfigs
     // v2: websearch search with time
     'chat.websearch.search_with_time': boolean
     // redux/settings/skipBackupFile
@@ -554,107 +554,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.websearch.compression.rag_rerank_provider_id': null,
     'chat.websearch.exclude_domains': [],
     'chat.websearch.max_results': 5,
-    'chat.websearch.providers': [
-      {
-        apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'zhipu',
-        name: 'Zhipu',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://api.tavily.com',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'tavily',
-        name: 'Tavily',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: '',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'searxng',
-        name: 'Searxng',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://api.exa.ai',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'exa',
-        name: 'Exa',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://mcp.exa.ai/mcp',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'exa-mcp',
-        name: 'ExaMCP',
-        type: 'mcp',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://api.bochaai.com',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'bocha',
-        name: 'Bocha',
-        type: 'api',
-        usingBrowser: false
-      },
-      {
-        apiHost: 'https://www.google.com/search?q=%s',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'local-google',
-        name: 'Google',
-        type: 'local',
-        usingBrowser: true
-      },
-      {
-        apiHost: 'https://cn.bing.com/search?q=%s&ensearch=1',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'local-bing',
-        name: 'Bing',
-        type: 'local',
-        usingBrowser: true
-      },
-      {
-        apiHost: 'https://www.baidu.com/s?wd=%s',
-        apiKey: '',
-        basicAuthPassword: '',
-        basicAuthUsername: '',
-        engines: [],
-        id: 'local-baidu',
-        name: 'Baidu',
-        type: 'local',
-        usingBrowser: true
-      }
-    ],
+    'chat.websearch.providers': [],
     'chat.websearch.search_with_time': true,
     'data.backup.general.skip_backup_file': false,
     'data.backup.local.auto_sync': false,

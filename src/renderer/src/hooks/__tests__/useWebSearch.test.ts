@@ -1,4 +1,4 @@
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProviderUserConfig } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -12,17 +12,9 @@ import {
   useWebSearchProviders
 } from '../useWebSearch'
 
-// Helper to create mock providers
-const createMockProvider = (overrides: Partial<WebSearchProvider> = {}): WebSearchProvider => ({
+// Helper to create mock user configs (sparse object)
+const createMockUserConfig = (overrides: Partial<WebSearchProviderUserConfig> = {}): WebSearchProviderUserConfig => ({
   id: 'test-provider',
-  name: 'Test Provider',
-  type: 'api',
-  apiKey: '',
-  apiHost: '',
-  engines: [],
-  usingBrowser: false,
-  basicAuthUsername: '',
-  basicAuthPassword: '',
   ...overrides
 })
 
@@ -37,49 +29,51 @@ describe('useWebSearch hooks', () => {
 
   describe('useWebSearchProviders', () => {
     describe('providers', () => {
-      it('should return providers from preference', () => {
-        const mockProviders = [
-          createMockProvider({ id: 'tavily', name: 'Tavily' }),
-          createMockProvider({ id: 'exa', name: 'Exa' })
+      it('should return providers merged from templates and user configs', () => {
+        // User configs (sparse object - only store modified fields)
+        const mockUserConfigs: WebSearchProviderUserConfig[] = [
+          createMockUserConfig({ id: 'tavily', apiKey: 'my-tavily-key' }),
+          createMockUserConfig({ id: 'exa', apiKey: 'my-exa-key' })
         ]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockUserConfigs)
 
         const { result } = renderHook(() => useWebSearchProviders())
 
-        expect(result.current.providers).toEqual(mockProviders)
+        // Should return all template providers (9 total), merged with user configs
+        expect(result.current.providers.length).toBe(9)
+
+        // Tavily should have user's apiKey merged with template
+        const tavily = result.current.providers.find((p) => p.id === 'tavily')
+        expect(tavily?.apiKey).toBe('my-tavily-key')
+        expect(tavily?.apiHost).toBe('https://api.tavily.com') // from template
+        expect(tavily?.name).toBe('Tavily') // from template
       })
 
-      it('should return correct total count', () => {
-        const mockProviders = [
-          createMockProvider({ id: 'p1' }),
-          createMockProvider({ id: 'p2' }),
-          createMockProvider({ id: 'p3' })
-        ]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+      it('should return correct total count from templates', () => {
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
-        expect(result.current.total).toBe(3)
+        // Total is always template count (9 providers)
+        expect(result.current.total).toBe(9)
       })
     })
 
     describe('getProvider', () => {
-      it('should return provider for existing ID', () => {
-        const mockProviders = [
-          createMockProvider({ id: 'tavily', name: 'Tavily' }),
-          createMockProvider({ id: 'exa', name: 'Exa' })
-        ]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+      it('should return provider for existing template ID', () => {
+        const mockUserConfigs: WebSearchProviderUserConfig[] = [createMockUserConfig({ id: 'tavily', apiKey: 'key1' })]
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockUserConfigs)
 
         const { result } = renderHook(() => useWebSearchProviders())
         const provider = result.current.getProvider('tavily')
 
-        expect(provider).toEqual(mockProviders[0])
+        expect(provider?.id).toBe('tavily')
+        expect(provider?.apiKey).toBe('key1')
+        expect(provider?.apiHost).toBe('https://api.tavily.com') // from template
       })
 
-      it('should return undefined for non-existing ID', () => {
-        const mockProviders = [createMockProvider({ id: 'tavily' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+      it('should return undefined for non-existing template ID', () => {
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
         const provider = result.current.getProvider('non-existent')
@@ -89,9 +83,8 @@ describe('useWebSearch hooks', () => {
     })
 
     describe('updateProvider', () => {
-      it('should update provider with partial data', async () => {
-        const mockProviders = [createMockProvider({ id: 'tavily', apiKey: '', apiHost: '' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+      it('should update provider with partial data (sparse object)', async () => {
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -101,15 +94,13 @@ describe('useWebSearch hooks', () => {
 
         await waitFor(() => {
           const updatedValue = MockUsePreferenceUtils.getPreferenceValue('chat.websearch.providers')
-          expect(updatedValue[0].apiKey).toBe('new-key')
-          // Other fields should remain unchanged
-          expect(updatedValue[0].apiHost).toBe('')
+          // Should only store the modified field (sparse object)
+          expect(updatedValue).toEqual([{ id: 'tavily', apiKey: 'new-key' }])
         })
       })
 
-      it('should throw error for non-existing provider ID', async () => {
-        const mockProviders = [createMockProvider({ id: 'tavily' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+      it('should throw error for non-existing template ID', async () => {
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -123,46 +114,47 @@ describe('useWebSearch hooks', () => {
 
     describe('isProviderEnabled', () => {
       it('should return true for local provider', () => {
-        const mockProviders = [createMockProvider({ id: 'local-google', type: 'local' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
+        // local-google is a local provider in templates
         expect(result.current.isProviderEnabled('local-google')).toBe(true)
       })
 
       it('should return true for api provider with apiKey', () => {
-        const mockProviders = [createMockProvider({ id: 'tavily', type: 'api', apiKey: 'some-key' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+        const mockUserConfigs: WebSearchProviderUserConfig[] = [
+          createMockUserConfig({ id: 'tavily', apiKey: 'some-key' })
+        ]
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockUserConfigs)
 
         const { result } = renderHook(() => useWebSearchProviders())
 
         expect(result.current.isProviderEnabled('tavily')).toBe(true)
       })
 
-      it('should return true for api provider with apiHost', () => {
-        const mockProviders = [
-          createMockProvider({ id: 'searxng', type: 'api', apiKey: '', apiHost: 'https://example.com' })
-        ]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+      it('should return true for api provider with apiHost (template default)', () => {
+        // Tavily template has defaultApiHost, so it's enabled even without user config
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
-        expect(result.current.isProviderEnabled('searxng')).toBe(true)
+        // Tavily has defaultApiHost in template, so apiHost is not empty
+        expect(result.current.isProviderEnabled('tavily')).toBe(true)
       })
 
-      it('should return false for api provider without apiKey and apiHost', () => {
-        const mockProviders = [createMockProvider({ id: 'tavily', type: 'api', apiKey: '', apiHost: '' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+      it('should return false for api provider without apiKey and empty template apiHost', () => {
+        // searxng template has empty defaultApiHost
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
-        expect(result.current.isProviderEnabled('tavily')).toBe(false)
+        // searxng has empty defaultApiHost and no user config, so not enabled
+        expect(result.current.isProviderEnabled('searxng')).toBe(false)
       })
 
       it('should return false for non-existing provider', () => {
-        const mockProviders = [createMockProvider({ id: 'tavily' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -170,8 +162,7 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return false for undefined providerId', () => {
-        const mockProviders = [createMockProvider({ id: 'tavily' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -185,21 +176,27 @@ describe('useWebSearch hooks', () => {
   // ============================================================================
 
   describe('useWebSearchProvider', () => {
-    it('should return provider for specified ID', () => {
-      const mockProviders = [
-        createMockProvider({ id: 'tavily', name: 'Tavily', apiKey: 'key1' }),
-        createMockProvider({ id: 'exa', name: 'Exa', apiKey: 'key2' })
-      ]
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+    it('should return provider merged from template and user config', () => {
+      const mockUserConfigs: WebSearchProviderUserConfig[] = [createMockUserConfig({ id: 'tavily', apiKey: 'key1' })]
+      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockUserConfigs)
 
       const { result } = renderHook(() => useWebSearchProvider('tavily'))
 
-      expect(result.current.provider).toEqual(mockProviders[0])
+      expect(result.current.provider).toEqual({
+        id: 'tavily',
+        name: 'Tavily',
+        type: 'api',
+        apiKey: 'key1',
+        apiHost: 'https://api.tavily.com', // from template
+        engines: [],
+        usingBrowser: false,
+        basicAuthUsername: '',
+        basicAuthPassword: ''
+      })
     })
 
-    it('should return undefined for non-existing ID', () => {
-      const mockProviders = [createMockProvider({ id: 'tavily' })]
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+    it('should return undefined for non-existing template ID', () => {
+      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
       const { result } = renderHook(() => useWebSearchProvider('non-existent'))
 
@@ -207,8 +204,7 @@ describe('useWebSearch hooks', () => {
     })
 
     it('should update provider through updateProvider function', async () => {
-      const mockProviders = [createMockProvider({ id: 'tavily', apiKey: '' })]
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockProviders)
+      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
 
       const { result } = renderHook(() => useWebSearchProvider('tavily'))
 
@@ -218,7 +214,7 @@ describe('useWebSearch hooks', () => {
 
       await waitFor(() => {
         const updatedProviders = MockUsePreferenceUtils.getPreferenceValue('chat.websearch.providers')
-        expect(updatedProviders[0].apiKey).toBe('new-api-key')
+        expect(updatedProviders).toEqual([{ id: 'tavily', apiKey: 'new-api-key' }])
       })
     })
   })

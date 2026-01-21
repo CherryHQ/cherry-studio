@@ -109,48 +109,73 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 // ============================================================================
 
 /**
- * 完整的 WebSearch Provider 配置
- * 存储在 Preference 中，包含所有字段
+ * Provider type classification
+ */
+export type WebSearchProviderType = 'api' | 'local' | 'mcp'
+
+/**
+ * User configuration type (sparse object)
+ * Stored in Preference chat.websearch.providers
+ * Only contains fields that user has actually modified
+ */
+export interface WebSearchProviderUserConfig {
+  /** Provider ID, required for matching with template */
+  id: string
+  /** User's API key */
+  apiKey?: string
+  /** User's custom API host (overrides template default) */
+  apiHost?: string
+  /** Search engines (for SearXNG) */
+  engines?: string[]
+  /** Basic auth username */
+  basicAuthUsername?: string
+  /** Basic auth password */
+  basicAuthPassword?: string
+}
+
+/**
+ * User configuration array
+ * Stored in chat.websearch.providers
+ */
+export type WebSearchProviderUserConfigs = WebSearchProviderUserConfig[]
+
+/**
+ * Full WebSearch Provider configuration
+ * Generated at runtime by merging template with user config
  */
 export interface WebSearchProvider {
   /** Unique provider identifier */
   id: string
-  /** Display name */
+  /** Display name (from template) */
   name: string
-  /** Provider type: 'api' for API-based, 'local' for browser-based, 'mcp' for MCP protocol */
-  type: 'api' | 'local' | 'mcp'
-  /** API key */
+  /** Provider type (from template) */
+  type: WebSearchProviderType
+  /** API key (from user config) */
   apiKey: string
-  /** API host */
+  /** API host (user override or template default) */
   apiHost: string
-  /** Search engines (for SearXNG) */
+  /** Search engines (from user config) */
   engines: string[]
-  /** Whether to use browser for search */
+  /** Whether to use browser for search (from template) */
   usingBrowser: boolean
-  /** Basic auth username */
+  /** Basic auth username (from user config) */
   basicAuthUsername: string
-  /** Basic auth password */
+  /** Basic auth password (from user config) */
   basicAuthPassword: string
 }
-
-/**
- * 所有 Provider 的配置数组
- * 存储在 chat.websearch.providers 中
- */
-export type WebSearchProviders = WebSearchProvider[]
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)
 // ============================================================================
 
 /**
- * 压缩方式类型
- * 存储在 chat.websearch.compression.method 中
+ * Compression method type
+ * Stored in chat.websearch.compression.method
  */
 export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
 
 /**
- * Cutoff 单位类型
- * 存储在 chat.websearch.compression.cutoff_unit 中
+ * Cutoff unit type
+ * Stored in chat.websearch.compression.cutoff_unit
  */
 export type WebSearchCompressionCutoffUnit = 'char' | 'token'

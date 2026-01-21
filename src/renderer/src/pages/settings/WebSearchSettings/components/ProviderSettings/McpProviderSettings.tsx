@@ -1,12 +1,12 @@
 import { Field, FieldContent, FieldGroup, FieldLabel, Input } from '@cherrystudio/ui'
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProvider, WebSearchProviderUserConfig } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
   provider: WebSearchProvider
-  updateProvider: (updates: Partial<WebSearchProvider>) => void
+  updateProvider: (updates: Partial<WebSearchProviderUserConfig>) => void
 }
 
 const McpProviderSettings: FC<Props> = ({ provider, updateProvider }) => {
