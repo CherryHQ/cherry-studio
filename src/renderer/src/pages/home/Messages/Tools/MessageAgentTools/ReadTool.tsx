@@ -2,7 +2,7 @@ import type { CollapseProps } from 'antd'
 import { FileText } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
-import { ToolTitle } from './GenericTools'
+import { SkeletonValue, ToolTitle } from './GenericTools'
 import type { ReadToolInput as ReadToolInputType, ReadToolOutput as ReadToolOutputType, TextOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -51,6 +51,7 @@ export function ReadTool({
 }): NonNullable<CollapseProps['items']>[number] {
   const outputString = normalizeOutputString(output)
   const stats = getOutputStats(outputString)
+  const filename = input?.file_path?.split('/').pop()
 
   return {
     key: AgentToolsType.Read,
@@ -58,10 +59,14 @@ export function ReadTool({
       <ToolTitle
         icon={<FileText className="h-4 w-4" />}
         label="Read File"
-        params={input?.file_path?.split('/').pop()}
+        params={<SkeletonValue value={filename} width="120px" />}
         stats={stats ? `${stats.lineCount} lines, ${stats.formatSize(stats.fileSize)}` : undefined}
       />
     ),
-    children: outputString ? <ReactMarkdown>{outputString}</ReactMarkdown> : null
+    children: outputString ? (
+      <ReactMarkdown>{outputString}</ReactMarkdown>
+    ) : (
+      <SkeletonValue value={null} width="100%" fallback={null} />
+    )
   }
 }

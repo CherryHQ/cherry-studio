@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "[to be translated]:Always allow this tool",
         "allowRequest": "Werkzeuganfrage zulassen",
         "denyRequest": "Werkzeuganfrage ablehnen",
         "hideDetails": "Werkzeugdetails ausblenden",
@@ -278,6 +279,7 @@
         "showDetails": "Zeige Werkzeugdetails"
       },
       "button": {
+        "allowAll": "[to be translated]:Always Allow",
         "cancel": "Abbrechen",
         "run": "Laufen"
       },

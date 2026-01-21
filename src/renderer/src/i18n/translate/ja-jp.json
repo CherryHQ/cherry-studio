@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "[to be translated]:Always allow this tool",
         "allowRequest": "ツールリクエストを許可",
         "denyRequest": "ツールリクエストを拒否",
         "hideDetails": "ツールの詳細を非表示",
@@ -278,6 +279,7 @@
         "showDetails": "ツールの詳細を表示"
       },
       "button": {
+        "allowAll": "[to be translated]:Always Allow",
         "cancel": "キャンセル",
         "run": "走る"
       },

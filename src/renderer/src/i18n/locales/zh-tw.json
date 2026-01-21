@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "總是允許此工具",
         "allowRequest": "允許工具請求",
         "denyRequest": "拒絕工具請求",
         "hideDetails": "隱藏工具詳細資訊",
@@ -278,6 +279,7 @@
         "showDetails": "顯示工具詳細資訊"
       },
       "button": {
+        "allowAll": "總是允許",
         "cancel": "取消",
         "run": "執行"
       },

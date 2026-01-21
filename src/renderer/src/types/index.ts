@@ -816,7 +816,7 @@ export interface MCPConfig {
   isBunInstalled: boolean
 }
 
-export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done' | 'error'
+export type MCPToolResponseStatus = 'pending' | 'streaming' | 'cancelled' | 'invoking' | 'done' | 'error'
 
 interface BaseToolResponse {
   id: string // unique id
@@ -824,6 +824,8 @@ interface BaseToolResponse {
   arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
   status: MCPToolResponseStatus
   response?: any
+  // Streaming arguments support
+  partialArguments?: string // Accumulated partial JSON string during streaming
 }
 
 export interface ToolUseResponse extends BaseToolResponse {

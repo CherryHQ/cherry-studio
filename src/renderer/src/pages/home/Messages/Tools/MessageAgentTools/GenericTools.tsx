@@ -1,6 +1,51 @@
 // 通用工具组件 - 减少重复代码
 
-import type { ReactNode } from 'react'
+import { Skeleton } from 'antd'
+import { createContext, type ReactNode, use } from 'react'
+
+// Streaming context - 用于传递流式状态给子组件
+export const StreamingContext = createContext<boolean>(false)
+export const useIsStreaming = () => use(StreamingContext)
+
+export function SkeletonSpan({ width = '60px' }: { width?: string }) {
+  return (
+    <Skeleton.Input
+      active
+      size="small"
+      style={{
+        width,
+        minWidth: width,
+        height: '1em',
+        verticalAlign: 'middle'
+      }}
+    />
+  )
+}
+
+/**
+ * SkeletonValue - 流式时显示 skeleton，否则显示值
+ */
+export function SkeletonValue({
+  value,
+  width = '60px',
+  fallback
+}: {
+  value: ReactNode
+  width?: string
+  fallback?: ReactNode
+}) {
+  const isStreaming = useIsStreaming()
+
+  if (value !== undefined && value !== null && value !== '') {
+    return <>{value}</>
+  }
+
+  if (isStreaming) {
+    return <SkeletonSpan width={width} />
+  }
+
+  return <>{fallback ?? ''}</>
+}
 
 // 生成 AccordionItem 的标题
 export function ToolTitle({
@@ -18,10 +63,10 @@ export function ToolTitle({
 }) {
   return (
     <div className={`flex items-center gap-1 ${className}`}>
-      {icon && <span className="flex flex-shrink-0">{icon}</span>}
-      {label && <span className="flex-shrink-0 font-medium text-sm">{label}</span>}
+      {icon && <span className="flex shrink-0">{icon}</span>}
+      {label && <span className="shrink-0 font-medium text-sm">{label}</span>}
       {params && <span className="min-w-0 truncate text-muted-foreground text-xs">{params}</span>}
-      {stats && <span className="flex-shrink-0 text-muted-foreground text-xs">{stats}</span>}
+      {stats && <span className="shrink-0 text-muted-foreground text-xs">{stats}</span>}
     </div>
   )
 }
