@@ -2017,6 +2017,7 @@
       "cancelled": "Cancelled",
       "completed": "Completed",
       "error": "Error occurred",
+      "groupHeader": "{{count}} tool calls",
       "invoking": "Invoking",
       "labels": {
         "bash": "Bash",

@@ -2017,6 +2017,7 @@
       "cancelled": "Abgebrochen",
       "completed": "Abgeschlossen",
       "error": "Fehler aufgetreten",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "Wird aufgerufen",
       "labels": {
         "bash": "[to be translated]:Bash",

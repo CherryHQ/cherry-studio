@@ -2017,6 +2017,7 @@
       "cancelled": "Отменено",
       "completed": "Завершено",
       "error": "Произошла ошибка",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "Вызов",
       "labels": {
         "bash": "[to be translated]:Bash",

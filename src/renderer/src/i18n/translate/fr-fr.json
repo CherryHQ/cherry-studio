@@ -2017,6 +2017,7 @@
       "cancelled": "Annulé",
       "completed": "Terminé",
       "error": "Une erreur s'est produite",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "En cours d'exécution",
       "labels": {
         "bash": "[to be translated]:Bash",

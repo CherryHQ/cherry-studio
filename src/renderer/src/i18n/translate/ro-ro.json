@@ -2017,6 +2017,7 @@
       "cancelled": "Anulat",
       "completed": "Finalizat",
       "error": "A apărut o eroare",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "Se invocă",
       "labels": {
         "bash": "[to be translated]:Bash",

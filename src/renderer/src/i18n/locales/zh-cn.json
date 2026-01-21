@@ -2017,6 +2017,7 @@
       "cancelled": "已取消",
       "completed": "已完成",
       "error": "发生错误",
+      "groupHeader": "{{count}} 个工具调用",
       "invoking": "调用中",
       "labels": {
         "bash": "执行命令",

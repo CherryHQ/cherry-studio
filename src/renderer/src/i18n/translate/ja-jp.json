@@ -2017,6 +2017,7 @@
       "cancelled": "キャンセル",
       "completed": "完了",
       "error": "エラーが発生しました",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "呼び出し中",
       "labels": {
         "bash": "[to be translated]:Bash",
