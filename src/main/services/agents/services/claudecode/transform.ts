@@ -321,10 +321,13 @@ function handleUserMessage(
   const chunks: AgentStreamPart[] = []
   const providerMetadata = sdkMessageToProviderMetadata(message)
   const content = message.message.content
-  // 消息块中没有这个字段
-  // const isSynthetic = message.isSynthetic ?? false
 
-  if (message.tool_use_result || message.parent_tool_use_id) {
+  // Check if content contains tool_result blocks (synthetic tool result messages)
+  // This handles both SDK-flagged messages and standard tool_result content
+  const contentArray = Array.isArray(content) ? content : []
+  const hasToolResults = contentArray.some((block: any) => block.type === 'tool_result')
+
+  if (hasToolResults || message.tool_use_result || message.parent_tool_use_id) {
     if (!Array.isArray(content)) {
       return chunks
     }

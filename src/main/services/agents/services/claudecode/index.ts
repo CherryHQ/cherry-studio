@@ -16,6 +16,7 @@ import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
+import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { withoutTrailingApiVersion } from '@shared/utils'
@@ -255,9 +256,13 @@ class ClaudeCodeService implements AgentServiceInterface {
         ? {
             type: 'preset',
             preset: 'claude_code',
-            append: session.instructions
+            append: `${session.instructions}\n\nYou MUST use language ${configManager.getLanguage()} to invoke tools or respond in your answers.`
           }
-        : { type: 'preset', preset: 'claude_code' },
+        : {
+            type: 'preset',
+            preset: 'claude_code',
+            append: `You MUST use language ${configManager.getLanguage()} to invoke tools or respond in your answers.`
+          },
       settingSources: ['project'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
