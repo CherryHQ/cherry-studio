@@ -2091,16 +2091,18 @@
       },
       "truncated": "[to be translated]:Output truncated (original: {{size}})",
       "units": {
-        "file": "[to be translated]:file",
-        "files": "[to be translated]:files",
-        "item": "[to be translated]:item",
-        "items": "[to be translated]:items",
-        "line": "[to be translated]:line",
-        "lines": "[to be translated]:lines",
-        "plan": "[to be translated]:plan",
-        "plans": "[to be translated]:plans",
-        "result": "[to be translated]:result",
-        "results": "[to be translated]:results"
+        "done_one": "[to be translated]:{{count}} Done",
+        "done_other": "[to be translated]:{{count}} Done",
+        "file_one": "[to be translated]:{{count}} file",
+        "file_other": "[to be translated]:{{count}} files",
+        "item_one": "[to be translated]:{{count}} item",
+        "item_other": "[to be translated]:{{count}} items",
+        "line_one": "[to be translated]:{{count}} line",
+        "line_other": "[to be translated]:{{count}} lines",
+        "plan_one": "[to be translated]:{{count}} plan",
+        "plan_other": "[to be translated]:{{count}} plans",
+        "result_one": "[to be translated]:{{count}} result",
+        "result_other": "[to be translated]:{{count}} results"
       }
     },
     "topic": {

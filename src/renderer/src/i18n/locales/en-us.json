@@ -2091,16 +2091,18 @@
       },
       "truncated": "Output truncated (original: {{size}})",
       "units": {
-        "file": "file",
-        "files": "files",
-        "item": "item",
-        "items": "items",
-        "line": "line",
-        "lines": "lines",
-        "plan": "plan",
-        "plans": "plans",
-        "result": "result",
-        "results": "results"
+        "done_one": "{{count}} Done",
+        "done_other": "{{count}} Done",
+        "file_one": "{{count}} file",
+        "file_other": "{{count}} files",
+        "item_one": "{{count}} item",
+        "item_other": "{{count}} items",
+        "line_one": "{{count}} line",
+        "line_other": "{{count}} lines",
+        "plan_one": "{{count}} plan",
+        "plan_other": "{{count}} plans",
+        "result_one": "{{count}} result",
+        "result_other": "{{count}} results"
       }
     },
     "topic": {

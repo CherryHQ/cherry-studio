@@ -2091,16 +2091,18 @@
       },
       "truncated": "输出已截断（原始大小：{{size}}）",
       "units": {
-        "file": "个文件",
-        "files": "个文件",
-        "item": "项",
-        "items": "项",
-        "line": "行",
-        "lines": "行",
-        "plan": "个计划",
-        "plans": "个计划",
-        "result": "个结果",
-        "results": "个结果"
+        "done_one": "{{count}} 项完成",
+        "done_other": "{{count}} 项完成",
+        "file_one": "{{count}} 个文件",
+        "file_other": "{{count}} 个文件",
+        "item_one": "{{count}} 项",
+        "item_other": "{{count}} 项",
+        "line_one": "{{count}} 行",
+        "line_other": "{{count}} 行",
+        "plan_one": "{{count}} 个计划",
+        "plan_other": "{{count}} 个计划",
+        "result_one": "{{count}} 个结果",
+        "result_other": "{{count}} 个结果"
       }
     },
     "topic": {

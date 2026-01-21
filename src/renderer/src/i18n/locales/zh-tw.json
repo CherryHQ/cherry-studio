@@ -2091,16 +2091,18 @@
       },
       "truncated": "輸出已截斷（原始大小：{{size}}）",
       "units": {
-        "file": "個檔案",
-        "files": "個檔案",
-        "item": "項",
-        "items": "項",
-        "line": "行",
-        "lines": "行",
-        "plan": "個計畫",
-        "plans": "個計畫",
-        "result": "個結果",
-        "results": "個結果"
+        "done_one": "[to be translated]:{{count}} Done",
+        "done_other": "[to be translated]:{{count}} Done",
+        "file_one": "[to be translated]:{{count}} file",
+        "file_other": "[to be translated]:{{count}} files",
+        "item_one": "[to be translated]:{{count}} item",
+        "item_other": "[to be translated]:{{count}} items",
+        "line_one": "[to be translated]:{{count}} line",
+        "line_other": "[to be translated]:{{count}} lines",
+        "plan_one": "[to be translated]:{{count}} plan",
+        "plan_other": "[to be translated]:{{count}} plans",
+        "result_one": "[to be translated]:{{count}} result",
+        "result_other": "[to be translated]:{{count}} results"
       }
     },
     "topic": {
