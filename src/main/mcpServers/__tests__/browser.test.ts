@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('os', () => ({
+  default: {
+    release: vi.fn(() => '10.0.0')
+  },
+  release: vi.fn(() => '10.0.0')
+}))
+
 vi.mock('node:fs', () => ({
   default: {
     existsSync: vi.fn(() => false),
