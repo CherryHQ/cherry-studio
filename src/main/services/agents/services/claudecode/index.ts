@@ -35,6 +35,9 @@ const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
+const getLanguageInstruction = () =>
+  `IMPORTANT: You MUST use ${configManager.getLanguage()} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
+
 type UserInputMessage = {
   type: 'user'
   parent_tool_use_id: string | null
@@ -256,12 +259,12 @@ class ClaudeCodeService implements AgentServiceInterface {
         ? {
             type: 'preset',
             preset: 'claude_code',
-            append: `${session.instructions}\n\nYou MUST use language ${configManager.getLanguage()} to invoke tools or respond in your answers.`
+            append: `${session.instructions}\n\n${getLanguageInstruction()}`
           }
         : {
             type: 'preset',
             preset: 'claude_code',
-            append: `You MUST use language ${configManager.getLanguage()} to invoke tools or respond in your answers.`
+            append: getLanguageInstruction()
           },
       settingSources: ['project'],
       includePartialMessages: true,
