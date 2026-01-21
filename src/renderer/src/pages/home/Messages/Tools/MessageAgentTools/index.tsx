@@ -15,7 +15,7 @@ import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
 import { EditTool } from './EditTool'
 import { ExitPlanModeTool } from './ExitPlanModeTool'
-import { StreamingContext } from './GenericTools'
+import { StreamingContext, type ToolStatus, ToolStatusIndicator } from './GenericTools'
 import { GlobTool } from './GlobTool'
 import { GrepTool } from './GrepTool'
 import { MultiEditTool } from './MultiEditTool'
@@ -83,12 +83,16 @@ function ToolContent({
   toolName,
   input,
   output,
-  isStreaming = false
+  isStreaming = false,
+  status,
+  hasError = false
 }: {
   toolName?: string
   input?: ToolInput | Record<string, unknown>
   output?: ToolOutput | unknown
   isStreaming?: boolean
+  status?: ToolStatus
+  hasError?: boolean
 }) {
   const renderedItem = isValidAgentToolsType(toolName)
     ? renderTool(toolName, (input ?? {}) as Record<string, unknown>, output)
@@ -96,6 +100,16 @@ function ToolContent({
 
   const toolContentItem: NonNullable<CollapseProps['items']>[number] = {
     ...renderedItem,
+    label: (
+      <div className="flex w-full items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">{renderedItem.label}</div>
+        {status && (
+          <div className="shrink-0 pt-px">
+            <ToolStatusIndicator status={status} hasError={hasError} />
+          </div>
+        )}
+      </div>
+    ),
     classNames: {
       body: 'bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 max-h-96 overflow-scroll'
     }
@@ -136,13 +150,15 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
     return <ToolPermissionRequestCard toolResponse={toolResponse} />
   }
 
-  const isLoading = status === 'streaming' || status === 'pending'
+  const isLoading = status === 'streaming' || status === 'pending' || status === 'invoking'
   return (
     <ToolContent
       toolName={tool?.name}
       input={args ?? parsedPartialArgs}
       output={isLoading ? undefined : response}
       isStreaming={isLoading}
+      status={status as ToolStatus | undefined}
+      hasError={status === 'error'}
     />
   )
 }

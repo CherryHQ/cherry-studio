@@ -73,7 +73,17 @@ vi.mock('lucide-react', () => ({
   ListTodo: () => <span data-testid="list-icon" />,
   Circle: () => <span data-testid="circle-icon" />,
   CheckCircle: () => <span data-testid="check-circle-icon" />,
-  Clock: () => <span data-testid="clock-icon" />
+  Clock: () => <span data-testid="clock-icon" />,
+  Check: () => <span data-testid="check-icon" />,
+  TriangleAlert: () => <span data-testid="triangle-alert-icon" />,
+  X: () => <span data-testid="x-icon" />,
+  Wrench: () => <span data-testid="wrench-icon" />,
+  ImageIcon: () => <span data-testid="image-icon" />
+}))
+
+// Mock LoadingIcon
+vi.mock('@renderer/components/Icons', () => ({
+  LoadingIcon: () => <span data-testid="loading-icon" />
 }))
 
 // Mock ToolPermissionRequestCard
@@ -199,8 +209,8 @@ describe('MessageAgentTools', () => {
 
       rerender(<MessageAgentTools toolResponse={updatedResponse} />)
 
-      // When pending with no permission, shows pending indicator
-      expect(screen.getByTestId('spin')).toBeInTheDocument()
+      // When pending with no permission, shows ToolStatusIndicator with loading icon
+      expect(screen.getByTestId('loading-icon')).toBeInTheDocument()
     })
   })
 
@@ -256,8 +266,8 @@ describe('MessageAgentTools', () => {
 
       render(<MessageAgentTools toolResponse={toolResponse} />)
 
-      // Should show the pending indicator with spinner
-      expect(screen.getByTestId('spin')).toBeInTheDocument()
+      // Should show the ToolStatusIndicator with loading icon
+      expect(screen.getByTestId('loading-icon')).toBeInTheDocument()
     })
   })
 
