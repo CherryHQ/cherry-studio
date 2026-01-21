@@ -36,7 +36,7 @@ import type { MCPProgressEvent } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { buildFunctionCallToolName } from '@shared/mcp'
-import { defaultAppHeaders } from '@shared/utils'
+import { defaultAppHeaders, mergeHeaders } from '@shared/utils'
 import {
   BuiltinMCPServerNames,
   type GetResourceResponse,
@@ -285,10 +285,7 @@ class McpService {
     }
 
     const prepareHeaders = () => {
-      return {
-        ...defaultAppHeaders(),
-        ...server.headers
-      }
+      return mergeHeaders(defaultAppHeaders(), server.headers)
     }
 
     // Create a promise for the initialization process
@@ -320,10 +317,9 @@ class McpService {
                 return net.fetch(typeof url === 'string' ? url : url.toString(), init)
               },
               requestInit: {
-                headers: {
-                  ...defaultAppHeaders(),
+                headers: mergeHeaders(defaultAppHeaders(), {
                   APP: 'Cherry Studio'
-                }
+                })
               },
               authProvider
             }
