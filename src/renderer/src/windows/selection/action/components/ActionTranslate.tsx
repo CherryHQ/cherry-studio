@@ -331,10 +331,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             {/* Detected language display (read-only) */}
             <DetectedLanguageTag>
               {isPreparing ? (
-                <>
-                  <LoadingOutlined style={{ fontSize: 12 }} spin />
-                  <span style={{ marginLeft: 4 }}>{t('translate.detecting')}</span>
-                </>
+                <span>{t('translate.detecting')}</span>
               ) : (
                 <>
                   <span style={{ marginRight: 4 }}>{detectedLanguage?.emoji || '🌐'}</span>
