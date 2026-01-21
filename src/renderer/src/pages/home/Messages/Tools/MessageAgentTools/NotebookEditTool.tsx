@@ -1,6 +1,7 @@
 import type { CollapseProps } from 'antd'
 import { Tag } from 'antd'
 import { FileText } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
@@ -15,13 +16,14 @@ export function NotebookEditTool({
   input?: NotebookEditToolInput
   output?: NotebookEditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: AgentToolsType.NotebookEdit,
     label: (
       <>
-        <ToolTitle icon={<FileText className="h-4 w-4" />} label="NotebookEdit" />
+        <ToolTitle icon={<FileText className="h-4 w-4" />} label={t('message.tools.labels.notebookEdit')} />
         <Tag className="mt-1" color="blue">
           {input?.notebook_path}{' '}
         </Tag>

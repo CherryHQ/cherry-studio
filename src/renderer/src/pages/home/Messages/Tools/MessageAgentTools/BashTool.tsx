@@ -1,5 +1,6 @@
 import type { CollapseProps } from 'antd'
 import { Terminal } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { SkeletonValue, ToolTitle, TruncatedIndicator } from './GenericTools'
@@ -12,6 +13,7 @@ export function BashTool({
   input?: BashToolInputType
   output?: BashToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   const command = input?.command
   const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
@@ -20,7 +22,7 @@ export function BashTool({
     label: (
       <ToolTitle
         icon={<Terminal className="h-4 w-4" />}
-        label="Bash"
+        label={t('message.tools.labels.bash')}
         params={<SkeletonValue value={input?.description} width="150px" />}
       />
     ),
@@ -29,7 +31,7 @@ export function BashTool({
         {/* Command 输入区域 */}
         {command && (
           <div>
-            <div className="mb-1 font-medium text-muted-foreground text-xs">Command</div>
+            <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.command')}</div>
             <div className="max-h-40 overflow-y-auto rounded-md bg-muted/50 p-2">
               <code className="whitespace-pre-wrap break-all font-mono text-xs">{command}</code>
             </div>
@@ -39,7 +41,7 @@ export function BashTool({
         {/* Output 输出区域 */}
         {truncatedOutput ? (
           <div>
-            <div className="mb-1 font-medium text-muted-foreground text-xs">Output</div>
+            <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.output')}</div>
             <div className="max-h-60 overflow-y-auto rounded-md bg-muted/30 p-2">
               <pre className="whitespace-pre-wrap font-mono text-xs">{truncatedOutput}</pre>
             </div>

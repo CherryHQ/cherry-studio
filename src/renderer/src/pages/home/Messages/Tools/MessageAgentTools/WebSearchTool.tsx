@@ -1,5 +1,6 @@
 import type { CollapseProps } from 'antd'
 import { Globe } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { ToolTitle, TruncatedIndicator } from './GenericTools'
@@ -12,6 +13,7 @@ export function WebSearchTool({
   input?: WebSearchToolInput
   output?: WebSearchToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   // 如果有输出，计算结果数量
   const resultCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
   const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
@@ -21,9 +23,13 @@ export function WebSearchTool({
     label: (
       <ToolTitle
         icon={<Globe className="h-4 w-4" />}
-        label="Web Search"
+        label={t('message.tools.labels.webSearch')}
         params={input?.query}
-        stats={output ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}` : undefined}
+        stats={
+          output
+            ? `${resultCount} ${t(resultCount === 1 ? 'message.tools.units.result' : 'message.tools.units.results')}`
+            : undefined
+        }
       />
     ),
     children: (

@@ -1,5 +1,6 @@
 import type { CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
 import { ToolTitle } from './GenericTools'
@@ -20,13 +21,6 @@ const getToolDisplayName = (name: string) => {
   return name
 }
 
-const getToolDescription = (toolName: string) => {
-  if (toolName.startsWith('mcp__')) {
-    return 'MCP Server Tool'
-  }
-  return 'Tool'
-}
-
 /**
  * Fallback renderer for unknown tool types
  * Uses shared ArgsTable for consistent styling with MCP tools
@@ -36,6 +30,15 @@ export function UnknownToolRenderer({
   input,
   output
 }: UnknownToolProps): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
+
+  const getToolDescription = (name: string) => {
+    if (name.startsWith('mcp__')) {
+      return t('message.tools.labels.mcpServerTool')
+    }
+    return t('message.tools.labels.tool')
+  }
+
   // Normalize input/output for table display
   const normalizeArgs = (value: unknown): Record<string, unknown> | unknown[] | null => {
     if (value === undefined || value === null) return null
@@ -58,10 +61,10 @@ export function UnknownToolRenderer({
     ),
     children: (
       <div className="space-y-1">
-        {normalizedInput && <ToolArgsTable args={normalizedInput} title="Input" />}
-        {normalizedOutput && <ToolArgsTable args={normalizedOutput} title="Output" />}
+        {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
+        {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
         {!normalizedInput && !normalizedOutput && (
-          <div className="p-3 text-foreground-500 text-xs">No data available for this tool</div>
+          <div className="p-3 text-foreground-500 text-xs">{t('message.tools.noData')}</div>
         )}
       </div>
     )

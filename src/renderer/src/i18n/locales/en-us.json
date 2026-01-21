@@ -2018,10 +2018,60 @@
       "completed": "Completed",
       "error": "Error occurred",
       "invoking": "Invoking",
+      "labels": {
+        "bash": "Bash",
+        "edit": "Edit",
+        "exitPlanMode": "ExitPlanMode",
+        "glob": "Glob",
+        "grep": "Grep",
+        "mcpServerTool": "MCP Server Tool",
+        "multiEdit": "MultiEdit",
+        "notebookEdit": "NotebookEdit",
+        "readFile": "Read File",
+        "search": "Search",
+        "skill": "Skill",
+        "task": "Task",
+        "todoWrite": "Todo Write",
+        "tool": "Tool",
+        "webFetch": "Web Fetch",
+        "webSearch": "Web Search",
+        "write": "Write"
+      },
+      "noData": "No data available for this tool",
       "pending": "Pending",
       "preview": "Preview",
       "raw": "Raw",
-      "truncated": "Output truncated (original: {{size}})"
+      "sections": {
+        "command": "Command",
+        "exitCode": "Exit Code",
+        "input": "Input",
+        "output": "Output",
+        "prompt": "Prompt",
+        "searchQuery": "Search Query",
+        "searchResults": "Search Results",
+        "stderr": "stderr",
+        "stdout": "stdout"
+      },
+      "status": {
+        "done": "Done",
+        "error": "Error",
+        "failed": "Failed",
+        "running": "Running",
+        "success": "Success"
+      },
+      "truncated": "Output truncated (original: {{size}})",
+      "units": {
+        "file": "file",
+        "files": "files",
+        "item": "item",
+        "items": "items",
+        "line": "line",
+        "lines": "lines",
+        "plan": "plan",
+        "plans": "plans",
+        "result": "result",
+        "results": "results"
+      }
     },
     "topic": {
       "added": "New topic added"

@@ -1,5 +1,6 @@
 import type { CollapseProps } from 'antd'
 import { Bot } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 
 import { truncateTextOutputArray } from '../shared/truncateOutput'
@@ -13,6 +14,7 @@ export function TaskTool({
   input?: TaskToolInputType
   output?: TaskToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   const hasOutput = Array.isArray(output) && output.length > 0
   const { outputs: truncatedOutputs, isTruncated, originalLength } = truncateTextOutputArray(output)
 
@@ -21,7 +23,7 @@ export function TaskTool({
     label: (
       <ToolTitle
         icon={<Bot className="h-4 w-4" />}
-        label="Task"
+        label={t('message.tools.labels.task')}
         params={<SkeletonValue value={input?.description} width="150px" />}
       />
     ),
@@ -30,7 +32,7 @@ export function TaskTool({
         {/* Prompt 输入区域 */}
         {input?.prompt && (
           <div>
-            <div className="mb-1 font-medium text-muted-foreground text-xs">Prompt</div>
+            <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.prompt')}</div>
             <div className="max-h-40 overflow-y-auto rounded-md bg-muted/50 p-2 text-sm">
               <Markdown>{input.prompt}</Markdown>
             </div>
@@ -40,7 +42,7 @@ export function TaskTool({
         {/* Output 输出区域 */}
         {hasOutput ? (
           <div>
-            <div className="mb-1 font-medium text-muted-foreground text-xs">Output</div>
+            <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.output')}</div>
             <div className="rounded-md bg-muted/30 p-2">
               {truncatedOutputs.map((item, index) => (
                 <div key={`${item.type}-${index}`}>

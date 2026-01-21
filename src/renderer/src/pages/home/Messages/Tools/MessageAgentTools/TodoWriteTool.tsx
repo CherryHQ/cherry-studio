@@ -1,6 +1,7 @@
 import type { CollapseProps } from 'antd'
 import { Card } from 'antd'
 import { CheckCircle, Circle, Clock, ListTodo } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { ToolTitle } from './GenericTools'
 import type { TodoItem, TodoWriteToolInput as TodoWriteToolInputType } from './types'
@@ -40,6 +41,7 @@ export function TodoWriteTool({
 }: {
   input?: TodoWriteToolInputType
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   const todos = Array.isArray(input?.todos) ? input.todos : []
   const doneCount = todos.filter((todo) => todo.status === 'completed').length
 
@@ -48,9 +50,9 @@ export function TodoWriteTool({
     label: (
       <ToolTitle
         icon={<ListTodo className="h-4 w-4" />}
-        label="Todo Write"
-        params={`${doneCount} Done`}
-        stats={`${todos.length} ${todos.length === 1 ? 'item' : 'items'}`}
+        label={t('message.tools.labels.todoWrite')}
+        params={`${doneCount} ${t('message.tools.status.done')}`}
+        stats={`${todos.length} ${t(todos.length === 1 ? 'message.tools.units.item' : 'message.tools.units.items')}`}
       />
     ),
     children: (

@@ -1,5 +1,6 @@
 import type { CollapseProps } from 'antd'
 import { DoorOpen } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
@@ -14,17 +15,19 @@ export function ExitPlanModeTool({
   input?: ExitPlanModeToolInput
   output?: ExitPlanModeToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   const plan = input?.plan ?? ''
   const combinedContent = plan + '\n\n' + (output ?? '')
   const { text: truncatedContent, isTruncated, originalLength } = truncateOutput(combinedContent)
+  const planCount = plan.split('\n\n').length
 
   return {
     key: AgentToolsType.ExitPlanMode,
     label: (
       <ToolTitle
         icon={<DoorOpen className="h-4 w-4" />}
-        label="ExitPlanMode"
-        stats={`${plan.split('\n\n').length} plans`}
+        label={t('message.tools.labels.exitPlanMode')}
+        stats={`${planCount} ${t(planCount === 1 ? 'message.tools.units.plan' : 'message.tools.units.plans')}`}
       />
     ),
     children: (

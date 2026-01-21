@@ -2018,10 +2018,60 @@
       "completed": "Завершено",
       "error": "Произошла ошибка",
       "invoking": "Вызов",
+      "labels": {
+        "bash": "[to be translated]:Bash",
+        "edit": "[to be translated]:Edit",
+        "exitPlanMode": "[to be translated]:ExitPlanMode",
+        "glob": "[to be translated]:Glob",
+        "grep": "[to be translated]:Grep",
+        "mcpServerTool": "[to be translated]:MCP Server Tool",
+        "multiEdit": "[to be translated]:MultiEdit",
+        "notebookEdit": "[to be translated]:NotebookEdit",
+        "readFile": "[to be translated]:Read File",
+        "search": "[to be translated]:Search",
+        "skill": "[to be translated]:Skill",
+        "task": "[to be translated]:Task",
+        "todoWrite": "[to be translated]:Todo Write",
+        "tool": "[to be translated]:Tool",
+        "webFetch": "[to be translated]:Web Fetch",
+        "webSearch": "[to be translated]:Web Search",
+        "write": "[to be translated]:Write"
+      },
+      "noData": "[to be translated]:No data available for this tool",
       "pending": "Ожидание",
       "preview": "Предпросмотр",
       "raw": "Исходный",
-      "truncated": "[to be translated]:Output truncated (original: {{size}})"
+      "sections": {
+        "command": "[to be translated]:Command",
+        "exitCode": "[to be translated]:Exit Code",
+        "input": "[to be translated]:Input",
+        "output": "[to be translated]:Output",
+        "prompt": "[to be translated]:Prompt",
+        "searchQuery": "[to be translated]:Search Query",
+        "searchResults": "[to be translated]:Search Results",
+        "stderr": "[to be translated]:stderr",
+        "stdout": "[to be translated]:stdout"
+      },
+      "status": {
+        "done": "[to be translated]:Done",
+        "error": "[to be translated]:Error",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running",
+        "success": "[to be translated]:Success"
+      },
+      "truncated": "[to be translated]:Output truncated (original: {{size}})",
+      "units": {
+        "file": "[to be translated]:file",
+        "files": "[to be translated]:files",
+        "item": "[to be translated]:item",
+        "items": "[to be translated]:items",
+        "line": "[to be translated]:line",
+        "lines": "[to be translated]:lines",
+        "plan": "[to be translated]:plan",
+        "plans": "[to be translated]:plans",
+        "result": "[to be translated]:result",
+        "results": "[to be translated]:results"
+      }
     },
     "topic": {
       "added": "Новый топик добавлен"

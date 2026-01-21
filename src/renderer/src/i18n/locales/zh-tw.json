@@ -2018,10 +2018,60 @@
       "completed": "已完成",
       "error": "發生錯誤",
       "invoking": "呼叫中",
+      "labels": {
+        "bash": "Bash",
+        "edit": "編輯",
+        "exitPlanMode": "退出計畫模式",
+        "glob": "檔案匹配",
+        "grep": "搜尋",
+        "mcpServerTool": "MCP 伺服器工具",
+        "multiEdit": "批次編輯",
+        "notebookEdit": "筆記本編輯",
+        "readFile": "讀取檔案",
+        "search": "搜尋",
+        "skill": "技能",
+        "task": "任務",
+        "todoWrite": "待辦寫入",
+        "tool": "工具",
+        "webFetch": "網頁擷取",
+        "webSearch": "網頁搜尋",
+        "write": "寫入"
+      },
+      "noData": "此工具暫無可用資料",
       "pending": "等待中",
       "preview": "預覽",
       "raw": "原始碼",
-      "truncated": "[to be translated]:Output truncated (original: {{size}})"
+      "sections": {
+        "command": "命令",
+        "exitCode": "退出碼",
+        "input": "輸入",
+        "output": "輸出",
+        "prompt": "提示",
+        "searchQuery": "搜尋查詢",
+        "searchResults": "搜尋結果",
+        "stderr": "標準錯誤",
+        "stdout": "標準輸出"
+      },
+      "status": {
+        "done": "完成",
+        "error": "錯誤",
+        "failed": "失敗",
+        "running": "執行中",
+        "success": "成功"
+      },
+      "truncated": "輸出已截斷（原始大小：{{size}}）",
+      "units": {
+        "file": "個檔案",
+        "files": "個檔案",
+        "item": "項",
+        "items": "項",
+        "line": "行",
+        "lines": "行",
+        "plan": "個計畫",
+        "plans": "個計畫",
+        "result": "個結果",
+        "results": "個結果"
+      }
     },
     "topic": {
       "added": "新話題已新增"

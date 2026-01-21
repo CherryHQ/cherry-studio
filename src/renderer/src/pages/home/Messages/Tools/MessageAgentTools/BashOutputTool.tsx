@@ -1,6 +1,7 @@
 import type { CollapseProps } from 'antd'
 import { Tag } from 'antd'
 import { CheckCircle, Terminal, XCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { ToolTitle, TruncatedIndicator } from './GenericTools'
@@ -45,34 +46,6 @@ const parseBashOutput = (output?: BashOutputToolOutput): ParsedBashOutput | null
   }
 }
 
-const getStatusConfig = (parsedOutput: ParsedBashOutput | null) => {
-  if (!parsedOutput) return null
-
-  if (parsedOutput.tool_use_error) {
-    return {
-      color: 'danger',
-      icon: <XCircle className="h-3.5 w-3.5" />,
-      text: 'Error'
-    } as const
-  }
-
-  const isCompleted = parsedOutput.status === 'completed'
-  const isSuccess = parsedOutput.exit_code === 0
-
-  return {
-    color: isCompleted && isSuccess ? 'success' : isCompleted && !isSuccess ? 'danger' : 'warning',
-    icon:
-      isCompleted && isSuccess ? (
-        <CheckCircle className="h-3.5 w-3.5" />
-      ) : isCompleted && !isSuccess ? (
-        <XCircle className="h-3.5 w-3.5" />
-      ) : (
-        <Terminal className="h-3.5 w-3.5" />
-      ),
-    text: isCompleted ? (isSuccess ? 'Success' : 'Failed') : 'Running'
-  } as const
-}
-
 export function BashOutputTool({
   input,
   output
@@ -80,7 +53,41 @@ export function BashOutputTool({
   input?: BashOutputToolInput
   output?: BashOutputToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   const parsedOutput = parseBashOutput(output)
+
+  const getStatusConfig = (parsed: ParsedBashOutput | null) => {
+    if (!parsed) return null
+
+    if (parsed.tool_use_error) {
+      return {
+        color: 'danger',
+        icon: <XCircle className="h-3.5 w-3.5" />,
+        text: t('message.tools.status.error')
+      } as const
+    }
+
+    const isCompleted = parsed.status === 'completed'
+    const isSuccess = parsed.exit_code === 0
+
+    return {
+      color: isCompleted && isSuccess ? 'success' : isCompleted && !isSuccess ? 'danger' : 'warning',
+      icon:
+        isCompleted && isSuccess ? (
+          <CheckCircle className="h-3.5 w-3.5" />
+        ) : isCompleted && !isSuccess ? (
+          <XCircle className="h-3.5 w-3.5" />
+        ) : (
+          <Terminal className="h-3.5 w-3.5" />
+        ),
+      text: isCompleted
+        ? isSuccess
+          ? t('message.tools.status.success')
+          : t('message.tools.status.failed')
+        : t('message.tools.status.running')
+    } as const
+  }
+
   const statusConfig = getStatusConfig(parsedOutput)
 
   // Truncate stdout and stderr separately
@@ -94,7 +101,9 @@ export function BashOutputTool({
       {/* Status Info */}
       <div className="flex flex-wrap items-center gap-2">
         {parsedOutput.exit_code !== undefined && (
-          <Tag color={parsedOutput.exit_code === 0 ? 'success' : 'danger'}>Exit Code: {parsedOutput.exit_code}</Tag>
+          <Tag color={parsedOutput.exit_code === 0 ? 'success' : 'danger'}>
+            {t('message.tools.sections.exitCode')}: {parsedOutput.exit_code}
+          </Tag>
         )}
         {parsedOutput.timestamp && (
           <Tag className="py-0 font-mono text-xs">{new Date(parsedOutput.timestamp).toLocaleString()}</Tag>
@@ -104,7 +113,7 @@ export function BashOutputTool({
       {/* Standard Output */}
       {truncatedStdout.text && (
         <div>
-          <div className="mb-2 font-medium text-default-600 text-xs">stdout:</div>
+          <div className="mb-2 font-medium text-default-600 text-xs">{t('message.tools.sections.stdout')}:</div>
           <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">
             {truncatedStdout.text}
           </pre>
@@ -115,7 +124,7 @@ export function BashOutputTool({
       {/* Standard Error */}
       {truncatedStderr.text && (
         <div className="border border-danger-200">
-          <div className="mb-2 font-medium text-danger-600 text-xs">stderr:</div>
+          <div className="mb-2 font-medium text-danger-600 text-xs">{t('message.tools.sections.stderr')}:</div>
           <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
             {truncatedStderr.text}
           </pre>
@@ -128,7 +137,7 @@ export function BashOutputTool({
         <div className="border border-danger-200">
           <div className="mb-2 flex items-center gap-2">
             <XCircle className="h-4 w-4 text-danger" />
-            <span className="font-medium text-danger-600 text-xs">Error:</span>
+            <span className="font-medium text-danger-600 text-xs">{t('message.tools.status.error')}:</span>
           </div>
           <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
             {truncatedError.text}
@@ -154,7 +163,7 @@ export function BashOutputTool({
       <>
         <ToolTitle
           icon={<Terminal className="h-4 w-4" />}
-          label="Bash Output"
+          label={t('message.tools.labels.bash')}
           params={
             <div className="flex items-center gap-2">
               <Tag className="py-0 font-mono text-xs">{input?.bash_id}</Tag>

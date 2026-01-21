@@ -1,5 +1,6 @@
 import type { CollapseProps } from 'antd'
 import { FileText } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
@@ -50,6 +51,7 @@ export function ReadTool({
   input?: ReadToolInputType
   output?: ReadToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   const outputString = normalizeOutputString(output)
   const stats = getOutputStats(outputString)
   const filename = input?.file_path?.split('/').pop()
@@ -60,9 +62,13 @@ export function ReadTool({
     label: (
       <ToolTitle
         icon={<FileText className="h-4 w-4" />}
-        label="Read File"
+        label={t('message.tools.labels.readFile')}
         params={<SkeletonValue value={filename} width="120px" />}
-        stats={stats ? `${stats.lineCount} lines, ${stats.formatSize(stats.fileSize)}` : undefined}
+        stats={
+          stats
+            ? `${stats.lineCount} ${t(stats.lineCount === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}, ${stats.formatSize(stats.fileSize)}`
+            : undefined
+        }
       />
     ),
     children: truncatedOutput ? (

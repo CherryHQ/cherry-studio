@@ -2018,10 +2018,60 @@
       "completed": "已完成",
       "error": "发生错误",
       "invoking": "调用中",
+      "labels": {
+        "bash": "Bash",
+        "edit": "编辑",
+        "exitPlanMode": "退出计划模式",
+        "glob": "文件匹配",
+        "grep": "搜索",
+        "mcpServerTool": "MCP 服务器工具",
+        "multiEdit": "批量编辑",
+        "notebookEdit": "笔记本编辑",
+        "readFile": "读取文件",
+        "search": "搜索",
+        "skill": "技能",
+        "task": "任务",
+        "todoWrite": "待办写入",
+        "tool": "工具",
+        "webFetch": "网页获取",
+        "webSearch": "网页搜索",
+        "write": "写入"
+      },
+      "noData": "此工具暂无可用数据",
       "pending": "等待中",
       "preview": "预览",
       "raw": "原始",
-      "truncated": "输出已截断（原始大小：{{size}}）"
+      "sections": {
+        "command": "命令",
+        "exitCode": "退出码",
+        "input": "输入",
+        "output": "输出",
+        "prompt": "提示",
+        "searchQuery": "搜索查询",
+        "searchResults": "搜索结果",
+        "stderr": "标准错误",
+        "stdout": "标准输出"
+      },
+      "status": {
+        "done": "完成",
+        "error": "错误",
+        "failed": "失败",
+        "running": "运行中",
+        "success": "成功"
+      },
+      "truncated": "输出已截断（原始大小：{{size}}）",
+      "units": {
+        "file": "个文件",
+        "files": "个文件",
+        "item": "项",
+        "items": "项",
+        "line": "行",
+        "lines": "行",
+        "plan": "个计划",
+        "plans": "个计划",
+        "result": "个结果",
+        "results": "个结果"
+      }
     },
     "topic": {
       "added": "话题添加成功"
