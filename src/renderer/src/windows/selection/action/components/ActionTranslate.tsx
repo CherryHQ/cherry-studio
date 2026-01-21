@@ -327,57 +327,57 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       <SettingsDropdownStyles />
       <Container>
         <MenuContainer>
-          {/* Detected language display (read-only) */}
-          <DetectedLanguageTag>
-            {isPreparing ? (
-              <>
-                <LoadingOutlined style={{ fontSize: 12 }} spin />
-                <span style={{ marginLeft: 4 }}>{t('translate.detecting')}</span>
-              </>
-            ) : (
-              <>
-                <span style={{ marginRight: 4 }}>{detectedLanguage?.emoji || '🌐'}</span>
-                <span>{detectedLanguage?.label() || t('translate.detected_source')}</span>
-              </>
-            )}
-          </DetectedLanguageTag>
+          <LeftGroup>
+            {/* Detected language display (read-only) */}
+            <DetectedLanguageTag>
+              {isPreparing ? (
+                <>
+                  <LoadingOutlined style={{ fontSize: 12 }} spin />
+                  <span style={{ marginLeft: 4 }}>{t('translate.detecting')}</span>
+                </>
+              ) : (
+                <>
+                  <span style={{ marginRight: 4 }}>{detectedLanguage?.emoji || '🌐'}</span>
+                  <span>{detectedLanguage?.label() || t('translate.detected_source')}</span>
+                </>
+              )}
+            </DetectedLanguageTag>
 
-          <ArrowRight size={16} color="var(--color-text-3)" style={{ margin: '0 6px', flexShrink: 0 }} />
+            <ArrowRight size={16} color="var(--color-text-3)" style={{ flexShrink: 0 }} />
 
-          {/* Target language selector */}
-          <LanguageSelect
-            value={actualTargetLanguage.langCode}
-            style={{ minWidth: 100, maxWidth: 160, flex: 'auto' }}
-            listHeight={160}
-            size="small"
-            optionFilterProp="label"
-            onChange={handleDirectTargetChange}
-            disabled={isStreaming}
-          />
+            {/* Target language selector */}
+            <LanguageSelect
+              value={actualTargetLanguage.langCode}
+              style={{ minWidth: 100, maxWidth: 160 }}
+              listHeight={160}
+              size="small"
+              optionFilterProp="label"
+              onChange={handleDirectTargetChange}
+              disabled={isStreaming}
+            />
 
-          {/* Settings dropdown */}
-          <Dropdown
-            menu={{
-              items: settingsMenuItems,
-              selectable: false,
-              className: 'settings-dropdown-menu'
-            }}
-            trigger={['click']}
-            placement="bottomRight"
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}>
-            <Tooltip title={t('translate.language_settings')} placement="bottom">
-              <SettingsButton>
-                <Settings2 size={14} />
-              </SettingsButton>
+            {/* Settings dropdown */}
+            <Dropdown
+              menu={{
+                items: settingsMenuItems,
+                selectable: false,
+                className: 'settings-dropdown-menu'
+              }}
+              trigger={['click']}
+              placement="bottomRight"
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}>
+              <Tooltip title={t('translate.language_settings')} placement="bottom">
+                <SettingsButton>
+                  <Settings2 size={14} />
+                </SettingsButton>
+              </Tooltip>
+            </Dropdown>
+
+            <Tooltip title={t('selection.action.translate.smart_translate_tips')} placement="bottom">
+              <HelpIcon size={14} />
             </Tooltip>
-          </Dropdown>
-
-          <Tooltip title={t('selection.action.translate.smart_translate_tips')} placement="bottom">
-            <HelpIcon size={14} />
-          </Tooltip>
-
-          <Spacer />
+          </LeftGroup>
 
           <OriginalHeader onClick={() => setShowOriginal(!showOriginal)}>
             <span>
@@ -494,8 +494,12 @@ const ErrorMsg = styled.div`
   word-break: break-all;
 `
 
-const Spacer = styled.div`
-  flex-grow: 0.5;
+const LeftGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 1;
+  min-width: 0;
 `
 
 const DetectedLanguageTag = styled.div`
