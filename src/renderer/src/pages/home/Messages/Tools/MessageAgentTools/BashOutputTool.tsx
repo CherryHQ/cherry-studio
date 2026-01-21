@@ -2,7 +2,8 @@ import type { CollapseProps } from 'antd'
 import { Tag } from 'antd'
 import { CheckCircle, Terminal, XCircle } from 'lucide-react'
 
-import { ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { BashOutputToolInput, BashOutputToolOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -82,6 +83,12 @@ export function BashOutputTool({
   const parsedOutput = parseBashOutput(output)
   const statusConfig = getStatusConfig(parsedOutput)
 
+  // Truncate stdout and stderr separately
+  const truncatedStdout = truncateOutput(parsedOutput?.stdout)
+  const truncatedStderr = truncateOutput(parsedOutput?.stderr)
+  const truncatedError = truncateOutput(parsedOutput?.tool_use_error)
+  const truncatedRawOutput = truncateOutput(output)
+
   const children = parsedOutput ? (
     <div className="flex flex-col gap-4">
       {/* Status Info */}
@@ -95,43 +102,49 @@ export function BashOutputTool({
       </div>
 
       {/* Standard Output */}
-      {parsedOutput.stdout && (
+      {truncatedStdout.text && (
         <div>
           <div className="mb-2 font-medium text-default-600 text-xs">stdout:</div>
           <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">
-            {parsedOutput.stdout}
+            {truncatedStdout.text}
           </pre>
+          {truncatedStdout.isTruncated && <TruncatedIndicator originalLength={truncatedStdout.originalLength} />}
         </div>
       )}
 
       {/* Standard Error */}
-      {parsedOutput.stderr && (
+      {truncatedStderr.text && (
         <div className="border border-danger-200">
           <div className="mb-2 font-medium text-danger-600 text-xs">stderr:</div>
           <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
-            {parsedOutput.stderr}
+            {truncatedStderr.text}
           </pre>
+          {truncatedStderr.isTruncated && <TruncatedIndicator originalLength={truncatedStderr.originalLength} />}
         </div>
       )}
 
       {/* Tool Use Error */}
-      {parsedOutput.tool_use_error && (
+      {truncatedError.text && (
         <div className="border border-danger-200">
           <div className="mb-2 flex items-center gap-2">
             <XCircle className="h-4 w-4 text-danger" />
             <span className="font-medium text-danger-600 text-xs">Error:</span>
           </div>
           <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
-            {parsedOutput.tool_use_error}
+            {truncatedError.text}
           </pre>
+          {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}
         </div>
       )}
     </div>
   ) : (
     // 原始输出（如果解析失败或非 XML 格式）
-    output && (
+    truncatedRawOutput.text && (
       <div>
-        <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">{output}</pre>
+        <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">
+          {truncatedRawOutput.text}
+        </pre>
+        {truncatedRawOutput.isTruncated && <TruncatedIndicator originalLength={truncatedRawOutput.originalLength} />}
       </div>
     )
   )

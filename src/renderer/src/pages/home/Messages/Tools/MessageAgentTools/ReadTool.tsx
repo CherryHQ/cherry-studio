@@ -2,7 +2,8 @@ import type { CollapseProps } from 'antd'
 import { FileText } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
-import { SkeletonValue, ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { SkeletonValue, ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { ReadToolInput as ReadToolInputType, ReadToolOutput as ReadToolOutputType, TextOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -52,6 +53,7 @@ export function ReadTool({
   const outputString = normalizeOutputString(output)
   const stats = getOutputStats(outputString)
   const filename = input?.file_path?.split('/').pop()
+  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
 
   return {
     key: AgentToolsType.Read,
@@ -63,8 +65,11 @@ export function ReadTool({
         stats={stats ? `${stats.lineCount} lines, ${stats.formatSize(stats.fileSize)}` : undefined}
       />
     ),
-    children: outputString ? (
-      <ReactMarkdown>{outputString}</ReactMarkdown>
+    children: truncatedOutput ? (
+      <div>
+        <ReactMarkdown>{truncatedOutput}</ReactMarkdown>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
     ) : (
       <SkeletonValue value={null} width="100%" fallback={null} />
     )

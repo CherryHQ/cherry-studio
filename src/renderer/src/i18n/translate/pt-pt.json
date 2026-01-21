@@ -2020,7 +2020,8 @@
       "invoking": "Em execução",
       "pending": "Pendente",
       "preview": "Pré-visualização",
-      "raw": "Bruto"
+      "raw": "Bruto",
+      "truncated": "[to be translated]:Output truncated (original: {{size}})"
     },
     "topic": {
       "added": "Tópico adicionado com sucesso"

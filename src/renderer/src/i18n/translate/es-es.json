@@ -2020,7 +2020,8 @@
       "invoking": "En llamada",
       "pending": "Pendiente",
       "preview": "Vista previa",
-      "raw": "Crudo"
+      "raw": "Crudo",
+      "truncated": "[to be translated]:Output truncated (original: {{size}})"
     },
     "topic": {
       "added": "Tema agregado con éxito"

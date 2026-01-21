@@ -2020,7 +2020,8 @@
       "invoking": "κλήση σε εξέλιξη",
       "pending": "Εκκρεμεί",
       "preview": "Προεπισκόπηση",
-      "raw": "Ακατέργαστο"
+      "raw": "Ακατέργαστο",
+      "truncated": "[to be translated]:Output truncated (original: {{size}})"
     },
     "topic": {
       "added": "Η θεματική προστέθηκε επιτυχώς"

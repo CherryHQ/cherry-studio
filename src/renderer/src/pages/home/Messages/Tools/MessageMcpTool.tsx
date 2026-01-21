@@ -30,7 +30,7 @@ import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SkeletonSpan } from './MessageAgentTools/GenericTools'
+import { SkeletonSpan, TruncatedIndicator } from './MessageAgentTools/GenericTools'
 import {
   ArgKey,
   ArgsSection,
@@ -40,6 +40,7 @@ import {
   formatArgValue,
   ResponseSection
 } from './shared/ArgsTable'
+import { truncateOutput } from './shared/truncateOutput'
 
 interface Props {
   block: ToolMessageBlock
@@ -453,6 +454,8 @@ const ToolResponseContent: FC<{
 }> = ({ isExpanded, args, isStreaming, response }) => {
   const { highlightCode } = useCodeStyle()
   const [highlightedResponse, setHighlightedResponse] = useState<string>('')
+  const [isTruncated, setIsTruncated] = useState(false)
+  const [originalLength, setOriginalLength] = useState(0)
 
   // Parse args if it's a string (streaming partial JSON)
   const parsedArgs = useMemo(() => {
@@ -473,7 +476,14 @@ const ToolResponseContent: FC<{
 
     const highlight = async () => {
       const previewContent = extractPreviewContent(response)
-      const result = await highlightCode(previewContent, 'json')
+      const {
+        text: truncatedContent,
+        isTruncated: wasTruncated,
+        originalLength: origLen
+      } = truncateOutput(previewContent)
+      setIsTruncated(wasTruncated)
+      setOriginalLength(origLen)
+      const result = await highlightCode(truncatedContent, 'json')
       setHighlightedResponse(result)
     }
 
@@ -532,6 +542,7 @@ const ToolResponseContent: FC<{
         <ResponseSection>
           <ArgsSectionTitle>Response</ArgsSectionTitle>
           <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
+          {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
         </ResponseSection>
       )}
     </div>

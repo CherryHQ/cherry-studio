@@ -1,7 +1,8 @@
 import type { CollapseProps } from 'antd'
 import { Globe } from 'lucide-react'
 
-import { ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { WebSearchToolInput, WebSearchToolOutput } from './types'
 
 export function WebSearchTool({
@@ -13,6 +14,7 @@ export function WebSearchTool({
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算结果数量
   const resultCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',
@@ -24,6 +26,11 @@ export function WebSearchTool({
         stats={output ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}` : undefined}
       />
     ),
-    children: <div>{output}</div>
+    children: (
+      <div>
+        <div>{truncatedOutput}</div>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
+    )
   }
 }

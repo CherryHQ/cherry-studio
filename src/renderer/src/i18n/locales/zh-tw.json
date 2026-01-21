@@ -2020,7 +2020,8 @@
       "invoking": "呼叫中",
       "pending": "等待中",
       "preview": "預覽",
-      "raw": "原始碼"
+      "raw": "原始碼",
+      "truncated": "[to be translated]:Output truncated (original: {{size}})"
     },
     "topic": {
       "added": "新話題已新增"

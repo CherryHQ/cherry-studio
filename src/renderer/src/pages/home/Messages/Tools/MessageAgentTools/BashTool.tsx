@@ -1,7 +1,8 @@
 import type { CollapseProps } from 'antd'
 import { Terminal } from 'lucide-react'
 
-import { SkeletonValue, ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { SkeletonValue, ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { BashToolInput as BashToolInputType, BashToolOutput as BashToolOutputType } from './types'
 
 export function BashTool({
@@ -12,6 +13,7 @@ export function BashTool({
   output?: BashToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   const command = input?.command
+  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',
@@ -35,12 +37,13 @@ export function BashTool({
         )}
 
         {/* Output 输出区域 */}
-        {output ? (
+        {truncatedOutput ? (
           <div>
             <div className="mb-1 font-medium text-muted-foreground text-xs">Output</div>
             <div className="max-h-60 overflow-y-auto rounded-md bg-muted/30 p-2">
-              <pre className="whitespace-pre-wrap font-mono text-xs">{output}</pre>
+              <pre className="whitespace-pre-wrap font-mono text-xs">{truncatedOutput}</pre>
             </div>
+            {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
           </div>
         ) : (
           <SkeletonValue value={null} width="100%" fallback={null} />

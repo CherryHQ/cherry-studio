@@ -2020,7 +2020,8 @@
       "invoking": "Wird aufgerufen",
       "pending": "Wartend",
       "preview": "Vorschau",
-      "raw": "Roh"
+      "raw": "Roh",
+      "truncated": "[to be translated]:Output truncated (original: {{size}})"
     },
     "topic": {
       "added": "Thema erfolgreich hinzugefügt"

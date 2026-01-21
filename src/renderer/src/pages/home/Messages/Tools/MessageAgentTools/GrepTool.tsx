@@ -1,7 +1,8 @@
 import type { CollapseProps } from 'antd'
 import { FileSearch } from 'lucide-react'
 
-import { ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { GrepToolInput, GrepToolOutput } from './types'
 
 export function GrepTool({
@@ -13,6 +14,7 @@ export function GrepTool({
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算结果行数
   const resultLines = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',
@@ -29,6 +31,11 @@ export function GrepTool({
         stats={output ? `${resultLines} ${resultLines === 1 ? 'line' : 'lines'}` : undefined}
       />
     ),
-    children: <div>{output}</div>
+    children: (
+      <div>
+        <div>{truncatedOutput}</div>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
+    )
   }
 }

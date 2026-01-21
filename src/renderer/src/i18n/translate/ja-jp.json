@@ -2020,7 +2020,8 @@
       "invoking": "呼び出し中",
       "pending": "保留中",
       "preview": "プレビュー",
-      "raw": "生データ"
+      "raw": "生データ",
+      "truncated": "[to be translated]:Output truncated (original: {{size}})"
     },
     "topic": {
       "added": "新しいトピックが追加されました"

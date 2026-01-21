@@ -2020,7 +2020,8 @@
       "invoking": "Se invocă",
       "pending": "În așteptare",
       "preview": "Previzualizare",
-      "raw": "Brut"
+      "raw": "Brut",
+      "truncated": "[to be translated]:Output truncated (original: {{size}})"
     },
     "topic": {
       "added": "Subiect nou adăugat"

@@ -2,7 +2,8 @@ import type { CollapseProps } from 'antd'
 import { DoorOpen } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
-import { ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -14,6 +15,9 @@ export function ExitPlanModeTool({
   output?: ExitPlanModeToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   const plan = input?.plan ?? ''
+  const combinedContent = plan + '\n\n' + (output ?? '')
+  const { text: truncatedContent, isTruncated, originalLength } = truncateOutput(combinedContent)
+
   return {
     key: AgentToolsType.ExitPlanMode,
     label: (
@@ -23,6 +27,11 @@ export function ExitPlanModeTool({
         stats={`${plan.split('\n\n').length} plans`}
       />
     ),
-    children: <ReactMarkdown>{plan + '\n\n' + (output ?? '')}</ReactMarkdown>
+    children: (
+      <div>
+        <ReactMarkdown>{truncatedContent}</ReactMarkdown>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
+    )
   }
 }

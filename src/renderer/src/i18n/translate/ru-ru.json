@@ -2020,7 +2020,8 @@
       "invoking": "Вызов",
       "pending": "Ожидание",
       "preview": "Предпросмотр",
-      "raw": "Исходный"
+      "raw": "Исходный",
+      "truncated": "[to be translated]:Output truncated (original: {{size}})"
     },
     "topic": {
       "added": "Новый топик добавлен"

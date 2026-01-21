@@ -1,7 +1,8 @@
 import type { CollapseProps } from 'antd'
 import { Globe } from 'lucide-react'
 
-import { ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { WebFetchToolInput, WebFetchToolOutput } from './types'
 
 export function WebFetchTool({
@@ -11,9 +12,16 @@ export function WebFetchTool({
   input?: WebFetchToolInput
   output?: WebFetchToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
+  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
+
   return {
     key: 'tool',
     label: <ToolTitle icon={<Globe className="h-4 w-4" />} label="Web Fetch" params={input?.url} />,
-    children: <div>{output}</div>
+    children: (
+      <div>
+        <div>{truncatedOutput}</div>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
+    )
   }
 }

@@ -2020,7 +2020,8 @@
       "invoking": "调用中",
       "pending": "等待中",
       "preview": "预览",
-      "raw": "原始"
+      "raw": "原始",
+      "truncated": "输出已截断（原始大小：{{size}}）"
     },
     "topic": {
       "added": "话题添加成功"

@@ -1,8 +1,9 @@
 // 通用工具组件 - 减少重复代码
 
 import { LoadingIcon } from '@renderer/components/Icons'
+import { formatFileSize } from '@renderer/utils/file'
 import { Skeleton } from 'antd'
-import { Check, TriangleAlert, X } from 'lucide-react'
+import { Check, Ellipsis, TriangleAlert, X } from 'lucide-react'
 import { createContext, type ReactNode, use } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -215,3 +216,17 @@ const StatusIndicatorContainer = styled.span<{ $color: string }>`
     }
   }};
 `
+
+export function TruncatedIndicator({ originalLength }: { originalLength: number }) {
+  const { t } = useTranslation()
+  const sizeStr = formatFileSize(originalLength)
+
+  return (
+    <div className="mt-2 flex items-center gap-1 text-muted-foreground text-xs">
+      <Ellipsis size={14} />
+      <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
+        {t('message.tools.truncated', { defaultValue: sizeStr, size: sizeStr })}
+      </span>
+    </div>
+  )
+}

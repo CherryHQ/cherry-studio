@@ -1,7 +1,8 @@
 import type { CollapseProps } from 'antd'
 import { Search } from 'lucide-react'
 
-import { StringInputTool, StringOutputTool, ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { StringInputTool, StringOutputTool, ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { SearchToolInput as SearchToolInputType, SearchToolOutput as SearchToolOutputType } from './types'
 
 export function SearchTool({
@@ -13,6 +14,7 @@ export function SearchTool({
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算结果数量
   const resultCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',
@@ -27,9 +29,14 @@ export function SearchTool({
     children: (
       <div>
         {input && <StringInputTool input={input} label="Search Query" />}
-        {output && (
+        {truncatedOutput && (
           <div>
-            <StringOutputTool output={output} label="Search Results" textColor="text-yellow-600 dark:text-yellow-400" />
+            <StringOutputTool
+              output={truncatedOutput}
+              label="Search Results"
+              textColor="text-yellow-600 dark:text-yellow-400"
+            />
+            {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
           </div>
         )}
       </div>

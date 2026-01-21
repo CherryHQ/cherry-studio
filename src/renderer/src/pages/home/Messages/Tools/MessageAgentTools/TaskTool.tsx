@@ -2,7 +2,8 @@ import type { CollapseProps } from 'antd'
 import { Bot } from 'lucide-react'
 import Markdown from 'react-markdown'
 
-import { SkeletonValue, ToolTitle } from './GenericTools'
+import { truncateTextOutputArray } from '../shared/truncateOutput'
+import { SkeletonValue, ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { TaskToolInput as TaskToolInputType, TaskToolOutput as TaskToolOutputType } from './types'
 
 export function TaskTool({
@@ -13,6 +14,7 @@ export function TaskTool({
   output?: TaskToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   const hasOutput = Array.isArray(output) && output.length > 0
+  const { outputs: truncatedOutputs, isTruncated, originalLength } = truncateTextOutputArray(output)
 
   return {
     key: 'tool',
@@ -40,11 +42,12 @@ export function TaskTool({
           <div>
             <div className="mb-1 font-medium text-muted-foreground text-xs">Output</div>
             <div className="rounded-md bg-muted/30 p-2">
-              {output.map((item, index) => (
+              {truncatedOutputs.map((item, index) => (
                 <div key={`${item.type}-${index}`}>
                   {item.type === 'text' ? <Markdown>{item.text}</Markdown> : <div>{item.text}</div>}
                 </div>
               ))}
+              {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
             </div>
           </div>
         ) : (

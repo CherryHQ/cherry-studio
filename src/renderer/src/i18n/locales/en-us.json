@@ -2020,7 +2020,8 @@
       "invoking": "Invoking",
       "pending": "Pending",
       "preview": "Preview",
-      "raw": "Raw"
+      "raw": "Raw",
+      "truncated": "Output truncated (original: {{size}})"
     },
     "topic": {
       "added": "New topic added"
