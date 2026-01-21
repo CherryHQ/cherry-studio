@@ -53,68 +53,66 @@ const ApiProviderSettings: FC<Props> = ({ provider, updateProvider }) => {
   return (
     <FieldGroup>
       {/* API Key Field */}
-      {provider.id !== 'exa-mcp' && (
-        <Field>
-          <FieldLabel className="justify-between">
-            {t('settings.provider.api_key.label')}
-            <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-              <Button variant="ghost" size="icon-sm" onClick={openApiKeyList}>
-                <List size={14} />
-              </Button>
-            </Tooltip>
-          </FieldLabel>
-          <FieldContent>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={apiKey}
-                  placeholder={t('settings.provider.api_key.label')}
-                  onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
-                  onBlur={() => handleFieldBlur('apiKey', apiKey)}
-                  spellCheck={false}
-                  autoFocus={apiKey === ''}
-                  className="rounded-2xs pr-10"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="-translate-y-1/2 absolute top-1/2 right-2"
-                  onClick={toggleShowApiKey}>
-                  {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                </Button>
-              </div>
+      <Field>
+        <FieldLabel className="justify-between">
+          {t('settings.provider.api_key.label')}
+          <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+            <Button variant="ghost" size="icon-sm" onClick={openApiKeyList}>
+              <List size={14} />
+            </Button>
+          </Tooltip>
+        </FieldLabel>
+        <FieldContent>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                type={showApiKey ? 'text' : 'password'}
+                value={apiKey}
+                placeholder={t('settings.provider.api_key.label')}
+                onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
+                onBlur={() => handleFieldBlur('apiKey', apiKey)}
+                spellCheck={false}
+                autoFocus={apiKey === ''}
+                className="rounded-2xs pr-10"
+              />
               <Button
-                className="h-9 rounded-2xs"
-                variant={apiChecking ? 'ghost' : 'outline'}
-                onClick={checkSearch}
-                disabled={apiChecking}>
-                {apiChecking ? (
-                  <Loader2 size={16} className="animate-spin text-primary" />
-                ) : apiValid ? (
-                  <Check size={16} className="text-primary" />
-                ) : (
-                  t('settings.tool.websearch.check')
-                )}
+                variant="ghost"
+                size="icon-sm"
+                className="-translate-y-1/2 absolute top-1/2 right-2"
+                onClick={toggleShowApiKey}>
+                {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </Button>
             </div>
-            <FieldDescription className="flex justify-between text-[11px]">
-              <div className="flex items-center gap-2">
-                {apiKeyWebsite && (
-                  <a
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    href={apiKeyWebsite}
-                    className="text-[11px] text-primary opacity-70 hover:opacity-100">
-                    {t('settings.provider.get_api_key')}
-                  </a>
-                )}
-              </div>
-              <span className="opacity-40">{t('settings.provider.api_key.tip')}</span>
-            </FieldDescription>
-          </FieldContent>
-        </Field>
-      )}
+            <Button
+              className="h-9 rounded-2xs"
+              variant={apiChecking ? 'ghost' : 'outline'}
+              onClick={checkSearch}
+              disabled={apiChecking}>
+              {apiChecking ? (
+                <Loader2 size={16} className="animate-spin text-primary" />
+              ) : apiValid ? (
+                <Check size={16} className="text-primary" />
+              ) : (
+                t('settings.tool.websearch.check')
+              )}
+            </Button>
+          </div>
+          <FieldDescription className="flex justify-between text-[11px]">
+            <div className="flex items-center gap-2">
+              {apiKeyWebsite && (
+                <a
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href={apiKeyWebsite}
+                  className="text-[11px] text-primary opacity-70 hover:opacity-100">
+                  {t('settings.provider.get_api_key')}
+                </a>
+              )}
+            </div>
+            <span className="opacity-40">{t('settings.provider.api_key.tip')}</span>
+          </FieldDescription>
+        </FieldContent>
+      </Field>
 
       {/* API Host Field */}
       <Field>

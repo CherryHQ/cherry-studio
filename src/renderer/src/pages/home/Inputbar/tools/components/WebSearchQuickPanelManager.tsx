@@ -124,7 +124,7 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
           .map((p) => ({
             label: p.name,
             description: isProviderEnabled(p.id)
-              ? p.type === 'api' && p.id !== 'exa-mcp'
+              ? p.type === 'api'
                 ? t('settings.tool.websearch.apikey')
                 : t('settings.tool.websearch.free')
               : t('chat.input.web_search.enable_content'),
