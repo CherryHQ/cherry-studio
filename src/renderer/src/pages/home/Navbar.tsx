@@ -122,7 +122,7 @@ const HeaderNavbar: FC<Props> = ({
           justifyContent: 'flex-end',
           flex: activeTopicOrSession === 'topic' ? 1 : 'none',
           position: 'relative',
-          paddingRight: '8px',
+          paddingRight: '15px',
           minWidth: activeTopicOrSession === 'topic' ? '' : 'auto'
         }}
         className="home-navbar-right">
