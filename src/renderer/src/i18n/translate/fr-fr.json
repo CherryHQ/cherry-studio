@@ -2015,6 +2015,7 @@
       "cancelled": "Annulé",
       "completed": "Terminé",
       "error": "Une erreur s'est produite",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "En cours d'exécution",
       "pending": "En attente",
       "preview": "Aperçu",

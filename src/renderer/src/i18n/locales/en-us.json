@@ -2015,6 +2015,7 @@
       "cancelled": "Cancelled",
       "completed": "Completed",
       "error": "Error occurred",
+      "groupHeader": "{{count}} tool calls",
       "invoking": "Invoking",
       "pending": "Pending",
       "preview": "Preview",

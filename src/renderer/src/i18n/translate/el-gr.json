@@ -2015,6 +2015,7 @@
       "cancelled": "Ακυρώθηκε",
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "κλήση σε εξέλιξη",
       "pending": "Εκκρεμεί",
       "preview": "Προεπισκόπηση",

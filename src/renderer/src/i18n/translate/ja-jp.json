@@ -2015,6 +2015,7 @@
       "cancelled": "キャンセル",
       "completed": "完了",
       "error": "エラーが発生しました",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "呼び出し中",
       "pending": "保留中",
       "preview": "プレビュー",

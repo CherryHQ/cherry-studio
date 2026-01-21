@@ -2015,6 +2015,7 @@
       "cancelled": "Abgebrochen",
       "completed": "Abgeschlossen",
       "error": "Fehler aufgetreten",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "Wird aufgerufen",
       "pending": "Wartend",
       "preview": "Vorschau",

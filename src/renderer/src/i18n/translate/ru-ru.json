@@ -2015,6 +2015,7 @@
       "cancelled": "Отменено",
       "completed": "Завершено",
       "error": "Произошла ошибка",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "Вызов",
       "pending": "Ожидание",
       "preview": "Предпросмотр",
