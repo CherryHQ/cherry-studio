@@ -1,6 +1,6 @@
 import { getProviderLogo, getProviderWebsites } from '@renderer/config/webSearch'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearch'
-import { getProviderType } from '@renderer/utils/websearch'
+import { getProviderType } from '@renderer/utils/webSearch'
 import { useParams } from '@tanstack/react-router'
 import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'

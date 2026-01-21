@@ -1,6 +1,6 @@
 import { Button, Textarea } from '@cherrystudio/ui'
 import { useBasicWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import { parseDomains, validateDomains } from '@renderer/utils/websearch'
+import { parseDomains, validateDomains } from '@renderer/utils/webSearch'
 import { t } from 'i18next'
 import { AlertCircle, Info } from 'lucide-react'
 import type { FC } from 'react'

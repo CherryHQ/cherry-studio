@@ -93,7 +93,7 @@ import {
   isOpenAIWebSearchModel,
   isOpenRouterBuiltInWebSearchModel,
   isWebSearchModel
-} from '../websearch'
+} from '../webSearch'
 
 const createModel = (overrides: Partial<Model> = {}): Model => ({
   id: 'gpt-4o',

@@ -5,7 +5,7 @@ import { getModel } from '@renderer/hooks/useModel'
 import { getKnowledgeBaseParams, getKnowledgeSourceUrl, searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeReference, Model, WebSearchProviderResult } from '@renderer/types'
 import { removeSpecialCharactersForFileName, uuid } from '@renderer/utils'
-import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/websearch'
+import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/webSearch'
 
 import type { CompressionContext, ICompressionStrategy } from '../interfaces'
 

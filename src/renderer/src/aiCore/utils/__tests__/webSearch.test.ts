@@ -7,7 +7,7 @@ import type { Model } from '@renderer/types'
 import type { WebSearchConfig } from '@renderer/types/webSearch'
 import { describe, expect, it, vi } from 'vitest'
 
-import { buildProviderBuiltinWebSearchConfig, getWebSearchParams } from '../websearch'
+import { buildProviderBuiltinWebSearchConfig, getWebSearchParams } from '../webSearch'
 
 // Mock dependencies
 vi.mock('@renderer/config/models', () => ({

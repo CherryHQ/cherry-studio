@@ -43,7 +43,7 @@ import { stepCountIs } from 'ai'
 import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
-import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
+import { buildProviderBuiltinWebSearchConfig } from '../utils/webSearch'
 import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 

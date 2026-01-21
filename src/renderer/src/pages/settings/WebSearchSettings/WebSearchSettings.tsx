@@ -1,7 +1,7 @@
 import { DividerWithText } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
-import { isApiProvider, isLocalProvider } from '@renderer/utils/websearch'
+import { isApiProvider, isLocalProvider } from '@renderer/utils/webSearch'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'

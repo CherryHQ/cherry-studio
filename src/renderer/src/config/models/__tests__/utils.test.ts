@@ -38,7 +38,7 @@ import {
   isZhipuModel
 } from '../utils'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from '../vision'
-import { isOpenAIWebSearchChatCompletionOnlyModel } from '../websearch'
+import { isOpenAIWebSearchChatCompletionOnlyModel } from '../webSearch'
 
 vi.mock('@renderer/hooks/useStore', () => ({
   getStoreProviders: vi.fn(() => [])
