@@ -24,7 +24,7 @@ const LocalProviderSettings: FC<Props> = ({ provider }) => {
   return (
     <div className="flex flex-col gap-2">
       <div className="font-medium text-sm">{t('settings.tool.websearch.local_provider.settings')}</div>
-      <Button className="w-50" variant="outline" onClick={openLocalProviderSettings}>
+      <Button className="h-8 w-50 rounded-2xs" variant="outline" onClick={openLocalProviderSettings}>
         <ExternalLink className="text-primary" size={14} />
         {t('settings.tool.websearch.local_provider.open_settings', { provider: provider.name })}
       </Button>
