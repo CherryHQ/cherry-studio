@@ -146,7 +146,7 @@ vi.mock('../image', () => ({
   }))
 }))
 
-vi.mock('../websearch', () => ({
+vi.mock('../webSearch', () => ({
   getWebSearchParams: vi.fn(() => ({ enable_search: true }))
 }))
 

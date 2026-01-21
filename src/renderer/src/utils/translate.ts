@@ -4,7 +4,6 @@ import { builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/trans
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getDefaultAssistant, getDefaultModel, getQuickModel } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import type { Assistant, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
@@ -68,6 +67,7 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
   const listLang = translateLanguageOptions.map((item) => item.langCode)
   const listLangText = JSON.stringify(listLang)
 
+  const { getDefaultAssistant, getDefaultModel, getQuickModel } = await import('@renderer/services/AssistantService')
   const model = getQuickModel() || getDefaultModel()
   if (!model) {
     throw new Error(i18n.t('error.model.not_exists'))

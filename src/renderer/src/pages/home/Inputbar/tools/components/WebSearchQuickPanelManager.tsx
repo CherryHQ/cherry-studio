@@ -16,7 +16,6 @@ import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { getEffectiveMcpMode, type WebSearchProvider } from '@renderer/types'
-import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isPromptToolUse } from '@renderer/utils/mcp-tools'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
@@ -125,7 +124,7 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
           .map((p) => ({
             label: p.name,
             description: isProviderEnabled(p.id)
-              ? hasObjectKey(p, 'apiKey')
+              ? p.type === 'api' && p.id !== 'exa-mcp'
                 ? t('settings.tool.websearch.apikey')
                 : t('settings.tool.websearch.free')
               : t('chat.input.web_search.enable_content'),
