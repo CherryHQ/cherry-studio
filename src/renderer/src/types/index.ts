@@ -840,13 +840,11 @@ export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse
   tool: MCPTool
   toolCallId?: string
   toolUseId?: string
-  parentToolUseId?: string
 }
 
 export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
   tool: BaseTool
   toolCallId: string
-  parentToolUseId?: string
 }
 
 export interface MCPToolResultContent {
