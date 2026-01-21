@@ -92,7 +92,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
               <span>
                 {option.label}{' '}
                 <a href={option.apiKeyWebsite} target="_blank" rel="noopener noreferrer">
-                  (获得 API密钥)
+                  ({t('settings.provider.get_api_key')})
                 </a>
               </span>
             )

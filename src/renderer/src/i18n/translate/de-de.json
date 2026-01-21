@@ -2530,7 +2530,36 @@
     "custom_size": "Benutzerdefinierte Größe",
     "dmxapi": {
       "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
-      "style": "[to be translated]:, Style: "
+      "style": "[to be translated]:, Style: ",
+      "style_types": {
+        "25d_animation": "[to be translated]:2.5D Animation",
+        "3d_cartoon": "[to be translated]:3D Cartoon",
+        "american_retro": "[to be translated]:American Retro",
+        "baroque": "[to be translated]:Baroque",
+        "cartoon_illustration": "[to be translated]:Cartoon Illustration",
+        "chinese_gongbi": "[to be translated]:Chinese Gongbi",
+        "clay": "[to be translated]:Clay",
+        "cyberpunk": "[to be translated]:Cyberpunk",
+        "felt": "[to be translated]:Felt",
+        "flat": "[to be translated]:Flat",
+        "fresh_anime": "[to be translated]:Fresh Anime",
+        "ghibli": "[to be translated]:Ghibli",
+        "japanese_anime": "[to be translated]:Japanese Anime",
+        "little_people_book": "[to be translated]:Little People Book",
+        "monet_garden": "[to be translated]:Monet Garden",
+        "oil_painting": "[to be translated]:Oil Painting",
+        "pixar": "[to be translated]:Pixar",
+        "pixel_art": "[to be translated]:Pixel Art",
+        "poetic_ancient": "[to be translated]:Poetic Ancient",
+        "psychedelic": "[to be translated]:Psychedelic",
+        "sketch": "[to be translated]:Sketch",
+        "street_art": "[to be translated]:Street Art",
+        "texture": "[to be translated]:Texture",
+        "ukiyo_e": "[to be translated]:Ukiyo-e",
+        "watercolor": "[to be translated]:Watercolor",
+        "wood_carving": "[to be translated]:Wood Carving",
+        "yarn_doll": "[to be translated]:Yarn Doll"
+      }
     },
     "edit": {
       "image_file": "Zu bearbeitendes Bild",
@@ -2681,7 +2710,20 @@
       "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
       "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
       "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
-      "custom_size_required": "[to be translated]:Please set custom width and height"
+      "custom_size_required": "[to be translated]:Please set custom width and height",
+      "image_sizes": {
+        "1024x1024_default": "[to be translated]:1024x1024 (Default)",
+        "1152x864": "[to be translated]:1152x864",
+        "1344x768": "[to be translated]:1344x768",
+        "1440x720": "[to be translated]:1440x720",
+        "720x1440": "[to be translated]:720x1440",
+        "768x1344": "[to be translated]:768x1344",
+        "864x1152": "[to be translated]:864x1152"
+      },
+      "quality_options": {
+        "hd": "[to be translated]:HD",
+        "standard_default": "[to be translated]:Standard (Default)"
+      }
     }
   },
   "plugins": {

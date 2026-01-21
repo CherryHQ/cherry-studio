@@ -2530,7 +2530,36 @@
     "custom_size": "自定义尺寸",
     "dmxapi": {
       "generating_tip": "正在使用官方的模型生成，预计等待2~5分钟效果最好，本次消耗金额请到DMXAPI后台日志查看",
-      "style": "，风格："
+      "style": "，风格：",
+      "style_types": {
+        "25d_animation": "[to be translated]:2.5D Animation",
+        "3d_cartoon": "[to be translated]:3D Cartoon",
+        "american_retro": "[to be translated]:American Retro",
+        "baroque": "[to be translated]:Baroque",
+        "cartoon_illustration": "[to be translated]:Cartoon Illustration",
+        "chinese_gongbi": "[to be translated]:Chinese Gongbi",
+        "clay": "[to be translated]:Clay",
+        "cyberpunk": "[to be translated]:Cyberpunk",
+        "felt": "[to be translated]:Felt",
+        "flat": "[to be translated]:Flat",
+        "fresh_anime": "[to be translated]:Fresh Anime",
+        "ghibli": "[to be translated]:Ghibli",
+        "japanese_anime": "[to be translated]:Japanese Anime",
+        "little_people_book": "[to be translated]:Little People Book",
+        "monet_garden": "[to be translated]:Monet Garden",
+        "oil_painting": "[to be translated]:Oil Painting",
+        "pixar": "[to be translated]:Pixar",
+        "pixel_art": "[to be translated]:Pixel Art",
+        "poetic_ancient": "[to be translated]:Poetic Ancient",
+        "psychedelic": "[to be translated]:Psychedelic",
+        "sketch": "[to be translated]:Sketch",
+        "street_art": "[to be translated]:Street Art",
+        "texture": "[to be translated]:Texture",
+        "ukiyo_e": "[to be translated]:Ukiyo-e",
+        "watercolor": "[to be translated]:Watercolor",
+        "wood_carving": "[to be translated]:Wood Carving",
+        "yarn_doll": "[to be translated]:Yarn Doll"
+      }
     },
     "edit": {
       "image_file": "编辑的图像",
@@ -2681,7 +2710,20 @@
       "custom_size_hint": "长宽均需满足512px-2048px之间，需被16整除，并保证最大像素数不超过2^21px",
       "custom_size_pixels": "自定义尺寸的总像素数不能超过2,097,152",
       "custom_size_range": "自定义尺寸必须在512px-2048px之间",
-      "custom_size_required": "请设置自定义尺寸的宽度和高度"
+      "custom_size_required": "请设置自定义尺寸的宽度和高度",
+      "image_sizes": {
+        "1024x1024_default": "[to be translated]:1024x1024 (Default)",
+        "1152x864": "[to be translated]:1152x864",
+        "1344x768": "[to be translated]:1344x768",
+        "1440x720": "[to be translated]:1440x720",
+        "720x1440": "[to be translated]:720x1440",
+        "768x1344": "[to be translated]:768x1344",
+        "864x1152": "[to be translated]:864x1152"
+      },
+      "quality_options": {
+        "hd": "[to be translated]:HD",
+        "standard_default": "[to be translated]:Standard (Default)"
+      }
     }
   },
   "plugins": {

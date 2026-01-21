@@ -1,17 +1,37 @@
 /**
- * Check for hardcoded Chinese/English strings in UI components
- * This script helps identify strings that should be internationalized
+ * AST-based hardcoded string detection for i18n
  */
 
 import * as fs from 'fs'
 import * as path from 'path'
+import type { SourceFile } from 'ts-morph'
+import { Node, Project } from 'ts-morph'
 
-// Configuration
 const RENDERER_DIR = path.join(__dirname, '../src/renderer/src')
 const MAIN_DIR = path.join(__dirname, '../src/main')
 const EXTENSIONS = ['.tsx', '.ts']
 const IGNORED_DIRS = ['__tests__', 'node_modules', 'i18n', 'locales', 'types', 'assets']
-const IGNORED_FILES = ['*.test.ts', '*.test.tsx', '*.d.ts']
+const IGNORED_FILES = ['*.test.ts', '*.test.tsx', '*.d.ts', '*prompts*.ts']
+
+// 'content' is handled specially - only checked for specific components
+const UI_ATTRIBUTES = [
+  'placeholder',
+  'title',
+  'label',
+  'message',
+  'description',
+  'tooltip',
+  'buttonLabel',
+  'name',
+  'detail',
+  'body'
+]
+
+const CONTEXT_SENSITIVE_ATTRIBUTES: Record<string, string[]> = {
+  content: ['Tooltip', 'Popover', 'Modal', 'Popconfirm', 'Alert', 'Notification', 'Message']
+}
+
+const UI_PROPERTIES = ['message', 'text', 'title', 'label', 'placeholder', 'description', 'detail']
 
 interface Finding {
   file: string
@@ -19,141 +39,285 @@ interface Finding {
   content: string
   type: 'chinese' | 'english'
   source: 'renderer' | 'main'
+  nodeType: string
 }
 
-// Patterns for detecting hardcoded strings (shared)
-const CHINESE_PATTERNS = [
-  // Chinese characters in JSX text content (between > and <)
-  { regex: />([^<]*[\u4e00-\u9fff][^<]*)</g, name: 'JSX text content' },
-  // Chinese in string attributes
-  {
-    regex: /(?:placeholder|title|label|message|description|tooltip)=["']([^"']*[\u4e00-\u9fff][^"']*)["']/g,
-    name: 'attribute'
-  },
-  // Chinese in template literals
-  { regex: /`[^`]*[\u4e00-\u9fff][^`]*`/g, name: 'template literal' },
-  // Chinese in object properties (common UI patterns)
-  {
-    regex: /(?:message|content|text|title|label|placeholder|description):\s*["']([^"']*[\u4e00-\u9fff][^"']*)["']/g,
-    name: 'object property'
-  }
-]
+const CJK_RANGES = [
+  '\u3000-\u303f', // CJK Symbols and Punctuation
+  '\u3040-\u309f', // Hiragana
+  '\u30a0-\u30ff', // Katakana
+  '\u3100-\u312f', // Bopomofo
+  '\u3400-\u4dbf', // CJK Unified Ideographs Extension A
+  '\u4e00-\u9fff', // CJK Unified Ideographs
+  '\uac00-\ud7af', // Hangul Syllables
+  '\uf900-\ufaff' // CJK Compatibility Ideographs
+].join('')
 
-// Main process specific patterns
-const MAIN_CHINESE_PATTERNS = [
-  // Dialog options (showOpenDialog, showSaveDialog, showMessageBox)
-  {
-    regex: /(?:title|message|detail|buttonLabel|defaultPath|name):\s*["']([^"']*[\u4e00-\u9fff][^"']*)["']/g,
-    name: 'dialog option'
-  },
-  // Notification content
-  { regex: /(?:body|title):\s*["']([^"']*[\u4e00-\u9fff][^"']*)["']/g, name: 'notification' },
-  // Error messages that might be shown to user
-  { regex: /new Error\(["']([^"']*[\u4e00-\u9fff][^"']*)["']\)/g, name: 'error message' }
-]
-
-const ENGLISH_PATTERNS = [
-  // Common UI text patterns in JSX
-  { regex: />([A-Z][a-z]+(?:\s+[A-Za-z]+){0,5})</g, name: 'JSX capitalized text' },
-  // English text in specific attributes that should be i18n
-  { regex: /(?:placeholder|title|label|description)=["']([A-Z][a-zA-Z\s]+)["']/g, name: 'attribute text' }
-]
-
-// Patterns to exclude (false positives)
-const EXCLUDE_PATTERNS = [
-  // Import statements
-  /^import\s/,
-  // Export statements
-  /^export\s/,
-  // Comments
-  /^\s*\/\//,
-  /^\s*\*/,
-  /^\s*\/\*/,
-  // Console/logger calls (these are for debugging, not UI)
-  /console\.(log|error|warn|info|debug|silly|trace)/,
-  /logger\.(log|error|warn|info|debug|silly|trace|withContext)/,
-  // Type definitions
-  /:\s*(string|number|boolean|any)/,
-  // React component names
-  /<[A-Z][a-zA-Z]*(\s|>|\/)/,
-  // CSS class names
-  /className=/,
-  // Common English words that are technical (not UI text)
-  /\b(props|state|default|true|false|null|undefined|return|const|let|var|function|async|await|if|else|for|while|switch|case|break|continue|try|catch|finally|throw|new|this|super|extends|implements|interface|type|enum|namespace|module|import|export|from|as|of|in|is|typeof|instanceof)\b/i,
-  // Test file content
-  /describe\(|it\(|test\(|expect\(/,
-  // URLs
-  /https?:\/\//,
-  // File paths
-  /\.[a-z]{2,4}$/i,
-  // i18n function calls (already internationalized)
-  /t\(['"]/,
-  /useTranslation/,
-  // Provider labels (already handled via getProviderLabel)
-  /getProviderLabel/,
-  /getMcpProviderDescriptionLabel/,
-  // CSS content property (special case, hard to i18n)
-  /content:\s*['"][^'"]+['"]/,
-  // SVG title elements (usually not user-facing)
-  /<title>/,
-  // Object values that are sent to API (not displayed in UI)
-  /value:\s*['"][^'"]+['"]/,
-  // Error messages in catch blocks
-  /catch\s*\(/,
-  /\.error\(/,
-  // Throw statements
-  /throw\s+new/
-]
-
-function shouldSkipLine(line: string): boolean {
-  return EXCLUDE_PATTERNS.some((pattern) => pattern.test(line))
+function hasCJK(text: string): boolean {
+  return new RegExp(`[${CJK_RANGES}]`).test(text)
 }
 
-// Remove single-line comment content from a line
-function stripSingleLineComment(line: string): string {
-  // Handle // comments (but not inside strings)
-  // Simple approach: find // that's not inside a string
-  const commentIndex = line.indexOf('//')
-  if (commentIndex !== -1) {
-    // Check if // is inside a string by counting quotes before it
-    const beforeComment = line.substring(0, commentIndex)
-    const singleQuotes = (beforeComment.match(/'/g) || []).length
-    const doubleQuotes = (beforeComment.match(/"/g) || []).length
-    const backticks = (beforeComment.match(/`/g) || []).length
-    // If all quotes are balanced, the // is not inside a string
-    if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0 && backticks % 2 === 0) {
-      return line.substring(0, commentIndex)
-    }
-  }
-  return line
+function hasEnglishUIText(text: string): boolean {
+  const words = text.trim().split(/\s+/)
+  if (words.length < 2 || words.length > 6) return false
+  return /^[A-Z][a-z]+(\s+[A-Za-z]+){1,5}$/.test(text.trim())
 }
 
-// Track multi-line comments (both JSX {/* */} and JS /* */)
-function isInsideMultiLineComment(lines: string[], lineIndex: number): boolean {
-  let inComment = false
-  for (let i = 0; i <= lineIndex; i++) {
-    const line = lines[i]
-    // Check for comment start (both JSX {/* and JS /*)
-    if (line.includes('{/*') || line.includes('/*')) {
-      inComment = true
+function createFinding(
+  node: Node,
+  sourceFile: SourceFile,
+  type: 'chinese' | 'english',
+  source: 'renderer' | 'main',
+  nodeType: string
+): Finding {
+  return {
+    file: sourceFile.getFilePath(),
+    line: sourceFile.getLineAndColumnAtPos(node.getStart()).line,
+    content: node.getText().slice(0, 100),
+    type,
+    source,
+    nodeType
+  }
+}
+
+function shouldSkipNode(node: Node): boolean {
+  let current: Node | undefined = node
+
+  while (current) {
+    const parent = current.getParent()
+    if (!parent) break
+
+    if (Node.isImportDeclaration(parent) || Node.isExportDeclaration(parent)) {
+      return true
     }
-    // Check for comment end (both */} and */)
-    if (line.includes('*/}') || line.includes('*/')) {
-      inComment = false
+
+    if (Node.isCallExpression(parent)) {
+      const callText = parent.getExpression().getText()
+      if (/^(logger|console)\.(log|error|warn|info|debug|silly|trace|withContext)/.test(callText)) {
+        return true
+      }
+      const callee = parent.getExpression()
+      if (Node.isIdentifier(callee) && callee.getText() === 't') {
+        return true
+      }
+    }
+
+    if (Node.isTypeNode(parent) || Node.isTypeAliasDeclaration(parent) || Node.isInterfaceDeclaration(parent)) {
+      return true
+    }
+
+    if (Node.isPropertySignature(parent)) {
+      return true
+    }
+
+    if (Node.isEnumMember(parent)) {
+      return true
+    }
+
+    // Native language names should stay in native form
+    if (Node.isVariableDeclaration(parent)) {
+      const varName = parent.getName()
+      if (/language|locale/i.test(varName)) {
+        return true
+      }
+    }
+
+    current = parent
+  }
+
+  return false
+}
+
+function isNonUIString(text: string): boolean {
+  if (text.length === 0) return true
+  if (/^\d+$/.test(text)) return true
+  return false
+}
+
+const CODE_CONTEXT = {
+  cssTags: /^(css|keyframes|injectGlobal|createGlobalStyle|styled\.\w+)$/,
+  cssNames: /style|css|animation/i,
+  codeNames: /code|script|python|sql|query|html|template|regex|pattern|shim/i,
+  jsxAttrs: new Set(['style', 'css']),
+  execCalls: /\.(executeJavaScript|eval|Function|runPython|runPythonAsync)$/
+}
+
+function isInCodeContext(node: Node): boolean {
+  const parent = node.getParent()
+  if (!parent) return false
+
+  if (Node.isTaggedTemplateExpression(parent)) {
+    return CODE_CONTEXT.cssTags.test(parent.getTag().getText())
+  }
+
+  if (Node.isVariableDeclaration(parent)) {
+    const name = parent.getName()
+    return CODE_CONTEXT.cssNames.test(name) || CODE_CONTEXT.codeNames.test(name)
+  }
+
+  if (Node.isPropertyAssignment(parent)) {
+    const name = parent.getName()
+    return CODE_CONTEXT.cssNames.test(name) || CODE_CONTEXT.codeNames.test(name)
+  }
+
+  if (Node.isJsxExpression(parent)) {
+    const attr = parent.getParent()
+    if (attr && Node.isJsxAttribute(attr)) {
+      return CODE_CONTEXT.jsxAttrs.has(attr.getNameNode().getText())
     }
   }
-  return inComment
+
+  // Traverse up for code execution calls (handles string concatenation)
+  let current: Node | undefined = parent
+  while (current) {
+    if (Node.isCallExpression(current)) {
+      if (CODE_CONTEXT.execCalls.test(current.getExpression().getText())) {
+        return true
+      }
+      break
+    }
+    if (!Node.isBinaryExpression(current) && !Node.isParenthesizedExpression(current)) {
+      break
+    }
+    current = current.getParent()
+  }
+
+  return false
+}
+
+function getJsxElementName(attrNode: Node): string | null {
+  const parent = attrNode.getParent()
+  if (!parent) return null
+
+  if (Node.isJsxOpeningElement(parent) || Node.isJsxSelfClosingElement(parent)) {
+    return parent.getTagNameNode().getText()
+  }
+  return null
+}
+
+function shouldCheckAttribute(attrName: string, elementName: string | null): boolean {
+  if (UI_ATTRIBUTES.includes(attrName)) {
+    return true
+  }
+  const allowedComponents = CONTEXT_SENSITIVE_ATTRIBUTES[attrName]
+  if (allowedComponents && elementName) {
+    return allowedComponents.includes(elementName)
+  }
+  return false
+}
+
+class HardcodedStringDetector {
+  private project: Project
+
+  constructor() {
+    this.project = new Project({
+      skipAddingFilesFromTsConfig: true,
+      skipFileDependencyResolution: true
+    })
+  }
+
+  scanFile(filePath: string, source: 'renderer' | 'main'): Finding[] {
+    const findings: Finding[] = []
+
+    try {
+      const sourceFile = this.project.addSourceFileAtPath(filePath)
+      sourceFile.forEachDescendant((node) => {
+        this.checkNode(node, sourceFile, source, findings)
+      })
+      this.project.removeSourceFile(sourceFile)
+    } catch (error) {
+      console.error(`Error parsing ${filePath}:`, error)
+    }
+
+    return findings
+  }
+
+  private checkNode(node: Node, sourceFile: SourceFile, source: 'renderer' | 'main', findings: Finding[]): void {
+    if (shouldSkipNode(node)) return
+
+    if (Node.isJsxText(node)) {
+      const text = node.getText().trim()
+      if (text && hasCJK(text)) {
+        // Skip SVG internal elements
+        const parent = node.getParent()
+        if (parent && (Node.isJsxElement(parent) || Node.isJsxSelfClosingElement(parent))) {
+          const tagName = Node.isJsxElement(parent)
+            ? parent.getOpeningElement().getTagNameNode().getText()
+            : parent.getTagNameNode().getText()
+          if (['title', 'desc', 'text', 'tspan'].includes(tagName)) {
+            return
+          }
+        }
+        findings.push(createFinding(node, sourceFile, 'chinese', source, 'JsxText'))
+      }
+    }
+
+    if (Node.isJsxAttribute(node)) {
+      const attrName = node.getNameNode().getText()
+      const elementName = getJsxElementName(node)
+
+      if (shouldCheckAttribute(attrName, elementName)) {
+        const initializer = node.getInitializer()
+        if (initializer && Node.isStringLiteral(initializer)) {
+          const value = initializer.getLiteralValue()
+          if (!isNonUIString(value)) {
+            if (hasCJK(value)) {
+              findings.push(createFinding(node, sourceFile, 'chinese', source, 'JsxAttribute'))
+            } else if (source === 'renderer' && hasEnglishUIText(value)) {
+              findings.push(createFinding(node, sourceFile, 'english', source, 'JsxAttribute'))
+            }
+          }
+        }
+      }
+    }
+
+    if (Node.isStringLiteral(node)) {
+      if (isInCodeContext(node)) return
+
+      const value = node.getLiteralValue()
+      if (isNonUIString(value)) return
+
+      const parent = node.getParent()
+
+      if (parent && Node.isPropertyAssignment(parent)) {
+        const propName = parent.getName()
+        if (UI_PROPERTIES.includes(propName)) {
+          if (hasCJK(value)) {
+            findings.push(createFinding(node, sourceFile, 'chinese', source, 'PropertyAssignment'))
+          }
+        }
+      }
+
+      if (parent && Node.isCallExpression(parent)) {
+        const callText = parent.getExpression().getText()
+        if (
+          /^(window\.toast|message|antdMessage|Modal|notification)\.(success|error|warning|info|confirm)/.test(callText)
+        ) {
+          if (hasCJK(value)) {
+            findings.push(createFinding(node, sourceFile, 'chinese', source, 'CallExpression'))
+          }
+        }
+      }
+    }
+
+    if (Node.isTemplateExpression(node) || Node.isNoSubstitutionTemplateLiteral(node)) {
+      if (isInCodeContext(node)) return
+
+      const text = node.getText()
+      if (hasCJK(text)) {
+        findings.push(createFinding(node, sourceFile, 'chinese', source, 'TemplateLiteral'))
+      }
+    }
+  }
 }
 
 function shouldSkipFile(filePath: string, baseDir: string): boolean {
   const relativePath = path.relative(baseDir, filePath)
 
-  // Skip ignored directories
   if (IGNORED_DIRS.some((dir) => relativePath.includes(dir))) {
     return true
   }
 
-  // Skip ignored file patterns
   const fileName = path.basename(filePath)
   if (
     IGNORED_FILES.some((pattern) => {
@@ -167,71 +331,12 @@ function shouldSkipFile(filePath: string, baseDir: string): boolean {
   return false
 }
 
-function scanFile(filePath: string, source: 'renderer' | 'main'): Finding[] {
+function scanDirectory(dir: string, source: 'renderer' | 'main', detector: HardcodedStringDetector): Finding[] {
   const findings: Finding[] = []
-  const content = fs.readFileSync(filePath, 'utf-8')
-  const lines = content.split('\n')
 
-  // Select patterns based on source
-  const chinesePatterns = source === 'main' ? [...CHINESE_PATTERNS, ...MAIN_CHINESE_PATTERNS] : CHINESE_PATTERNS
-
-  lines.forEach((line, index) => {
-    if (shouldSkipLine(line)) {
-      return
-    }
-
-    // Skip lines inside multi-line comments
-    if (isInsideMultiLineComment(lines, index)) {
-      return
-    }
-
-    // Strip single-line comments before checking
-    const strippedLine = stripSingleLineComment(line)
-
-    // Check for Chinese strings
-    chinesePatterns.forEach((pattern) => {
-      const matches = strippedLine.match(pattern.regex)
-      if (matches) {
-        findings.push({
-          file: filePath,
-          line: index + 1,
-          content: line.trim(),
-          type: 'chinese',
-          source
-        })
-      }
-    })
-
-    // Check for English strings (more conservative, renderer only)
-    if (source === 'renderer') {
-      ENGLISH_PATTERNS.forEach((pattern) => {
-        const matches = strippedLine.match(pattern.regex)
-        if (matches) {
-          // Additional filtering for English to reduce false positives
-          const hasMultipleWords = matches.some((m) => {
-            const words = m.split(/\s+/)
-            return words.length >= 2 && words.length <= 6
-          })
-
-          if (hasMultipleWords) {
-            findings.push({
-              file: filePath,
-              line: index + 1,
-              content: line.trim(),
-              type: 'english',
-              source
-            })
-          }
-        }
-      })
-    }
-  })
-
-  return findings
-}
-
-function scanDirectory(dir: string, source: 'renderer' | 'main'): Finding[] {
-  const findings: Finding[] = []
+  if (!fs.existsSync(dir)) {
+    return findings
+  }
 
   const entries = fs.readdirSync(dir, { withFileTypes: true })
 
@@ -240,11 +345,11 @@ function scanDirectory(dir: string, source: 'renderer' | 'main'): Finding[] {
 
     if (entry.isDirectory()) {
       if (!IGNORED_DIRS.includes(entry.name)) {
-        findings.push(...scanDirectory(fullPath, source))
+        findings.push(...scanDirectory(fullPath, source, detector))
       }
     } else if (entry.isFile() && EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
       if (!shouldSkipFile(fullPath, source === 'renderer' ? RENDERER_DIR : MAIN_DIR)) {
-        findings.push(...scanFile(fullPath, source))
+        findings.push(...detector.scanFile(fullPath, source))
       }
     }
   }
@@ -264,7 +369,6 @@ function formatFindings(findings: Finding[]): string {
 
   let output = ''
 
-  // Renderer findings
   if (rendererFindings.length > 0) {
     output += '\n📦 Renderer Process:\n'
     output += '-'.repeat(50) + '\n'
@@ -276,7 +380,7 @@ function formatFindings(findings: Finding[]): string {
       output += '\n⚠️ Hardcoded Chinese strings:\n'
       rendererChinese.forEach((f) => {
         const relativePath = path.relative(RENDERER_DIR, f.file)
-        output += `\n📍 ${relativePath}:${f.line}\n`
+        output += `\n📍 ${relativePath}:${f.line} [${f.nodeType}]\n`
         output += `   ${f.content}\n`
       })
     }
@@ -285,13 +389,12 @@ function formatFindings(findings: Finding[]): string {
       output += '\n⚠️ Potential hardcoded English strings:\n'
       rendererEnglish.forEach((f) => {
         const relativePath = path.relative(RENDERER_DIR, f.file)
-        output += `\n📍 ${relativePath}:${f.line}\n`
+        output += `\n📍 ${relativePath}:${f.line} [${f.nodeType}]\n`
         output += `   ${f.content}\n`
       })
     }
   }
 
-  // Main process findings
   if (mainFindings.length > 0) {
     output += '\n📦 Main Process:\n'
     output += '-'.repeat(50) + '\n'
@@ -302,7 +405,7 @@ function formatFindings(findings: Finding[]): string {
       output += '\n⚠️ Hardcoded Chinese strings:\n'
       mainChinese.forEach((f) => {
         const relativePath = path.relative(MAIN_DIR, f.file)
-        output += `\n📍 ${relativePath}:${f.line}\n`
+        output += `\n📍 ${relativePath}:${f.line} [${f.nodeType}]\n`
         output += `   ${f.content}\n`
       })
     }
@@ -319,18 +422,18 @@ function formatFindings(findings: Finding[]): string {
 }
 
 export function main(): void {
-  console.log('🔍 Scanning for hardcoded strings...\n')
+  console.log('🔍 Scanning for hardcoded strings using AST analysis...\n')
 
-  // Scan both directories
-  const rendererFindings = scanDirectory(RENDERER_DIR, 'renderer')
-  const mainFindings = scanDirectory(MAIN_DIR, 'main')
+  const detector = new HardcodedStringDetector()
+
+  const rendererFindings = scanDirectory(RENDERER_DIR, 'renderer', detector)
+  const mainFindings = scanDirectory(MAIN_DIR, 'main', detector)
   const findings = [...rendererFindings, ...mainFindings]
 
   const output = formatFindings(findings)
-
   console.log(output)
 
-  // In strict mode (CI), fail if any Chinese strings are found
+  // Strict mode for CI
   const strictMode = process.env.I18N_STRICT === 'true' || process.argv.includes('--strict')
   const chineseCount = findings.filter((f) => f.type === 'chinese').length
 
@@ -340,11 +443,22 @@ export function main(): void {
     process.exit(1)
   }
 
-  // Warn mode (default) - just report
   if (findings.length > 0) {
     console.log('\n💡 Tip: Consider replacing these strings with i18n keys.')
     console.log('   Use the t() function from react-i18next for translations.')
   }
+}
+
+export {
+  HardcodedStringDetector,
+  hasCJK,
+  hasEnglishUIText,
+  isInCodeContext,
+  isNonUIString,
+  shouldSkipFile,
+  shouldSkipNode,
+  UI_ATTRIBUTES,
+  UI_PROPERTIES
 }
 
 main()

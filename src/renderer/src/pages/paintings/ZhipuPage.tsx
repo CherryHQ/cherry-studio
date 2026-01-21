@@ -375,7 +375,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               <Radio.Group value={painting.quality} onChange={(e) => onSelectQuality(e.target.value)}>
                 {QUALITY_OPTIONS.map((option) => (
                   <Radio key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.label)}
                   </Radio>
                 ))}
               </Radio.Group>
@@ -389,7 +389,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             style={{ width: '100%' }}>
             {IMAGE_SIZES.map((size) => (
               <Select.Option key={size.value} value={size.value}>
-                {size.label}
+                {t(size.label)}
               </Select.Option>
             ))}
             <Select.Option value="custom" key="custom">
