@@ -92,10 +92,44 @@ vi.mock('../ToolPermissionRequestCard', () => ({
 }))
 
 describe('MessageAgentTools', () => {
+  // Mock translations for tools
+  const mockTranslations: Record<string, string> = {
+    'message.tools.labels.bash': 'Bash',
+    'message.tools.labels.readFile': 'Read File',
+    'message.tools.labels.todoWrite': 'Todo Write',
+    'message.tools.labels.edit': 'Edit',
+    'message.tools.labels.write': 'Write',
+    'message.tools.labels.grep': 'Grep',
+    'message.tools.labels.glob': 'Glob',
+    'message.tools.labels.webSearch': 'Web Search',
+    'message.tools.labels.webFetch': 'Web Fetch',
+    'message.tools.labels.skill': 'Skill',
+    'message.tools.labels.task': 'Task',
+    'message.tools.labels.search': 'Search',
+    'message.tools.labels.exitPlanMode': 'ExitPlanMode',
+    'message.tools.labels.multiEdit': 'MultiEdit',
+    'message.tools.labels.notebookEdit': 'NotebookEdit',
+    'message.tools.labels.mcpServerTool': 'MCP Server Tool',
+    'message.tools.labels.tool': 'Tool',
+    'message.tools.sections.command': 'Command',
+    'message.tools.sections.output': 'Output',
+    'message.tools.sections.prompt': 'Prompt',
+    'message.tools.sections.input': 'Input',
+    'message.tools.status.done': 'Done',
+    'message.tools.units.item': 'item',
+    'message.tools.units.items': 'items',
+    'message.tools.units.line': 'line',
+    'message.tools.units.lines': 'lines',
+    'message.tools.units.file': 'file',
+    'message.tools.units.files': 'files',
+    'message.tools.units.result': 'result',
+    'message.tools.units.results': 'results'
+  }
+
   beforeEach(() => {
     mockUseAppSelector.mockReturnValue(null) // No pending permission
     mockUseTranslation.mockReturnValue({
-      t: (key: string, fallback?: string) => fallback || key
+      t: (key: string, fallback?: string) => mockTranslations[key] ?? fallback ?? key
     })
   })
 

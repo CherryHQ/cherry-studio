@@ -2019,7 +2019,7 @@
       "error": "发生错误",
       "invoking": "调用中",
       "labels": {
-        "bash": "Bash",
+        "bash": "执行命令",
         "edit": "编辑",
         "exitPlanMode": "退出计划模式",
         "glob": "文件匹配",
