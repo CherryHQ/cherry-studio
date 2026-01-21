@@ -2,6 +2,7 @@
 // ExportService
 
 import { loggerService } from '@logger'
+import { locales } from '@main/utils/locales'
 import {
   AlignmentType,
   BorderStyle,
@@ -21,6 +22,7 @@ import {
 import { dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
 
+import { configManager } from './ConfigManager'
 import { fileStorage } from './FileStorage'
 
 const logger = loggerService.withContext('ExportService')
@@ -390,9 +392,12 @@ export class ExportService {
 
       const buffer = await Packer.toBuffer(doc)
 
+      const locale = locales[configManager.getLanguage()]
+      const { dialog: dialogLocale } = locale.translation
+
       const filePath = dialog.showSaveDialogSync({
-        title: '保存文件',
-        filters: [{ name: 'Word Document', extensions: ['docx'] }],
+        title: dialogLocale.save_file,
+        filters: [{ name: dialogLocale.word_document, extensions: ['docx'] }],
         defaultPath: fileName
       })
 

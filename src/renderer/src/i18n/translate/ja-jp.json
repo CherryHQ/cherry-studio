@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "[to be translated]:Always allow this tool",
         "allowRequest": "ツールリクエストを許可",
         "denyRequest": "ツールリクエストを拒否",
         "hideDetails": "ツールの詳細を非表示",
@@ -278,6 +279,7 @@
         "showDetails": "ツールの詳細を表示"
       },
       "button": {
+        "allowAll": "[to be translated]:Always Allow",
         "cancel": "キャンセル",
         "run": "走る"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "新しいトピック"
       }
+    },
+    "alerts": {
+      "create_session": "[to be translated]:Create a session",
+      "select_agent": "[to be translated]:Select an agent"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "キャンセル",
     "chat": "チャット",
     "clear": "クリア",
+    "clear_all": "[to be translated]:Clear All",
+    "click_to_replace": "[to be translated]:Click to replace",
     "close": "閉じる",
     "collapse": "折りたたむ",
     "completed": "完了",
@@ -1234,9 +1242,15 @@
     "footnote": "引用内容",
     "footnotes": "脚注",
     "fullscreen": "全画面モードに入りました。F11キーで終了します",
+    "generate_random_seed": "[to be translated]:Generate random seed",
+    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
     "go_to_settings": "設定に移動",
+    "html_preview": "[to be translated]:HTML Preview",
     "i_know": "わかりました",
     "ignore": "無視",
+    "image_preview": "[to be translated]:Image preview",
+    "image_url": "[to be translated]:Image URL",
+    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
     "inspect": "検査",
     "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
@@ -1246,6 +1260,7 @@
     "models": "モデル",
     "more": "もっと",
     "name": "名前",
+    "next_match": "[to be translated]:Next match",
     "no_results": "検索結果なし",
     "none": "無",
     "off": "オフ",
@@ -1257,13 +1272,17 @@
         "model": "モデルを選択"
       }
     },
+    "powered_by": "[to be translated]:Powered by ",
     "preview": "プレビュー",
+    "previous_match": "[to be translated]:Previous match",
     "prompt": "プロンプト",
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
     "refresh": "更新",
     "regenerate": "再生成",
+    "remove_image": "[to be translated]:Remove image",
     "rename": "名前を変更",
+    "required_field": "[to be translated]:Required field",
     "reset": "リセット",
     "save": "保存",
     "saved": "保存されました",
@@ -1286,13 +1305,24 @@
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
+    "translate_text": "[to be translated]:Translate text",
     "unknown": "Unknown",
     "unnamed": "無題",
     "unsubscribe": "配信停止",
     "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
+    "upload_image": "[to be translated]:Upload image file",
+    "uploaded_image": "[to be translated]:Uploaded image",
     "warning": "警告",
     "you": "あなた"
+  },
+  "dialog": {
+    "all_files": "[to be translated]:All Files",
+    "open_file": "[to be translated]:Open File",
+    "png_image": "[to be translated]:PNG Image",
+    "save_file": "[to be translated]:Save File",
+    "select_folder": "[to be translated]:Select Folder",
+    "word_document": "[to be translated]:Word Document"
   },
   "docs": {
     "title": "ドキュメント"
@@ -2015,10 +2045,63 @@
       "cancelled": "キャンセル",
       "completed": "完了",
       "error": "エラーが発生しました",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "呼び出し中",
+      "labels": {
+        "bash": "[to be translated]:Bash",
+        "edit": "[to be translated]:Edit",
+        "exitPlanMode": "[to be translated]:ExitPlanMode",
+        "glob": "[to be translated]:Glob",
+        "grep": "[to be translated]:Grep",
+        "mcpServerTool": "[to be translated]:MCP Server Tool",
+        "multiEdit": "[to be translated]:MultiEdit",
+        "notebookEdit": "[to be translated]:NotebookEdit",
+        "readFile": "[to be translated]:Read File",
+        "search": "[to be translated]:Search",
+        "skill": "[to be translated]:Skill",
+        "task": "[to be translated]:Task",
+        "todoWrite": "[to be translated]:Todo Write",
+        "tool": "[to be translated]:Tool",
+        "webFetch": "[to be translated]:Web Fetch",
+        "webSearch": "[to be translated]:Web Search",
+        "write": "[to be translated]:Write"
+      },
+      "noData": "[to be translated]:No data available for this tool",
       "pending": "保留中",
       "preview": "プレビュー",
-      "raw": "生データ"
+      "raw": "生データ",
+      "runningCount": "[to be translated]:{{count}} tools running",
+      "sections": {
+        "command": "[to be translated]:Command",
+        "exitCode": "[to be translated]:Exit Code",
+        "input": "[to be translated]:Input",
+        "output": "[to be translated]:Output",
+        "prompt": "[to be translated]:Prompt",
+        "searchQuery": "[to be translated]:Search Query",
+        "searchResults": "[to be translated]:Search Results",
+        "stderr": "[to be translated]:stderr",
+        "stdout": "[to be translated]:stdout"
+      },
+      "status": {
+        "done": "[to be translated]:Done",
+        "error": "[to be translated]:Error",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running",
+        "success": "[to be translated]:Success"
+      },
+      "truncated": "[to be translated]:Output truncated (original: {{size}})",
+      "units": {
+        "file": "[to be translated]:file",
+        "files": "[to be translated]:files",
+        "item": "[to be translated]:item",
+        "items": "[to be translated]:items",
+        "line": "[to be translated]:line",
+        "lines": "[to be translated]:lines",
+        "plan": "[to be translated]:plan",
+        "plans": "[to be translated]:plans",
+        "result": "[to be translated]:result",
+        "results": "[to be translated]:results"
+      }
     },
     "topic": {
       "added": "新しいトピックが追加されました"
@@ -2443,6 +2526,10 @@
       }
     },
     "custom_size": "カスタムサイズ",
+    "dmxapi": {
+      "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "style": "[to be translated]:, Style: "
+    },
     "edit": {
       "image_file": "編集画像",
       "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します",
@@ -2467,6 +2554,7 @@
       "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
       "width": "幅"
     },
+    "generate_failed": "[to be translated]:Failed to generate image",
     "generated_image": "生成画像",
     "go_to_settings": "設定に移動",
     "guidance_scale": "ガイダンススケール",
@@ -2477,6 +2565,7 @@
     "image_file_required": "画像を先にアップロードしてください",
     "image_file_retry": "画像を先にアップロードしてください",
     "image_handle_required": "最初に画像をアップロードしてください。",
+    "image_mix_failed": "[to be translated]:Failed to mix images",
     "image_placeholder": "画像がありません",
     "image_retry": "再試行",
     "image_size_options": {
@@ -2486,6 +2575,7 @@
     "inference_steps_tip": "実行する推論ステップ数。ステップ数が多いほど品質が向上しますが、時間がかかります",
     "input_image": "入力画像",
     "input_parameters": "パラメータ入力",
+    "invalid_image_url": "[to be translated]:Invalid image URL format",
     "learn_more": "詳しくはこちら",
     "magic_prompt_option": "プロンプト強化",
     "mode": {
@@ -2507,6 +2597,7 @@
     "no_image_generation_model": "利用可能な画像生成モデルがありません。モデルを追加し、エンドポイントタイプを {{endpoint_type}} に設定してください",
     "number_images": "生成数",
     "number_images_tip": "生成する画像の数（1-4）",
+    "operation_failed": "[to be translated]:Operation failed, please try again later",
     "paint_course": "チュートリアル",
     "per_image": "1枚あたり",
     "per_images": "複数枚あたり",
@@ -2582,6 +2673,13 @@
       "resemblance": "類似度",
       "resemblance_tip": "拡大結果と原画像の類似度を制御します",
       "seed_tip": "拡大結果のランダム性を制御します"
+    },
+    "zhipu": {
+      "custom_size_divisible": "[to be translated]:Custom size must be divisible by 16",
+      "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
+      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
+      "custom_size_required": "[to be translated]:Please set custom width and height"
     }
   },
   "plugins": {
@@ -2592,6 +2690,20 @@
     "category": "カテゴリー",
     "commands": "命令",
     "confirm_uninstall": "{{name}}をアンインストールしてもよろしいですか？",
+    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "detail": {
+      "allowed_tools": "[to be translated]:Allowed Tools",
+      "author": "[to be translated]:Author",
+      "content": "[to be translated]:Content",
+      "description": "[to be translated]:Description",
+      "file": "[to be translated]:File",
+      "installed": "[to be translated]:Installed",
+      "metadata": "[to be translated]:Metadata",
+      "size": "[to be translated]:Size",
+      "source": "[to be translated]:Source",
+      "tags": "[to be translated]:Tags",
+      "tools": "[to be translated]:Tools"
+    },
     "install": "インストール",
     "install_plugins_from_browser": "利用可能なプラグインを閲覧して、使用を開始してください",
     "installing": "インストール中...",
@@ -2941,6 +3053,11 @@
         "search": "検索",
         "summary": "要約",
         "translate": "翻訳"
+      },
+      "prompt": {
+        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
+        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
         "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
@@ -4035,6 +4152,10 @@
       "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
       "jsonSaveError": "JSON設定の保存に失敗しました",
       "jsonSaveSuccess": "JSON設定が保存されました。",
+      "lanyun": {
+        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+        "name": "[to be translated]:Lanyun Technology"
+      },
       "logoUrl": "ロゴURL",
       "logs": "ログ",
       "longRunning": "長時間運行モード",
@@ -4131,6 +4252,14 @@
         "getToken": "API トークンを取得する",
         "getTokenDescription": "アカウントから個人用 API トークンを取得します",
         "noServersAvailable": "利用可能な MCP サーバーがありません",
+        "providerDescriptions": {
+          "302ai": "[to be translated]:302.AI Platform MCP Service",
+          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
+          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
+          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+        },
         "selectProvider": "プロバイダーを選択：",
         "setToken": "トークンを入力してください",
         "success": "MCPサーバーの同期成功",
@@ -4608,6 +4737,9 @@
         "title": "プロバイダーを削除"
       },
       "dmxapi": {
+        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
+        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
         "select_platform": "プラットフォームを選択"
       },
       "docs_check": "チェック",

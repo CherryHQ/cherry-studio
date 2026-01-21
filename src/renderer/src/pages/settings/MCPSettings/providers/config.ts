@@ -1,4 +1,4 @@
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getMcpProviderDescriptionLabel, getProviderLabel } from '@renderer/i18n/label'
 import type { MCPServer } from '@renderer/types'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './302ai'
@@ -24,7 +24,7 @@ export const providers: ProviderConfig[] = [
   {
     key: 'bailian',
     name: getProviderLabel('dashscope'),
-    description: '百炼平台服务',
+    description: getMcpProviderDescriptionLabel('bailian'),
     discoverUrl: `https://bailian.console.aliyun.com/?tab=mcp#/mcp-market`,
     apiKeyUrl: `https://bailian.console.aliyun.com/?tab=app#/api-key`,
     tokenFieldName: 'bailianToken',
@@ -35,7 +35,7 @@ export const providers: ProviderConfig[] = [
   {
     key: 'modelscope',
     name: 'ModelScope',
-    description: 'ModelScope 平台 MCP 服务',
+    description: getMcpProviderDescriptionLabel('modelscope'),
     discoverUrl: `${MODELSCOPE_HOST}/mcp?hosted=1&page=1`,
     apiKeyUrl: `${MODELSCOPE_HOST}/my/myaccesstoken`,
     tokenFieldName: 'modelScopeToken',
@@ -46,7 +46,7 @@ export const providers: ProviderConfig[] = [
   {
     key: 'tokenflux',
     name: 'TokenFlux',
-    description: 'TokenFlux 平台 MCP 服务',
+    description: getMcpProviderDescriptionLabel('tokenflux'),
     discoverUrl: `${TOKENFLUX_HOST}/mcps`,
     apiKeyUrl: `${TOKENFLUX_HOST}/dashboard/api-keys`,
     tokenFieldName: 'tokenfluxToken',
@@ -57,7 +57,7 @@ export const providers: ProviderConfig[] = [
   {
     key: 'lanyun',
     name: getProviderLabel('lanyun'),
-    description: '蓝耘科技云平台 MCP 服务',
+    description: getMcpProviderDescriptionLabel('lanyun'),
     discoverUrl: 'https://mcp.lanyun.net',
     apiKeyUrl: LANYUN_KEY_HOST,
     tokenFieldName: 'tokenLanyunToken',
@@ -68,7 +68,7 @@ export const providers: ProviderConfig[] = [
   {
     key: '302ai',
     name: '302.AI',
-    description: '302.AI 平台 MCP 服务',
+    description: getMcpProviderDescriptionLabel('302ai'),
     discoverUrl: 'https://302.ai',
     apiKeyUrl: 'https://dash.302.ai/apis/list',
     tokenFieldName: 'token302aiToken',
@@ -79,7 +79,7 @@ export const providers: ProviderConfig[] = [
   {
     key: 'mcprouter',
     name: 'MCP Router',
-    description: 'MCP Router 平台 MCP 服务',
+    description: getMcpProviderDescriptionLabel('mcprouter'),
     discoverUrl: 'https://mcprouter.co',
     apiKeyUrl: 'https://mcprouter.co/settings/keys',
     tokenFieldName: 'mcprouterToken',

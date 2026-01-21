@@ -319,7 +319,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error?.message || '生成图像失败')
+        throw new Error(errorData.error?.message || t('paintings.generate_failed'))
       }
 
       const data = await response.json()

@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "總是允許此工具",
         "allowRequest": "允許工具請求",
         "denyRequest": "拒絕工具請求",
         "hideDetails": "隱藏工具詳細資訊",
@@ -278,6 +279,7 @@
         "showDetails": "顯示工具詳細資訊"
       },
       "button": {
+        "allowAll": "總是允許",
         "cancel": "取消",
         "run": "執行"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "新增話題"
       }
+    },
+    "alerts": {
+      "create_session": "[to be translated]:Create a session",
+      "select_agent": "[to be translated]:Select an agent"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "取消",
     "chat": "聊天",
     "clear": "清除",
+    "clear_all": "[to be translated]:Clear All",
+    "click_to_replace": "[to be translated]:Click to replace",
     "close": "關閉",
     "collapse": "收合",
     "completed": "已完成",
@@ -1234,9 +1242,15 @@
     "footnote": "引用內容",
     "footnotes": "引用",
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
+    "generate_random_seed": "[to be translated]:Generate random seed",
+    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
     "go_to_settings": "前往設定",
+    "html_preview": "[to be translated]:HTML Preview",
     "i_know": "我知道了",
     "ignore": "忽略",
+    "image_preview": "[to be translated]:Image preview",
+    "image_url": "[to be translated]:Image URL",
+    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
     "inspect": "檢查",
     "invalid_value": "無效值",
     "knowledge_base": "知識庫",
@@ -1246,6 +1260,7 @@
     "models": "模型",
     "more": "更多",
     "name": "名稱",
+    "next_match": "[to be translated]:Next match",
     "no_results": "沒有結果",
     "none": "無",
     "off": "關閉",
@@ -1257,13 +1272,17 @@
         "model": "選擇模型"
       }
     },
+    "powered_by": "[to be translated]:Powered by ",
     "preview": "預覽",
+    "previous_match": "[to be translated]:Previous match",
     "prompt": "提示詞",
     "provider": "供應商",
     "reasoning_content": "已深度思考",
     "refresh": "重新整理",
     "regenerate": "重新產生",
+    "remove_image": "[to be translated]:Remove image",
     "rename": "重新命名",
+    "required_field": "[to be translated]:Required field",
     "reset": "重設",
     "save": "儲存",
     "saved": "已儲存",
@@ -1286,13 +1305,24 @@
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
+    "translate_text": "[to be translated]:Translate text",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "取消訂閱",
     "update_success": "更新成功",
     "upload_files": "上傳檔案",
+    "upload_image": "[to be translated]:Upload image file",
+    "uploaded_image": "[to be translated]:Uploaded image",
     "warning": "警告",
     "you": "您"
+  },
+  "dialog": {
+    "all_files": "[to be translated]:All Files",
+    "open_file": "[to be translated]:Open File",
+    "png_image": "[to be translated]:PNG Image",
+    "save_file": "[to be translated]:Save File",
+    "select_folder": "[to be translated]:Select Folder",
+    "word_document": "[to be translated]:Word Document"
   },
   "docs": {
     "title": "說明文件"
@@ -2015,10 +2045,63 @@
       "cancelled": "已取消",
       "completed": "已完成",
       "error": "發生錯誤",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "呼叫中",
+      "labels": {
+        "bash": "執行命令",
+        "edit": "編輯",
+        "exitPlanMode": "退出計畫模式",
+        "glob": "檔案匹配",
+        "grep": "搜尋",
+        "mcpServerTool": "MCP 伺服器工具",
+        "multiEdit": "批次編輯",
+        "notebookEdit": "筆記本編輯",
+        "readFile": "讀取檔案",
+        "search": "搜尋",
+        "skill": "技能",
+        "task": "任務",
+        "todoWrite": "待辦寫入",
+        "tool": "工具",
+        "webFetch": "網頁擷取",
+        "webSearch": "網頁搜尋",
+        "write": "寫入"
+      },
+      "noData": "此工具暫無可用資料",
       "pending": "等待中",
       "preview": "預覽",
-      "raw": "原始碼"
+      "raw": "原始碼",
+      "runningCount": "[to be translated]:{{count}} tools running",
+      "sections": {
+        "command": "命令",
+        "exitCode": "退出碼",
+        "input": "輸入",
+        "output": "輸出",
+        "prompt": "提示",
+        "searchQuery": "搜尋查詢",
+        "searchResults": "搜尋結果",
+        "stderr": "標準錯誤",
+        "stdout": "標準輸出"
+      },
+      "status": {
+        "done": "完成",
+        "error": "錯誤",
+        "failed": "失敗",
+        "running": "執行中",
+        "success": "成功"
+      },
+      "truncated": "輸出已截斷（原始大小：{{size}}）",
+      "units": {
+        "file": "個檔案",
+        "files": "個檔案",
+        "item": "項",
+        "items": "項",
+        "line": "行",
+        "lines": "行",
+        "plan": "個計畫",
+        "plans": "個計畫",
+        "result": "個結果",
+        "results": "個結果"
+      }
     },
     "topic": {
       "added": "新話題已新增"
@@ -2443,6 +2526,10 @@
       }
     },
     "custom_size": "自訂尺寸",
+    "dmxapi": {
+      "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "style": "[to be translated]:, Style: "
+    },
     "edit": {
       "image_file": "編輯影像",
       "magic_prompt_option_tip": "開啟後會自動調整編輯提示詞，以提升效果",
@@ -2467,6 +2554,7 @@
       "style_type_tip": "產生圖片的風格，僅適用於 V_2 及以上版本",
       "width": "寬度"
     },
+    "generate_failed": "[to be translated]:Failed to generate image",
     "generated_image": "產生的圖片",
     "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
@@ -2477,6 +2565,7 @@
     "image_file_required": "請先上傳圖片",
     "image_file_retry": "請重新上傳圖片",
     "image_handle_required": "請先上傳圖片。",
+    "image_mix_failed": "[to be translated]:Failed to mix images",
     "image_placeholder": "無圖片",
     "image_retry": "重試",
     "image_size_options": {
@@ -2486,6 +2575,7 @@
     "inference_steps_tip": "要執行的推理步數。步數越多，品質越高但耗時越長",
     "input_image": "輸入圖片",
     "input_parameters": "輸入參數",
+    "invalid_image_url": "[to be translated]:Invalid image URL format",
     "learn_more": "了解更多",
     "magic_prompt_option": "提示詞增強",
     "mode": {
@@ -2507,6 +2597,7 @@
     "no_image_generation_model": "暫無可用的圖片產生模型，請先新增模型並設定端點類型為 {{endpoint_type}}",
     "number_images": "張數",
     "number_images_tip": "一次產生的圖片數量 (1-4)",
+    "operation_failed": "[to be translated]:Operation failed, please try again later",
     "paint_course": "教學",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
@@ -2582,6 +2673,13 @@
       "resemblance": "相似度",
       "resemblance_tip": "控制放大結果與原圖的相似程度",
       "seed_tip": "控制放大結果的隨機性"
+    },
+    "zhipu": {
+      "custom_size_divisible": "[to be translated]:Custom size must be divisible by 16",
+      "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
+      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
+      "custom_size_required": "[to be translated]:Please set custom width and height"
     }
   },
   "plugins": {
@@ -2592,6 +2690,20 @@
     "category": "類別",
     "commands": "指令",
     "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "detail": {
+      "allowed_tools": "[to be translated]:Allowed Tools",
+      "author": "[to be translated]:Author",
+      "content": "[to be translated]:Content",
+      "description": "[to be translated]:Description",
+      "file": "[to be translated]:File",
+      "installed": "[to be translated]:Installed",
+      "metadata": "[to be translated]:Metadata",
+      "size": "[to be translated]:Size",
+      "source": "[to be translated]:Source",
+      "tags": "[to be translated]:Tags",
+      "tools": "[to be translated]:Tools"
+    },
     "install": "安裝",
     "install_plugins_from_browser": "瀏覽可用外掛以開始使用",
     "installing": "安裝中...",
@@ -2941,6 +3053,11 @@
         "search": "搜尋",
         "summary": "總結",
         "translate": "翻譯"
+      },
+      "prompt": {
+        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
+        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
         "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"
@@ -4035,6 +4152,10 @@
       "jsonModeHint": "編輯 MCP 伺服器設定的 JSON 表示。儲存前請確認格式正確",
       "jsonSaveError": "儲存 JSON 設定失敗",
       "jsonSaveSuccess": "JSON 設定已儲存",
+      "lanyun": {
+        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+        "name": "[to be translated]:Lanyun Technology"
+      },
       "logoUrl": "Logo URL",
       "logs": "日誌",
       "longRunning": "長時間運作模式",
@@ -4131,6 +4252,14 @@
         "getToken": "取得 API 權杖",
         "getTokenDescription": "從帳戶取得個人 API 權杖",
         "noServersAvailable": "無可用的 MCP 伺服器",
+        "providerDescriptions": {
+          "302ai": "[to be translated]:302.AI Platform MCP Service",
+          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
+          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
+          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+        },
         "selectProvider": "選擇提供者：",
         "setToken": "輸入權杖",
         "success": "同步 MCP 伺服器成功",
@@ -4608,6 +4737,9 @@
         "title": "刪除提供者"
       },
       "dmxapi": {
+        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
+        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
         "select_platform": "選擇平台"
       },
       "docs_check": "檢查",

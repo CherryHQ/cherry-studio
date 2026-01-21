@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "[to be translated]:Always allow this tool",
         "allowRequest": "Autoriser la demande d'outil",
         "denyRequest": "Refuser la demande d'outil",
         "hideDetails": "Masquer les détails de l'outil",
@@ -278,6 +279,7 @@
         "showDetails": "Afficher les détails de l'outil"
       },
       "button": {
+        "allowAll": "[to be translated]:Always Allow",
         "cancel": "Annuler",
         "run": "Courir"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "Nouveau sujet"
       }
+    },
+    "alerts": {
+      "create_session": "[to be translated]:Create a session",
+      "select_agent": "[to be translated]:Select an agent"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "Annuler",
     "chat": "Chat",
     "clear": "Effacer",
+    "clear_all": "[to be translated]:Clear All",
+    "click_to_replace": "[to be translated]:Click to replace",
     "close": "Fermer",
     "collapse": "Réduire",
     "completed": "Terminé",
@@ -1234,9 +1242,15 @@
     "footnote": "Note de bas de page",
     "footnotes": "Notes de bas de page",
     "fullscreen": "Mode plein écran, appuyez sur F11 pour quitter",
+    "generate_random_seed": "[to be translated]:Generate random seed",
+    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
     "go_to_settings": "Aller aux paramètres",
+    "html_preview": "[to be translated]:HTML Preview",
     "i_know": "J'ai compris",
     "ignore": "Ignorer",
+    "image_preview": "[to be translated]:Image preview",
+    "image_url": "[to be translated]:Image URL",
+    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
     "inspect": "Vérifier",
     "invalid_value": "valeur invalide",
     "knowledge_base": "Base de connaissances",
@@ -1246,6 +1260,7 @@
     "models": "Modèles",
     "more": "Plus",
     "name": "Nom",
+    "next_match": "[to be translated]:Next match",
     "no_results": "Aucun résultat",
     "none": "Aucun",
     "off": "Désactivé",
@@ -1257,13 +1272,17 @@
         "model": "Choisir le modèle"
       }
     },
+    "powered_by": "[to be translated]:Powered by ",
     "preview": "Aperçu",
+    "previous_match": "[to be translated]:Previous match",
     "prompt": "Prompt",
     "provider": "Fournisseur",
     "reasoning_content": "Réflexion approfondie",
     "refresh": "Actualiser",
     "regenerate": "Regénérer",
+    "remove_image": "[to be translated]:Remove image",
     "rename": "Renommer",
+    "required_field": "[to be translated]:Required field",
     "reset": "Réinitialiser",
     "save": "Enregistrer",
     "saved": "enregistré",
@@ -1286,13 +1305,24 @@
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
+    "translate_text": "[to be translated]:Translate text",
     "unknown": "Inconnu",
     "unnamed": "Sans nom",
     "unsubscribe": "Se désabonner",
     "update_success": "Mise à jour réussie",
     "upload_files": "Uploader des fichiers",
+    "upload_image": "[to be translated]:Upload image file",
+    "uploaded_image": "[to be translated]:Uploaded image",
     "warning": "Avertissement",
     "you": "Vous"
+  },
+  "dialog": {
+    "all_files": "[to be translated]:All Files",
+    "open_file": "[to be translated]:Open File",
+    "png_image": "[to be translated]:PNG Image",
+    "save_file": "[to be translated]:Save File",
+    "select_folder": "[to be translated]:Select Folder",
+    "word_document": "[to be translated]:Word Document"
   },
   "docs": {
     "title": "Documentation d'aide"
@@ -2015,10 +2045,63 @@
       "cancelled": "Annulé",
       "completed": "Terminé",
       "error": "Une erreur s'est produite",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "En cours d'exécution",
+      "labels": {
+        "bash": "[to be translated]:Bash",
+        "edit": "[to be translated]:Edit",
+        "exitPlanMode": "[to be translated]:ExitPlanMode",
+        "glob": "[to be translated]:Glob",
+        "grep": "[to be translated]:Grep",
+        "mcpServerTool": "[to be translated]:MCP Server Tool",
+        "multiEdit": "[to be translated]:MultiEdit",
+        "notebookEdit": "[to be translated]:NotebookEdit",
+        "readFile": "[to be translated]:Read File",
+        "search": "[to be translated]:Search",
+        "skill": "[to be translated]:Skill",
+        "task": "[to be translated]:Task",
+        "todoWrite": "[to be translated]:Todo Write",
+        "tool": "[to be translated]:Tool",
+        "webFetch": "[to be translated]:Web Fetch",
+        "webSearch": "[to be translated]:Web Search",
+        "write": "[to be translated]:Write"
+      },
+      "noData": "[to be translated]:No data available for this tool",
       "pending": "En attente",
       "preview": "Aperçu",
-      "raw": "Brut"
+      "raw": "Brut",
+      "runningCount": "[to be translated]:{{count}} tools running",
+      "sections": {
+        "command": "[to be translated]:Command",
+        "exitCode": "[to be translated]:Exit Code",
+        "input": "[to be translated]:Input",
+        "output": "[to be translated]:Output",
+        "prompt": "[to be translated]:Prompt",
+        "searchQuery": "[to be translated]:Search Query",
+        "searchResults": "[to be translated]:Search Results",
+        "stderr": "[to be translated]:stderr",
+        "stdout": "[to be translated]:stdout"
+      },
+      "status": {
+        "done": "[to be translated]:Done",
+        "error": "[to be translated]:Error",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running",
+        "success": "[to be translated]:Success"
+      },
+      "truncated": "[to be translated]:Output truncated (original: {{size}})",
+      "units": {
+        "file": "[to be translated]:file",
+        "files": "[to be translated]:files",
+        "item": "[to be translated]:item",
+        "items": "[to be translated]:items",
+        "line": "[to be translated]:line",
+        "lines": "[to be translated]:lines",
+        "plan": "[to be translated]:plan",
+        "plans": "[to be translated]:plans",
+        "result": "[to be translated]:result",
+        "results": "[to be translated]:results"
+      }
     },
     "topic": {
       "added": "Thème ajouté avec succès"
@@ -2443,6 +2526,10 @@
       }
     },
     "custom_size": "Dimensions personnalisées",
+    "dmxapi": {
+      "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "style": "[to be translated]:, Style: "
+    },
     "edit": {
       "image_file": "Image éditée",
       "magic_prompt_option_tip": "Optimisation intelligente du mot-clé d'édition",
@@ -2467,6 +2554,7 @@
       "style_type_tip": "Стиль генерации изображения, применим к версии V_2 и выше",
       "width": "Largeur"
     },
+    "generate_failed": "[to be translated]:Failed to generate image",
     "generated_image": "Image générée",
     "go_to_settings": "Aller aux paramètres",
     "guidance_scale": "Échelle de guidance",
@@ -2477,6 +2565,7 @@
     "image_file_required": "Veuillez d'abord télécharger une image",
     "image_file_retry": "Veuillez réuploader l'image",
     "image_handle_required": "Veuillez d'abord télécharger une image",
+    "image_mix_failed": "[to be translated]:Failed to mix images",
     "image_placeholder": "Aucune image pour le moment",
     "image_retry": "Réessayer",
     "image_size_options": {
@@ -2486,6 +2575,7 @@
     "inference_steps_tip": "Nombre d'étapes d'inférence à effectuer. Plus il y a d'étapes, meilleure est la qualité mais plus c'est long",
     "input_image": "Image d'entrée",
     "input_parameters": "Paramètres d'entrée",
+    "invalid_image_url": "[to be translated]:Invalid image URL format",
     "learn_more": "En savoir plus",
     "magic_prompt_option": "Amélioration du prompt",
     "mode": {
@@ -2507,6 +2597,7 @@
     "no_image_generation_model": "Aucun modèle de génération d'image disponible pour le moment. Veuillez ajouter un modèle et définir le type de point de terminaison sur {{endpoint_type}}",
     "number_images": "Nombre d'images générées",
     "number_images_tip": "Le nombre d'images générées en une seule fois (1-4)",
+    "operation_failed": "[to be translated]:Operation failed, please try again later",
     "paint_course": "Tutoriel",
     "per_image": "Par image",
     "per_images": "Par image",
@@ -2582,6 +2673,13 @@
       "resemblance": "Similarité",
       "resemblance_tip": "Contrôle le niveau de similarité entre le résultat agrandi et l'image originale",
       "seed_tip": "Contrôle la randomisation du résultat d'agrandissement"
+    },
+    "zhipu": {
+      "custom_size_divisible": "[to be translated]:Custom size must be divisible by 16",
+      "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
+      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
+      "custom_size_required": "[to be translated]:Please set custom width and height"
     }
   },
   "plugins": {
@@ -2592,6 +2690,20 @@
     "category": "Catégorie",
     "commands": "commande",
     "confirm_uninstall": "Êtes-vous sûr de vouloir désinstaller {{name}} ?",
+    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "detail": {
+      "allowed_tools": "[to be translated]:Allowed Tools",
+      "author": "[to be translated]:Author",
+      "content": "[to be translated]:Content",
+      "description": "[to be translated]:Description",
+      "file": "[to be translated]:File",
+      "installed": "[to be translated]:Installed",
+      "metadata": "[to be translated]:Metadata",
+      "size": "[to be translated]:Size",
+      "source": "[to be translated]:Source",
+      "tags": "[to be translated]:Tags",
+      "tools": "[to be translated]:Tools"
+    },
     "install": "Installation",
     "install_plugins_from_browser": "Parcourir les plugins disponibles pour commencer",
     "installing": "Installation en cours...",
@@ -2941,6 +3053,11 @@
         "search": "Rechercher",
         "summary": "Résumé",
         "translate": "Traduire"
+      },
+      "prompt": {
+        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
+        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
         "smart_translate_tips": "Traduction intelligente : le contenu sera d'abord traduit dans la langue cible ; si le contenu est déjà dans la langue cible, il sera traduit dans la langue secondaire"
@@ -4035,6 +4152,10 @@
       "jsonModeHint": "Modifier la représentation JSON de la configuration des serveurs MCP. Assurez-vous que le format est correct avant de sauvegarder.",
       "jsonSaveError": "Échec de la sauvegarde de la configuration JSON",
       "jsonSaveSuccess": "Configuration JSON sauvegardée",
+      "lanyun": {
+        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+        "name": "[to be translated]:Lanyun Technology"
+      },
       "logoUrl": "Адрес логотипа",
       "logs": "Journaux",
       "longRunning": "Mode d'exécution prolongée",
@@ -4131,6 +4252,14 @@
         "getToken": "Получить API-токен",
         "getTokenDescription": "Получите персональный API-токен из вашей учетной записи",
         "noServersAvailable": "Нет доступных MCP-серверов",
+        "providerDescriptions": {
+          "302ai": "[to be translated]:302.AI Platform MCP Service",
+          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
+          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
+          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+        },
         "selectProvider": "Выберите провайдера:",
         "setToken": "Введите ваш токен",
         "success": "MCP-сервер успешно синхронизирован",
@@ -4608,6 +4737,9 @@
         "title": "Supprimer le fournisseur"
       },
       "dmxapi": {
+        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
+        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
         "select_platform": "Sélectionner la plateforme"
       },
       "docs_check": "Voir",

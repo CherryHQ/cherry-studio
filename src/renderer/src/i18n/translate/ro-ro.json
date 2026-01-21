@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "[to be translated]:Always allow this tool",
         "allowRequest": "Permite cererea instrumentului",
         "denyRequest": "Refuză cererea instrumentului",
         "hideDetails": "Ascunde detaliile instrumentului",
@@ -278,6 +279,7 @@
         "showDetails": "Afișează detaliile instrumentului"
       },
       "button": {
+        "allowAll": "[to be translated]:Always Allow",
         "cancel": "Anulează",
         "run": "Rulează"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "Subiect nou"
       }
+    },
+    "alerts": {
+      "create_session": "[to be translated]:Create a session",
+      "select_agent": "[to be translated]:Select an agent"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "Anulează",
     "chat": "Chat",
     "clear": "Golește",
+    "clear_all": "[to be translated]:Clear All",
+    "click_to_replace": "[to be translated]:Click to replace",
     "close": "Închide",
     "collapse": "Restrânge",
     "completed": "Finalizat",
@@ -1234,9 +1242,15 @@
     "footnote": "Conținut de referință",
     "footnotes": "Referințe",
     "fullscreen": "S-a intrat în modul ecran complet. Apasă F11 pentru a ieși",
+    "generate_random_seed": "[to be translated]:Generate random seed",
+    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
     "go_to_settings": "Mergi la setări",
+    "html_preview": "[to be translated]:HTML Preview",
     "i_know": "Am înțeles",
     "ignore": "Ignoră",
+    "image_preview": "[to be translated]:Image preview",
+    "image_url": "[to be translated]:Image URL",
+    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
     "inspect": "Inspectează",
     "invalid_value": "Valoare invalidă",
     "knowledge_base": "Bază de cunoștințe",
@@ -1246,6 +1260,7 @@
     "models": "Modele",
     "more": "Mai mult",
     "name": "Nume",
+    "next_match": "[to be translated]:Next match",
     "no_results": "Niciun rezultat",
     "none": "Nimic",
     "off": "Oprit",
@@ -1257,13 +1272,17 @@
         "model": "Selectează un model"
       }
     },
+    "powered_by": "[to be translated]:Powered by ",
     "preview": "Previzualizare",
+    "previous_match": "[to be translated]:Previous match",
     "prompt": "Prompt",
     "provider": "Furnizor",
     "reasoning_content": "Raționament profund",
     "refresh": "Reîmprospătează",
     "regenerate": "Regenerează",
+    "remove_image": "[to be translated]:Remove image",
     "rename": "Redenumește",
+    "required_field": "[to be translated]:Required field",
     "reset": "Resetează",
     "save": "Salvează",
     "saved": "Salvat",
@@ -1286,13 +1305,24 @@
     "success": "Succes",
     "swap": "Schimbă",
     "topics": "Subiecte",
+    "translate_text": "[to be translated]:Translate text",
     "unknown": "Necunoscut",
     "unnamed": "Fără nume",
     "unsubscribe": "Dezabonează-te",
     "update_success": "Actualizat cu succes",
     "upload_files": "Încarcă fișier",
+    "upload_image": "[to be translated]:Upload image file",
+    "uploaded_image": "[to be translated]:Uploaded image",
     "warning": "Avertisment",
     "you": "Tu"
+  },
+  "dialog": {
+    "all_files": "[to be translated]:All Files",
+    "open_file": "[to be translated]:Open File",
+    "png_image": "[to be translated]:PNG Image",
+    "save_file": "[to be translated]:Save File",
+    "select_folder": "[to be translated]:Select Folder",
+    "word_document": "[to be translated]:Word Document"
   },
   "docs": {
     "title": "Documentație"
@@ -2015,10 +2045,63 @@
       "cancelled": "Anulat",
       "completed": "Finalizat",
       "error": "A apărut o eroare",
+      "groupHeader": "[to be translated]:{{count}} tool calls",
       "invoking": "Se invocă",
+      "labels": {
+        "bash": "[to be translated]:Bash",
+        "edit": "[to be translated]:Edit",
+        "exitPlanMode": "[to be translated]:ExitPlanMode",
+        "glob": "[to be translated]:Glob",
+        "grep": "[to be translated]:Grep",
+        "mcpServerTool": "[to be translated]:MCP Server Tool",
+        "multiEdit": "[to be translated]:MultiEdit",
+        "notebookEdit": "[to be translated]:NotebookEdit",
+        "readFile": "[to be translated]:Read File",
+        "search": "[to be translated]:Search",
+        "skill": "[to be translated]:Skill",
+        "task": "[to be translated]:Task",
+        "todoWrite": "[to be translated]:Todo Write",
+        "tool": "[to be translated]:Tool",
+        "webFetch": "[to be translated]:Web Fetch",
+        "webSearch": "[to be translated]:Web Search",
+        "write": "[to be translated]:Write"
+      },
+      "noData": "[to be translated]:No data available for this tool",
       "pending": "În așteptare",
       "preview": "Previzualizare",
-      "raw": "Brut"
+      "raw": "Brut",
+      "runningCount": "[to be translated]:{{count}} tools running",
+      "sections": {
+        "command": "[to be translated]:Command",
+        "exitCode": "[to be translated]:Exit Code",
+        "input": "[to be translated]:Input",
+        "output": "[to be translated]:Output",
+        "prompt": "[to be translated]:Prompt",
+        "searchQuery": "[to be translated]:Search Query",
+        "searchResults": "[to be translated]:Search Results",
+        "stderr": "[to be translated]:stderr",
+        "stdout": "[to be translated]:stdout"
+      },
+      "status": {
+        "done": "[to be translated]:Done",
+        "error": "[to be translated]:Error",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running",
+        "success": "[to be translated]:Success"
+      },
+      "truncated": "[to be translated]:Output truncated (original: {{size}})",
+      "units": {
+        "file": "[to be translated]:file",
+        "files": "[to be translated]:files",
+        "item": "[to be translated]:item",
+        "items": "[to be translated]:items",
+        "line": "[to be translated]:line",
+        "lines": "[to be translated]:lines",
+        "plan": "[to be translated]:plan",
+        "plans": "[to be translated]:plans",
+        "result": "[to be translated]:result",
+        "results": "[to be translated]:results"
+      }
     },
     "topic": {
       "added": "Subiect nou adăugat"
@@ -2443,6 +2526,10 @@
       }
     },
     "custom_size": "Dimensiune personalizată",
+    "dmxapi": {
+      "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "style": "[to be translated]:, Style: "
+    },
     "edit": {
       "image_file": "Imagine editată",
       "magic_prompt_option_tip": "Îmbunătățește inteligent prompturile de editare",
@@ -2467,6 +2554,7 @@
       "style_type_tip": "Stil generare imagine pentru V_2 și versiuni ulterioare",
       "width": "Lățime"
     },
+    "generate_failed": "[to be translated]:Failed to generate image",
     "generated_image": "Imagine generată",
     "go_to_settings": "Mergi la Setări",
     "guidance_scale": "Scară de ghidare",
@@ -2477,6 +2565,7 @@
     "image_file_required": "Te rugăm să încarci mai întâi o imagine",
     "image_file_retry": "Te rugăm să reîncarci mai întâi o imagine",
     "image_handle_required": "Te rugăm să încarci mai întâi o imagine.",
+    "image_mix_failed": "[to be translated]:Failed to mix images",
     "image_placeholder": "Nicio imagine disponibilă",
     "image_retry": "Reîncearcă",
     "image_size_options": {
@@ -2486,6 +2575,7 @@
     "inference_steps_tip": "Numărul de pași de inferență de efectuat. Mai mulți pași produc o calitate mai mare, dar durează mai mult",
     "input_image": "Imagine de intrare",
     "input_parameters": "Parametri de intrare",
+    "invalid_image_url": "[to be translated]:Invalid image URL format",
     "learn_more": "Află mai multe",
     "magic_prompt_option": "Prompt magic",
     "mode": {
@@ -2507,6 +2597,7 @@
     "no_image_generation_model": "Niciun model de generare imagini disponibil, te rugăm să adaugi un model și să setezi tipul endpoint-ului la {{endpoint_type}}",
     "number_images": "Număr imagini",
     "number_images_tip": "Numărul de imagini de generat (1-4)",
+    "operation_failed": "[to be translated]:Operation failed, please try again later",
     "paint_course": "tutorial",
     "per_image": "pe imagine",
     "per_images": "pe imagini",
@@ -2582,6 +2673,13 @@
       "resemblance": "Similaritate",
       "resemblance_tip": "Controlează similaritatea cu imaginea originală",
       "seed_tip": "Controlează aleatoriul scalării"
+    },
+    "zhipu": {
+      "custom_size_divisible": "[to be translated]:Custom size must be divisible by 16",
+      "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
+      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
+      "custom_size_required": "[to be translated]:Please set custom width and height"
     }
   },
   "plugins": {
@@ -2592,6 +2690,20 @@
     "category": "Categorie",
     "commands": "Comenzi",
     "confirm_uninstall": "Ești sigur că vrei să dezinstalezi {{name}}?",
+    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "detail": {
+      "allowed_tools": "[to be translated]:Allowed Tools",
+      "author": "[to be translated]:Author",
+      "content": "[to be translated]:Content",
+      "description": "[to be translated]:Description",
+      "file": "[to be translated]:File",
+      "installed": "[to be translated]:Installed",
+      "metadata": "[to be translated]:Metadata",
+      "size": "[to be translated]:Size",
+      "source": "[to be translated]:Source",
+      "tags": "[to be translated]:Tags",
+      "tools": "[to be translated]:Tools"
+    },
     "install": "Instalează",
     "install_plugins_from_browser": "Răsfoiește pluginurile disponibile pentru a începe",
     "installing": "Se instalează...",
@@ -2941,6 +3053,11 @@
         "search": "Caută",
         "summary": "Rezumat",
         "translate": "Tradu"
+      },
+      "prompt": {
+        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
+        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
         "smart_translate_tips": "Traducere inteligentă: Conținutul va fi tradus mai întâi în limba țintă; conținutul aflat deja în limba țintă va fi tradus în limba alternativă"
@@ -4035,6 +4152,10 @@
       "jsonModeHint": "Editează reprezentarea JSON a configurației serverului MCP. Te rugăm să te asiguri că formatul este corect înainte de salvare.",
       "jsonSaveError": "Nu s-a putut salva configurația JSON.",
       "jsonSaveSuccess": "Configurația JSON a fost salvată.",
+      "lanyun": {
+        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+        "name": "[to be translated]:Lanyun Technology"
+      },
       "logoUrl": "URL logo",
       "logs": "Jurnale",
       "longRunning": "Mod rulare lungă",
@@ -4131,6 +4252,14 @@
         "getToken": "Obține token API",
         "getTokenDescription": "Obține tokenul tău personal API din contul tău",
         "noServersAvailable": "Nu există servere MCP disponibile",
+        "providerDescriptions": {
+          "302ai": "[to be translated]:302.AI Platform MCP Service",
+          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
+          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
+          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+        },
         "selectProvider": "Selectează furnizor:",
         "setToken": "Introdu tokenul tău",
         "success": "Sincronizare servere MCP reușită",
@@ -4608,6 +4737,9 @@
         "title": "Șterge furnizor"
       },
       "dmxapi": {
+        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
+        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
         "select_platform": "Selectează platforma"
       },
       "docs_check": "Verifică",

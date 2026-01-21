@@ -160,7 +160,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         key: 'size',
         title: 'paintings.aspect_ratio',
         options: [
-          { label: '自动', value: 'auto' },
+          { label: 'paintings.image_size_options.auto', value: 'auto' },
           { label: '1:1', value: '1024x1024' },
           { label: '3:2', value: '1536x1024' },
           { label: '2:3', value: '1024x1536' }
