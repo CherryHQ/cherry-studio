@@ -40,7 +40,8 @@ const packages = [
 const platformToArch = {
   mac: 'darwin',
   windows: 'win32',
-  linux: 'linux'
+  linux: 'linux',
+  linuxmusl: 'linuxmusl'
 }
 
 exports.default = async function (context) {
