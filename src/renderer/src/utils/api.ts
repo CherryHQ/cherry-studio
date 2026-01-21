@@ -98,12 +98,12 @@ export function withoutTrailingSharp<T extends string>(url: T): T {
  * @param apiVersion - The API version to append if needed. Defaults to `'v1'`.
  *
  * @returns The formatted API host URL. If the host is empty after normalization, returns an empty string.
- *          If the host ends with '#', API version is not supported, or the host already contains a version, returns the normalized host with trailing '#' removed.
+ *          If the host ends with '#', API version is not supported, or the host already contains a version, returns the normalized host (with '#' preserved for routeToEndpoint to process).
  *          Otherwise, returns the host with the API version appended.
  *
  * @example
  * formatApiHost('https://api.example.com/') // Returns 'https://api.example.com/v1'
- * formatApiHost('https://api.example.com#') // Returns 'https://api.example.com'
+ * formatApiHost('https://api.example.com#') // Returns 'https://api.example.com#'
  * formatApiHost('https://api.example.com/v2', true, 'v1') // Returns 'https://api.example.com/v2'
  */
 export function formatApiHost(host?: string, supportApiVersion: boolean = true, apiVersion: string = 'v1'): string {
@@ -112,12 +112,16 @@ export function formatApiHost(host?: string, supportApiVersion: boolean = true, 
     return ''
   }
 
-  const shouldAppendApiVersion = !(normalizedHost.endsWith('#') || !supportApiVersion || hasAPIVersion(normalizedHost))
+  const endsWithSharp = normalizedHost.endsWith('#')
+  const shouldAppendApiVersion = !(endsWithSharp || !supportApiVersion || hasAPIVersion(normalizedHost))
 
   if (shouldAppendApiVersion) {
     return `${normalizedHost}/${apiVersion}`
+  } else if (endsWithSharp) {
+    // Preserve '#' so that routeToEndpoint can detect it and disable suffix
+    return normalizedHost
   } else {
-    return withoutTrailingSharp(normalizedHost)
+    return normalizedHost
   }
 }
 

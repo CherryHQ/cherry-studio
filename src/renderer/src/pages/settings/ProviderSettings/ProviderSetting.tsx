@@ -20,7 +20,14 @@ import type { SystemProviderId } from '@renderer/types'
 import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
-import { formatApiHost, formatApiKeys, getFancyProviderName, validateApiHost } from '@renderer/utils'
+import {
+  formatApiHost,
+  formatApiKeys,
+  getFancyProviderName,
+  isWithTrailingSharp,
+  validateApiHost,
+  withoutTrailingSharp
+} from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import {
   isAIGatewayProvider,
@@ -285,14 +292,18 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   }, [configuredApiHost, apiHost])
 
   const hostPreview = () => {
-    const formattedApiHost = adaptProvider({ provider: { ...provider, apiHost } }).apiHost
+    const rawFormattedApiHost = adaptProvider({ provider: { ...provider, apiHost } }).apiHost
+    // If the user appended '#' to disable the suffix, don't add endpoint paths
+    const disableSuffix = isWithTrailingSharp(apiHost?.trim() || '')
+    // Remove '#' for display purposes in preview
+    const formattedApiHost = withoutTrailingSharp(rawFormattedApiHost)
 
     if (isOllamaProvider(provider)) {
-      return formattedApiHost + '/chat'
+      return disableSuffix ? formattedApiHost : formattedApiHost + '/chat'
     }
 
     if (isOpenAICompatibleProvider(provider)) {
-      return formattedApiHost + '/chat/completions'
+      return disableSuffix ? formattedApiHost : formattedApiHost + '/chat/completions'
     }
 
     if (isAzureOpenAIProvider(provider)) {
@@ -300,24 +311,24 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       const path = !['preview', 'v1'].includes(apiVersion)
         ? `/v1/chat/completions?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`
-      return formattedApiHost + path
+      return disableSuffix ? formattedApiHost : formattedApiHost + path
     }
 
     if (isAnthropicProvider(provider)) {
-      return formattedApiHost + '/messages'
+      return disableSuffix ? formattedApiHost : formattedApiHost + '/messages'
     }
 
     if (isGeminiProvider(provider)) {
-      return formattedApiHost + '/models'
+      return disableSuffix ? formattedApiHost : formattedApiHost + '/models'
     }
     if (isOpenAIProvider(provider)) {
-      return formattedApiHost + '/responses'
+      return disableSuffix ? formattedApiHost : formattedApiHost + '/responses'
     }
     if (isVertexProvider(provider)) {
-      return formattedApiHost + '/publishers/google'
+      return disableSuffix ? formattedApiHost : formattedApiHost + '/publishers/google'
     }
     if (isAIGatewayProvider(provider)) {
-      return formattedApiHost + '/language-model'
+      return disableSuffix ? formattedApiHost : formattedApiHost + '/language-model'
     }
     return formattedApiHost
   }
