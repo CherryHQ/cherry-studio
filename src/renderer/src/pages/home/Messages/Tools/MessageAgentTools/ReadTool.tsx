@@ -55,7 +55,7 @@ export function ReadTool({
   const outputString = normalizeOutputString(output)
   const stats = getOutputStats(outputString)
   const filename = input?.file_path?.split('/').pop()
-  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
 
   return {
     key: AgentToolsType.Read,

@@ -16,7 +16,7 @@ export function WebSearchTool({
   const { t } = useTranslation()
   // 如果有输出，计算结果数量
   const resultCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
-  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',

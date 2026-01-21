@@ -15,7 +15,7 @@ export function BashTool({
 }): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
   const command = input?.command
-  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',

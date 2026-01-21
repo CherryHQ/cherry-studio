@@ -17,7 +17,7 @@ export function NotebookEditTool({
   output?: NotebookEditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
-  const { text: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: AgentToolsType.NotebookEdit,

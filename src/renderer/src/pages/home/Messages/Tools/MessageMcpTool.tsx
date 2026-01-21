@@ -477,7 +477,7 @@ const ToolResponseContent: FC<{
     const highlight = async () => {
       const previewContent = extractPreviewContent(response)
       const {
-        text: truncatedContent,
+        data: truncatedContent,
         isTruncated: wasTruncated,
         originalLength: origLen
       } = truncateOutput(previewContent)

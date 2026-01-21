@@ -111,36 +111,36 @@ export function BashOutputTool({
       </div>
 
       {/* Standard Output */}
-      {truncatedStdout.text && (
+      {truncatedStdout.data && (
         <div>
           <div className="mb-2 font-medium text-default-600 text-xs">{t('message.tools.sections.stdout')}:</div>
           <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">
-            {truncatedStdout.text}
+            {truncatedStdout.data}
           </pre>
           {truncatedStdout.isTruncated && <TruncatedIndicator originalLength={truncatedStdout.originalLength} />}
         </div>
       )}
 
       {/* Standard Error */}
-      {truncatedStderr.text && (
+      {truncatedStderr.data && (
         <div className="border border-danger-200">
           <div className="mb-2 font-medium text-danger-600 text-xs">{t('message.tools.sections.stderr')}:</div>
           <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
-            {truncatedStderr.text}
+            {truncatedStderr.data}
           </pre>
           {truncatedStderr.isTruncated && <TruncatedIndicator originalLength={truncatedStderr.originalLength} />}
         </div>
       )}
 
       {/* Tool Use Error */}
-      {truncatedError.text && (
+      {truncatedError.data && (
         <div className="border border-danger-200">
           <div className="mb-2 flex items-center gap-2">
             <XCircle className="h-4 w-4 text-danger" />
             <span className="font-medium text-danger-600 text-xs">{t('message.tools.status.error')}:</span>
           </div>
           <pre className="whitespace-pre-wrap font-mono text-danger-600 text-xs dark:text-danger-400">
-            {truncatedError.text}
+            {truncatedError.data}
           </pre>
           {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}
         </div>
@@ -148,10 +148,10 @@ export function BashOutputTool({
     </div>
   ) : (
     // 原始输出（如果解析失败或非 XML 格式）
-    truncatedRawOutput.text && (
+    truncatedRawOutput.data && (
       <div>
         <pre className="whitespace-pre-wrap font-mono text-default-700 text-xs dark:text-default-300">
-          {truncatedRawOutput.text}
+          {truncatedRawOutput.data}
         </pre>
         {truncatedRawOutput.isTruncated && <TruncatedIndicator originalLength={truncatedRawOutput.originalLength} />}
       </div>

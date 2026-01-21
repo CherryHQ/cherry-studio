@@ -18,7 +18,7 @@ export function ExitPlanModeTool({
   const { t } = useTranslation()
   const plan = input?.plan ?? ''
   const combinedContent = plan + '\n\n' + (output ?? '')
-  const { text: truncatedContent, isTruncated, originalLength } = truncateOutput(combinedContent)
+  const { data: truncatedContent, isTruncated, originalLength } = truncateOutput(combinedContent)
   const planCount = plan.split('\n\n').length
 
   return {
