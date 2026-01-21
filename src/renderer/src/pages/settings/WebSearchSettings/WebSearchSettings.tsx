@@ -1,7 +1,7 @@
 import { DividerWithText } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
-import { isApiProvider, isLocalProvider } from '@renderer/utils/webSearch'
+import { isApiProvider, isLocalProvider, isMcpProvider } from '@renderer/utils/webSearch'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
@@ -15,8 +15,9 @@ const WebSearchSettings: FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Filter providers that have API settings (apiKey or apiHost)
+  // Filter providers by type
   const apiProviders = providers.filter(isApiProvider)
+  const mcpProviders = providers.filter(isMcpProvider)
   const localProviders = providers.filter(isLocalProvider)
 
   const isGeneralActive =
@@ -37,6 +38,12 @@ const WebSearchSettings: FC = () => {
         <DividerWithText text={t('settings.tool.websearch.api_providers')} />
         <div className="flex flex-col gap-1">
           {apiProviders.map((p) => (
+            <ProviderListItem key={p.id} provider={p} />
+          ))}
+        </div>
+        <DividerWithText text={t('settings.tool.websearch.mcp_providers')} />
+        <div className="flex flex-col gap-1">
+          {mcpProviders.map((p) => (
             <ProviderListItem key={p.id} provider={p} />
           ))}
         </div>

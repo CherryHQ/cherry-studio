@@ -287,7 +287,7 @@ interface OldWebSearchProvider {
 interface NewWebSearchProvider {
   id: string
   name: string
-  type: 'api' | 'local'
+  type: 'api' | 'local' | 'mcp'
   apiKey: string
   apiHost: string
   engines: string[]
@@ -301,19 +301,21 @@ interface NewWebSearchProvider {
  *
  * The old Redux data doesn't have 'type' field, which is required by the new system.
  * This function:
- * - Adds 'type' field based on provider id (local-* = 'local', others = 'api')
+ * - Adds 'type' field based on provider id (local-* = 'local', exa-mcp = 'mcp', others = 'api')
  * - Adds missing fields with default values (engines, usingBrowser, etc.)
  *
  * @example
  * Input: {
  *   providers: [
  *     { id: 'tavily', name: 'Tavily', apiKey: '...', apiHost: '...' },
+ *     { id: 'exa-mcp', name: 'ExaMCP', apiHost: '...' },
  *     { id: 'local-google', name: 'Google', url: '...' }
  *   ]
  * }
  * Output: {
  *   'chat.websearch.providers': [
  *     { id: 'tavily', name: 'Tavily', type: 'api', apiKey: '...', apiHost: '...', engines: [], ... },
+ *     { id: 'exa-mcp', name: 'ExaMCP', type: 'mcp', apiKey: '', apiHost: '...', engines: [], ... },
  *     { id: 'local-google', name: 'Google', type: 'local', apiKey: '', apiHost: '', engines: [], ... }
  *   ]
  * }
@@ -329,8 +331,8 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
   }
 
   const migratedProviders: NewWebSearchProvider[] = providers.map((p) => {
-    // Determine type based on id prefix
-    const type: 'api' | 'local' = p.id.startsWith('local-') ? 'local' : 'api'
+    // Determine type based on id
+    const type: 'api' | 'local' | 'mcp' = p.id.startsWith('local-') ? 'local' : p.id === 'exa-mcp' ? 'mcp' : 'api'
 
     return {
       id: p.id,

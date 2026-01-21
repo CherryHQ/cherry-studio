@@ -283,7 +283,7 @@ export function isLlmProvider(provider: ApiProvider): provider is Provider {
 }
 
 export function isWebSearchProvider(provider: ApiProvider): provider is WebSearchProvider {
-  return 'type' in provider && (provider.type === 'api' || provider.type === 'local')
+  return 'type' in provider && (provider.type === 'api' || provider.type === 'local' || provider.type === 'mcp')
 }
 
 export function isPreprocessProvider(provider: ApiProvider): provider is PreprocessProvider {

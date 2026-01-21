@@ -4842,6 +4842,7 @@
           "settings": "本地搜索设置"
         },
         "local_providers": "本地搜索",
+        "mcp_providers": "MCP 服务商",
         "no_provider_selected": "请选择搜索服务商后再检测",
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",

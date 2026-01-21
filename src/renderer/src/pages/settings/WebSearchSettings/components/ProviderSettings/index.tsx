@@ -7,6 +7,7 @@ import type { FC } from 'react'
 
 import ApiProviderSettings from './ApiProviderSettings'
 import LocalProviderSettings from './LocalProviderSettings'
+import McpProviderSettings from './McpProviderSettings'
 
 const WebSearchProviderSetting: FC = () => {
   const params = useParams({ strict: false }) as { providerId?: string }
@@ -20,7 +21,7 @@ const WebSearchProviderSetting: FC = () => {
 
   const websites = getProviderWebsites(provider.id)
   const providerLogo = getProviderLogo(provider.id)
-  const isLocalProvider = getProviderType(provider) === 'local'
+  const providerType = getProviderType(provider)
 
   return (
     <div className="w-full px-4 py-2">
@@ -33,8 +34,10 @@ const WebSearchProviderSetting: FC = () => {
           </a>
         </div>
         <div className="border-border border-b" />
-        {isLocalProvider ? (
+        {providerType === 'local' ? (
           <LocalProviderSettings provider={provider} />
+        ) : providerType === 'mcp' ? (
+          <McpProviderSettings provider={provider} updateProvider={updateProvider} />
         ) : (
           <ApiProviderSettings provider={provider} updateProvider={updateProvider} />
         )}

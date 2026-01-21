@@ -607,7 +607,7 @@ export const DefaultPreferences: PreferenceSchemas = {
         engines: [],
         id: 'exa-mcp',
         name: 'ExaMCP',
-        type: 'api',
+        type: 'mcp',
         usingBrowser: false
       },
       {

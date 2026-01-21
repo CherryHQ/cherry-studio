@@ -97,7 +97,7 @@ vi.mock(import('../openai'), async (importOriginal) => {
   }
 })
 
-vi.mock('../websearch', () => ({
+vi.mock('../webSearch', () => ({
   isOpenAIWebSearchChatCompletionOnlyModel: vi.fn()
 }))
 

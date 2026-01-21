@@ -117,8 +117,8 @@ export interface WebSearchProvider {
   id: string
   /** Display name */
   name: string
-  /** Provider type: 'api' for API-based, 'local' for browser-based */
-  type: 'api' | 'local'
+  /** Provider type: 'api' for API-based, 'local' for browser-based, 'mcp' for MCP protocol */
+  type: 'api' | 'local' | 'mcp'
   /** API key */
   apiKey: string
   /** API host */

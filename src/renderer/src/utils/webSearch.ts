@@ -125,8 +125,14 @@ export function isApiProvider(provider: WebSearchProvider): boolean {
   return provider.type === 'api'
 }
 
-export function getProviderType(provider: WebSearchProvider): 'local' | 'api' {
-  return isLocalProvider(provider) ? 'local' : 'api'
+export function isMcpProvider(provider: WebSearchProvider): boolean {
+  return provider.type === 'mcp'
+}
+
+export function getProviderType(provider: WebSearchProvider): 'local' | 'api' | 'mcp' {
+  if (isLocalProvider(provider)) return 'local'
+  if (isMcpProvider(provider)) return 'mcp'
+  return 'api'
 }
 
 export function isValidRegexPattern(pattern: string): boolean {

@@ -223,6 +223,16 @@ describe('PreferenceTransformers', () => {
       expect(providers[1].type).toBe('local')
     })
 
+    it('should set type to mcp for exa-mcp provider', () => {
+      const result = migrateWebSearchProviders({
+        providers: [{ id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' }]
+      })
+
+      const providers = result['chat.websearch.providers'] as Array<{ id: string; type: string }>
+      expect(providers[0].id).toBe('exa-mcp')
+      expect(providers[0].type).toBe('mcp')
+    })
+
     it('should add missing fields with defaults', () => {
       const result = migrateWebSearchProviders({
         providers: [{ id: 'tavily', name: 'Tavily' }]

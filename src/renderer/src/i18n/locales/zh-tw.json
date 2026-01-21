@@ -4842,6 +4842,7 @@
           "settings": "本地搜尋設定"
         },
         "local_providers": "本地搜尋",
+        "mcp_providers": "MCP 服務商",
         "no_provider_selected": "請選擇搜尋供應商後再檢查",
         "overwrite": "覆蓋搜尋服務",
         "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
