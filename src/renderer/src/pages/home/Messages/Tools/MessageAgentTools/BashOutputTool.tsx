@@ -70,21 +70,26 @@ export function BashOutputTool({
     const isCompleted = parsed.status === 'completed'
     const isSuccess = parsed.exit_code === 0
 
+    if (isCompleted && isSuccess) {
+      return {
+        color: 'success',
+        icon: <CheckCircle className="h-3.5 w-3.5" />,
+        text: t('message.tools.status.success')
+      } as const
+    }
+
+    if (isCompleted) {
+      return {
+        color: 'danger',
+        icon: <XCircle className="h-3.5 w-3.5" />,
+        text: t('message.tools.status.failed')
+      } as const
+    }
+
     return {
-      color: isCompleted && isSuccess ? 'success' : isCompleted && !isSuccess ? 'danger' : 'warning',
-      icon:
-        isCompleted && isSuccess ? (
-          <CheckCircle className="h-3.5 w-3.5" />
-        ) : isCompleted && !isSuccess ? (
-          <XCircle className="h-3.5 w-3.5" />
-        ) : (
-          <Terminal className="h-3.5 w-3.5" />
-        ),
-      text: isCompleted
-        ? isSuccess
-          ? t('message.tools.status.success')
-          : t('message.tools.status.failed')
-        : t('message.tools.status.running')
+      color: 'warning',
+      icon: <Terminal className="h-3.5 w-3.5" />,
+      text: t('message.tools.status.running')
     } as const
   }
 

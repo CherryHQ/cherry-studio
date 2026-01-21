@@ -2,7 +2,7 @@ import type { CollapseProps } from 'antd'
 import { Globe } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { truncateOutput } from '../shared/truncateOutput'
+import { countLines, truncateOutput } from '../shared/truncateOutput'
 import { ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { WebSearchToolInput, WebSearchToolOutput } from './types'
 
@@ -15,7 +15,7 @@ export function WebSearchTool({
 }): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
   // 如果有输出，计算结果数量
-  const resultCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const resultCount = countLines(output)
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {

@@ -21,12 +21,6 @@ const getStatusConfig = (status: TodoItem['status']) => {
         opacity: 0.9,
         icon: <Clock className="h-4 w-4" strokeWidth={2.5} />
       }
-    case 'pending':
-      return {
-        color: 'var(--color-border)',
-        opacity: 0.4,
-        icon: <Circle className="h-4 w-4" strokeWidth={2.5} />
-      }
     default:
       return {
         color: 'var(--color-border)',

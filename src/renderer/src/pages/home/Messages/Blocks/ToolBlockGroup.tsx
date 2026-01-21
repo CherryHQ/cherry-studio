@@ -28,9 +28,7 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
         children: (
           <ToolList>
             {blocks.map((block) => (
-              <ToolItem key={block.id}>
-                <MessageTools block={block} />
-              </ToolItem>
+              <MessageTools key={block.id} block={block} />
             ))}
           </ToolList>
         )
@@ -108,5 +106,3 @@ const ToolList = styled.div`
   flex-direction: column;
   gap: 4px;
 `
-
-const ToolItem = styled.div``

@@ -2,7 +2,7 @@ import type { CollapseProps } from 'antd'
 import { FolderSearch } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { truncateOutput } from '../shared/truncateOutput'
+import { countLines, truncateOutput } from '../shared/truncateOutput'
 import { ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { GlobToolInput as GlobToolInputType, GlobToolOutput as GlobToolOutputType } from './types'
 
@@ -15,7 +15,7 @@ export function GlobTool({
 }): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
   // 如果有输出，计算文件数量
-  const lineCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const lineCount = countLines(output)
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {

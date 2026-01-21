@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
+import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -13,24 +13,19 @@ import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Collapse, ConfigProvider, Dropdown, Flex, message as antdMessage, Progress, Tooltip } from 'antd'
 import { message } from 'antd'
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  CirclePlay,
-  CircleX,
-  PauseCircle,
-  ShieldCheck,
-  TriangleAlert,
-  X
-} from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, CirclePlay, CircleX, PauseCircle, ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SkeletonSpan, TruncatedIndicator } from './MessageAgentTools/GenericTools'
+import {
+  SkeletonSpan,
+  type ToolStatus,
+  ToolStatusIndicator,
+  TruncatedIndicator
+} from './MessageAgentTools/GenericTools'
 import {
   ArgKey,
   ArgsSection,
@@ -208,43 +203,16 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
     window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
   }
 
-  const renderStatusIndicator = (status: string, hasError: boolean) => {
-    let label = ''
-    let icon: React.ReactNode | null = null
-
-    if (status === 'streaming') {
-      label = t('message.tools.streaming', 'Streaming')
-      icon = <LoadingIcon style={{ marginLeft: 6 }} />
-    } else if (status === 'pending') {
-      if (isWaitingConfirmation) {
-        label = t('message.tools.pending', 'Awaiting Approval')
-        icon = <LoadingIcon style={{ marginLeft: 6, color: 'var(--status-color-warning)' }} />
-      } else if (isExecuting) {
-        label = t('message.tools.invoking')
-        icon = <LoadingIcon style={{ marginLeft: 6 }} />
-      }
-    } else if (status === 'cancelled') {
-      label = t('message.tools.cancelled')
-      icon = <X size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-    } else if (status === 'done') {
-      if (hasError) {
-        label = t('message.tools.error')
-        icon = <TriangleAlert size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-      } else {
-        label = t('message.tools.completed')
-        icon = <Check size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-      }
-    } else if (status === 'error') {
-      label = t('message.tools.error')
-      icon = <TriangleAlert size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
+  // Compute the effective status for the status indicator
+  const getEffectiveStatus = (status: string): ToolStatus => {
+    if (status === 'streaming') return 'streaming'
+    if (status === 'pending') {
+      return isWaitingConfirmation ? 'waiting' : 'invoking'
     }
-
-    return (
-      <StatusIndicator status={status} hasError={hasError}>
-        {label}
-        {icon}
-      </StatusIndicator>
-    )
+    if (status === 'cancelled') return 'cancelled'
+    if (status === 'done') return 'done'
+    if (status === 'error') return 'error'
+    return 'pending'
   }
 
   // Format tool responses for collapse items
@@ -273,7 +241,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             {progress > 0 ? (
               <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
             ) : (
-              renderStatusIndicator(status, hasError)
+              <ToolStatusIndicator status={getEffectiveStatus(status)} hasError={hasError} />
             )}
             {!isPending && (
               <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
@@ -665,31 +633,6 @@ const ToolName = styled(Flex)`
   color: var(--color-text);
   font-weight: 500;
   font-size: 13px;
-`
-
-const StatusIndicator = styled.span<{ status: string; hasError?: boolean }>`
-  color: ${(props) => {
-    switch (props.status) {
-      case 'pending':
-        return 'var(--status-color-warning)'
-      case 'invoking':
-        return 'var(--status-color-invoking)'
-      case 'cancelled':
-        return 'var(--status-color-error)'
-      case 'done':
-        return props.hasError ? 'var(--status-color-error)' : 'var(--status-color-success)'
-      case 'error':
-        return 'var(--status-color-error)'
-      default:
-        return 'var(--color-text)'
-    }
-  }};
-  font-size: 11px;
-  font-weight: ${(props) => (props.status === 'pending' ? '600' : '400')};
-  display: flex;
-  align-items: center;
-  opacity: ${(props) => (props.status === 'pending' ? '1' : '0.85')};
-  padding-left: 12px;
 `
 
 const ActionButtonsContainer = styled.div`

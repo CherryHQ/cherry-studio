@@ -5,6 +5,14 @@
 
 const MAX_OUTPUT_LENGTH = 50000
 
+/**
+ * Count non-empty lines in a string
+ */
+export function countLines(output: string | undefined | null): number {
+  if (!output) return 0
+  return output.split('\n').filter((line) => line.trim()).length
+}
+
 export interface TruncateResult {
   data: string
   isTruncated: boolean

@@ -1,3 +1,4 @@
+import { formatFileSize } from '@renderer/utils/file'
 import type { CollapseProps } from 'antd'
 import { FileText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -30,17 +31,9 @@ const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
 const getOutputStats = (outputString: string | null) => {
   if (!outputString) return null
 
-  const bytes = new Blob([outputString]).size
-  const formatSize = (size: number) => {
-    if (size < 1024) return `${size} B`
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`
-  }
-
   return {
     lineCount: outputString.split('\n').length,
-    fileSize: bytes,
-    formatSize
+    fileSize: new Blob([outputString]).size
   }
 }
 
@@ -66,7 +59,7 @@ export function ReadTool({
         params={<SkeletonValue value={filename} width="120px" />}
         stats={
           stats
-            ? `${stats.lineCount} ${t(stats.lineCount === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}, ${stats.formatSize(stats.fileSize)}`
+            ? `${stats.lineCount} ${t(stats.lineCount === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}, ${formatFileSize(stats.fileSize)}`
             : undefined
         }
       />

@@ -2,7 +2,7 @@ import type { CollapseProps } from 'antd'
 import { FileSearch } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { truncateOutput } from '../shared/truncateOutput'
+import { countLines, truncateOutput } from '../shared/truncateOutput'
 import { ToolTitle, TruncatedIndicator } from './GenericTools'
 import type { GrepToolInput, GrepToolOutput } from './types'
 
@@ -15,7 +15,7 @@ export function GrepTool({
 }): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
   // 如果有输出，计算结果行数
-  const resultLines = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const resultLines = countLines(output)
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {

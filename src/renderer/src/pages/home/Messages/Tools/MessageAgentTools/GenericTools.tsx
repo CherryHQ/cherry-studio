@@ -144,7 +144,7 @@ export function StringOutputTool({
   )
 }
 
-export type ToolStatus = 'streaming' | 'pending' | 'invoking' | 'done' | 'error' | 'cancelled'
+export type ToolStatus = 'streaming' | 'pending' | 'invoking' | 'waiting' | 'done' | 'error' | 'cancelled'
 
 // 工具状态指示器 - 显示在 Collapse 标题右侧
 export function ToolStatusIndicator({ status, hasError = false }: { status: ToolStatus; hasError?: boolean }) {
@@ -154,6 +154,8 @@ export function ToolStatusIndicator({ status, hasError = false }: { status: Tool
     switch (status) {
       case 'streaming':
         return { label: t('message.tools.streaming', 'Streaming'), icon: <LoadingIcon />, color: 'primary' }
+      case 'waiting':
+        return { label: t('message.tools.pending', 'Awaiting Approval'), icon: <LoadingIcon />, color: 'warning' }
       case 'pending':
       case 'invoking':
         return { label: t('message.tools.invoking'), icon: <LoadingIcon />, color: 'primary' }
@@ -209,6 +211,8 @@ const StatusIndicatorContainer = styled.span<{ $color: string }>`
         return 'var(--color-primary)'
       case 'success':
         return 'var(--color-primary)'
+      case 'warning':
+        return 'var(--status-color-warning, #faad14)'
       case 'error':
         return 'var(--color-status-error, #ff4d4f)'
       default:
