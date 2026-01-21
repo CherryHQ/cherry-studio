@@ -34,3 +34,39 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
   </div>
 </div>
 `;
+
+exports[`InputEmbeddingDimension > basic rendering > should match snapshot with loading state 1`] = `
+<div
+  data-testid="space-compact"
+  style="width: 100%;"
+>
+  <input
+    data-testid="input-number"
+    placeholder="请输入维度大小"
+    style="flex: 1 1 0%;"
+    type="number"
+    value=""
+  />
+  <div
+    data-testid="tooltip"
+    data-title="自动设置维度"
+  >
+    <button
+      aria-label="Get Embedding Dimension"
+      disabled=""
+      role="button"
+      type="button"
+    >
+      <svg
+        aria-label="refresh"
+        class="animation-rotate"
+        data-testid="refresh-icon"
+        role="img"
+        size="16"
+      >
+        RefreshIcon
+      </svg>
+    </button>
+  </div>
+</div>
+`;
