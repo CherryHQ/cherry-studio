@@ -161,24 +161,6 @@ const websearchSlice = createSlice({
   }
 })
 
-export const {
-  // setWebSearchProviders,
-  // updateWebSearchProvider,
-  // updateWebSearchProviders,
-  // setDefaultProvider,
-  // setSearchWithTime,
-  // setExcludeDomains,
-  // setMaxResult,
-  // addSubscribeSource,
-  // removeSubscribeSource,
-  // updateSubscribeBlacklist,
-  // setSubscribeSources,
-  // setOverwrite,
-  // addWebSearchProvider,
-  // setCompressionConfig,
-  // updateCompressionConfig,
-  // setProviderConfig,
-  // updateProviderConfig
-} = websearchSlice.actions
+export const websearchActions = websearchSlice.actions
 
 export default websearchSlice.reducer
