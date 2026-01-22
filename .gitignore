@@ -30,6 +30,7 @@ lerna-debug.log*
 
 # Windows
 Thumbs.db
+nul
 
 # Project
 node_modules

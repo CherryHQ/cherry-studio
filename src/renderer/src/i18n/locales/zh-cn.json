@@ -1,4 +1,4 @@
-{
+﻿{
   "agent": {
     "add": {
       "description": "调用各种工具处理复杂任务",
@@ -1909,6 +1909,50 @@
         "title": "删除分组消息"
       },
       "retry_failed": "重试出错的消息"
+    },
+    "committee": {
+      "label": "LLM委员会",
+      "title": "LLM委员会",
+      "chairman": "委员长模型",
+      "chairman_placeholder": "选择委员长模型",
+      "run": "开始评审",
+      "rerun": "重新评审",
+      "elapsed": "耗时 {{time}}",
+      "elapsed_running": "进行中 · 耗时 {{time}}",
+      "stage1": "Stage 1：独立回答",
+      "stage2": "Stage 2：互评排名",
+      "stage3": "Stage 3：主席综合",
+      "stage3_retry": "重试主席综合",
+      "aggregate": "街头信誉",
+      "aggregate_desc": "综合所有互评排名（名次越低越好）",
+      "parsed": "抽取排名",
+      "status": {
+        "stage2": "Stage2 运行中",
+        "stage3": "Stage3 运行中",
+        "complete": "已完成"
+      },
+      "empty": {
+        "stage1": "没有可用的多模型回答",
+        "stage2": "尚未生成互评结果",
+        "stage3": "尚未生成主席答案"
+      },
+      "warning": {
+        "no_question": "未找到对应的用户提问，无法评审",
+        "no_responses": "没有可用的多模型回答",
+        "need_multi_models": "请至少选择两个模型启用 LLM委员会"
+      },
+      "scorecard": {
+        "title": "评分矩阵",
+        "response": "回答",
+        "accuracy": "准确性",
+        "reasoning": "推理质量",
+        "coverage": "覆盖度",
+        "actionability": "可操作性",
+        "grounding": "事实依据",
+        "hallucination": "幻觉风险"
+      },
+      "appended": "委员长结果已追加到对话",
+      "error": "LLM委员会运行失败"
     },
     "ignore": {
       "knowledge": {
@@ -5130,3 +5174,4 @@
     "visualization": "可视化"
   }
 }
+
