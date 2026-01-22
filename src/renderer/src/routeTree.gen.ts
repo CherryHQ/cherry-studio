@@ -25,6 +25,7 @@ import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMemoryRouteImport } from './routes/settings/memory'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
+import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
 import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
@@ -39,6 +40,7 @@ import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppAssistantRouteImport } from './routes/app/assistant'
 import { Route as SettingsWebsearchIndexRouteImport } from './routes/settings/websearch/index'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp/index'
+import { Route as SettingsFileProcessingIndexRouteImport } from './routes/settings/file-processing/index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings/index'
 import { Route as AppMinappIndexRouteImport } from './routes/app/minapp/index'
 import { Route as SettingsWebsearchGeneralRouteImport } from './routes/settings/websearch/general'
@@ -48,10 +50,12 @@ import { Route as SettingsMcpMcpInstallRouteImport } from './routes/settings/mcp
 import { Route as SettingsMcpMarketplacesRouteImport } from './routes/settings/mcp/marketplaces'
 import { Route as SettingsMcpBuiltinRouteImport } from './routes/settings/mcp/builtin'
 import { Route as SettingsMcpSplatRouteImport } from './routes/settings/mcp/$'
+import { Route as SettingsFileProcessingGeneralRouteImport } from './routes/settings/file-processing/general'
 import { Route as AppPaintingsSplatRouteImport } from './routes/app/paintings/$'
 import { Route as AppMinappAppIdRouteImport } from './routes/app/minapp/$appId'
 import { Route as SettingsWebsearchProviderProviderIdRouteImport } from './routes/settings/websearch/provider.$providerId'
 import { Route as SettingsMcpSettingsServerIdRouteImport } from './routes/settings/mcp/settings.$serverId'
+import { Route as SettingsFileProcessingProcessorProcessorIdRouteImport } from './routes/settings/file-processing/processor.$processorId'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -134,6 +138,11 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   path: '/general',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
+  id: '/file-processing',
+  path: '/file-processing',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsDocprocessRoute = SettingsDocprocessRouteImport.update({
   id: '/docprocess',
   path: '/docprocess',
@@ -204,6 +213,12 @@ const SettingsMcpIndexRoute = SettingsMcpIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SettingsMcpRoute,
 } as any)
+const SettingsFileProcessingIndexRoute =
+  SettingsFileProcessingIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => SettingsFileProcessingRoute,
+  } as any)
 const AppPaintingsIndexRoute = AppPaintingsIndexRouteImport.update({
   id: '/paintings/',
   path: '/paintings/',
@@ -250,6 +265,12 @@ const SettingsMcpSplatRoute = SettingsMcpSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => SettingsMcpRoute,
 } as any)
+const SettingsFileProcessingGeneralRoute =
+  SettingsFileProcessingGeneralRouteImport.update({
+    id: '/general',
+    path: '/general',
+    getParentRoute: () => SettingsFileProcessingRoute,
+  } as any)
 const AppPaintingsSplatRoute = AppPaintingsSplatRouteImport.update({
   id: '/paintings/$',
   path: '/paintings/$',
@@ -272,6 +293,12 @@ const SettingsMcpSettingsServerIdRoute =
     path: '/settings/$serverId',
     getParentRoute: () => SettingsMcpRoute,
   } as any)
+const SettingsFileProcessingProcessorProcessorIdRoute =
+  SettingsFileProcessingProcessorProcessorIdRouteImport.update({
+    id: '/processor/$processorId',
+    path: '/processor/$processorId',
+    getParentRoute: () => SettingsFileProcessingRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -290,6 +317,7 @@ export interface FileRoutesByFullPath {
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
+  '/settings/file-processing': typeof SettingsFileProcessingRouteWithChildren
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/memory': typeof SettingsMemoryRoute
@@ -304,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
+  '/settings/file-processing/general': typeof SettingsFileProcessingGeneralRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
   '/settings/mcp/marketplaces': typeof SettingsMcpMarketplacesRoute
@@ -313,8 +342,10 @@ export interface FileRoutesByFullPath {
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
   '/app/minapp': typeof AppMinappIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
+  '/settings/file-processing/': typeof SettingsFileProcessingIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/websearch/': typeof SettingsWebsearchIndexRoute
+  '/settings/file-processing/processor/$processorId': typeof SettingsFileProcessingProcessorProcessorIdRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
   '/settings/websearch/provider/$providerId': typeof SettingsWebsearchProviderProviderIdRoute
 }
@@ -346,6 +377,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
+  '/settings/file-processing/general': typeof SettingsFileProcessingGeneralRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
   '/settings/mcp/marketplaces': typeof SettingsMcpMarketplacesRoute
@@ -355,8 +387,10 @@ export interface FileRoutesByTo {
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
   '/app/minapp': typeof AppMinappIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
+  '/settings/file-processing': typeof SettingsFileProcessingIndexRoute
   '/settings/mcp': typeof SettingsMcpIndexRoute
   '/settings/websearch': typeof SettingsWebsearchIndexRoute
+  '/settings/file-processing/processor/$processorId': typeof SettingsFileProcessingProcessorProcessorIdRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
   '/settings/websearch/provider/$providerId': typeof SettingsWebsearchProviderProviderIdRoute
 }
@@ -378,6 +412,7 @@ export interface FileRoutesById {
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
+  '/settings/file-processing': typeof SettingsFileProcessingRouteWithChildren
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/memory': typeof SettingsMemoryRoute
@@ -392,6 +427,7 @@ export interface FileRoutesById {
   '/settings/': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
+  '/settings/file-processing/general': typeof SettingsFileProcessingGeneralRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
   '/settings/mcp/marketplaces': typeof SettingsMcpMarketplacesRoute
@@ -401,8 +437,10 @@ export interface FileRoutesById {
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
   '/app/minapp/': typeof AppMinappIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
+  '/settings/file-processing/': typeof SettingsFileProcessingIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/websearch/': typeof SettingsWebsearchIndexRoute
+  '/settings/file-processing/processor/$processorId': typeof SettingsFileProcessingProcessorProcessorIdRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
   '/settings/websearch/provider/$providerId': typeof SettingsWebsearchProviderProviderIdRoute
 }
@@ -425,6 +463,7 @@ export interface FileRouteTypes {
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
+    | '/settings/file-processing'
     | '/settings/general'
     | '/settings/mcp'
     | '/settings/memory'
@@ -439,6 +478,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/app/minapp/$appId'
     | '/app/paintings/$'
+    | '/settings/file-processing/general'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
     | '/settings/mcp/marketplaces'
@@ -448,8 +488,10 @@ export interface FileRouteTypes {
     | '/settings/websearch/general'
     | '/app/minapp'
     | '/app/paintings'
+    | '/settings/file-processing/'
     | '/settings/mcp/'
     | '/settings/websearch/'
+    | '/settings/file-processing/processor/$processorId'
     | '/settings/mcp/settings/$serverId'
     | '/settings/websearch/provider/$providerId'
   fileRoutesByTo: FileRoutesByTo
@@ -481,6 +523,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/app/minapp/$appId'
     | '/app/paintings/$'
+    | '/settings/file-processing/general'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
     | '/settings/mcp/marketplaces'
@@ -490,8 +533,10 @@ export interface FileRouteTypes {
     | '/settings/websearch/general'
     | '/app/minapp'
     | '/app/paintings'
+    | '/settings/file-processing'
     | '/settings/mcp'
     | '/settings/websearch'
+    | '/settings/file-processing/processor/$processorId'
     | '/settings/mcp/settings/$serverId'
     | '/settings/websearch/provider/$providerId'
   id:
@@ -512,6 +557,7 @@ export interface FileRouteTypes {
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
+    | '/settings/file-processing'
     | '/settings/general'
     | '/settings/mcp'
     | '/settings/memory'
@@ -526,6 +572,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/app/minapp/$appId'
     | '/app/paintings/$'
+    | '/settings/file-processing/general'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
     | '/settings/mcp/marketplaces'
@@ -535,8 +582,10 @@ export interface FileRouteTypes {
     | '/settings/websearch/general'
     | '/app/minapp/'
     | '/app/paintings/'
+    | '/settings/file-processing/'
     | '/settings/mcp/'
     | '/settings/websearch/'
+    | '/settings/file-processing/processor/$processorId'
     | '/settings/mcp/settings/$serverId'
     | '/settings/websearch/provider/$providerId'
   fileRoutesById: FileRoutesById
@@ -662,6 +711,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsGeneralRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/file-processing': {
+      id: '/settings/file-processing'
+      path: '/file-processing'
+      fullPath: '/settings/file-processing'
+      preLoaderRoute: typeof SettingsFileProcessingRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/docprocess': {
       id: '/settings/docprocess'
       path: '/docprocess'
@@ -760,6 +816,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMcpIndexRouteImport
       parentRoute: typeof SettingsMcpRoute
     }
+    '/settings/file-processing/': {
+      id: '/settings/file-processing/'
+      path: '/'
+      fullPath: '/settings/file-processing/'
+      preLoaderRoute: typeof SettingsFileProcessingIndexRouteImport
+      parentRoute: typeof SettingsFileProcessingRoute
+    }
     '/app/paintings/': {
       id: '/app/paintings/'
       path: '/paintings'
@@ -823,6 +886,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMcpSplatRouteImport
       parentRoute: typeof SettingsMcpRoute
     }
+    '/settings/file-processing/general': {
+      id: '/settings/file-processing/general'
+      path: '/general'
+      fullPath: '/settings/file-processing/general'
+      preLoaderRoute: typeof SettingsFileProcessingGeneralRouteImport
+      parentRoute: typeof SettingsFileProcessingRoute
+    }
     '/app/paintings/$': {
       id: '/app/paintings/$'
       path: '/paintings/$'
@@ -850,6 +920,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/mcp/settings/$serverId'
       preLoaderRoute: typeof SettingsMcpSettingsServerIdRouteImport
       parentRoute: typeof SettingsMcpRoute
+    }
+    '/settings/file-processing/processor/$processorId': {
+      id: '/settings/file-processing/processor/$processorId'
+      path: '/processor/$processorId'
+      fullPath: '/settings/file-processing/processor/$processorId'
+      preLoaderRoute: typeof SettingsFileProcessingProcessorProcessorIdRouteImport
+      parentRoute: typeof SettingsFileProcessingRoute
     }
   }
 }
@@ -883,6 +960,25 @@ const AppRouteChildren: AppRouteChildren = {
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
+interface SettingsFileProcessingRouteChildren {
+  SettingsFileProcessingGeneralRoute: typeof SettingsFileProcessingGeneralRoute
+  SettingsFileProcessingIndexRoute: typeof SettingsFileProcessingIndexRoute
+  SettingsFileProcessingProcessorProcessorIdRoute: typeof SettingsFileProcessingProcessorProcessorIdRoute
+}
+
+const SettingsFileProcessingRouteChildren: SettingsFileProcessingRouteChildren =
+  {
+    SettingsFileProcessingGeneralRoute: SettingsFileProcessingGeneralRoute,
+    SettingsFileProcessingIndexRoute: SettingsFileProcessingIndexRoute,
+    SettingsFileProcessingProcessorProcessorIdRoute:
+      SettingsFileProcessingProcessorProcessorIdRoute,
+  }
+
+const SettingsFileProcessingRouteWithChildren =
+  SettingsFileProcessingRoute._addFileChildren(
+    SettingsFileProcessingRouteChildren,
+  )
 
 interface SettingsMcpRouteChildren {
   SettingsMcpSplatRoute: typeof SettingsMcpSplatRoute
@@ -932,6 +1028,7 @@ interface SettingsRouteChildren {
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDisplayRoute: typeof SettingsDisplayRoute
   SettingsDocprocessRoute: typeof SettingsDocprocessRoute
+  SettingsFileProcessingRoute: typeof SettingsFileProcessingRouteWithChildren
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsMemoryRoute: typeof SettingsMemoryRoute
@@ -952,6 +1049,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsDataRoute: SettingsDataRoute,
   SettingsDisplayRoute: SettingsDisplayRoute,
   SettingsDocprocessRoute: SettingsDocprocessRoute,
+  SettingsFileProcessingRoute: SettingsFileProcessingRouteWithChildren,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsMemoryRoute: SettingsMemoryRoute,

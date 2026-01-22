@@ -12,6 +12,7 @@ import type {
   FileProcessorUserConfig
 } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useMemo } from 'react'
+import useSWRImmutable from 'swr/immutable'
 
 /**
  * Merged processor configuration (template + user config)
@@ -47,7 +48,7 @@ function mergeProcessorConfigs(
 export function getEffectiveApiHost(processor: FileProcessorMerged, capability: FeatureCapability): string | undefined {
   // Check user config for this feature
   const featureConfig = processor.featureConfigs?.find((fc) => fc.feature === capability.feature)
-  if (featureConfig?.apiHost) {
+  if (featureConfig?.apiHost !== undefined) {
     return featureConfig.apiHost
   }
   // Fall back to template default
@@ -111,6 +112,36 @@ export function useImageProcessors() {
   const processors = useMemo(() => mergeProcessorConfigs(getImageProcessorTemplates(), userConfigs), [userConfigs])
 
   return processors
+}
+
+function useOcrProviderAvailability(providerId: string): boolean | undefined {
+  const fetcher = useCallback(() => window.api.ocr.isProviderAvailable(providerId), [providerId])
+  const { data } = useSWRImmutable(`ocr/provider/${providerId}`, fetcher)
+
+  return data
+}
+
+/**
+ * Hook for accessing available image processors based on OCR provider availability
+ */
+export function useAvailableImageProcessors() {
+  const processors = useImageProcessors()
+  const systemAvailable = useOcrProviderAvailability('system')
+  const ovocrAvailable = useOcrProviderAvailability('ovocr')
+
+  return useMemo(
+    () =>
+      processors.filter((processor) => {
+        if (processor.id === 'system') {
+          return systemAvailable === true
+        }
+        if (processor.id === 'ovocr') {
+          return ovocrAvailable === true
+        }
+        return true
+      }),
+    [ovocrAvailable, processors, systemAvailable]
+  )
 }
 
 /**

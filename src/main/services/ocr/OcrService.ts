@@ -28,6 +28,10 @@ export class OcrService {
     return Array.from(this.registry.keys())
   }
 
+  public isProviderAvailable(providerId: string): boolean {
+    return this.registry.has(providerId)
+  }
+
   public async ocr(file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> {
     const handler = this.registry.get(provider.id)
     if (!handler) {

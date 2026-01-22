@@ -97,7 +97,8 @@ export const FILE_PROCESSOR_TEMPLATES: FileProcessorTemplate[] = [
       {
         feature: 'text_extraction',
         input: 'image',
-        output: 'text'
+        output: 'text',
+        defaultApiHost: ''
       }
     ]
   },
@@ -152,7 +153,8 @@ export const FILE_PROCESSOR_TEMPLATES: FileProcessorTemplate[] = [
       {
         feature: 'to_markdown',
         input: 'document',
-        output: 'markdown'
+        output: 'markdown',
+        defaultApiHost: 'http://127.0.0.1:8000'
       }
     ]
   }

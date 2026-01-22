@@ -2623,6 +2623,32 @@
     "zoom_in": "放大",
     "zoom_out": "缩小"
   },
+  "processor": {
+    "doc2x": {
+      "name": "Doc2X"
+    },
+    "mineru": {
+      "name": "MinerU"
+    },
+    "mistral": {
+      "name": "Mistral OCR"
+    },
+    "open-mineru": {
+      "name": "Open MinerU"
+    },
+    "ovocr": {
+      "name": "Intel OV OCR"
+    },
+    "paddleocr": {
+      "name": "PaddleOCR"
+    },
+    "system": {
+      "name": "系统 OCR"
+    },
+    "tesseract": {
+      "name": "Tesseract"
+    }
+  },
   "prompts": {
     "explanation": "帮我解释一下这个概念",
     "summarize": "帮我总结一下这段话",
@@ -3850,6 +3876,52 @@
       "zoom": {
         "title": "缩放设置"
       }
+    },
+    "file_processing": {
+      "api_config": "API 配置",
+      "api_host": "API Host",
+      "api_host_hint": "默认 API 地址，暂不支持自定义",
+      "api_host_placeholder": "请输入 API Host",
+      "api_key": "API Key",
+      "api_key_placeholder": "请输入 API Key",
+      "builtin": "内置",
+      "capability": "能力",
+      "configured_count": "已配置 {{count}} / {{total}} 个服务",
+      "default_document_processor": "默认文档处理器",
+      "default_image_processor": "默认图片处理器",
+      "default_service": "默认服务",
+      "default_setting": "默认设置",
+      "document_processors": "文档处理",
+      "feature": "功能",
+      "feature.text_extraction": "文字提取",
+      "feature.to_markdown": "转换为 Markdown",
+      "image_processors": "图片处理",
+      "input.document": "文档",
+      "input.image": "图片",
+      "is_default": "已设为默认",
+      "langs": "支持的语言",
+      "langs_placeholder": "选择语言",
+      "langs_tooltip": "选择 Tesseract OCR 支持的语言",
+      "no_config_needed": "无需配置",
+      "no_default": "不使用预处理",
+      "output.markdown": "Markdown",
+      "output.text": "文本",
+      "scenario": {
+        "chat_image": {
+          "description": "在对话中上传图片时使用",
+          "title": "聊天图片理解"
+        },
+        "knowledge_base": {
+          "description": "当添加 PDF 到知识库时使用",
+          "title": "知识库文档解析"
+        }
+      },
+      "service_config": "服务配置",
+      "set_as_default": "设为默认",
+      "title": "文件处理",
+      "type": "类型",
+      "type_api": "API 服务",
+      "type_builtin": "内置服务"
     },
     "font_size": {
       "title": "消息字体大小"

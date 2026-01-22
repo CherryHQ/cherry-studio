@@ -974,6 +974,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     ocrService.ocr(file, provider)
   )
   ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
+  ipcMain.handle(IpcChannel.OCR_IsProviderAvailable, (_, providerId: string) =>
+    ocrService.isProviderAvailable(providerId)
+  )
 
   // OVMS
   ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isOvmsSupported)
