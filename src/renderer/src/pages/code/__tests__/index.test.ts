@@ -106,7 +106,7 @@ describe('generateToolEnvironment', () => {
     const model = createMockModel('qwen-turbo', 'dashscope')
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode')
 
-    const env = generateToolEnvironment({
+    const { env } = generateToolEnvironment({
       tool: codeTools.qwenCode,
       model,
       modelProvider: provider,
@@ -122,7 +122,7 @@ describe('generateToolEnvironment', () => {
     const model = createMockModel('qwen-turbo', 'dashscope')
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
 
-    const env = generateToolEnvironment({
+    const { env } = generateToolEnvironment({
       tool: codeTools.qwenCode,
       model,
       modelProvider: provider,
@@ -138,7 +138,7 @@ describe('generateToolEnvironment', () => {
     const model = createMockModel('qwen-turbo', 'dashscope')
     const provider = createMockProvider('dashscope', '')
 
-    const env = generateToolEnvironment({
+    const { env } = generateToolEnvironment({
       tool: codeTools.qwenCode,
       model,
       modelProvider: provider,
@@ -154,7 +154,7 @@ describe('generateToolEnvironment', () => {
     const model = createMockModel('qwen-plus', 'dashscope')
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/v2')
 
-    const env = generateToolEnvironment({
+    const { env } = generateToolEnvironment({
       tool: codeTools.qwenCode,
       model,
       modelProvider: provider,
@@ -170,7 +170,7 @@ describe('generateToolEnvironment', () => {
     const model = createMockModel('gpt-4', 'openai')
     const provider = createMockProvider('openai', 'https://api.openai.com')
 
-    const env = generateToolEnvironment({
+    const { env } = generateToolEnvironment({
       tool: codeTools.openaiCodex,
       model,
       modelProvider: provider,
@@ -186,7 +186,7 @@ describe('generateToolEnvironment', () => {
     const model = createMockModel('gpt-4', 'iflow')
     const provider = createMockProvider('iflow', 'https://api.iflow.cn')
 
-    const env = generateToolEnvironment({
+    const { env } = generateToolEnvironment({
       tool: codeTools.iFlowCli,
       model,
       modelProvider: provider,
@@ -202,7 +202,7 @@ describe('generateToolEnvironment', () => {
     const model = createMockModel('qwen-turbo', 'dashscope')
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode/')
 
-    const env = generateToolEnvironment({
+    const { env } = generateToolEnvironment({
       tool: codeTools.qwenCode,
       model,
       modelProvider: provider,
@@ -218,7 +218,7 @@ describe('generateToolEnvironment', () => {
     const model = createMockModel('qwen-plus', 'dashscope')
     const provider = createMockProvider('dashscope', 'https://dashscope.aliyuncs.com/v2beta')
 
-    const env = generateToolEnvironment({
+    const { env } = generateToolEnvironment({
       tool: codeTools.qwenCode,
       model,
       modelProvider: provider,
