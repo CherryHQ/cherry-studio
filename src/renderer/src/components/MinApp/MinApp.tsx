@@ -122,7 +122,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             </StyledIndicator>
           )}
         </IconContainer>
-        <AppTitle>{isLast ? t('settings.miniapps.custom.title') : app.name}</AppTitle>
+        <AppTitle>{isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name}</AppTitle>
       </Container>
     </Dropdown>
   )

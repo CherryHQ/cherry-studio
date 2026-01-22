@@ -459,6 +459,7 @@ export interface PaintingsState {
 export type MinAppType = {
   id: string
   name: string
+  nameKey?: string // i18n key for translatable names
   logo?: string
   url: string
   // FIXME: It should be `bordered`
