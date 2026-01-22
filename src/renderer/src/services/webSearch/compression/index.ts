@@ -20,7 +20,7 @@ export class CompressionStrategyFactory {
   }
 
   async getStrategy(): Promise<ICompressionStrategy> {
-    const method = await preferenceService.get('chat.websearch.compression.method')
+    const method = await preferenceService.get('chat.web_search.compression.method')
     const selected = method ?? 'none'
     const strategy = this.strategies.get(selected)
 

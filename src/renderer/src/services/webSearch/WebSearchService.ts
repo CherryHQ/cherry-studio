@@ -49,7 +49,7 @@ class WebSearchService {
     }
 
     // Get user configs from preference
-    const userConfigs = await preferenceService.get('chat.websearch.providers')
+    const userConfigs = await preferenceService.get('chat.web_search.providers')
     const userConfig = userConfigs.find((c) => c.id === providerId)
 
     // Merge template with user config

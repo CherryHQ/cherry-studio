@@ -106,12 +106,12 @@ describe('RagCompressionStrategy', () => {
     // Default preference mock setup
     mockPreferenceGet.mockImplementation((key: string) => {
       const values: Record<string, any> = {
-        'chat.websearch.compression.rag_embedding_model_id': 'embedding-model',
-        'chat.websearch.compression.rag_embedding_provider_id': 'openai',
-        'chat.websearch.compression.rag_embedding_dimensions': 1536,
-        'chat.websearch.compression.rag_document_count': 5,
-        'chat.websearch.compression.rag_rerank_model_id': null,
-        'chat.websearch.compression.rag_rerank_provider_id': null
+        'chat.web_search.compression.rag_embedding_model_id': 'embedding-model',
+        'chat.web_search.compression.rag_embedding_provider_id': 'openai',
+        'chat.web_search.compression.rag_embedding_dimensions': 1536,
+        'chat.web_search.compression.rag_document_count': 5,
+        'chat.web_search.compression.rag_rerank_model_id': null,
+        'chat.web_search.compression.rag_rerank_provider_id': null
       }
       return Promise.resolve(values[key])
     })
@@ -132,8 +132,8 @@ describe('RagCompressionStrategy', () => {
     describe('missing embedding model', () => {
       it('should throw error when embedding model is not configured', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.compression.rag_embedding_model_id') return Promise.resolve(null)
-          if (key === 'chat.websearch.compression.rag_embedding_provider_id') return Promise.resolve(null)
+          if (key === 'chat.web_search.compression.rag_embedding_model_id') return Promise.resolve(null)
+          if (key === 'chat.web_search.compression.rag_embedding_provider_id') return Promise.resolve(null)
           return Promise.resolve(null)
         })
         mockGetModel.mockReturnValue(undefined)
@@ -147,8 +147,8 @@ describe('RagCompressionStrategy', () => {
 
       it('should throw error when embedding model ID is set but provider is not', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.compression.rag_embedding_model_id') return Promise.resolve('model-id')
-          if (key === 'chat.websearch.compression.rag_embedding_provider_id') return Promise.resolve(null)
+          if (key === 'chat.web_search.compression.rag_embedding_model_id') return Promise.resolve('model-id')
+          if (key === 'chat.web_search.compression.rag_embedding_provider_id') return Promise.resolve(null)
           return Promise.resolve(null)
         })
         mockGetModel.mockReturnValue(undefined)
@@ -336,12 +336,12 @@ describe('RagCompressionStrategy', () => {
       it('should calculate total document count as results.length * documentCount', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
           const values: Record<string, any> = {
-            'chat.websearch.compression.rag_embedding_model_id': 'embedding-model',
-            'chat.websearch.compression.rag_embedding_provider_id': 'openai',
-            'chat.websearch.compression.rag_embedding_dimensions': 1536,
-            'chat.websearch.compression.rag_document_count': 3, // 3 docs per result
-            'chat.websearch.compression.rag_rerank_model_id': null,
-            'chat.websearch.compression.rag_rerank_provider_id': null
+            'chat.web_search.compression.rag_embedding_model_id': 'embedding-model',
+            'chat.web_search.compression.rag_embedding_provider_id': 'openai',
+            'chat.web_search.compression.rag_embedding_dimensions': 1536,
+            'chat.web_search.compression.rag_document_count': 3, // 3 docs per result
+            'chat.web_search.compression.rag_rerank_model_id': null,
+            'chat.web_search.compression.rag_rerank_provider_id': null
           }
           return Promise.resolve(values[key])
         })
@@ -358,12 +358,12 @@ describe('RagCompressionStrategy', () => {
       it('should use default document count when not set', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
           const values: Record<string, any> = {
-            'chat.websearch.compression.rag_embedding_model_id': 'embedding-model',
-            'chat.websearch.compression.rag_embedding_provider_id': 'openai',
-            'chat.websearch.compression.rag_embedding_dimensions': 1536,
-            'chat.websearch.compression.rag_document_count': null, // Not set
-            'chat.websearch.compression.rag_rerank_model_id': null,
-            'chat.websearch.compression.rag_rerank_provider_id': null
+            'chat.web_search.compression.rag_embedding_model_id': 'embedding-model',
+            'chat.web_search.compression.rag_embedding_provider_id': 'openai',
+            'chat.web_search.compression.rag_embedding_dimensions': 1536,
+            'chat.web_search.compression.rag_document_count': null, // Not set
+            'chat.web_search.compression.rag_rerank_model_id': null,
+            'chat.web_search.compression.rag_rerank_provider_id': null
           }
           return Promise.resolve(values[key])
         })
@@ -388,12 +388,12 @@ describe('RagCompressionStrategy', () => {
       it('should work without rerank model', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
           const values: Record<string, any> = {
-            'chat.websearch.compression.rag_embedding_model_id': 'embedding-model',
-            'chat.websearch.compression.rag_embedding_provider_id': 'openai',
-            'chat.websearch.compression.rag_embedding_dimensions': 1536,
-            'chat.websearch.compression.rag_document_count': 5,
-            'chat.websearch.compression.rag_rerank_model_id': null,
-            'chat.websearch.compression.rag_rerank_provider_id': null
+            'chat.web_search.compression.rag_embedding_model_id': 'embedding-model',
+            'chat.web_search.compression.rag_embedding_provider_id': 'openai',
+            'chat.web_search.compression.rag_embedding_dimensions': 1536,
+            'chat.web_search.compression.rag_document_count': 5,
+            'chat.web_search.compression.rag_rerank_model_id': null,
+            'chat.web_search.compression.rag_rerank_provider_id': null
           }
           return Promise.resolve(values[key])
         })
@@ -413,12 +413,12 @@ describe('RagCompressionStrategy', () => {
       it('should include rerank model when configured', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
           const values: Record<string, any> = {
-            'chat.websearch.compression.rag_embedding_model_id': 'embedding-model',
-            'chat.websearch.compression.rag_embedding_provider_id': 'openai',
-            'chat.websearch.compression.rag_embedding_dimensions': 1536,
-            'chat.websearch.compression.rag_document_count': 5,
-            'chat.websearch.compression.rag_rerank_model_id': 'rerank-model',
-            'chat.websearch.compression.rag_rerank_provider_id': 'cohere'
+            'chat.web_search.compression.rag_embedding_model_id': 'embedding-model',
+            'chat.web_search.compression.rag_embedding_provider_id': 'openai',
+            'chat.web_search.compression.rag_embedding_dimensions': 1536,
+            'chat.web_search.compression.rag_document_count': 5,
+            'chat.web_search.compression.rag_rerank_model_id': 'rerank-model',
+            'chat.web_search.compression.rag_rerank_provider_id': 'cohere'
           }
           return Promise.resolve(values[key])
         })

@@ -35,7 +35,7 @@ describe('useWebSearch hooks', () => {
           createMockUserConfig({ id: 'tavily', apiKey: 'my-tavily-key' }),
           createMockUserConfig({ id: 'exa', apiKey: 'my-exa-key' })
         ]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockUserConfigs)
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', mockUserConfigs)
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -50,7 +50,7 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return correct total count from templates', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -62,7 +62,7 @@ describe('useWebSearch hooks', () => {
     describe('getProvider', () => {
       it('should return provider for existing template ID', () => {
         const mockUserConfigs: WebSearchProviderUserConfig[] = [createMockUserConfig({ id: 'tavily', apiKey: 'key1' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockUserConfigs)
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', mockUserConfigs)
 
         const { result } = renderHook(() => useWebSearchProviders())
         const provider = result.current.getProvider('tavily')
@@ -73,7 +73,7 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return undefined for non-existing template ID', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
         const provider = result.current.getProvider('non-existent')
@@ -84,7 +84,7 @@ describe('useWebSearch hooks', () => {
 
     describe('updateProvider', () => {
       it('should update provider with partial data (sparse object)', async () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -93,14 +93,14 @@ describe('useWebSearch hooks', () => {
         })
 
         await waitFor(() => {
-          const updatedValue = MockUsePreferenceUtils.getPreferenceValue('chat.websearch.providers')
+          const updatedValue = MockUsePreferenceUtils.getPreferenceValue('chat.web_search.providers')
           // Should only store the modified field (sparse object)
           expect(updatedValue).toEqual([{ id: 'tavily', apiKey: 'new-key' }])
         })
       })
 
       it('should throw error for non-existing template ID', async () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -114,7 +114,7 @@ describe('useWebSearch hooks', () => {
 
     describe('isProviderEnabled', () => {
       it('should return true for local provider', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -126,7 +126,7 @@ describe('useWebSearch hooks', () => {
         const mockUserConfigs: WebSearchProviderUserConfig[] = [
           createMockUserConfig({ id: 'tavily', apiKey: 'some-key' })
         ]
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockUserConfigs)
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', mockUserConfigs)
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -135,7 +135,7 @@ describe('useWebSearch hooks', () => {
 
       it('should return true for api provider with apiHost (template default)', () => {
         // Tavily template has defaultApiHost, so it's enabled even without user config
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -145,7 +145,7 @@ describe('useWebSearch hooks', () => {
 
       it('should return false for api provider without apiKey and empty template apiHost', () => {
         // searxng template has empty defaultApiHost
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -154,7 +154,7 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return false for non-existing provider', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -162,7 +162,7 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return false for undefined providerId', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -178,7 +178,7 @@ describe('useWebSearch hooks', () => {
   describe('useWebSearchProvider', () => {
     it('should return provider merged from template and user config', () => {
       const mockUserConfigs: WebSearchProviderUserConfig[] = [createMockUserConfig({ id: 'tavily', apiKey: 'key1' })]
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', mockUserConfigs)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', mockUserConfigs)
 
       const { result } = renderHook(() => useWebSearchProvider('tavily'))
 
@@ -196,7 +196,7 @@ describe('useWebSearch hooks', () => {
     })
 
     it('should return undefined for non-existing template ID', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
       const { result } = renderHook(() => useWebSearchProvider('non-existent'))
 
@@ -204,7 +204,7 @@ describe('useWebSearch hooks', () => {
     })
 
     it('should update provider through updateProvider function', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.providers', [])
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
 
       const { result } = renderHook(() => useWebSearchProvider('tavily'))
 
@@ -213,7 +213,7 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        const updatedProviders = MockUsePreferenceUtils.getPreferenceValue('chat.websearch.providers')
+        const updatedProviders = MockUsePreferenceUtils.getPreferenceValue('chat.web_search.providers')
         expect(updatedProviders).toEqual([{ id: 'tavily', apiKey: 'new-api-key' }])
       })
     })
@@ -225,9 +225,9 @@ describe('useWebSearch hooks', () => {
 
   describe('useBasicWebSearchSettings', () => {
     it('should return all basic settings', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.search_with_time', true)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.max_results', 10)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.exclude_domains', ['example.com'])
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.search_with_time', true)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.max_results', 10)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.exclude_domains', ['example.com'])
 
       const { result } = renderHook(() => useBasicWebSearchSettings())
 
@@ -237,7 +237,7 @@ describe('useWebSearch hooks', () => {
     })
 
     it('should update searchWithTime', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.search_with_time', true)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.search_with_time', true)
 
       const { result } = renderHook(() => useBasicWebSearchSettings())
 
@@ -246,12 +246,12 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.search_with_time')).toBe(false)
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.search_with_time')).toBe(false)
       })
     })
 
     it('should update maxResults', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.max_results', 5)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.max_results', 5)
 
       const { result } = renderHook(() => useBasicWebSearchSettings())
 
@@ -260,12 +260,12 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.max_results')).toBe(15)
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(15)
       })
     })
 
     it('should update excludeDomains', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.exclude_domains', [])
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.exclude_domains', [])
 
       const { result } = renderHook(() => useBasicWebSearchSettings())
 
@@ -274,7 +274,7 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.exclude_domains')).toEqual([
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.exclude_domains')).toEqual([
           '*://blocked.com/*'
         ])
       })
@@ -287,7 +287,7 @@ describe('useWebSearch hooks', () => {
 
   describe('useCompressionMethod', () => {
     it('should return current compression method', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.method', 'rag')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'rag')
 
       const { result } = renderHook(() => useCompressionMethod())
 
@@ -295,7 +295,7 @@ describe('useWebSearch hooks', () => {
     })
 
     it('should update compression method', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.method', 'none')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'none')
 
       const { result } = renderHook(() => useCompressionMethod())
 
@@ -304,7 +304,7 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.method')).toBe('cutoff')
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.method')).toBe('cutoff')
       })
     })
   })
@@ -315,8 +315,8 @@ describe('useWebSearch hooks', () => {
 
   describe('useCutoffCompression', () => {
     it('should return all cutoff settings', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.cutoff_limit', 2000)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.cutoff_unit', 'token')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 2000)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_unit', 'token')
 
       const { result } = renderHook(() => useCutoffCompression())
 
@@ -325,8 +325,8 @@ describe('useWebSearch hooks', () => {
     })
 
     it('should update cutoff limit only when unit not provided', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.cutoff_limit', 1000)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.cutoff_unit', 'char')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 1000)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_unit', 'char')
 
       const { result } = renderHook(() => useCutoffCompression())
 
@@ -335,15 +335,15 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.cutoff_limit')).toBe(3000)
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(3000)
         // Unit should remain unchanged
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.cutoff_unit')).toBe('char')
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_unit')).toBe('char')
       })
     })
 
     it('should update both limit and unit when both provided', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.cutoff_limit', 1000)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.cutoff_unit', 'char')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 1000)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_unit', 'char')
 
       const { result } = renderHook(() => useCutoffCompression())
 
@@ -352,13 +352,13 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.cutoff_limit')).toBe(5000)
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.cutoff_unit')).toBe('token')
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(5000)
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_unit')).toBe('token')
       })
     })
 
     it('should allow setting cutoff limit to null', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.cutoff_limit', 1000)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 1000)
 
       const { result } = renderHook(() => useCutoffCompression())
 
@@ -367,7 +367,7 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.cutoff_limit')).toBeNull()
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBeNull()
       })
     })
   })
@@ -378,12 +378,12 @@ describe('useWebSearch hooks', () => {
 
   describe('useRagCompression', () => {
     it('should return all RAG settings', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_document_count', 5)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_embedding_model_id', 'text-embed-3')
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_embedding_provider_id', 'openai')
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_embedding_dimensions', 1536)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_rerank_model_id', 'rerank-v1')
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_rerank_provider_id', 'cohere')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_document_count', 5)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_embedding_model_id', 'text-embed-3')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_embedding_provider_id', 'openai')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_embedding_dimensions', 1536)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_rerank_model_id', 'rerank-v1')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_rerank_provider_id', 'cohere')
 
       const { result } = renderHook(() => useRagCompression())
 
@@ -396,7 +396,7 @@ describe('useWebSearch hooks', () => {
     })
 
     it('should update document count', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_document_count', 1)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_document_count', 1)
 
       const { result } = renderHook(() => useRagCompression())
 
@@ -405,14 +405,14 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_document_count')).toBe(10)
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_document_count')).toBe(10)
       })
     })
 
     it('should update embedding model without dimensions', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_embedding_model_id', null)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_embedding_provider_id', null)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_embedding_dimensions', null)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_embedding_model_id', null)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_embedding_provider_id', null)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_embedding_dimensions', null)
 
       const { result } = renderHook(() => useRagCompression())
 
@@ -421,23 +421,23 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_embedding_model_id')).toBe(
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_embedding_model_id')).toBe(
           'new-model'
         )
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_embedding_provider_id')).toBe(
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_embedding_provider_id')).toBe(
           'new-provider'
         )
         // Dimensions should remain unchanged when not provided
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_embedding_dimensions')).toBe(
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_embedding_dimensions')).toBe(
           null
         )
       })
     })
 
     it('should update embedding model with dimensions', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_embedding_model_id', null)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_embedding_provider_id', null)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_embedding_dimensions', null)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_embedding_model_id', null)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_embedding_provider_id', null)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_embedding_dimensions', null)
 
       const { result } = renderHook(() => useRagCompression())
 
@@ -446,21 +446,21 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_embedding_model_id')).toBe(
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_embedding_model_id')).toBe(
           'embed-model'
         )
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_embedding_provider_id')).toBe(
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_embedding_provider_id')).toBe(
           'openai'
         )
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_embedding_dimensions')).toBe(
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_embedding_dimensions')).toBe(
           3072
         )
       })
     })
 
     it('should update rerank model', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_rerank_model_id', null)
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_rerank_provider_id', null)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_rerank_model_id', null)
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_rerank_provider_id', null)
 
       const { result } = renderHook(() => useRagCompression())
 
@@ -469,19 +469,19 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_rerank_model_id')).toBe(
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_rerank_model_id')).toBe(
           'rerank-v2'
         )
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_rerank_provider_id')).toBe(
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_rerank_provider_id')).toBe(
           'cohere'
         )
       })
     })
 
     it('should allow clearing rerank model by setting to null', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.websearch.compression.rag_rerank_model_id', 'existing-model')
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.rag_rerank_model_id', 'existing-model')
       MockUsePreferenceUtils.setPreferenceValue(
-        'chat.websearch.compression.rag_rerank_provider_id',
+        'chat.web_search.compression.rag_rerank_provider_id',
         'existing-provider'
       )
 
@@ -492,9 +492,9 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        expect(MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_rerank_model_id')).toBeNull()
+        expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_rerank_model_id')).toBeNull()
         expect(
-          MockUsePreferenceUtils.getPreferenceValue('chat.websearch.compression.rag_rerank_provider_id')
+          MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.rag_rerank_provider_id')
         ).toBeNull()
       })
     })

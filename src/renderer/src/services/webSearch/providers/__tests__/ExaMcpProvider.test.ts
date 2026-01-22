@@ -85,9 +85,9 @@ describe('ExaMcpProvider', () => {
 
     // Default preference mock
     mockPreferenceGet.mockImplementation((key: string) => {
-      if (key === 'chat.websearch.max_results') return Promise.resolve(10)
-      if (key === 'chat.websearch.exclude_domains') return Promise.resolve([])
-      if (key === 'chat.websearch.search_with_time') return Promise.resolve(false)
+      if (key === 'chat.web_search.max_results') return Promise.resolve(10)
+      if (key === 'chat.web_search.exclude_domains') return Promise.resolve([])
+      if (key === 'chat.web_search.search_with_time') return Promise.resolve(false)
       return Promise.resolve(null)
     })
 
@@ -188,7 +188,7 @@ describe('ExaMcpProvider', () => {
 
       it('should use maxResults from preferences', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.max_results') return Promise.resolve(5)
+          if (key === 'chat.web_search.max_results') return Promise.resolve(5)
           return Promise.resolve(null)
         })
 
@@ -206,7 +206,7 @@ describe('ExaMcpProvider', () => {
 
       it('should limit results to maxResults', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.max_results') return Promise.resolve(2)
+          if (key === 'chat.web_search.max_results') return Promise.resolve(2)
           return Promise.resolve(null)
         })
 

@@ -163,7 +163,7 @@ export class CompressionStrategyFactory {
   }
 
   async getStrategy(): Promise<ICompressionStrategy> {
-    const method = await preferenceService.get('chat.websearch.compression.method')
+    const method = await preferenceService.get('chat.web_search.compression.method')
     return this.strategies.get(method || 'none') ?? this.strategies.get('none')!
   }
 
@@ -199,8 +199,8 @@ export class CutoffCompressionStrategy implements ICompressionStrategy {
     results: WebSearchProviderResult[],
     _context: CompressionContext
   ): Promise<WebSearchProviderResult[]> {
-    const cutoffLimit = await preferenceService.get('chat.websearch.compression.cutoff_limit')
-    const cutoffUnit = await preferenceService.get('chat.websearch.compression.cutoff_unit')
+    const cutoffLimit = await preferenceService.get('chat.web_search.compression.cutoff_limit')
+    const cutoffUnit = await preferenceService.get('chat.web_search.compression.cutoff_unit')
 
     if (!cutoffLimit) {
       logger.warn('Cutoff limit is not set, skipping compression')
@@ -258,12 +258,12 @@ export class RagCompressionStrategy implements ICompressionStrategy {
     // 获取 RAG 配置
     const [embeddingModelId, embeddingProviderId, embeddingDimensions, documentCount, rerankModelId, rerankProviderId] =
       await Promise.all([
-        preferenceService.get('chat.websearch.compression.rag_embedding_model_id'),
-        preferenceService.get('chat.websearch.compression.rag_embedding_provider_id'),
-        preferenceService.get('chat.websearch.compression.rag_embedding_dimensions'),
-        preferenceService.get('chat.websearch.compression.rag_document_count'),
-        preferenceService.get('chat.websearch.compression.rag_rerank_model_id'),
-        preferenceService.get('chat.websearch.compression.rag_rerank_provider_id')
+        preferenceService.get('chat.web_search.compression.rag_embedding_model_id'),
+        preferenceService.get('chat.web_search.compression.rag_embedding_provider_id'),
+        preferenceService.get('chat.web_search.compression.rag_embedding_dimensions'),
+        preferenceService.get('chat.web_search.compression.rag_document_count'),
+        preferenceService.get('chat.web_search.compression.rag_rerank_model_id'),
+        preferenceService.get('chat.web_search.compression.rag_rerank_provider_id')
       ])
 
     const embeddingModel =
@@ -468,9 +468,9 @@ import type { ISearchStatusTracker } from './interfaces'
 
 export class SearchStatusTracker implements ISearchStatusTracker {
   async setStatus(requestId: string, status: WebSearchStatus, delayMs?: number): Promise<void> {
-    const activeSearches = cacheService.get('chat.websearch.active_searches') ?? {}
+    const activeSearches = cacheService.get('chat.web_search.active_searches') ?? {}
     activeSearches[requestId] = status
-    cacheService.set('chat.websearch.active_searches', activeSearches)
+    cacheService.set('chat.web_search.active_searches', activeSearches)
 
     if (delayMs) {
       await new Promise((resolve) => setTimeout(resolve, delayMs))
@@ -478,9 +478,9 @@ export class SearchStatusTracker implements ISearchStatusTracker {
   }
 
   clearStatus(requestId: string): void {
-    const activeSearches = cacheService.get('chat.websearch.active_searches') ?? {}
+    const activeSearches = cacheService.get('chat.web_search.active_searches') ?? {}
     delete activeSearches[requestId]
-    cacheService.set('chat.websearch.active_searches', activeSearches)
+    cacheService.set('chat.web_search.active_searches', activeSearches)
   }
 }
 ```
@@ -551,7 +551,7 @@ export class WebSearchOrchestrator {
     }
 
     // Execute searches
-    const searchWithTime = await preferenceService.get('chat.websearch.search_with_time')
+    const searchWithTime = await preferenceService.get('chat.web_search.search_with_time')
     const webSearchEngine = new WebSearchEngineProvider(webSearchProvider, span?.spanContext().spanId)
 
     const searchPromises = questions.map(async (q) => {
@@ -590,7 +590,7 @@ export class WebSearchOrchestrator {
     }
 
     // Apply compression
-    const compressionMethod = await preferenceService.get('chat.websearch.compression.method')
+    const compressionMethod = await preferenceService.get('chat.web_search.compression.method')
 
     if (compressionMethod && compressionMethod !== 'none') {
       const strategy = await this.compressionFactory.getStrategy()
@@ -676,7 +676,7 @@ class WebSearchService {
   }
 
   public async getWebSearchProvider(providerId?: string): Promise<WebSearchProvider | undefined> {
-    const providers = await preferenceService.get('chat.websearch.providers')
+    const providers = await preferenceService.get('chat.web_search.providers')
     logger.debug('providers', providers)
     return providers.find((p) => p.id === providerId)
   }

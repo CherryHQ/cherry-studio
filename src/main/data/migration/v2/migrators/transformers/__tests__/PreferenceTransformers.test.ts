@@ -137,15 +137,15 @@ describe('PreferenceTransformers', () => {
   describe('flattenCompressionConfig', () => {
     it('should return defaults when no config provided', () => {
       const result = flattenCompressionConfig({})
-      expect(result['chat.websearch.compression.method']).toBe('none')
-      expect(result['chat.websearch.compression.cutoff_limit']).toBeNull()
-      expect(result['chat.websearch.compression.cutoff_unit']).toBe('char')
-      expect(result['chat.websearch.compression.rag_document_count']).toBe(5)
-      expect(result['chat.websearch.compression.rag_embedding_model_id']).toBeNull()
-      expect(result['chat.websearch.compression.rag_embedding_provider_id']).toBeNull()
-      expect(result['chat.websearch.compression.rag_embedding_dimensions']).toBeNull()
-      expect(result['chat.websearch.compression.rag_rerank_model_id']).toBeNull()
-      expect(result['chat.websearch.compression.rag_rerank_provider_id']).toBeNull()
+      expect(result['chat.web_search.compression.method']).toBe('none')
+      expect(result['chat.web_search.compression.cutoff_limit']).toBeNull()
+      expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
+      expect(result['chat.web_search.compression.rag_document_count']).toBe(5)
+      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_embedding_provider_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_embedding_dimensions']).toBeNull()
+      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_rerank_provider_id']).toBeNull()
     })
 
     it('should flatten compression config with all fields', () => {
@@ -161,15 +161,15 @@ describe('PreferenceTransformers', () => {
         }
       })
 
-      expect(result['chat.websearch.compression.method']).toBe('rag')
-      expect(result['chat.websearch.compression.cutoff_limit']).toBe(2000)
-      expect(result['chat.websearch.compression.cutoff_unit']).toBe('token')
-      expect(result['chat.websearch.compression.rag_document_count']).toBe(10)
-      expect(result['chat.websearch.compression.rag_embedding_model_id']).toBe('embed-model')
-      expect(result['chat.websearch.compression.rag_embedding_provider_id']).toBe('openai')
-      expect(result['chat.websearch.compression.rag_embedding_dimensions']).toBe(1536)
-      expect(result['chat.websearch.compression.rag_rerank_model_id']).toBe('rerank-model')
-      expect(result['chat.websearch.compression.rag_rerank_provider_id']).toBe('cohere')
+      expect(result['chat.web_search.compression.method']).toBe('rag')
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
+      expect(result['chat.web_search.compression.cutoff_unit']).toBe('token')
+      expect(result['chat.web_search.compression.rag_document_count']).toBe(10)
+      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBe('embed-model')
+      expect(result['chat.web_search.compression.rag_embedding_provider_id']).toBe('openai')
+      expect(result['chat.web_search.compression.rag_embedding_dimensions']).toBe(1536)
+      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBe('rerank-model')
+      expect(result['chat.web_search.compression.rag_rerank_provider_id']).toBe('cohere')
     })
 
     it('should handle partial config with defaults', () => {
@@ -180,10 +180,10 @@ describe('PreferenceTransformers', () => {
         }
       })
 
-      expect(result['chat.websearch.compression.method']).toBe('cutoff')
-      expect(result['chat.websearch.compression.cutoff_limit']).toBe(1000)
-      expect(result['chat.websearch.compression.cutoff_unit']).toBe('char')
-      expect(result['chat.websearch.compression.rag_document_count']).toBe(5)
+      expect(result['chat.web_search.compression.method']).toBe('cutoff')
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(1000)
+      expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
+      expect(result['chat.web_search.compression.rag_document_count']).toBe(5)
     })
 
     it('should handle null embeddingModel and rerankModel', () => {
@@ -195,17 +195,17 @@ describe('PreferenceTransformers', () => {
         }
       })
 
-      expect(result['chat.websearch.compression.rag_embedding_model_id']).toBeNull()
-      expect(result['chat.websearch.compression.rag_embedding_provider_id']).toBeNull()
-      expect(result['chat.websearch.compression.rag_rerank_model_id']).toBeNull()
-      expect(result['chat.websearch.compression.rag_rerank_provider_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_embedding_provider_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_rerank_provider_id']).toBeNull()
     })
   })
 
   describe('migrateWebSearchProviders', () => {
     it('should return empty array when no providers', () => {
       const result = migrateWebSearchProviders({})
-      expect(result['chat.websearch.providers']).toEqual([])
+      expect(result['chat.web_search.providers']).toEqual([])
     })
 
     it('should keep only non-empty user fields', () => {
@@ -216,7 +216,7 @@ describe('PreferenceTransformers', () => {
         ]
       })
 
-      const providers = result['chat.websearch.providers'] as Array<Record<string, unknown>>
+      const providers = result['chat.web_search.providers'] as Array<Record<string, unknown>>
       expect(providers).toEqual([{ id: 'tavily', apiKey: 'key1', apiHost: 'https://api.tavily.com' }])
     })
 
@@ -234,7 +234,7 @@ describe('PreferenceTransformers', () => {
         ]
       })
 
-      const providers = result['chat.websearch.providers'] as Array<Record<string, unknown>>
+      const providers = result['chat.web_search.providers'] as Array<Record<string, unknown>>
       expect(providers).toEqual([
         {
           id: 'local-bing',

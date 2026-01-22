@@ -115,7 +115,7 @@ export type WebSearchProviderType = 'api' | 'local' | 'mcp'
 
 /**
  * User configuration type (sparse object)
- * Stored in Preference chat.websearch.providers
+ * Stored in Preference chat.web_search.providers
  * Only contains fields that user has actually modified
  */
 export interface WebSearchProviderUserConfig {
@@ -135,7 +135,7 @@ export interface WebSearchProviderUserConfig {
 
 /**
  * User configuration array
- * Stored in chat.websearch.providers
+ * Stored in chat.web_search.providers
  */
 export type WebSearchProviderUserConfigs = WebSearchProviderUserConfig[]
 
@@ -170,12 +170,12 @@ export interface WebSearchProvider {
 
 /**
  * Compression method type
- * Stored in chat.websearch.compression.method
+ * Stored in chat.web_search.compression.method
  */
 export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
 
 /**
  * Cutoff unit type
- * Stored in chat.websearch.compression.cutoff_unit
+ * Stored in chat.web_search.compression.cutoff_unit
  */
 export type WebSearchCompressionCutoffUnit = 'char' | 'token'

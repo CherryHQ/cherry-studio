@@ -123,8 +123,8 @@ describe('WebSearchOrchestrator', () => {
 
     // Default preference values
     mockPreferenceGet.mockImplementation((key: string) => {
-      if (key === 'chat.websearch.search_with_time') return Promise.resolve(false)
-      if (key === 'chat.websearch.compression.method') return Promise.resolve('none')
+      if (key === 'chat.web_search.search_with_time') return Promise.resolve(false)
+      if (key === 'chat.web_search.compression.method') return Promise.resolve('none')
       return Promise.resolve(null)
     })
   })
@@ -220,8 +220,8 @@ describe('WebSearchOrchestrator', () => {
 
       it('should add date prefix when search_with_time is enabled', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.search_with_time') return Promise.resolve(true)
-          if (key === 'chat.websearch.compression.method') return Promise.resolve('none')
+          if (key === 'chat.web_search.search_with_time') return Promise.resolve(true)
+          if (key === 'chat.web_search.compression.method') return Promise.resolve('none')
           return Promise.resolve(null)
         })
         mockSearch.mockResolvedValue({ results: [createMockResult()] })
@@ -276,7 +276,7 @@ describe('WebSearchOrchestrator', () => {
       describe('RAG compression', () => {
         it('should apply RAG compression when method is "rag"', async () => {
           mockPreferenceGet.mockImplementation((key: string) => {
-            if (key === 'chat.websearch.compression.method') return Promise.resolve('rag')
+            if (key === 'chat.web_search.compression.method') return Promise.resolve('rag')
             return Promise.resolve(false)
           })
           mockSearch.mockResolvedValue({ results: [createMockResult()] })
@@ -298,7 +298,7 @@ describe('WebSearchOrchestrator', () => {
 
         it('should set RAG status phases', async () => {
           mockPreferenceGet.mockImplementation((key: string) => {
-            if (key === 'chat.websearch.compression.method') return Promise.resolve('rag')
+            if (key === 'chat.web_search.compression.method') return Promise.resolve('rag')
             return Promise.resolve(false)
           })
           mockSearch.mockResolvedValue({ results: [createMockResult()] })
@@ -324,7 +324,7 @@ describe('WebSearchOrchestrator', () => {
 
         it('should keep original results when RAG compression fails', async () => {
           mockPreferenceGet.mockImplementation((key: string) => {
-            if (key === 'chat.websearch.compression.method') return Promise.resolve('rag')
+            if (key === 'chat.web_search.compression.method') return Promise.resolve('rag')
             return Promise.resolve(false)
           })
           const originalResult = createMockResult({ content: 'Original content' })
@@ -350,7 +350,7 @@ describe('WebSearchOrchestrator', () => {
       describe('Cutoff compression', () => {
         it('should apply cutoff compression when method is "cutoff"', async () => {
           mockPreferenceGet.mockImplementation((key: string) => {
-            if (key === 'chat.websearch.compression.method') return Promise.resolve('cutoff')
+            if (key === 'chat.web_search.compression.method') return Promise.resolve('cutoff')
             return Promise.resolve(false)
           })
           mockSearch.mockResolvedValue({ results: [createMockResult()] })
@@ -372,7 +372,7 @@ describe('WebSearchOrchestrator', () => {
 
         it('should set cutoff status phase', async () => {
           mockPreferenceGet.mockImplementation((key: string) => {
-            if (key === 'chat.websearch.compression.method') return Promise.resolve('cutoff')
+            if (key === 'chat.web_search.compression.method') return Promise.resolve('cutoff')
             return Promise.resolve(false)
           })
           mockSearch.mockResolvedValue({ results: [createMockResult()] })
@@ -394,7 +394,7 @@ describe('WebSearchOrchestrator', () => {
       describe('No compression', () => {
         it('should skip compression when method is "none"', async () => {
           mockPreferenceGet.mockImplementation((key: string) => {
-            if (key === 'chat.websearch.compression.method') return Promise.resolve('none')
+            if (key === 'chat.web_search.compression.method') return Promise.resolve('none')
             return Promise.resolve(false)
           })
           mockSearch.mockResolvedValue({ results: [createMockResult()] })
@@ -408,7 +408,7 @@ describe('WebSearchOrchestrator', () => {
 
         it('should skip compression when method is null', async () => {
           mockPreferenceGet.mockImplementation((key: string) => {
-            if (key === 'chat.websearch.compression.method') return Promise.resolve(null)
+            if (key === 'chat.web_search.compression.method') return Promise.resolve(null)
             return Promise.resolve(false)
           })
           mockSearch.mockResolvedValue({ results: [createMockResult()] })

@@ -17,9 +17,9 @@ export default abstract class BaseWebSearchProvider {
 
   protected async getSearchConfig(): Promise<WebSearchConfig> {
     const [maxResults, excludeDomains, searchWithTime] = await Promise.all([
-      preferenceService.get('chat.websearch.max_results'),
-      preferenceService.get('chat.websearch.exclude_domains'),
-      preferenceService.get('chat.websearch.search_with_time')
+      preferenceService.get('chat.web_search.max_results'),
+      preferenceService.get('chat.web_search.exclude_domains'),
+      preferenceService.get('chat.web_search.search_with_time')
     ])
     return { maxResults, excludeDomains, searchWithTime }
   }

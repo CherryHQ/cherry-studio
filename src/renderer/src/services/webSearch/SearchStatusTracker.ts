@@ -9,9 +9,9 @@ const logger = loggerService.withContext('SearchStatusTracker')
 export class SearchStatusTracker implements ISearchStatusTracker {
   async setStatus(requestId: string, status: WebSearchStatus, delayMs?: number): Promise<void> {
     try {
-      const activeSearches = cacheService.get('chat.websearch.active_searches') ?? {}
+      const activeSearches = cacheService.get('chat.web_search.active_searches') ?? {}
       activeSearches[requestId] = status
-      cacheService.set('chat.websearch.active_searches', activeSearches)
+      cacheService.set('chat.web_search.active_searches', activeSearches)
     } catch (error) {
       // Status tracking failure should not break search functionality
       logger.debug('Failed to update search status:', error as Error)
@@ -24,9 +24,9 @@ export class SearchStatusTracker implements ISearchStatusTracker {
 
   clearStatus(requestId: string): void {
     try {
-      const activeSearches = cacheService.get('chat.websearch.active_searches') ?? {}
+      const activeSearches = cacheService.get('chat.web_search.active_searches') ?? {}
       delete activeSearches[requestId]
-      cacheService.set('chat.websearch.active_searches', activeSearches)
+      cacheService.set('chat.web_search.active_searches', activeSearches)
     } catch (error) {
       logger.debug('Failed to clear search status:', error as Error)
     }

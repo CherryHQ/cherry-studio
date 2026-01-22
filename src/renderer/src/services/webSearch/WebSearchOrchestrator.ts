@@ -47,7 +47,7 @@ export class WebSearchOrchestrator {
         }
       }
 
-      const searchWithTime = await preferenceService.get('chat.websearch.search_with_time')
+      const searchWithTime = await preferenceService.get('chat.web_search.search_with_time')
       const webSearchEngine = new WebSearchEngineProvider(webSearchProvider)
 
       const searchPromises = questions.map(async (q) => {
@@ -84,7 +84,7 @@ export class WebSearchOrchestrator {
         return { query: questions.join(' | '), results: [] }
       }
 
-      const compressionMethod = await preferenceService.get('chat.websearch.compression.method')
+      const compressionMethod = await preferenceService.get('chat.web_search.compression.method')
 
       if (compressionMethod && compressionMethod !== 'none') {
         const strategy = await this.compressionFactory.getStrategy()

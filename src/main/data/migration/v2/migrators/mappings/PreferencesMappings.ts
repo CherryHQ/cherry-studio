@@ -852,15 +852,15 @@ export const REDUX_STORE_MAPPINGS = {
   websearch: [
     {
       originalKey: 'searchWithTime',
-      targetKey: 'chat.websearch.search_with_time'
+      targetKey: 'chat.web_search.search_with_time'
     },
     {
       originalKey: 'maxResults',
-      targetKey: 'chat.websearch.max_results'
+      targetKey: 'chat.web_search.max_results'
     },
     {
       originalKey: 'excludeDomains',
-      targetKey: 'chat.websearch.exclude_domains'
+      targetKey: 'chat.web_search.exclude_domains'
     }
   ]
 } as const

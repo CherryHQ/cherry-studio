@@ -230,10 +230,10 @@ interface WebSearchCompressionConfigSource {
  *   }
  * }
  * Output: {
- *   'chat.websearch.compression.method': 'rag',
- *   'chat.websearch.compression.rag_document_count': 5,
- *   'chat.websearch.compression.rag_embedding_model_id': 'model-1',
- *   'chat.websearch.compression.rag_embedding_provider_id': 'openai',
+ *   'chat.web_search.compression.method': 'rag',
+ *   'chat.web_search.compression.rag_document_count': 5,
+ *   'chat.web_search.compression.rag_embedding_model_id': 'model-1',
+ *   'chat.web_search.compression.rag_embedding_provider_id': 'openai',
  *   ...
  * }
  */
@@ -245,28 +245,28 @@ export function flattenCompressionConfig(sources: {
   // If no config, return defaults
   if (!config) {
     return {
-      'chat.websearch.compression.method': 'none',
-      'chat.websearch.compression.cutoff_limit': null,
-      'chat.websearch.compression.cutoff_unit': 'char',
-      'chat.websearch.compression.rag_document_count': 5,
-      'chat.websearch.compression.rag_embedding_model_id': null,
-      'chat.websearch.compression.rag_embedding_provider_id': null,
-      'chat.websearch.compression.rag_embedding_dimensions': null,
-      'chat.websearch.compression.rag_rerank_model_id': null,
-      'chat.websearch.compression.rag_rerank_provider_id': null
+      'chat.web_search.compression.method': 'none',
+      'chat.web_search.compression.cutoff_limit': null,
+      'chat.web_search.compression.cutoff_unit': 'char',
+      'chat.web_search.compression.rag_document_count': 5,
+      'chat.web_search.compression.rag_embedding_model_id': null,
+      'chat.web_search.compression.rag_embedding_provider_id': null,
+      'chat.web_search.compression.rag_embedding_dimensions': null,
+      'chat.web_search.compression.rag_rerank_model_id': null,
+      'chat.web_search.compression.rag_rerank_provider_id': null
     }
   }
 
   return {
-    'chat.websearch.compression.method': config.method ?? 'none',
-    'chat.websearch.compression.cutoff_limit': config.cutoffLimit ?? null,
-    'chat.websearch.compression.cutoff_unit': config.cutoffUnit ?? 'char',
-    'chat.websearch.compression.rag_document_count': config.documentCount ?? 5,
-    'chat.websearch.compression.rag_embedding_model_id': config.embeddingModel?.id ?? null,
-    'chat.websearch.compression.rag_embedding_provider_id': config.embeddingModel?.provider ?? null,
-    'chat.websearch.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
-    'chat.websearch.compression.rag_rerank_model_id': config.rerankModel?.id ?? null,
-    'chat.websearch.compression.rag_rerank_provider_id': config.rerankModel?.provider ?? null
+    'chat.web_search.compression.method': config.method ?? 'none',
+    'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
+    'chat.web_search.compression.cutoff_unit': config.cutoffUnit ?? 'char',
+    'chat.web_search.compression.rag_document_count': config.documentCount ?? 5,
+    'chat.web_search.compression.rag_embedding_model_id': config.embeddingModel?.id ?? null,
+    'chat.web_search.compression.rag_embedding_provider_id': config.embeddingModel?.provider ?? null,
+    'chat.web_search.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
+    'chat.web_search.compression.rag_rerank_model_id': config.rerankModel?.id ?? null,
+    'chat.web_search.compression.rag_rerank_provider_id': config.rerankModel?.provider ?? null
   }
 }
 
@@ -301,7 +301,7 @@ interface OldWebSearchProvider {
  *   ]
  * }
  * Output: {
- *   'chat.websearch.providers': [
+ *   'chat.web_search.providers': [
  *     { id: 'tavily', name: 'Tavily', type: 'api', apiKey: '...', apiHost: '...', engines: [], ... },
  *     { id: 'exa-mcp', name: 'ExaMCP', type: 'mcp', apiKey: '', apiHost: '...', engines: [], ... },
  *     { id: 'local-google', name: 'Google', type: 'local', apiKey: '', apiHost: '', engines: [], ... }
@@ -313,7 +313,7 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
 
   if (!providers || !Array.isArray(providers)) {
     return {
-      'chat.websearch.providers': []
+      'chat.web_search.providers': []
     }
   }
 
@@ -351,6 +351,6 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
     .filter((provider): provider is WebSearchProviderUserConfig => provider !== null)
 
   return {
-    'chat.websearch.providers': migratedProviders
+    'chat.web_search.providers': migratedProviders
   }
 }

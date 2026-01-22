@@ -6,15 +6,15 @@
 
 | 原 Redux 字段 | v2 系统 | 说明 |
 |--------------|---------|------|
-| `providers` | **Preference** | `chat.websearch.providers`（Provider 列表） |
-| `searchWithTime` | **Preference** | `chat.websearch.search_with_time` |
-| `maxResults` | **Preference** | `chat.websearch.max_results` |
-| `excludeDomains` | **Preference** | `chat.websearch.exclude_domains` |
-| `compressionConfig` | **Preference** | `chat.websearch.compression.*`（扁平 key） |
+| `providers` | **Preference** | `chat.web_search.providers`（Provider 列表） |
+| `searchWithTime` | **Preference** | `chat.web_search.search_with_time` |
+| `maxResults` | **Preference** | `chat.web_search.max_results` |
+| `excludeDomains` | **Preference** | `chat.web_search.exclude_domains` |
+| `compressionConfig` | **Preference** | `chat.web_search.compression.*`（扁平 key） |
 | `subscribeSources` | ❌ **移除** | 功能弃用，使用率低 |
 | `defaultProvider` | ❌ **移除** | 已废弃 |
 | `overwrite` | ❌ **移除** | 已废弃 |
-| `providerConfig` | ❌ **移除** | 合并到 `chat.websearch.providers` |
+| `providerConfig` | ❌ **移除** | 合并到 `chat.web_search.providers` |
 
 ---
 
@@ -26,7 +26,7 @@
 
 | Key | 类型 | 默认值 | 说明 |
 |-----|------|--------|------|
-| `chat.websearch.providers` | `WebSearchProviders` | 内置列表 | 所有 provider 配置（完整对象列表） |
+| `chat.web_search.providers` | `WebSearchProviders` | 内置列表 | 所有 provider 配置（完整对象列表） |
 
 #### WebSearchProvider 类型定义
 
@@ -59,7 +59,7 @@ export type WebSearchProviders = WebSearchProvider[]
 #### 数据示例
 
 ```typescript
-// chat.websearch.providers 存储值（示例）
+// chat.web_search.providers 存储值（示例）
 [
   {
     id: 'tavily',
@@ -100,30 +100,30 @@ export type WebSearchProviders = WebSearchProvider[]
 #### Provider 默认数据
 
 默认 provider 列表位于 `packages/shared/data/preference/preferenceSchemas.ts` 中的
-`chat.websearch.providers`。Provider 的站点链接配置保留在
+`chat.web_search.providers`。Provider 的站点链接配置保留在
 `src/renderer/src/config/webSearch.ts`（`WEB_SEARCH_PROVIDER_WEBSITES`）。
 
 ### 基础设置
 
 | Key | 类型 | 默认值 | 说明 |
 |-----|------|--------|------|
-| `chat.websearch.search_with_time` | boolean | `true` | 搜索时添加时间信息 |
-| `chat.websearch.max_results` | number | `5` | 最大搜索结果数 |
-| `chat.websearch.exclude_domains` | string[] | `[]` | 排除的域名列表 |
+| `chat.web_search.search_with_time` | boolean | `true` | 搜索时添加时间信息 |
+| `chat.web_search.max_results` | number | `5` | 最大搜索结果数 |
+| `chat.web_search.exclude_domains` | string[] | `[]` | 排除的域名列表 |
 
 ### 压缩配置
 
 | Key | 类型 | 默认值 | 说明 |
 |-----|------|--------|------|
-| `chat.websearch.compression.method` | `WebSearchCompressionMethod` | `none` | 压缩方式 |
-| `chat.websearch.compression.cutoff_limit` | number \| null | `null` | Cutoff 限制 |
-| `chat.websearch.compression.cutoff_unit` | `WebSearchCompressionCutoffUnit` | `char` | Cutoff 单位 |
-| `chat.websearch.compression.rag_document_count` | number | `5` | RAG 文档数量 |
-| `chat.websearch.compression.rag_embedding_model_id` | string \| null | `null` | Embedding 模型 ID |
-| `chat.websearch.compression.rag_embedding_provider_id` | string \| null | `null` | Embedding 提供商 ID |
-| `chat.websearch.compression.rag_embedding_dimensions` | number \| null | `null` | Embedding 维度 |
-| `chat.websearch.compression.rag_rerank_model_id` | string \| null | `null` | Rerank 模型 ID |
-| `chat.websearch.compression.rag_rerank_provider_id` | string \| null | `null` | Rerank 提供商 ID |
+| `chat.web_search.compression.method` | `WebSearchCompressionMethod` | `none` | 压缩方式 |
+| `chat.web_search.compression.cutoff_limit` | number \| null | `null` | Cutoff 限制 |
+| `chat.web_search.compression.cutoff_unit` | `WebSearchCompressionCutoffUnit` | `char` | Cutoff 单位 |
+| `chat.web_search.compression.rag_document_count` | number | `5` | RAG 文档数量 |
+| `chat.web_search.compression.rag_embedding_model_id` | string \| null | `null` | Embedding 模型 ID |
+| `chat.web_search.compression.rag_embedding_provider_id` | string \| null | `null` | Embedding 提供商 ID |
+| `chat.web_search.compression.rag_embedding_dimensions` | number \| null | `null` | Embedding 维度 |
+| `chat.web_search.compression.rag_rerank_model_id` | string \| null | `null` | Rerank 模型 ID |
+| `chat.web_search.compression.rag_rerank_provider_id` | string \| null | `null` | Rerank 提供商 ID |
 
 #### 设计理由
 

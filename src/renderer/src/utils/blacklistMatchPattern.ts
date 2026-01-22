@@ -245,7 +245,7 @@ export async function filterResultWithBlacklist(
   logger.debug('[filterResultWithBlacklist]', response)
 
   // Get excludeDomains from preference
-  const excludeDomains = await preferenceService.get('chat.websearch.exclude_domains')
+  const excludeDomains = await preferenceService.get('chat.web_search.exclude_domains')
 
   // 没有结果或者没有黑名单规则时，直接返回原始结果
   if (!(response.results as any[])?.length || !excludeDomains?.length) {

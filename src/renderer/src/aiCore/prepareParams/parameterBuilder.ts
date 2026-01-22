@@ -135,9 +135,9 @@ export async function buildStreamTextParams(
 
   // 构建真正的 providerOptions
   const webSearchConfig: WebSearchConfig = {
-    maxResults: await preferenceService.get('chat.websearch.max_results'),
-    excludeDomains: await preferenceService.get('chat.websearch.exclude_domains'),
-    searchWithTime: await preferenceService.get('chat.websearch.search_with_time')
+    maxResults: await preferenceService.get('chat.web_search.max_results'),
+    excludeDomains: await preferenceService.get('chat.web_search.exclude_domains'),
+    searchWithTime: await preferenceService.get('chat.web_search.search_with_time')
   }
 
   const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {

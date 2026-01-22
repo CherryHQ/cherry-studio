@@ -18,8 +18,8 @@ export class CutoffCompressionStrategy implements ICompressionStrategy {
       return results
     }
 
-    const cutoffLimit = await preferenceService.get('chat.websearch.compression.cutoff_limit')
-    const cutoffUnit = await preferenceService.get('chat.websearch.compression.cutoff_unit')
+    const cutoffLimit = await preferenceService.get('chat.web_search.compression.cutoff_limit')
+    const cutoffUnit = await preferenceService.get('chat.web_search.compression.cutoff_unit')
 
     if (!cutoffLimit) {
       logger.warn('Cutoff limit is not set, skipping compression')

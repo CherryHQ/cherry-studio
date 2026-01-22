@@ -36,8 +36,8 @@ describe('SearchStatusTracker', () => {
       await vi.runAllTimersAsync()
       await promise
 
-      expect(mockCacheGet).toHaveBeenCalledWith('chat.websearch.active_searches')
-      expect(mockCacheSet).toHaveBeenCalledWith('chat.websearch.active_searches', { 'request-1': status })
+      expect(mockCacheGet).toHaveBeenCalledWith('chat.web_search.active_searches')
+      expect(mockCacheSet).toHaveBeenCalledWith('chat.web_search.active_searches', { 'request-1': status })
     })
 
     it('should update status for existing request', async () => {
@@ -49,7 +49,7 @@ describe('SearchStatusTracker', () => {
       await vi.runAllTimersAsync()
       await promise
 
-      expect(mockCacheSet).toHaveBeenCalledWith('chat.websearch.active_searches', { 'request-1': newStatus })
+      expect(mockCacheSet).toHaveBeenCalledWith('chat.web_search.active_searches', { 'request-1': newStatus })
     })
 
     it('should preserve other request statuses when updating', async () => {
@@ -64,7 +64,7 @@ describe('SearchStatusTracker', () => {
       await vi.runAllTimersAsync()
       await promise
 
-      expect(mockCacheSet).toHaveBeenCalledWith('chat.websearch.active_searches', {
+      expect(mockCacheSet).toHaveBeenCalledWith('chat.web_search.active_searches', {
         'request-1': newStatus,
         'request-2': { phase: 'rag' }
       })
@@ -126,7 +126,7 @@ describe('SearchStatusTracker', () => {
         await vi.runAllTimersAsync()
         await promise
 
-        expect(mockCacheSet).toHaveBeenCalledWith('chat.websearch.active_searches', { 'request-1': status })
+        expect(mockCacheSet).toHaveBeenCalledWith('chat.web_search.active_searches', { 'request-1': status })
       }
     })
 
@@ -163,7 +163,7 @@ describe('SearchStatusTracker', () => {
 
       tracker.clearStatus('request-1')
 
-      expect(mockCacheSet).toHaveBeenCalledWith('chat.websearch.active_searches', {
+      expect(mockCacheSet).toHaveBeenCalledWith('chat.web_search.active_searches', {
         'request-2': { phase: 'rag' }
       })
     })
@@ -174,7 +174,7 @@ describe('SearchStatusTracker', () => {
       // Should not throw
       expect(() => tracker.clearStatus('non-existent')).not.toThrow()
 
-      expect(mockCacheSet).toHaveBeenCalledWith('chat.websearch.active_searches', {
+      expect(mockCacheSet).toHaveBeenCalledWith('chat.web_search.active_searches', {
         'request-1': { phase: 'default' }
       })
     })
@@ -185,7 +185,7 @@ describe('SearchStatusTracker', () => {
       // Should not throw
       expect(() => tracker.clearStatus('request-1')).not.toThrow()
 
-      expect(mockCacheSet).toHaveBeenCalledWith('chat.websearch.active_searches', {})
+      expect(mockCacheSet).toHaveBeenCalledWith('chat.web_search.active_searches', {})
     })
 
     it('should not throw when cache get fails', () => {

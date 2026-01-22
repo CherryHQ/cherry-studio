@@ -175,31 +175,31 @@ export interface PreferenceSchemas {
     // redux/settings/narrowMode
     'chat.narrow_mode': boolean
     // v2: websearch compression method
-    'chat.websearch.compression.cutoff_limit': number | null
+    'chat.web_search.compression.cutoff_limit': number | null
     // v2: websearch compression cutoff unit
-    'chat.websearch.compression.cutoff_unit': PreferenceTypes.WebSearchCompressionCutoffUnit
+    'chat.web_search.compression.cutoff_unit': PreferenceTypes.WebSearchCompressionCutoffUnit
     // v2: websearch compression method
-    'chat.websearch.compression.method': PreferenceTypes.WebSearchCompressionMethod
+    'chat.web_search.compression.method': PreferenceTypes.WebSearchCompressionMethod
     // v2: websearch compression rag document count
-    'chat.websearch.compression.rag_document_count': number
+    'chat.web_search.compression.rag_document_count': number
     // v2: websearch compression rag embedding dimensions
-    'chat.websearch.compression.rag_embedding_dimensions': number | null
+    'chat.web_search.compression.rag_embedding_dimensions': number | null
     // v2: websearch compression rag embedding model id
-    'chat.websearch.compression.rag_embedding_model_id': string | null
+    'chat.web_search.compression.rag_embedding_model_id': string | null
     // v2: websearch compression rag embedding provider id
-    'chat.websearch.compression.rag_embedding_provider_id': string | null
+    'chat.web_search.compression.rag_embedding_provider_id': string | null
     // v2: websearch compression rag rerank model id
-    'chat.websearch.compression.rag_rerank_model_id': string | null
+    'chat.web_search.compression.rag_rerank_model_id': string | null
     // v2: websearch compression rag rerank provider id
-    'chat.websearch.compression.rag_rerank_provider_id': string | null
+    'chat.web_search.compression.rag_rerank_provider_id': string | null
     // v2: websearch exclude domains
-    'chat.websearch.exclude_domains': string[]
+    'chat.web_search.exclude_domains': string[]
     // v2: websearch max results
-    'chat.websearch.max_results': number
+    'chat.web_search.max_results': number
     // v2: websearch provider user configs (sparse object, only stores user modifications)
-    'chat.websearch.providers': PreferenceTypes.WebSearchProviderUserConfigs
+    'chat.web_search.providers': PreferenceTypes.WebSearchProviderUserConfigs
     // v2: websearch search with time
-    'chat.websearch.search_with_time': boolean
+    'chat.web_search.search_with_time': boolean
     // redux/settings/skipBackupFile
     'data.backup.general.skip_backup_file': boolean
     // redux/settings/localBackupAutoSync
@@ -543,19 +543,19 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.style': 'plain',
     'chat.message.thought.auto_collapse': true,
     'chat.narrow_mode': false,
-    'chat.websearch.compression.cutoff_limit': null,
-    'chat.websearch.compression.cutoff_unit': 'char',
-    'chat.websearch.compression.method': 'none',
-    'chat.websearch.compression.rag_document_count': 5,
-    'chat.websearch.compression.rag_embedding_dimensions': null,
-    'chat.websearch.compression.rag_embedding_model_id': null,
-    'chat.websearch.compression.rag_embedding_provider_id': null,
-    'chat.websearch.compression.rag_rerank_model_id': null,
-    'chat.websearch.compression.rag_rerank_provider_id': null,
-    'chat.websearch.exclude_domains': [],
-    'chat.websearch.max_results': 5,
-    'chat.websearch.providers': [],
-    'chat.websearch.search_with_time': true,
+    'chat.web_search.compression.cutoff_limit': null,
+    'chat.web_search.compression.cutoff_unit': 'char',
+    'chat.web_search.compression.method': 'none',
+    'chat.web_search.compression.rag_document_count': 5,
+    'chat.web_search.compression.rag_embedding_dimensions': null,
+    'chat.web_search.compression.rag_embedding_model_id': null,
+    'chat.web_search.compression.rag_embedding_provider_id': null,
+    'chat.web_search.compression.rag_rerank_model_id': null,
+    'chat.web_search.compression.rag_rerank_provider_id': null,
+    'chat.web_search.exclude_domains': [],
+    'chat.web_search.max_results': 5,
+    'chat.web_search.providers': [],
+    'chat.web_search.search_with_time': true,
     'data.backup.general.skip_backup_file': false,
     'data.backup.local.auto_sync': false,
     'data.backup.local.dir': '',

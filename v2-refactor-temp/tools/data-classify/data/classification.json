@@ -2732,7 +2732,7 @@
           "defaultValue": "WEB_SEARCH_PROVIDERS",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.websearch.providers"
+          "targetKey": "chat.web_search.providers"
         },
         {
           "originalKey": "searchWithTime",
@@ -2740,7 +2740,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.websearch.search_with_time"
+          "targetKey": "chat.web_search.search_with_time"
         },
         {
           "originalKey": "maxResults",
@@ -2748,7 +2748,7 @@
           "defaultValue": 5,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.websearch.max_results"
+          "targetKey": "chat.web_search.max_results"
         },
         {
           "originalKey": "excludeDomains",
@@ -2756,7 +2756,7 @@
           "defaultValue": [],
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.websearch.exclude_domains"
+          "targetKey": "chat.web_search.exclude_domains"
         },
         {
           "originalKey": "subscribeSources",
@@ -2781,7 +2781,7 @@
           "status": "classified",
           "category": "preferences",
           "targetKey": null,
-          "migrationNote": "Flattened to: chat.websearch.compression.method, chat.websearch.compression.cutoff_limit, chat.websearch.compression.cutoff_unit, chat.websearch.compression.rag_*"
+          "migrationNote": "Flattened to: chat.web_search.compression.method, chat.web_search.compression.cutoff_limit, chat.web_search.compression.cutoff_unit, chat.web_search.compression.rag_*"
         },
         {
           "originalKey": "providerConfig",

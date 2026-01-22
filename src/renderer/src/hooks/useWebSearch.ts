@@ -66,7 +66,7 @@ function hasNonIdFields(config: WebSearchProviderUserConfig): boolean {
  * Returns merged full providers for runtime use.
  */
 export function useWebSearchProviders() {
-  const [userConfigs, setUserConfigs] = usePreference('chat.websearch.providers', { optimistic: false })
+  const [userConfigs, setUserConfigs] = usePreference('chat.web_search.providers', { optimistic: false })
 
   // Merge templates with user configs to get full providers
   const providers = useMemo(() => getAllProviders(userConfigs), [userConfigs])
@@ -185,9 +185,9 @@ export function useWebSearchProvider(providerId: string) {
  * Basic websearch settings (6 items)
  */
 export function useBasicWebSearchSettings() {
-  const [searchWithTime, setSearchWithTime] = usePreference('chat.websearch.search_with_time')
-  const [maxResults, setMaxResults] = usePreference('chat.websearch.max_results')
-  const [excludeDomains, setExcludeDomains] = usePreference('chat.websearch.exclude_domains')
+  const [searchWithTime, setSearchWithTime] = usePreference('chat.web_search.search_with_time')
+  const [maxResults, setMaxResults] = usePreference('chat.web_search.max_results')
+  const [excludeDomains, setExcludeDomains] = usePreference('chat.web_search.exclude_domains')
 
   return {
     searchWithTime,
@@ -203,7 +203,7 @@ export function useBasicWebSearchSettings() {
  * Compression method selection (2 items)
  */
 export function useCompressionMethod() {
-  const [method, setMethod] = usePreference('chat.websearch.compression.method')
+  const [method, setMethod] = usePreference('chat.web_search.compression.method')
   return { method, setMethod }
 }
 
@@ -211,8 +211,8 @@ export function useCompressionMethod() {
  * Cutoff compression settings (5 items)
  */
 export function useCutoffCompression() {
-  const [cutoffLimit, setCutoffLimit] = usePreference('chat.websearch.compression.cutoff_limit')
-  const [cutoffUnit, setCutoffUnit] = usePreference('chat.websearch.compression.cutoff_unit')
+  const [cutoffLimit, setCutoffLimit] = usePreference('chat.web_search.compression.cutoff_limit')
+  const [cutoffUnit, setCutoffUnit] = usePreference('chat.web_search.compression.cutoff_unit')
 
   const updateCutoff = useCallback(
     async (limit: number | null, unit?: WebSearchCompressionCutoffUnit) => {
@@ -237,19 +237,19 @@ export function useCutoffCompression() {
  * RAG compression settings (12 items)
  */
 export function useRagCompression() {
-  const [ragDocumentCount, setRagDocumentCount] = usePreference('chat.websearch.compression.rag_document_count')
+  const [ragDocumentCount, setRagDocumentCount] = usePreference('chat.web_search.compression.rag_document_count')
   const [ragEmbeddingModelId, setRagEmbeddingModelId] = usePreference(
-    'chat.websearch.compression.rag_embedding_model_id'
+    'chat.web_search.compression.rag_embedding_model_id'
   )
   const [ragEmbeddingProviderId, setRagEmbeddingProviderId] = usePreference(
-    'chat.websearch.compression.rag_embedding_provider_id'
+    'chat.web_search.compression.rag_embedding_provider_id'
   )
   const [ragEmbeddingDimensions, setRagEmbeddingDimensions] = usePreference(
-    'chat.websearch.compression.rag_embedding_dimensions'
+    'chat.web_search.compression.rag_embedding_dimensions'
   )
-  const [ragRerankModelId, setRagRerankModelId] = usePreference('chat.websearch.compression.rag_rerank_model_id')
+  const [ragRerankModelId, setRagRerankModelId] = usePreference('chat.web_search.compression.rag_rerank_model_id')
   const [ragRerankProviderId, setRagRerankProviderId] = usePreference(
-    'chat.websearch.compression.rag_rerank_provider_id'
+    'chat.web_search.compression.rag_rerank_provider_id'
   )
 
   const updateRagEmbeddingModel = useCallback(

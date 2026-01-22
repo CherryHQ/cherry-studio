@@ -119,8 +119,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.generating': boolean
-  'chat.websearch.searching': boolean
-  'chat.websearch.active_searches': CacheValueTypes.CacheActiveSearches
+  'chat.web_search.searching': boolean
+  'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'chat.active_view': 'topic' | 'session'
 
   // Minapp management
@@ -177,8 +177,8 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.generating': false,
-  'chat.websearch.searching': false,
-  'chat.websearch.active_searches': {},
+  'chat.web_search.searching': false,
+  'chat.web_search.active_searches': {},
   'chat.active_view': 'topic',
 
   // Minapp management

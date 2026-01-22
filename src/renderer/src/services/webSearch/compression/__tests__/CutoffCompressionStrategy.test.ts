@@ -99,8 +99,8 @@ describe('CutoffCompressionStrategy', () => {
     describe('character-based compression', () => {
       beforeEach(() => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.compression.cutoff_limit') return Promise.resolve(20)
-          if (key === 'chat.websearch.compression.cutoff_unit') return Promise.resolve('char')
+          if (key === 'chat.web_search.compression.cutoff_limit') return Promise.resolve(20)
+          if (key === 'chat.web_search.compression.cutoff_unit') return Promise.resolve('char')
           return Promise.resolve(null)
         })
       })
@@ -141,8 +141,8 @@ describe('CutoffCompressionStrategy', () => {
     describe('token-based compression', () => {
       beforeEach(() => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.compression.cutoff_limit') return Promise.resolve(10)
-          if (key === 'chat.websearch.compression.cutoff_unit') return Promise.resolve('token')
+          if (key === 'chat.web_search.compression.cutoff_limit') return Promise.resolve(10)
+          if (key === 'chat.web_search.compression.cutoff_unit') return Promise.resolve('token')
           return Promise.resolve(null)
         })
       })
@@ -180,8 +180,8 @@ describe('CutoffCompressionStrategy', () => {
     describe('multiple results', () => {
       it('should distribute limit evenly across results', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.compression.cutoff_limit') return Promise.resolve(30)
-          if (key === 'chat.websearch.compression.cutoff_unit') return Promise.resolve('char')
+          if (key === 'chat.web_search.compression.cutoff_limit') return Promise.resolve(30)
+          if (key === 'chat.web_search.compression.cutoff_unit') return Promise.resolve('char')
           return Promise.resolve(null)
         })
 
@@ -201,8 +201,8 @@ describe('CutoffCompressionStrategy', () => {
 
       it('should ensure minimum per-result limit of 1', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.compression.cutoff_limit') return Promise.resolve(2)
-          if (key === 'chat.websearch.compression.cutoff_unit') return Promise.resolve('char')
+          if (key === 'chat.web_search.compression.cutoff_limit') return Promise.resolve(2)
+          if (key === 'chat.web_search.compression.cutoff_unit') return Promise.resolve('char')
           return Promise.resolve(null)
         })
 
@@ -223,8 +223,8 @@ describe('CutoffCompressionStrategy', () => {
     describe('edge cases', () => {
       it('should handle content exactly matching limit', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.compression.cutoff_limit') return Promise.resolve(10)
-          if (key === 'chat.websearch.compression.cutoff_unit') return Promise.resolve('char')
+          if (key === 'chat.web_search.compression.cutoff_limit') return Promise.resolve(10)
+          if (key === 'chat.web_search.compression.cutoff_unit') return Promise.resolve('char')
           return Promise.resolve(null)
         })
 
@@ -237,8 +237,8 @@ describe('CutoffCompressionStrategy', () => {
 
       it('should handle empty content', async () => {
         mockPreferenceGet.mockImplementation((key: string) => {
-          if (key === 'chat.websearch.compression.cutoff_limit') return Promise.resolve(10)
-          if (key === 'chat.websearch.compression.cutoff_unit') return Promise.resolve('char')
+          if (key === 'chat.web_search.compression.cutoff_limit') return Promise.resolve(10)
+          if (key === 'chat.web_search.compression.cutoff_unit') return Promise.resolve('char')
           return Promise.resolve(null)
         })
 

@@ -20,12 +20,12 @@ export class RagCompressionStrategy implements ICompressionStrategy {
 
     const [embeddingModelId, embeddingProviderId, embeddingDimensions, documentCount, rerankModelId, rerankProviderId] =
       await Promise.all([
-        preferenceService.get('chat.websearch.compression.rag_embedding_model_id'),
-        preferenceService.get('chat.websearch.compression.rag_embedding_provider_id'),
-        preferenceService.get('chat.websearch.compression.rag_embedding_dimensions'),
-        preferenceService.get('chat.websearch.compression.rag_document_count'),
-        preferenceService.get('chat.websearch.compression.rag_rerank_model_id'),
-        preferenceService.get('chat.websearch.compression.rag_rerank_provider_id')
+        preferenceService.get('chat.web_search.compression.rag_embedding_model_id'),
+        preferenceService.get('chat.web_search.compression.rag_embedding_provider_id'),
+        preferenceService.get('chat.web_search.compression.rag_embedding_dimensions'),
+        preferenceService.get('chat.web_search.compression.rag_document_count'),
+        preferenceService.get('chat.web_search.compression.rag_rerank_model_id'),
+        preferenceService.get('chat.web_search.compression.rag_rerank_provider_id')
       ])
 
     const embeddingModel =

@@ -7,7 +7,7 @@
 ### 数据源
 
 - **来源**: Redux Store (`redux.websearch`)
-- **目标**: Preference 系统 (`chat.websearch.*`)
+- **目标**: Preference 系统 (`chat.web_search.*`)
 
 ### 迁移类型
 
@@ -25,10 +25,10 @@
 
 | 原始字段         | 目标 Key                          | 类型                  |
 | ---------------- | --------------------------------- | --------------------- |
-| `providers`      | `chat.websearch.providers`        | `WebSearchProvider[]` |
-| `searchWithTime` | `chat.websearch.search_with_time` | `boolean`             |
-| `maxResults`     | `chat.websearch.max_results`      | `number`              |
-| `excludeDomains` | `chat.websearch.exclude_domains`  | `string[]`            |
+| `providers`      | `chat.web_search.providers`        | `WebSearchProvider[]` |
+| `searchWithTime` | `chat.web_search.search_with_time` | `boolean`             |
+| `maxResults`     | `chat.web_search.max_results`      | `number`              |
+| `excludeDomains` | `chat.web_search.exclude_domains`  | `string[]`            |
 
 ### 生成命令
 
@@ -41,15 +41,15 @@ npm run generate:migration
 
 ```typescript
 websearch: [
-  { originalKey: "providers", targetKey: "chat.websearch.providers" },
+  { originalKey: "providers", targetKey: "chat.web_search.providers" },
   {
     originalKey: "searchWithTime",
-    targetKey: "chat.websearch.search_with_time",
+    targetKey: "chat.web_search.search_with_time",
   },
-  { originalKey: "maxResults", targetKey: "chat.websearch.max_results" },
+  { originalKey: "maxResults", targetKey: "chat.web_search.max_results" },
   {
     originalKey: "excludeDomains",
-    targetKey: "chat.websearch.exclude_domains",
+    targetKey: "chat.web_search.exclude_domains",
   },
 ];
 ```
@@ -77,15 +77,15 @@ interface WebSearchCompressionConfig {
 }
 
 // 新格式 (Preference 扁平化)
-'chat.websearch.compression.method': 'none' | 'cutoff' | 'rag'
-'chat.websearch.compression.cutoff_limit': number | null
-'chat.websearch.compression.cutoff_unit': 'char' | 'token'
-'chat.websearch.compression.rag_document_count': number
-'chat.websearch.compression.rag_embedding_model_id': string | null
-'chat.websearch.compression.rag_embedding_provider_id': string | null
-'chat.websearch.compression.rag_embedding_dimensions': number | null
-'chat.websearch.compression.rag_rerank_model_id': string | null
-'chat.websearch.compression.rag_rerank_provider_id': string | null
+'chat.web_search.compression.method': 'none' | 'cutoff' | 'rag'
+'chat.web_search.compression.cutoff_limit': number | null
+'chat.web_search.compression.cutoff_unit': 'char' | 'token'
+'chat.web_search.compression.rag_document_count': number
+'chat.web_search.compression.rag_embedding_model_id': string | null
+'chat.web_search.compression.rag_embedding_provider_id': string | null
+'chat.web_search.compression.rag_embedding_dimensions': number | null
+'chat.web_search.compression.rag_rerank_model_id': string | null
+'chat.web_search.compression.rag_rerank_provider_id': string | null
 ```
 
 ### 实现步骤
@@ -114,32 +114,32 @@ export function flattenCompressionConfig(sources: {
   // If no config, return defaults
   if (!config) {
     return {
-      "chat.websearch.compression.method": "none",
-      "chat.websearch.compression.cutoff_limit": null,
-      "chat.websearch.compression.cutoff_unit": "char",
-      "chat.websearch.compression.rag_document_count": 5,
-      "chat.websearch.compression.rag_embedding_model_id": null,
-      "chat.websearch.compression.rag_embedding_provider_id": null,
-      "chat.websearch.compression.rag_embedding_dimensions": null,
-      "chat.websearch.compression.rag_rerank_model_id": null,
-      "chat.websearch.compression.rag_rerank_provider_id": null,
+      "chat.web_search.compression.method": "none",
+      "chat.web_search.compression.cutoff_limit": null,
+      "chat.web_search.compression.cutoff_unit": "char",
+      "chat.web_search.compression.rag_document_count": 5,
+      "chat.web_search.compression.rag_embedding_model_id": null,
+      "chat.web_search.compression.rag_embedding_provider_id": null,
+      "chat.web_search.compression.rag_embedding_dimensions": null,
+      "chat.web_search.compression.rag_rerank_model_id": null,
+      "chat.web_search.compression.rag_rerank_provider_id": null,
     };
   }
 
   return {
-    "chat.websearch.compression.method": config.method ?? "none",
-    "chat.websearch.compression.cutoff_limit": config.cutoffLimit ?? null,
-    "chat.websearch.compression.cutoff_unit": config.cutoffUnit ?? "char",
-    "chat.websearch.compression.rag_document_count": config.documentCount ?? 5,
-    "chat.websearch.compression.rag_embedding_model_id":
+    "chat.web_search.compression.method": config.method ?? "none",
+    "chat.web_search.compression.cutoff_limit": config.cutoffLimit ?? null,
+    "chat.web_search.compression.cutoff_unit": config.cutoffUnit ?? "char",
+    "chat.web_search.compression.rag_document_count": config.documentCount ?? 5,
+    "chat.web_search.compression.rag_embedding_model_id":
       config.embeddingModel?.id ?? null,
-    "chat.websearch.compression.rag_embedding_provider_id":
+    "chat.web_search.compression.rag_embedding_provider_id":
       config.embeddingModel?.provider ?? null,
-    "chat.websearch.compression.rag_embedding_dimensions":
+    "chat.web_search.compression.rag_embedding_dimensions":
       config.embeddingDimensions ?? null,
-    "chat.websearch.compression.rag_rerank_model_id":
+    "chat.web_search.compression.rag_rerank_model_id":
       config.rerankModel?.id ?? null,
-    "chat.websearch.compression.rag_rerank_provider_id":
+    "chat.web_search.compression.rag_rerank_provider_id":
       config.rerankModel?.provider ?? null,
   };
 }
@@ -165,15 +165,15 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       },
     },
     targetKeys: [
-      "chat.websearch.compression.method",
-      "chat.websearch.compression.cutoff_limit",
-      "chat.websearch.compression.cutoff_unit",
-      "chat.websearch.compression.rag_document_count",
-      "chat.websearch.compression.rag_embedding_model_id",
-      "chat.websearch.compression.rag_embedding_provider_id",
-      "chat.websearch.compression.rag_embedding_dimensions",
-      "chat.websearch.compression.rag_rerank_model_id",
-      "chat.websearch.compression.rag_rerank_provider_id",
+      "chat.web_search.compression.method",
+      "chat.web_search.compression.cutoff_limit",
+      "chat.web_search.compression.cutoff_unit",
+      "chat.web_search.compression.rag_document_count",
+      "chat.web_search.compression.rag_embedding_model_id",
+      "chat.web_search.compression.rag_embedding_provider_id",
+      "chat.web_search.compression.rag_embedding_dimensions",
+      "chat.web_search.compression.rag_rerank_model_id",
+      "chat.web_search.compression.rag_rerank_provider_id",
     ],
     transform: flattenCompressionConfig,
   },

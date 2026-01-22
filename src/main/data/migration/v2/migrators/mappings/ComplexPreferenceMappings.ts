@@ -87,7 +87,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     sources: {
       providers: { source: 'redux', category: 'websearch', key: 'providers' }
     },
-    targetKeys: ['chat.websearch.providers'],
+    targetKeys: ['chat.web_search.providers'],
     transform: migrateWebSearchProviders
   },
 
@@ -99,15 +99,15 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       compressionConfig: { source: 'redux', category: 'websearch', key: 'compressionConfig' }
     },
     targetKeys: [
-      'chat.websearch.compression.method',
-      'chat.websearch.compression.cutoff_limit',
-      'chat.websearch.compression.cutoff_unit',
-      'chat.websearch.compression.rag_document_count',
-      'chat.websearch.compression.rag_embedding_model_id',
-      'chat.websearch.compression.rag_embedding_provider_id',
-      'chat.websearch.compression.rag_embedding_dimensions',
-      'chat.websearch.compression.rag_rerank_model_id',
-      'chat.websearch.compression.rag_rerank_provider_id'
+      'chat.web_search.compression.method',
+      'chat.web_search.compression.cutoff_limit',
+      'chat.web_search.compression.cutoff_unit',
+      'chat.web_search.compression.rag_document_count',
+      'chat.web_search.compression.rag_embedding_model_id',
+      'chat.web_search.compression.rag_embedding_provider_id',
+      'chat.web_search.compression.rag_embedding_dimensions',
+      'chat.web_search.compression.rag_rerank_model_id',
+      'chat.web_search.compression.rag_rerank_provider_id'
     ],
     transform: flattenCompressionConfig
   }

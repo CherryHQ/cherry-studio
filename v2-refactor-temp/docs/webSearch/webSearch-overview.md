@@ -64,7 +64,7 @@
 ```
 ┌─ Renderer ──────────────────────────────────────┐
 │ UI                                              │
-│  └─ usePreference('chat.websearch.*') → 配置   │
+│  └─ usePreference('chat.web_search.*') → 配置   │
 │                                                 │
 │ Service                                         │
 │  └─ WebSearchService                            │
@@ -78,26 +78,26 @@
 
 | 数据类型 | 系统 | Key |
 |----------|------|-----|
-| 供应商配置 | Preference | `chat.websearch.providers` |
-| 搜索设置 | Preference | `chat.websearch.*` |
-| 搜索状态 | Cache | `chat.websearch.active_searches` |
+| 供应商配置 | Preference | `chat.web_search.providers` |
+| 搜索设置 | Preference | `chat.web_search.*` |
+| 搜索状态 | Cache | `chat.web_search.active_searches` |
 
 ## Preference Keys
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `chat.websearch.search_with_time` | boolean | true | 添加时间信息 |
-| `chat.websearch.max_results` | number | 5 | 最大结果数 |
-| `chat.websearch.exclude_domains` | string[] | [] | 排除域名 |
-| `chat.websearch.compression.method` | `WebSearchCompressionMethod` | `none` | 压缩方式 |
-| `chat.websearch.compression.cutoff_limit` | number \| null | null | 截断限制 |
-| `chat.websearch.compression.cutoff_unit` | `WebSearchCompressionCutoffUnit` | `char` | 截断单位 |
-| `chat.websearch.compression.rag_document_count` | number | 1 | RAG 文档数量 |
-| `chat.websearch.compression.rag_embedding_model_id` | string \| null | null | Embedding 模型 ID |
-| `chat.websearch.compression.rag_embedding_provider_id` | string \| null | null | Embedding 提供商 ID |
-| `chat.websearch.compression.rag_embedding_dimensions` | number \| null | null | Embedding 维度 |
-| `chat.websearch.compression.rag_rerank_model_id` | string \| null | null | Rerank 模型 ID |
-| `chat.websearch.compression.rag_rerank_provider_id` | string \| null | null | Rerank 提供商 ID |
+| `chat.web_search.search_with_time` | boolean | true | 添加时间信息 |
+| `chat.web_search.max_results` | number | 5 | 最大结果数 |
+| `chat.web_search.exclude_domains` | string[] | [] | 排除域名 |
+| `chat.web_search.compression.method` | `WebSearchCompressionMethod` | `none` | 压缩方式 |
+| `chat.web_search.compression.cutoff_limit` | number \| null | null | 截断限制 |
+| `chat.web_search.compression.cutoff_unit` | `WebSearchCompressionCutoffUnit` | `char` | 截断单位 |
+| `chat.web_search.compression.rag_document_count` | number | 1 | RAG 文档数量 |
+| `chat.web_search.compression.rag_embedding_model_id` | string \| null | null | Embedding 模型 ID |
+| `chat.web_search.compression.rag_embedding_provider_id` | string \| null | null | Embedding 提供商 ID |
+| `chat.web_search.compression.rag_embedding_dimensions` | number \| null | null | Embedding 维度 |
+| `chat.web_search.compression.rag_rerank_model_id` | string \| null | null | Rerank 模型 ID |
+| `chat.web_search.compression.rag_rerank_provider_id` | string \| null | null | Rerank 提供商 ID |
 
 ## 与 v1 对比
 
@@ -133,7 +133,7 @@ src/renderer/src/
 packages/shared/data/
 └─ preference/
     ├─ preferenceTypes.ts           # WebSearchProvider, WebSearchProviders, WebSearchCompression*
-    └─ preferenceSchemas.ts         # chat.websearch.* keys & defaults
+    └─ preferenceSchemas.ts         # chat.web_search.* keys & defaults
 ```
 
 ## 相关文档
