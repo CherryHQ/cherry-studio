@@ -1,0 +1,2123 @@
+{
+  "version": "2025.12.10",
+  "providers": [
+    {
+      "id": "cherryin",
+      "name": "CherryIN",
+      "description": "CherryIN - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://open.cherryin.net",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://open.cherryin.net"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://open.cherryin.net/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "silicon",
+      "name": "Silicon",
+      "description": "Silicon - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.siliconflow.cn",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.siliconflow.cn/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "aihubmix",
+      "name": "AiHubMix",
+      "description": "AiHubMix - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://aihubmix.com",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://aihubmix.com/anthropic"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://aihubmix.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI",
+            "transformer": "aihubmix"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "realtime"
+      }
+    },
+    {
+      "id": "ocoolai",
+      "name": "ocoolAI",
+      "description": "ocoolAI - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.ocoolai.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.ocoolai.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "zhipu",
+      "name": "ZhiPu",
+      "description": "ZhiPu - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://open.bigmodel.cn/api/paas/v4/",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://open.bigmodel.cn/api/anthropic"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://open.bigmodel.cn/api/paas/v4/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "deepseek",
+      "name": "deepseek",
+      "description": "deepseek - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.deepseek.com",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://api.deepseek.com/anthropic"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": false,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.deepseek.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "alayanew",
+      "name": "AlayaNew",
+      "description": "AlayaNew - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://deepseek.alayanew.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://deepseek.alayanew.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "dmxapi",
+      "name": "DMXAPI",
+      "description": "DMXAPI - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://www.dmxapi.cn",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://www.dmxapi.cn/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "aionly",
+      "name": "AIOnly",
+      "description": "AIOnly - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.aiionly.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.aiionly.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "burncloud",
+      "name": "BurnCloud",
+      "description": "BurnCloud - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://ai.burncloud.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://ai.burncloud.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "tokenflux",
+      "name": "TokenFlux",
+      "description": "TokenFlux - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://tokenflux.ai",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://tokenflux.ai/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "302ai",
+      "name": "302.AI",
+      "description": "302.AI - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.302.ai",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.302.ai/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "cephalon",
+      "name": "Cephalon",
+      "description": "Cephalon - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://cephalon.cloud/user-center/v1/model",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": false,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://cephalon.cloud/user-center/v1/model/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "lanyun",
+      "name": "LANYUN",
+      "description": "LANYUN - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://maas-api.lanyun.net",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://maas-api.lanyun.net/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "ph8",
+      "name": "PH8",
+      "description": "PH8 - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://ph8.co",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://ph8.co/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "sophnet",
+      "name": "SophNet",
+      "description": "SophNet - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://www.sophnet.com/api/open-apis/v1",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://www.sophnet.com/api/open-apis/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "ppio",
+      "name": "PPIO",
+      "description": "PPIO - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.ppinfra.com/v3/openai/",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.ppinfra.com/v3/openai/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "qiniu",
+      "name": "Qiniu",
+      "description": "Qiniu - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.qnaigc.com",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://api.qnaigc.com"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": false,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.qnaigc.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "description": "OpenRouter - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://openrouter.ai/api/v1/",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "EMBEDDINGS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://openrouter.ai/api/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI",
+            "transformer": "openrouter"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "realtime"
+      }
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "description": "Anthropic - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://api.anthropic.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "official"
+        ]
+      }
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "description": "OpenAI - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.openai.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "EMBEDDINGS",
+        "RESPONSES",
+        "IMAGE_GENERATION",
+        "AUDIO_TRANSCRIPTION",
+        "TEXT_TO_SPEECH"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "official"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.openai.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "description": "Gemini - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "GEMINI",
+          "base_url": "https://generativelanguage.googleapis.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "GENERATE_CONTENT",
+        "EMBEDDINGS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "official"
+        ]
+      }
+    },
+    {
+      "id": "github",
+      "name": "Github Models",
+      "description": "Github Models - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://models.github.ai/inference",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": false,
+        "supports_service_tier": false
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://models.github.ai/catalog/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "copilot",
+      "name": "Github Copilot",
+      "description": "Github Copilot - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.githubcopilot.com/",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": false,
+        "supports_service_tier": false
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.githubcopilot.com/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "yi",
+      "name": "Yi",
+      "description": "Yi - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.lingyiwanwu.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.lingyiwanwu.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "moonshot",
+      "name": "Moonshot AI",
+      "description": "Moonshot AI - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.moonshot.cn",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://api.moonshot.cn/anthropic"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.moonshot.cn/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "baichuan",
+      "name": "BAICHUAN AI",
+      "description": "BAICHUAN AI - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.baichuan-ai.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": false,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.baichuan-ai.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "dashscope",
+      "name": "Bailian",
+      "description": "Bailian - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://dashscope.aliyuncs.com/apps/anthropic"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "stepfun",
+      "name": "StepFun",
+      "description": "StepFun - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.stepfun.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.stepfun.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "doubao",
+      "name": "doubao",
+      "description": "doubao - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://ark.cn-beijing.volces.com/api/v3/",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://ark.cn-beijing.volces.com/api/v3/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "infini",
+      "name": "Infini",
+      "description": "Infini - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://cloud.infini-ai.com/maas",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://cloud.infini-ai.com/maas/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "description": "MiniMax - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.minimaxi.com/v1",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://api.minimaxi.com/anthropic"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": false,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.minimaxi.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "groq",
+      "name": "Groq",
+      "description": "Groq - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.groq.com/openai",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.groq.com/openai/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "together",
+      "name": "Together",
+      "description": "Together - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.together.xyz",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "EMBEDDINGS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.together.xyz/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "fireworks",
+      "name": "Fireworks",
+      "description": "Fireworks - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.fireworks.ai/inference",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.fireworks.ai/inference/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "nvidia",
+      "name": "nvidia",
+      "description": "nvidia - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://integrate.api.nvidia.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": false,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://integrate.api.nvidia.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "grok",
+      "name": "Grok",
+      "description": "Grok - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.x.ai",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.x.ai/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "hyperbolic",
+      "name": "Hyperbolic",
+      "description": "Hyperbolic - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.hyperbolic.xyz",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.hyperbolic.xyz/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral",
+      "description": "Mistral - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.mistral.ai",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": false,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.mistral.ai/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "jina",
+      "name": "Jina",
+      "description": "Jina - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.jina.ai",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.jina.ai/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "description": "Perplexity - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.perplexity.ai/",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": false,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      }
+    },
+    {
+      "id": "modelscope",
+      "name": "ModelScope",
+      "description": "ModelScope - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api-inference.modelscope.cn/v1/",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://api-inference.modelscope.cn"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api-inference.modelscope.cn/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "xirang",
+      "name": "Xirang",
+      "description": "Xirang - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://wishub-x1.ctyun.cn",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": false,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://wishub-x1.ctyun.cn/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "hunyuan",
+      "name": "hunyuan",
+      "description": "hunyuan - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.hunyuan.cloud.tencent.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.hunyuan.cloud.tencent.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "tencent-cloud-ti",
+      "name": "Tencent Cloud TI",
+      "description": "Tencent Cloud TI - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.lkeap.cloud.tencent.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.lkeap.cloud.tencent.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "baidu-cloud",
+      "name": "Baidu Cloud",
+      "description": "Baidu Cloud - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://qianfan.baidubce.com/v2/",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://qianfan.baidubce.com/v2/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "voyageai",
+      "name": "VoyageAI",
+      "description": "VoyageAI - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.voyageai.com",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.voyageai.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "poe",
+      "name": "Poe",
+      "description": "Poe - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.poe.com/v1/",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": false,
+        "supports_stream_options": true,
+        "supports_developer_role": false,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.poe.com/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "longcat",
+      "name": "LongCat",
+      "description": "LongCat - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.longcat.chat/openai",
+          "default": true
+        },
+        {
+          "format": "ANTHROPIC",
+          "base_url": "https://api.longcat.chat/anthropic"
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.longcat.chat/openai/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "huggingface",
+      "name": "Hugging Face",
+      "description": "Hugging Face - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://router.huggingface.co/v1/",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": true
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "official"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://router.huggingface.co/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    },
+    {
+      "id": "cerebras",
+      "name": "Cerebras AI",
+      "description": "Cerebras AI - AI model provider",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.cerebras.ai/v1",
+          "default": true
+        }
+      ],
+      "supported_endpoints": [
+        "CHAT_COMPLETIONS"
+      ],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": true,
+        "supports_developer_role": true,
+        "supports_thinking_control": true,
+        "supports_api_version": true,
+        "supports_service_tier": false
+      },
+      "deprecated": false,
+      "metadata": {
+        "tags": [
+          "aggregator"
+        ]
+      },
+      "models_api": {
+        "endpoints": [
+          {
+            "url": "https://api.cerebras.ai/v1/models",
+            "endpoint_type": "CHAT_COMPLETIONS",
+            "format": "OPENAI"
+          }
+        ],
+        "enabled": true,
+        "update_frequency": "daily"
+      }
+    }
+  ]
+}

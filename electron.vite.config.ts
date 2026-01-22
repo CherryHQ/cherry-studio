@@ -110,7 +110,8 @@ export default defineConfig({
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),
-        '@test-mocks': resolve('tests/__mocks__')
+        '@test-mocks': resolve('tests/__mocks__'),
+        '@cherrystudio/catalog': resolve('packages/catalog/src')
       }
     },
     optimizeDeps: {

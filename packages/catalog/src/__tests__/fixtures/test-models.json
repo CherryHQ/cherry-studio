@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "models": [
+    {
+      "id": "test-model",
+      "name": "Test Model",
+      "owned_by": "TestProvider",
+      "description": "A test model for unit testing",
+      "capabilities": ["FUNCTION_CALL", "REASONING"],
+      "input_modalities": ["TEXT"],
+      "output_modalities": ["TEXT"],
+      "context_window": 128000,
+      "max_output_tokens": 4096,
+      "max_input_tokens": 124000,
+      "pricing": {
+        "input": {
+          "per_million_tokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "per_million_tokens": 2,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 2,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": true,
+        "topP": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "tags": ["test", "fast", "reliable"],
+        "category": "language-model",
+        "source": "test",
+        "license": "mit",
+        "documentation": "https://docs.test.com/models/test-model",
+        "family": "test-family",
+        "architecture": "transformer",
+        "trainingData": "synthetic"
+      }
+    }
+  ]
+}

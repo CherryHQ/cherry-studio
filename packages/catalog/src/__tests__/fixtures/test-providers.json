@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "providers": [
+    {
+      "id": "test-provider",
+      "name": "Test Provider",
+      "description": "A test provider for unit testing",
+      "authentication": "API_KEY",
+      "formats": [
+        {
+          "format": "OPENAI",
+          "base_url": "https://api.test.com/v1",
+          "default": true
+        }
+      ],
+      "supported_endpoints": ["CHAT_COMPLETIONS"],
+      "api_compatibility": {
+        "supports_array_content": true,
+        "supports_stream_options": false,
+        "supports_developer_role": false,
+        "supports_thinking_control": false,
+        "supports_api_version": false,
+        "supports_service_tier": false
+      },
+      "documentation": "https://docs.test.com",
+      "website": "https://test.com",
+      "deprecated": false,
+      "metadata": {
+        "tags": ["test"]
+      }
+    }
+  ]
+}

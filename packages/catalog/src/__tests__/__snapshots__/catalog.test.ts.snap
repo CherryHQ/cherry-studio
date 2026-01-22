@@ -1,0 +1,209 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Config & Schema > Snapshot Tests > should snapshot complete configuration structure 1`] = `
+{
+  "models": Any<Array>,
+  "overrides": Any<Array>,
+  "providers": Any<Array>,
+}
+`;
+
+exports[`Config & Schema > Snapshot Tests > should snapshot model configurations 1`] = `
+[
+  {
+    "capabilities": [
+      "FUNCTION_CALL",
+      "REASONING",
+    ],
+    "context_window": 128000,
+    "description": "A test model for unit testing",
+    "id": "test-model",
+    "input_modalities": [
+      "TEXT",
+    ],
+    "max_input_tokens": 124000,
+    "max_output_tokens": 4096,
+    "metadata": {
+      "architecture": "transformer",
+      "category": "language-model",
+      "documentation": "https://docs.test.com/models/test-model",
+      "family": "test-family",
+      "license": "mit",
+      "source": "test",
+      "tags": [
+        "test",
+        "fast",
+        "reliable",
+      ],
+      "trainingData": "synthetic",
+    },
+    "name": "Test Model",
+    "output_modalities": [
+      "TEXT",
+    ],
+    "owned_by": "TestProvider",
+    "parameters": {
+      "maxTokens": true,
+      "systemMessage": true,
+      "temperature": {
+        "default": 1,
+        "max": 2,
+        "min": 0,
+        "supported": true,
+      },
+      "topP": {
+        "default": 1,
+        "max": 1,
+        "min": 0,
+        "supported": true,
+      },
+    },
+    "pricing": {
+      "input": {
+        "currency": "USD",
+        "per_million_tokens": 1,
+      },
+      "output": {
+        "currency": "USD",
+        "per_million_tokens": 2,
+      },
+    },
+  },
+]
+`;
+
+exports[`Config & Schema > Snapshot Tests > should snapshot override configurations 1`] = `
+[
+  {
+    "capabilities": {
+      "add": [
+        "FUNCTION_CALL",
+      ],
+      "remove": [
+        "REASONING",
+      ],
+    },
+    "disabled": false,
+    "limits": {
+      "context_window": 256000,
+      "max_output_tokens": 8192,
+    },
+    "model_id": "test-model",
+    "pricing": {
+      "input": {
+        "currency": "USD",
+        "per_million_tokens": 0.5,
+      },
+    },
+    "priority": 100,
+    "provider_id": "test-provider",
+    "reason": "Test override for enhanced capabilities and limits",
+  },
+]
+`;
+
+exports[`Config & Schema > Snapshot Tests > should snapshot provider configurations 1`] = `
+[
+  {
+    "api_compatibility": {
+      "supports_api_version": false,
+      "supports_array_content": true,
+      "supports_developer_role": false,
+      "supports_service_tier": false,
+      "supports_stream_options": false,
+      "supports_thinking_control": false,
+    },
+    "authentication": "API_KEY",
+    "deprecated": false,
+    "description": "A test provider for unit testing",
+    "documentation": "https://docs.test.com",
+    "formats": [
+      {
+        "base_url": "https://api.test.com/v1",
+        "default": true,
+        "format": "OPENAI",
+      },
+    ],
+    "id": "test-provider",
+    "metadata": {
+      "tags": [
+        "test",
+      ],
+    },
+    "name": "Test Provider",
+    "supported_endpoints": [
+      "CHAT_COMPLETIONS",
+    ],
+    "website": "https://test.com",
+  },
+]
+`;
+
+exports[`Config & Schema > Snapshot Tests > should snapshot validation results 1`] = `
+{
+  "data": {
+    "capabilities": [
+      "FUNCTION_CALL",
+      "REASONING",
+    ],
+    "context_window": 128000,
+    "description": "A test model for unit testing",
+    "id": "test-model",
+    "input_modalities": [
+      "TEXT",
+    ],
+    "max_input_tokens": 124000,
+    "max_output_tokens": 4096,
+    "metadata": {
+      "architecture": "transformer",
+      "category": "language-model",
+      "documentation": "https://docs.test.com/models/test-model",
+      "family": "test-family",
+      "license": "mit",
+      "source": "test",
+      "tags": [
+        "test",
+        "fast",
+        "reliable",
+      ],
+      "trainingData": "synthetic",
+    },
+    "name": "Test Model",
+    "output_modalities": [
+      "TEXT",
+    ],
+    "owned_by": "TestProvider",
+    "parameters": {
+      "maxTokens": true,
+      "systemMessage": true,
+      "temperature": {
+        "default": 1,
+        "max": 2,
+        "min": 0,
+        "supported": true,
+      },
+      "topP": {
+        "default": 1,
+        "max": 1,
+        "min": 0,
+        "supported": true,
+      },
+    },
+    "pricing": {
+      "input": {
+        "currency": "USD",
+        "per_million_tokens": 1,
+      },
+      "output": {
+        "currency": "USD",
+        "per_million_tokens": 2,
+      },
+    },
+  },
+  "success": true,
+  "warnings": [
+    "Model has REASONING capability but no reasoning configuration",
+    "Custom validation warning for snapshot",
+  ],
+}
+`;
