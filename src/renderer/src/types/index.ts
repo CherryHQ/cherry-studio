@@ -460,6 +460,7 @@ export type MinAppType = {
   id: string
   name: string
   nameKey?: string // i18n key for translatable names
+  locales?: string[] // Locale codes where this app should be visible (e.g., ['zh-CN', 'zh-TW'])
   logo?: string
   url: string
   // FIXME: It should be `bordered`
