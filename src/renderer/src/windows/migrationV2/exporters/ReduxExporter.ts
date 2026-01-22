@@ -11,6 +11,8 @@ const SLICES_TO_EXPORT = [
   'assistants', // Assistant configurations
   'knowledge', // Knowledge base metadata
   'llm', // LLM provider and model configurations
+  'ocr', // OCR provider configurations
+  'preprocess', // Preprocess provider configurations
   'note', // Note-related settings
   'selectionStore' // Selection assistant settings
 ]

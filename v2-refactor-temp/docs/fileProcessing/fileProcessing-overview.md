@@ -29,123 +29,200 @@
 
 ## 数据结构
 
-### 表结构：`file_processors`
+采用 **Template + User Config** 分离设计：
+- **Template**（只读）：处理器元数据，定义能力边界
+- **User Config**（Preference 存储）：用户修改的配置
 
-| 字段       | 类型        | 说明                                      |
-| ---------- | ----------- | ----------------------------------------- |
-| `id`       | string (PK) | 唯一标识，如 `'mineru'`, `'deepseek-ocr'` |
-| `name`     | string      | 显示名称                                  |
-| `type`     | enum        | `'api'` \| `'local'`                      |
-| `features` | enum[]      | 能力标签数组                              |
-| `inputs`   | enum[]      | 支持的输入类型                            |
-| `outputs`  | enum[]      | 支持的输出格式                            |
-| `api_key`  | string?     | API Key（用户配置）                       |
-| `api_host` | string?     | API Host（用户配置）                      |
-| `model_id` | string?     | 模型 ID（用户配置）                       |
+### Template 结构：`FileProcessorTemplate`
+
+| 字段           | 类型                  | 说明                           |
+| -------------- | --------------------- | ------------------------------ |
+| `id`           | string                | 唯一标识，也用于 i18n key      |
+| `type`         | `'api' \| 'builtin'`  | 服务类型                       |
+| `capabilities` | `FeatureCapability[]` | 能力定义数组                   |
+
+> **i18n**: 处理器显示名称通过 `processor.${id}.name` 获取，Template 不存储 name 字段
+
+### 能力结构：`FeatureCapability`
+
+将能力（Feature）与输入/输出类型绑定，支持 Feature 级别的 API 配置：
+
+| 字段               | 类型                                   | 说明                              |
+| ------------------ | -------------------------------------- | --------------------------------- |
+| `feature`          | `'text_extraction' \| 'to_markdown'`   | 能力类型                          |
+| `input`            | `'image' \| 'document'`                | 输入类型                          |
+| `output`           | `'text' \| 'markdown'`                 | 输出类型                          |
+| `supportedFormats` | `string[]?`                            | 白名单：仅支持这些格式            |
+| `excludedFormats`  | `string[]?`                            | 黑名单：除这些格式外都支持        |
+| `defaultApiHost`   | `string?`                              | Feature 级默认 API Host           |
+| `defaultModelId`   | `string?`                              | Feature 级默认 Model ID           |
+
+### 用户配置结构：`FileProcessorUserConfig`
+
+存储在 Preference 系统中，仅保存用户修改的字段：
+
+| 字段             | 类型                    | 说明                              |
+| ---------------- | ----------------------- | --------------------------------- |
+| `id`             | string                  | 处理器 ID，用于匹配 Template      |
+| `apiKey`         | `string?`               | API Key（处理器级共享）           |
+| `featureConfigs` | `FeatureUserConfig[]?`  | Feature 级配置                    |
+| `options`        | `Record<string, unknown>?` | 处理器特定配置                 |
+
+### Feature 用户配置：`FeatureUserConfig`
+
+允许用户对特定 Feature 覆盖 API Host 和 Model ID：
+
+| 字段       | 类型                                   | 说明                              |
+| ---------- | -------------------------------------- | --------------------------------- |
+| `feature`  | `'text_extraction' \| 'to_markdown'`   | 能力类型                          |
+| `apiHost`  | `string?`                              | 用户覆盖的 API Host               |
+| `modelId`  | `string?`                              | 用户覆盖的 Model ID               |
+
+### 格式过滤规则
+
+`FeatureCapability` 中的 `supportedFormats` 和 `excludedFormats` 用于控制格式支持：
+
+| 情况                     | 行为                                    |
+| ------------------------ | --------------------------------------- |
+| 都不指定                 | 支持该 input 类别的所有格式             |
+| 指定 `supportedFormats`  | 仅支持列出的格式（白名单模式）          |
+| 指定 `excludedFormats`   | 支持除列出格式外的所有格式（黑名单模式）|
 
 ---
 
-## 枚举定义
+## 类型定义
+
+> **注意**：使用 TypeScript 字面量联合类型而非 enum，保持与代码一致
 
 ### Feature（能力）
 
 ```typescript
-type Feature =
-  | "text_extraction" // 文字提取
-  | "layout_analysis" // 版面分析
-  | "table_detection" // 表格识别
-  | "formula_detection" // 公式识别
-  | "multimodal"; // 多模态理解（自然语言描述输入内容）
+type FileProcessorFeature = 'text_extraction' | 'to_markdown'
 ```
+
+| 类型              | 说明                                    |
+| ----------------- | --------------------------------------- |
+| `text_extraction` | 文字提取（继承 OCR 功能）               |
+| `to_markdown`     | 转换为 Markdown（继承文档预处理功能）   |
+
+**设计说明**：简化为两个核心能力，不再细分 `layout_analysis`、`table_detection`、`formula_detection`、`multimodal` 等具体实现细节。这些能力细节由具体 processor 内部实现。
 
 ### Input（输入类型）
 
 ```typescript
-type Input = "image" | "document" | "audio" | "video";
+type FileProcessorInput = 'image' | 'document'
 ```
 
 | 类型       | 说明 | 包含格式                          |
 | ---------- | ---- | --------------------------------- |
 | `image`    | 图片 | jpg, png, webp, gif...            |
 | `document` | 文档 | pdf, docx, pptx, xlsx, md, txt... |
-| `audio`    | 音频 | mp3, wav, m4a...（未来）          |
-| `video`    | 视频 | mp4, mov, webm...（未来）         |
+
+> **未来扩展**：可添加 `audio`（mp3, wav, m4a...）、`video`（mp4, mov, webm...）
 
 ### Output（输出格式）
 
 ```typescript
-type Output = "text" | "markdown";
+type FileProcessorOutput = 'text' | 'markdown'
 ```
 
 ### ProcessorType（服务类型）
 
 ```typescript
-type ProcessorType = "api" | "local";
+type FileProcessorType = 'api' | 'builtin'
 ```
+
+| 类型      | 说明                                         |
+| --------- | -------------------------------------------- |
+| `api`     | API 服务（需要配置 API Key/Host，含云端和自部署） |
+| `builtin` | 系统内置（应用内嵌或系统原生，无需外部配置） |
 
 ---
 
 ## 示例数据
 
-### DeepSeek-OCR
-
-```typescript
-{
-  id: 'deepseek-ocr',
-  name: 'DeepSeek OCR',
-  type: 'api',
-  features: ['text_extraction', 'multimodal'],
-  inputs: ['image', 'document'],
-  outputs: ['text', 'markdown'],
-  api_key: '***',
-  api_host: 'https://api.deepseek.com',
-  model_id: 'deepseek-ocr'
-}
-```
-
-### MinerU
+### MinerU（Template）
 
 ```typescript
 {
   id: 'mineru',
-  name: 'MinerU',
   type: 'api',
-  features: ['text_extraction', 'layout_analysis', 'table_detection', 'formula_detection'],
-  inputs: ['document'],
-  outputs: ['markdown'],
-  api_key: '***',
-  api_host: 'https://mineru.net',
-  model_id: null
+  capabilities: [
+    {
+      feature: 'to_markdown',
+      input: 'document',
+      output: 'markdown',
+      defaultApiHost: 'https://mineru.net'
+    }
+  ]
 }
 ```
 
-### Tesseract
+### Tesseract（Template）
 
 ```typescript
 {
   id: 'tesseract',
-  name: 'Tesseract',
-  type: 'local',
-  features: ['text_extraction'],
-  inputs: ['image'],
-  outputs: ['text'],
-  api_key: null,
-  api_host: null,
-  model_id: null
+  type: 'builtin',
+  capabilities: [
+    { feature: 'text_extraction', input: 'image', output: 'text' }
+  ]
 }
 ```
 
-### 对比表
+### Mistral（Template）
 
-| Processor    | type  | features                                                             | inputs          | outputs        |
-| ------------ | ----- | -------------------------------------------------------------------- | --------------- | -------------- |
-| DeepSeek-OCR | api   | text_extraction, multimodal                                          | image, document | text, markdown |
-| MinerU       | api   | text_extraction, layout_analysis, table_detection, formula_detection | document        | markdown       |
-| Tesseract    | local | text_extraction                                                      | image           | text           |
+```typescript
+{
+  id: 'mistral',
+  type: 'api',
+  capabilities: [
+    {
+      feature: 'to_markdown',
+      input: 'document',
+      output: 'markdown',
+      defaultApiHost: 'https://api.mistral.ai',
+      defaultModelId: 'mistral-ocr-latest'
+    }
+  ]
+}
+```
+
+### 用户配置示例（UserConfig）
+
+```typescript
+// 用户为 MinerU 配置了 API Key
+{
+  id: 'mineru',
+  apiKey: '***'
+}
+
+// 用户为 PaddleOCR 配置了不同 feature 的 API Host
+{
+  id: 'paddleocr',
+  apiKey: '***',
+  featureConfigs: [
+    { feature: 'text_extraction', apiHost: 'https://my-paddleocr-server.com' }
+  ]
+}
+```
+
+### 处理器对比表
+
+| Processor     | type    | capabilities 概要                                      |
+| ------------- | ------- | ------------------------------------------------------ |
+| Tesseract     | builtin | text_extraction (image → text)                         |
+| System OCR    | builtin | text_extraction (image → text)                         |
+| PaddleOCR     | api     | text_extraction (image → text)                         |
+| Intel OV OCR  | builtin | text_extraction (image → text)                         |
+| MinerU        | api     | to_markdown (document → markdown)                      |
+| Doc2x         | api     | to_markdown (document → markdown)                      |
+| Mistral       | api     | to_markdown (document → markdown)                      |
+| Open MinerU   | api     | to_markdown (document → markdown)                      |
 
 ### 本质区别对比
 
-| 维度           | Tesseract              | DeepSeek-OCR                 | MinerU                     |
+| 维度           | Tesseract              | Mistral                      | MinerU                     |
 | -------------- | ---------------------- | ---------------------------- | -------------------------- |
 | **技术原理**   | 传统 OCR 引擎          | LLM 多模态模型               | 专业文档解析引擎           |
 | **核心定位**   | 图像文字识别           | 图像/文档理解与描述          | 文档结构精确还原           |
@@ -153,15 +230,14 @@ type ProcessorType = "api" | "local";
 | **结构保留**   | 无                     | 部分（语义级）               | 完整（版面级）             |
 | **表格处理**   | 不支持                 | 支持（可能有损失）           | 精确还原                   |
 | **公式处理**   | 不支持                 | 支持（可能有损失）           | 精确还原（LaTeX）          |
-| **多模态理解** | 不支持                 | 支持（可用自然语言描述图像） | 不支持                     |
-| **运行方式**   | 本地                   | API 调用                     | API 调用                   |
+| **运行方式**   | 内置                   | API 调用                     | API 调用                   |
 | **速度**       | 快                     | 中等                         | 较慢（精确解析耗时）       |
 | **适用场景**   | 简单图片文字提取、翻译 | 聊天图片理解、快速文档提取   | 知识库、学术论文、技术文档 |
 
 **总结**：
 
-- **Tesseract**：轻量本地方案，只做"识别文字"，不理解内容
-- **DeepSeek-OCR**：LLM 驱动，能"理解并描述"内容，但结构还原非精确
+- **Tesseract**：轻量内置方案，只做"识别文字"，不理解内容
+- **Mistral**：LLM 驱动，能"理解并描述"内容，但结构还原非精确
 - **MinerU**：专业文档解析，"一模一样还原"文档结构，但不具备语义理解能力
 
 ---

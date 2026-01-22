@@ -64,16 +64,21 @@ describe('ComplexPreferenceMappings', () => {
       expect(Array.isArray(COMPLEX_PREFERENCE_MAPPINGS)).toBe(true)
     })
 
-    it('should initially be empty (no mappings configured yet)', () => {
-      // This test documents the current state - update when mappings are added
-      expect(COMPLEX_PREFERENCE_MAPPINGS.length).toBe(0)
+    it('should have file processing mapping configured', () => {
+      // File processing mapping has been added for OCR/Preprocess migration
+      expect(COMPLEX_PREFERENCE_MAPPINGS.length).toBe(1)
+      expect(COMPLEX_PREFERENCE_MAPPINGS[0].id).toBe('file-processing-config')
     })
   })
 
   describe('getComplexMappingTargetKeys', () => {
-    it('should return empty array when no mappings exist', () => {
+    it('should return file processing target keys', () => {
       const keys = getComplexMappingTargetKeys()
-      expect(keys).toEqual([])
+      expect(keys).toEqual([
+        'feature.file_processing.processors',
+        'feature.file_processing.default_image_processor',
+        'feature.file_processing.default_document_processor'
+      ])
     })
 
     it('should flatten target keys from all mappings', () => {
