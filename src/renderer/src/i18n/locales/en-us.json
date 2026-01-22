@@ -3119,6 +3119,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "View",
+        "title": "Careers"
+      },
       "checkUpdate": {
         "available": "Update",
         "label": "Check Update"
@@ -4218,9 +4222,6 @@
       "show_message_outline": "Show message outline",
       "title": "Message Settings",
       "use_serif_font": "Use serif font"
-    },
-    "mineru": {
-      "api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key."
     },
     "miniapps": {
       "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",

@@ -3119,6 +3119,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "查看",
+        "title": "加入我们"
+      },
       "checkUpdate": {
         "available": "立即更新",
         "label": "检查更新"
@@ -4218,9 +4222,6 @@
       "show_message_outline": "显示消息大纲",
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
-    },
-    "mineru": {
-      "api_key": "MinerU现在提供每日500页的免费额度，您不需要填写密钥。"
     },
     "miniapps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",

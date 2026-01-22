@@ -1,4 +1,5 @@
 import { type EndpointType, type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import { formatApiHost } from '@renderer/utils/api'
 import { codeTools } from '@shared/config/constant'
 
 export interface LaunchValidationResult {
@@ -21,7 +22,8 @@ export const CLI_TOOLS = [
   { value: codeTools.geminiCli, label: 'Gemini CLI' },
   { value: codeTools.openaiCodex, label: 'OpenAI Codex' },
   { value: codeTools.iFlowCli, label: 'iFlow CLI' },
-  { value: codeTools.githubCopilotCli, label: 'GitHub Copilot CLI' }
+  { value: codeTools.githubCopilotCli, label: 'GitHub Copilot CLI' },
+  { value: codeTools.kimiCli, label: 'Kimi CLI' }
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
@@ -58,7 +60,8 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeTools.openaiCodex]: (providers) =>
     providers.filter((p) => p.id === 'openai' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
-  [codeTools.githubCopilotCli]: () => []
+  [codeTools.githubCopilotCli]: () => [],
+  [codeTools.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai'))
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
@@ -145,6 +148,7 @@ export const generateToolEnvironment = ({
   baseUrl: string
 }): Record<string, string> => {
   const env: Record<string, string> = {}
+  const formattedBaseUrl = formatApiHost(baseUrl)
 
   switch (tool) {
     case codeTools.claudeCode:
@@ -169,24 +173,30 @@ export const generateToolEnvironment = ({
 
     case codeTools.qwenCode:
       env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = baseUrl
+      env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       break
     case codeTools.openaiCodex:
       env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = baseUrl
+      env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       env.OPENAI_MODEL_PROVIDER = modelProvider.id
       break
 
     case codeTools.iFlowCli:
       env.IFLOW_API_KEY = apiKey
-      env.IFLOW_BASE_URL = baseUrl
+      env.IFLOW_BASE_URL = formattedBaseUrl
       env.IFLOW_MODEL_NAME = model.id
       break
 
     case codeTools.githubCopilotCli:
       env.GITHUB_TOKEN = apiKey || ''
+      break
+
+    case codeTools.kimiCli:
+      env.KIMI_API_KEY = apiKey
+      env.KIMI_BASE_URL = formattedBaseUrl
+      env.KIMI_MODEL_NAME = model.id
       break
   }
 
