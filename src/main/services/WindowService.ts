@@ -7,11 +7,11 @@ import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
+import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
-import icon from '../../../build/icon.png?asset'
+import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
@@ -22,6 +22,9 @@ const DEFAULT_MINIWINDOW_HEIGHT = 400
 
 // const logger = loggerService.withContext('WindowService')
 const logger = loggerService.withContext('WindowService')
+
+// Create nativeImage for Linux window icon (required for Wayland)
+const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -79,7 +82,7 @@ export class WindowService {
           }),
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      ...(isLinux ? { icon } : {}),
+      ...(isLinux ? { icon: linuxIcon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
