@@ -271,7 +271,7 @@
     },
     "toolPermission": {
       "aria": {
-        "allowAllRequest": "[to be translated]:Always allow this tool",
+        "allowAllRequest": "Toujours autoriser cet outil",
         "allowRequest": "Autoriser la demande d'outil",
         "denyRequest": "Refuser la demande d'outil",
         "hideDetails": "Masquer les détails de l'outil",
@@ -279,7 +279,7 @@
         "showDetails": "Afficher les détails de l'outil"
       },
       "button": {
-        "allowAll": "[to be translated]:Always Allow",
+        "allowAll": "Toujours autoriser",
         "cancel": "Annuler",
         "run": "Courir"
       },
@@ -670,8 +670,8 @@
       }
     },
     "alerts": {
-      "create_session": "[to be translated]:Create a session",
-      "select_agent": "[to be translated]:Select an agent"
+      "create_session": "Créer une session",
+      "select_agent": "Sélectionnez un agent"
     },
     "artifacts": {
       "button": {
@@ -1206,8 +1206,8 @@
     "cancel": "Annuler",
     "chat": "Chat",
     "clear": "Effacer",
-    "clear_all": "[to be translated]:Clear All",
-    "click_to_replace": "[to be translated]:Click to replace",
+    "clear_all": "Tout effacer",
+    "click_to_replace": "Cliquer pour remplacer",
     "close": "Fermer",
     "collapse": "Réduire",
     "completed": "Terminé",
@@ -1242,15 +1242,15 @@
     "footnote": "Note de bas de page",
     "footnotes": "Notes de bas de page",
     "fullscreen": "Mode plein écran, appuyez sur F11 pour quitter",
-    "generate_random_seed": "[to be translated]:Generate random seed",
-    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
+    "generate_random_seed": "Générer une graine aléatoire",
+    "get_embedding_dimension": "Obtenir la dimension d'intégration",
     "go_to_settings": "Aller aux paramètres",
-    "html_preview": "[to be translated]:HTML Preview",
+    "html_preview": "Aperçu HTML",
     "i_know": "J'ai compris",
     "ignore": "Ignorer",
-    "image_preview": "[to be translated]:Image preview",
-    "image_url": "[to be translated]:Image URL",
-    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
+    "image_preview": "Aperçu de l'image",
+    "image_url": "URL de l'image",
+    "image_url_or_upload": "Entrez l'URL de l'image ou téléchargez un fichier",
     "inspect": "Vérifier",
     "invalid_value": "valeur invalide",
     "knowledge_base": "Base de connaissances",
@@ -1260,7 +1260,7 @@
     "models": "Modèles",
     "more": "Plus",
     "name": "Nom",
-    "next_match": "[to be translated]:Next match",
+    "next_match": "Prochain match",
     "no_results": "Aucun résultat",
     "none": "Aucun",
     "off": "Désactivé",
@@ -1272,9 +1272,9 @@
         "model": "Choisir le modèle"
       }
     },
-    "powered_by": "[to be translated]:Powered by ",
+    "powered_by": "Propulsé par",
     "preview": "Aperçu",
-    "previous_match": "[to be translated]:Previous match",
+    "previous_match": "Match précédent",
     "prompt": "Prompt",
     "provider": "Fournisseur",
     "reasoning_content": "Réflexion approfondie",
@@ -2058,13 +2058,13 @@
         "notebookEdit": "[to be translated]:NotebookEdit",
         "readFile": "[to be translated]:Read File",
         "search": "[to be translated]:Search",
-        "skill": "[to be translated]:Skill",
-        "task": "[to be translated]:Task",
-        "todoWrite": "[to be translated]:Todo Write",
-        "tool": "[to be translated]:Tool",
-        "webFetch": "[to be translated]:Web Fetch",
-        "webSearch": "[to be translated]:Web Search",
-        "write": "[to be translated]:Write"
+        "skill": "Compétence",
+        "task": "Tâche",
+        "todoWrite": "À faire Écrire",
+        "tool": "Outil",
+        "webFetch": "Récupération Web",
+        "webSearch": "Recherche Web",
+        "write": "Écrire"
       },
       "noData": "[to be translated]:No data available for this tool",
       "pending": "En attente",
@@ -2072,37 +2072,37 @@
       "raw": "Brut",
       "runningCount": "[to be translated]:{{count}} tools running",
       "sections": {
-        "command": "[to be translated]:Command",
-        "exitCode": "[to be translated]:Exit Code",
-        "input": "[to be translated]:Input",
-        "output": "[to be translated]:Output",
-        "prompt": "[to be translated]:Prompt",
-        "searchQuery": "[to be translated]:Search Query",
-        "searchResults": "[to be translated]:Search Results",
-        "stderr": "[to be translated]:stderr",
-        "stdout": "[to be translated]:stdout"
+        "command": "Commande",
+        "exitCode": "Code de sortie",
+        "input": "Entrée",
+        "output": "Sortie",
+        "prompt": "Invite",
+        "searchQuery": "Requête de recherche",
+        "searchResults": "Résultats de recherche",
+        "stderr": "stderr",
+        "stdout": "sortie standard"
       },
       "status": {
-        "done": "[to be translated]:Done",
-        "error": "[to be translated]:Error",
-        "failed": "[to be translated]:Failed",
-        "running": "[to be translated]:Running",
-        "success": "[to be translated]:Success"
+        "done": "Fait",
+        "error": "Erreur",
+        "failed": "Échoué",
+        "running": "Courir",
+        "success": "Succès"
       },
       "truncated": "[to be translated]:Output truncated (original: {{size}})",
       "units": {
-        "done_one": "[to be translated]:{{count}} Done",
-        "done_other": "[to be translated]:{{count}} Done",
-        "file_one": "[to be translated]:{{count}} file",
-        "file_other": "[to be translated]:{{count}} files",
-        "item_one": "[to be translated]:{{count}} item",
-        "item_other": "[to be translated]:{{count}} items",
-        "line_one": "[to be translated]:{{count}} line",
-        "line_other": "[to be translated]:{{count}} lines",
-        "plan_one": "[to be translated]:{{count}} plan",
-        "plan_other": "[to be translated]:{{count}} plans",
-        "result_one": "[to be translated]:{{count}} result",
-        "result_other": "[to be translated]:{{count}} results"
+        "done_one": "{{count}} Terminé",
+        "done_other": "{{count}} Terminé",
+        "file_one": "{{count}} fichier",
+        "file_other": "{{count}} fichiers",
+        "item_one": "{{count}} article",
+        "item_other": "{{count}} articles",
+        "line_one": "{{count}} ligne",
+        "line_other": "{{count}} lignes",
+        "plan_one": "{{count}} plan",
+        "plan_other": "{{count}} plans",
+        "result_one": "{{count}} résultat",
+        "result_other": "{{count}} résultats"
       }
     },
     "topic": {
@@ -2529,36 +2529,36 @@
     },
     "custom_size": "Dimensions personnalisées",
     "dmxapi": {
-      "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
-      "style": "[to be translated]:, Style: ",
+      "generating_tip": "Génération avec le modèle officiel, le temps d'attente estimé est de 2 à 5 minutes pour les meilleurs résultats. Veuillez consulter les journaux du backend DMXAPI pour le coût de cette opération.",
+      "style": ", Style :",
       "style_types": {
-        "25d_animation": "[to be translated]:2.5D Animation",
-        "3d_cartoon": "[to be translated]:3D Cartoon",
-        "american_retro": "[to be translated]:American Retro",
-        "baroque": "[to be translated]:Baroque",
-        "cartoon_illustration": "[to be translated]:Cartoon Illustration",
-        "chinese_gongbi": "[to be translated]:Chinese Gongbi",
-        "clay": "[to be translated]:Clay",
-        "cyberpunk": "[to be translated]:Cyberpunk",
-        "felt": "[to be translated]:Felt",
-        "flat": "[to be translated]:Flat",
-        "fresh_anime": "[to be translated]:Fresh Anime",
-        "ghibli": "[to be translated]:Ghibli",
-        "japanese_anime": "[to be translated]:Japanese Anime",
-        "little_people_book": "[to be translated]:Little People Book",
-        "monet_garden": "[to be translated]:Monet Garden",
-        "oil_painting": "[to be translated]:Oil Painting",
-        "pixar": "[to be translated]:Pixar",
-        "pixel_art": "[to be translated]:Pixel Art",
-        "poetic_ancient": "[to be translated]:Poetic Ancient",
-        "psychedelic": "[to be translated]:Psychedelic",
-        "sketch": "[to be translated]:Sketch",
-        "street_art": "[to be translated]:Street Art",
-        "texture": "[to be translated]:Texture",
-        "ukiyo_e": "[to be translated]:Ukiyo-e",
-        "watercolor": "[to be translated]:Watercolor",
-        "wood_carving": "[to be translated]:Wood Carving",
-        "yarn_doll": "[to be translated]:Yarn Doll"
+        "25d_animation": "Animation 2.5D",
+        "3d_cartoon": "Cartoon 3D",
+        "american_retro": "Rétro américain",
+        "baroque": "Baroque",
+        "cartoon_illustration": "Illustration de bande dessinée",
+        "chinese_gongbi": "Gongbi chinois",
+        "clay": "Argile",
+        "cyberpunk": "Cyberpunk",
+        "felt": "Feutre",
+        "flat": "Plat",
+        "fresh_anime": "Anime Frais",
+        "ghibli": "Ghibli",
+        "japanese_anime": "Animé japonais",
+        "little_people_book": "Petits Livres pour Petites Gens",
+        "monet_garden": "Jardin Monet",
+        "oil_painting": "Peinture à l'huile",
+        "pixar": "Pixar",
+        "pixel_art": "Art pixel",
+        "poetic_ancient": "Poétique antique",
+        "psychedelic": "Psychédélique",
+        "sketch": "Croquis",
+        "street_art": "Art de rue",
+        "texture": "Texture",
+        "ukiyo_e": "Ukiyo-e",
+        "watercolor": "Aquarelle",
+        "wood_carving": "Sculpture sur bois",
+        "yarn_doll": "Poupée en laine"
       }
     },
     "edit": {
@@ -2585,7 +2585,7 @@
       "style_type_tip": "Стиль генерации изображения, применим к версии V_2 и выше",
       "width": "Largeur"
     },
-    "generate_failed": "[to be translated]:Failed to generate image",
+    "generate_failed": "Échec de la génération de l'image",
     "generated_image": "Image générée",
     "go_to_settings": "Aller aux paramètres",
     "guidance_scale": "Échelle de guidance",
@@ -2596,7 +2596,7 @@
     "image_file_required": "Veuillez d'abord télécharger une image",
     "image_file_retry": "Veuillez réuploader l'image",
     "image_handle_required": "Veuillez d'abord télécharger une image",
-    "image_mix_failed": "[to be translated]:Failed to mix images",
+    "image_mix_failed": "Échec du mélange des images",
     "image_placeholder": "Aucune image pour le moment",
     "image_retry": "Réessayer",
     "image_size_options": {
@@ -2606,7 +2606,7 @@
     "inference_steps_tip": "Nombre d'étapes d'inférence à effectuer. Plus il y a d'étapes, meilleure est la qualité mais plus c'est long",
     "input_image": "Image d'entrée",
     "input_parameters": "Paramètres d'entrée",
-    "invalid_image_url": "[to be translated]:Invalid image URL format",
+    "invalid_image_url": "Format d'URL d'image invalide",
     "learn_more": "En savoir plus",
     "magic_prompt_option": "Amélioration du prompt",
     "mode": {
@@ -2628,7 +2628,7 @@
     "no_image_generation_model": "Aucun modèle de génération d'image disponible pour le moment. Veuillez ajouter un modèle et définir le type de point de terminaison sur {{endpoint_type}}",
     "number_images": "Nombre d'images générées",
     "number_images_tip": "Le nombre d'images générées en une seule fois (1-4)",
-    "operation_failed": "[to be translated]:Operation failed, please try again later",
+    "operation_failed": "L'opération a échoué, veuillez réessayer plus tard",
     "paint_course": "Tutoriel",
     "per_image": "Par image",
     "per_images": "Par image",
@@ -2706,23 +2706,23 @@
       "seed_tip": "Contrôle la randomisation du résultat d'agrandissement"
     },
     "zhipu": {
-      "custom_size_divisible": "[to be translated]:Custom size must be divisible by 16",
-      "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
-      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
-      "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
-      "custom_size_required": "[to be translated]:Please set custom width and height",
+      "custom_size_divisible": "La taille personnalisée doit être divisible par 16",
+      "custom_size_hint": "La largeur et la hauteur doivent être comprises entre 512 px et 2048 px, divisibles par 16, et le nombre total de pixels ne peut pas dépasser 2^21 px.",
+      "custom_size_pixels": "Le nombre total de pixels d'une taille personnalisée ne peut pas dépasser 2 097 152",
+      "custom_size_range": "La taille personnalisée doit être comprise entre 512 px et 2048 px",
+      "custom_size_required": "Veuillez définir une largeur et une hauteur personnalisées",
       "image_sizes": {
-        "1024x1024_default": "[to be translated]:1024x1024 (Default)",
-        "1152x864": "[to be translated]:1152x864",
-        "1344x768": "[to be translated]:1344x768",
-        "1440x720": "[to be translated]:1440x720",
-        "720x1440": "[to be translated]:720x1440",
-        "768x1344": "[to be translated]:768x1344",
-        "864x1152": "[to be translated]:864x1152"
+        "1024x1024_default": "1024x1024 (Par défaut)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
       },
       "quality_options": {
-        "hd": "[to be translated]:HD",
-        "standard_default": "[to be translated]:Standard (Default)"
+        "hd": "HD",
+        "standard_default": "Standard (Par défaut)"
       }
     }
   },
@@ -2734,19 +2734,19 @@
     "category": "Catégorie",
     "commands": "commande",
     "confirm_uninstall": "Êtes-vous sûr de vouloir désinstaller {{name}} ?",
-    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "content_saved": "Contenu du plugin enregistré avec succès",
     "detail": {
-      "allowed_tools": "[to be translated]:Allowed Tools",
-      "author": "[to be translated]:Author",
-      "content": "[to be translated]:Content",
-      "description": "[to be translated]:Description",
-      "file": "[to be translated]:File",
-      "installed": "[to be translated]:Installed",
-      "metadata": "[to be translated]:Metadata",
-      "size": "[to be translated]:Size",
-      "source": "[to be translated]:Source",
-      "tags": "[to be translated]:Tags",
-      "tools": "[to be translated]:Tools"
+      "allowed_tools": "Outils autorisés",
+      "author": "Auteur",
+      "content": "Contenu",
+      "description": "Description",
+      "file": "Fichier",
+      "installed": "Installé",
+      "metadata": "Métadonnées",
+      "size": "Taille",
+      "source": "Source",
+      "tags": "Étiquettes",
+      "tools": "Outils"
     },
     "install": "Installation",
     "install_plugins_from_browser": "Parcourir les plugins disponibles pour commencer",
@@ -3099,9 +3099,9 @@
         "translate": "Traduire"
       },
       "prompt": {
-        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
-        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
-        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
+        "explain": "Veuillez expliquer le contenu suivant. Exigences : répondre en {{language}} ; n’incluez aucune explication de cette consigne, fournissez simplement la réponse directement :",
+        "refine": "Veuillez optimiser ou peaufiner le contenu saisi par l’utilisateur inclus dans la balise XML <INPUT>, tout en conservant le sens et l’intégrité du contenu original. Exigences : votre réponse doit être dans la même langue que la saisie utilisateur ; n’incluez aucune explication de cette consigne, fournissez directement la réponse ; ne produisez pas de balises XML, affichez le contenu optimisé directement.",
+        "summary": "Je ne peux pas résumer le contenu, car aucun texte à résumer n’a été fourni après « [to be translated] »."
       },
       "translate": {
         "smart_translate_tips": "Traduction intelligente : le contenu sera d'abord traduit dans la langue cible ; si le contenu est déjà dans la langue cible, il sera traduit dans la langue secondaire"
@@ -4197,8 +4197,8 @@
       "jsonSaveError": "Échec de la sauvegarde de la configuration JSON",
       "jsonSaveSuccess": "Configuration JSON sauvegardée",
       "lanyun": {
-        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-        "name": "[to be translated]:Lanyun Technology"
+        "description": "Plateforme Cloud Lanyun Technology Service MCP",
+        "name": "Lanyun Technology"
       },
       "logoUrl": "Адрес логотипа",
       "logs": "Journaux",
@@ -4297,9 +4297,9 @@
         "getTokenDescription": "Получите персональный API-токен из вашей учетной записи",
         "noServersAvailable": "Нет доступных MCP-серверов",
         "providerDescriptions": {
-          "302ai": "[to be translated]:302.AI Platform MCP Service",
-          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
-          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
+          "302ai": "302.Service MCP de la Plateforme AI",
+          "bailian": "Service MCP de la plateforme Bailian d'Alibaba Cloud",
+          "lanyun": "Plateforme Cloud Lanyun Technology Service MCP",
           "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
           "modelscope": "[to be translated]:ModelScope Platform MCP Service",
           "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
