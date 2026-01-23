@@ -54,7 +54,7 @@ src/main/knowledge/preprocess/
 
 ### 数据模型（已实现）
 
-数据模型已在 `packages/shared/data/presets/file-processing.ts` 中定义，采用 Template + Override 分层模式。
+数据模型已在 `packages/shared/data/presets/fileProcessing.ts` 中定义，采用 Template + Override 分层模式。
 
 ---
 
@@ -157,7 +157,7 @@ src/main/knowledge/preprocess/
       │         └──► 获取 UserOverride (Preference)
       │         │
       │         ▼
-      │    合并为 ProcessorConfiguration
+      │    合并为 FileProcessorMerged
       │
       ├──► ProcessorRegistry.get(processorId)
       │         │
@@ -183,57 +183,59 @@ src/main/knowledge/preprocess/
 
 ### 类型定义 (`types.ts`)
 
+> **设计原则**：`types.ts` 只定义后端特有的类型，共享类型直接从 `@shared/data/presets/fileProcessing` 导入。
+
 ```typescript
 // 处理结果 - 所有处理器的统一输出
 interface ProcessingResult {
-  content: string                    // 处理后的内容
-  outputType: 'text' | 'markdown'    // 输出格式
-  attachments?: ProcessedAttachment[] // 附加文件（如图片）
-  metadata?: Record<string, unknown>  // 处理元数据
+  text?: string                       // 提取的文本内容
+  markdown?: string                   // 转换的 Markdown 内容
+  outputPath?: string                 // 输出文件路径（如果保存到磁盘）
+  metadata?: Record<string, unknown>  // 可选的扩展元数据（处理器特定）
 }
-
-// 处理输入 - 复用现有 FileMetadata
-type ProcessingInput = FileMetadata
 
 // 处理选项
 interface ProcessOptions {
-  requestId?: string                  // 请求追踪 ID（用于取消等）
+  signal?: AbortSignal                // 取消信号
+  onProgress?: (progress: number) => void  // 进度回调
 }
 
 // 内部处理上下文（由服务创建，传递给处理器）
 interface ProcessingContext {
   requestId: string                   // 请求追踪 ID
-  signal: AbortSignal                 // 取消信号
-}
-
-// 合并后的配置（运行时计算）
-interface ProcessorConfiguration {
-  id: string
-  type: 'api' | 'builtin'
-  apiKey?: string
-  features: Map<FileProcessorFeature, FeatureConfiguration>
-  options?: Record<string, unknown>
+  signal?: AbortSignal                // 取消信号
+  onProgress?: (progress: number) => void  // 进度回调
 }
 ```
+
+**注意**：
+- `ProcessingInput` 已移除，直接使用 `FileMetadata`（来自 `@types`）
+- `ProcessorConfiguration` 已移除，统一使用 `FileProcessorMerged`（来自 shared）
+- 共享类型（如 `FileProcessorMerged`、`FeatureCapability` 等）从 `@shared/data/presets/fileProcessing` 导入
 
 ### 接口定义 (`interfaces.ts`)
 
 ```typescript
+import type { FileProcessorMerged, ... } from '@shared/data/presets/fileProcessing'
+import type { FileMetadata } from '@types'
+import type { ProcessingContext, ProcessingResult } from './types'
+
 // 基础处理器接口 - 所有处理器必须实现
 interface IFileProcessor {
   readonly id: string
+  readonly template: FileProcessorTemplate
   supports(feature: FileProcessorFeature, inputType: FileProcessorInput): boolean
   isAvailable(): Promise<boolean>
 }
 
 // 文字提取能力 (原 OCR)
 interface ITextExtractor extends IFileProcessor {
-  extractText(input, config, context): Promise<ProcessingResult>
+  extractText(input: FileMetadata, config: FileProcessorMerged, context: ProcessingContext): Promise<ProcessingResult>
 }
 
 // Markdown 转换能力 (原 Preprocess)
 interface IMarkdownConverter extends IFileProcessor {
-  toMarkdown(input, config, context): Promise<ProcessingResult>
+  toMarkdown(input: FileMetadata, config: FileProcessorMerged, context: ProcessingContext): Promise<ProcessingResult>
 }
 
 // 资源释放能力 - 有状态的 Provider 实现
@@ -321,7 +323,7 @@ extractText / toMarkdown
 ### ConfigurationService (配置服务)
 
 **职责**：
-- 合并模板配置与用户覆盖配置
+- 合并模板配置与用户覆盖配置，生成 `FileProcessorMerged`
 - 获取默认处理器设置
 - 监听配置变化
 
@@ -329,7 +331,7 @@ extractText / toMarkdown
 
 | 方法 | 说明 |
 |------|------|
-| `getConfiguration(processorId)` | 获取合并后的配置 |
+| `getConfiguration(processorId)` | 获取合并后的 `FileProcessorMerged` 配置 |
 | `getTemplate(processorId)` | 获取模板配置 |
 | `getDefaultProcessor(inputType)` | 获取默认处理器 |
 | `onConfigurationChange(callback)` | 订阅配置变化 |
@@ -338,10 +340,10 @@ extractText / toMarkdown
 **配置合并逻辑**：
 
 ```
-Template (只读)  +  UserOverride (Preference)  →  ProcessorConfiguration
+Template (只读)  +  UserOverride (Preference)  →  FileProcessorMerged
       │                      │
       ├── id                 ├── apiKey
-      ├── type               ├── featureConfigs (apiHost, modelId)
+      ├── type               ├── featureConfigs[]
       └── capabilities       └── options
 ```
 
@@ -413,7 +415,7 @@ fileProcessingService.cancel(requestId)
 src/main/services/fileProcessing/
 ├── index.ts                          # 公共 API 导出 + 注册引导
 ├── FileProcessingService.ts          # 主编排服务
-├── types.ts                          # 类型定义
+├── types.ts                          # 后端特有类型 (ProcessingResult, ProcessingContext)
 ├── interfaces.ts                     # 接口定义 (ISP)
 │
 ├── base/
@@ -448,13 +450,21 @@ src/main/services/fileProcessing/
     ├── FileProcessingService.test.ts
     └── mocks/
         └── MockProcessor.ts          # Mock 处理器
+
+packages/shared/data/presets/
+└── fileProcessing.ts                 # 共享类型定义 + FileProcessorMerged
 ```
+
+**类型组织原则**：
+- 共享类型（`FileProcessorMerged`、`FeatureCapability` 等）定义在 `packages/shared/data/presets/fileProcessing.ts`
+- 后端特有类型（`ProcessingResult`、`ProcessingContext`）定义在 `types.ts`
+- `interfaces.ts` 直接从 shared 导入共享类型
 
 ---
 
 ## 实施步骤
 
-### Phase 1: 基础设施
+### ✅ Phase 1: 基础设施 
 
 | 步骤 | 文件 | 说明 |
 |------|------|------|
@@ -570,7 +580,7 @@ src/main/services/fileProcessing/
 
 ### 步骤 3: 添加模板配置
 
-在 `packages/shared/data/presets/file-processing.ts` 中添加模板配置
+在 `packages/shared/data/presets/fileProcessing.ts` 中添加模板配置
 
 ---
 
@@ -599,7 +609,7 @@ src/main/services/fileProcessing/
 
 | 文件 | 说明 |
 |------|------|
-| `packages/shared/data/presets/file-processing.ts` | 类型定义 + 模板配置 |
+| `packages/shared/data/presets/fileProcessing.ts` | 类型定义 + 模板配置 |
 | `src/renderer/src/config/fileProcessing.ts` | Renderer 配置入口 |
 | `src/main/services/ocr/` | 现有 OCR 实现（待迁移） |
 | `src/main/knowledge/preprocess/` | 现有 Preprocess 实现（待迁移） |

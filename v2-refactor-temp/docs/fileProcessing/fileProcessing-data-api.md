@@ -24,7 +24,7 @@
 ### 关键设计决策
 
 1. **模板与用户配置分离**：
-   - 模板数据（处理器元信息）存储在 `packages/shared/data/presets/file-processing.ts`
+   - 模板数据（处理器元信息）存储在 `packages/shared/data/presets/fileProcessing.ts`
    - Renderer 侧通过 `src/renderer/src/config/fileProcessing.ts` 进行 re-export 和工具函数封装
    - 用户配置（apiKey, apiHost 等）存储在 Preference 中
    - Preference 只存储用户修改的字段，不存储完整对象
@@ -69,7 +69,7 @@ interface PreprocessState {
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  模板数据 (packages/shared/data/presets/file-processing.ts)      │
+│  模板数据 (packages/shared/data/presets/fileProcessing.ts)      │
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │ PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [        ││
 │  │   { id: 'mineru', type: 'api', capabilities: [...] }      ││
@@ -106,7 +106,7 @@ interface PreprocessState {
 | `feature.file_processing.default_document_processor` | `string \| null` | `null` | 知识库文档解析默认处理器 ID |
 | `feature.file_processing.default_image_processor` | `string \| null` | `null` | 聊天图片理解默认处理器 ID |
 
-### 类型定义 (packages/shared/data/presets/file-processing.ts)
+### 类型定义 (packages/shared/data/presets/fileProcessing.ts)
 
 ```typescript
 // ============================================
@@ -190,9 +190,16 @@ export type FileProcessorOverride = {
 }
 
 export type FileProcessorOverrides = Record<string, FileProcessorOverride>
+
+/**
+ * 合并后的完整处理器配置 (template + user override)
+ *
+ * 统一用于 Renderer (UI 展示/编辑) 和 Main (执行)。
+ */
+export type FileProcessorMerged = FileProcessorTemplate & FileProcessorOverride
 ```
 
-### 模板类型定义 (packages/shared/data/presets/file-processing.ts)
+### 模板类型定义 (packages/shared/data/presets/fileProcessing.ts)
 
 ```typescript
 /**
@@ -288,7 +295,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
 ### Schema 定义 (preferenceSchemas.ts)
 
 ```typescript
-import type { FileProcessorOverrides } from '@shared/data/presets/file-processing'
+import type { FileProcessorOverrides } from '@shared/data/presets/fileProcessing'
 
 export interface PreferenceSchemas {
   default: {
@@ -325,22 +332,13 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 ```typescript
 import { usePreference } from '@data/hooks/usePreference'
-import { FILE_PROCESSOR_TEMPLATES, FileProcessorTemplate, FeatureCapability } from '@renderer/config/fileProcessing'
+import { FILE_PROCESSOR_TEMPLATES, type FileProcessorTemplate, type FeatureCapability } from '@renderer/config/fileProcessing'
 import type {
   FeatureUserConfig,
-  FileProcessorOptions,
+  FileProcessorMerged,
   FileProcessorOverride,
   FileProcessorOverrides
-} from '@shared/data/presets/file-processing'
-
-/**
- * 合并后的完整处理器配置
- */
-type FileProcessorMerged = FileProcessorTemplate & {
-  apiKey?: string
-  featureConfigs?: FeatureUserConfig[]
-  options?: FileProcessorOptions
-}
+} from '@shared/data/presets/fileProcessing'
 
 /**
  * 获取合并后的处理器列表
@@ -532,7 +530,7 @@ setDefaultDocProcessor('mineru')
 ```typescript
 import { preferenceService } from '@main/data/services/preferenceService'
 import { FILE_PROCESSOR_TEMPLATES } from '@renderer/config/fileProcessing'
-import type { FileProcessorOverride, FeatureUserConfig } from '@shared/data/presets/file-processing'
+import type { FileProcessorOverride, FeatureUserConfig } from '@shared/data/presets/fileProcessing'
 
 interface LegacyOcrProvider {
   id: string
@@ -665,7 +663,7 @@ export async function migrateFileProcessingConfig(
 
 ### Step 1: 添加用户配置类型定义
 
-**文件**: `packages/shared/data/presets/file-processing.ts`
+**文件**: `packages/shared/data/presets/fileProcessing.ts`
 
 添加以下类型：
 - `FileProcessorOptions` (通用 `Record<string, unknown>` 类型)
@@ -674,7 +672,7 @@ export async function migrateFileProcessingConfig(
 
 ### Step 2: 创建模板配置文件
 
-**文件**: `packages/shared/data/presets/file-processing.ts`
+**文件**: `packages/shared/data/presets/fileProcessing.ts`
 
 添加以下内容：
 - `FileProcessorType`
@@ -725,7 +723,7 @@ Renderer 侧通过 `src/renderer/src/config/fileProcessing.ts` re-export 为 `FI
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| `packages/shared/data/presets/file-processing.ts` | 新增 | 模板类型、内置处理器配置、override 类型 |
+| `packages/shared/data/presets/fileProcessing.ts` | 新增 | 模板类型、内置处理器配置、override 类型、FileProcessorMerged |
 | `packages/shared/data/preference/preferenceSchemas.ts` | 修改 | 添加 schema 和空对象默认值 |
 | `src/renderer/src/config/fileProcessing.ts` | 修改 | re-export presets + 工具函数 |
 | `src/renderer/src/hooks/useFileProcessors.ts` | 修改 | 合并模板与用户配置 + 规范化逻辑 |

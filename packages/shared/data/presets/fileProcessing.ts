@@ -109,6 +109,14 @@ export type FileProcessorOverride = {
  */
 export type FileProcessorOverrides = Record<string, FileProcessorOverride>
 
+/**
+ * Merged processor configuration (template + user override)
+ *
+ * Used by both Renderer (UI display/editing) and Main (execution).
+ * Combines the read-only template with user-configured overrides.
+ */
+export type FileProcessorMerged = FileProcessorTemplate & FileProcessorOverride
+
 // ============================================================================
 // Processor Presets
 // ============================================================================

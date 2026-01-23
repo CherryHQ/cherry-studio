@@ -9,21 +9,13 @@ import {
 } from '@renderer/config/fileProcessing'
 import type {
   FeatureUserConfig,
+  FileProcessorMerged,
   FileProcessorOptions,
   FileProcessorOverride,
   FileProcessorOverrides
 } from '@shared/data/presets/fileProcessing'
 import { useCallback, useMemo } from 'react'
 import useSWRImmutable from 'swr/immutable'
-
-/**
- * Merged processor configuration (template + user override)
- */
-export type FileProcessorMerged = FileProcessorTemplate & {
-  apiKey?: string
-  featureConfigs?: FeatureUserConfig[]
-  options?: FileProcessorOptions
-}
 
 function normalizeApiHost(value?: string): string | undefined {
   if (!value) return undefined
