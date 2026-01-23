@@ -16,7 +16,7 @@ import NewAppButton from './NewAppButton'
 const AppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const { minapps, language } = useMinapps()
+  const { minapps } = useMinapps()
   const { isTopNavbar } = useNavbarPosition()
 
   const filteredApps = search
@@ -88,7 +88,7 @@ const AppsPage: FC = () => {
             <AppsContainerWrapper>
               <AppsContainer style={{ height: containerHeight }}>
                 {filteredApps.map((app) => (
-                  <App key={app.id} app={app} language={language} />
+                  <App key={app.id} app={app} />
                 ))}
                 <NewAppButton />
               </AppsContainer>

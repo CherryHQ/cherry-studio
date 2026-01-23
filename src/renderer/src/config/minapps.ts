@@ -527,11 +527,11 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   }
 ]
 
-// 加载自定义小应用并合并到默认应用中
-let DEFAULT_MIN_APPS = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+// All mini apps: built-in defaults + custom apps loaded from user config
+let allMinApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
 
-function updateDefaultMinApps(param: MinAppType[]) {
-  DEFAULT_MIN_APPS = param
+function updateAllMinApps(apps: MinAppType[]) {
+  allMinApps = apps
 }
 
-export { DEFAULT_MIN_APPS, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps }
+export { allMinApps, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps }

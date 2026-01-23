@@ -1,9 +1,8 @@
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { getLanguage } from '@renderer/i18n'
+import { allMinApps } from '@renderer/config/minapps'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setDisabledMinApps, setMinApps, setPinnedMinApps } from '@renderer/store/minapps'
-import type { MinAppType } from '@renderer/types'
+import type { LanguageVarious, MinAppType } from '@renderer/types'
 import { useCallback, useMemo } from 'react'
 
 /**
@@ -12,40 +11,35 @@ import { useCallback, useMemo } from 'react'
  * PRINCIPLE: Locale filtering is a VIEW concern, not a DATA concern.
  *
  * - Redux stores ALL apps (including locale-restricted ones) to preserve user preferences
- * - DEFAULT_MIN_APPS is the template data source containing locale definitions
+ * - allMinApps is the template data source containing locale definitions
  * - This hook applies locale filtering only when READING for UI display
  * - When WRITING, locale-hidden apps are merged back to prevent data loss
  */
 
 // Check if app should be visible for the given locale
-const isVisibleForLocale = (app: MinAppType, language: string): boolean => {
-  if (!app.locales) return true // No locale restriction, show to all
+const isVisibleForLocale = (app: MinAppType, language: LanguageVarious): boolean => {
+  if (!app.locales) return true
   return app.locales.includes(language)
 }
 
 // Filter apps by locale - only show apps that match current language
-const filterByLocale = (apps: MinAppType[], language: string): MinAppType[] => {
+const filterByLocale = (apps: MinAppType[], language: LanguageVarious): MinAppType[] => {
   return apps.filter((app) => isVisibleForLocale(app, language))
 }
 
-// Get locale-hidden apps from DEFAULT_MIN_APPS for the current language
-// This uses DEFAULT_MIN_APPS as source of truth for locale definitions
-const getLocaleHiddenApps = (language: string): MinAppType[] => {
-  return DEFAULT_MIN_APPS.filter((app) => !isVisibleForLocale(app, language))
+// Get locale-hidden apps from allMinApps for the current language
+// This uses allMinApps as source of truth for locale definitions
+const getLocaleHiddenApps = (language: LanguageVarious): MinAppType[] => {
+  return allMinApps.filter((app) => !isVisibleForLocale(app, language))
 }
 
 export const useMinapps = () => {
   const { enabled, disabled, pinned } = useAppSelector((state: RootState) => state.minapps)
-
-  const reduxLanguage = useAppSelector((state: RootState) => state.settings.language)
+  const language = useAppSelector((state: RootState) => state.settings.language)
   const dispatch = useAppDispatch()
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const language = useMemo(() => getLanguage(), [reduxLanguage])
-
-  // Map stored app references to full app data from DEFAULT_MIN_APPS
   const mapApps = useCallback(
-    (apps: MinAppType[]) => apps.map((app) => DEFAULT_MIN_APPS.find((item) => item.id === app.id) || app),
+    (apps: MinAppType[]) => apps.map((app) => allMinApps.find((item) => item.id === app.id) || app),
     []
   )
 
@@ -54,7 +48,7 @@ export const useMinapps = () => {
       const mappedApps = mapApps(apps)
       const existingIds = new Set(mappedApps.map((app) => app.id))
       const disabledIds = new Set(disabledApps.map((app) => app.id))
-      const missingApps = DEFAULT_MIN_APPS.filter((app) => !existingIds.has(app.id) && !disabledIds.has(app.id))
+      const missingApps = allMinApps.filter((app) => !existingIds.has(app.id) && !disabledIds.has(app.id))
       return [...mappedApps, ...missingApps]
     },
     [mapApps]
@@ -65,7 +59,6 @@ export const useMinapps = () => {
     const allApps = getAllApps(enabled, disabled)
     const disabledIds = new Set(disabled.map((app) => app.id))
     const withoutDisabled = allApps.filter((app) => !disabledIds.has(app.id))
-    // Apply locale filter only for display
     return filterByLocale(withoutDisabled, language)
   }, [enabled, disabled, language, getAllApps])
 
@@ -88,7 +81,7 @@ export const useMinapps = () => {
       const merged = [...withoutDisabled, ...toAppend]
 
       const existingIds = new Set(merged.map((app) => app.id))
-      const missingApps = DEFAULT_MIN_APPS.filter((app) => !existingIds.has(app.id) && !disabledIds.has(app.id))
+      const missingApps = allMinApps.filter((app) => !existingIds.has(app.id) && !disabledIds.has(app.id))
 
       dispatch(setMinApps([...merged, ...missingApps]))
     },
@@ -129,7 +122,6 @@ export const useMinapps = () => {
     minapps,
     disabled: disabledApps,
     pinned: pinnedApps,
-    language,
     updateMinapps,
     updateDisabledMinapps,
     updatePinnedMinapps
