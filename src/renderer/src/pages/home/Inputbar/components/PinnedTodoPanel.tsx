@@ -1,3 +1,4 @@
+import { Typography } from 'antd'
 import { CheckCircle, ChevronDown, ChevronUp, Circle, Clock } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -6,6 +7,8 @@ import styled from 'styled-components'
 
 import type { TodoItem } from '../../Messages/Tools/MessageAgentTools/types'
 import { useActiveTodos } from '../hooks/useActiveTodos'
+
+const { Text } = Typography
 
 /**
  * Get the status icon for a todo item
@@ -87,24 +90,10 @@ const Container = styled.div`
 `
 
 const PanelBody = styled.div`
-  border-radius: 8px;
+  border-radius: 17px;
   border: 0.5px solid var(--color-border);
   overflow: hidden;
-  position: relative;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-color: rgba(240, 240, 240, 0.5);
-    backdrop-filter: blur(35px) saturate(150%);
-    z-index: -1;
-    border-radius: inherit;
-
-    body[theme-mode='dark'] & {
-      background-color: rgba(40, 40, 40, 0.4);
-    }
-  }
+  background-color: var(--color-background-opacity);
 `
 
 const PanelHeader = styled.div`
@@ -115,14 +104,11 @@ const PanelHeader = styled.div`
   cursor: pointer;
   font-size: 12px;
   color: var(--color-text-2);
-
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
 `
 
-const HeaderTitle = styled.span`
+const HeaderTitle = styled(Text)`
   font-weight: 500;
+  font-size: 12px;
 `
 
 const TodoList = styled.div<{ $collapsed: boolean }>`
