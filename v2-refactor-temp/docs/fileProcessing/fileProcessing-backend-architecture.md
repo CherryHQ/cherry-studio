@@ -471,7 +471,7 @@ packages/shared/data/presets/
 | 1 | `types.ts` | 创建类型定义 |
 | 2 | `interfaces.ts` | 创建接口定义 |
 
-### Phase 2: 核心框架
+### ✅ Phase 2: 核心框架
 
 | 步骤 | 文件 | 说明 |
 |------|------|------|
@@ -481,7 +481,7 @@ packages/shared/data/presets/
 | 7 | `registry/ProcessorRegistry.ts` | 创建注册表 |
 | 8 | `config/ConfigurationService.ts` | 创建配置服务 |
 
-### Phase 2.5: 单元测试
+### ✅ Phase 2.5: 单元测试
 
 在核心框架完成后、迁移开始前，添加单元测试确保核心组件质量：
 

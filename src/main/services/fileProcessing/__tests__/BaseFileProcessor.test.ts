@@ -1,0 +1,345 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { isMarkdownConverter, isTextExtractor } from '../interfaces'
+import {
+  createDualCapabilityTemplate,
+  createMockConfig,
+  createMockContext,
+  createMockFileMetadata,
+  createMockTemplate,
+  MockDualProcessor,
+  MockMarkdownConverter,
+  MockTextExtractor
+} from './mocks/MockProcessor'
+
+describe('BaseFileProcessor', () => {
+  describe('supports', () => {
+    it('should return true for supported capability', () => {
+      const processor = new MockTextExtractor(
+        createMockTemplate({
+          capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+        })
+      )
+
+      expect(processor.supports('text_extraction', 'image')).toBe(true)
+    })
+
+    it('should return false for unsupported feature', () => {
+      const processor = new MockTextExtractor(
+        createMockTemplate({
+          capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+        })
+      )
+
+      expect(processor.supports('to_markdown', 'image')).toBe(false)
+    })
+
+    it('should return false for unsupported input type', () => {
+      const processor = new MockTextExtractor(
+        createMockTemplate({
+          capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+        })
+      )
+
+      expect(processor.supports('text_extraction', 'document')).toBe(false)
+    })
+  })
+
+  describe('isAvailable', () => {
+    it('should return true by default', async () => {
+      const processor = new MockTextExtractor(createMockTemplate())
+
+      const result = await processor.isAvailable()
+
+      expect(result).toBe(true)
+    })
+  })
+
+  describe('id and template', () => {
+    it('should expose id from template', () => {
+      const processor = new MockTextExtractor(createMockTemplate({ id: 'test-processor' }))
+
+      expect(processor.id).toBe('test-processor')
+    })
+
+    it('should expose template', () => {
+      const template = createMockTemplate({ id: 'test-processor' })
+      const processor = new MockTextExtractor(template)
+
+      expect(processor.template).toBe(template)
+    })
+  })
+})
+
+describe('BaseTextExtractor', () => {
+  let processor: MockTextExtractor
+
+  beforeEach(() => {
+    processor = new MockTextExtractor(createMockTemplate())
+    processor.doExtractTextMock.mockResolvedValue({ text: 'extracted text' })
+  })
+
+  describe('extractText', () => {
+    it('should call doExtractText and return result', async () => {
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      const result = await processor.extractText(input, config, context)
+
+      expect(result).toEqual({ text: 'extracted text' })
+      expect(processor.doExtractTextMock).toHaveBeenCalledWith(input, config, context)
+    })
+
+    it('should validate input has path', async () => {
+      const input = createMockFileMetadata({ path: '' })
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      await expect(processor.extractText(input, config, context)).rejects.toThrow('Input file path is required')
+    })
+
+    it('should validate input path is not undefined', async () => {
+      const input = createMockFileMetadata({ path: undefined as unknown as string })
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      await expect(processor.extractText(input, config, context)).rejects.toThrow('Input file path is required')
+    })
+
+    it('should check cancellation before processing', async () => {
+      const controller = new AbortController()
+      controller.abort()
+
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext({ signal: controller.signal })
+
+      await expect(processor.extractText(input, config, context)).rejects.toThrow('Processing cancelled')
+      expect(processor.doExtractTextMock).not.toHaveBeenCalled()
+    })
+
+    it('should not throw when signal is not aborted', async () => {
+      const controller = new AbortController()
+
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext({ signal: controller.signal })
+
+      const result = await processor.extractText(input, config, context)
+
+      expect(result).toEqual({ text: 'extracted text' })
+    })
+
+    it('should pass progress callback in context', async () => {
+      const onProgress = vi.fn()
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext({ onProgress })
+
+      await processor.extractText(input, config, context)
+
+      expect(processor.doExtractTextMock).toHaveBeenCalledWith(input, config, expect.objectContaining({ onProgress }))
+    })
+  })
+})
+
+describe('BaseMarkdownConverter', () => {
+  let processor: MockMarkdownConverter
+
+  beforeEach(() => {
+    processor = new MockMarkdownConverter(
+      createMockTemplate({
+        capabilities: [{ feature: 'to_markdown', input: 'document', output: 'markdown' }]
+      })
+    )
+    processor.doConvertMock.mockResolvedValue({ markdown: '# Converted Markdown' })
+  })
+
+  describe('toMarkdown', () => {
+    it('should call doConvert and return result', async () => {
+      const input = createMockFileMetadata({ name: 'test.pdf', ext: '.pdf' })
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      const result = await processor.toMarkdown(input, config, context)
+
+      expect(result).toEqual({ markdown: '# Converted Markdown' })
+      expect(processor.doConvertMock).toHaveBeenCalledWith(input, config, context)
+    })
+
+    it('should validate document has path', async () => {
+      const input = createMockFileMetadata({ path: '' })
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Document file path is required')
+    })
+
+    it('should validate document path is not undefined', async () => {
+      const input = createMockFileMetadata({ path: undefined as unknown as string })
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Document file path is required')
+    })
+
+    it('should check cancellation before processing', async () => {
+      const controller = new AbortController()
+      controller.abort()
+
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext({ signal: controller.signal })
+
+      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Processing cancelled')
+      expect(processor.doConvertMock).not.toHaveBeenCalled()
+    })
+
+    it('should not throw when signal is not aborted', async () => {
+      const controller = new AbortController()
+
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext({ signal: controller.signal })
+
+      const result = await processor.toMarkdown(input, config, context)
+
+      expect(result).toEqual({ markdown: '# Converted Markdown' })
+    })
+
+    it('should pass progress callback in context', async () => {
+      const onProgress = vi.fn()
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext({ onProgress })
+
+      await processor.toMarkdown(input, config, context)
+
+      expect(processor.doConvertMock).toHaveBeenCalledWith(input, config, expect.objectContaining({ onProgress }))
+    })
+  })
+})
+
+describe('MockDualProcessor (dual capability)', () => {
+  let processor: MockDualProcessor
+
+  beforeEach(() => {
+    processor = new MockDualProcessor(createDualCapabilityTemplate())
+    processor.doExtractTextMock.mockResolvedValue({ text: 'extracted text from OCR' })
+    processor.doConvertMock.mockResolvedValue({ markdown: '# Markdown from document' })
+  })
+
+  describe('supports', () => {
+    it('should support both text_extraction and to_markdown', () => {
+      expect(processor.supports('text_extraction', 'image')).toBe(true)
+      expect(processor.supports('to_markdown', 'document')).toBe(true)
+    })
+
+    it('should not support unsupported combinations', () => {
+      expect(processor.supports('text_extraction', 'document')).toBe(false)
+      expect(processor.supports('to_markdown', 'image')).toBe(false)
+    })
+  })
+
+  describe('getCapability', () => {
+    it('should return different API hosts for different features', () => {
+      const textCapability = processor.template.capabilities.find((c) => c.feature === 'text_extraction')
+      const markdownCapability = processor.template.capabilities.find((c) => c.feature === 'to_markdown')
+
+      expect(textCapability?.defaultApiHost).toBe('https://ocr.example.com')
+      expect(markdownCapability?.defaultApiHost).toBe('https://markdown.example.com')
+    })
+  })
+
+  describe('type guards', () => {
+    it('should pass isTextExtractor check', () => {
+      expect(isTextExtractor(processor)).toBe(true)
+    })
+
+    it('should pass isMarkdownConverter check', () => {
+      expect(isMarkdownConverter(processor)).toBe(true)
+    })
+  })
+
+  describe('extractText', () => {
+    it('should extract text from image', async () => {
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      const result = await processor.extractText(input, config, context)
+
+      expect(result).toEqual({ text: 'extracted text from OCR' })
+      expect(processor.doExtractTextMock).toHaveBeenCalledWith(input, config, context)
+    })
+
+    it('should check cancellation before processing', async () => {
+      const controller = new AbortController()
+      controller.abort()
+
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext({ signal: controller.signal })
+
+      await expect(processor.extractText(input, config, context)).rejects.toThrow('Processing cancelled')
+    })
+
+    it('should validate input path', async () => {
+      const input = createMockFileMetadata({ path: '' })
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      await expect(processor.extractText(input, config, context)).rejects.toThrow('Input file path is required')
+    })
+  })
+
+  describe('toMarkdown', () => {
+    it('should convert document to markdown', async () => {
+      const input = createMockFileMetadata({ name: 'doc.pdf', ext: '.pdf' })
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      const result = await processor.toMarkdown(input, config, context)
+
+      expect(result).toEqual({ markdown: '# Markdown from document' })
+      expect(processor.doConvertMock).toHaveBeenCalledWith(input, config, context)
+    })
+
+    it('should check cancellation before processing', async () => {
+      const controller = new AbortController()
+      controller.abort()
+
+      const input = createMockFileMetadata()
+      const config = createMockConfig()
+      const context = createMockContext({ signal: controller.signal })
+
+      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Processing cancelled')
+    })
+
+    it('should validate document path', async () => {
+      const input = createMockFileMetadata({ path: '' })
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Document file path is required')
+    })
+  })
+
+  describe('using both capabilities in sequence', () => {
+    it('should be able to call both extractText and toMarkdown', async () => {
+      const imageInput = createMockFileMetadata({ name: 'image.png', ext: '.png' })
+      const docInput = createMockFileMetadata({ name: 'doc.pdf', ext: '.pdf' })
+      const config = createMockConfig()
+      const context = createMockContext()
+
+      const textResult = await processor.extractText(imageInput, config, context)
+      const markdownResult = await processor.toMarkdown(docInput, config, context)
+
+      expect(textResult).toEqual({ text: 'extracted text from OCR' })
+      expect(markdownResult).toEqual({ markdown: '# Markdown from document' })
+      expect(processor.doExtractTextMock).toHaveBeenCalledTimes(1)
+      expect(processor.doConvertMock).toHaveBeenCalledTimes(1)
+    })
+  })
+})
