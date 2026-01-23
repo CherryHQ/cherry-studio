@@ -75,7 +75,7 @@ describe('ComplexPreferenceMappings', () => {
     it('should return file processing target keys', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toEqual([
-        'feature.file_processing.processors',
+        'feature.file_processing.overrides',
         'feature.file_processing.default_image_processor',
         'feature.file_processing.default_document_processor'
       ])

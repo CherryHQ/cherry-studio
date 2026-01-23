@@ -1,5 +1,5 @@
 import type { FileProcessorMerged } from '@renderer/hooks/useFileProcessors'
-import type { FileProcessorUserConfig } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorOverride } from '@shared/data/presets/file-processing'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,7 +7,7 @@ import BuiltinProcessorSettingsContent from './BuiltinProcessorSettingsContent'
 
 interface BuiltinProcessorSettingsProps {
   processor: FileProcessorMerged
-  updateConfig: (update: Partial<Omit<FileProcessorUserConfig, 'id'>>) => void
+  updateConfig: (update: FileProcessorOverride) => void
 }
 
 const BuiltinProcessorSettings: FC<BuiltinProcessorSettingsProps> = ({ processor, updateConfig }) => {

@@ -1,6 +1,6 @@
 import { Button, Field, FieldContent, FieldGroup, FieldLabel, Input } from '@cherrystudio/ui'
 import type { FileProcessorMerged } from '@renderer/hooks/useFileProcessors'
-import type { FileProcessorUserConfig } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorOverride } from '@shared/data/presets/file-processing'
 import { Eye, EyeOff } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,7 +9,7 @@ import { useApiProcessorSettings } from '../../hooks/useApiProcessorSettings'
 
 interface ApiProcessorSettingsProps {
   processor: FileProcessorMerged
-  updateConfig: (update: Partial<Omit<FileProcessorUserConfig, 'id'>>) => void
+  updateConfig: (update: FileProcessorOverride) => void
 }
 
 const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processor, updateConfig }) => {

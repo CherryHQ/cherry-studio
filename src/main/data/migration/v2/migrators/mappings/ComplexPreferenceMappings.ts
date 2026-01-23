@@ -84,7 +84,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
   // Migrates OCR + Preprocess providers to unified file processing config
   {
     id: 'file-processing-config',
-    description: 'Migrate OCR + Preprocess providers to unified file processing config',
+    description: 'Migrate OCR + Preprocess providers to unified file processing overrides',
     sources: {
       ocrProviders: { source: 'redux', category: 'ocr', key: 'providers' },
       ocrImageProviderId: { source: 'redux', category: 'ocr', key: 'imageProviderId' },
@@ -92,7 +92,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       preprocessDefaultProvider: { source: 'redux', category: 'preprocess', key: 'defaultProvider' }
     },
     targetKeys: [
-      'feature.file_processing.processors',
+      'feature.file_processing.overrides',
       'feature.file_processing.default_image_processor',
       'feature.file_processing.default_document_processor'
     ],

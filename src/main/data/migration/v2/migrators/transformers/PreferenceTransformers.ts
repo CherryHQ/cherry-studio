@@ -153,6 +153,8 @@
  * ```
  */
 
+import { type FileProcessorTemplate, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
 // Re-export TransformResult for convenience
@@ -200,34 +202,10 @@ export function isNonEmptyString(value: unknown): value is string {
 // ============================================================================
 
 /**
- * Default API hosts for file processors (from template)
- * Used to determine if user has modified the default value
+ * Get processor template by ID from presets
  */
-const FILE_PROCESSOR_DEFAULT_API_HOSTS: Record<string, string> = {
-  mineru: 'https://mineru.net',
-  doc2x: 'https://v2.doc2x.noedgeai.com',
-  mistral: 'https://api.mistral.ai'
-}
-
-/**
- * Default model IDs for file processors (from template)
- */
-const FILE_PROCESSOR_DEFAULT_MODEL_IDS: Record<string, string> = {
-  mistral: 'mistral-ocr-latest'
-}
-
-/**
- * Get template default API host for a processor
- */
-function getTemplateDefaultApiHost(processorId: string): string | undefined {
-  return FILE_PROCESSOR_DEFAULT_API_HOSTS[processorId]
-}
-
-/**
- * Get template default model ID for a processor
- */
-function getTemplateDefaultModelId(processorId: string): string | undefined {
-  return FILE_PROCESSOR_DEFAULT_MODEL_IDS[processorId]
+function getTemplate(processorId: string): FileProcessorTemplate | undefined {
+  return PRESETS_FILE_PROCESSORS.find((template) => template.id === processorId)
 }
 
 /**
@@ -268,21 +246,79 @@ interface FeatureUserConfig {
 }
 
 /**
- * User config for file processor (target format)
+ * User override for file processor (target format)
  */
-interface FileProcessorUserConfig {
-  id: string
+interface FileProcessorOverride {
   apiKey?: string
   featureConfigs?: FeatureUserConfig[]
   options?: Record<string, unknown>
+}
+
+type FileProcessorOverrides = Record<string, FileProcessorOverride>
+
+function normalizeApiHost(value?: string): string | undefined {
+  if (!isNonEmptyString(value)) return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
+}
+
+function normalizeModelId(value?: string): string | undefined {
+  if (!isNonEmptyString(value)) return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function getTemplateDefaults(processorId: string, feature: FeatureUserConfig['feature']): FeatureUserConfig {
+  const template = getTemplate(processorId)
+  const capability = template?.capabilities.find((item) => item.feature === feature)
+  return {
+    feature,
+    apiHost: normalizeApiHost(capability?.defaultApiHost),
+    modelId: normalizeModelId(capability?.defaultModelId)
+  }
+}
+
+function mergeFeatureConfigs(
+  base?: FeatureUserConfig[],
+  incoming?: FeatureUserConfig[]
+): FeatureUserConfig[] | undefined {
+  if (!base && !incoming) return undefined
+  if (!base) return incoming ? [...incoming] : undefined
+  if (!incoming) return [...base]
+
+  const merged = [...base]
+  for (const next of incoming) {
+    const existingIndex = merged.findIndex((config) => config.feature === next.feature)
+    if (existingIndex >= 0) {
+      merged[existingIndex] = { ...merged[existingIndex], ...next }
+    } else {
+      merged.push(next)
+    }
+  }
+
+  return merged
+}
+
+function mergeOverrides(
+  existing: FileProcessorOverride | undefined,
+  next: FileProcessorOverride
+): FileProcessorOverride {
+  if (!existing) return next
+
+  return {
+    apiKey: next.apiKey ?? existing.apiKey,
+    featureConfigs: mergeFeatureConfigs(existing.featureConfigs, next.featureConfigs),
+    options: existing.options || next.options ? { ...existing.options, ...next.options } : undefined
+  }
 }
 
 /**
  * Extract user config from OCR provider
  * Only extracts fields that differ from defaults
  */
-function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorUserConfig | null {
-  const userConfig: FileProcessorUserConfig = { id: provider.id }
+function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverride | null {
+  const userConfig: FileProcessorOverride = {}
   let hasUserConfig = false
   const featureConfigs: FeatureUserConfig[] = []
 
@@ -293,26 +329,22 @@ function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorUserCon
   }
 
   // Only store apiHost if different from template default (store in featureConfigs)
-  const defaultApiHost = getTemplateDefaultApiHost(provider.id)
-  if (provider.config?.api?.apiHost && provider.config.api.apiHost !== defaultApiHost) {
-    featureConfigs.push({
-      feature: 'text_extraction',
-      apiHost: provider.config.api.apiHost
-    })
+  const defaultOcrApiHost = getTemplateDefaults(provider.id, 'text_extraction').apiHost
+  const apiHost = normalizeApiHost(provider.config?.api?.apiHost)
+  if (apiHost && apiHost !== defaultOcrApiHost) {
+    featureConfigs.push({ feature: 'text_extraction', apiHost })
     hasUserConfig = true
   }
 
   // Extract PaddleOCR specific config (apiUrl as apiHost)
-  if (provider.config?.apiUrl) {
+  const apiUrlHost = normalizeApiHost(provider.config?.apiUrl)
+  if (apiUrlHost) {
     // Check if we already have a featureConfig for text_extraction
     const existingConfig = featureConfigs.find((fc) => fc.feature === 'text_extraction')
     if (existingConfig) {
-      existingConfig.apiHost = provider.config.apiUrl
+      existingConfig.apiHost = apiUrlHost
     } else {
-      featureConfigs.push({
-        feature: 'text_extraction',
-        apiHost: provider.config.apiUrl
-      })
+      featureConfigs.push({ feature: 'text_extraction', apiHost: apiUrlHost })
     }
     hasUserConfig = true
   }
@@ -345,8 +377,8 @@ function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorUserCon
  * Extract user config from Preprocess provider
  * Only extracts fields that differ from defaults
  */
-function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FileProcessorUserConfig | null {
-  const userConfig: FileProcessorUserConfig = { id: provider.id }
+function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FileProcessorOverride | null {
+  const userConfig: FileProcessorOverride = {}
   let hasUserConfig = false
   const featureConfigs: FeatureUserConfig[] = []
 
@@ -360,17 +392,18 @@ function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FilePr
   let hasFeatureConfig = false
 
   // Only store apiHost if different from template default
-  const defaultApiHost = getTemplateDefaultApiHost(provider.id)
-  if (provider.apiHost && provider.apiHost !== defaultApiHost) {
-    featureConfig.apiHost = provider.apiHost
+  const defaults = getTemplateDefaults(provider.id, 'to_markdown')
+  const apiHost = normalizeApiHost(provider.apiHost)
+  if (apiHost && apiHost !== defaults.apiHost) {
+    featureConfig.apiHost = apiHost
     hasFeatureConfig = true
     hasUserConfig = true
   }
 
   // Only store modelId if different from template default
-  const defaultModelId = getTemplateDefaultModelId(provider.id)
-  if (provider.model && provider.model !== defaultModelId) {
-    featureConfig.modelId = provider.model
+  const modelId = normalizeModelId(provider.model)
+  if (modelId && modelId !== defaults.modelId) {
+    featureConfig.modelId = modelId
     hasFeatureConfig = true
     hasUserConfig = true
   }
@@ -385,7 +418,7 @@ function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FilePr
 }
 
 /**
- * Transform OCR + Preprocess providers to unified FileProcessorUserConfig[]
+ * Transform OCR + Preprocess providers to unified FileProcessorOverrides
  *
  * This transformer handles:
  * 1. OCR providers (tesseract, system, paddleocr, ovocr)
@@ -399,14 +432,14 @@ export function transformFileProcessingConfig(sources: Record<string, unknown>):
   const preprocessProviders = sources.preprocessProviders as LegacyPreprocessProvider[] | undefined
   const preprocessDefaultProvider = sources.preprocessDefaultProvider as string | undefined
 
-  const userConfigs: FileProcessorUserConfig[] = []
+  const overrides: FileProcessorOverrides = {}
 
   // 1. Migrate OCR user configs
   if (Array.isArray(ocrProviders)) {
     for (const provider of ocrProviders) {
-      const userConfig = extractOcrUserConfig(provider)
-      if (userConfig) {
-        userConfigs.push(userConfig)
+      const override = extractOcrUserConfig(provider)
+      if (override) {
+        overrides[provider.id] = mergeOverrides(overrides[provider.id], override)
       }
     }
   }
@@ -414,53 +447,17 @@ export function transformFileProcessingConfig(sources: Record<string, unknown>):
   // 2. Migrate Preprocess user configs (merge with existing if same ID)
   if (Array.isArray(preprocessProviders)) {
     for (const provider of preprocessProviders) {
-      const userConfig = extractPreprocessUserConfig(provider)
-      if (userConfig) {
-        const existingIndex = userConfigs.findIndex((c) => c.id === userConfig.id)
-        if (existingIndex >= 0) {
-          // Merge configs (preprocess values take precedence for shared fields)
-          const existingConfig = userConfigs[existingIndex]
-
-          // Merge featureConfigs arrays
-          const mergedFeatureConfigs = [...(existingConfig.featureConfigs || [])]
-          if (userConfig.featureConfigs) {
-            for (const newFeatureConfig of userConfig.featureConfigs) {
-              const existingFeatureIndex = mergedFeatureConfigs.findIndex(
-                (fc) => fc.feature === newFeatureConfig.feature
-              )
-              if (existingFeatureIndex >= 0) {
-                // Merge with existing feature config
-                mergedFeatureConfigs[existingFeatureIndex] = {
-                  ...mergedFeatureConfigs[existingFeatureIndex],
-                  ...newFeatureConfig
-                }
-              } else {
-                mergedFeatureConfigs.push(newFeatureConfig)
-              }
-            }
-          }
-
-          userConfigs[existingIndex] = {
-            ...existingConfig,
-            ...userConfig,
-            // Merge featureConfigs
-            featureConfigs: mergedFeatureConfigs.length > 0 ? mergedFeatureConfigs : undefined,
-            // Merge options if both exist
-            options:
-              existingConfig.options || userConfig.options
-                ? { ...existingConfig.options, ...userConfig.options }
-                : undefined
-          }
-        } else {
-          userConfigs.push(userConfig)
-        }
+      const override = extractPreprocessUserConfig(provider)
+      if (override) {
+        overrides[provider.id] = mergeOverrides(overrides[provider.id], override)
       }
     }
   }
 
   // Build result - undefined values will be skipped
+  const hasOverrides = Object.keys(overrides).length > 0
   return {
-    'feature.file_processing.processors': userConfigs.length > 0 ? userConfigs : undefined,
+    'feature.file_processing.overrides': hasOverrides ? overrides : undefined,
     'feature.file_processing.default_image_processor': isNonEmptyString(ocrImageProviderId)
       ? ocrImageProviderId
       : undefined,

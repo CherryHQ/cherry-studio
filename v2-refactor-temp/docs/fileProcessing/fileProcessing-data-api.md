@@ -79,13 +79,13 @@ interface PreprocessState {
 └─────────────────────────────────────────────────────────────────┘
                               +
 ┌─────────────────────────────────────────────────────────────────┐
-│  用户配置 (Preference: feature.file_processing.processors)       │
+│  用户配置 (Preference: feature.file_processing.overrides)        │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ [                                                           ││
-│  │   { id: 'mineru', apiKey: '***' },                         ││
-│  │   { id: 'mineru', apiKey: '***', apiHost: 'http://...' }   ││
-│  │ ]                                                           ││
-│  │ (只存储用户修改的字段：id + apiKey/apiHost/modelId/options)  ││
+│  │ {                                                           ││
+│  │   mineru: { apiKey: '***' },                                ││
+│  │   doc2x: { apiKey: '***', featureConfigs: [...] }           ││
+│  │ }                                                           ││
+│  │ (只存储用户修改的字段：apiKey/featureConfigs/options)        ││
 │  └─────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
                               ↓
@@ -101,7 +101,7 @@ interface PreprocessState {
 
 | Key | 类型 | 默认值 | 说明 |
 |-----|------|--------|------|
-| `feature.file_processing.processors` | `FileProcessorUserConfig[]` | `[]` | 用户配置（仅存储修改的字段） |
+| `feature.file_processing.overrides` | `FileProcessorOverrides` | `{}` | 用户覆盖配置（仅存储修改的字段） |
 | `feature.file_processing.default_document_processor` | `string \| null` | `null` | 知识库文档解析默认处理器 ID |
 | `feature.file_processing.default_image_processor` | `string \| null` | `null` | 聊天图片理解默认处理器 ID |
 
@@ -140,21 +140,21 @@ export type FeatureUserConfig = {
 }
 
 /**
- * 用户配置的处理器数据（存储在 Preference 中）
+ * 用户配置的处理器覆盖（存储在 Preference 中）
  *
  * 设计原则：
  * - 只存储用户修改的字段
- * - id 是必须的，用于匹配模板
  * - apiKey 在处理器级别共享（所有 Feature 使用同一个 Key）
  * - apiHost/modelId 在 Feature 级别配置（通过 featureConfigs）
  * - 字段名使用 camelCase（与 TypeScript 惯例一致）
  */
-export type FileProcessorUserConfig = {
-  id: string                          // 处理器 ID，用于匹配模板
-  apiKey?: string                     // API Key（处理器级共享）
+export type FileProcessorOverride = {
+  apiKey?: string                      // API Key（处理器级共享）
   featureConfigs?: FeatureUserConfig[] // Feature 级配置
-  options?: FileProcessorOptions      // 处理器特定配置（通用类型）
+  options?: FileProcessorOptions       // 处理器特定配置（通用类型）
 }
+
+export type FileProcessorOverrides = Record<string, FileProcessorOverride>
 ```
 
 ### 模板类型定义 (src/renderer/src/config/fileProcessing.ts)
@@ -312,7 +312,7 @@ export interface PreferenceSchemas {
     // ... existing keys ...
 
     // File Processing
-    'feature.file_processing.processors': PreferenceTypes.FileProcessorUserConfig[]
+    'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     'feature.file_processing.default_document_processor': string | null
     'feature.file_processing.default_image_processor': string | null
   }
@@ -326,8 +326,8 @@ export const DefaultPreferences: PreferenceSchemas = {
   default: {
     // ... existing defaults ...
 
-    // 空数组，用户配置后才会有数据
-    'feature.file_processing.processors': [],
+    // 空对象，用户配置后才会有数据
+    'feature.file_processing.overrides': {},
     'feature.file_processing.default_document_processor': null,
     'feature.file_processing.default_image_processor': null
   }
@@ -343,7 +343,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 ```typescript
 import { usePreference } from '@data/hooks/usePreference'
 import { FILE_PROCESSOR_TEMPLATES, FileProcessorTemplate, FeatureCapability } from '@renderer/config/fileProcessing'
-import { FileProcessorUserConfig, FeatureUserConfig, FileProcessorOptions } from '@shared/data/preference/preferenceTypes'
+import { FileProcessorOverride, FileProcessorOverrides, FeatureUserConfig, FileProcessorOptions } from '@shared/data/preference/preferenceTypes'
 
 /**
  * 合并后的完整处理器配置
@@ -359,10 +359,10 @@ type FileProcessorMerged = FileProcessorTemplate & {
  */
 function mergeProcessorConfigs(
   templates: FileProcessorTemplate[],
-  userConfigs: FileProcessorUserConfig[]
+  overrides: FileProcessorOverrides
 ): FileProcessorMerged[] {
   return templates.map(template => {
-    const userConfig = userConfigs.find(c => c.id === template.id)
+    const userConfig = overrides[template.id]
     return {
       ...template,
       apiKey: userConfig?.apiKey,
@@ -398,11 +398,11 @@ function getEffectiveModelId(processor: FileProcessorMerged, capability: Feature
 
 // Hook 使用示例
 function useFileProcessors() {
-  const [userConfigs] = usePreference('feature.file_processing.processors')
+  const [overrides] = usePreference('feature.file_processing.overrides')
 
   const processors = useMemo(
-    () => mergeProcessorConfigs(FILE_PROCESSOR_TEMPLATES, userConfigs),
-    [userConfigs]
+    () => mergeProcessorConfigs(FILE_PROCESSOR_TEMPLATES, overrides),
+    [overrides]
   )
 
   return processors
@@ -427,55 +427,44 @@ const documentProcessors = processors.filter(p =>
 ### 更新处理器 API Key
 
 ```typescript
-const [userConfigs, setUserConfigs] = usePreference('feature.file_processing.processors')
+const [overrides, setOverrides] = usePreference('feature.file_processing.overrides')
 
 const updateProcessorApiKey = (processorId: string, apiKey: string) => {
-  setUserConfigs(prev => {
-    const existing = prev.find(c => c.id === processorId)
-    if (existing) {
-      // 更新现有配置
-      return prev.map(c =>
-        c.id === processorId ? { ...c, apiKey } : c
-      )
-    } else {
-      // 添加新配置
-      return [...prev, { id: processorId, apiKey }]
-    }
-  })
+  setOverrides(prev => ({
+    ...prev,
+    [processorId]: { ...prev[processorId], apiKey }
+  }))
 }
 
 // 存储示例：用户为 mineru 配置了 API Key
-// Preference 中存储: [{ id: 'mineru', apiKey: 'sk-xxx' }]
+// Preference 中存储: { mineru: { apiKey: 'sk-xxx' } }
 ```
 
 ### 更新处理器 API Host（覆盖默认值）
 
 ```typescript
 const updateProcessorApiHost = (processorId: string, feature: 'text_extraction' | 'to_markdown', apiHost: string) => {
-  setUserConfigs(prev => {
-    const existing = prev.find(c => c.id === processorId)
-    if (existing) {
-      // Update existing config
-      const featureConfigs = [...(existing.featureConfigs || [])]
-      const featureIndex = featureConfigs.findIndex(fc => fc.feature === feature)
-      if (featureIndex >= 0) {
-        featureConfigs[featureIndex] = { ...featureConfigs[featureIndex], apiHost }
-      } else {
-        featureConfigs.push({ feature, apiHost })
-      }
-      return prev.map(c =>
-        c.id === processorId ? { ...c, featureConfigs } : c
-      )
+  setOverrides(prev => {
+    const existing = prev[processorId]
+    const featureConfigs = [...(existing?.featureConfigs || [])]
+    const featureIndex = featureConfigs.findIndex(fc => fc.feature === feature)
+
+    if (featureIndex >= 0) {
+      featureConfigs[featureIndex] = { ...featureConfigs[featureIndex], apiHost }
     } else {
-      // Add new config
-      return [...prev, { id: processorId, featureConfigs: [{ feature, apiHost }] }]
+      featureConfigs.push({ feature, apiHost })
+    }
+
+    return {
+      ...prev,
+      [processorId]: { ...existing, featureConfigs }
     }
   })
 }
 
 // 存储示例：用户修改了 mineru 的 API Host
 // Preference 中存储:
-// [{ id: 'mineru', apiKey: 'sk-xxx', featureConfigs: [{ feature: 'to_markdown', apiHost: 'https://custom.mineru.net' }] }]
+// { mineru: { apiKey: 'sk-xxx', featureConfigs: [{ feature: 'to_markdown', apiHost: 'https://custom.mineru.net' }] } }
 ```
 
 ### 设置默认处理器
@@ -494,14 +483,14 @@ setDefaultDocProcessor('mineru')
 
 | 来源 | Redux Key | 目标 Preference Key |
 |------|-----------|---------------------|
-| OCR providers | `ocr.providers` | `feature.file_processing.processors` (提取用户配置) |
+| OCR providers | `ocr.providers` | `feature.file_processing.overrides` (提取用户配置) |
 | OCR 默认图片处理器 | `ocr.imageProviderId` | `feature.file_processing.default_image_processor` |
-| Preprocess providers | `preprocess.providers` | `feature.file_processing.processors` (提取用户配置) |
+| Preprocess providers | `preprocess.providers` | `feature.file_processing.overrides` (提取用户配置) |
 | Preprocess 默认处理器 | `preprocess.defaultProvider` | `feature.file_processing.default_document_processor` |
 
 ### 迁移映射
 
-#### OCR Provider → FileProcessorUserConfig
+#### OCR Provider → FileProcessorOverride
 
 ```typescript
 // 旧 OCR Provider
@@ -514,15 +503,16 @@ setDefaultDocProcessor('mineru')
   }
 }
 
-// 新 FileProcessorUserConfig（只提取用户配置）
+// 新 FileProcessorOverride（只提取用户配置）
 // langs 改为数组格式，更简洁
 {
-  id: 'tesseract',
-  options: { langs: ['chi_sim', 'eng'] }
+  tesseract: {
+    options: { langs: ['chi_sim', 'eng'] }
+  }
 }
 ```
 
-#### Preprocess Provider → FileProcessorUserConfig
+#### Preprocess Provider → FileProcessorOverride
 
 ```typescript
 // 旧 Preprocess Provider
@@ -533,20 +523,22 @@ setDefaultDocProcessor('mineru')
   apiHost: 'https://mineru.net'
 }
 
-// 新 FileProcessorUserConfig（只提取用户配置）
+// 新 FileProcessorOverride（只提取用户配置）
 // 如果 apiHost 与模板默认值相同，则不存储
 {
-  id: 'mineru',
-  apiKey: 'user-api-key'
+  mineru: {
+    apiKey: 'user-api-key'
+  }
 }
 
 // 如果 apiHost 与模板默认值不同，则存储在 featureConfigs 中
 {
-  id: 'mineru',
-  apiKey: 'user-api-key',
-  featureConfigs: [
-    { feature: 'to_markdown', apiHost: 'https://custom.mineru.net' }
-  ]
+  mineru: {
+    apiKey: 'user-api-key',
+    featureConfigs: [
+      { feature: 'to_markdown', apiHost: 'https://custom.mineru.net' }
+    ]
+  }
 }
 ```
 
@@ -557,7 +549,7 @@ setDefaultDocProcessor('mineru')
 ```typescript
 import { preferenceService } from '@main/data/services/preferenceService'
 import { FILE_PROCESSOR_TEMPLATES } from '@renderer/config/fileProcessing'
-import type { FileProcessorUserConfig, FeatureUserConfig } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorOverride, FeatureUserConfig } from '@shared/data/preference/preferenceTypes'
 
 interface LegacyOcrProvider {
   id: string
@@ -578,20 +570,20 @@ export async function migrateFileProcessingConfig(
   legacyOcr: { providers: LegacyOcrProvider[]; imageProviderId: string },
   legacyPreprocess: { providers: LegacyPreprocessProvider[]; defaultProvider: string }
 ) {
-  const userConfigs: FileProcessorUserConfig[] = []
+  const overrides: Record<string, FileProcessorOverride> = {}
 
   // 1. 迁移 OCR 用户配置
   for (const ocrProvider of legacyOcr.providers) {
     const template = FILE_PROCESSOR_TEMPLATES.find(t => t.id === ocrProvider.id)
     if (!template) continue
 
-    const userConfig: FileProcessorUserConfig = { id: ocrProvider.id }
-    const featureConfigs: FeatureUserConfig[] = []
+    const override: FileProcessorOverride = { ...overrides[ocrProvider.id] }
+    const featureConfigs: FeatureUserConfig[] = [...(override.featureConfigs || [])]
     let hasUserConfig = false
 
     // 提取 API 配置
     if (ocrProvider.config?.api?.apiKey) {
-      userConfig.apiKey = ocrProvider.config.api.apiKey
+      override.apiKey = ocrProvider.config.api.apiKey
       hasUserConfig = true
     }
 
@@ -611,17 +603,17 @@ export async function migrateFileProcessingConfig(
         .filter(([, enabled]) => enabled)
         .map(([lang]) => lang)
       if (enabledLangs.length > 0) {
-        userConfig.options = { langs: enabledLangs }
+        override.options = { langs: enabledLangs }
         hasUserConfig = true
       }
     }
 
     if (featureConfigs.length > 0) {
-      userConfig.featureConfigs = featureConfigs
+      override.featureConfigs = featureConfigs
     }
 
     if (hasUserConfig) {
-      userConfigs.push(userConfig)
+      overrides[ocrProvider.id] = override
     }
   }
 
@@ -631,16 +623,14 @@ export async function migrateFileProcessingConfig(
     if (!template) continue
 
     // 检查是否已经有这个 ID 的配置（可能 OCR 和 Preprocess 有重叠）
-    const existingIndex = userConfigs.findIndex(c => c.id === preprocProvider.id)
-    const userConfig: FileProcessorUserConfig = existingIndex >= 0
-      ? { ...userConfigs[existingIndex] }
-      : { id: preprocProvider.id }
-    const featureConfigs: FeatureUserConfig[] = [...(userConfig.featureConfigs || [])]
-    let hasUserConfig = existingIndex >= 0
+    const existing = overrides[preprocProvider.id]
+    const override: FileProcessorOverride = existing ? { ...existing } : {}
+    const featureConfigs: FeatureUserConfig[] = [...(override.featureConfigs || [])]
+    let hasUserConfig = Boolean(existing)
 
     // 提取 API 配置
     if (preprocProvider.apiKey) {
-      userConfig.apiKey = preprocProvider.apiKey
+      override.apiKey = preprocProvider.apiKey
       hasUserConfig = true
     }
 
@@ -669,21 +659,17 @@ export async function migrateFileProcessingConfig(
     }
 
     if (featureConfigs.length > 0) {
-      userConfig.featureConfigs = featureConfigs
+      override.featureConfigs = featureConfigs
     }
 
     if (hasUserConfig) {
-      if (existingIndex >= 0) {
-        userConfigs[existingIndex] = userConfig
-      } else {
-        userConfigs.push(userConfig)
-      }
+      overrides[preprocProvider.id] = override
     }
   }
 
   // 3. 写入新 Preference
-  if (userConfigs.length > 0) {
-    await preferenceService.set('feature.file_processing.processors', userConfigs)
+  if (Object.keys(overrides).length > 0) {
+    await preferenceService.set('feature.file_processing.overrides', overrides)
   }
   await preferenceService.set('feature.file_processing.default_image_processor', legacyOcr.imageProviderId)
   await preferenceService.set('feature.file_processing.default_document_processor', legacyPreprocess.defaultProvider)
@@ -701,7 +687,7 @@ export async function migrateFileProcessingConfig(
 添加以下类型：
 - `FileProcessorOptions` (通用 `Record<string, unknown>` 类型)
 - `FeatureUserConfig` (Feature 级别配置)
-- `FileProcessorUserConfig`
+- `FileProcessorOverride`
 
 ### Step 2: 创建模板配置文件
 
@@ -720,7 +706,7 @@ export async function migrateFileProcessingConfig(
 **文件**: `packages/shared/data/preference/preferenceSchemas.ts`
 
 在 `PreferenceSchemas.default` 中添加：
-- `'feature.file_processing.processors': PreferenceTypes.FileProcessorUserConfig[]`
+- `'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides`
 - `'feature.file_processing.default_document_processor': string | null`
 - `'feature.file_processing.default_image_processor': string | null`
 
@@ -730,7 +716,7 @@ export async function migrateFileProcessingConfig(
 
 在 `DefaultPreferences.default` 中添加：
 ```typescript
-'feature.file_processing.processors': [],
+'feature.file_processing.overrides': {},
 'feature.file_processing.default_document_processor': null,
 'feature.file_processing.default_image_processor': null
 ```
@@ -753,8 +739,8 @@ export async function migrateFileProcessingConfig(
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| `packages/shared/data/preference/preferenceTypes.ts` | 修改 | 添加 `FileProcessorOptions`, `FeatureUserConfig`, `FileProcessorUserConfig` |
-| `packages/shared/data/preference/preferenceSchemas.ts` | 修改 | 添加 schema 和空数组默认值 |
+| `packages/shared/data/preference/preferenceTypes.ts` | 修改 | 添加 `FileProcessorOptions`, `FeatureUserConfig`, `FileProcessorOverride` |
+| `packages/shared/data/preference/preferenceSchemas.ts` | 修改 | 添加 schema 和空对象默认值 |
 | `src/renderer/src/config/fileProcessing.ts` | 新建 | 模板类型和内置处理器配置 |
 | `src/renderer/src/hooks/useFileProcessors.ts` | 新建 | 合并模板与用户配置的 Hook |
 | `src/main/data/migrations/migrateFileProcessing.ts` | 新建 | 数据迁移逻辑 |
@@ -777,9 +763,9 @@ export async function migrateFileProcessingConfig(
 // 用户只配置了 mineru 的 API Key
 // Preference 存储:
 {
-  'feature.file_processing.processors': [
-    { id: 'mineru', apiKey: 'sk-xxx' }
-  ],
+  'feature.file_processing.overrides': {
+    mineru: { apiKey: 'sk-xxx' }
+  },
   'feature.file_processing.default_document_processor': 'mineru',
   'feature.file_processing.default_image_processor': 'tesseract'
 }
@@ -787,15 +773,14 @@ export async function migrateFileProcessingConfig(
 // 用户配置了 mineru 的 API Key 并修改了 API Host
 // Preference 存储:
 {
-  'feature.file_processing.processors': [
-    {
-      id: 'mineru',
+  'feature.file_processing.overrides': {
+    mineru: {
       apiKey: 'sk-xxx',
       featureConfigs: [
         { feature: 'to_markdown', apiHost: 'https://custom.mineru.net' }
       ]
     }
-  ],
+  },
   'feature.file_processing.default_document_processor': 'mineru',
   'feature.file_processing.default_image_processor': 'tesseract'
 }
@@ -803,9 +788,9 @@ export async function migrateFileProcessingConfig(
 // 用户配置了 Tesseract 的语言选择
 // Preference 存储:
 {
-  'feature.file_processing.processors': [
-    { id: 'tesseract', options: { langs: ['chi_sim', 'chi_tra', 'eng'] } }
-  ],
+  'feature.file_processing.overrides': {
+    tesseract: { options: { langs: ['chi_sim', 'chi_tra', 'eng'] } }
+  },
   'feature.file_processing.default_document_processor': null,
   'feature.file_processing.default_image_processor': 'tesseract'
 }
@@ -813,10 +798,10 @@ export async function migrateFileProcessingConfig(
 // 用户同时配置了多个处理器
 // Preference 存储:
 {
-  'feature.file_processing.processors': [
-    { id: 'mineru', apiKey: 'sk-xxx' },
-    { id: 'tesseract', options: { langs: ['chi_sim', 'eng'] } }
-  ],
+  'feature.file_processing.overrides': {
+    mineru: { apiKey: 'sk-xxx' },
+    tesseract: { options: { langs: ['chi_sim', 'eng'] } }
+  },
   'feature.file_processing.default_document_processor': 'mineru',
   'feature.file_processing.default_image_processor': 'tesseract'
 }
@@ -903,25 +888,17 @@ function ProcessorConfigItem({ processor }: { processor: FileProcessorMerged }) 
 ### 更新 Tesseract 语言配置
 
 ```typescript
-const [userConfigs, setUserConfigs] = usePreference('feature.file_processing.processors')
+const [overrides, setOverrides] = usePreference('feature.file_processing.overrides')
 
 const updateTesseractLangs = (langs: string[]) => {
-  setUserConfigs(prev => {
-    const existing = prev.find(c => c.id === 'tesseract')
-    if (existing) {
-      return prev.map(c =>
-        c.id === 'tesseract'
-          ? { ...c, options: { ...c.options, langs } }
-          : c
-      )
-    } else {
-      return [...prev, { id: 'tesseract', options: { langs } }]
-    }
-  })
+  setOverrides(prev => ({
+    ...prev,
+    tesseract: { ...prev.tesseract, options: { ...prev.tesseract?.options, langs } }
+  }))
 }
 
 // 存储示例：用户修改了 Tesseract 语言配置
-// Preference 中存储: [{ id: 'tesseract', options: { langs: ['chi_sim', 'eng'] } }]
+// Preference 中存储: { tesseract: { options: { langs: ['chi_sim', 'eng'] } } }
 ```
 
 ### Tesseract 语言配置组件

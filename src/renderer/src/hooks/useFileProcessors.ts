@@ -3,19 +3,21 @@ import type { FeatureCapability, FileProcessorTemplate } from '@renderer/config/
 import {
   FILE_PROCESSOR_TEMPLATES,
   getDocumentProcessorTemplates,
+  getFileProcessorTemplate,
   getImageProcessorTemplates,
   supportsInput
 } from '@renderer/config/fileProcessing'
 import type {
   FeatureUserConfig,
   FileProcessorOptions,
-  FileProcessorUserConfig
-} from '@shared/data/preference/preferenceTypes'
+  FileProcessorOverride,
+  FileProcessorOverrides
+} from '@shared/data/presets/file-processing'
 import { useCallback, useMemo } from 'react'
 import useSWRImmutable from 'swr/immutable'
 
 /**
- * Merged processor configuration (template + user config)
+ * Merged processor configuration (template + user override)
  */
 export type FileProcessorMerged = FileProcessorTemplate & {
   apiKey?: string
@@ -23,22 +25,103 @@ export type FileProcessorMerged = FileProcessorTemplate & {
   options?: FileProcessorOptions
 }
 
+function normalizeApiHost(value?: string): string | undefined {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
+}
+
+function normalizeOptionalString(value?: string): string | undefined {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function normalizeOptions(options?: FileProcessorOptions): FileProcessorOptions | undefined {
+  if (!options) return undefined
+  return Object.keys(options).length > 0 ? options : undefined
+}
+
+function getFeatureDefaults(
+  template: FileProcessorTemplate | undefined,
+  feature: FeatureUserConfig['feature']
+): FeatureUserConfig {
+  const capability = template?.capabilities.find((item) => item.feature === feature)
+  return {
+    feature,
+    apiHost: normalizeApiHost(capability?.defaultApiHost),
+    modelId: normalizeOptionalString(capability?.defaultModelId)
+  }
+}
+
+function normalizeFeatureConfigs(
+  template: FileProcessorTemplate | undefined,
+  featureConfigs?: FeatureUserConfig[]
+): FeatureUserConfig[] | undefined {
+  if (!featureConfigs || featureConfigs.length === 0) return undefined
+
+  const normalized = featureConfigs.reduce<FeatureUserConfig[]>((acc, config) => {
+    const defaults = getFeatureDefaults(template, config.feature)
+    const apiHost = normalizeApiHost(config.apiHost)
+    const modelId = normalizeOptionalString(config.modelId)
+
+    const nextConfig: FeatureUserConfig = { feature: config.feature }
+
+    if (apiHost && apiHost !== defaults.apiHost) {
+      nextConfig.apiHost = apiHost
+    }
+    if (modelId && modelId !== defaults.modelId) {
+      nextConfig.modelId = modelId
+    }
+
+    if (nextConfig.apiHost || nextConfig.modelId) {
+      acc.push(nextConfig)
+    }
+
+    return acc
+  }, [])
+
+  return normalized.length > 0 ? normalized : undefined
+}
+
+function normalizeOverride(processorId: string, override: FileProcessorOverride): FileProcessorOverride | undefined {
+  const template = getFileProcessorTemplate(processorId)
+  const apiKey = normalizeOptionalString(override.apiKey)
+  const featureConfigs = normalizeFeatureConfigs(template, override.featureConfigs)
+  const options = normalizeOptions(override.options)
+
+  if (!apiKey && !featureConfigs && !options) {
+    return undefined
+  }
+
+  return {
+    ...(apiKey ? { apiKey } : {}),
+    ...(featureConfigs ? { featureConfigs } : {}),
+    ...(options ? { options } : {})
+  }
+}
+
 /**
- * Merge processor templates with user configurations
+ * Merge processor templates with user overrides
  */
 function mergeProcessorConfigs(
   templates: FileProcessorTemplate[],
-  userConfigs: FileProcessorUserConfig[]
+  overrides: FileProcessorOverrides
 ): FileProcessorMerged[] {
-  return templates.map((template) => {
-    const userConfig = userConfigs.find((c) => c.id === template.id)
-    return {
-      ...template,
-      apiKey: userConfig?.apiKey,
-      featureConfigs: userConfig?.featureConfigs,
-      options: userConfig?.options
-    }
-  })
+  return templates.map((template) => ({
+    ...template,
+    ...overrides[template.id]
+  }))
+}
+
+function useFileProcessorOverrides() {
+  const [overrides, setOverrides] = usePreference('feature.file_processing.overrides')
+
+  return {
+    overrides,
+    setOverrides
+  }
 }
 
 /**
@@ -73,33 +156,50 @@ export function getEffectiveModelId(processor: FileProcessorMerged, capability: 
  * Hook for accessing all file processors with merged configurations
  */
 export function useFileProcessors() {
-  const [userConfigs, setUserConfigs] = usePreference('feature.file_processing.processors')
+  const { overrides, setOverrides } = useFileProcessorOverrides()
 
-  const processors = useMemo(() => mergeProcessorConfigs(FILE_PROCESSOR_TEMPLATES, userConfigs), [userConfigs])
+  const processors = useMemo(() => mergeProcessorConfigs(FILE_PROCESSOR_TEMPLATES, overrides), [overrides])
 
   const updateProcessorConfig = useCallback(
-    async (processorId: string, update: Partial<Omit<FileProcessorUserConfig, 'id'>>) => {
-      const existingIndex = userConfigs.findIndex((c) => c.id === processorId)
-      let newConfigs: FileProcessorUserConfig[]
+    async (processorId: string, update: FileProcessorOverride) => {
+      const existingOverride = overrides[processorId] ?? {}
+      const nextOverride = normalizeOverride(processorId, { ...existingOverride, ...update })
+      const nextOverrides = { ...overrides }
 
-      if (existingIndex >= 0) {
-        // Update existing config
-        newConfigs = [...userConfigs]
-        newConfigs[existingIndex] = { ...newConfigs[existingIndex], ...update }
+      if (nextOverride) {
+        nextOverrides[processorId] = nextOverride
       } else {
-        // Add new config
-        newConfigs = [...userConfigs, { id: processorId, ...update }]
+        delete nextOverrides[processorId]
       }
 
-      await setUserConfigs(newConfigs)
+      await setOverrides(nextOverrides)
     },
-    [userConfigs, setUserConfigs]
+    [overrides, setOverrides]
   )
+
+  /**
+   * Reset a processor to default values (remove all overrides)
+   */
+  const resetProcessorConfig = useCallback(
+    async (processorId: string) => {
+      const nextOverrides = { ...overrides }
+      delete nextOverrides[processorId]
+      await setOverrides(nextOverrides)
+    },
+    [overrides, setOverrides]
+  )
+
+  /**
+   * Check if a processor has been customized (has any overrides)
+   */
+  const isProcessorCustomized = useCallback((processorId: string) => processorId in overrides, [overrides])
 
   return {
     processors,
-    userConfigs,
-    updateProcessorConfig
+    overrides,
+    updateProcessorConfig,
+    resetProcessorConfig,
+    isProcessorCustomized
   }
 }
 
@@ -107,9 +207,9 @@ export function useFileProcessors() {
  * Hook for accessing image processors (support IMAGE input)
  */
 export function useImageProcessors() {
-  const [userConfigs] = usePreference('feature.file_processing.processors')
+  const { overrides } = useFileProcessorOverrides()
 
-  const processors = useMemo(() => mergeProcessorConfigs(getImageProcessorTemplates(), userConfigs), [userConfigs])
+  const processors = useMemo(() => mergeProcessorConfigs(getImageProcessorTemplates(), overrides), [overrides])
 
   return processors
 }
@@ -148,9 +248,9 @@ export function useAvailableImageProcessors() {
  * Hook for accessing document processors (support DOCUMENT input)
  */
 export function useDocumentProcessors() {
-  const [userConfigs] = usePreference('feature.file_processing.processors')
+  const { overrides } = useFileProcessorOverrides()
 
-  const processors = useMemo(() => mergeProcessorConfigs(getDocumentProcessorTemplates(), userConfigs), [userConfigs])
+  const processors = useMemo(() => mergeProcessorConfigs(getDocumentProcessorTemplates(), overrides), [overrides])
 
   return processors
 }
@@ -164,7 +264,7 @@ export function useFileProcessor(processorId: string) {
   const processor = useMemo(() => processors.find((p) => p.id === processorId), [processors, processorId])
 
   const updateConfig = useCallback(
-    (update: Partial<Omit<FileProcessorUserConfig, 'id'>>) => {
+    (update: FileProcessorOverride) => {
       updateProcessorConfig(processorId, update)
     },
     [processorId, updateProcessorConfig]

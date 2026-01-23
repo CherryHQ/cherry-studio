@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { getNestedValue, isNonEmptyString, isValidNumber } from '../PreferenceTransformers'
+import {
+  getNestedValue,
+  isNonEmptyString,
+  isValidNumber,
+  transformFileProcessingConfig
+} from '../PreferenceTransformers'
 
 describe('PreferenceTransformers', () => {
   describe('utility functions', () => {
@@ -125,6 +130,48 @@ describe('PreferenceTransformers', () => {
       it('should return false for arrays', () => {
         expect(isNonEmptyString(['a'])).toBe(false)
       })
+    })
+  })
+
+  describe('transformFileProcessingConfig', () => {
+    it('should map overrides and preserve defaults', () => {
+      const result = transformFileProcessingConfig({
+        ocrProviders: [
+          {
+            id: 'paddleocr',
+            name: 'Paddle OCR',
+            config: {
+              api: {
+                apiKey: 'paddle-key',
+                apiHost: 'https://ocr.example.com/'
+              }
+            }
+          }
+        ],
+        ocrImageProviderId: 'paddleocr',
+        preprocessProviders: [
+          {
+            id: 'mistral',
+            name: 'Mistral',
+            apiKey: 'mistral-key',
+            apiHost: 'https://api.mistral.ai',
+            model: 'mistral-ocr-latest'
+          }
+        ],
+        preprocessDefaultProvider: 'mistral'
+      })
+
+      expect(result['feature.file_processing.overrides']).toEqual({
+        paddleocr: {
+          apiKey: 'paddle-key',
+          featureConfigs: [{ feature: 'text_extraction', apiHost: 'https://ocr.example.com' }]
+        },
+        mistral: {
+          apiKey: 'mistral-key'
+        }
+      })
+      expect(result['feature.file_processing.default_image_processor']).toBe('paddleocr')
+      expect(result['feature.file_processing.default_document_processor']).toBe('mistral')
     })
   })
 })

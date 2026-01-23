@@ -57,16 +57,17 @@
 | `defaultApiHost`   | `string?`                              | Feature 级默认 API Host           |
 | `defaultModelId`   | `string?`                              | Feature 级默认 Model ID           |
 
-### 用户配置结构：`FileProcessorUserConfig`
+### 用户配置结构：`FileProcessorOverride`
 
 存储在 Preference 系统中，仅保存用户修改的字段：
 
+Preference Key: `feature.file_processing.overrides`，类型为 `FileProcessorOverrides`（`Record<string, FileProcessorOverride>`）。
+
 | 字段             | 类型                    | 说明                              |
 | ---------------- | ----------------------- | --------------------------------- |
-| `id`             | string                  | 处理器 ID，用于匹配 Template      |
-| `apiKey`         | `string?`               | API Key（处理器级共享）           |
-| `featureConfigs` | `FeatureUserConfig[]?`  | Feature 级配置                    |
-| `options`        | `Record<string, unknown>?` | 处理器特定配置                 |
+| `apiKey`         | `string?`                  | API Key（处理器级共享）           |
+| `featureConfigs` | `FeatureUserConfig[]?`     | Feature 级配置                    |
+| `options`        | `Record<string, unknown>?` | 处理器特定配置                    |
 
 ### Feature 用户配置：`FeatureUserConfig`
 

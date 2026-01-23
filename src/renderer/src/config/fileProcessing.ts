@@ -1,164 +1,32 @@
 /**
  * File Processing Configuration
  *
- * This file contains template definitions for file processors.
+ * Templates live in shared presets and are re-exported here for renderer usage.
  * User configurations (apiKey, featureConfigs, etc.) are stored in Preference system.
- *
- * Design: Template + User Config separation
- * - Templates (this file): Read-only metadata about processors
- * - User Config (Preference): User-modified fields only
- *
- * i18n: Processor names are retrieved via `processor.${id}.name` key
  */
 
-// ============================================================================
-// Type Definitions
-// ============================================================================
+import {
+  type FeatureCapability,
+  type FileProcessorFeature,
+  type FileProcessorInput,
+  type FileProcessorTemplate,
+  PRESETS_FILE_PROCESSORS
+} from '@shared/data/presets/file-processing'
+
+export type {
+  FeatureCapability,
+  FileProcessorFeature,
+  FileProcessorInput,
+  FileProcessorOutput,
+  FileProcessorTemplate,
+  FileProcessorType
+} from '@shared/data/presets/file-processing'
+export { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 
 /**
- * Processor service type
+ * Local alias kept for backward compatibility in renderer code.
  */
-export type FileProcessorType = 'api' | 'builtin'
-
-/**
- * Feature type
- */
-export type FileProcessorFeature = 'text_extraction' | 'to_markdown'
-
-/**
- * Input type (category)
- */
-export type FileProcessorInput = 'image' | 'document'
-
-/**
- * Output type
- */
-export type FileProcessorOutput = 'text' | 'markdown'
-
-/**
- * Feature capability definition
- *
- * Each capability binds a feature with its input/output and optional API settings.
- * Format filtering rules:
- * - Neither specified: supports all formats in the input category
- * - supportedFormats specified: only supports listed formats (whitelist)
- * - excludedFormats specified: supports all except listed formats (blacklist)
- */
-export type FeatureCapability = {
-  feature: FileProcessorFeature
-  input: FileProcessorInput
-  supportedFormats?: string[] // Whitelist: only these formats supported
-  excludedFormats?: string[] // Blacklist: all formats except these
-  output: FileProcessorOutput
-  defaultApiHost?: string // Feature-level default API Host
-  defaultModelId?: string // Feature-level default Model ID
-}
-
-/**
- * Processor template (read-only metadata)
- *
- * Note: Display name is retrieved via i18n key `processor.${id}.name`
- */
-export type FileProcessorTemplate = {
-  id: string // Unique identifier, also used for i18n key
-  type: FileProcessorType // 'api' | 'builtin'
-  capabilities: FeatureCapability[] // Feature capabilities
-}
-
-// ============================================================================
-// Processor Templates
-// ============================================================================
-
-/**
- * Built-in processor templates
- */
-export const FILE_PROCESSOR_TEMPLATES: FileProcessorTemplate[] = [
-  // === Image Processors (former OCR) ===
-  {
-    id: 'tesseract',
-    type: 'builtin',
-    capabilities: [
-      {
-        feature: 'text_extraction',
-        input: 'image',
-        output: 'text'
-      }
-    ]
-  },
-  {
-    id: 'system',
-    type: 'builtin',
-    capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
-  },
-  {
-    id: 'paddleocr',
-    type: 'api',
-    capabilities: [
-      {
-        feature: 'text_extraction',
-        input: 'image',
-        output: 'text',
-        defaultApiHost: ''
-      }
-    ]
-  },
-  {
-    id: 'ovocr',
-    type: 'builtin',
-    capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
-  },
-
-  // === Document Processors (former Preprocess) ===
-  {
-    id: 'mineru',
-    type: 'api',
-    capabilities: [
-      {
-        feature: 'to_markdown',
-        input: 'document',
-        output: 'markdown',
-        defaultApiHost: 'https://mineru.net'
-      }
-    ]
-  },
-  {
-    id: 'doc2x',
-    type: 'api',
-    capabilities: [
-      {
-        feature: 'to_markdown',
-        input: 'document',
-        output: 'markdown',
-        defaultApiHost: 'https://v2.doc2x.noedgeai.com'
-      }
-    ]
-  },
-  {
-    id: 'mistral',
-    type: 'api',
-    capabilities: [
-      {
-        feature: 'to_markdown',
-        input: 'document',
-        output: 'markdown',
-        defaultApiHost: 'https://api.mistral.ai',
-        defaultModelId: 'mistral-ocr-latest'
-      }
-    ]
-  },
-  {
-    id: 'open-mineru',
-    type: 'api',
-    capabilities: [
-      {
-        feature: 'to_markdown',
-        input: 'document',
-        output: 'markdown',
-        defaultApiHost: 'http://127.0.0.1:8000'
-      }
-    ]
-  }
-]
+export const FILE_PROCESSOR_TEMPLATES: FileProcessorTemplate[] = PRESETS_FILE_PROCESSORS
 
 // ============================================================================
 // Utility Functions

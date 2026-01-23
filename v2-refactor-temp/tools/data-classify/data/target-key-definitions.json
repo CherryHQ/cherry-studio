@@ -34,11 +34,11 @@
       "description": "Window height (from complex mapping) - Example, not active"
     },
     {
-      "targetKey": "feature.file_processing.processors",
-      "type": "PreferenceTypes.FileProcessorUserConfig[]",
-      "defaultValue": [],
+      "targetKey": "feature.file_processing.overrides",
+      "type": "PreferenceTypes.FileProcessorOverrides",
+      "defaultValue": {},
       "status": "classified",
-      "description": "User configurations for file processors (only stores modified fields)"
+      "description": "User overrides for file processors (only stores modified fields)"
     },
     {
       "targetKey": "feature.file_processing.default_document_processor",

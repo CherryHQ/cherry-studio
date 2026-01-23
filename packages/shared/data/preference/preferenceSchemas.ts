@@ -28,6 +28,7 @@
 
 import { MEMORY_FACT_EXTRACTION_PROMPT, MEMORY_UPDATE_SYSTEM_PROMPT, TRANSLATE_PROMPT } from '@shared/config/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorOverrides } from '@shared/data/presets/file-processing'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {
   "interfaces": { "order": "alphabetically" },
@@ -315,7 +316,7 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'feature.file_processing.default_image_processor': string | null
     // target-key-definitions/complex/complex
-    'feature.file_processing.processors': PreferenceTypes.FileProcessorUserConfig[]
+    'feature.file_processing.overrides': FileProcessorOverrides
     // redux/memory/memoryConfig.isAutoDimensions
     'feature.memory.auto_dimensions': boolean
     // redux/memory/currentUserId
@@ -593,7 +594,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.csaas.port': 23333,
     'feature.file_processing.default_document_processor': null,
     'feature.file_processing.default_image_processor': null,
-    'feature.file_processing.processors': [],
+    'feature.file_processing.overrides': {},
     'feature.memory.auto_dimensions': true,
     'feature.memory.current_user_id': 'default-user',
     'feature.memory.embedder_dimensions': 1536,

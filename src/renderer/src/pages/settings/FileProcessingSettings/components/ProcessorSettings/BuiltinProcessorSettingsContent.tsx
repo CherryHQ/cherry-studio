@@ -12,14 +12,14 @@ import { isMac, isWin } from '@renderer/config/constant'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
 import type { FileProcessorMerged } from '@renderer/hooks/useFileProcessors'
 import useTranslate from '@renderer/hooks/useTranslate'
-import type { FileProcessorUserConfig } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorOverride } from '@shared/data/presets/file-processing'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface BuiltinProcessorSettingsContentProps {
   processor: FileProcessorMerged
-  updateConfig: (update: Partial<Omit<FileProcessorUserConfig, 'id'>>) => void
+  updateConfig: (update: FileProcessorOverride) => void
 }
 
 const BuiltinProcessorSettingsContent: FC<BuiltinProcessorSettingsContentProps> = ({ processor, updateConfig }) => {
