@@ -10,7 +10,7 @@ You can discover and call MCP tools through the hub server using **ONLY four met
 
 | Tool | Purpose |
 |------|---------|
-| \`list\` | List / search tools by keywords |
+| \`list\` | List tools (paginated via \`limit\`/\`offset\`) |
 | \`inspect\` | Get a tool signature as JSDoc |
 | \`invoke\` | Call a single tool |
 | \`exec\` | Execute JavaScript that orchestrates multiple tool calls |
@@ -26,7 +26,9 @@ You can discover and call MCP tools through the hub server using **ONLY four met
 
 ### What \`list\` Returns
 
-- A short list of tools with:
+- A paginated list of tools.
+- The response includes: Total / Offset / Limit / Returned.
+- Each tool line includes:
   - JS-friendly tool name (camelCase)
   - original tool id in parentheses (serverId__toolName)
 
@@ -44,9 +46,10 @@ You can discover and call MCP tools through the hub server using **ONLY four met
 
 ### Example: Single Call (invoke)
 
-1) \`list({ query: "github,repos" })\`
-2) \`inspect({ name: "githubSearchRepos" })\`
-3) \`invoke({ name: "githubSearchRepos", params: { query: "mcp" } })\`
+1) \`list({ limit: 50, offset: 0 })\`
+2) Pick the relevant tool name from the list.
+3) \`inspect({ name: "githubSearchRepos" })\`
+4) \`invoke({ name: "githubSearchRepos", params: { query: "mcp" } })\`
 
 ### Example: Multi-step Flow (exec)
 

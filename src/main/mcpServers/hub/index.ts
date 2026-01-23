@@ -52,23 +52,17 @@ export class HubServer {
         tools: [
           {
             name: 'list',
-            description:
-              'List available MCP tools from all active servers. Optionally filter by keywords. Use `inspect` to get full signature before calling.',
+            description: 'List available MCP tools from all active servers. Results are paginated via limit/offset.',
             inputSchema: {
               type: 'object',
               properties: {
-                query: {
-                  type: 'string',
-                  description:
-                    'Optional comma-separated keywords (OR match). Matches against tool name, server name/id, and description. Example: "browser,chrome,tab".'
-                },
-                server: {
-                  type: 'string',
-                  description: 'Optional server id filter (case-insensitive). Example: "github".'
-                },
                 limit: {
                   type: 'number',
                   description: 'Optional maximum results to return (default: 30, max: 100).'
+                },
+                offset: {
+                  type: 'number',
+                  description: 'Optional zero-based offset for pagination (default: 0).'
                 }
               }
             }
@@ -210,7 +204,7 @@ export class HubServer {
   private async handleList(input: ListInput) {
     const tools = await this.fetchTools()
     const result = listTools(tools, input)
-    const output = formatListResultAsText(result.tools, result.total)
+    const output = formatListResultAsText(result)
 
     return {
       content: [

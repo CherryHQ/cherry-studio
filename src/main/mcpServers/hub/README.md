@@ -8,7 +8,7 @@ This server is the core component of Cherry Studio’s **Auto MCP Mode**.
 
 The Hub server exposes **four** tools:
 
-- `list` — list/search tools by keywords
+- `list` — list tools (paginated with `limit` + `offset`)
 - `inspect` — get a tool signature as a JSDoc stub
 - `invoke` — call a single tool with parameters
 - `exec` — execute JavaScript to orchestrate multiple tool calls via `mcp.callTool()`
@@ -28,7 +28,7 @@ When an assistant is set to Auto mode:
 1) **List** tools:
 
 ```json
-{ "query": "github,repos", "limit": 10 }
+{ "limit": 50, "offset": 0 }
 ```
 
 2) **Inspect** a tool to see exact params:

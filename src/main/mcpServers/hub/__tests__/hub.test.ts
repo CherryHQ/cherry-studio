@@ -93,7 +93,7 @@ describe('HubServer Integration', () => {
 
   describe('full list → exec flow', () => {
     it('lists tools and executes them', async () => {
-      const listResult = await (hubServer as any).handleList({ query: 'github,repos' })
+      const listResult = await (hubServer as any).handleList({ limit: 100, offset: 0 })
 
       expect(listResult.content).toBeDefined()
       expect(listResult.content[0].text).toContain('githubSearchRepos')
@@ -108,7 +108,7 @@ describe('HubServer Integration', () => {
     })
 
     it('handles multiple tool calls in parallel', async () => {
-      await (hubServer as any).handleList({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
 
       const execResult = await (hubServer as any).handleExec({
         code: `
@@ -127,29 +127,29 @@ describe('HubServer Integration', () => {
     })
 
     it('lists tools across multiple servers', async () => {
-      const listResult = await (hubServer as any).handleList({ query: 'database,query' })
+      const listResult = await (hubServer as any).handleList({ limit: 100, offset: 0 })
       expect(listResult.content[0].text).toContain('databaseQuery')
     })
   })
 
   describe('tools caching', () => {
     it('uses cached tools within TTL', async () => {
-      await (hubServer as any).handleList({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
       const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
-      await (hubServer as any).handleList({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
       const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount) // Should use cache
     })
 
     it('refreshes tools after cache invalidation', async () => {
-      await (hubServer as any).handleList({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
       const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
       hubServer.invalidateCache()
 
-      await (hubServer as any).handleList({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
       const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount + 1)

@@ -11,12 +11,10 @@ export type HubTool = {
 }
 
 export type ListInput = {
-  /** Optional: filter tools by comma-separated keywords (OR match). */
-  query?: string
-  /** Optional: filter by server id (case-insensitive). */
-  server?: string
   /** Optional: maximum results to return (default: 30, max: 100). */
   limit?: number
+  /** Optional: zero-based offset for pagination (default: 0). */
+  offset?: number
 }
 
 export type InspectInput = {
