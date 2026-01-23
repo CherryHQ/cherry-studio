@@ -76,12 +76,12 @@ if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
 }
 
 /**
- * Set window class and name for X11
- * This ensures the system tray and window manager identify the app correctly
+ * Set window class and name for Linux
+ * This ensures the window manager identifies the app correctly on both X11 and Wayland
  */
 if (isLinux) {
-  app.commandLine.appendSwitch('class', 'cherry-studio')
-  app.commandLine.appendSwitch('name', 'cherry-studio')
+  app.commandLine.appendSwitch('class', 'CherryStudio')
+  app.commandLine.appendSwitch('name', 'CherryStudio')
 }
 
 // DocumentPolicyIncludeJSCallStacksInCrashReports: Enable features for unresponsive renderer js call stacks

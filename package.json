@@ -3,6 +3,7 @@
   "version": "1.7.13",
   "private": true,
   "description": "A powerful AI assistant for producer.",
+  "desktopName": "CherryStudio.desktop",
   "main": "./out/main/index.js",
   "author": "support@cherry-ai.com",
   "homepage": "https://github.com/CherryHQ/cherry-studio",
