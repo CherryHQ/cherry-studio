@@ -4,10 +4,10 @@ import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVG
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchProvider } from '@renderer/hooks/useWebSearch'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import type { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
+import type { PreprocessProviderId } from '@renderer/types'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { Card, List, Popconfirm, Space, Typography } from 'antd'
@@ -183,7 +183,7 @@ interface SpecificApiKeyListProps {
 }
 
 type WebSearchApiKeyList = SpecificApiKeyListProps & {
-  providerId: WebSearchProviderId
+  providerId: string
 }
 
 type DocPreprocessApiKeyListProps = SpecificApiKeyListProps & {
@@ -198,6 +198,10 @@ export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHea
 
 export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId, showHealthCheck = true }) => {
   const { provider, updateProvider } = useWebSearchProvider(providerId)
+
+  if (!provider) {
+    return null
+  }
 
   return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
 }

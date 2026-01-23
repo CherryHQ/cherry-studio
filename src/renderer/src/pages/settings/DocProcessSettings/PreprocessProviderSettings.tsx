@@ -46,7 +46,8 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
     await ApiKeyListPopup.show({
       providerId: preprocessProvider.id,
       title: `${preprocessProvider.name} ${t('settings.provider.api.key.list.title')}`,
-      showHealthCheck: false // FIXME: 目前还没有检查功能
+      showHealthCheck: false, // FIXME: 目前还没有检查功能
+      providerType: 'preprocess'
     })
   }
 
