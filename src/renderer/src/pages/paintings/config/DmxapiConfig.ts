@@ -27,33 +27,33 @@ export type DMXApiModelGroups = {
 }
 
 export const STYLE_TYPE_OPTIONS = [
-  { label: 'paintings.dmxapi.style_types.ghibli', value: '吉卜力' },
-  { label: 'paintings.dmxapi.style_types.pixar', value: '皮克斯' },
-  { label: 'paintings.dmxapi.style_types.yarn_doll', value: '绒线玩偶' },
-  { label: 'paintings.dmxapi.style_types.watercolor', value: '水彩画' },
-  { label: 'paintings.dmxapi.style_types.cartoon_illustration', value: '卡通插画' },
-  { label: 'paintings.dmxapi.style_types.3d_cartoon', value: '3D卡通' },
-  { label: 'paintings.dmxapi.style_types.japanese_anime', value: '日系动漫' },
-  { label: 'paintings.dmxapi.style_types.wood_carving', value: '木雕' },
-  { label: 'paintings.dmxapi.style_types.poetic_ancient', value: '唯美古风' },
-  { label: 'paintings.dmxapi.style_types.25d_animation', value: '2.5D动画' },
-  { label: 'paintings.dmxapi.style_types.fresh_anime', value: '清新日漫' },
-  { label: 'paintings.dmxapi.style_types.clay', value: '黏土' },
-  { label: 'paintings.dmxapi.style_types.little_people_book', value: '小人书插画' },
-  { label: 'paintings.dmxapi.style_types.ukiyo_e', value: '浮世绘' },
-  { label: 'paintings.dmxapi.style_types.felt', value: '毛毡' },
-  { label: 'paintings.dmxapi.style_types.american_retro', value: '美式复古' },
-  { label: 'paintings.dmxapi.style_types.cyberpunk', value: '赛博朋克' },
-  { label: 'paintings.dmxapi.style_types.sketch', value: '素描' },
-  { label: 'paintings.dmxapi.style_types.monet_garden', value: '莫奈花园' },
-  { label: 'paintings.dmxapi.style_types.oil_painting', value: '厚涂手绘' },
-  { label: 'paintings.dmxapi.style_types.flat', value: '扁平' },
-  { label: 'paintings.dmxapi.style_types.texture', value: '肌理' },
-  { label: 'paintings.dmxapi.style_types.pixel_art', value: '像素艺术' },
-  { label: 'paintings.dmxapi.style_types.street_art', value: '街头艺术' },
-  { label: 'paintings.dmxapi.style_types.psychedelic', value: '迷幻' },
-  { label: 'paintings.dmxapi.style_types.chinese_gongbi', value: '国风工笔' },
-  { label: 'paintings.dmxapi.style_types.baroque', value: '巴洛克' }
+  { labelKey: 'paintings.dmxapi.style_types.ghibli', value: '吉卜力' },
+  { labelKey: 'paintings.dmxapi.style_types.pixar', value: '皮克斯' },
+  { labelKey: 'paintings.dmxapi.style_types.yarn_doll', value: '绒线玩偶' },
+  { labelKey: 'paintings.dmxapi.style_types.watercolor', value: '水彩画' },
+  { labelKey: 'paintings.dmxapi.style_types.cartoon_illustration', value: '卡通插画' },
+  { labelKey: 'paintings.dmxapi.style_types.3d_cartoon', value: '3D卡通' },
+  { labelKey: 'paintings.dmxapi.style_types.japanese_anime', value: '日系动漫' },
+  { labelKey: 'paintings.dmxapi.style_types.wood_carving', value: '木雕' },
+  { labelKey: 'paintings.dmxapi.style_types.poetic_ancient', value: '唯美古风' },
+  { labelKey: 'paintings.dmxapi.style_types.25d_animation', value: '2.5D动画' },
+  { labelKey: 'paintings.dmxapi.style_types.fresh_anime', value: '清新日漫' },
+  { labelKey: 'paintings.dmxapi.style_types.clay', value: '黏土' },
+  { labelKey: 'paintings.dmxapi.style_types.little_people_book', value: '小人书插画' },
+  { labelKey: 'paintings.dmxapi.style_types.ukiyo_e', value: '浮世绘' },
+  { labelKey: 'paintings.dmxapi.style_types.felt', value: '毛毡' },
+  { labelKey: 'paintings.dmxapi.style_types.american_retro', value: '美式复古' },
+  { labelKey: 'paintings.dmxapi.style_types.cyberpunk', value: '赛博朋克' },
+  { labelKey: 'paintings.dmxapi.style_types.sketch', value: '素描' },
+  { labelKey: 'paintings.dmxapi.style_types.monet_garden', value: '莫奈花园' },
+  { labelKey: 'paintings.dmxapi.style_types.oil_painting', value: '厚涂手绘' },
+  { labelKey: 'paintings.dmxapi.style_types.flat', value: '扁平' },
+  { labelKey: 'paintings.dmxapi.style_types.texture', value: '肌理' },
+  { labelKey: 'paintings.dmxapi.style_types.pixel_art', value: '像素艺术' },
+  { labelKey: 'paintings.dmxapi.style_types.street_art', value: '街头艺术' },
+  { labelKey: 'paintings.dmxapi.style_types.psychedelic', value: '迷幻' },
+  { labelKey: 'paintings.dmxapi.style_types.chinese_gongbi', value: '国风工笔' },
+  { labelKey: 'paintings.dmxapi.style_types.baroque', value: '巴洛克' }
 ]
 
 export const COURSE_URL = 'http://seedream.dmxapi.cn/'
@@ -76,9 +76,9 @@ export const DEFAULT_PAINTING: DmxapiPainting = {
 }
 
 export const MODEOPTIONS = [
-  { label: 'paintings.mode.generate', value: generationModeType.GENERATION },
-  { label: 'paintings.mode.edit', value: generationModeType.EDIT },
-  { label: 'paintings.mode.merge', value: generationModeType.MERGE }
+  { labelKey: 'paintings.mode.generate', value: generationModeType.GENERATION },
+  { labelKey: 'paintings.mode.edit', value: generationModeType.EDIT },
+  { labelKey: 'paintings.mode.merge', value: generationModeType.MERGE }
 ]
 
 // 获取模型分组数据

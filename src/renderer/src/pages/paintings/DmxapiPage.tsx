@@ -80,7 +80,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const modeOptions = MODEOPTIONS.map((ele) => {
     return {
-      label: t(ele.label),
+      label: t(ele.labelKey),
       value: ele.value
     }
   })
@@ -939,7 +939,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   key={ele.value}
                   className={painting.style_type === ele.value ? 'selected' : ''}
                   onClick={() => onSelectStyleType(ele.value)}>
-                  {t(ele.label)}
+                  {t(ele.labelKey)}
                 </RadioTextItem>
               ))}
             </RadioTextBox>
