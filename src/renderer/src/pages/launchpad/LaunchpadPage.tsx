@@ -13,7 +13,7 @@ const LaunchpadPage: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { defaultPaintingProvider } = useSettings()
-  const { pinned } = useMinapps()
+  const { pinned, language } = useMinapps()
   const { openedKeepAliveMinapps } = useRuntime()
 
   const appMenuItems = [
@@ -105,7 +105,7 @@ const LaunchpadPage: FC = () => {
             <Grid>
               {sortedMinapps.map((app) => (
                 <AppWrapper key={app.id}>
-                  <App app={app} size={56} />
+                  <App app={app} size={56} language={language} />
                 </AppWrapper>
               ))}
             </Grid>

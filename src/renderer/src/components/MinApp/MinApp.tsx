@@ -21,6 +21,7 @@ interface Props {
   onClick?: () => void
   size?: number
   isLast?: boolean
+  language?: string
 }
 
 const logger = loggerService.withContext('App')

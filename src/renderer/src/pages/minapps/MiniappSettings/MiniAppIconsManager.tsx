@@ -91,7 +91,9 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
   )
 
   const renderProgramItem = (program: MinAppType, provided: DraggableProvided, listType: ListType) => {
-    const { name, logo } = DEFAULT_MIN_APPS.find((app) => app.id === program.id) || { name: program.name, logo: '' }
+    const appData = DEFAULT_MIN_APPS.find((app) => app.id === program.id)
+    const name = appData?.nameKey ? t(appData.nameKey) : appData?.name || program.name
+    const logo = appData?.logo || ''
 
     return (
       <ProgramItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
