@@ -1,16 +1,14 @@
 /**
  * Bridge module for Hub server to access MCPService.
- * Re-exports the methods needed by tool-registry and runtime.
  */
 import mcpService from '@main/services/MCPService'
-import { generateMcpToolFunctionName } from '@shared/mcp'
 import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
 
-import type { GeneratedTool } from './types'
+import { buildToolNameMapping, resolveToolId, type ToolNameMapping } from './toolname'
 
 export const listAllTools = () => mcpService.listAllActiveServerTools()
 
-const toolFunctionNameToIdMap = new Map<string, { serverId: string; toolName: string }>()
+let toolNameMapping: ToolNameMapping | null = null
 
 export async function refreshToolMap(): Promise<void> {
   const tools = await listAllTools()
@@ -18,39 +16,53 @@ export async function refreshToolMap(): Promise<void> {
 }
 
 export function syncToolMapFromTools(tools: MCPTool[]): void {
-  toolFunctionNameToIdMap.clear()
-  const existingNames = new Set<string>()
-  for (const tool of tools) {
-    const functionName = generateMcpToolFunctionName(tool.serverName, tool.name, existingNames)
-    toolFunctionNameToIdMap.set(functionName, { serverId: tool.serverId, toolName: tool.name })
-  }
+  const toolIds = tools
+    .map((tool) => `${tool.serverId}__${tool.name}`)
+    // Ensure deterministic mapping (collision suffixes stay stable)
+    .sort((a, b) => a.localeCompare(b))
+
+  syncToolMapFromToolIds(toolIds)
 }
 
-export function syncToolMapFromGeneratedTools(tools: GeneratedTool[]): void {
-  toolFunctionNameToIdMap.clear()
-  for (const tool of tools) {
-    toolFunctionNameToIdMap.set(tool.functionName, { serverId: tool.serverId, toolName: tool.toolName })
-  }
+export function syncToolMapFromToolIds(toolIds: string[]): void {
+  const sorted = [...toolIds].sort((a, b) => a.localeCompare(b))
+  toolNameMapping = buildToolNameMapping(sorted)
 }
 
 export function clearToolMap(): void {
-  toolFunctionNameToIdMap.clear()
+  toolNameMapping = null
 }
 
-export const callMcpTool = async (functionName: string, params: unknown, callId?: string): Promise<unknown> => {
-  const toolInfo = toolFunctionNameToIdMap.get(functionName)
-  if (!toolInfo) {
+/**
+ * Call a tool by either:
+ * - JS name (camelCase), e.g. "githubSearchRepos"
+ * - original tool id (namespaced), e.g. "github__search_repos"
+ */
+export const callMcpTool = async (nameOrId: string, params: unknown, callId?: string): Promise<unknown> => {
+  if (!toolNameMapping) {
     await refreshToolMap()
-    const retryToolInfo = toolFunctionNameToIdMap.get(functionName)
-    if (!retryToolInfo) {
-      throw new Error(`Tool not found: ${functionName}`)
-    }
-    const toolId = `${retryToolInfo.serverId}__${retryToolInfo.toolName}`
-    const result = await mcpService.callToolById(toolId, params, callId)
-    throwIfToolError(result)
-    return extractToolResult(result)
   }
-  const toolId = `${toolInfo.serverId}__${toolInfo.toolName}`
+
+  const mapping = toolNameMapping
+  if (!mapping) {
+    throw new Error('Tool mapping not initialized')
+  }
+
+  let toolId = resolveToolId(mapping, nameOrId)
+  if (!toolId) {
+    // Refresh and retry once (tools might have changed)
+    await refreshToolMap()
+    const refreshed = toolNameMapping
+    if (!refreshed) {
+      throw new Error('Tool mapping not initialized')
+    }
+    toolId = resolveToolId(refreshed, nameOrId)
+  }
+
+  if (!toolId) {
+    throw new Error(`Tool not found: ${nameOrId}`)
+  }
+
   const result = await mcpService.callToolById(toolId, params, callId)
   throwIfToolError(result)
   return extractToolResult(result)

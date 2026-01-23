@@ -6,7 +6,6 @@ import { loggerService } from '@logger'
 import { abortMcpTool, callMcpTool } from './mcp-bridge'
 import type {
   ExecOutput,
-  GeneratedTool,
   HubWorkerCallToolMessage,
   HubWorkerExecMessage,
   HubWorkerMessage,
@@ -20,7 +19,7 @@ const MAX_LOGS = 1000
 const EXECUTION_TIMEOUT = 60000
 
 export class Runtime {
-  async execute(code: string, tools: GeneratedTool[]): Promise<ExecOutput> {
+  async execute(code: string): Promise<ExecOutput> {
     return await new Promise<ExecOutput>((resolve) => {
       const logs: string[] = []
       const activeCallIds = new Map<string, string>()
@@ -73,7 +72,7 @@ export class Runtime {
         activeCallIds.set(message.requestId, callId)
 
         try {
-          const result = await callMcpTool(message.functionName, message.params, callId)
+          const result = await callMcpTool(message.name, message.params, callId)
           if (finished || timedOut) {
             return
           }
@@ -161,8 +160,7 @@ export class Runtime {
 
       const execMessage: HubWorkerExecMessage = {
         type: 'exec',
-        code,
-        tools: tools.map((tool) => ({ functionName: tool.functionName }))
+        code
       }
       worker.postMessage(execMessage)
     })
