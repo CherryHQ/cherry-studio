@@ -1370,7 +1370,9 @@ describe('findTokenLimit', () => {
     { modelId: 'qwen-flash-lite', expected: { min: 0, max: 81_920 } },
     { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } },
     { modelId: 'Baichuan-M2', expected: { min: 0, max: 30_000 } },
-    { modelId: 'baichuan-m2', expected: { min: 0, max: 30_000 } }
+    { modelId: 'baichuan-m2', expected: { min: 0, max: 30_000 } },
+    { modelId: 'Baichuan-M3', expected: { min: 0, max: 30_000 } },
+    { modelId: 'baichuan-m3', expected: { min: 0, max: 30_000 } }
   ]
 
   it.each(cases)('returns correct limits for $modelId', ({ modelId, expected }) => {

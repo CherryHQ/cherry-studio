@@ -2236,14 +2236,18 @@
     "drop_markdown_hint": "Arraste e solte arquivos ou pastas .md aqui para importar",
     "empty": "Ainda não existem notas",
     "expand": "expandir",
+    "exportToWord": "Exportar para Word",
     "export_failed": "Falha ao exportar para a base de conhecimento",
     "export_knowledge": "exportar anotações para a base de conhecimento",
     "export_success": "exportado com sucesso para a base de conhecimento",
+    "export_to_word_failed": "Falha ao exportar para Word",
     "folder": "pasta",
     "new_folder": "Nova pasta",
     "new_note": "Nova nota",
     "no_content_to_copy": "Não há conteúdo para copiar",
+    "no_content_to_export": "Sem conteúdo para exportar",
     "no_file_selected": "Selecione o arquivo a ser enviado",
+    "no_note_selected": "Por favor, selecione uma nota primeiro",
     "no_valid_files": "Nenhum arquivo válido foi carregado",
     "open_folder": "Abrir pasta externa",
     "open_outside": "Abrir externamente",
@@ -4228,9 +4232,6 @@
       "show_message_outline": "Exibir esboço da mensagem",
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
-    },
-    "mineru": {
-      "api_key": "O MinerU agora oferece uma cota diária gratuita de 500 páginas; você não precisa preencher uma chave."
     },
     "miniapps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
