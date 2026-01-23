@@ -66,6 +66,9 @@ export interface InputbarCoreProps {
   // Preview sections (attachments, mentions, etc.)
   topContent?: React.ReactNode
 
+  // Pinned content that floats above the inputbar (uses absolute positioning)
+  pinnedContent?: React.ReactNode
+
   // Override the user preference for quick panel triggers
   forceEnableQuickPanelTriggers?: boolean
 }
@@ -116,6 +119,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   leftToolbar,
   rightToolbar,
   topContent,
+  pinnedContent,
   forceEnableQuickPanelTriggers
 }) => {
   const config = useMemo(() => getInputbarConfig(scope), [scope])
@@ -649,6 +653,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         onDrop={handleDrop}
         className={classNames('inputbar')}>
         {quickPanelElement}
+        {pinnedContent}
         <InputBarContainer
           id="inputbar"
           className={classNames('inputbar-container', isDragging && 'file-dragging', isExpanded && 'expanded')}>

@@ -77,9 +77,13 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
 }
 
 const Container = styled.div`
-  position: relative;
-  z-index: 1;
-  padding: 0 18px 8px;
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+  transform: translateY(-100%);
+  padding-bottom: 8px;
+  z-index: 0;
 `
 
 const PanelBody = styled.div`

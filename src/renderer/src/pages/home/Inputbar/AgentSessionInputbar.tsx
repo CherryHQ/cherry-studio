@@ -471,27 +471,27 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     [sendMessageShortcut, t]
   )
 
+  const pinnedContent = useMemo(() => <PinnedTodoPanel topicId={sessionTopicId} />, [sessionTopicId])
+
   return (
-    <div>
-      <PinnedTodoPanel topicId={sessionTopicId} />
-      <InputbarCore
-        scope={TopicType.Session}
-        text={text}
-        onTextChange={setText}
-        textareaRef={textareaRef}
-        height={customHeight}
-        onHeightChange={setCustomHeight}
-        resizeTextArea={resizeTextArea}
-        focusTextarea={focusTextarea}
-        placeholder={placeholderText}
-        supportedExts={supportedExts}
-        onPause={abortAgentSession}
-        isLoading={canAbort}
-        handleSendMessage={sendMessage}
-        leftToolbar={leftToolbar}
-        forceEnableQuickPanelTriggers
-      />
-    </div>
+    <InputbarCore
+      scope={TopicType.Session}
+      text={text}
+      onTextChange={setText}
+      textareaRef={textareaRef}
+      height={customHeight}
+      onHeightChange={setCustomHeight}
+      resizeTextArea={resizeTextArea}
+      focusTextarea={focusTextarea}
+      placeholder={placeholderText}
+      supportedExts={supportedExts}
+      onPause={abortAgentSession}
+      isLoading={canAbort}
+      handleSendMessage={sendMessage}
+      leftToolbar={leftToolbar}
+      pinnedContent={pinnedContent}
+      forceEnableQuickPanelTriggers
+    />
   )
 }
 
