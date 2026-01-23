@@ -652,8 +652,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         className={classNames('inputbar')}>
-        {quickPanelElement}
         {pinnedContent}
+        {quickPanelElement}
         <InputBarContainer
           id="inputbar"
           className={classNames('inputbar-container', isDragging && 'file-dragging', isExpanded && 'expanded')}>
