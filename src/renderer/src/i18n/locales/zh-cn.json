@@ -4944,6 +4944,13 @@
       "show": "显示托盘图标",
       "title": "托盘"
     },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "更改标题栏样式需要重启应用才能生效，是否现在重启？",
+        "title": "需要重启应用"
+      },
+      "title": "使用系统标题栏 (Linux)"
+    },
     "zoom": {
       "reset": "重置",
       "title": "缩放"

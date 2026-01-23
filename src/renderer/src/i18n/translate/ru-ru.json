@@ -4944,6 +4944,13 @@
       "show": "Показать значок в трее",
       "title": "Трей"
     },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "[to be translated]:Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",
+        "title": "[to be translated]:Restart Required"
+      },
+      "title": "[to be translated]:Use System Title Bar (Linux)"
+    },
     "zoom": {
       "reset": "Сбросить",
       "title": "Масштаб страницы"

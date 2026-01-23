@@ -45,6 +45,7 @@ export enum ConfigKeys {
   SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
   SelectionAssistantFilterList = 'selectionAssistantFilterList',
   DisableHardwareAcceleration = 'disableHardwareAcceleration',
+  UseSystemTitleBar = 'useSystemTitleBar',
   Proxy = 'proxy',
   EnableDeveloperMode = 'enableDeveloperMode',
   ClientId = 'clientId',
@@ -249,6 +250,14 @@ export class ConfigManager {
 
   setDisableHardwareAcceleration(value: boolean) {
     this.set(ConfigKeys.DisableHardwareAcceleration, value)
+  }
+
+  getUseSystemTitleBar(): boolean {
+    return this.get<boolean>(ConfigKeys.UseSystemTitleBar, false)
+  }
+
+  setUseSystemTitleBar(value: boolean) {
+    this.set(ConfigKeys.UseSystemTitleBar, value)
   }
 
   setAndNotify(key: string, value: unknown) {

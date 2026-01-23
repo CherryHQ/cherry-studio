@@ -4944,6 +4944,13 @@
       "show": "Show Tray Icon",
       "title": "Tray"
     },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",
+        "title": "Restart Required"
+      },
+      "title": "Use System Title Bar (Linux)"
+    },
     "zoom": {
       "reset": "Reset",
       "title": "Page Zoom"
