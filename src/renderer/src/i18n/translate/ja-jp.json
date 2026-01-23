@@ -2226,14 +2226,18 @@
     "drop_markdown_hint": ".md ファイルまたはディレクトリをここにドラッグ＆ドロップしてインポートしてください",
     "empty": "暫無ノート",
     "expand": "展開",
+    "exportToWord": "Wordにエクスポート",
     "export_failed": "知識ベースへのエクスポートに失敗しました",
     "export_knowledge": "ノートをナレッジベースにエクスポートする",
     "export_success": "知識ベースへのエクスポートが成功しました",
+    "export_to_word_failed": "Wordへのエクスポートに失敗しました",
     "folder": "フォルダー",
     "new_folder": "新しいフォルダーを作成する",
     "new_note": "新規ノート作成",
     "no_content_to_copy": "コピーするコンテンツはありません",
+    "no_content_to_export": "エクスポートするコンテンツがありません",
     "no_file_selected": "アップロードするファイルを選択してください",
+    "no_note_selected": "まずノートを選択してください",
     "no_valid_files": "有効なファイルがアップロードされていません",
     "open_folder": "外部フォルダーを開きます",
     "open_outside": "外部から開く",
@@ -4942,6 +4946,13 @@
       "onclose": "閉じるときにトレイに最小化",
       "show": "トレイアイコンを表示",
       "title": "トレイ"
+    },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "[to be translated]:Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",
+        "title": "[to be translated]:Restart Required"
+      },
+      "title": "[to be translated]:Use System Title Bar (Linux)"
     },
     "zoom": {
       "reset": "リセット",

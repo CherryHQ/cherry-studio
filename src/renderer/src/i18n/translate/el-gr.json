@@ -2226,14 +2226,18 @@
     "drop_markdown_hint": "Σύρετε και αποθέστε αρχεία ή φακέλους .md εδώ για εισαγωγή",
     "empty": "δεν υπάρχει σημείωση για τώρα",
     "expand": "να ανοίξει",
+    "exportToWord": "Εξαγωγή σε Word",
     "export_failed": "Εξαγωγή στη βάση γνώσης απέτυχε",
     "export_knowledge": "εξαγωγή σημειώσεων στη βάση γνώσης",
     "export_success": "Επιτυχής εξαγωγή στην βάση γνώσης",
+    "export_to_word_failed": "Αποτυχία εξαγωγής στο Word",
     "folder": "φάκελος",
     "new_folder": "Νέος φάκελος",
     "new_note": "Δημιουργία νέας σημείωσης",
     "no_content_to_copy": "Δεν υπάρχει περιεχόμενο προς αντιγραφή",
+    "no_content_to_export": "Κανένα περιεχόμενο προς εξαγωγή",
     "no_file_selected": "Επιλέξτε το αρχείο για μεταφόρτωση",
+    "no_note_selected": "Παρακαλώ επιλέξτε πρώτα μια σημείωση",
     "no_valid_files": "Δεν ανέβηκε έγκυρο αρχείο",
     "open_folder": "Άνοιγμα εξωτερικού φακέλου",
     "open_outside": "Από το εξωτερικό",
@@ -4942,6 +4946,13 @@
       "onclose": "Μειωμένο στη συνδρομή κατά την κλεισιά",
       "show": "Εμφάνιση εικονιδίου συνδρομής",
       "title": "Συνδρομή"
+    },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "[to be translated]:Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",
+        "title": "[to be translated]:Restart Required"
+      },
+      "title": "[to be translated]:Use System Title Bar (Linux)"
     },
     "zoom": {
       "reset": "Επαναφορά",

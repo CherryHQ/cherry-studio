@@ -35,6 +35,7 @@ import {
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
+  setUseSystemTitleBar as _setUseSystemTitleBar,
   setWindowStyle
 } from '@renderer/store/settings'
 import type { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
@@ -123,6 +124,10 @@ export function useSettings() {
     setLogLevel(level: LogLevel) {
       dispatch(_setLogLevel(level))
       window.api.setLogLevel(level)
+    },
+    setUseSystemTitleBar(useSystemTitleBar: boolean) {
+      dispatch(_setUseSystemTitleBar(useSystemTitleBar))
+      window.api.setUseSystemTitleBar(useSystemTitleBar)
     }
   }
 }

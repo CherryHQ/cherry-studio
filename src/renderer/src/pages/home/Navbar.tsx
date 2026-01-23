@@ -1,7 +1,6 @@
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { isLinux, isWin } from '@renderer/config/constant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -123,7 +122,7 @@ const HeaderNavbar: FC<Props> = ({
           justifyContent: 'flex-end',
           flex: activeTopicOrSession === 'topic' ? 1 : 'none',
           position: 'relative',
-          paddingRight: isWin || isLinux ? '144px' : '15px',
+          paddingRight: '15px',
           minWidth: activeTopicOrSession === 'topic' ? '' : 'auto'
         }}
         className="home-navbar-right">
