@@ -4944,6 +4944,13 @@
       "show": "Afișează pictograma în zona de notificare",
       "title": "Zonă de notificare"
     },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "Schimbarea stilului barei de titlu necesită repornirea aplicației pentru a intra în vigoare. Doriți să reporniți acum?",
+        "title": "Repornire necesară"
+      },
+      "title": "Folosește bara de titlu a sistemului (Linux)"
+    },
     "zoom": {
       "reset": "Resetează",
       "title": "Zoom pagină"

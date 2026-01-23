@@ -4946,10 +4946,10 @@
     },
     "use_system_title_bar": {
       "confirm": {
-        "content": "[to be translated]:Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",
-        "title": "[to be translated]:Restart Required"
+        "content": "變更標題列樣式需要重新啟動應用程式才能生效。您要立即重新啟動嗎？",
+        "title": "需要重新啟動"
       },
-      "title": "[to be translated]:Use System Title Bar (Linux)"
+      "title": "使用系統標題列（Linux）"
     },
     "zoom": {
       "reset": "重設",

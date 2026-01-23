@@ -4946,10 +4946,10 @@
     },
     "use_system_title_bar": {
       "confirm": {
-        "content": "[to be translated]:Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",
-        "title": "[to be translated]:Restart Required"
+        "content": "Alterar o estilo da barra de título requer reiniciar o aplicativo para ter efeito. Deseja reiniciar agora?",
+        "title": "Reinicialização Necessária"
       },
-      "title": "[to be translated]:Use System Title Bar (Linux)"
+      "title": "Usar Barra de Título do Sistema (Linux)"
     },
     "zoom": {
       "reset": "Redefinir",
