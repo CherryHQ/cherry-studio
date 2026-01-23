@@ -1,73 +1,32 @@
 /**
  * WebSearch Provider Static Metadata
  *
- * Contains static metadata for providers that doesn't need to be stored in Preference.
- * Provider configuration (id, name, type, apiHost, etc.) is stored in Preference.
+ * This file re-exports from webSearch.ts for backward compatibility.
+ * New code should import directly from webSearch.ts.
  */
 
-/**
- * Provider website links for documentation and API key management
- */
-export interface WebSearchProviderWebsites {
-  /** Official documentation or homepage */
-  official: string
-  /** API key management page (for API providers) */
-  apiKey?: string
-}
-
-/**
- * Provider website links
- * Accessed via WEB_SEARCH_PROVIDER_WEBSITES[providerId]
- */
-export const WEB_SEARCH_PROVIDER_WEBSITES: Record<string, WebSearchProviderWebsites> = {
-  zhipu: {
-    official: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
-    apiKey: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
-  },
-  tavily: {
-    official: 'https://tavily.com',
-    apiKey: 'https://app.tavily.com/home'
-  },
-  searxng: {
-    official: 'https://docs.searxng.org'
-  },
-  exa: {
-    official: 'https://exa.ai',
-    apiKey: 'https://dashboard.exa.ai/api-keys'
-  },
-  'exa-mcp': {
-    official: 'https://exa.ai'
-  },
-  bocha: {
-    official: 'https://bochaai.com',
-    apiKey: 'https://open.bochaai.com/overview'
-  },
-  'local-google': {
-    official: 'https://www.google.com'
-  },
-  'local-bing': {
-    official: 'https://www.bing.com'
-  },
-  'local-baidu': {
-    official: 'https://www.baidu.com'
-  }
-}
-
-/**
- * Get provider websites by ID
- */
-export function getProviderWebsites(id: string): WebSearchProviderWebsites | undefined {
-  return WEB_SEARCH_PROVIDER_WEBSITES[id]
-}
+// Re-export from webSearch.ts (primary location)
+export {
+  getProviderWebsites,
+  WEB_SEARCH_PROVIDER_WEBSITES,
+  type WebSearchProviderWebsites
+} from './webSearch'
 
 // =============================================================================
 // Legacy exports for backward compatibility
 // TODO: Remove after Redux store migration is complete
 // =============================================================================
 
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { LegacyWebSearchProvider } from '@renderer/types'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 
 /**
- * @deprecated Use Preference 'websearch.providers' instead
+ * @deprecated Use PRESETS_WEB_SEARCH_PROVIDERS from '@shared/data/presets/web-search-providers' instead
  */
-export const WEB_SEARCH_PROVIDERS = DefaultPreferences.default['websearch.providers']
+export const WEB_SEARCH_PROVIDERS: LegacyWebSearchProvider[] = PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => ({
+  id: preset.id,
+  name: preset.name,
+  type: preset.type,
+  usingBrowser: preset.usingBrowser,
+  apiHost: preset.defaultApiHost
+}))
