@@ -4,7 +4,7 @@
 import mcpService from '@main/services/MCPService'
 import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
 
-import { buildToolNameMapping, resolveToolId, type ToolNameMapping } from './toolname'
+import { buildToolNameMapping, resolveToolId, type ToolIdentity, type ToolNameMapping } from './toolname'
 
 export const listAllTools = () => mcpService.listAllActiveServerTools()
 
@@ -16,17 +16,23 @@ export async function refreshToolMap(): Promise<void> {
 }
 
 export function syncToolMapFromTools(tools: MCPTool[]): void {
-  const toolIds = tools
-    .map((tool) => `${tool.serverId}__${tool.name}`)
-    // Ensure deterministic mapping (collision suffixes stay stable)
-    .sort((a, b) => a.localeCompare(b))
+  const identities: ToolIdentity[] = tools.map((tool) => ({
+    id: `${tool.serverId}__${tool.name}`,
+    serverName: tool.serverName,
+    toolName: tool.name
+  }))
 
-  syncToolMapFromToolIds(toolIds)
+  toolNameMapping = buildToolNameMapping(identities)
 }
 
-export function syncToolMapFromToolIds(toolIds: string[]): void {
-  const sorted = [...toolIds].sort((a, b) => a.localeCompare(b))
-  toolNameMapping = buildToolNameMapping(sorted)
+export function syncToolMapFromHubTools(tools: { id: string; serverName: string; toolName: string }[]): void {
+  const identities: ToolIdentity[] = tools.map((tool) => ({
+    id: tool.id,
+    serverName: tool.serverName,
+    toolName: tool.toolName
+  }))
+
+  toolNameMapping = buildToolNameMapping(identities)
 }
 
 export function clearToolMap(): void {

@@ -6,7 +6,7 @@ import type { MCPTool } from '@types'
 
 import { formatAsText, schemaToJSDoc } from './format'
 import { formatListResultAsText, listTools } from './list'
-import { callMcpTool, clearToolMap, listAllTools, syncToolMapFromToolIds, syncToolMapFromTools } from './mcp-bridge'
+import { callMcpTool, clearToolMap, listAllTools, syncToolMapFromHubTools, syncToolMapFromTools } from './mcp-bridge'
 import { Runtime } from './runtime'
 import { buildToolNameMapping, resolveToolId } from './toolname'
 import type { ExecInput, HubTool, InspectInput, InvokeInput, ListInput } from './types'
@@ -162,7 +162,7 @@ export class HubServer {
     const cached = CacheService.get<HubTool[]>(TOOLS_CACHE_KEY)
     if (cached) {
       logger.debug('Returning cached tools')
-      syncToolMapFromToolIds(cached.map((t) => t.id))
+      syncToolMapFromHubTools(cached)
       return cached
     }
 
@@ -177,9 +177,13 @@ export class HubServer {
   }
 
   private toHubTools(tools: MCPTool[]): HubTool[] {
-    const toolIds = tools.map((tool) => `${tool.serverId}__${tool.name}`).sort((a, b) => a.localeCompare(b))
-
-    const mapping = buildToolNameMapping(toolIds)
+    const mapping = buildToolNameMapping(
+      tools.map((tool) => ({
+        id: `${tool.serverId}__${tool.name}`,
+        serverName: tool.serverName,
+        toolName: tool.name
+      }))
+    )
 
     return tools
       .map((tool) => {
@@ -281,7 +285,9 @@ export class HubServer {
 
   private resolveHubTool(tools: HubTool[], nameOrId: string): HubTool {
     // Resolve via cached mapping first (supports both jsName and namespaced id)
-    const mapping = buildToolNameMapping(tools.map((t) => t.id))
+    const mapping = buildToolNameMapping(
+      tools.map((t) => ({ id: t.id, serverName: t.serverName, toolName: t.toolName }))
+    )
     const resolvedId = resolveToolId(mapping, nameOrId) ?? nameOrId
 
     const found = tools.find((t) => t.id === resolvedId) ?? tools.find((t) => t.jsName === nameOrId)

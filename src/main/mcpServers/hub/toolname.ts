@@ -1,3 +1,5 @@
+import { toCamelCase } from '@shared/mcp'
+
 export type ToolNameMapping = {
   /** original tool id (serverId__toolName) -> js name */
   toJs: Map<string, string>
@@ -5,70 +7,57 @@ export type ToolNameMapping = {
   toOriginal: Map<string, string>
 }
 
+export type ToolIdentity = {
+  /** original tool id (serverId__toolName) */
+  id: string
+  /** human-friendly server name (NOT serverId) */
+  serverName: string
+  /** raw tool name (as reported by the MCP server) */
+  toolName: string
+}
+
+export function isNamespacedToolId(name: string): boolean {
+  return name.includes('__')
+}
+
+function capitalizeFirstLetter(str: string): string {
+  if (!str) return str
+  return str[0].toUpperCase() + str.slice(1)
+}
+
 /**
- * Convert a namespaced tool id (serverId__tool_name) into a JS-friendly camelCase name.
+ * Build a readable JS tool name from (serverName, toolName).
  *
  * Examples:
- * - github__search_repos -> githubSearchRepos
- * - my-tool-name -> myToolName
+ * - serverName: "GitHub", toolName: "search_repos" -> "githubSearchRepos"
+ * - serverName: "@cherry/browser", toolName: "execute" -> "cherryBrowserExecute"
  */
-export function toJsName(name: string): string {
-  if (!name) return name
+export function buildHubJsToolName(serverName: string | undefined, toolName: string): string {
+  const serverPart = serverName ? toCamelCase(serverName) : ''
+  const toolPart = toCamelCase(toolName)
 
-  let result = ''
-  let capitalizeNext = false
-  let isFirstChar = true
-
-  for (const ch of name) {
-    if (ch === '_' || ch === '-') {
-      capitalizeNext = true
-      continue
-    }
-
-    if (isFirstChar) {
-      result += ch.toLowerCase()
-      isFirstChar = false
-      capitalizeNext = false
-      continue
-    }
-
-    if (capitalizeNext && /[A-Za-z]/.test(ch)) {
-      result += ch.toUpperCase()
-      capitalizeNext = false
-      continue
-    }
-
-    result += ch
+  if (!serverPart) {
+    return toolPart
   }
 
-  return result
-}
-
-export function parseNamespacedName(name: string): { serverId: string; toolName: string; isNamespaced: boolean } {
-  const parts = name.split('__')
-  if (parts.length >= 2) {
-    const [serverId, ...rest] = parts
-    return { serverId, toolName: rest.join('__'), isNamespaced: true }
-  }
-  return { serverId: '', toolName: name, isNamespaced: false }
-}
-
-export function isNamespacedName(name: string): boolean {
-  return name.includes('__')
+  return `${serverPart}${capitalizeFirstLetter(toolPart)}`
 }
 
 /**
  * Build a bidirectional tool name mapping.
  *
- * If a collision happens after JS-name conversion, we deterministically suffix names:
+ * If a collision happens, we deterministically suffix names:
  *   githubSearchRepos, githubSearchRepos_2, githubSearchRepos_3...
  */
-export function buildToolNameMapping(originalToolIds: string[]): ToolNameMapping {
+export function buildToolNameMapping(tools: ToolIdentity[]): ToolNameMapping {
+  // Deterministic: stable order
+  const sorted = [...tools].sort((a, b) => a.id.localeCompare(b.id))
+
   const toJs = new Map<string, string>()
   const toOriginal = new Map<string, string>()
 
-  for (const original of originalToolIds) {
-    const base = toJsName(original)
+  for (const tool of sorted) {
+    const base = buildHubJsToolName(tool.serverName, tool.toolName)
     let jsName = base
     let i = 2
     while (toOriginal.has(jsName)) {
@@ -76,8 +65,8 @@ export function buildToolNameMapping(originalToolIds: string[]): ToolNameMapping
       i += 1
     }
 
-    toJs.set(original, jsName)
-    toOriginal.set(jsName, original)
+    toJs.set(tool.id, jsName)
+    toOriginal.set(jsName, tool.id)
   }
 
   return { toJs, toOriginal }
@@ -86,7 +75,7 @@ export function buildToolNameMapping(originalToolIds: string[]): ToolNameMapping
 export function resolveToolId(mapping: ToolNameMapping, nameOrId: string): string | undefined {
   if (!nameOrId) return undefined
 
-  if (isNamespacedName(nameOrId)) {
+  if (isNamespacedToolId(nameOrId)) {
     return nameOrId
   }
 
