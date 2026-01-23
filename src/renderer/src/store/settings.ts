@@ -827,9 +827,9 @@ const settingsSlice = createSlice({
     // // setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
     // //   state.disableHardwareAcceleration = action.payload
     // // },
-    setUseSystemTitleBar: (state, action: PayloadAction<boolean>) => {
-      state.useSystemTitleBar = action.payload
-    },
+    // setUseSystemTitleBar: (state, action: PayloadAction<boolean>) => {
+    //   state.useSystemTitleBar = action.payload
+    // },
     setOpenAISummaryText: (state, action: PayloadAction<OpenAIReasoningSummary>) => {
       state.openAI.summaryText = action.payload
     },
@@ -1010,7 +1010,7 @@ export const {
   // setConfirmDeleteMessage,
   // setConfirmRegenerateMessage,
   // setDisableHardwareAcceleration,
-  setUseSystemTitleBar,
+  // setUseSystemTitleBar,
   setOpenAISummaryText,
   setOpenAIVerbosity,
   setOpenAIStreamOptionsIncludeUsage,

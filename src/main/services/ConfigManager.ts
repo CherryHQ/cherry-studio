@@ -247,13 +247,13 @@ export class ConfigManager {
   //   this.set(ConfigKeys.DisableHardwareAcceleration, value)
   // }
 
-  getUseSystemTitleBar(): boolean {
-    return this.get<boolean>(ConfigKeys.UseSystemTitleBar, false)
-  }
+  // getUseSystemTitleBar(): boolean {
+  //   return this.get<boolean>(ConfigKeys.UseSystemTitleBar, false)
+  // }
 
-  setUseSystemTitleBar(value: boolean) {
-    this.set(ConfigKeys.UseSystemTitleBar, value)
-  }
+  // setUseSystemTitleBar(value: boolean) {
+  //   this.set(ConfigKeys.UseSystemTitleBar, value)
+  // }
 
   setAndNotify(key: string, value: unknown) {
     this.set(key, value, true)

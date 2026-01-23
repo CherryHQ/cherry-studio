@@ -9,7 +9,6 @@ import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -63,8 +62,7 @@ const DisplaySettings: FC = () => {
   const [showTopicTime, setShowTopicTime] = usePreference('topic.tab.show_time')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [fontSize] = usePreference('chat.message.font_size')
-
-  const { useSystemTitleBar, setUseSystemTitleBar } = useSettings()
+  const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
 
   const { navbarPosition, setNavbarPosition } = useNavbarPosition()
   const { theme, settedTheme, setTheme } = useTheme()

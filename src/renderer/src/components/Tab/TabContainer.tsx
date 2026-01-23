@@ -1,6 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Sortable, useDndReorder } from '@cherrystudio/ui'
 import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isLinux, isMac } from '@renderer/config/constant'
@@ -9,7 +10,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -123,9 +123,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
-  const { useSystemTitleBar } = useSettings()
+  // const { useSystemTitleBar } = useSettings()
+  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
   const { t } = useTranslation()
-
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
     const segments = path.split('/')

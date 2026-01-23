@@ -16,7 +16,6 @@ import { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
-import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
 import { initSessionUserAgent } from './WebviewService'
 
@@ -82,7 +81,7 @@ export class WindowService {
           }
         : {
             // On Linux, allow using system title bar if setting is enabled
-            frame: isLinux && configManager.getUseSystemTitleBar() ? true : false
+            frame: isLinux && preferenceService.get('app.use_system_title_bar')
           }),
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
