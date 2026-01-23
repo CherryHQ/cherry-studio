@@ -271,12 +271,12 @@
     },
     "todo": {
       "panel": {
-        "title": "[to be translated]:{{completed}}/{{total}} tasks completed"
+        "title": "{{completed}}/{{total}} tareas completadas"
       },
       "status": {
-        "completed": "[to be translated]:Completed",
-        "in_progress": "[to be translated]:In Progress",
-        "pending": "[to be translated]:Pending"
+        "completed": "Completado",
+        "in_progress": "En progreso",
+        "pending": "Pendiente"
       }
     },
     "toolPermission": {
