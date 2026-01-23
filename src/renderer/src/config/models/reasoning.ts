@@ -646,8 +646,8 @@ export const isBaichuanReasoningModel = (model?: Model): boolean => {
   }
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  // Baichuan-M2 和 Baichuan-M3 是推理模型（注意：M2-Plus 不是推理模型）
-  return (modelId.includes('baichuan-m2') && !modelId.includes('plus')) || modelId.includes('baichuan-m3')
+  // Baichuan-M2 和 Baichuan-M3 是推理模型
+  return modelId === 'baichuan-m2' || modelId === 'baichuan-m3'
 }
 
 export function isReasoningModel(model?: Model): boolean {
