@@ -1,6 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { getMcpProviderDescriptionLabel, getProviderLabel } from '@renderer/i18n/label'
 import type { MCPServer } from '@renderer/types'
 import { Button, Form, Input, Modal, Select } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
@@ -16,8 +15,10 @@ import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_
 // Provider configuration interface
 interface ProviderConfig {
   key: string
-  name: string
-  description: string
+  /** i18n key for provider name, or plain text if not starting with 'provider.' */
+  nameKey: string
+  /** i18n key for provider description */
+  descriptionKey: string
   discoverUrl: string
   apiKeyUrl: string
   tokenFieldName: string
@@ -30,8 +31,8 @@ interface ProviderConfig {
 const providers: ProviderConfig[] = [
   {
     key: 'modelscope',
-    name: 'ModelScope',
-    description: getMcpProviderDescriptionLabel('modelscope'),
+    nameKey: 'ModelScope',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.modelscope',
     discoverUrl: `${MODELSCOPE_HOST}/mcp?hosted=1&page=1`,
     apiKeyUrl: `${MODELSCOPE_HOST}/my/myaccesstoken`,
     tokenFieldName: 'modelScopeToken',
@@ -41,8 +42,8 @@ const providers: ProviderConfig[] = [
   },
   {
     key: 'tokenflux',
-    name: 'TokenFlux',
-    description: getMcpProviderDescriptionLabel('tokenflux'),
+    nameKey: 'TokenFlux',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.tokenflux',
     discoverUrl: `${TOKENFLUX_HOST}/mcps`,
     apiKeyUrl: `${TOKENFLUX_HOST}/dashboard/api-keys`,
     tokenFieldName: 'tokenfluxToken',
@@ -52,8 +53,8 @@ const providers: ProviderConfig[] = [
   },
   {
     key: 'lanyun',
-    name: getProviderLabel('lanyun'),
-    description: getMcpProviderDescriptionLabel('lanyun'),
+    nameKey: 'provider.lanyun',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.lanyun',
     discoverUrl: 'https://mcp.lanyun.net',
     apiKeyUrl: LANYUN_KEY_HOST,
     tokenFieldName: 'tokenLanyunToken',
@@ -63,8 +64,8 @@ const providers: ProviderConfig[] = [
   },
   {
     key: '302ai',
-    name: '302.AI',
-    description: getMcpProviderDescriptionLabel('302ai'),
+    nameKey: '302.AI',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.302ai',
     discoverUrl: 'https://302.ai',
     apiKeyUrl: 'https://dash.302.ai/apis/list',
     tokenFieldName: 'token302aiToken',
@@ -74,8 +75,8 @@ const providers: ProviderConfig[] = [
   },
   {
     key: 'bailian',
-    name: getProviderLabel('dashscope'),
-    description: getMcpProviderDescriptionLabel('bailian'),
+    nameKey: 'provider.dashscope',
+    descriptionKey: 'settings.mcp.sync.providerDescriptions.bailian',
     discoverUrl: `https://bailian.console.aliyun.com/?tab=mcp#/mcp-market`,
     apiKeyUrl: `https://bailian.console.aliyun.com/?tab=app#/api-key`,
     tokenFieldName: 'bailianToken',
@@ -84,6 +85,14 @@ const providers: ProviderConfig[] = [
     syncServers: syncBailianServers
   }
 ]
+
+/**
+ * Helper function to get the display name for a provider.
+ * Translates if nameKey starts with 'provider.', otherwise returns as-is.
+ */
+const getProviderDisplayName = (provider: ProviderConfig, t: (key: string) => string): string => {
+  return provider.nameKey.startsWith('provider.') ? t(provider.nameKey) : provider.nameKey
+}
 
 interface Props {
   resolve: (data: any) => void
@@ -207,7 +216,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
             style={{ width: 200 }}
             options={providers.map((provider) => ({
               value: provider.key,
-              label: provider.name
+              label: getProviderDisplayName(provider, t)
             }))}
           />
         </ProviderSelector>
