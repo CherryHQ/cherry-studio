@@ -24,7 +24,8 @@
 ### 关键设计决策
 
 1. **模板与用户配置分离**：
-   - 模板数据（处理器元信息）存储在 `src/renderer/src/config/fileProcessing.ts`
+   - 模板数据（处理器元信息）存储在 `packages/shared/data/presets/file-processing.ts`
+   - Renderer 侧通过 `src/renderer/src/config/fileProcessing.ts` 进行 re-export 和工具函数封装
    - 用户配置（apiKey, apiHost 等）存储在 Preference 中
    - Preference 只存储用户修改的字段，不存储完整对象
 2. **仅内置处理器**：不支持用户添加自定义处理器
@@ -68,13 +69,13 @@ interface PreprocessState {
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  模板数据 (src/renderer/src/config/fileProcessing.ts)            │
+│  模板数据 (packages/shared/data/presets/file-processing.ts)      │
 │  ┌─────────────────────────────────────────────────────────────┐│
-│  │ FILE_PROCESSOR_TEMPLATES: FileProcessorTemplate[] = [       ││
-│  │   { id: 'mineru', name: 'MinerU', type: 'api', ... }       ││
-│  │   { id: 'tesseract', name: 'Tesseract', type: 'local' }    ││
+│  │ PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [        ││
+│  │   { id: 'mineru', type: 'api', capabilities: [...] }      ││
+│  │   { id: 'tesseract', type: 'builtin', capabilities: [...] } ││
 │  │ ]                                                           ││
-│  │ (只读，包含 id, name, type, features, inputs, outputs)      ││
+│  │ (只读，包含 id, type, capabilities)                         ││
 │  └─────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
                               +
@@ -105,11 +106,58 @@ interface PreprocessState {
 | `feature.file_processing.default_document_processor` | `string \| null` | `null` | 知识库文档解析默认处理器 ID |
 | `feature.file_processing.default_image_processor` | `string \| null` | `null` | 聊天图片理解默认处理器 ID |
 
-### 类型定义 (preferenceTypes.ts)
+### 类型定义 (packages/shared/data/presets/file-processing.ts)
 
 ```typescript
 // ============================================
-// File Processing Types
+// Template Types (presets)
+// ============================================
+
+/**
+ * 处理器服务类型
+ */
+export type FileProcessorType = 'api' | 'builtin'
+
+/**
+ * Feature 类型
+ */
+export type FileProcessorFeature = 'text_extraction' | 'to_markdown'
+
+/**
+ * 输入类型（分类）
+ */
+export type FileProcessorInput = 'image' | 'document'
+
+/**
+ * 输出格式
+ */
+export type FileProcessorOutput = 'text' | 'markdown'
+
+/**
+ * Feature capability 定义
+ */
+export type FeatureCapability = {
+  feature: FileProcessorFeature
+  input: FileProcessorInput
+  supportedFormats?: string[]
+  excludedFormats?: string[]
+  output: FileProcessorOutput
+  defaultApiHost?: string
+  defaultModelId?: string
+}
+
+/**
+ * 处理器模板（只读元数据）
+ * Display name 使用 i18n key: `processor.${id}.name`
+ */
+export type FileProcessorTemplate = {
+  id: string
+  type: FileProcessorType
+  capabilities: FeatureCapability[]
+}
+
+// ============================================
+// Override Types (Preference)
 // ============================================
 
 /**
@@ -120,186 +168,119 @@ interface PreprocessState {
  *
  * 已知的 options 字段：
  * - Tesseract: { langs: string[] }  // 启用的语言代码数组
- *
- * 示例：
- * - { langs: ['chi_sim', 'eng'] }        // Tesseract 语言配置
- * - { quality: 'high', timeout: 30000 }  // 其他处理器配置
  */
 export type FileProcessorOptions = Record<string, unknown>
 
 /**
  * Feature 级别的用户配置
- *
- * 允许用户对特定 Feature 覆盖 API Host 和 Model ID。
- * 这是因为某些处理器（如 PaddleOCR）对不同功能有不同的 API 端点。
  */
 export type FeatureUserConfig = {
-  feature: 'text_extraction' | 'to_markdown'
-  apiHost?: string  // 用户覆盖的 API Host
-  modelId?: string  // 用户覆盖的 Model ID
+  feature: FileProcessorFeature
+  apiHost?: string
+  modelId?: string
 }
 
 /**
  * 用户配置的处理器覆盖（存储在 Preference 中）
- *
- * 设计原则：
- * - 只存储用户修改的字段
- * - apiKey 在处理器级别共享（所有 Feature 使用同一个 Key）
- * - apiHost/modelId 在 Feature 级别配置（通过 featureConfigs）
- * - 字段名使用 camelCase（与 TypeScript 惯例一致）
  */
 export type FileProcessorOverride = {
-  apiKey?: string                      // API Key（处理器级共享）
-  featureConfigs?: FeatureUserConfig[] // Feature 级配置
-  options?: FileProcessorOptions       // 处理器特定配置（通用类型）
+  apiKey?: string
+  featureConfigs?: FeatureUserConfig[]
+  options?: FileProcessorOptions
 }
 
 export type FileProcessorOverrides = Record<string, FileProcessorOverride>
 ```
 
-### 模板类型定义 (src/renderer/src/config/fileProcessing.ts)
+### 模板类型定义 (packages/shared/data/presets/file-processing.ts)
 
 ```typescript
-/**
- * 处理器服务类型
- */
-export type FileProcessorType = 'api' | 'local'
-
-/**
- * 处理器能力枚举
- */
-export enum FileProcessorFeature {
-  TEXT_EXTRACTION = 'text_extraction',     // 文字提取
-  LAYOUT_ANALYSIS = 'layout_analysis',     // 版面分析
-  TABLE_DETECTION = 'table_detection',     // 表格识别
-  FORMULA_DETECTION = 'formula_detection', // 公式识别
-  MULTIMODAL = 'multimodal'                // 多模态理解
-}
-
-/**
- * 支持的输入类型枚举
- */
-export enum FileProcessorInput {
-  IMAGE = 'image',       // jpg, png, webp, gif...
-  DOCUMENT = 'document', // pdf, docx, pptx, xlsx, md, txt...
-  AUDIO = 'audio',       // mp3, wav, m4a... (future)
-  VIDEO = 'video'        // mp4, mov, webm... (future)
-}
-
-/**
- * 支持的输出格式枚举
- */
-export enum FileProcessorOutput {
-  TEXT = 'text',
-  MARKDOWN = 'markdown'
-}
-
 /**
  * 处理器模板（只读元数据）
  */
 export type FileProcessorTemplate = {
-  id: string                          // 唯一标识
-  name: string                        // 显示名称
-  type: FileProcessorType             // 'api' | 'local'
-  features: FileProcessorFeature[]    // 能力标签数组
-  inputs: FileProcessorInput[]        // 支持的输入类型
-  outputs: FileProcessorOutput[]      // 支持的输出格式
-  defaultApiHost?: string             // 默认 API Host
-  defaultModelId?: string             // 默认模型 ID
+  id: string
+  type: 'api' | 'builtin'
+  capabilities: FeatureCapability[]
 }
 
 /**
  * 内置处理器模板
  */
-export const FILE_PROCESSOR_TEMPLATES: FileProcessorTemplate[] = [
+export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
   // === 图片处理器 (原 OCR) ===
   {
     id: 'tesseract',
-    name: 'Tesseract',
-    type: 'local',
-    features: [FileProcessorFeature.TEXT_EXTRACTION],
-    inputs: [FileProcessorInput.IMAGE],
-    outputs: [FileProcessorOutput.TEXT]
+    type: 'builtin',
+    capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
   },
   {
     id: 'system',
-    name: 'System OCR',
-    type: 'local',
-    features: [FileProcessorFeature.TEXT_EXTRACTION],
-    inputs: [FileProcessorInput.IMAGE],
-    outputs: [FileProcessorOutput.TEXT]
+    type: 'builtin',
+    capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
   },
   {
     id: 'paddleocr',
-    name: 'PaddleOCR',
     type: 'api',
-    features: [FileProcessorFeature.TEXT_EXTRACTION],
-    inputs: [FileProcessorInput.IMAGE],
-    outputs: [FileProcessorOutput.TEXT]
+    capabilities: [
+      { feature: 'text_extraction', input: 'image', output: 'text', defaultApiHost: '' }
+    ]
   },
   {
     id: 'ovocr',
-    name: 'Intel OV OCR',
-    type: 'local',
-    features: [FileProcessorFeature.TEXT_EXTRACTION],
-    inputs: [FileProcessorInput.IMAGE],
-    outputs: [FileProcessorOutput.TEXT]
+    type: 'builtin',
+    capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
   },
 
   // === 文档处理器 (原 Preprocess) ===
   {
     id: 'mineru',
-    name: 'MinerU',
     type: 'api',
-    features: [
-      FileProcessorFeature.TEXT_EXTRACTION,
-      FileProcessorFeature.LAYOUT_ANALYSIS,
-      FileProcessorFeature.TABLE_DETECTION,
-      FileProcessorFeature.FORMULA_DETECTION
-    ],
-    inputs: [FileProcessorInput.DOCUMENT],
-    outputs: [FileProcessorOutput.MARKDOWN],
-    defaultApiHost: 'https://mineru.net'
+    capabilities: [
+      {
+        feature: 'to_markdown',
+        input: 'document',
+        output: 'markdown',
+        defaultApiHost: 'https://mineru.net'
+      }
+    ]
   },
   {
     id: 'doc2x',
-    name: 'Doc2x',
     type: 'api',
-    features: [
-      FileProcessorFeature.TEXT_EXTRACTION,
-      FileProcessorFeature.LAYOUT_ANALYSIS,
-      FileProcessorFeature.TABLE_DETECTION,
-      FileProcessorFeature.FORMULA_DETECTION
-    ],
-    inputs: [FileProcessorInput.DOCUMENT],
-    outputs: [FileProcessorOutput.MARKDOWN],
-    defaultApiHost: 'https://v2.doc2x.noedgeai.com'
+    capabilities: [
+      {
+        feature: 'to_markdown',
+        input: 'document',
+        output: 'markdown',
+        defaultApiHost: 'https://v2.doc2x.noedgeai.com'
+      }
+    ]
   },
   {
     id: 'mistral',
-    name: 'Mistral',
     type: 'api',
-    features: [
-      FileProcessorFeature.TEXT_EXTRACTION,
-      FileProcessorFeature.MULTIMODAL
-    ],
-    inputs: [FileProcessorInput.IMAGE, FileProcessorInput.DOCUMENT],
-    outputs: [FileProcessorOutput.TEXT, FileProcessorOutput.MARKDOWN],
-    defaultApiHost: 'https://api.mistral.ai',
-    defaultModelId: 'mistral-ocr-latest'
+    capabilities: [
+      {
+        feature: 'to_markdown',
+        input: 'document',
+        output: 'markdown',
+        defaultApiHost: 'https://api.mistral.ai',
+        defaultModelId: 'mistral-ocr-latest'
+      }
+    ]
   },
   {
     id: 'open-mineru',
-    name: 'Open MinerU',
     type: 'api',
-    features: [
-      FileProcessorFeature.TEXT_EXTRACTION,
-      FileProcessorFeature.LAYOUT_ANALYSIS,
-      FileProcessorFeature.TABLE_DETECTION,
-      FileProcessorFeature.FORMULA_DETECTION
-    ],
-    inputs: [FileProcessorInput.DOCUMENT],
-    outputs: [FileProcessorOutput.MARKDOWN]
+    capabilities: [
+      {
+        feature: 'to_markdown',
+        input: 'document',
+        output: 'markdown',
+        defaultApiHost: 'http://127.0.0.1:8000'
+      }
+    ]
   }
 ]
 ```
@@ -307,12 +288,14 @@ export const FILE_PROCESSOR_TEMPLATES: FileProcessorTemplate[] = [
 ### Schema 定义 (preferenceSchemas.ts)
 
 ```typescript
+import type { FileProcessorOverrides } from '@shared/data/presets/file-processing'
+
 export interface PreferenceSchemas {
   default: {
     // ... existing keys ...
 
     // File Processing
-    'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides
+    'feature.file_processing.overrides': FileProcessorOverrides
     'feature.file_processing.default_document_processor': string | null
     'feature.file_processing.default_image_processor': string | null
   }
@@ -343,7 +326,12 @@ export const DefaultPreferences: PreferenceSchemas = {
 ```typescript
 import { usePreference } from '@data/hooks/usePreference'
 import { FILE_PROCESSOR_TEMPLATES, FileProcessorTemplate, FeatureCapability } from '@renderer/config/fileProcessing'
-import { FileProcessorOverride, FileProcessorOverrides, FeatureUserConfig, FileProcessorOptions } from '@shared/data/preference/preferenceTypes'
+import type {
+  FeatureUserConfig,
+  FileProcessorOptions,
+  FileProcessorOverride,
+  FileProcessorOverrides
+} from '@shared/data/presets/file-processing'
 
 /**
  * 合并后的完整处理器配置
@@ -361,15 +349,10 @@ function mergeProcessorConfigs(
   templates: FileProcessorTemplate[],
   overrides: FileProcessorOverrides
 ): FileProcessorMerged[] {
-  return templates.map(template => {
-    const userConfig = overrides[template.id]
-    return {
-      ...template,
-      apiKey: userConfig?.apiKey,
-      featureConfigs: userConfig?.featureConfigs,
-      options: userConfig?.options
-    }
-  })
+  return templates.map((template) => ({
+    ...template,
+    ...overrides[template.id]
+  }))
 }
 
 /**
@@ -377,8 +360,8 @@ function mergeProcessorConfigs(
  * 优先级：用户配置 > 模板默认值
  */
 function getEffectiveApiHost(processor: FileProcessorMerged, capability: FeatureCapability): string | undefined {
-  const featureConfig = processor.featureConfigs?.find(fc => fc.feature === capability.feature)
-  if (featureConfig?.apiHost) {
+  const featureConfig = processor.featureConfigs?.find((fc) => fc.feature === capability.feature)
+  if (featureConfig?.apiHost !== undefined) {
     return featureConfig.apiHost
   }
   return capability.defaultApiHost
@@ -389,7 +372,7 @@ function getEffectiveApiHost(processor: FileProcessorMerged, capability: Feature
  * 优先级：用户配置 > 模板默认值
  */
 function getEffectiveModelId(processor: FileProcessorMerged, capability: FeatureCapability): string | undefined {
-  const featureConfig = processor.featureConfigs?.find(fc => fc.feature === capability.feature)
+  const featureConfig = processor.featureConfigs?.find((fc) => fc.feature === capability.feature)
   if (featureConfig?.modelId) {
     return featureConfig.modelId
   }
@@ -416,11 +399,11 @@ const processors = useFileProcessors()
 const [defaultDocProcessor] = usePreference('feature.file_processing.default_document_processor')
 
 // 获取已配置 API Key 的处理器
-const configuredProcessors = processors.filter(p => p.apiKey)
+const configuredProcessors = processors.filter(p => p.apiKey || p.type === 'builtin')
 
 // 获取支持文档输入的处理器
 const documentProcessors = processors.filter(p =>
-  p.inputs.includes(FileProcessorInput.DOCUMENT)
+  p.capabilities.some(c => c.input === 'document')
 )
 ```
 
@@ -549,7 +532,7 @@ setDefaultDocProcessor('mineru')
 ```typescript
 import { preferenceService } from '@main/data/services/preferenceService'
 import { FILE_PROCESSOR_TEMPLATES } from '@renderer/config/fileProcessing'
-import type { FileProcessorOverride, FeatureUserConfig } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorOverride, FeatureUserConfig } from '@shared/data/presets/file-processing'
 
 interface LegacyOcrProvider {
   id: string
@@ -682,7 +665,7 @@ export async function migrateFileProcessingConfig(
 
 ### Step 1: 添加用户配置类型定义
 
-**文件**: `packages/shared/data/preference/preferenceTypes.ts`
+**文件**: `packages/shared/data/presets/file-processing.ts`
 
 添加以下类型：
 - `FileProcessorOptions` (通用 `Record<string, unknown>` 类型)
@@ -691,22 +674,25 @@ export async function migrateFileProcessingConfig(
 
 ### Step 2: 创建模板配置文件
 
-**文件**: `src/renderer/src/config/fileProcessing.ts`
+**文件**: `packages/shared/data/presets/file-processing.ts`
 
 添加以下内容：
 - `FileProcessorType`
-- `FileProcessorFeature` (enum)
-- `FileProcessorInput` (enum)
-- `FileProcessorOutput` (enum)
+- `FileProcessorFeature` (string union)
+- `FileProcessorInput` (string union)
+- `FileProcessorOutput` (string union)
+- `FeatureCapability`
 - `FileProcessorTemplate`
-- `FILE_PROCESSOR_TEMPLATES` (内置处理器模板数组)
+- `PRESETS_FILE_PROCESSORS` (内置处理器模板数组)
+
+Renderer 侧通过 `src/renderer/src/config/fileProcessing.ts` re-export 为 `FILE_PROCESSOR_TEMPLATES`。
 
 ### Step 3: 更新 Schema Interface
 
 **文件**: `packages/shared/data/preference/preferenceSchemas.ts`
 
 在 `PreferenceSchemas.default` 中添加：
-- `'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides`
+- `'feature.file_processing.overrides': FileProcessorOverrides`
 - `'feature.file_processing.default_document_processor': string | null`
 - `'feature.file_processing.default_image_processor': string | null`
 
@@ -739,10 +725,10 @@ export async function migrateFileProcessingConfig(
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| `packages/shared/data/preference/preferenceTypes.ts` | 修改 | 添加 `FileProcessorOptions`, `FeatureUserConfig`, `FileProcessorOverride` |
+| `packages/shared/data/presets/file-processing.ts` | 新增 | 模板类型、内置处理器配置、override 类型 |
 | `packages/shared/data/preference/preferenceSchemas.ts` | 修改 | 添加 schema 和空对象默认值 |
-| `src/renderer/src/config/fileProcessing.ts` | 新建 | 模板类型和内置处理器配置 |
-| `src/renderer/src/hooks/useFileProcessors.ts` | 新建 | 合并模板与用户配置的 Hook |
+| `src/renderer/src/config/fileProcessing.ts` | 修改 | re-export presets + 工具函数 |
+| `src/renderer/src/hooks/useFileProcessors.ts` | 修改 | 合并模板与用户配置 + 规范化逻辑 |
 | `src/main/data/migrations/migrateFileProcessing.ts` | 新建 | 数据迁移逻辑 |
 
 ---
@@ -859,7 +845,7 @@ function ProcessorConfigItem({ processor }: { processor: FileProcessorMerged }) 
   return (
     <div className="processor-config">
       <div className="processor-header">
-        <span>{processor.name}</span>
+        <span>{t(`processor.${processor.id}.name`)}</span>
         <Badge>{processor.type}</Badge>
       </div>
 
