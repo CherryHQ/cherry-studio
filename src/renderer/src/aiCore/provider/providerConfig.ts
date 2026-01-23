@@ -33,9 +33,10 @@ import {
   isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { defaultAppHeaders } from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
+import { customFetch } from '../../utils/customFetch'
+import { mergeHeaders } from '../../utils/headers'
 import type { AiSdkConfig } from '../types'
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
 import { azureAnthropicProviderCreator } from './config/azure-anthropic'
@@ -162,11 +163,8 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   if (isCopilotProvider) {
     const storedHeaders = store.getState().copilot.defaultHeaders ?? {}
     const options = ProviderConfigFactory.fromProvider('github-copilot-openai-compatible', baseConfig, {
-      headers: {
-        ...COPILOT_DEFAULT_HEADERS,
-        ...storedHeaders,
-        ...actualProvider.extra_headers
-      },
+      headers: mergeHeaders(COPILOT_DEFAULT_HEADERS, storedHeaders, actualProvider.extra_headers),
+      fetch: customFetch,
       name: actualProvider.id,
       includeUsage
     })
@@ -182,16 +180,18 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
       providerId: 'ollama',
       options: {
         ...baseConfig,
-        headers: {
-          ...actualProvider.extra_headers,
+        fetch: customFetch,
+        headers: mergeHeaders(actualProvider.extra_headers ?? {}, {
           Authorization: !isEmpty(baseConfig.apiKey) ? `Bearer ${baseConfig.apiKey}` : undefined
-        }
+        })
       }
     }
   }
 
   // 处理OpenAI模式
-  const extraOptions: any = {}
+  const extraOptions: any = {
+    fetch: customFetch // 使用自定义 fetch 以支持 User-Agent header
+  }
   extraOptions.endpoint = endpoint
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
     extraOptions.mode = 'responses'
@@ -199,10 +199,8 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     extraOptions.mode = 'chat'
   }
 
-  extraOptions.headers = {
-    ...defaultAppHeaders(),
-    ...actualProvider.extra_headers
-  }
+  // NOTE: default app header在streamText就添加好了
+  extraOptions.headers = actualProvider.extra_headers
 
   if (aiSdkProviderId === 'openai') {
     extraOptions.headers['X-Api-Key'] = baseConfig.apiKey
@@ -359,33 +357,24 @@ export async function prepareSpecialProviderConfig(
   switch (provider.id) {
     case 'copilot': {
       const defaultHeaders = store.getState().copilot.defaultHeaders ?? {}
-      const headers = {
-        ...COPILOT_DEFAULT_HEADERS,
-        ...defaultHeaders
-      }
+      const headers = mergeHeaders(COPILOT_DEFAULT_HEADERS, defaultHeaders)
       const { token } = await window.api.copilot.getToken(headers)
       config.options.apiKey = token
-      config.options.headers = {
-        ...headers,
-        ...config.options.headers
-      }
+      config.options.headers = mergeHeaders(headers, config.options.headers)
       break
     }
     case 'cherryai': {
-      config.options.fetch = async (url, options) => {
+      config.options.fetch = async (url: RequestInfo | URL, options: RequestInit) => {
         // 在这里对最终参数进行签名
         const signature = await window.api.cherryai.generateSignature({
           method: 'POST',
           path: '/chat/completions',
           query: '',
-          body: JSON.parse(options.body)
+          body: JSON.parse(options.body as string)
         })
-        return fetch(url, {
+        return customFetch(url, {
           ...options,
-          headers: {
-            ...options.headers,
-            ...signature
-          }
+          headers: mergeHeaders((options.headers as Record<string, string>) ?? {}, signature)
         })
       }
       break
@@ -395,12 +384,11 @@ export async function prepareSpecialProviderConfig(
         const oauthToken = await window.api.anthropic_oauth.getAccessToken()
         config.options = {
           ...config.options,
-          headers: {
-            ...(config.options.headers ? config.options.headers : {}),
+          headers: mergeHeaders(config.options.headers ?? {}, {
             'Content-Type': 'application/json',
             'anthropic-version': '2023-06-01',
             Authorization: `Bearer ${oauthToken}`
-          },
+          }),
           baseURL: 'https://api.anthropic.com/v1',
           apiKey: ''
         }

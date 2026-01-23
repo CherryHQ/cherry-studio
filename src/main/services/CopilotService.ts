@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { mergeHeaders } from '@shared/utils'
 import { app, net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -70,11 +71,10 @@ class CopilotService {
 
   constructor() {
     this.tokenFilePath = this.getTokenFilePath()
-    this.headers = {
-      ...CONFIG.DEFAULT_HEADERS,
+    this.headers = mergeHeaders(CONFIG.DEFAULT_HEADERS, {
       accept: 'application/json',
       'user-agent': 'Visual Studio Code (desktop)'
-    }
+    })
   }
 
   private getTokenFilePath = (): string => {
@@ -90,7 +90,7 @@ class CopilotService {
    */
   private updateHeaders = (headers?: Record<string, string>): void => {
     if (headers && Object.keys(headers).length > 0) {
-      this.headers = { ...headers }
+      this.headers = mergeHeaders(this.headers, headers)
     }
   }
 
@@ -139,10 +139,9 @@ class CopilotService {
 
       const response = await net.fetch(CONFIG.API_URLS.GITHUB_DEVICE_CODE, {
         method: 'POST',
-        headers: {
-          ...this.headers,
+        headers: mergeHeaders(this.headers, {
           'Content-Type': 'application/json'
-        },
+        }),
         body: JSON.stringify({
           client_id: CONFIG.GITHUB_CLIENT_ID,
           scope: 'read:user'
@@ -178,10 +177,9 @@ class CopilotService {
       try {
         const response = await net.fetch(CONFIG.API_URLS.GITHUB_ACCESS_TOKEN, {
           method: 'POST',
-          headers: {
-            ...this.headers,
+          headers: mergeHeaders(this.headers, {
             'Content-Type': 'application/json'
-          },
+          }),
           body: JSON.stringify({
             client_id: CONFIG.GITHUB_CLIENT_ID,
             device_code,
@@ -247,10 +245,9 @@ class CopilotService {
 
       const response = await net.fetch(CONFIG.API_URLS.COPILOT_TOKEN, {
         method: 'GET',
-        headers: {
-          ...this.headers,
+        headers: mergeHeaders(this.headers, {
           authorization: `token ${access_token}`
-        }
+        })
       })
 
       if (!response.ok) {
