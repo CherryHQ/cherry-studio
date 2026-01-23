@@ -1318,8 +1318,12 @@
   },
   "dialog": {
     "all_files": "All Files",
+    "html_files": "HTML Files",
     "open_file": "Open File",
+    "pdf_files": "PDF Files",
     "png_image": "PNG Image",
+    "save_as_html": "Save as HTML",
+    "save_as_pdf": "Save as PDF",
     "save_file": "Save File",
     "select_folder": "Select Folder",
     "word_document": "Word Document"

@@ -1318,8 +1318,12 @@
   },
   "dialog": {
     "all_files": "所有文件",
+    "html_files": "HTML 文件",
     "open_file": "打开文件",
+    "pdf_files": "PDF 文件",
     "png_image": "PNG 图片",
+    "save_as_html": "保存为 HTML",
+    "save_as_pdf": "保存为 PDF",
     "save_file": "保存文件",
     "select_folder": "选择文件夹",
     "word_document": "Word 文档"

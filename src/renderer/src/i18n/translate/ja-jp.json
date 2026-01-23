@@ -271,7 +271,7 @@
     },
     "toolPermission": {
       "aria": {
-        "allowAllRequest": "[to be translated]:Always allow this tool",
+        "allowAllRequest": "常にこのツールを許可する",
         "allowRequest": "ツールリクエストを許可",
         "denyRequest": "ツールリクエストを拒否",
         "hideDetails": "ツールの詳細を非表示",
@@ -279,7 +279,7 @@
         "showDetails": "ツールの詳細を表示"
       },
       "button": {
-        "allowAll": "[to be translated]:Always Allow",
+        "allowAll": "常に許可",
         "cancel": "キャンセル",
         "run": "走る"
       },
@@ -670,8 +670,8 @@
       }
     },
     "alerts": {
-      "create_session": "[to be translated]:Create a session",
-      "select_agent": "[to be translated]:Select an agent"
+      "create_session": "セッションを作成",
+      "select_agent": "エージェントを選択してください"
     },
     "artifacts": {
       "button": {
@@ -1206,8 +1206,8 @@
     "cancel": "キャンセル",
     "chat": "チャット",
     "clear": "クリア",
-    "clear_all": "[to be translated]:Clear All",
-    "click_to_replace": "[to be translated]:Click to replace",
+    "clear_all": "すべてクリア",
+    "click_to_replace": "クリックして置換",
     "close": "閉じる",
     "collapse": "折りたたむ",
     "completed": "完了",
@@ -1242,15 +1242,15 @@
     "footnote": "引用内容",
     "footnotes": "脚注",
     "fullscreen": "全画面モードに入りました。F11キーで終了します",
-    "generate_random_seed": "[to be translated]:Generate random seed",
-    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
+    "generate_random_seed": "ランダムシードを生成",
+    "get_embedding_dimension": "埋め込み次元を取得",
     "go_to_settings": "設定に移動",
-    "html_preview": "[to be translated]:HTML Preview",
+    "html_preview": "HTMLプレビュー",
     "i_know": "わかりました",
     "ignore": "無視",
-    "image_preview": "[to be translated]:Image preview",
-    "image_url": "[to be translated]:Image URL",
-    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
+    "image_preview": "画像プレビュー",
+    "image_url": "画像URL",
+    "image_url_or_upload": "画像のURLを入力するか、ファイルをアップロードしてください",
     "inspect": "検査",
     "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
@@ -1260,7 +1260,7 @@
     "models": "モデル",
     "more": "もっと",
     "name": "名前",
-    "next_match": "[to be translated]:Next match",
+    "next_match": "次の試合",
     "no_results": "検索結果なし",
     "none": "無",
     "off": "オフ",
@@ -1272,17 +1272,17 @@
         "model": "モデルを選択"
       }
     },
-    "powered_by": "[to be translated]:Powered by ",
+    "powered_by": "搭載",
     "preview": "プレビュー",
-    "previous_match": "[to be translated]:Previous match",
+    "previous_match": "前回の試合",
     "prompt": "プロンプト",
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
     "refresh": "更新",
     "regenerate": "再生成",
-    "remove_image": "[to be translated]:Remove image",
+    "remove_image": "画像を削除",
     "rename": "名前を変更",
-    "required_field": "[to be translated]:Required field",
+    "required_field": "必須項目",
     "reset": "リセット",
     "save": "保存",
     "saved": "保存されました",
@@ -1305,21 +1305,25 @@
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
-    "translate_text": "[to be translated]:Translate text",
+    "translate_text": "翻訳",
     "unknown": "Unknown",
     "unnamed": "無題",
     "unsubscribe": "配信停止",
     "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
-    "upload_image": "[to be translated]:Upload image file",
-    "uploaded_image": "[to be translated]:Uploaded image",
+    "upload_image": "画像ファイルをアップロード",
+    "uploaded_image": "アップロードされた画像",
     "warning": "警告",
     "you": "あなた"
   },
   "dialog": {
     "all_files": "すべてのファイル",
+    "html_files": "HTMLファイル",
     "open_file": "ファイルを開く",
+    "pdf_files": "PDFファイル",
     "png_image": "PNG画像",
+    "save_as_html": "HTMLとして保存",
+    "save_as_pdf": "PDFとして保存",
     "save_file": "ファイルを保存",
     "select_folder": "フォルダを選択",
     "word_document": "ワード文書"
@@ -2734,19 +2738,19 @@
     "category": "カテゴリー",
     "commands": "命令",
     "confirm_uninstall": "{{name}}をアンインストールしてもよろしいですか？",
-    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "content_saved": "プラグインコンテンツが正常に保存されました",
     "detail": {
-      "allowed_tools": "[to be translated]:Allowed Tools",
-      "author": "[to be translated]:Author",
-      "content": "[to be translated]:Content",
-      "description": "[to be translated]:Description",
-      "file": "[to be translated]:File",
-      "installed": "[to be translated]:Installed",
-      "metadata": "[to be translated]:Metadata",
-      "size": "[to be translated]:Size",
-      "source": "[to be translated]:Source",
-      "tags": "[to be translated]:Tags",
-      "tools": "[to be translated]:Tools"
+      "allowed_tools": "許可されたツール",
+      "author": "著者",
+      "content": "コンテンツ",
+      "description": "説明",
+      "file": "ファイル",
+      "installed": "インストール済み",
+      "metadata": "メタデータ",
+      "size": "サイズ",
+      "source": "ソース",
+      "tags": "タグ",
+      "tools": "ツール"
     },
     "install": "インストール",
     "install_plugins_from_browser": "利用可能なプラグインを閲覧して、使用を開始してください",
@@ -3099,9 +3103,9 @@
         "translate": "翻訳"
       },
       "prompt": {
-        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
-        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
-        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
+        "explain": "以下の内容を説明してください。要件：{{language}}で返答すること；このプロンプトの説明は一切含めず、直接回答してください。",
+        "refine": "ユーザー入力内容をXMLタグ<INPUT>で囲み、元の意味と整合性を保ちながら最適化または磨きをかけてください。要件：出力はユーザー入力と同じ言語で行い、このプロンプトの説明は一切含めず、直接応答を提供してください；XMLタグは出力せず、最適化された内容を直接出力してください。",
+        "summary": "以下の内容を要約してください。要件：{{language}}で返答；このプロンプトの説明は一切含めず、直接回答してください。"
       },
       "translate": {
         "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
@@ -4197,8 +4201,8 @@
       "jsonSaveError": "JSON設定の保存に失敗しました",
       "jsonSaveSuccess": "JSON設定が保存されました。",
       "lanyun": {
-        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-        "name": "[to be translated]:Lanyun Technology"
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "ランユン・テクノロジー"
       },
       "logoUrl": "ロゴURL",
       "logs": "ログ",
@@ -4297,12 +4301,12 @@
         "getTokenDescription": "アカウントから個人用 API トークンを取得します",
         "noServersAvailable": "利用可能な MCP サーバーがありません",
         "providerDescriptions": {
-          "302ai": "[to be translated]:302.AI Platform MCP Service",
-          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
-          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
-          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
-          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+          "302ai": "302.AIプラットフォームMCPサービス",
+          "bailian": "Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "MCPルータープラットフォーム MCPサービス",
+          "modelscope": "ModelScopeプラットフォームMCPサービス",
+          "tokenflux": "TokenFlux Platform MCP Service"
         },
         "selectProvider": "プロバイダーを選択：",
         "setToken": "トークンを入力してください",
@@ -4781,9 +4785,9 @@
         "title": "プロバイダーを削除"
       },
       "dmxapi": {
-        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
-        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
-        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
+        "platform_enterprise": "ssvip.DMXAPI.com（エンタープライズ）",
+        "platform_international": "www.DMXAPI.com（インターナショナル）",
+        "platform_official": "www.DMXAPI.cn（人民元）",
         "select_platform": "プラットフォームを選択"
       },
       "docs_check": "チェック",

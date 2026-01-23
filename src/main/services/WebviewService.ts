@@ -1,3 +1,4 @@
+import { t } from '@main/utils/locales'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
@@ -141,9 +142,9 @@ export async function printWebviewToPDF(webviewId: number): Promise<string | nul
 
     // Show save dialog
     const { canceled, filePath } = await dialog.showSaveDialog({
-      title: 'Save as PDF',
+      title: t('dialog.save_as_pdf'),
       defaultPath: defaultFilename,
-      filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
+      filters: [{ name: t('dialog.pdf_files'), extensions: ['pdf'] }]
     })
 
     if (canceled || !filePath) {
@@ -190,11 +191,11 @@ export async function saveWebviewAsHTML(webviewId: number): Promise<string | nul
 
     // Show save dialog
     const { canceled, filePath } = await dialog.showSaveDialog({
-      title: 'Save as HTML',
+      title: t('dialog.save_as_html'),
       defaultPath: defaultFilename,
       filters: [
-        { name: 'HTML Files', extensions: ['html', 'htm'] },
-        { name: 'All Files', extensions: ['*'] }
+        { name: t('dialog.html_files'), extensions: ['html', 'htm'] },
+        { name: t('dialog.all_files'), extensions: ['*'] }
       ]
     })
 

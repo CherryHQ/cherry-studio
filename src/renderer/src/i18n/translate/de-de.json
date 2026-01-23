@@ -1318,8 +1318,12 @@
   },
   "dialog": {
     "all_files": "Alle Dateien",
+    "html_files": "HTML-Dateien",
     "open_file": "Datei öffnen",
+    "pdf_files": "PDF-Dateien",
     "png_image": "PNG-Bild",
+    "save_as_html": "Als HTML speichern",
+    "save_as_pdf": "Als PDF speichern",
     "save_file": "Datei speichern",
     "select_folder": "Ordner auswählen",
     "word_document": "Word-Dokument"
@@ -2549,16 +2553,16 @@
         "monet_garden": "Monet-Garten",
         "oil_painting": "Ölgemälde",
         "pixar": "Pixar",
-        "pixel_art": "[to be translated]:Pixel Art",
-        "poetic_ancient": "[to be translated]:Poetic Ancient",
-        "psychedelic": "[to be translated]:Psychedelic",
-        "sketch": "[to be translated]:Sketch",
-        "street_art": "[to be translated]:Street Art",
-        "texture": "[to be translated]:Texture",
-        "ukiyo_e": "[to be translated]:Ukiyo-e",
-        "watercolor": "[to be translated]:Watercolor",
-        "wood_carving": "[to be translated]:Wood Carving",
-        "yarn_doll": "[to be translated]:Yarn Doll"
+        "pixel_art": "Pixelkunst",
+        "poetic_ancient": "Poetisch Antik",
+        "psychedelic": "Psychedelisch",
+        "sketch": "Skizze",
+        "street_art": "Street Art",
+        "texture": "Textur",
+        "ukiyo_e": "Ukiyo-e",
+        "watercolor": "Aquarell",
+        "wood_carving": "Holzschnitzerei",
+        "yarn_doll": "Garnpuppe"
       }
     },
     "edit": {
@@ -2706,23 +2710,23 @@
       "seed_tip": "Kontrolle der Zufälligkeit des Upscale-Ergebnisses"
     },
     "zhipu": {
-      "custom_size_divisible": "[to be translated]:Custom size must be divisible by 16",
-      "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
-      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
-      "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
-      "custom_size_required": "[to be translated]:Please set custom width and height",
+      "custom_size_divisible": "Benutzerdefinierte Größe muss durch 16 teilbar sein",
+      "custom_size_hint": "Breite und Höhe müssen zwischen 512 px und 2048 px liegen, durch 16 teilbar sein, und die Gesamtzahl der Pixel darf 2^21 px nicht überschreiten.",
+      "custom_size_pixels": "Die Gesamtpixel der benutzerdefinierten Größe dürfen 2.097.152 nicht überschreiten",
+      "custom_size_range": "Benutzerdefinierte Größe muss zwischen 512px und 2048px liegen",
+      "custom_size_required": "Bitte benutzerdefinierte Breite und Höhe einstellen",
       "image_sizes": {
-        "1024x1024_default": "[to be translated]:1024x1024 (Default)",
-        "1152x864": "[to be translated]:1152x864",
-        "1344x768": "[to be translated]:1344x768",
-        "1440x720": "[to be translated]:1440x720",
-        "720x1440": "[to be translated]:720x1440",
-        "768x1344": "[to be translated]:768x1344",
-        "864x1152": "[to be translated]:864x1152"
+        "1024x1024_default": "1024x1024 (Standard)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
       },
       "quality_options": {
-        "hd": "[to be translated]:HD",
-        "standard_default": "[to be translated]:Standard (Default)"
+        "hd": "HD",
+        "standard_default": "Standard (Standard)"
       }
     }
   },
@@ -2734,19 +2738,19 @@
     "category": "Kategorie",
     "commands": "Befehle",
     "confirm_uninstall": "Sind Sie sicher, dass Sie {{name}} deinstallieren möchten?",
-    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "content_saved": "Plugin-Inhalt erfolgreich gespeichert",
     "detail": {
-      "allowed_tools": "[to be translated]:Allowed Tools",
-      "author": "[to be translated]:Author",
-      "content": "[to be translated]:Content",
-      "description": "[to be translated]:Description",
-      "file": "[to be translated]:File",
-      "installed": "[to be translated]:Installed",
-      "metadata": "[to be translated]:Metadata",
-      "size": "[to be translated]:Size",
-      "source": "[to be translated]:Source",
-      "tags": "[to be translated]:Tags",
-      "tools": "[to be translated]:Tools"
+      "allowed_tools": "Erlaubte Werkzeuge",
+      "author": "Autor",
+      "content": "Inhalt",
+      "description": "Beschreibung",
+      "file": "Datei",
+      "installed": "Installiert",
+      "metadata": "Metadaten",
+      "size": "Größe",
+      "source": "Quelle",
+      "tags": "Tags",
+      "tools": "Werkzeuge"
     },
     "install": "Installieren",
     "install_plugins_from_browser": "Durchsuche verfügbare Plugins, um loszulegen",
@@ -3099,9 +3103,9 @@
         "translate": "Übersetzen"
       },
       "prompt": {
-        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
-        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
-        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
+        "explain": "Bitte erklären Sie den folgenden Inhalt. Anforderungen: Antworten Sie auf Deutsch; geben Sie keine Erklärung zu dieser Aufforderung, sondern antworten Sie direkt.",
+        "refine": "Bitte optimieren oder überarbeiten Sie die im XML-Tag <INPUT> eingeschlossene Nutzereingabe, wobei die Bedeutung und Integrität des ursprünglichen Inhalts erhalten bleiben sollen. Anforderungen: Ihre Ausgabe sollte in derselben Sprache wie die Nutzereingabe erfolgen; geben Sie keine Erklärung zu dieser Aufforderung an, sondern liefern Sie direkt die Antwort; geben Sie keine XML-Tags aus, sondern geben Sie den optimierten Inhalt direkt aus:\n\n<INPUT>{{text}}</INPUT>",
+        "summary": "Bitte fasse den folgenden Inhalt zusammen. Anforderungen: Antworte auf {{language}}; gib keine Erklärung zu dieser Aufforderung, sondern antworte direkt."
       },
       "translate": {
         "smart_translate_tips": "Intelligente Übersetzung: Inhalt wird bevorzugt in Zielsprache übersetzt; wenn Inhalt bereits in Zielsprache, Übersetzung in Alternativsprache"
@@ -4197,8 +4201,8 @@
       "jsonSaveError": "JSON-Konfiguration speichern fehlgeschlagen",
       "jsonSaveSuccess": "JSON-Konfiguration erfolgreich gespeichert",
       "lanyun": {
-        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-        "name": "[to be translated]:Lanyun Technology"
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "Lanyun Technology"
       },
       "logoUrl": "Logo-URL",
       "logs": "Protokolle",
@@ -4297,11 +4301,11 @@
         "getTokenDescription": "Persönlichen API-Token aus Ihrem Konto abrufen",
         "noServersAvailable": "Keine MCP-Server verfügbar",
         "providerDescriptions": {
-          "302ai": "[to be translated]:302.AI Platform MCP Service",
-          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
-          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
-          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
+          "302ai": "302.AI-Plattform MCP-Dienst",
+          "bailian": "Alibaba Cloud Bailian Platform MCP-Dienst",
+          "lanyun": "Lanyun Technology Cloud Platform MCP-Dienst",
+          "mcprouter": "MCP-Router-Plattform MCP-Service",
+          "modelscope": "ModelScope-Plattform MCP-Dienst",
           "tokenflux": "TokenFlux Platform MCP Service"
         },
         "selectProvider": "Anbieter auswählen:",

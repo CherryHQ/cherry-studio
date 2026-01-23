@@ -271,7 +271,7 @@
     },
     "toolPermission": {
       "aria": {
-        "allowAllRequest": "[to be translated]:Always allow this tool",
+        "allowAllRequest": "Permiteți întotdeauna acest instrument",
         "allowRequest": "Permite cererea instrumentului",
         "denyRequest": "Refuză cererea instrumentului",
         "hideDetails": "Ascunde detaliile instrumentului",
@@ -279,7 +279,7 @@
         "showDetails": "Afișează detaliile instrumentului"
       },
       "button": {
-        "allowAll": "[to be translated]:Always Allow",
+        "allowAll": "Permiteți întotdeauna",
         "cancel": "Anulează",
         "run": "Rulează"
       },
@@ -670,8 +670,8 @@
       }
     },
     "alerts": {
-      "create_session": "[to be translated]:Create a session",
-      "select_agent": "[to be translated]:Select an agent"
+      "create_session": "Creează o sesiune",
+      "select_agent": "Selectați un agent"
     },
     "artifacts": {
       "button": {
@@ -1206,8 +1206,8 @@
     "cancel": "Anulează",
     "chat": "Chat",
     "clear": "Golește",
-    "clear_all": "[to be translated]:Clear All",
-    "click_to_replace": "[to be translated]:Click to replace",
+    "clear_all": "Șterge tot",
+    "click_to_replace": "Faceți clic pentru a înlocui",
     "close": "Închide",
     "collapse": "Restrânge",
     "completed": "Finalizat",
@@ -1242,15 +1242,15 @@
     "footnote": "Conținut de referință",
     "footnotes": "Referințe",
     "fullscreen": "S-a intrat în modul ecran complet. Apasă F11 pentru a ieși",
-    "generate_random_seed": "[to be translated]:Generate random seed",
-    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
+    "generate_random_seed": "Generează sămânță aleatoare",
+    "get_embedding_dimension": "Obține dimensiunea de înglobare",
     "go_to_settings": "Mergi la setări",
-    "html_preview": "[to be translated]:HTML Preview",
+    "html_preview": "Previzualizare HTML",
     "i_know": "Am înțeles",
     "ignore": "Ignoră",
-    "image_preview": "[to be translated]:Image preview",
-    "image_url": "[to be translated]:Image URL",
-    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
+    "image_preview": "Previzualizare imagine",
+    "image_url": "URL imagine",
+    "image_url_or_upload": "Introdu URL-ul imaginii sau încarcă fișierul",
     "inspect": "Inspectează",
     "invalid_value": "Valoare invalidă",
     "knowledge_base": "Bază de cunoștințe",
@@ -1260,7 +1260,7 @@
     "models": "Modele",
     "more": "Mai mult",
     "name": "Nume",
-    "next_match": "[to be translated]:Next match",
+    "next_match": "Următorul meci",
     "no_results": "Niciun rezultat",
     "none": "Nimic",
     "off": "Oprit",
@@ -1272,17 +1272,17 @@
         "model": "Selectează un model"
       }
     },
-    "powered_by": "[to be translated]:Powered by ",
+    "powered_by": "Cu tehnologia",
     "preview": "Previzualizare",
-    "previous_match": "[to be translated]:Previous match",
+    "previous_match": "Meciul anterior",
     "prompt": "Prompt",
     "provider": "Furnizor",
     "reasoning_content": "Raționament profund",
     "refresh": "Reîmprospătează",
     "regenerate": "Regenerează",
-    "remove_image": "[to be translated]:Remove image",
+    "remove_image": "Elimină imaginea",
     "rename": "Redenumește",
-    "required_field": "[to be translated]:Required field",
+    "required_field": "Câmp obligatoriu",
     "reset": "Resetează",
     "save": "Salvează",
     "saved": "Salvat",
@@ -1305,24 +1305,28 @@
     "success": "Succes",
     "swap": "Schimbă",
     "topics": "Subiecte",
-    "translate_text": "[to be translated]:Translate text",
+    "translate_text": "Traduceți textul",
     "unknown": "Necunoscut",
     "unnamed": "Fără nume",
     "unsubscribe": "Dezabonează-te",
     "update_success": "Actualizat cu succes",
     "upload_files": "Încarcă fișier",
-    "upload_image": "[to be translated]:Upload image file",
-    "uploaded_image": "[to be translated]:Uploaded image",
+    "upload_image": "Încarcă fișier imagine",
+    "uploaded_image": "Imagine încărcată",
     "warning": "Avertisment",
     "you": "Tu"
   },
   "dialog": {
-    "all_files": "[to be translated]:All Files",
-    "open_file": "[to be translated]:Open File",
-    "png_image": "[to be translated]:PNG Image",
-    "save_file": "[to be translated]:Save File",
-    "select_folder": "[to be translated]:Select Folder",
-    "word_document": "[to be translated]:Word Document"
+    "all_files": "Toate fișierele",
+    "html_files": "Fișiere HTML",
+    "open_file": "Deschide fișier",
+    "pdf_files": "Fișiere PDF",
+    "png_image": "Imagine PNG",
+    "save_as_html": "Salvează ca HTML",
+    "save_as_pdf": "Salvează ca PDF",
+    "save_file": "Salvează fișier",
+    "select_folder": "Selectează folderul",
+    "word_document": "Document Word"
   },
   "docs": {
     "title": "Documentație"
@@ -2741,12 +2745,12 @@
       "content": "Conținut",
       "description": "Descriere",
       "file": "Fișier",
-      "installed": "[to be translated]:Installed",
-      "metadata": "[to be translated]:Metadata",
-      "size": "[to be translated]:Size",
-      "source": "[to be translated]:Source",
-      "tags": "[to be translated]:Tags",
-      "tools": "[to be translated]:Tools"
+      "installed": "Instalat",
+      "metadata": "Metadate",
+      "size": "Dimensiune",
+      "source": "Sursă",
+      "tags": "Etichete",
+      "tools": "Unelte"
     },
     "install": "Instalează",
     "install_plugins_from_browser": "Răsfoiește pluginurile disponibile pentru a începe",
@@ -3099,9 +3103,9 @@
         "translate": "Tradu"
       },
       "prompt": {
-        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
-        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
-        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
+        "explain": "Te rog să explici următorul conținut. Cerințe: Răspunde în {{language}}; nu include nicio explicație a acestui prompt, oferă direct răspunsul:",
+        "refine": "Te rugăm să optimizezi sau să îmbunătățești conținutul introdus de utilizator, cuprins în eticheta XML <INPUT>, păstrând sensul și integritatea textului original. Cerințe: rezultatul tău trebuie să fie în aceeași limbă cu cel introdus de utilizator; nu include nicio explicație referitoare la acest prompt, oferă direct răspunsul; nu afișa etichetele XML, ci doar conținutul optimizat.",
+        "summary": "Vă rog să rezumați următorul conținut. Cerințe: Răspundeți în {{language}}; nu includeți nicio explicație a acestui prompt, oferiți direct răspunsul:"
       },
       "translate": {
         "smart_translate_tips": "Traducere inteligentă: Conținutul va fi tradus mai întâi în limba țintă; conținutul aflat deja în limba țintă va fi tradus în limba alternativă"
@@ -4197,8 +4201,8 @@
       "jsonSaveError": "Nu s-a putut salva configurația JSON.",
       "jsonSaveSuccess": "Configurația JSON a fost salvată.",
       "lanyun": {
-        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-        "name": "[to be translated]:Lanyun Technology"
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "Lanyun Technology"
       },
       "logoUrl": "URL logo",
       "logs": "Jurnale",
@@ -4297,12 +4301,12 @@
         "getTokenDescription": "Obține tokenul tău personal API din contul tău",
         "noServersAvailable": "Nu există servere MCP disponibile",
         "providerDescriptions": {
-          "302ai": "[to be translated]:302.AI Platform MCP Service",
-          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
-          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
-          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
-          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+          "302ai": "Serviciul MCP al Platformei 302.AI",
+          "bailian": "Serviciul MCP al Platformei Bailian Alibaba Cloud",
+          "lanyun": "Platforma Cloud Lanyun Technology - Serviciul MCP",
+          "mcprouter": "Platformă Router MCP Serviciu MCP",
+          "modelscope": "Serviciul MCP al Platformei ModelScope",
+          "tokenflux": "Serviciul MCP al Platformei TokenFlux"
         },
         "selectProvider": "Selectează furnizor:",
         "setToken": "Introdu tokenul tău",
@@ -4781,9 +4785,9 @@
         "title": "Șterge furnizor"
       },
       "dmxapi": {
-        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
-        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
-        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
+        "platform_enterprise": "ssvip.DMXAPI.com (Întreprindere)",
+        "platform_international": "www.DMXAPI.com (Internațional)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Selectează platforma"
       },
       "docs_check": "Verifică",

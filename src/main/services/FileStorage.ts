@@ -9,7 +9,7 @@ import {
   readTextFileWithAutoEncoding,
   scanDir
 } from '@main/utils/file'
-import { locales } from '@main/utils/locales'
+import { t } from '@main/utils/locales'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
 import type { FileMetadata, NotesTreeNode } from '@types'
@@ -30,8 +30,6 @@ import { PDFDocument } from 'pdf-lib'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
-
-import { configManager } from './ConfigManager'
 
 const logger = loggerService.withContext('FileStorage')
 
@@ -823,13 +821,10 @@ class FileStorage {
     options: OpenDialogOptions
   ): Promise<{ fileName: string; filePath: string; content?: Buffer; size: number } | null> => {
     try {
-      const locale = locales[configManager.getLanguage()]
-      const { dialog: dialogLocale } = locale.translation
-
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: dialogLocale.open_file,
+        title: t('dialog.open_file'),
         properties: ['openFile'],
-        filters: [{ name: dialogLocale.all_files, extensions: ['*'] }],
+        filters: [{ name: t('dialog.all_files'), extensions: ['*'] }],
         ...options
       })
 
@@ -1442,11 +1437,8 @@ class FileStorage {
     options?: SaveDialogOptions
   ): Promise<string> => {
     try {
-      const locale = locales[configManager.getLanguage()]
-      const { dialog: dialogLocale } = locale.translation
-
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
-        title: dialogLocale.save_file,
+        title: t('dialog.save_file'),
         defaultPath: fileName,
         ...options
       })
@@ -1468,12 +1460,9 @@ class FileStorage {
 
   public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<void> => {
     try {
-      const locale = locales[configManager.getLanguage()]
-      const { dialog: dialogLocale } = locale.translation
-
       const filePath = dialog.showSaveDialogSync({
         defaultPath: `${name}.png`,
-        filters: [{ name: dialogLocale.png_image, extensions: ['png'] }]
+        filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       })
 
       if (filePath) {
@@ -1487,11 +1476,8 @@ class FileStorage {
 
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {
     try {
-      const locale = locales[configManager.getLanguage()]
-      const { dialog: dialogLocale } = locale.translation
-
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: dialogLocale.select_folder,
+        title: t('dialog.select_folder'),
         properties: ['openDirectory'],
         ...options
       })

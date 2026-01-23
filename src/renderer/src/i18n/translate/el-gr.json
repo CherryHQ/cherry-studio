@@ -1318,8 +1318,12 @@
   },
   "dialog": {
     "all_files": "Όλα τα Αρχεία",
+    "html_files": "Αρχεία HTML",
     "open_file": "Άνοιγμα Αρχείου",
+    "pdf_files": "Αρχεία PDF",
     "png_image": "Εικόνα PNG",
+    "save_as_html": "Αποθήκευση ως HTML",
+    "save_as_pdf": "Αποθήκευση ως PDF",
     "save_file": "Αποθήκευση Αρχείου",
     "select_folder": "Επιλέξτε φάκελο",
     "word_document": "Έγγραφο Word"
@@ -2549,16 +2553,16 @@
         "monet_garden": "Κήπος Μονέ",
         "oil_painting": "Ζωγραφική με λάδι",
         "pixar": "Pixar",
-        "pixel_art": "[to be translated]:Pixel Art",
-        "poetic_ancient": "[to be translated]:Poetic Ancient",
-        "psychedelic": "[to be translated]:Psychedelic",
-        "sketch": "[to be translated]:Sketch",
-        "street_art": "[to be translated]:Street Art",
-        "texture": "[to be translated]:Texture",
-        "ukiyo_e": "[to be translated]:Ukiyo-e",
-        "watercolor": "[to be translated]:Watercolor",
-        "wood_carving": "[to be translated]:Wood Carving",
-        "yarn_doll": "[to be translated]:Yarn Doll"
+        "pixel_art": "Τέχνη των Πίξελ",
+        "poetic_ancient": "Ποιητικό Αρχαίο",
+        "psychedelic": "Ψυχεδελικό",
+        "sketch": "Σχέδιο",
+        "street_art": "Τέχνη του Δρόμου",
+        "texture": "Υφή",
+        "ukiyo_e": "Ουκιγιό-ε",
+        "watercolor": "Νερομπογιά",
+        "wood_carving": "Ξυλογλυπτική",
+        "yarn_doll": "Κούκλα από κλωστή"
       }
     },
     "edit": {

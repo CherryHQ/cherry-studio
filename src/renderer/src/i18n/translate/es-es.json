@@ -1318,8 +1318,12 @@
   },
   "dialog": {
     "all_files": "Todos los archivos",
+    "html_files": "Archivos HTML",
     "open_file": "Abrir archivo",
+    "pdf_files": "Archivos PDF",
     "png_image": "Imagen PNG",
+    "save_as_html": "Guardar como HTML",
+    "save_as_pdf": "Guardar como PDF",
     "save_file": "Guardar archivo",
     "select_folder": "Seleccionar carpeta",
     "word_document": "Documento de Word"
@@ -2084,7 +2088,7 @@
       },
       "status": {
         "done": "Hecho",
-        "error": "[to be translated]:Error",
+        "error": "Error",
         "failed": "Fallido",
         "running": "Corriendo",
         "success": "Éxito"

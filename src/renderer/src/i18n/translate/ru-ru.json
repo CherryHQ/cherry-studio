@@ -271,7 +271,7 @@
     },
     "toolPermission": {
       "aria": {
-        "allowAllRequest": "[to be translated]:Always allow this tool",
+        "allowAllRequest": "Всегда разрешать этот инструмент",
         "allowRequest": "Разрешить запрос инструмента",
         "denyRequest": "Отклонить запрос на инструмент",
         "hideDetails": "Скрыть сведения об инструменте",
@@ -279,7 +279,7 @@
         "showDetails": "Показать сведения об инструменте"
       },
       "button": {
-        "allowAll": "[to be translated]:Always Allow",
+        "allowAll": "Всегда разрешать",
         "cancel": "Отмена",
         "run": "Беги"
       },
@@ -670,8 +670,8 @@
       }
     },
     "alerts": {
-      "create_session": "[to be translated]:Create a session",
-      "select_agent": "[to be translated]:Select an agent"
+      "create_session": "Создать сессию",
+      "select_agent": "Выберите агента"
     },
     "artifacts": {
       "button": {
@@ -1206,8 +1206,8 @@
     "cancel": "Отмена",
     "chat": "Чат",
     "clear": "Очистить",
-    "clear_all": "[to be translated]:Clear All",
-    "click_to_replace": "[to be translated]:Click to replace",
+    "clear_all": "Очистить всё",
+    "click_to_replace": "Щёлкните для замены",
     "close": "Закрыть",
     "collapse": "Свернуть",
     "completed": "Завершено",
@@ -1242,10 +1242,10 @@
     "footnote": "Цитируемый контент",
     "footnotes": "Сноски",
     "fullscreen": "Вы вошли в полноэкранный режим. Нажмите F11 для выхода",
-    "generate_random_seed": "[to be translated]:Generate random seed",
-    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
+    "generate_random_seed": "Сгенерировать случайное зерно",
+    "get_embedding_dimension": "Получить размерность вложения",
     "go_to_settings": "Перейти в настройки",
-    "html_preview": "[to be translated]:HTML Preview",
+    "html_preview": "Предпросмотр HTML",
     "i_know": "Я понял",
     "ignore": "Игнорировать",
     "image_preview": "Предпросмотр изображения",
@@ -1318,8 +1318,12 @@
   },
   "dialog": {
     "all_files": "Все файлы",
+    "html_files": "Файлы HTML",
     "open_file": "Открыть файл",
+    "pdf_files": "Файлы PDF",
     "png_image": "PNG-изображение",
+    "save_as_html": "Сохранить как HTML",
+    "save_as_pdf": "Сохранить как PDF",
     "save_file": "Сохранить файл",
     "select_folder": "Выбрать папку",
     "word_document": "Документ Word"
@@ -2708,21 +2712,21 @@
     "zhipu": {
       "custom_size_divisible": "Пользовательский размер должен быть кратен 16",
       "custom_size_hint": "Ширина и высота должны быть от 512 до 2048 пикселей, кратны 16, а общее число пикселей не должно превышать 2^21 пиксель.",
-      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_pixels": "Общее количество пикселей пользовательского размера не может превышать 2 097 152",
       "custom_size_range": "Пользовательский размер должен быть от 512 до 2048 пикселей",
-      "custom_size_required": "[to be translated]:Please set custom width and height",
+      "custom_size_required": "Пожалуйста, задайте пользовательскую ширину и высоту",
       "image_sizes": {
-        "1024x1024_default": "[to be translated]:1024x1024 (Default)",
-        "1152x864": "[to be translated]:1152x864",
-        "1344x768": "[to be translated]:1344x768",
-        "1440x720": "[to be translated]:1440x720",
-        "720x1440": "[to be translated]:720x1440",
-        "768x1344": "[to be translated]:768x1344",
-        "864x1152": "[to be translated]:864x1152"
+        "1024x1024_default": "1024x1024 (По умолчанию)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
       },
       "quality_options": {
-        "hd": "[to be translated]:HD",
-        "standard_default": "[to be translated]:Standard (Default)"
+        "hd": "HD",
+        "standard_default": "Стандарт (по умолчанию)"
       }
     }
   },
@@ -2734,19 +2738,19 @@
     "category": "категория",
     "commands": "команда",
     "confirm_uninstall": "Вы уверены, что хотите удалить {{name}}?",
-    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "content_saved": "Содержимое плагина успешно сохранено",
     "detail": {
-      "allowed_tools": "[to be translated]:Allowed Tools",
-      "author": "[to be translated]:Author",
-      "content": "[to be translated]:Content",
-      "description": "[to be translated]:Description",
-      "file": "[to be translated]:File",
-      "installed": "[to be translated]:Installed",
-      "metadata": "[to be translated]:Metadata",
-      "size": "[to be translated]:Size",
-      "source": "[to be translated]:Source",
-      "tags": "[to be translated]:Tags",
-      "tools": "[to be translated]:Tools"
+      "allowed_tools": "Разрешённые инструменты",
+      "author": "Автор",
+      "content": "Контент",
+      "description": "Описание",
+      "file": "Файл",
+      "installed": "Установлено",
+      "metadata": "Метаданные",
+      "size": "Размер",
+      "source": "Источник",
+      "tags": "Теги",
+      "tools": "Инструменты"
     },
     "install": "установка",
     "install_plugins_from_browser": "Просмотрите доступные плагины, чтобы начать работу",
@@ -3099,9 +3103,9 @@
         "translate": "Перевести"
       },
       "prompt": {
-        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
-        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
-        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
+        "explain": "Пожалуйста, объясните следующее содержание. Требования: ответ на {{language}}; не включайте никаких пояснений к этому запросу, просто дайте ответ напрямую:",
+        "refine": "Пожалуйста, оптимизируйте или отполируйте содержимое пользовательского ввода, заключённое в XML-тег <INPUT>, сохраняя смысл и целостность исходного текста. Требования: ваш ответ должен быть на том же языке, что и пользовательский ввод; не включайте никаких объяснений этого запроса, просто выдайте результат напрямую; не выводите XML-теги, выводите оптимизированное содержимое напрямую:",
+        "summary": "Пожалуйста, кратко изложите следующий контент. Требования: ответить на {{language}}; не включать никаких пояснений к этому запросу, просто дать ответ напрямую."
       },
       "translate": {
         "smart_translate_tips": "Смарт-перевод: содержимое будет переведено на целевой язык; содержимое уже на целевом языке будет переведено на альтернативный язык"
@@ -4197,8 +4201,8 @@
       "jsonSaveError": "Не удалось сохранить конфигурацию JSON",
       "jsonSaveSuccess": "JSON конфигурация сохранена",
       "lanyun": {
-        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-        "name": "[to be translated]:Lanyun Technology"
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "Ланьюнь Технологии"
       },
       "logoUrl": "URL логотипа",
       "logs": "Журналы",
@@ -4297,12 +4301,12 @@
         "getTokenDescription": "Получите персональный API токен из вашей учетной записи",
         "noServersAvailable": "Нет доступных серверов MCP",
         "providerDescriptions": {
-          "302ai": "[to be translated]:302.AI Platform MCP Service",
-          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
-          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
-          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
-          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+          "302ai": "302.Сервис MCP Платформы AI",
+          "bailian": "Сервис MCP платформы Alibaba Cloud Bailian",
+          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "Платформа маршрутизатора MCP Сервис MCP",
+          "modelscope": "Служба MCP платформы ModelScope",
+          "tokenflux": "Сервис MCP платформы TokenFlux"
         },
         "selectProvider": "Выберите провайдера:",
         "setToken": "Введите ваш токен",
@@ -4781,9 +4785,9 @@
         "title": "Удалить провайдер"
       },
       "dmxapi": {
-        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
-        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
-        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
+        "platform_enterprise": "ssvip.DMXAPI.com (Корпоративный)",
+        "platform_international": "www.DMXAPI.com (Международный)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Выберите платформу"
       },
       "docs_check": "Проверить",
