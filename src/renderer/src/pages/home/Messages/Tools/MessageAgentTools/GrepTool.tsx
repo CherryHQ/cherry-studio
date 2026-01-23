@@ -1,10 +1,9 @@
 import type { CollapseProps } from 'antd'
-import { FileSearch } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { countLines, truncateOutput } from '../shared/truncateOutput'
-import { ToolTitle, TruncatedIndicator } from './GenericTools'
-import type { GrepToolInput, GrepToolOutput } from './types'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { AgentToolsType, type GrepToolInput, type GrepToolOutput } from './types'
 
 export function GrepTool({
   input,
@@ -21,9 +20,8 @@ export function GrepTool({
   return {
     key: 'tool',
     label: (
-      <ToolTitle
-        icon={<FileSearch className="h-4 w-4" />}
-        label={t('message.tools.labels.grep')}
+      <ToolHeader
+        toolName={AgentToolsType.Grep}
         params={
           <>
             {input?.pattern}
@@ -35,6 +33,8 @@ export function GrepTool({
             ? `${resultLines} ${t(resultLines === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}`
             : undefined
         }
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: (

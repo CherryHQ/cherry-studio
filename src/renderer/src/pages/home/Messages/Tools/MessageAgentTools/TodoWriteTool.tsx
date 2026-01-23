@@ -1,9 +1,9 @@
 import type { CollapseProps } from 'antd'
 import { Card } from 'antd'
-import { CheckCircle, Circle, Clock, ListTodo } from 'lucide-react'
+import { CheckCircle, Circle, Clock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
+import { ToolHeader } from './GenericTools'
 import type { TodoItem, TodoWriteToolInput as TodoWriteToolInputType } from './types'
 import { AgentToolsType } from './types'
 
@@ -42,11 +42,12 @@ export function TodoWriteTool({
   return {
     key: AgentToolsType.TodoWrite,
     label: (
-      <ToolTitle
-        icon={<ListTodo className="h-4 w-4" />}
-        label={t('message.tools.labels.todoWrite')}
+      <ToolHeader
+        toolName={AgentToolsType.TodoWrite}
         params={`${doneCount} ${t('message.tools.status.done')}`}
         stats={`${todos.length} ${t(todos.length === 1 ? 'message.tools.units.item' : 'message.tools.units.items')}`}
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: (

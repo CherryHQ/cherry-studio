@@ -1,10 +1,8 @@
 import type { CollapseProps } from 'antd'
-import { Globe } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import { truncateOutput } from '../shared/truncateOutput'
-import { ToolTitle, TruncatedIndicator } from './GenericTools'
-import type { WebFetchToolInput, WebFetchToolOutput } from './types'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { AgentToolsType, type WebFetchToolInput, type WebFetchToolOutput } from './types'
 
 export function WebFetchTool({
   input,
@@ -13,13 +11,12 @@ export function WebFetchTool({
   input?: WebFetchToolInput
   output?: WebFetchToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
-  const { t } = useTranslation()
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',
     label: (
-      <ToolTitle icon={<Globe className="h-4 w-4" />} label={t('message.tools.labels.webFetch')} params={input?.url} />
+      <ToolHeader toolName={AgentToolsType.WebFetch} params={input?.url} variant="collapse-label" showStatus={false} />
     ),
     children: (
       <div>

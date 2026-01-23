@@ -1,11 +1,10 @@
 import { formatFileSize } from '@renderer/utils/file'
 import type { CollapseProps } from 'antd'
-import { FileText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
-import { SkeletonValue, ToolTitle, TruncatedIndicator } from './GenericTools'
+import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
 import type { ReadToolInput as ReadToolInputType, ReadToolOutput as ReadToolOutputType, TextOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -53,15 +52,16 @@ export function ReadTool({
   return {
     key: AgentToolsType.Read,
     label: (
-      <ToolTitle
-        icon={<FileText className="h-4 w-4" />}
-        label={t('message.tools.labels.readFile')}
+      <ToolHeader
+        toolName={AgentToolsType.Read}
         params={<SkeletonValue value={filename} width="120px" />}
         stats={
           stats
             ? `${stats.lineCount} ${t(stats.lineCount === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}, ${formatFileSize(stats.fileSize)}`
             : undefined
         }
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: truncatedOutput ? (

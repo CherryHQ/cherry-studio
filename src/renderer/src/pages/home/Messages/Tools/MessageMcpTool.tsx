@@ -2,27 +2,26 @@ import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Collapse, ConfigProvider, Dropdown, Flex, message as antdMessage, Progress, Tooltip } from 'antd'
+import { Collapse, ConfigProvider, Flex, message as antdMessage, Progress, Tooltip } from 'antd'
 import { message } from 'antd'
-import { Check, ChevronDown, ChevronRight, CirclePlay, CircleX, PauseCircle, ShieldCheck } from 'lucide-react'
+import { Check, ChevronRight, ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { useMcpToolApproval } from './hooks/useMcpToolApproval'
 import {
+  getEffectiveStatus,
   SkeletonSpan,
-  type ToolStatus,
   ToolStatusIndicator,
   TruncatedIndicator
 } from './MessageAgentTools/GenericTools'
@@ -36,6 +35,7 @@ import {
   ResponseSection
 } from './shared/ArgsTable'
 import { truncateOutput } from './shared/truncateOutput'
+import ToolApprovalActionsComponent from './ToolApprovalActions'
 
 interface Props {
   block: ToolMessageBlock
@@ -43,17 +43,16 @@ interface Props {
 
 const logger = loggerService.withContext('MessageTools')
 
-const COUNTDOWN_TIME = 30
-
 const MessageMcpTool: FC<Props> = ({ block }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
-  const [countdown, setCountdown] = useState<number>(COUNTDOWN_TIME)
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
-  const { mcpServers, updateMCPServer } = useMCPServers()
   const [progress, setProgress] = useState<number>(0)
-  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
+  const { setTimeoutTimer } = useTimer()
+
+  // Use the unified approval hook
+  const approval = useMcpToolApproval(block)
 
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
 
@@ -62,42 +61,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const isDone = status === 'done'
   const isError = status === 'error'
   const isStreaming = status === 'streaming'
-
-  const isAutoApproved = useMemo(
-    () =>
-      isToolAutoApproved(
-        tool,
-        mcpServers.find((s) => s.id === tool.serverId)
-      ),
-    [tool, mcpServers]
-  )
-
-  // 增加本地状态来跟踪用户确认
-  const [isConfirmed, setIsConfirmed] = useState(isAutoApproved)
-
-  // 判断不同的UI状态
-  const isWaitingConfirmation = isPending && !isAutoApproved && !isConfirmed
-  const isExecuting = isPending && (isAutoApproved || isConfirmed)
-
-  useEffect(() => {
-    if (!isWaitingConfirmation) return
-
-    if (countdown > 0) {
-      setTimeoutTimer(
-        `countdown-${id}`,
-        () => {
-          logger.debug(`countdown: ${countdown}`)
-          setCountdown((prev) => prev - 1)
-        },
-        1000
-      )
-    } else if (countdown === 0) {
-      setIsConfirmed(true)
-      confirmToolAction(id)
-    }
-
-    return () => clearTimeoutTimer(`countdown-${id}`)
-  }, [countdown, id, isWaitingConfirmation, setTimeoutTimer, clearTimeoutTimer])
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(
@@ -126,10 +89,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
     }
   }, [isStreaming, isDone, isError, id])
 
-  const cancelCountdown = () => {
-    clearTimeoutTimer(`countdown-${id}`)
-  }
-
   if (!toolResponse) {
     return null
   }
@@ -143,17 +102,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
 
   const handleCollapseChange = (keys: string | string[]) => {
     setActiveKeys(Array.isArray(keys) ? keys : [keys])
-  }
-
-  const handleConfirmTool = () => {
-    cancelCountdown()
-    setIsConfirmed(true)
-    confirmToolAction(id)
-  }
-
-  const handleCancelTool = () => {
-    cancelCountdown()
-    cancelToolAction(id)
   }
 
   const handleAbortTool = async () => {
@@ -172,51 +120,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
     }
   }
 
-  const handleAutoApprove = async () => {
-    cancelCountdown()
-
-    if (!tool || !tool.name) {
-      return
-    }
-
-    const server = mcpServers.find((s) => s.id === tool.serverId)
-    if (!server) {
-      return
-    }
-
-    let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
-
-    // Remove tool from disabledAutoApproveTools to enable auto-approve
-    disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== tool.name)
-
-    const updatedServer = {
-      ...server,
-      disabledAutoApproveTools
-    }
-
-    updateMCPServer(updatedServer)
-
-    // Also confirm the current tool
-    setIsConfirmed(true)
-    confirmToolAction(id)
-
-    window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
-  }
-
-  // Compute the effective status for the status indicator
-  const getEffectiveStatus = (status: string): ToolStatus => {
-    if (status === 'streaming') return 'streaming'
-    if (status === 'pending') {
-      return isWaitingConfirmation ? 'waiting' : 'invoking'
-    }
-    if (status === 'cancelled') return 'cancelled'
-    if (status === 'done') return 'done'
-    if (status === 'error') return 'error'
-    return 'pending'
-  }
-
   // Format tool responses for collapse items
-  const getCollapseItems = () => {
+  const getCollapseItems = (): { key: string; label: React.ReactNode; children: React.ReactNode }[] => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
     const hasError = response?.isError === true
     const result = {
@@ -241,7 +146,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             {progress > 0 ? (
               <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
             ) : (
-              <ToolStatusIndicator status={getEffectiveStatus(status)} hasError={hasError} />
+              <ToolStatusIndicator status={getEffectiveStatus(status, approval.isWaiting)} hasError={hasError} />
             )}
             {!isPending && (
               <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
@@ -306,65 +211,16 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             {isPending && (
               <ActionsBar>
                 <ActionLabel>
-                  {isWaitingConfirmation
+                  {approval.isWaiting
                     ? t('settings.mcp.tools.autoApprove.tooltip.confirm')
                     : t('message.tools.invoking')}
                 </ActionLabel>
 
-                <ActionButtonsGroup>
-                  {isWaitingConfirmation && (
-                    <Button
-                      color="danger"
-                      variant="filled"
-                      size="small"
-                      onClick={() => {
-                        handleCancelTool()
-                      }}>
-                      <CircleX size={15} className="lucide-custom" />
-                      {t('common.cancel')}
-                    </Button>
-                  )}
-                  {isExecuting && toolResponse?.id ? (
-                    <Button
-                      size="small"
-                      color="danger"
-                      variant="solid"
-                      className="abort-button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleAbortTool()
-                      }}>
-                      <PauseCircle size={14} className="lucide-custom" />
-                      {t('chat.input.pause')}
-                    </Button>
-                  ) : (
-                    isWaitingConfirmation && (
-                      <StyledDropdownButton
-                        size="small"
-                        type="primary"
-                        icon={<ChevronDown size={14} />}
-                        onClick={() => {
-                          handleConfirmTool()
-                        }}
-                        menu={{
-                          items: [
-                            {
-                              key: 'autoApprove',
-                              label: t('settings.mcp.tools.autoApprove.label'),
-                              onClick: () => {
-                                handleAutoApprove()
-                              }
-                            }
-                          ]
-                        }}>
-                        <CirclePlay size={15} className="lucide-custom" />
-                        <CountdownText>
-                          {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
-                        </CountdownText>
-                      </StyledDropdownButton>
-                    )
-                  )}
-                </ActionButtonsGroup>
+                <ToolApprovalActionsComponent
+                  {...approval}
+                  showAbort={approval.isExecuting && !!toolResponse?.id}
+                  onAbort={handleAbortTool}
+                />
               </ActionsBar>
             )}
           </ToolContentWrapper>
@@ -549,22 +405,6 @@ const ActionLabel = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-`
-
-const ActionButtonsGroup = styled.div`
-  display: flex;
-  gap: 10px;
-`
-
-const CountdownText = styled.span`
-  width: 65px;
-  text-align: left;
-`
-
-const StyledDropdownButton = styled(Dropdown.Button)`
-  .ant-btn-group {
-    border-radius: 6px;
-  }
 `
 
 const ExpandIcon = styled(ChevronRight)<{ $isActive?: boolean }>`

@@ -1,12 +1,15 @@
 // 通用工具组件 - 减少重复代码
 
 import { LoadingIcon } from '@renderer/components/Icons'
+import type { MCPToolResponseStatus } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils/file'
 import { Skeleton } from 'antd'
 import { Check, Ellipsis, TriangleAlert, X } from 'lucide-react'
 import { createContext, type ReactNode, use } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+export { default as ToolHeader, type ToolHeaderProps } from '../ToolHeader'
 
 // Streaming context - 用于传递流式状态给子组件
 export const StreamingContext = createContext<boolean>(false)
@@ -50,30 +53,6 @@ export function SkeletonValue({
   }
 
   return <>{fallback ?? ''}</>
-}
-
-// 生成 AccordionItem 的标题
-export function ToolTitle({
-  icon,
-  label,
-  params,
-  stats,
-  className = 'text-sm'
-}: {
-  icon?: ReactNode
-  label: string
-  params?: string | ReactNode
-  stats?: string | ReactNode
-  className?: string
-}) {
-  return (
-    <div className={`flex items-center gap-1 ${className}`}>
-      {icon && <span className="flex shrink-0">{icon}</span>}
-      {label && <span className="shrink-0 font-medium text-sm">{label}</span>}
-      {params && <span className="min-w-0 truncate text-muted-foreground text-xs">{params}</span>}
-      {stats && <span className="shrink-0 text-muted-foreground text-xs">{stats}</span>}
-    </div>
-  )
 }
 
 // 纯字符串输入工具 (Task, Bash, Search)
@@ -144,13 +123,28 @@ export function StringOutputTool({
   )
 }
 
-export type ToolStatus = 'streaming' | 'pending' | 'invoking' | 'waiting' | 'done' | 'error' | 'cancelled'
+// ToolStatus extends MCPToolResponseStatus with UI-derived statuses
+// 'waiting' is a UI status derived from 'pending' + needs approval
+export type ToolStatus = MCPToolResponseStatus | 'waiting'
+
+/**
+ * Convert raw data layer status to UI display status
+ * @param status - Raw status from MCPToolResponseStatus
+ * @param isWaiting - Whether the tool is waiting for user approval
+ * @returns The effective UI status
+ */
+export function getEffectiveStatus(status: MCPToolResponseStatus | undefined, isWaiting: boolean): ToolStatus {
+  if (status === 'pending') {
+    return isWaiting ? 'waiting' : 'invoking'
+  }
+  return status ?? 'pending'
+}
 
 // 工具状态指示器 - 显示在 Collapse 标题右侧
 export function ToolStatusIndicator({ status, hasError = false }: { status: ToolStatus; hasError?: boolean }) {
   const { t } = useTranslation()
 
-  const getStatusInfo = (): { label: string; icon: ReactNode; color: string } | null => {
+  const getStatusInfo = (): { label: string; icon: ReactNode; color: StatusColor } | null => {
     switch (status) {
       case 'streaming':
         return { label: t('message.tools.streaming', 'Streaming'), icon: <LoadingIcon />, color: 'primary' }
@@ -199,26 +193,29 @@ export function ToolStatusIndicator({ status, hasError = false }: { status: Tool
   )
 }
 
-const StatusIndicatorContainer = styled.span<{ $color: string }>`
-  font-size: 11px;
-  display: flex;
+export type StatusColor = 'primary' | 'success' | 'warning' | 'error'
+
+function getStatusColor(color: StatusColor): string {
+  switch (color) {
+    case 'primary':
+    case 'success':
+      return 'var(--color-primary)'
+    case 'warning':
+      return 'var(--color-status-warning, #faad14)'
+    case 'error':
+      return 'var(--color-status-error, #ff4d4f)'
+    default:
+      return 'var(--color-text)'
+  }
+}
+
+export const StatusIndicatorContainer = styled.span<{ $color: StatusColor }>`
+  font-size: 12px;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   opacity: 0.85;
-  color: ${(props) => {
-    switch (props.$color) {
-      case 'primary':
-        return 'var(--color-primary)'
-      case 'success':
-        return 'var(--color-primary)'
-      case 'warning':
-        return 'var(--status-color-warning, #faad14)'
-      case 'error':
-        return 'var(--color-status-error, #ff4d4f)'
-      default:
-        return 'var(--color-text)'
-    }
-  }};
+  color: ${(props) => getStatusColor(props.$color)};
 `
 
 export function TruncatedIndicator({ originalLength }: { originalLength: number }) {

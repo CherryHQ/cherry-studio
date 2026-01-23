@@ -1,9 +1,7 @@
 import type { CollapseProps } from 'antd'
-import { FileText } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import { renderCodeBlock } from './EditTool'
-import { ToolTitle } from './GenericTools'
+import { ToolHeader } from './GenericTools'
 import type { MultiEditToolInput, MultiEditToolOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -13,15 +11,15 @@ export function MultiEditTool({
   input?: MultiEditToolInput
   output?: MultiEditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
-  const { t } = useTranslation()
   const edits = Array.isArray(input?.edits) ? input.edits : []
   return {
     key: AgentToolsType.MultiEdit,
     label: (
-      <ToolTitle
-        icon={<FileText className="h-4 w-4" />}
-        label={t('message.tools.labels.multiEdit')}
+      <ToolHeader
+        toolName={AgentToolsType.MultiEdit}
         params={input?.file_path}
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: (

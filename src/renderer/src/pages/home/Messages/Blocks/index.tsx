@@ -172,8 +172,10 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             }
             // 多个工具调用，使用分组组件
             const toolBlocks = block.filter(isToolBlock)
+            // Use first block ID as stable key to prevent remounting when new blocks are added
+            const stableGroupKey = `tool-group-${toolBlocks[0].id}`
             return (
-              <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+              <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={message.status.includes('ing')}>
                 <ToolBlockGroup blocks={toolBlocks} />
               </AnimatedBlockWrapper>
             )

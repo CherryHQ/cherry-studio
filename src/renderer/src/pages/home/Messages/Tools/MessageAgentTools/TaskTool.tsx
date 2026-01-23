@@ -1,12 +1,15 @@
 import type { CollapseProps } from 'antd'
-import { Bot } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
-import { SkeletonValue, ToolTitle, TruncatedIndicator } from './GenericTools'
-import type { TaskToolInput as TaskToolInputType, TaskToolOutput as TaskToolOutputType } from './types'
+import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
+import {
+  AgentToolsType,
+  type TaskToolInput as TaskToolInputType,
+  type TaskToolOutput as TaskToolOutputType
+} from './types'
 
 export function TaskTool({
   input,
@@ -29,10 +32,11 @@ export function TaskTool({
   return {
     key: 'tool',
     label: (
-      <ToolTitle
-        icon={<Bot className="h-4 w-4" />}
-        label={t('message.tools.labels.task')}
+      <ToolHeader
+        toolName={AgentToolsType.Task}
         params={<SkeletonValue value={input?.description} width="150px" />}
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: (

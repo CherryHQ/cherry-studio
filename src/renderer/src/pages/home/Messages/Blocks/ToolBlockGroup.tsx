@@ -1,19 +1,22 @@
-import type { MCPTool, MCPToolResponseStatus } from '@renderer/types'
+import type { MCPToolResponseStatus } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, type CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { type ToolStatus, ToolStatusIndicator } from '../Tools/MessageAgentTools/GenericTools'
+import { useToolApproval } from '../Tools/hooks/useToolApproval'
 import MessageTools from '../Tools/MessageTools'
+import ToolApprovalActionsComponent from '../Tools/ToolApprovalActions'
+import ToolHeader from '../Tools/ToolHeader'
 
 // ============ Styled Components ============
 
 const Container = styled.div`
-  width: 100%;
-  max-width: 36rem;
+  width: fit-content;
+  max-width: 100%;
 
   /* Only style the direct group collapse, not nested tool collapses */
   > .ant-collapse {
@@ -25,9 +28,17 @@ const Container = styled.div`
 
       > .ant-collapse-header {
         padding: 8px 12px !important;
-        background: transparent;
+        background: var(--color-background);
         border: 1px solid var(--color-border);
         border-radius: 0.75rem !important;
+        display: flex;
+        align-items: center;
+
+        .ant-collapse-expand-icon {
+          padding: 0 !important;
+          margin-left: 8px;
+          height: auto !important;
+        }
       }
 
       > .ant-collapse-content {
@@ -59,14 +70,6 @@ const GroupHeader = styled.div`
   .tool-count {
     color: var(--color-text-1);
   }
-
-  .tool-name {
-    color: var(--color-text-1);
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 `
 
 const ScrollableToolList = styled.div`
@@ -82,26 +85,57 @@ const ToolItem = styled.div<{ $isCompleted: boolean }>`
   transition: opacity 0.2s;
 `
 
+const AnimatedHeaderWrapper = styled(motion.div)`
+  display: inline-block;
+`
+
+const HeaderWithActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: space-between;
+`
+
 // ============ Types & Helpers ============
 
 interface Props {
   blocks: ToolMessageBlock[]
 }
 
-const isCompletedStatus = (status: MCPToolResponseStatus | undefined): boolean => {
+function isCompletedStatus(status: MCPToolResponseStatus | undefined): boolean {
   return status === 'done' || status === 'error' || status === 'cancelled'
 }
 
-// Get tool display name
-const getToolDisplayName = (tool: any): string => {
-  if (tool?.type === 'mcp') {
-    const mcpTool = tool as MCPTool
-    return `${mcpTool.serverName} : ${mcpTool.name}`
-  }
-  return tool?.name ?? 'Tool'
+function isWaitingStatus(status: MCPToolResponseStatus | undefined): boolean {
+  return status === 'pending'
+}
+
+// Animation variants for smooth header transitions
+const headerVariants = {
+  enter: { x: 20, opacity: 0 },
+  center: { x: 0, opacity: 1, transition: { duration: 0.2, ease: 'easeOut' as const } },
+  exit: { x: -20, opacity: 0, transition: { duration: 0.15 } }
 }
 
 // ============ Sub-Components ============
+
+// Component for rendering a block with approval actions
+interface WaitingToolHeaderProps {
+  block: ToolMessageBlock
+}
+
+const WaitingToolHeader = React.memo(({ block }: WaitingToolHeaderProps) => {
+  const approval = useToolApproval(block)
+
+  return (
+    <HeaderWithActions>
+      <ToolHeader block={block} variant="collapse-label" showStatus={false} />
+      {(approval.isWaiting || approval.isExecuting) && <ToolApprovalActionsComponent {...approval} compact />}
+    </HeaderWithActions>
+  )
+})
+WaitingToolHeader.displayName = 'WaitingToolHeader'
 
 interface GroupHeaderContentProps {
   blocks: ToolMessageBlock[]
@@ -120,36 +154,48 @@ const GroupHeaderContent = React.memo(({ blocks, allCompleted }: GroupHeaderCont
     )
   }
 
-  // Find running tools
-  const runningBlocks = blocks.filter((block) => {
+  // Find blocks needing approval (pending status)
+  const waitingBlocks = blocks.filter((block) => {
     const status = block.metadata?.rawMcpToolResponse?.status
-    return !isCompletedStatus(status)
+    return isWaitingStatus(status)
   })
 
-  // Multiple running tools
-  if (runningBlocks.length > 1) {
+  // Prioritize showing waiting blocks that need approval
+  const lastWaitingBlock = waitingBlocks[waitingBlocks.length - 1]
+  if (lastWaitingBlock) {
     return (
-      <GroupHeader>
-        <Wrench size={14} className="tool-icon" />
-        <span className="tool-count">{t('message.tools.runningCount', { count: runningBlocks.length })}</span>
-        <ToolStatusIndicator status="invoking" />
-      </GroupHeader>
+      <AnimatePresence mode="wait">
+        <AnimatedHeaderWrapper
+          key={lastWaitingBlock.id}
+          variants={headerVariants}
+          initial="enter"
+          animate="center"
+          exit="exit">
+          <WaitingToolHeader block={lastWaitingBlock} />
+        </AnimatedHeaderWrapper>
+      </AnimatePresence>
     )
   }
 
-  // Single running tool
-  const currentBlock = runningBlocks[0]
-  if (currentBlock) {
-    const toolResponse = currentBlock.metadata?.rawMcpToolResponse
-    const tool = toolResponse?.tool
-    const status = toolResponse?.status
+  const runningBlocks = blocks.filter((block) => {
+    const status = block.metadata?.rawMcpToolResponse?.status
+    return !isCompletedStatus(status) && !isWaitingStatus(status)
+  })
 
+  // Get the last running block (most recent) and render with animation
+  const lastRunningBlock = runningBlocks[runningBlocks.length - 1]
+  if (lastRunningBlock) {
     return (
-      <GroupHeader>
-        <Wrench size={14} className="tool-icon" />
-        <span className="tool-name">{getToolDisplayName(tool)}</span>
-        {status && <ToolStatusIndicator status={status as ToolStatus} />}
-      </GroupHeader>
+      <AnimatePresence mode="wait">
+        <AnimatedHeaderWrapper
+          key={lastRunningBlock.id}
+          variants={headerVariants}
+          initial="enter"
+          animate="center"
+          exit="exit">
+          <ToolHeader block={lastRunningBlock} variant="collapse-label" />
+        </AnimatedHeaderWrapper>
+      </AnimatePresence>
     )
   }
 
@@ -187,10 +233,10 @@ ToolListContent.displayName = 'ToolListContent'
 // ============ Main Component ============
 
 const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
-  const [expanded, setExpanded] = useState(false)
+  const [activeKey, setActiveKey] = useState<string[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
+  const userExpandedRef = useRef(false)
 
-  // Calculate if all tools are completed
   const allCompleted = useMemo(() => {
     return blocks.every((block) => {
       const status = block.metadata?.rawMcpToolResponse?.status
@@ -198,7 +244,6 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
     })
   }, [blocks])
 
-  // Find first running block for auto-scroll
   const currentRunningBlock = useMemo(() => {
     return blocks.find((block) => {
       const status = block.metadata?.rawMcpToolResponse?.status
@@ -206,13 +251,19 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
     })
   }, [blocks])
 
-  // Auto-scroll to running tool
   useEffect(() => {
-    if (expanded && currentRunningBlock && scrollRef.current) {
+    if (activeKey.includes('tool-group') && currentRunningBlock && scrollRef.current) {
       const element = scrollRef.current.querySelector(`[data-block-id="${currentRunningBlock.id}"]`)
       element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
-  }, [expanded, currentRunningBlock])
+  }, [activeKey, currentRunningBlock])
+
+  const handleChange = (keys: string | string[]) => {
+    const keyArray = Array.isArray(keys) ? keys : [keys]
+    const isExpanding = keyArray.includes('tool-group')
+    userExpandedRef.current = isExpanding
+    setActiveKey(keyArray)
+  }
 
   const items: CollapseProps['items'] = useMemo(() => {
     return [
@@ -230,8 +281,8 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
         ghost
         size="small"
         expandIconPosition="end"
-        activeKey={expanded ? ['tool-group'] : []}
-        onChange={(keys) => setExpanded(keys.includes('tool-group'))}
+        activeKey={activeKey}
+        onChange={handleChange}
         items={items}
       />
     </Container>

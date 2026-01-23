@@ -3,7 +3,7 @@ import { Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
-import { ToolTitle } from './GenericTools'
+import { ToolHeader } from './GenericTools'
 
 interface UnknownToolProps {
   toolName: string
@@ -53,10 +53,12 @@ export function UnknownToolRenderer({
   return {
     key: 'unknown-tool',
     label: (
-      <ToolTitle
+      <ToolHeader
+        toolName={getToolDisplayName(toolName)}
         icon={<Wrench className="h-4 w-4" />}
-        label={getToolDisplayName(toolName)}
         params={getToolDescription(toolName)}
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: (

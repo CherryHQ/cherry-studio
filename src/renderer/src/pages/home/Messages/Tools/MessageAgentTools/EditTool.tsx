@@ -1,8 +1,6 @@
 import type { CollapseProps } from 'antd'
-import { FileEdit } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
+import { ToolHeader } from './GenericTools'
 import type { EditToolInput, EditToolOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -36,14 +34,14 @@ export function EditTool({
   input?: EditToolInput
   output?: EditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
-  const { t } = useTranslation()
   return {
     key: AgentToolsType.Edit,
     label: (
-      <ToolTitle
-        icon={<FileEdit className="h-4 w-4" />}
-        label={t('message.tools.labels.edit')}
+      <ToolHeader
+        toolName={AgentToolsType.Edit}
         params={input?.file_path}
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: (

@@ -1,9 +1,7 @@
 import type { CollapseProps } from 'antd'
-import { FileText } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
-import type { WriteToolInput, WriteToolOutput } from './types'
+import { ToolHeader } from './GenericTools'
+import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from './types'
 
 export function WriteTool({
   input
@@ -11,14 +9,14 @@ export function WriteTool({
   input?: WriteToolInput
   output?: WriteToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
-  const { t } = useTranslation()
   return {
     key: 'tool',
     label: (
-      <ToolTitle
-        icon={<FileText className="h-4 w-4" />}
-        label={t('message.tools.labels.write')}
+      <ToolHeader
+        toolName={AgentToolsType.Write}
         params={input?.file_path}
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: <div>{input?.content}</div>

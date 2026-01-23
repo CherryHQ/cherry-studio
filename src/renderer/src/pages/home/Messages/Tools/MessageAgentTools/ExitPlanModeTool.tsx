@@ -1,10 +1,9 @@
 import type { CollapseProps } from 'antd'
-import { DoorOpen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
-import { ToolTitle, TruncatedIndicator } from './GenericTools'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -24,10 +23,11 @@ export function ExitPlanModeTool({
   return {
     key: AgentToolsType.ExitPlanMode,
     label: (
-      <ToolTitle
-        icon={<DoorOpen className="h-4 w-4" />}
-        label={t('message.tools.labels.exitPlanMode')}
+      <ToolHeader
+        toolName={AgentToolsType.ExitPlanMode}
         stats={`${planCount} ${t(planCount === 1 ? 'message.tools.units.plan' : 'message.tools.units.plans')}`}
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: (

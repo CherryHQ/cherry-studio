@@ -4,7 +4,7 @@ import { CheckCircle, Terminal, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { truncateOutput } from '../shared/truncateOutput'
-import { ToolTitle, TruncatedIndicator } from './GenericTools'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import type { BashOutputToolInput, BashOutputToolOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -165,30 +165,29 @@ export function BashOutputTool({
   return {
     key: AgentToolsType.BashOutput,
     label: (
-      <>
-        <ToolTitle
-          icon={<Terminal className="h-4 w-4" />}
-          label={t('message.tools.labels.bash')}
-          params={
-            <div className="flex items-center gap-2">
-              <Tag className="py-0 font-mono text-xs">{input?.bash_id}</Tag>
-              {statusConfig && (
-                <Tag
-                  color={statusConfig.color}
-                  icon={statusConfig.icon}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: '2px'
-                  }}>
-                  {statusConfig.text}
-                </Tag>
-              )}
-            </div>
-          }
-        />
-      </>
+      <ToolHeader
+        toolName={AgentToolsType.BashOutput}
+        params={
+          <div className="flex items-center gap-2">
+            <Tag className="py-0 font-mono text-xs">{input?.bash_id}</Tag>
+            {statusConfig && (
+              <Tag
+                color={statusConfig.color}
+                icon={statusConfig.icon}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: '2px'
+                }}>
+                {statusConfig.text}
+              </Tag>
+            )}
+          </div>
+        }
+        variant="collapse-label"
+        showStatus={false}
+      />
     ),
 
     children: children
