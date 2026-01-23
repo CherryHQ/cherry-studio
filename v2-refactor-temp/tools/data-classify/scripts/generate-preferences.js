@@ -307,6 +307,7 @@ class PreferencesGenerator {
 
 import { MEMORY_FACT_EXTRACTION_PROMPT, MEMORY_UPDATE_SYSTEM_PROMPT,TRANSLATE_PROMPT } from '@shared/config/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProviderOverrides } from '@shared/data/presets/web-search-providers'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {
   "interfaces": { "order": "alphabetically" },

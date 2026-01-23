@@ -74,7 +74,7 @@ describe('ComplexPreferenceMappings', () => {
     it('should contain websearch providers migrate mapping', () => {
       const providersMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_providers_migrate')
       expect(providersMapping).toBeDefined()
-      expect(providersMapping?.targetKeys).toContain('chat.web_search.providers')
+      expect(providersMapping?.targetKeys).toContain('chat.web_search.provider_overrides')
     })
   })
 
@@ -82,8 +82,8 @@ describe('ComplexPreferenceMappings', () => {
     it('should return target keys from all mappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
-      expect(keys).toContain('chat.web_search.providers')
-      expect(keys.length).toBe(10) // 9 websearch compression keys + 1 providers key
+      expect(keys).toContain('chat.web_search.provider_overrides')
+      expect(keys.length).toBe(10) // 9 websearch compression keys + 1 overrides key
     })
 
     it('should flatten target keys from all mappings', () => {

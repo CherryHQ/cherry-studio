@@ -78,7 +78,7 @@
 
 | 数据类型 | 系统 | Key |
 |----------|------|-----|
-| 供应商配置 | Preference | `chat.web_search.providers` |
+| 供应商配置 | Preference | `chat.web_search.provider_overrides` |
 | 搜索设置 | Preference | `chat.web_search.*` |
 | 搜索状态 | Cache | `chat.web_search.active_searches` |
 
@@ -132,7 +132,7 @@ src/renderer/src/
 ```
 packages/shared/data/
 └─ preference/
-    ├─ preferenceTypes.ts           # WebSearchProvider, WebSearchProviders, WebSearchCompression*
+    ├─ preferenceTypes.ts           # WebSearchProvider, WebSearchProviderOverrides, WebSearchCompression*
     └─ preferenceSchemas.ts         # chat.web_search.* keys & defaults
 ```
 

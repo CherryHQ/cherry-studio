@@ -153,7 +153,7 @@
  * ```
  */
 
-import type { WebSearchProviderUserConfig } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProviderOverride, WebSearchProviderOverrides } from '@shared/data/presets/web-search-providers'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
@@ -301,11 +301,11 @@ interface OldWebSearchProvider {
  *   ]
  * }
  * Output: {
- *   'chat.web_search.providers': [
- *     { id: 'tavily', name: 'Tavily', type: 'api', apiKey: '...', apiHost: '...', engines: [], ... },
- *     { id: 'exa-mcp', name: 'ExaMCP', type: 'mcp', apiKey: '', apiHost: '...', engines: [], ... },
- *     { id: 'local-google', name: 'Google', type: 'local', apiKey: '', apiHost: '', engines: [], ... }
- *   ]
+ *   'chat.web_search.provider_overrides': {
+ *     tavily: { apiKey: '...', apiHost: '...' },
+ *     'exa-mcp': { apiHost: '...' },
+ *     'local-google': { apiHost: '...' }
+ *   }
  * }
  */
 export function migrateWebSearchProviders(sources: { providers?: OldWebSearchProvider[] }): TransformResult {
@@ -313,44 +313,46 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
 
   if (!providers || !Array.isArray(providers)) {
     return {
-      'chat.web_search.providers': []
+      'chat.web_search.provider_overrides': {}
     }
   }
 
-  const migratedProviders = providers
-    .map((provider): WebSearchProviderUserConfig | null => {
-      const config: WebSearchProviderUserConfig = { id: provider.id }
+  const overrides: WebSearchProviderOverrides = {}
 
-      const apiKey = provider.apiKey?.trim()
-      if (apiKey) {
-        config.apiKey = apiKey
-      }
+  providers.forEach((provider) => {
+    const override: WebSearchProviderOverride = {}
 
-      const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url
-      const apiHost = rawApiHost?.trim()
-      if (apiHost) {
-        config.apiHost = apiHost
-      }
+    const apiKey = provider.apiKey?.trim()
+    if (apiKey) {
+      override.apiKey = apiKey
+    }
 
-      if (provider.engines && provider.engines.length > 0) {
-        config.engines = provider.engines
-      }
+    const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url
+    const apiHost = rawApiHost?.trim()
+    if (apiHost) {
+      override.apiHost = apiHost
+    }
 
-      const basicAuthUsername = provider.basicAuthUsername?.trim()
-      if (basicAuthUsername) {
-        config.basicAuthUsername = basicAuthUsername
-      }
+    if (provider.engines && provider.engines.length > 0) {
+      override.engines = provider.engines
+    }
 
-      const basicAuthPassword = provider.basicAuthPassword?.trim()
-      if (basicAuthPassword) {
-        config.basicAuthPassword = basicAuthPassword
-      }
+    const basicAuthUsername = provider.basicAuthUsername?.trim()
+    if (basicAuthUsername) {
+      override.basicAuthUsername = basicAuthUsername
+    }
 
-      return Object.keys(config).length > 1 ? config : null
-    })
-    .filter((provider): provider is WebSearchProviderUserConfig => provider !== null)
+    const basicAuthPassword = provider.basicAuthPassword?.trim()
+    if (basicAuthPassword) {
+      override.basicAuthPassword = basicAuthPassword
+    }
+
+    if (Object.keys(override).length > 0) {
+      overrides[provider.id] = override
+    }
+  })
 
   return {
-    'chat.web_search.providers': migratedProviders
+    'chat.web_search.provider_overrides': overrides
   }
 }

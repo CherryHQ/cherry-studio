@@ -2728,11 +2728,11 @@
         },
         {
           "originalKey": "providers",
-          "type": "string",
-          "defaultValue": "WEB_SEARCH_PROVIDERS",
+          "type": "WebSearchProviderOverrides",
+          "defaultValue": {},
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.web_search.providers"
+          "targetKey": "chat.web_search.provider_overrides"
         },
         {
           "originalKey": "searchWithTime",
@@ -2782,6 +2782,78 @@
           "category": "preferences",
           "targetKey": null,
           "migrationNote": "Flattened to: chat.web_search.compression.method, chat.web_search.compression.cutoff_limit, chat.web_search.compression.cutoff_unit, chat.web_search.compression.rag_*"
+        },
+        {
+          "originalKey": "compressionMethod",
+          "type": "PreferenceTypes.WebSearchCompressionMethod",
+          "defaultValue": "none",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.compression.method"
+        },
+        {
+          "originalKey": "compressionCutoffLimit",
+          "type": "number",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.compression.cutoff_limit"
+        },
+        {
+          "originalKey": "compressionCutoffUnit",
+          "type": "PreferenceTypes.WebSearchCompressionCutoffUnit",
+          "defaultValue": "char",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.compression.cutoff_unit"
+        },
+        {
+          "originalKey": "compressionRagDocumentCount",
+          "type": "number",
+          "defaultValue": 5,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.compression.rag_document_count"
+        },
+        {
+          "originalKey": "compressionRagEmbeddingModelId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.compression.rag_embedding_model_id"
+        },
+        {
+          "originalKey": "compressionRagEmbeddingProviderId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.compression.rag_embedding_provider_id"
+        },
+        {
+          "originalKey": "compressionRagEmbeddingDimensions",
+          "type": "number",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.compression.rag_embedding_dimensions"
+        },
+        {
+          "originalKey": "compressionRagRerankModelId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.compression.rag_rerank_model_id"
+        },
+        {
+          "originalKey": "compressionRagRerankProviderId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.compression.rag_rerank_provider_id"
         },
         {
           "originalKey": "providerConfig",

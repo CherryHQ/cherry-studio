@@ -203,9 +203,9 @@ describe('PreferenceTransformers', () => {
   })
 
   describe('migrateWebSearchProviders', () => {
-    it('should return empty array when no providers', () => {
+    it('should return empty overrides when no providers', () => {
       const result = migrateWebSearchProviders({})
-      expect(result['chat.web_search.providers']).toEqual([])
+      expect(result['chat.web_search.provider_overrides']).toEqual({})
     })
 
     it('should keep only non-empty user fields', () => {
@@ -216,8 +216,10 @@ describe('PreferenceTransformers', () => {
         ]
       })
 
-      const providers = result['chat.web_search.providers'] as Array<Record<string, unknown>>
-      expect(providers).toEqual([{ id: 'tavily', apiKey: 'key1', apiHost: 'https://api.tavily.com' }])
+      const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
+      expect(overrides).toEqual({
+        tavily: { apiKey: 'key1', apiHost: 'https://api.tavily.com' }
+      })
     })
 
     it('should map url to apiHost and preserve auth fields', () => {
@@ -234,16 +236,15 @@ describe('PreferenceTransformers', () => {
         ]
       })
 
-      const providers = result['chat.web_search.providers'] as Array<Record<string, unknown>>
-      expect(providers).toEqual([
-        {
-          id: 'local-bing',
+      const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
+      expect(overrides).toEqual({
+        'local-bing': {
           apiHost: 'https://www.bing.com/search?q=%s',
           engines: ['news'],
           basicAuthUsername: 'user',
           basicAuthPassword: 'pass'
         }
-      ])
+      })
     })
   })
 })

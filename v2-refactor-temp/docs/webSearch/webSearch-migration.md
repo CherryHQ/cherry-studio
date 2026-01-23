@@ -13,8 +13,8 @@
 
 | 类型     | 说明           | 数量                     |
 | -------- | -------------- | ------------------------ |
-| 简单映射 | 一对一字段映射 | 4 项                     |
-| 复杂映射 | 需要扁平化转换 | 1 项 (compressionConfig) |
+| 简单映射 | 一对一字段映射 | 3 项                     |
+| 复杂映射 | 需要扁平化转换 | 2 项 (providers, compressionConfig) |
 | 丢弃     | 不需要迁移     | 3 项                     |
 
 ---
@@ -25,7 +25,6 @@
 
 | 原始字段         | 目标 Key                          | 类型                  |
 | ---------------- | --------------------------------- | --------------------- |
-| `providers`      | `chat.web_search.providers`        | `WebSearchProvider[]` |
 | `searchWithTime` | `chat.web_search.search_with_time` | `boolean`             |
 | `maxResults`     | `chat.web_search.max_results`      | `number`              |
 | `excludeDomains` | `chat.web_search.exclude_domains`  | `string[]`            |
@@ -41,7 +40,6 @@ npm run generate:migration
 
 ```typescript
 websearch: [
-  { originalKey: "providers", targetKey: "chat.web_search.providers" },
   {
     originalKey: "searchWithTime",
     targetKey: "chat.web_search.search_with_time",
@@ -55,6 +53,11 @@ websearch: [
 ```
 
 ---
+
+## 复杂映射: providers
+
+providers 通过 `ComplexPreferenceMappings.ts` 的 `websearch_providers_migrate` 迁移到
+`chat.web_search.provider_overrides`（`WebSearchProviderOverrides`），仅保留用户覆盖字段。
 
 ## 复杂映射: compressionConfig
 

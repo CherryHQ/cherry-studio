@@ -1,20 +1,18 @@
 /**
  * WebSearch Hooks - v2 Preference-based architecture
  *
- * Provider templates (immutable) are stored in code.
- * User configs (sparse object) are stored in Preference.
- * Runtime: template + userConfig = full provider
+ * Provider presets (immutable) are stored in code.
+ * User overrides (sparse object) are stored in Preference.
+ * Runtime: preset + override = full provider
  *
  * Compression configuration is flattened into individual preference keys.
  */
 
 import { usePreference } from '@data/hooks/usePreference'
-import { getAllProviders, getProviderTemplate, WEB_SEARCH_PROVIDER_TEMPLATES } from '@renderer/config/webSearch'
-import type {
-  WebSearchCompressionCutoffUnit,
-  WebSearchProvider,
-  WebSearchProviderUserConfig
-} from '@shared/data/preference/preferenceTypes'
+import { getAllProviders, getProviderTemplate } from '@renderer/config/webSearch'
+import type { WebSearchCompressionCutoffUnit, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProviderOverride } from '@shared/data/presets/web-search-providers'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 import { useCallback, useMemo } from 'react'
 
 // ============================================================================
@@ -22,36 +20,39 @@ import { useCallback, useMemo } from 'react'
 // ============================================================================
 
 /**
- * Remove empty/default values from user config (sparse object pattern)
- * Only keeps fields that have non-empty values
+ * Remove empty/default values from provider overrides
  */
-function cleanUserConfig(config: WebSearchProviderUserConfig): WebSearchProviderUserConfig {
-  const cleaned: WebSearchProviderUserConfig = { id: config.id }
+function cleanProviderOverride(overrides: WebSearchProviderOverride): WebSearchProviderOverride {
+  const cleaned: WebSearchProviderOverride = {}
 
-  if (config.apiKey && config.apiKey.trim() !== '') {
-    cleaned.apiKey = config.apiKey
+  const apiKey = overrides.apiKey?.trim()
+  if (apiKey) {
+    cleaned.apiKey = apiKey
   }
-  if (config.apiHost && config.apiHost.trim() !== '') {
-    cleaned.apiHost = config.apiHost
+  const apiHost = overrides.apiHost?.trim()
+  if (apiHost) {
+    cleaned.apiHost = apiHost
   }
-  if (config.engines && config.engines.length > 0) {
-    cleaned.engines = config.engines
+  if (overrides.engines && overrides.engines.length > 0) {
+    cleaned.engines = overrides.engines
   }
-  if (config.basicAuthUsername && config.basicAuthUsername.trim() !== '') {
-    cleaned.basicAuthUsername = config.basicAuthUsername
+  const basicAuthUsername = overrides.basicAuthUsername?.trim()
+  if (basicAuthUsername) {
+    cleaned.basicAuthUsername = basicAuthUsername
   }
-  if (config.basicAuthPassword && config.basicAuthPassword.trim() !== '') {
-    cleaned.basicAuthPassword = config.basicAuthPassword
+  const basicAuthPassword = overrides.basicAuthPassword?.trim()
+  if (basicAuthPassword) {
+    cleaned.basicAuthPassword = basicAuthPassword
   }
 
   return cleaned
 }
 
 /**
- * Check if user config has any non-id fields
+ * Check if override has any fields set
  */
-function hasNonIdFields(config: WebSearchProviderUserConfig): boolean {
-  return Object.keys(config).some((key) => key !== 'id')
+function hasOverrideValues(overrides: WebSearchProviderOverride): boolean {
+  return Object.keys(overrides).length > 0
 }
 
 // ============================================================================
@@ -61,60 +62,44 @@ function hasNonIdFields(config: WebSearchProviderUserConfig): boolean {
 /**
  * Hook for managing websearch providers
  *
- * Templates are stored in code (immutable).
- * User configs are stored in Preference (sparse object).
+ * Presets are stored in code (immutable).
+ * User overrides are stored in Preference (sparse object).
  * Returns merged full providers for runtime use.
  */
 export function useWebSearchProviders() {
-  const [userConfigs, setUserConfigs] = usePreference('chat.web_search.providers', { optimistic: false })
+  const [overrides, setOverrides] = usePreference('chat.web_search.provider_overrides', { optimistic: false })
 
-  // Merge templates with user configs to get full providers
-  const providers = useMemo(() => getAllProviders(userConfigs), [userConfigs])
+  // Merge presets with overrides to get full providers
+  const providers = useMemo(() => getAllProviders(overrides ?? {}), [overrides])
 
   /**
-   * Update a specific provider's user config
+   * Update a specific provider's overrides
    * Only saves non-empty fields (sparse object pattern)
    */
   const updateProvider = useCallback(
-    async (providerId: string, updates: Partial<WebSearchProviderUserConfig>) => {
-      // Validate provider exists in templates
+    async (providerId: string, updates: WebSearchProviderOverride) => {
+      // Validate provider exists in presets
       const template = getProviderTemplate(providerId)
       if (!template) {
         throw new Error(`Unknown provider ID: ${providerId}`)
       }
 
-      const newConfigs = [...userConfigs]
-      const existingIndex = newConfigs.findIndex((c) => c.id === providerId)
+      const nextOverrides = { ...overrides }
+      const merged = cleanProviderOverride({ ...nextOverrides[providerId], ...updates })
 
-      if (existingIndex >= 0) {
-        // Merge updates with existing config
-        const merged = cleanUserConfig({
-          ...newConfigs[existingIndex],
-          ...updates,
-          id: providerId
-        })
-
-        if (hasNonIdFields(merged)) {
-          newConfigs[existingIndex] = merged
-        } else {
-          // Remove entry if no non-id fields remain
-          newConfigs.splice(existingIndex, 1)
-        }
+      if (hasOverrideValues(merged)) {
+        nextOverrides[providerId] = merged
       } else {
-        // Add new config if it has non-id fields
-        const cleaned = cleanUserConfig({ ...updates, id: providerId })
-        if (hasNonIdFields(cleaned)) {
-          newConfigs.push(cleaned)
-        }
+        delete nextOverrides[providerId]
       }
 
-      await setUserConfigs(newConfigs)
+      await setOverrides(nextOverrides)
     },
-    [userConfigs, setUserConfigs]
+    [overrides, setOverrides]
   )
 
   /**
-   * Get a single provider by ID (merged with template)
+   * Get a single provider by ID (merged with preset)
    */
   const getProvider = useCallback(
     (providerId: string): WebSearchProvider | undefined => {
@@ -145,12 +130,45 @@ export function useWebSearchProviders() {
     [providers]
   )
 
+  /**
+   * Reset a provider to default preset values
+   * Removes all user overrides for the specified provider
+   *
+   * @param providerId - The provider ID to reset
+   */
+  const resetProvider = useCallback(
+    async (providerId: string) => {
+      if (!overrides) return
+      const { [providerId]: _removed, ...rest } = overrides
+      void _removed // Intentionally unused, extracting rest only
+      await setOverrides(rest)
+    },
+    [overrides, setOverrides]
+  )
+
+  /**
+   * Check if a provider has been customized by the user
+   *
+   * @param providerId - The provider ID to check
+   * @returns true if the provider has user overrides, false otherwise
+   */
+  const isCustomized = useCallback(
+    (providerId: string): boolean => {
+      if (!overrides) return false
+      const override = overrides[providerId]
+      return override !== undefined && hasOverrideValues(override)
+    },
+    [overrides]
+  )
+
   return {
     providers,
-    total: WEB_SEARCH_PROVIDER_TEMPLATES.length,
+    total: PRESETS_WEB_SEARCH_PROVIDERS.length,
     updateProvider,
     getProvider,
-    isProviderEnabled
+    isProviderEnabled,
+    resetProvider,
+    isCustomized
   }
 }
 
@@ -163,7 +181,7 @@ export function useWebSearchProvider(providerId: string) {
   const provider = useMemo(() => getProvider(providerId), [getProvider, providerId])
 
   const update = useCallback(
-    async (updates: Partial<WebSearchProviderUserConfig>) => {
+    async (updates: WebSearchProviderOverride) => {
       await updateProvider(providerId, updates)
     },
     [updateProvider, providerId]

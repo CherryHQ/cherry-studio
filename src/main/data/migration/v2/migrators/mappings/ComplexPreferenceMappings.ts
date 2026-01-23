@@ -80,14 +80,14 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
-  // WebSearch providers migration (add missing type field)
+  // WebSearch provider overrides migration
   {
     id: 'websearch_providers_migrate',
-    description: 'Migrate websearch providers array, adding type field and other missing fields',
+    description: 'Migrate websearch providers array into provider overrides',
     sources: {
       providers: { source: 'redux', category: 'websearch', key: 'providers' }
     },
-    targetKeys: ['chat.web_search.providers'],
+    targetKeys: ['chat.web_search.provider_overrides'],
     transform: migrateWebSearchProviders
   },
 

@@ -676,9 +676,11 @@ class WebSearchService {
   }
 
   public async getWebSearchProvider(providerId?: string): Promise<WebSearchProvider | undefined> {
-    const providers = await preferenceService.get('chat.web_search.providers')
-    logger.debug('providers', providers)
-    return providers.find((p) => p.id === providerId)
+    const overrides = await preferenceService.get('chat.web_search.provider_overrides')
+    if (!providerId) return undefined
+    const template = getProviderTemplate(providerId)
+    if (!template) return undefined
+    return mergeProviderConfig(template, overrides?.[providerId])
   }
 
   public async search(

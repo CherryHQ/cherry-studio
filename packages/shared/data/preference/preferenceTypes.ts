@@ -1,3 +1,4 @@
+import type { WebSearchProviderType } from '../presets/web-search-providers'
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -109,58 +110,27 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 // ============================================================================
 
 /**
- * Provider type classification
- */
-export type WebSearchProviderType = 'api' | 'local' | 'mcp'
-
-/**
- * User configuration type (sparse object)
- * Stored in Preference chat.web_search.providers
- * Only contains fields that user has actually modified
- */
-export interface WebSearchProviderUserConfig {
-  /** Provider ID, required for matching with template */
-  id: string
-  /** User's API key */
-  apiKey?: string
-  /** User's custom API host (overrides template default) */
-  apiHost?: string
-  /** Search engines (for SearXNG) */
-  engines?: string[]
-  /** Basic auth username */
-  basicAuthUsername?: string
-  /** Basic auth password */
-  basicAuthPassword?: string
-}
-
-/**
- * User configuration array
- * Stored in chat.web_search.providers
- */
-export type WebSearchProviderUserConfigs = WebSearchProviderUserConfig[]
-
-/**
  * Full WebSearch Provider configuration
- * Generated at runtime by merging template with user config
+ * Generated at runtime by merging preset with user overrides
  */
 export interface WebSearchProvider {
   /** Unique provider identifier */
   id: string
-  /** Display name (from template) */
+  /** Display name (from preset) */
   name: string
-  /** Provider type (from template) */
+  /** Provider type (from preset) */
   type: WebSearchProviderType
-  /** API key (from user config) */
+  /** API key (from user overrides) */
   apiKey: string
-  /** API host (user override or template default) */
+  /** API host (user override or preset default) */
   apiHost: string
-  /** Search engines (from user config) */
+  /** Search engines (from user overrides) */
   engines: string[]
-  /** Whether to use browser for search (from template) */
+  /** Whether to use browser for search (from preset) */
   usingBrowser: boolean
-  /** Basic auth username (from user config) */
+  /** Basic auth username (from user overrides) */
   basicAuthUsername: string
-  /** Basic auth password (from user config) */
+  /** Basic auth password (from user overrides) */
   basicAuthPassword: string
 }
 

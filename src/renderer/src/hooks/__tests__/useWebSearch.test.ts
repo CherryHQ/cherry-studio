@@ -1,4 +1,4 @@
-import type { WebSearchProviderUserConfig } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProviderOverrides } from '@shared/data/presets/web-search-providers'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -12,12 +12,6 @@ import {
   useWebSearchProviders
 } from '../useWebSearch'
 
-// Helper to create mock user configs (sparse object)
-const createMockUserConfig = (overrides: Partial<WebSearchProviderUserConfig> = {}): WebSearchProviderUserConfig => ({
-  id: 'test-provider',
-  ...overrides
-})
-
 describe('useWebSearch hooks', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
@@ -29,17 +23,17 @@ describe('useWebSearch hooks', () => {
 
   describe('useWebSearchProviders', () => {
     describe('providers', () => {
-      it('should return providers merged from templates and user configs', () => {
-        // User configs (sparse object - only store modified fields)
-        const mockUserConfigs: WebSearchProviderUserConfig[] = [
-          createMockUserConfig({ id: 'tavily', apiKey: 'my-tavily-key' }),
-          createMockUserConfig({ id: 'exa', apiKey: 'my-exa-key' })
-        ]
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', mockUserConfigs)
+      it('should return providers merged from templates and overrides', () => {
+        // Provider overrides (sparse object - only store modified fields)
+        const mockOverrides: WebSearchProviderOverrides = {
+          tavily: { apiKey: 'my-tavily-key' },
+          exa: { apiKey: 'my-exa-key' }
+        }
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', mockOverrides)
 
         const { result } = renderHook(() => useWebSearchProviders())
 
-        // Should return all template providers (9 total), merged with user configs
+        // Should return all template providers (9 total), merged with overrides
         expect(result.current.providers.length).toBe(9)
 
         // Tavily should have user's apiKey merged with template
@@ -50,7 +44,7 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return correct total count from templates', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -61,8 +55,10 @@ describe('useWebSearch hooks', () => {
 
     describe('getProvider', () => {
       it('should return provider for existing template ID', () => {
-        const mockUserConfigs: WebSearchProviderUserConfig[] = [createMockUserConfig({ id: 'tavily', apiKey: 'key1' })]
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', mockUserConfigs)
+        const mockOverrides: WebSearchProviderOverrides = {
+          tavily: { apiKey: 'key1' }
+        }
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', mockOverrides)
 
         const { result } = renderHook(() => useWebSearchProviders())
         const provider = result.current.getProvider('tavily')
@@ -73,7 +69,7 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return undefined for non-existing template ID', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
         const { result } = renderHook(() => useWebSearchProviders())
         const provider = result.current.getProvider('non-existent')
@@ -84,7 +80,7 @@ describe('useWebSearch hooks', () => {
 
     describe('updateProvider', () => {
       it('should update provider with partial data (sparse object)', async () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -93,14 +89,14 @@ describe('useWebSearch hooks', () => {
         })
 
         await waitFor(() => {
-          const updatedValue = MockUsePreferenceUtils.getPreferenceValue('chat.web_search.providers')
+          const updatedValue = MockUsePreferenceUtils.getPreferenceValue('chat.web_search.provider_overrides')
           // Should only store the modified field (sparse object)
-          expect(updatedValue).toEqual([{ id: 'tavily', apiKey: 'new-key' }])
+          expect(updatedValue).toEqual({ tavily: { apiKey: 'new-key' } })
         })
       })
 
       it('should throw error for non-existing template ID', async () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -114,7 +110,7 @@ describe('useWebSearch hooks', () => {
 
     describe('isProviderEnabled', () => {
       it('should return true for local provider', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -123,10 +119,10 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return true for api provider with apiKey', () => {
-        const mockUserConfigs: WebSearchProviderUserConfig[] = [
-          createMockUserConfig({ id: 'tavily', apiKey: 'some-key' })
-        ]
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', mockUserConfigs)
+        const mockOverrides: WebSearchProviderOverrides = {
+          tavily: { apiKey: 'some-key' }
+        }
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', mockOverrides)
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -134,8 +130,8 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return true for api provider with apiHost (template default)', () => {
-        // Tavily template has defaultApiHost, so it's enabled even without user config
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+        // Tavily template has defaultApiHost, so it's enabled even without overrides
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -145,16 +141,16 @@ describe('useWebSearch hooks', () => {
 
       it('should return false for api provider without apiKey and empty template apiHost', () => {
         // searxng template has empty defaultApiHost
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
         const { result } = renderHook(() => useWebSearchProviders())
 
-        // searxng has empty defaultApiHost and no user config, so not enabled
+        // searxng has empty defaultApiHost and no overrides, so not enabled
         expect(result.current.isProviderEnabled('searxng')).toBe(false)
       })
 
       it('should return false for non-existing provider', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -162,7 +158,7 @@ describe('useWebSearch hooks', () => {
       })
 
       it('should return false for undefined providerId', () => {
-        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+        MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
         const { result } = renderHook(() => useWebSearchProviders())
 
@@ -176,9 +172,11 @@ describe('useWebSearch hooks', () => {
   // ============================================================================
 
   describe('useWebSearchProvider', () => {
-    it('should return provider merged from template and user config', () => {
-      const mockUserConfigs: WebSearchProviderUserConfig[] = [createMockUserConfig({ id: 'tavily', apiKey: 'key1' })]
-      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', mockUserConfigs)
+    it('should return provider merged from template and overrides', () => {
+      const mockOverrides: WebSearchProviderOverrides = {
+        tavily: { apiKey: 'key1' }
+      }
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', mockOverrides)
 
       const { result } = renderHook(() => useWebSearchProvider('tavily'))
 
@@ -196,7 +194,7 @@ describe('useWebSearch hooks', () => {
     })
 
     it('should return undefined for non-existing template ID', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
       const { result } = renderHook(() => useWebSearchProvider('non-existent'))
 
@@ -204,7 +202,7 @@ describe('useWebSearch hooks', () => {
     })
 
     it('should update provider through updateProvider function', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.providers', [])
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
 
       const { result } = renderHook(() => useWebSearchProvider('tavily'))
 
@@ -213,8 +211,8 @@ describe('useWebSearch hooks', () => {
       })
 
       await waitFor(() => {
-        const updatedProviders = MockUsePreferenceUtils.getPreferenceValue('chat.web_search.providers')
-        expect(updatedProviders).toEqual([{ id: 'tavily', apiKey: 'new-api-key' }])
+        const updatedProviders = MockUsePreferenceUtils.getPreferenceValue('chat.web_search.provider_overrides')
+        expect(updatedProviders).toEqual({ tavily: { apiKey: 'new-api-key' } })
       })
     })
   })

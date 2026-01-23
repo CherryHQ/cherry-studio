@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { useTimer } from '@renderer/hooks/useTimer'
 import WebSearchService from '@renderer/services/webSearch/WebSearchService'
-import type { WebSearchProvider, WebSearchProviderUserConfig } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProviderOverride } from '@shared/data/presets/web-search-providers'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,7 +13,7 @@ type UpdatableField = 'apiKey' | 'apiHost' | 'basicAuthUsername' | 'basicAuthPas
 
 interface UseApiProviderSettingsProps {
   provider: WebSearchProvider
-  updateProvider: (updates: Partial<WebSearchProviderUserConfig>) => void
+  updateProvider: (updates: WebSearchProviderOverride) => void
 }
 
 export function useApiProviderSettings({ provider, updateProvider }: UseApiProviderSettingsProps) {
