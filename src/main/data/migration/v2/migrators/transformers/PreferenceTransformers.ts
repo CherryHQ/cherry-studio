@@ -153,7 +153,7 @@
  * ```
  */
 
-import { type FileProcessorTemplate, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+import { type FileProcessorTemplate, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 

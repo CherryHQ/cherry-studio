@@ -1,6 +1,6 @@
 import { Button, Field, FieldContent, FieldGroup, FieldLabel, Input } from '@cherrystudio/ui'
 import type { FileProcessorMerged } from '@renderer/hooks/useFileProcessors'
-import type { FileProcessorOverride } from '@shared/data/presets/file-processing'
+import type { FileProcessorOverride } from '@shared/data/presets/fileProcessing'
 import { Eye, EyeOff } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'

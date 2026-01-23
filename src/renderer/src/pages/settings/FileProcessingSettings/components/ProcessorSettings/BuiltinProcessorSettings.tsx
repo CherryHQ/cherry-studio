@@ -1,5 +1,5 @@
 import type { FileProcessorMerged } from '@renderer/hooks/useFileProcessors'
-import type { FileProcessorOverride } from '@shared/data/presets/file-processing'
+import type { FileProcessorOverride } from '@shared/data/presets/fileProcessing'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 

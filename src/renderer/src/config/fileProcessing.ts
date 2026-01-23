@@ -11,7 +11,7 @@ import {
   type FileProcessorInput,
   type FileProcessorTemplate,
   PRESETS_FILE_PROCESSORS
-} from '@shared/data/presets/file-processing'
+} from '@shared/data/presets/fileProcessing'
 
 export type {
   FeatureCapability,
@@ -20,8 +20,8 @@ export type {
   FileProcessorOutput,
   FileProcessorTemplate,
   FileProcessorType
-} from '@shared/data/presets/file-processing'
-export { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+} from '@shared/data/presets/fileProcessing'
+export { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 
 /**
  * Local alias kept for backward compatibility in renderer code.
@@ -65,27 +65,6 @@ export function supportsInput(processor: FileProcessorTemplate, input: FileProce
  */
 export function supportsFeature(processor: FileProcessorTemplate, feature: FileProcessorFeature): boolean {
   return processor.capabilities.some((c) => c.feature === feature)
-}
-
-/**
- * Check if processor supports a specific file format
- */
-export function supportsFormat(processor: FileProcessorTemplate, format: string, input: FileProcessorInput): boolean {
-  const capabilities = processor.capabilities.filter((c) => c.input === input)
-  if (capabilities.length === 0) return false
-
-  return capabilities.some((c) => {
-    // If supportedFormats specified, check whitelist
-    if (c.supportedFormats) {
-      return c.supportedFormats.includes(format)
-    }
-    // If excludedFormats specified, check blacklist
-    if (c.excludedFormats) {
-      return !c.excludedFormats.includes(format)
-    }
-    // Neither specified, all formats supported
-    return true
-  })
 }
 
 /**

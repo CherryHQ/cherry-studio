@@ -28,7 +28,7 @@
 
 import { MEMORY_FACT_EXTRACTION_PROMPT, MEMORY_UPDATE_SYSTEM_PROMPT, TRANSLATE_PROMPT } from '@shared/config/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
-import type { FileProcessorOverrides } from '@shared/data/presets/file-processing'
+import type { FileProcessorOverrides } from '@shared/data/presets/fileProcessing'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {
   "interfaces": { "order": "alphabetically" },

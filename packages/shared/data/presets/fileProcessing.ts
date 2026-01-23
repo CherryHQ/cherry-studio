@@ -35,19 +35,15 @@ export type FileProcessorOutput = 'text' | 'markdown'
  * Feature capability definition
  *
  * Each capability binds a feature with its input/output and optional API settings.
- * Format filtering rules:
- * - Neither specified: supports all formats in the input category
- * - supportedFormats specified: only supports listed formats (whitelist)
- * - excludedFormats specified: supports all except listed formats (blacklist)
  */
 export type FeatureCapability = {
   feature: FileProcessorFeature
   input: FileProcessorInput
-  supportedFormats?: string[] // Whitelist: only these formats supported
-  excludedFormats?: string[] // Blacklist: all formats except these
   output: FileProcessorOutput
   defaultApiHost?: string // Feature-level default API Host
   defaultModelId?: string // Feature-level default Model ID
+  // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
+  // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
 }
 
 /**

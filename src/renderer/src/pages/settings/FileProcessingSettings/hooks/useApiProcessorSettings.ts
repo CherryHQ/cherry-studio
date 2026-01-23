@@ -1,7 +1,7 @@
 import type { FeatureCapability } from '@renderer/config/fileProcessing'
 import type { FileProcessorMerged } from '@renderer/hooks/useFileProcessors'
 import { getEffectiveApiHost } from '@renderer/hooks/useFileProcessors'
-import type { FeatureUserConfig, FileProcessorOverride } from '@shared/data/presets/file-processing'
+import type { FeatureUserConfig, FileProcessorOverride } from '@shared/data/presets/fileProcessing'
 import { useCallback, useEffect, useState } from 'react'
 
 interface UseApiProcessorSettingsProps {

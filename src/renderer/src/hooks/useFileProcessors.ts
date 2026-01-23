@@ -12,7 +12,7 @@ import type {
   FileProcessorOptions,
   FileProcessorOverride,
   FileProcessorOverrides
-} from '@shared/data/presets/file-processing'
+} from '@shared/data/presets/fileProcessing'
 import { useCallback, useMemo } from 'react'
 import useSWRImmutable from 'swr/immutable'
 
