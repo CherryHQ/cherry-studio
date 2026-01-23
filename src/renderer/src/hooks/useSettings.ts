@@ -15,16 +15,17 @@
  * --------------------------------------------------------------------------
  */
 import { usePreference } from '@data/hooks/usePreference'
-import { useAppSelector } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import store from '@renderer/store'
 import type { SettingsState } from '@renderer/store/settings'
+import { setUseSystemTitleBar as _setUseSystemTitleBar } from '@renderer/store/settings'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)
-  // const dispatch = useAppDispatch()
+  const dispatch = useAppDispatch()
 
   return {
-    ...settings
+    ...settings,
     // setSendMessageShortcut(shortcut: SendMessageShortcut) {
     //   dispatch(_setSendMessageShortcut(shortcut))
     // },
@@ -97,7 +98,11 @@ export function useSettings() {
     // setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
     //   dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
     //   window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
-    // }
+    // },
+    setUseSystemTitleBar(useSystemTitleBar: boolean) {
+      dispatch(_setUseSystemTitleBar(useSystemTitleBar))
+      window.api.setUseSystemTitleBar(useSystemTitleBar)
+    }
   }
 }
 

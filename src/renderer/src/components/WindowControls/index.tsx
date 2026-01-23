@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { isLinux, isWin } from '@renderer/config/constant'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { Minus, Square, X } from 'lucide-react'
 import type { SVGProps } from 'react'
 import { useEffect, useState } from 'react'
@@ -49,6 +50,7 @@ export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIco
 const WindowControls: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false)
   const { t } = useTranslation()
+  const { useSystemTitleBar } = useSettings()
 
   useEffect(() => {
     // Check initial maximized state
@@ -64,6 +66,11 @@ const WindowControls: React.FC = () => {
 
   // Only show on Windows and Linux
   if (!isWin && !isLinux) {
+    return null
+  }
+
+  // Hide on Linux if using system title bar
+  if (isLinux && useSystemTitleBar) {
     return null
   }
 

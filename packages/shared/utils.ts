@@ -1,8 +1,47 @@
+import { normalizeHeaders, withUserAgentSuffix } from '@ai-sdk/provider-utils'
+
 export const defaultAppHeaders = () => {
   return {
     'HTTP-Referer': 'https://cherry-ai.com',
     'X-Title': 'Cherry Studio'
   }
+}
+
+/**
+ * 合并多个 headers 对象，自动标准化大小写
+ *
+ * @param headerSets - headers 集合（按顺序合并，后者覆盖前者，但 User-Agent 会追加）
+ * @returns 合并后的 headers（键全部小写）
+ *
+ * @example
+ * ```typescript
+ * const result = mergeHeaders(
+ *   { 'User-Agent': 'DefaultAgent', 'X-Custom': 'value1' },
+ *   { 'user-agent': 'CustomSuffix', 'X-Custom': 'value2' }
+ * )
+ * // result: { 'user-agent': 'DefaultAgent CustomSuffix', 'x-custom': 'value2' }
+ * ```
+ */
+export function mergeHeaders(
+  ...headerSets: Array<HeadersInit | Record<string, string | undefined> | undefined>
+): Record<string, string> {
+  const { result, userAgents } = headerSets.reduce(
+    (acc, headerSet) => {
+      const headers = new Headers(normalizeHeaders(headerSet))
+
+      const ua = headers.get('user-agent')
+      if (ua) {
+        acc.userAgents.push(ua)
+        headers.delete('user-agent')
+      }
+
+      headers.forEach((value, key) => acc.result.set(key, value))
+      return acc
+    },
+    { result: new Headers(), userAgents: [] as string[] }
+  )
+
+  return userAgents.length > 0 ? withUserAgentSuffix(result, ...userAgents) : Object.fromEntries(result.entries())
 }
 
 // Following two function are not being used for now.
