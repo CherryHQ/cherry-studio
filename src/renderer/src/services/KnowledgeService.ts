@@ -146,6 +146,12 @@ export const searchKnowledgeBase = async (
   parentSpanId?: string,
   modelName?: string
 ): Promise<Array<KnowledgeSearchResult & { file: FileMetadata | null }>> => {
+  // Truncate query based on embedding model's max_context to prevent embedding errors
+  const maxContext = getEmbeddingMaxContext(base.model.id)
+  if (maxContext && query.length > maxContext * 3) {
+    query = query.slice(0, maxContext * 3)
+  }
+
   let currentSpan: Span | undefined = undefined
   try {
     const baseParams = getKnowledgeBaseParams(base)
