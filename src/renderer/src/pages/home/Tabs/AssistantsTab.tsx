@@ -1,12 +1,13 @@
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import type { Assistant, AssistantsSortType, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,12 +33,11 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const { apiServerConfig } = useApiServer()
   const apiServerEnabled = apiServerConfig.enabled
-  const { chat } = useRuntime()
   const { t } = useTranslation()
 
   // Agent related hooks
   const { agents, deleteAgent, isLoading: agentsLoading, error: agentsError } = useAgents()
-  const { activeAgentId } = chat
+  const [activeAgentId] = useCache('agent.active_id')
   const { setActiveAgentId } = useActiveAgent()
 
   // Assistant related hooks
@@ -92,7 +92,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   )
 
   const handleSortByChange = useCallback(
-    (sortType: AssistantsSortType) => {
+    (sortType: AssistantTabSortType) => {
       setAssistantsTabSortType(sortType)
     },
     [setAssistantsTabSortType]
