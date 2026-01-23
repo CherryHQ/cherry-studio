@@ -513,8 +513,8 @@ npm run validate:gen
 ┌─────────────────────────────────────────────────────────────┐
 │  target-key-definitions.json                                 │
 │  ─────────────────────────────────────────                  │
-│  status: classified → 添加或覆盖                              │
-│  status: pending → 禁用（从结果中移除）                        │
+│  用途1: 复杂迁移 - 定义需要特殊转换逻辑的 target keys          │
+│  用途2: 纯新增 - 添加 v2 新功能的 preferences（非迁移）        │
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -524,7 +524,10 @@ npm run validate:gen
 
 ### target-key-definitions.json
 
-用于定义复杂映射产生的 target keys，或覆盖 classification.json 中的定义。
+用于定义无法通过 `classification.json` 简单映射处理的 preference keys。主要用于两个场景：
+
+1. **复杂迁移**: 定义需要特殊转换逻辑（对象拆分、多源合并、值计算等）产生的 target keys
+2. **纯新增（非迁移）**: 添加 v2 新功能的 preferences，这些配置不是从旧代码迁移的
 
 **文件结构**:
 
@@ -556,6 +559,41 @@ npm run validate:gen
 | `defaultValue` | ✓    | 默认值（支持 `VALUE: ...` 特殊格式）                     |
 | `status`       | ✓    | `classified` 启用，`pending` 禁用                        |
 | `description`  |      | 可选描述                                                 |
+
+#### 纯新增（非迁移）场景
+
+当需要添加一个全新的 preference（不是从旧代码迁移的 v2 新功能）时，直接在 `definitions` 数组中添加即可。
+
+**示例**: 添加 v2 版本新增的功能配置
+
+```json
+{
+  "definitions": [
+    {
+      "targetKey": "feature.new_assistant.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "启用新助手功能（v2 新增，非迁移）"
+    },
+    {
+      "targetKey": "feature.new_assistant.default_model",
+      "type": "string",
+      "defaultValue": "gpt-4",
+      "status": "classified",
+      "description": "新助手默认模型（v2 新增，非迁移）"
+    }
+  ]
+}
+```
+
+运行 `npm run generate:preferences` 后，这些 keys 会出现在生成的 `preferenceSchemas.ts` 中。
+
+**与复杂迁移的区别**:
+- 复杂迁移需要在 `PreferenceTransformers.ts` 和 `ComplexPreferenceMappings.ts` 中实现转换逻辑
+- 纯新增只需要在 `target-key-definitions.json` 中定义，无需额外代码
+
+**建议**: 在 `description` 中注明是"复杂迁移"还是"v2 新增，非迁移"，便于后续维护。
 
 **defaultValue 特殊格式**:
 
