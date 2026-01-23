@@ -472,7 +472,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   )
 
   return (
-    <>
+    <div>
       <PinnedTodoPanel topicId={sessionTopicId} />
       <InputbarCore
         scope={TopicType.Session}
@@ -491,7 +491,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         leftToolbar={leftToolbar}
         forceEnableQuickPanelTriggers
       />
-    </>
+    </div>
   )
 }
 
