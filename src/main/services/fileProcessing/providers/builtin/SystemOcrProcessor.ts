@@ -10,11 +10,12 @@ import { isLinux, isWin } from '@main/constant'
 import { loadOcrImage } from '@main/utils/ocr'
 import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
 
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
-import type { ProcessingContext, ProcessingResult } from '../../types'
+import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('SystemOcrProcessor')
 

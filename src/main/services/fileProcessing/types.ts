@@ -1,25 +1,5 @@
 // ============================================================================
-// Processing Result Type
-// ============================================================================
-
-/**
- * Processing result
- *
- * Contains the extracted text or markdown content along with metadata.
- */
-export interface ProcessingResult {
-  /** Extracted text content */
-  text?: string
-  /** Converted markdown content */
-  markdown?: string
-  /** Output file path (if saved to disk) */
-  outputPath?: string
-  /** Optional extension metadata (processor-specific) */
-  metadata?: Record<string, unknown>
-}
-
-// ============================================================================
-// Processing Context Types
+// Processing Context Types (runtime-specific, kept in service)
 // ============================================================================
 
 /**

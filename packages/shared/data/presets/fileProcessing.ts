@@ -23,6 +23,7 @@ export type FileProcessorFeature = 'text_extraction' | 'to_markdown'
 
 /**
  * Input type (category)
+ * Can be migrated to FileTypes enum in @types later
  */
 export type FileProcessorInput = 'image' | 'document'
 

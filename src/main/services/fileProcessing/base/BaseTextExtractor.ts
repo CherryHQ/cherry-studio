@@ -6,10 +6,11 @@
  */
 
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 
 import type { ITextExtractor } from '../interfaces'
-import type { ProcessingContext, ProcessingResult } from '../types'
+import type { ProcessingContext } from '../types'
 import { BaseFileProcessor } from './BaseFileProcessor'
 
 /**

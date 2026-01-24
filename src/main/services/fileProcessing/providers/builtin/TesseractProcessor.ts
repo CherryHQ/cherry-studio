@@ -10,6 +10,7 @@ import { getIpCountry } from '@main/utils/ipService'
 import { loadOcrImage } from '@main/utils/ocr'
 import { MB } from '@shared/config/constant'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
 import { app } from 'electron'
@@ -22,7 +23,7 @@ import { createWorker } from 'tesseract.js'
 
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
 import type { IDisposable } from '../../interfaces'
-import type { ProcessingContext, ProcessingResult } from '../../types'
+import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('TesseractProcessor')
 

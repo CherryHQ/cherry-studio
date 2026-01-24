@@ -14,13 +14,14 @@ import type { DocumentURLChunk } from '@mistralai/mistralai/models/components/do
 import type { ImageURLChunk } from '@mistralai/mistralai/models/components/imageurlchunk'
 import type { OCRResponse } from '@mistralai/mistralai/models/components/ocrresponse'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata, Provider } from '@types'
 import * as fs from 'fs'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
-import type { ProcessingContext, ProcessingResult } from '../../types'
+import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('MistralProcessor')
 

@@ -8,6 +8,7 @@
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import AdmZip from 'adm-zip'
 import { net } from 'electron'
@@ -16,7 +17,7 @@ import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
-import type { ProcessingContext, ProcessingResult } from '../../types'
+import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('MineruProcessor')
 

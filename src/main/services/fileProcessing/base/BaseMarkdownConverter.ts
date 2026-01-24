@@ -7,12 +7,13 @@
 
 import { getTempDir } from '@main/utils/file'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import * as fs from 'fs'
 import * as path from 'path'
 
 import type { IMarkdownConverter } from '../interfaces'
-import type { ProcessingContext, ProcessingResult } from '../types'
+import type { ProcessingContext } from '../types'
 import { BaseFileProcessor } from './BaseFileProcessor'
 
 /**

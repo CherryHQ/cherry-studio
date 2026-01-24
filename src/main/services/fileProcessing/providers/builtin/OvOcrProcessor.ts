@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
 import { exec } from 'child_process'
@@ -18,7 +19,7 @@ import * as path from 'path'
 import { promisify } from 'util'
 
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
-import type { ProcessingContext, ProcessingResult } from '../../types'
+import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('OvOcrProcessor')
 const execAsync = promisify(exec)

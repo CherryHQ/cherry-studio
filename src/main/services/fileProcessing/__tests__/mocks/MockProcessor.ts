@@ -5,6 +5,7 @@
  */
 
 import type { FileProcessorMerged, FileProcessorTemplate } from '@shared/data/presets/fileProcessing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 
@@ -12,7 +13,7 @@ import { BaseFileProcessor } from '../../base/BaseFileProcessor'
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
 import type { IMarkdownConverter, ITextExtractor } from '../../interfaces'
-import type { ProcessingContext, ProcessingResult } from '../../types'
+import type { ProcessingContext } from '../../types'
 
 /**
  * Create a mock FileProcessorTemplate with optional overrides

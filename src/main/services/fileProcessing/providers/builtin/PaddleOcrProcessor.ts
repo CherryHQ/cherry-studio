@@ -8,13 +8,14 @@
 import { loggerService } from '@logger'
 import { loadOcrImage } from '@main/utils/ocr'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
 import { net } from 'electron'
 import * as z from 'zod'
 
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
-import type { ProcessingContext, ProcessingResult } from '../../types'
+import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('PaddleOcrProcessor')
 
