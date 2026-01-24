@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "Always allow this tool",
         "allowRequest": "Allow tool request",
         "denyRequest": "Deny tool request",
         "hideDetails": "Hide tool details",
@@ -278,6 +279,7 @@
         "showDetails": "Show tool details"
       },
       "button": {
+        "allowAll": "Always Allow",
         "cancel": "Cancel",
         "run": "Run"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "New Topic"
       }
+    },
+    "alerts": {
+      "create_session": "Create a session",
+      "select_agent": "Select an agent"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "Cancel",
     "chat": "Chat",
     "clear": "Clear",
+    "clear_all": "Clear All",
+    "click_to_replace": "Click to replace",
     "close": "Close",
     "collapse": "Collapse",
     "completed": "Completed",
@@ -1234,9 +1242,15 @@
     "footnote": "Reference content",
     "footnotes": "References",
     "fullscreen": "Entered fullscreen mode. Press F11 to exit",
+    "generate_random_seed": "Generate random seed",
+    "get_embedding_dimension": "Get embedding dimension",
     "go_to_settings": "Go to settings",
+    "html_preview": "HTML Preview",
     "i_know": "I know",
     "ignore": "Ignore",
+    "image_preview": "Image preview",
+    "image_url": "Image URL",
+    "image_url_or_upload": "Enter image URL or upload file",
     "inspect": "Inspect",
     "invalid_value": "Invalid Value",
     "knowledge_base": "Knowledge Base",
@@ -1246,6 +1260,7 @@
     "models": "Models",
     "more": "More",
     "name": "Name",
+    "next_match": "Next match",
     "no_results": "No results",
     "none": "None",
     "off": "Off",
@@ -1257,13 +1272,17 @@
         "model": "Select a model"
       }
     },
+    "powered_by": "Powered by ",
     "preview": "Preview",
+    "previous_match": "Previous match",
     "prompt": "Prompt",
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
     "refresh": "Refresh",
     "regenerate": "Regenerate",
+    "remove_image": "Remove image",
     "rename": "Rename",
+    "required_field": "Required field",
     "reset": "Reset",
     "save": "Save",
     "saved": "Saved",
@@ -1286,13 +1305,28 @@
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
+    "translate_text": "Translate text",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
     "unsubscribe": "Unsubscribe",
     "update_success": "Update successfully",
     "upload_files": "Upload file",
+    "upload_image": "Upload image file",
+    "uploaded_image": "Uploaded image",
     "warning": "Warning",
     "you": "You"
+  },
+  "dialog": {
+    "all_files": "All Files",
+    "html_files": "HTML Files",
+    "open_file": "Open File",
+    "pdf_files": "PDF Files",
+    "png_image": "PNG Image",
+    "save_as_html": "Save as HTML",
+    "save_as_pdf": "Save as PDF",
+    "save_file": "Save File",
+    "select_folder": "Select Folder",
+    "word_document": "Word Document"
   },
   "docs": {
     "title": "Docs"
@@ -2015,10 +2049,65 @@
       "cancelled": "Cancelled",
       "completed": "Completed",
       "error": "Error occurred",
+      "groupHeader": "{{count}} tool calls",
       "invoking": "Invoking",
+      "labels": {
+        "bash": "Bash",
+        "edit": "Edit",
+        "exitPlanMode": "ExitPlanMode",
+        "glob": "Glob",
+        "grep": "Grep",
+        "mcpServerTool": "MCP Server Tool",
+        "multiEdit": "MultiEdit",
+        "notebookEdit": "NotebookEdit",
+        "readFile": "Read File",
+        "search": "Search",
+        "skill": "Skill",
+        "task": "Task",
+        "todoWrite": "Todo Write",
+        "tool": "Tool",
+        "webFetch": "Web Fetch",
+        "webSearch": "Web Search",
+        "write": "Write"
+      },
+      "noData": "No data available for this tool",
       "pending": "Pending",
       "preview": "Preview",
-      "raw": "Raw"
+      "raw": "Raw",
+      "runningCount": "{{count}} tools running",
+      "sections": {
+        "command": "Command",
+        "exitCode": "Exit Code",
+        "input": "Input",
+        "output": "Output",
+        "prompt": "Prompt",
+        "searchQuery": "Search Query",
+        "searchResults": "Search Results",
+        "stderr": "stderr",
+        "stdout": "stdout"
+      },
+      "status": {
+        "done": "Done",
+        "error": "Error",
+        "failed": "Failed",
+        "running": "Running",
+        "success": "Success"
+      },
+      "truncated": "Output truncated (original: {{size}})",
+      "units": {
+        "done_one": "{{count}} Done",
+        "done_other": "{{count}} Done",
+        "file_one": "{{count}} file",
+        "file_other": "{{count}} files",
+        "item_one": "{{count}} item",
+        "item_other": "{{count}} items",
+        "line_one": "{{count}} line",
+        "line_other": "{{count}} lines",
+        "plan_one": "{{count}} plan",
+        "plan_other": "{{count}} plans",
+        "result_one": "{{count}} result",
+        "result_other": "{{count}} results"
+      }
     },
     "topic": {
       "added": "New topic added"
@@ -2443,6 +2532,39 @@
       }
     },
     "custom_size": "Custom Size",
+    "dmxapi": {
+      "generating_tip": "Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "style": ", Style: ",
+      "style_types": {
+        "25d_animation": "2.5D Animation",
+        "3d_cartoon": "3D Cartoon",
+        "american_retro": "American Retro",
+        "baroque": "Baroque",
+        "cartoon_illustration": "Cartoon Illustration",
+        "chinese_gongbi": "Chinese Gongbi",
+        "clay": "Clay",
+        "cyberpunk": "Cyberpunk",
+        "felt": "Felt",
+        "flat": "Flat",
+        "fresh_anime": "Fresh Anime",
+        "ghibli": "Ghibli",
+        "japanese_anime": "Japanese Anime",
+        "little_people_book": "Little People Book",
+        "monet_garden": "Monet Garden",
+        "oil_painting": "Oil Painting",
+        "pixar": "Pixar",
+        "pixel_art": "Pixel Art",
+        "poetic_ancient": "Poetic Ancient",
+        "psychedelic": "Psychedelic",
+        "sketch": "Sketch",
+        "street_art": "Street Art",
+        "texture": "Texture",
+        "ukiyo_e": "Ukiyo-e",
+        "watercolor": "Watercolor",
+        "wood_carving": "Wood Carving",
+        "yarn_doll": "Yarn Doll"
+      }
+    },
     "edit": {
       "image_file": "Edited Image",
       "magic_prompt_option_tip": "Intelligently enhances editing prompts",
@@ -2467,6 +2589,7 @@
       "style_type_tip": "Image generation style for V_2 and above",
       "width": "Width"
     },
+    "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
@@ -2477,6 +2600,7 @@
     "image_file_required": "Please upload an image first",
     "image_file_retry": "Please re-upload an image first",
     "image_handle_required": "Please upload an image first.",
+    "image_mix_failed": "Failed to mix images",
     "image_placeholder": "No image available",
     "image_retry": "Retry",
     "image_size_options": {
@@ -2486,6 +2610,7 @@
     "inference_steps_tip": "The number of inference steps to perform. More steps produce higher quality but take longer",
     "input_image": "Input Image",
     "input_parameters": "Input Parameters",
+    "invalid_image_url": "Invalid image URL format",
     "learn_more": "Learn More",
     "magic_prompt_option": "Magic Prompt",
     "mode": {
@@ -2507,6 +2632,7 @@
     "no_image_generation_model": "No available image generation model, please add a model and set the endpoint type to {{endpoint_type}}",
     "number_images": "Number Images",
     "number_images_tip": "Number of images to generate (1-4)",
+    "operation_failed": "Operation failed, please try again later",
     "paint_course": "tutorial",
     "per_image": "per image",
     "per_images": "per images",
@@ -2582,6 +2708,26 @@
       "resemblance": "Similarity",
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
+    },
+    "zhipu": {
+      "custom_size_divisible": "Custom size must be divisible by 16",
+      "custom_size_hint": "Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
+      "custom_size_pixels": "Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_range": "Custom size must be between 512px-2048px",
+      "custom_size_required": "Please set custom width and height",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024 (Default)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "Standard (Default)"
+      }
     }
   },
   "plugins": {
@@ -2592,6 +2738,20 @@
     "category": "Category",
     "commands": "Commands",
     "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
+    "content_saved": "Plugin content saved successfully",
+    "detail": {
+      "allowed_tools": "Allowed Tools",
+      "author": "Author",
+      "content": "Content",
+      "description": "Description",
+      "file": "File",
+      "installed": "Installed",
+      "metadata": "Metadata",
+      "size": "Size",
+      "source": "Source",
+      "tags": "Tags",
+      "tools": "Tools"
+    },
     "install": "Install",
     "install_plugins_from_browser": "Browse available plugins to get started",
     "installing": "Installing...",
@@ -2941,6 +3101,11 @@
         "search": "Search",
         "summary": "Summarize",
         "translate": "Translate"
+      },
+      "prompt": {
+        "explain": "Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
+        "refine": "Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
         "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
@@ -4035,6 +4200,10 @@
       "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
+      "lanyun": {
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "Lanyun Technology"
+      },
       "logoUrl": "Logo URL",
       "logs": "Logs",
       "longRunning": "Long Running Mode",
@@ -4131,6 +4300,14 @@
         "getToken": "Get API Token",
         "getTokenDescription": "Retrieve your personal API token from your account",
         "noServersAvailable": "No MCP servers available",
+        "providerDescriptions": {
+          "302ai": "302.AI Platform MCP Service",
+          "bailian": "Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "MCP Router Platform MCP Service",
+          "modelscope": "ModelScope Platform MCP Service",
+          "tokenflux": "TokenFlux Platform MCP Service"
+        },
         "selectProvider": "Select Provider:",
         "setToken": "Enter Your Token",
         "success": "Sync MCP Servers successful",
@@ -4608,6 +4785,9 @@
         "title": "Delete Provider"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "www.DMXAPI.com (International)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Select the platform"
       },
       "docs_check": "Check",

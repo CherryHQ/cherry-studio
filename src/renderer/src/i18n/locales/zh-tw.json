@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "總是允許此工具",
         "allowRequest": "允許工具請求",
         "denyRequest": "拒絕工具請求",
         "hideDetails": "隱藏工具詳細資訊",
@@ -278,6 +279,7 @@
         "showDetails": "顯示工具詳細資訊"
       },
       "button": {
+        "allowAll": "總是允許",
         "cancel": "取消",
         "run": "執行"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "新增話題"
       }
+    },
+    "alerts": {
+      "create_session": "建立工作階段",
+      "select_agent": "選擇一個代理人"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "取消",
     "chat": "聊天",
     "clear": "清除",
+    "clear_all": "全部清除",
+    "click_to_replace": "點擊以替換",
     "close": "關閉",
     "collapse": "收合",
     "completed": "已完成",
@@ -1234,9 +1242,15 @@
     "footnote": "引用內容",
     "footnotes": "引用",
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
+    "generate_random_seed": "產生隨機種子",
+    "get_embedding_dimension": "取得嵌入維度",
     "go_to_settings": "前往設定",
+    "html_preview": "HTML 預覽",
     "i_know": "我知道了",
     "ignore": "忽略",
+    "image_preview": "圖片預覽",
+    "image_url": "圖片網址",
+    "image_url_or_upload": "輸入圖片網址或上傳檔案",
     "inspect": "檢查",
     "invalid_value": "無效值",
     "knowledge_base": "知識庫",
@@ -1246,6 +1260,7 @@
     "models": "模型",
     "more": "更多",
     "name": "名稱",
+    "next_match": "下一場比賽",
     "no_results": "沒有結果",
     "none": "無",
     "off": "關閉",
@@ -1257,13 +1272,17 @@
         "model": "選擇模型"
       }
     },
+    "powered_by": "技術提供",
     "preview": "預覽",
+    "previous_match": "上一場比賽",
     "prompt": "提示詞",
     "provider": "供應商",
     "reasoning_content": "已深度思考",
     "refresh": "重新整理",
     "regenerate": "重新產生",
+    "remove_image": "移除圖片",
     "rename": "重新命名",
+    "required_field": "必填欄位",
     "reset": "重設",
     "save": "儲存",
     "saved": "已儲存",
@@ -1286,13 +1305,28 @@
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
+    "translate_text": "翻譯文字",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "取消訂閱",
     "update_success": "更新成功",
     "upload_files": "上傳檔案",
+    "upload_image": "上傳圖片檔案",
+    "uploaded_image": "已上傳圖片",
     "warning": "警告",
     "you": "您"
+  },
+  "dialog": {
+    "all_files": "所有檔案",
+    "html_files": "HTML 檔案",
+    "open_file": "開啟檔案",
+    "pdf_files": "PDF 檔案",
+    "png_image": "PNG 影像",
+    "save_as_html": "儲存為 HTML",
+    "save_as_pdf": "儲存為 PDF",
+    "save_file": "儲存檔案",
+    "select_folder": "選擇資料夾",
+    "word_document": "Word 文件"
   },
   "docs": {
     "title": "說明文件"
@@ -2015,10 +2049,65 @@
       "cancelled": "已取消",
       "completed": "已完成",
       "error": "發生錯誤",
+      "groupHeader": "{{count}} 次工具呼叫",
       "invoking": "呼叫中",
+      "labels": {
+        "bash": "執行命令",
+        "edit": "編輯",
+        "exitPlanMode": "退出計畫模式",
+        "glob": "檔案匹配",
+        "grep": "搜尋",
+        "mcpServerTool": "MCP 伺服器工具",
+        "multiEdit": "批次編輯",
+        "notebookEdit": "筆記本編輯",
+        "readFile": "讀取檔案",
+        "search": "搜尋",
+        "skill": "技能",
+        "task": "任務",
+        "todoWrite": "待辦寫入",
+        "tool": "工具",
+        "webFetch": "網頁擷取",
+        "webSearch": "網頁搜尋",
+        "write": "寫入"
+      },
+      "noData": "此工具暫無可用資料",
       "pending": "等待中",
       "preview": "預覽",
-      "raw": "原始碼"
+      "raw": "原始碼",
+      "runningCount": "{{count}} 個工具正在運行",
+      "sections": {
+        "command": "命令",
+        "exitCode": "退出碼",
+        "input": "輸入",
+        "output": "輸出",
+        "prompt": "提示",
+        "searchQuery": "搜尋查詢",
+        "searchResults": "搜尋結果",
+        "stderr": "標準錯誤",
+        "stdout": "標準輸出"
+      },
+      "status": {
+        "done": "完成",
+        "error": "錯誤",
+        "failed": "失敗",
+        "running": "執行中",
+        "success": "成功"
+      },
+      "truncated": "輸出已截斷（原始大小：{{size}}）",
+      "units": {
+        "done_one": "{{count}} 完成",
+        "done_other": "{{count}} 完成",
+        "file_one": "{{count}} 個檔案",
+        "file_other": "{{count}} 個檔案",
+        "item_one": "{{count}} 個項目",
+        "item_other": "{{count}} 個項目",
+        "line_one": "{{count}} 行",
+        "line_other": "{{count}} 行",
+        "plan_one": "{{count}} 方案",
+        "plan_other": "{{count}} 個方案",
+        "result_one": "{{count}} 個結果",
+        "result_other": "{{count}} 個結果"
+      }
     },
     "topic": {
       "added": "新話題已新增"
@@ -2443,6 +2532,39 @@
       }
     },
     "custom_size": "自訂尺寸",
+    "dmxapi": {
+      "generating_tip": "使用官方模型生成，預計等待時間為 2–5 分鐘以獲得最佳結果。請查看 DMXAPI 後端日誌以了解此操作的成本。",
+      "style": "，風格：",
+      "style_types": {
+        "25d_animation": "2.5D動畫",
+        "3d_cartoon": "3D卡通",
+        "american_retro": "美式復古",
+        "baroque": "巴洛克",
+        "cartoon_illustration": "卡通插圖",
+        "chinese_gongbi": "中國工筆",
+        "clay": "黏土",
+        "cyberpunk": "賽博龐克",
+        "felt": "氈",
+        "flat": "平的",
+        "fresh_anime": "新鮮動漫",
+        "ghibli": "吉卜力",
+        "japanese_anime": "日本動畫",
+        "little_people_book": "小小人書",
+        "monet_garden": "莫內花園",
+        "oil_painting": "油畫",
+        "pixar": "皮克斯",
+        "pixel_art": "像素藝術",
+        "poetic_ancient": "詩意的古代",
+        "psychedelic": "迷幻",
+        "sketch": "草圖",
+        "street_art": "街頭藝術",
+        "texture": "質地",
+        "ukiyo_e": "浮世繪",
+        "watercolor": "水彩",
+        "wood_carving": "木雕",
+        "yarn_doll": "毛線娃娃"
+      }
+    },
     "edit": {
       "image_file": "編輯影像",
       "magic_prompt_option_tip": "開啟後會自動調整編輯提示詞，以提升效果",
@@ -2467,6 +2589,7 @@
       "style_type_tip": "產生圖片的風格，僅適用於 V_2 及以上版本",
       "width": "寬度"
     },
+    "generate_failed": "無法生成圖片",
     "generated_image": "產生的圖片",
     "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
@@ -2477,6 +2600,7 @@
     "image_file_required": "請先上傳圖片",
     "image_file_retry": "請重新上傳圖片",
     "image_handle_required": "請先上傳圖片。",
+    "image_mix_failed": "無法混合圖片",
     "image_placeholder": "無圖片",
     "image_retry": "重試",
     "image_size_options": {
@@ -2486,6 +2610,7 @@
     "inference_steps_tip": "要執行的推理步數。步數越多，品質越高但耗時越長",
     "input_image": "輸入圖片",
     "input_parameters": "輸入參數",
+    "invalid_image_url": "圖片網址格式無效",
     "learn_more": "了解更多",
     "magic_prompt_option": "提示詞增強",
     "mode": {
@@ -2507,6 +2632,7 @@
     "no_image_generation_model": "暫無可用的圖片產生模型，請先新增模型並設定端點類型為 {{endpoint_type}}",
     "number_images": "張數",
     "number_images_tip": "一次產生的圖片數量 (1-4)",
+    "operation_failed": "操作失敗，請稍後再試",
     "paint_course": "教學",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
@@ -2582,6 +2708,26 @@
       "resemblance": "相似度",
       "resemblance_tip": "控制放大結果與原圖的相似程度",
       "seed_tip": "控制放大結果的隨機性"
+    },
+    "zhipu": {
+      "custom_size_divisible": "自訂尺寸必須能被 16 整除",
+      "custom_size_hint": "寬度和高度必須介於 512px 到 2048px 之間，可被 16 整除，且總像素數不得超過 2^21px。",
+      "custom_size_pixels": "自訂尺寸的總像素數不可超過 2,097,152",
+      "custom_size_range": "自訂尺寸必須介於 512 像素至 2048 像素之間",
+      "custom_size_required": "請設定自訂寬度和高度",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024（預設）",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "標準（預設）"
+      }
     }
   },
   "plugins": {
@@ -2592,6 +2738,20 @@
     "category": "類別",
     "commands": "指令",
     "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "content_saved": "外掛內容已成功儲存",
+    "detail": {
+      "allowed_tools": "允許的工具",
+      "author": "作者",
+      "content": "內容",
+      "description": "描述",
+      "file": "檔案",
+      "installed": "已安裝",
+      "metadata": "詮釋資料",
+      "size": "尺寸",
+      "source": "來源",
+      "tags": "標籤",
+      "tools": "工具"
+    },
     "install": "安裝",
     "install_plugins_from_browser": "瀏覽可用外掛以開始使用",
     "installing": "安裝中...",
@@ -2941,6 +3101,11 @@
         "search": "搜尋",
         "summary": "總結",
         "translate": "翻譯"
+      },
+      "prompt": {
+        "explain": "請說明以下內容。要求：以{{language}}回覆；不要包含任何對此提示的說明，直接給出回應：",
+        "refine": "請優化或潤飾以 XML 標籤 <INPUT> 包覆的使用者輸入內容，同時保留原意與完整性。要求：輸出須與使用者輸入使用相同語言；不需包含本提示的任何說明，直接給出回應；勿輸出 XML 標籤，直接輸出優化後的內容：\n\n{{text}}",
+        "summary": "請直接以{{language}}回覆，無須任何說明。"
       },
       "translate": {
         "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"
@@ -4035,6 +4200,10 @@
       "jsonModeHint": "編輯 MCP 伺服器設定的 JSON 表示。儲存前請確認格式正確",
       "jsonSaveError": "儲存 JSON 設定失敗",
       "jsonSaveSuccess": "JSON 設定已儲存",
+      "lanyun": {
+        "description": "藍雲科技雲平台MCP服務",
+        "name": "藍雲科技"
+      },
       "logoUrl": "Logo URL",
       "logs": "日誌",
       "longRunning": "長時間運作模式",
@@ -4131,6 +4300,14 @@
         "getToken": "取得 API 權杖",
         "getTokenDescription": "從帳戶取得個人 API 權杖",
         "noServersAvailable": "無可用的 MCP 伺服器",
+        "providerDescriptions": {
+          "302ai": "302.AI 平台 MCP 服務",
+          "bailian": "阿里雲百鍊平台 MCP 服務",
+          "lanyun": "藍雲科技雲平台 MCP 服務",
+          "mcprouter": "MCP 路由器平台 MCP 服務",
+          "modelscope": "ModelScope平台MCP服務",
+          "tokenflux": "TokenFlux 平台 MCP 服務"
+        },
         "selectProvider": "選擇提供者：",
         "setToken": "輸入權杖",
         "success": "同步 MCP 伺服器成功",
@@ -4608,6 +4785,9 @@
         "title": "刪除提供者"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com（企業版）",
+        "platform_international": "www.DMXAPI.com（國際）",
+        "platform_official": "www.DMXAPI.cn（人民幣）",
         "select_platform": "選擇平台"
       },
       "docs_check": "檢查",

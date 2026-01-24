@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "常にこのツールを許可する",
         "allowRequest": "ツールリクエストを許可",
         "denyRequest": "ツールリクエストを拒否",
         "hideDetails": "ツールの詳細を非表示",
@@ -278,6 +279,7 @@
         "showDetails": "ツールの詳細を表示"
       },
       "button": {
+        "allowAll": "常に許可",
         "cancel": "キャンセル",
         "run": "走る"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "新しいトピック"
       }
+    },
+    "alerts": {
+      "create_session": "セッションを作成",
+      "select_agent": "エージェントを選択してください"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "キャンセル",
     "chat": "チャット",
     "clear": "クリア",
+    "clear_all": "すべてクリア",
+    "click_to_replace": "クリックして置換",
     "close": "閉じる",
     "collapse": "折りたたむ",
     "completed": "完了",
@@ -1234,9 +1242,15 @@
     "footnote": "引用内容",
     "footnotes": "脚注",
     "fullscreen": "全画面モードに入りました。F11キーで終了します",
+    "generate_random_seed": "ランダムシードを生成",
+    "get_embedding_dimension": "埋め込み次元を取得",
     "go_to_settings": "設定に移動",
+    "html_preview": "HTMLプレビュー",
     "i_know": "わかりました",
     "ignore": "無視",
+    "image_preview": "画像プレビュー",
+    "image_url": "画像URL",
+    "image_url_or_upload": "画像のURLを入力するか、ファイルをアップロードしてください",
     "inspect": "検査",
     "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
@@ -1246,6 +1260,7 @@
     "models": "モデル",
     "more": "もっと",
     "name": "名前",
+    "next_match": "次の試合",
     "no_results": "検索結果なし",
     "none": "無",
     "off": "オフ",
@@ -1257,13 +1272,17 @@
         "model": "モデルを選択"
       }
     },
+    "powered_by": "搭載",
     "preview": "プレビュー",
+    "previous_match": "前回の試合",
     "prompt": "プロンプト",
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
     "refresh": "更新",
     "regenerate": "再生成",
+    "remove_image": "画像を削除",
     "rename": "名前を変更",
+    "required_field": "必須項目",
     "reset": "リセット",
     "save": "保存",
     "saved": "保存されました",
@@ -1286,13 +1305,28 @@
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
+    "translate_text": "翻訳",
     "unknown": "Unknown",
     "unnamed": "無題",
     "unsubscribe": "配信停止",
     "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
+    "upload_image": "画像ファイルをアップロード",
+    "uploaded_image": "アップロードされた画像",
     "warning": "警告",
     "you": "あなた"
+  },
+  "dialog": {
+    "all_files": "すべてのファイル",
+    "html_files": "HTMLファイル",
+    "open_file": "ファイルを開く",
+    "pdf_files": "PDFファイル",
+    "png_image": "PNG画像",
+    "save_as_html": "HTMLとして保存",
+    "save_as_pdf": "PDFとして保存",
+    "save_file": "ファイルを保存",
+    "select_folder": "フォルダを選択",
+    "word_document": "ワード文書"
   },
   "docs": {
     "title": "ドキュメント"
@@ -2015,10 +2049,65 @@
       "cancelled": "キャンセル",
       "completed": "完了",
       "error": "エラーが発生しました",
+      "groupHeader": "{{count}}ツール呼び出し",
       "invoking": "呼び出し中",
+      "labels": {
+        "bash": "バッシュ",
+        "edit": "編集",
+        "exitPlanMode": "ExitPlanMode",
+        "glob": "グローブ",
+        "grep": "グレップ",
+        "mcpServerTool": "MCPサーバーツール",
+        "multiEdit": "マルチエディット",
+        "notebookEdit": "ノートブック編集",
+        "readFile": "ファイルを読む",
+        "search": "検索",
+        "skill": "スキル",
+        "task": "タスク",
+        "todoWrite": "やること 書く",
+        "tool": "ツール",
+        "webFetch": "ウェブフェッチ",
+        "webSearch": "ウェブ検索",
+        "write": "書く"
+      },
+      "noData": "このツールに利用可能なデータはありません",
       "pending": "保留中",
       "preview": "プレビュー",
-      "raw": "生データ"
+      "raw": "生データ",
+      "runningCount": "{{count}}個のツールが実行中",
+      "sections": {
+        "command": "コマンド",
+        "exitCode": "終了コード",
+        "input": "入力",
+        "output": "出力",
+        "prompt": "プロンプト",
+        "searchQuery": "検索クエリ",
+        "searchResults": "検索結果",
+        "stderr": "標準エラー出力",
+        "stdout": "標準出力"
+      },
+      "status": {
+        "done": "完了",
+        "error": "エラー",
+        "failed": "失敗",
+        "running": "走っている",
+        "success": "成功"
+      },
+      "truncated": "出力が切り捨てられました（元のサイズ: {{size}}）",
+      "units": {
+        "done_one": "{{count}} 完了",
+        "done_other": "{{count}} 完了",
+        "file_one": "{{count}} ファイル",
+        "file_other": "{{count}}個のファイル",
+        "item_one": "{{count}}個のアイテム",
+        "item_other": "{{count}}件のアイテム",
+        "line_one": "{{count}}行",
+        "line_other": "{{count}}行",
+        "plan_one": "{{count}} プラン",
+        "plan_other": "{{count}}件のプラン",
+        "result_one": "{{count}}件の結果",
+        "result_other": "{{count}}件の結果"
+      }
     },
     "topic": {
       "added": "新しいトピックが追加されました"
@@ -2443,6 +2532,39 @@
       }
     },
     "custom_size": "カスタムサイズ",
+    "dmxapi": {
+      "generating_tip": "公式モデルで生成中です。最良の結果のため、推定待機時間は2〜5分です。この操作のコストについては、DMXAPIバックエンドログをご確認ください。",
+      "style": "スタイル：",
+      "style_types": {
+        "25d_animation": "2.5Dアニメーション",
+        "3d_cartoon": "3Dカートゥーン",
+        "american_retro": "アメリカン・レトロ",
+        "baroque": "バロック",
+        "cartoon_illustration": "漫画風イラスト",
+        "chinese_gongbi": "中国の工筆",
+        "clay": "クレイ",
+        "cyberpunk": "サイバーパンク",
+        "felt": "フェルト",
+        "flat": "平ら",
+        "fresh_anime": "フレッシュアニメ",
+        "ghibli": "ジブリ",
+        "japanese_anime": "日本のアニメ",
+        "little_people_book": "小人の本",
+        "monet_garden": "モネ庭園",
+        "oil_painting": "油絵",
+        "pixar": "ピクサー",
+        "pixel_art": "ピクセルアート",
+        "poetic_ancient": "詩的な古代",
+        "psychedelic": "サイケデリック",
+        "sketch": "スケッチ",
+        "street_art": "ストリートアート",
+        "texture": "テクスチャ",
+        "ukiyo_e": "浮世絵",
+        "watercolor": "水彩画",
+        "wood_carving": "木彫刻",
+        "yarn_doll": "糸人形"
+      }
+    },
     "edit": {
       "image_file": "編集画像",
       "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します",
@@ -2467,6 +2589,7 @@
       "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
       "width": "幅"
     },
+    "generate_failed": "画像の生成に失敗しました",
     "generated_image": "生成画像",
     "go_to_settings": "設定に移動",
     "guidance_scale": "ガイダンススケール",
@@ -2477,6 +2600,7 @@
     "image_file_required": "画像を先にアップロードしてください",
     "image_file_retry": "画像を先にアップロードしてください",
     "image_handle_required": "最初に画像をアップロードしてください。",
+    "image_mix_failed": "画像の混合に失敗しました",
     "image_placeholder": "画像がありません",
     "image_retry": "再試行",
     "image_size_options": {
@@ -2486,6 +2610,7 @@
     "inference_steps_tip": "実行する推論ステップ数。ステップ数が多いほど品質が向上しますが、時間がかかります",
     "input_image": "入力画像",
     "input_parameters": "パラメータ入力",
+    "invalid_image_url": "無効な画像URLの形式",
     "learn_more": "詳しくはこちら",
     "magic_prompt_option": "プロンプト強化",
     "mode": {
@@ -2507,6 +2632,7 @@
     "no_image_generation_model": "利用可能な画像生成モデルがありません。モデルを追加し、エンドポイントタイプを {{endpoint_type}} に設定してください",
     "number_images": "生成数",
     "number_images_tip": "生成する画像の数（1-4）",
+    "operation_failed": "操作に失敗しました。後でもう一度お試しください。",
     "paint_course": "チュートリアル",
     "per_image": "1枚あたり",
     "per_images": "複数枚あたり",
@@ -2582,6 +2708,26 @@
       "resemblance": "類似度",
       "resemblance_tip": "拡大結果と原画像の類似度を制御します",
       "seed_tip": "拡大結果のランダム性を制御します"
+    },
+    "zhipu": {
+      "custom_size_divisible": "カスタムサイズは16で割り切れる必要があります",
+      "custom_size_hint": "幅と高さは512px～2048pxの間で16で割り切れ、総ピクセル数は2^21pxを超えてはなりません",
+      "custom_size_pixels": "カスタムサイズの総ピクセル数は2,097,152を超えることはできません",
+      "custom_size_range": "カスタムサイズは512px～2048pxの間でなければなりません",
+      "custom_size_required": "カスタム幅と高さを設定してください",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024（デフォルト）",
+        "1152x864": "1152×864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864×1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "標準（デフォルト）"
+      }
     }
   },
   "plugins": {
@@ -2592,6 +2738,20 @@
     "category": "カテゴリー",
     "commands": "命令",
     "confirm_uninstall": "{{name}}をアンインストールしてもよろしいですか？",
+    "content_saved": "プラグインコンテンツが正常に保存されました",
+    "detail": {
+      "allowed_tools": "許可されたツール",
+      "author": "著者",
+      "content": "コンテンツ",
+      "description": "説明",
+      "file": "ファイル",
+      "installed": "インストール済み",
+      "metadata": "メタデータ",
+      "size": "サイズ",
+      "source": "ソース",
+      "tags": "タグ",
+      "tools": "ツール"
+    },
     "install": "インストール",
     "install_plugins_from_browser": "利用可能なプラグインを閲覧して、使用を開始してください",
     "installing": "インストール中...",
@@ -2941,6 +3101,11 @@
         "search": "検索",
         "summary": "要約",
         "translate": "翻訳"
+      },
+      "prompt": {
+        "explain": "以下の内容を説明してください。要件：{{language}}で返答すること；このプロンプトの説明は一切含めず、直接回答してください。",
+        "refine": "ユーザー入力内容をXMLタグ<INPUT>で囲み、元の意味と整合性を保ちながら最適化または磨きをかけてください。要件：出力はユーザー入力と同じ言語で行い、このプロンプトの説明は一切含めず、直接応答を提供してください；XMLタグは出力せず、最適化された内容を直接出力してください。",
+        "summary": "以下の内容を要約してください。要件：{{language}}で返答；このプロンプトの説明は一切含めず、直接回答してください。"
       },
       "translate": {
         "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
@@ -4035,6 +4200,10 @@
       "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
       "jsonSaveError": "JSON設定の保存に失敗しました",
       "jsonSaveSuccess": "JSON設定が保存されました。",
+      "lanyun": {
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "ランユン・テクノロジー"
+      },
       "logoUrl": "ロゴURL",
       "logs": "ログ",
       "longRunning": "長時間運行モード",
@@ -4131,6 +4300,14 @@
         "getToken": "API トークンを取得する",
         "getTokenDescription": "アカウントから個人用 API トークンを取得します",
         "noServersAvailable": "利用可能な MCP サーバーがありません",
+        "providerDescriptions": {
+          "302ai": "302.AIプラットフォームMCPサービス",
+          "bailian": "Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "MCPルータープラットフォーム MCPサービス",
+          "modelscope": "ModelScopeプラットフォームMCPサービス",
+          "tokenflux": "TokenFlux Platform MCP Service"
+        },
         "selectProvider": "プロバイダーを選択：",
         "setToken": "トークンを入力してください",
         "success": "MCPサーバーの同期成功",
@@ -4608,6 +4785,9 @@
         "title": "プロバイダーを削除"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com（エンタープライズ）",
+        "platform_international": "www.DMXAPI.com（インターナショナル）",
+        "platform_official": "www.DMXAPI.cn（人民元）",
         "select_platform": "プラットフォームを選択"
       },
       "docs_check": "チェック",

@@ -163,17 +163,17 @@ const Chat: FC<Props> = (props) => {
 
   // TODO: more info
   const AgentInvalid = useCallback(() => {
-    return <Alert type="warning" message="Select an agent" style={{ margin: '5px 16px' }} />
-  }, [])
+    return <Alert type="warning" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
+  }, [t])
 
   // TODO: more info
   const SessionInvalid = useCallback(() => {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <Alert type="warning" message="Create a session" style={{ margin: '5px 16px' }} />
+        <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
       </div>
     )
-  }, [])
+  }, [t])
 
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>

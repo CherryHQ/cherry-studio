@@ -62,7 +62,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               <Flex gap={4}>
                 <Typography.Text strong>{key}</Typography.Text>
                 {tool.inputSchema.required?.includes(key) && (
-                  <Tooltip title="Required field">
+                  <Tooltip title={t('common.required_field')}>
                     <span style={{ color: '#f5222d' }}>*</span>
                   </Tooltip>
                 )}

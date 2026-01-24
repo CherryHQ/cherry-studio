@@ -9,6 +9,7 @@ import {
   readTextFileWithAutoEncoding,
   scanDir
 } from '@main/utils/file'
+import { t } from '@main/utils/locales'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
 import type { FileMetadata, NotesTreeNode } from '@types'
@@ -821,9 +822,9 @@ class FileStorage {
   ): Promise<{ fileName: string; filePath: string; content?: Buffer; size: number } | null> => {
     try {
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: '打开文件',
+        title: t('dialog.open_file'),
         properties: ['openFile'],
-        filters: [{ name: '所有文件', extensions: ['*'] }],
+        filters: [{ name: t('dialog.all_files'), extensions: ['*'] }],
         ...options
       })
 
@@ -1437,7 +1438,7 @@ class FileStorage {
   ): Promise<string> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
-        title: '保存文件',
+        title: t('dialog.save_file'),
         defaultPath: fileName,
         ...options
       })
@@ -1461,7 +1462,7 @@ class FileStorage {
     try {
       const filePath = dialog.showSaveDialogSync({
         defaultPath: `${name}.png`,
-        filters: [{ name: 'PNG Image', extensions: ['png'] }]
+        filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       })
 
       if (filePath) {
@@ -1476,7 +1477,7 @@ class FileStorage {
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {
     try {
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: '选择文件夹',
+        title: t('dialog.select_folder'),
         properties: ['openDirectory'],
         ...options
       })

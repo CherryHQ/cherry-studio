@@ -27,7 +27,7 @@ import ProviderDetail from './McpProviderSettings'
 import McpServersList from './McpServersList'
 import McpSettings from './McpSettings'
 import NpxSearch from './NpxSearch'
-import { providers } from './providers/config'
+import { getProviderDisplayName, providers } from './providers/config'
 
 const MCPSettings: FC = () => {
   const { theme } = useTheme()
@@ -108,7 +108,7 @@ const MCPSettings: FC = () => {
           {providers.map((provider) => (
             <ListItem
               key={provider.key}
-              title={provider.name}
+              title={getProviderDisplayName(provider, t)}
               active={activeView === provider.key}
               onClick={() => navigate(`/settings/mcp/${provider.key}`)}
               icon={providerIcons[provider.key] || <FolderCog size={16} />}

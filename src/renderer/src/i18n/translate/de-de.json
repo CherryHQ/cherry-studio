@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "Dieses Tool immer erlauben",
         "allowRequest": "Werkzeuganfrage zulassen",
         "denyRequest": "Werkzeuganfrage ablehnen",
         "hideDetails": "Werkzeugdetails ausblenden",
@@ -278,6 +279,7 @@
         "showDetails": "Zeige Werkzeugdetails"
       },
       "button": {
+        "allowAll": "Immer erlauben",
         "cancel": "Abbrechen",
         "run": "Laufen"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "Neues Thema erstellen"
       }
+    },
+    "alerts": {
+      "create_session": "Erstelle eine Sitzung",
+      "select_agent": "Wählen Sie einen Agenten"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "Abbrechen",
     "chat": "Chat",
     "clear": "Löschen",
+    "clear_all": "Alles löschen",
+    "click_to_replace": "Klicken zum Ersetzen",
     "close": "Schließen",
     "collapse": "Einklappen",
     "completed": "Abgeschlossen",
@@ -1234,9 +1242,15 @@
     "footnote": "Zitierte Inhalte",
     "footnotes": "Zitierte Inhalte",
     "fullscreen": "Vollbildmodus aktiviert, F11 zum Beenden",
+    "generate_random_seed": "Zufälligen Seed generieren",
+    "get_embedding_dimension": "Abruf der Einbettungsdimension",
     "go_to_settings": "Zu Einstellungen",
+    "html_preview": "HTML-Vorschau",
     "i_know": "Verstanden",
     "ignore": "Ignorieren",
+    "image_preview": "Bildvorschau",
+    "image_url": "Bild-URL",
+    "image_url_or_upload": "Gib Bild-URL ein oder lade Datei hoch",
     "inspect": "Prüfen",
     "invalid_value": "Ungültiger Wert",
     "knowledge_base": "Wissensdatenbank",
@@ -1246,6 +1260,7 @@
     "models": "Modelle",
     "more": "Mehr",
     "name": "Name",
+    "next_match": "Nächstes Spiel",
     "no_results": "Keine Ergebnisse",
     "none": "Keine",
     "off": "Aus",
@@ -1257,13 +1272,17 @@
         "model": "Modell auswählen"
       }
     },
+    "powered_by": "Bereitgestellt von",
     "preview": "Vorschau",
+    "previous_match": "Vorheriges Spiel",
     "prompt": "Prompt",
     "provider": "Anbieter",
     "reasoning_content": "Tiefgehend nachgedacht",
     "refresh": "Aktualisieren",
     "regenerate": "Neu generieren",
+    "remove_image": "Bild entfernen",
     "rename": "Umbenennen",
+    "required_field": "Pflichtfeld",
     "reset": "Zurücksetzen",
     "save": "Speichern",
     "saved": "Gespeichert",
@@ -1286,13 +1305,28 @@
     "success": "Erfolgreich",
     "swap": "Tauschen",
     "topics": "Themen",
+    "translate_text": "Text übersetzen",
     "unknown": "Unbekannt",
     "unnamed": "Unbenannt",
     "unsubscribe": "Abmelden",
     "update_success": "Erfolgreich aktualisiert",
     "upload_files": "Dateien hochladen",
+    "upload_image": "Bilddatei hochladen",
+    "uploaded_image": "Hochgeladenes Bild",
     "warning": "Warnung",
     "you": "Sie"
+  },
+  "dialog": {
+    "all_files": "Alle Dateien",
+    "html_files": "HTML-Dateien",
+    "open_file": "Datei öffnen",
+    "pdf_files": "PDF-Dateien",
+    "png_image": "PNG-Bild",
+    "save_as_html": "Als HTML speichern",
+    "save_as_pdf": "Als PDF speichern",
+    "save_file": "Datei speichern",
+    "select_folder": "Ordner auswählen",
+    "word_document": "Word-Dokument"
   },
   "docs": {
     "title": "Hilfedokumentation"
@@ -2015,10 +2049,65 @@
       "cancelled": "Abgebrochen",
       "completed": "Abgeschlossen",
       "error": "Fehler aufgetreten",
+      "groupHeader": "{{count}} Toolaufrufe",
       "invoking": "Wird aufgerufen",
+      "labels": {
+        "bash": "Bash",
+        "edit": "Bearbeiten",
+        "exitPlanMode": "ExitPlanModus",
+        "glob": "Globus",
+        "grep": "Grep",
+        "mcpServerTool": "MCP-Server-Tool",
+        "multiEdit": "MultiEdit",
+        "notebookEdit": "NotizbuchBearbeiten",
+        "readFile": "Datei lesen",
+        "search": "Suche",
+        "skill": "Fähigkeit",
+        "task": "Aufgabe",
+        "todoWrite": "Alles schreiben",
+        "tool": "Werkzeug",
+        "webFetch": "Web abrufen",
+        "webSearch": "Websuche",
+        "write": "Schreiben"
+      },
+      "noData": "Keine Daten für dieses Tool verfügbar",
       "pending": "Wartend",
       "preview": "Vorschau",
-      "raw": "Roh"
+      "raw": "Roh",
+      "runningCount": "{{count}} Werkzeuge laufen",
+      "sections": {
+        "command": "Befehl",
+        "exitCode": "Exit-Code",
+        "input": "Eingabe",
+        "output": "Ausgabe",
+        "prompt": "Aufforderung",
+        "searchQuery": "Suchbegriff",
+        "searchResults": "Suchergebnisse",
+        "stderr": "stderr",
+        "stdout": "stdout"
+      },
+      "status": {
+        "done": "Erledigt",
+        "error": "Fehler",
+        "failed": "Fehlgeschlagen",
+        "running": "Laufen",
+        "success": "Erfolg"
+      },
+      "truncated": "Ausgabe gekürzt (Original: {{size}})",
+      "units": {
+        "done_one": "{{count}} Erledigt",
+        "done_other": "{{count}} Erledigt",
+        "file_one": "{{count}} Datei",
+        "file_other": "{{count}} Dateien",
+        "item_one": "{{count}} Artikel",
+        "item_other": "{{count}} Artikel",
+        "line_one": "{{count}} Zeile",
+        "line_other": "{{count}} Zeilen",
+        "plan_one": "{{count}} Plan",
+        "plan_other": "{{count}} Pläne",
+        "result_one": "{{count}} Ergebnis",
+        "result_other": "{{count}} Ergebnisse"
+      }
     },
     "topic": {
       "added": "Thema erfolgreich hinzugefügt"
@@ -2443,6 +2532,39 @@
       }
     },
     "custom_size": "Benutzerdefinierte Größe",
+    "dmxapi": {
+      "generating_tip": "Generierung mit dem offiziellen Modell, geschätzte Wartezeit beträgt 2–5 Minuten für beste Ergebnisse. Bitte überprüfe die DMXAPI-Backend-Logs für die Kosten dieses Vorgangs.",
+      "style": ", Stil:",
+      "style_types": {
+        "25d_animation": "2.5D-Animation",
+        "3d_cartoon": "3D-Cartoon",
+        "american_retro": "Amerikanisches Retro",
+        "baroque": "Barock",
+        "cartoon_illustration": "Cartoon-Illustration",
+        "chinese_gongbi": "Chinesische Gongbi",
+        "clay": "Ton",
+        "cyberpunk": "Cyberpunk",
+        "felt": "Filz",
+        "flat": "Flach",
+        "fresh_anime": "Frisches Anime",
+        "ghibli": "Ghibli",
+        "japanese_anime": "Japanischer Anime",
+        "little_people_book": "Kleine-Leute-Buch",
+        "monet_garden": "Monet-Garten",
+        "oil_painting": "Ölgemälde",
+        "pixar": "Pixar",
+        "pixel_art": "Pixelkunst",
+        "poetic_ancient": "Poetisch Antik",
+        "psychedelic": "Psychedelisch",
+        "sketch": "Skizze",
+        "street_art": "Street Art",
+        "texture": "Textur",
+        "ukiyo_e": "Ukiyo-e",
+        "watercolor": "Aquarell",
+        "wood_carving": "Holzschnitzerei",
+        "yarn_doll": "Garnpuppe"
+      }
+    },
     "edit": {
       "image_file": "Zu bearbeitendes Bild",
       "magic_prompt_option_tip": "Intelligente Optimierung des Bearbeitungs-Prompts",
@@ -2467,6 +2589,7 @@
       "style_type_tip": "Bildgenerierungsstil, nur für V_2 und höher",
       "width": "Breite"
     },
+    "generate_failed": "Fehler beim Generieren des Bildes",
     "generated_image": "Generiertes Bild",
     "go_to_settings": "Zu Einstellungen",
     "guidance_scale": "Guidance-Skala",
@@ -2477,6 +2600,7 @@
     "image_file_required": "Bitte laden Sie zuerst ein Bild hoch",
     "image_file_retry": "Bitte laden Sie das Bild erneut hoch",
     "image_handle_required": "Bitte laden Sie zuerst ein Bild hoch",
+    "image_mix_failed": "Fehler beim Mischen der Bilder",
     "image_placeholder": "Kein Bild vorhanden",
     "image_retry": "Wiederholen",
     "image_size_options": {
@@ -2486,6 +2610,7 @@
     "inference_steps_tip": "Anzahl der auszuführenden Inference-Schritte. Mehr Schritte bedeuten höhere Qualität, aber längere Dauer",
     "input_image": "Eingabebild",
     "input_parameters": "Eingabeparameter",
+    "invalid_image_url": "Ungültiges Bild-URL-Format",
     "learn_more": "Mehr erfahren",
     "magic_prompt_option": "Prompt-Verbesserung",
     "mode": {
@@ -2507,6 +2632,7 @@
     "no_image_generation_model": "Kein Bildgenerierungsmodell verfügbar. Bitte fügen Sie ein Modell hinzu und setzen Sie den Endpunkttyp auf {{endpoint_type}}",
     "number_images": "Generierungsanzahl",
     "number_images_tip": "Anzahl der Bilder pro Generierung (1-4)",
+    "operation_failed": "Vorgang fehlgeschlagen, bitte versuchen Sie es später erneut",
     "paint_course": "Tutorial",
     "per_image": "Pro Bild",
     "per_images": "Pro Bild",
@@ -2582,6 +2708,26 @@
       "resemblance": "Ähnlichkeit",
       "resemblance_tip": "Ähnlichkeitsgrad des Upscale-Ergebnisses zum Originalbild kontrollieren",
       "seed_tip": "Kontrolle der Zufälligkeit des Upscale-Ergebnisses"
+    },
+    "zhipu": {
+      "custom_size_divisible": "Benutzerdefinierte Größe muss durch 16 teilbar sein",
+      "custom_size_hint": "Breite und Höhe müssen zwischen 512 px und 2048 px liegen, durch 16 teilbar sein, und die Gesamtzahl der Pixel darf 2^21 px nicht überschreiten.",
+      "custom_size_pixels": "Die Gesamtpixel der benutzerdefinierten Größe dürfen 2.097.152 nicht überschreiten",
+      "custom_size_range": "Benutzerdefinierte Größe muss zwischen 512px und 2048px liegen",
+      "custom_size_required": "Bitte benutzerdefinierte Breite und Höhe einstellen",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024 (Standard)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "Standard (Standard)"
+      }
     }
   },
   "plugins": {
@@ -2592,6 +2738,20 @@
     "category": "Kategorie",
     "commands": "Befehle",
     "confirm_uninstall": "Sind Sie sicher, dass Sie {{name}} deinstallieren möchten?",
+    "content_saved": "Plugin-Inhalt erfolgreich gespeichert",
+    "detail": {
+      "allowed_tools": "Erlaubte Werkzeuge",
+      "author": "Autor",
+      "content": "Inhalt",
+      "description": "Beschreibung",
+      "file": "Datei",
+      "installed": "Installiert",
+      "metadata": "Metadaten",
+      "size": "Größe",
+      "source": "Quelle",
+      "tags": "Tags",
+      "tools": "Werkzeuge"
+    },
     "install": "Installieren",
     "install_plugins_from_browser": "Durchsuche verfügbare Plugins, um loszulegen",
     "installing": "Installiere…",
@@ -2941,6 +3101,11 @@
         "search": "Suchen",
         "summary": "Zusammenfassen",
         "translate": "Übersetzen"
+      },
+      "prompt": {
+        "explain": "Bitte erklären Sie den folgenden Inhalt. Anforderungen: Antworten Sie auf Deutsch; geben Sie keine Erklärung zu dieser Aufforderung, sondern antworten Sie direkt.",
+        "refine": "Bitte optimieren oder überarbeiten Sie die im XML-Tag <INPUT> eingeschlossene Nutzereingabe, wobei die Bedeutung und Integrität des ursprünglichen Inhalts erhalten bleiben sollen. Anforderungen: Ihre Ausgabe sollte in derselben Sprache wie die Nutzereingabe erfolgen; geben Sie keine Erklärung zu dieser Aufforderung an, sondern liefern Sie direkt die Antwort; geben Sie keine XML-Tags aus, sondern geben Sie den optimierten Inhalt direkt aus:\n\n<INPUT>{{text}}</INPUT>",
+        "summary": "Bitte fasse den folgenden Inhalt zusammen. Anforderungen: Antworte auf {{language}}; gib keine Erklärung zu dieser Aufforderung, sondern antworte direkt."
       },
       "translate": {
         "smart_translate_tips": "Intelligente Übersetzung: Inhalt wird bevorzugt in Zielsprache übersetzt; wenn Inhalt bereits in Zielsprache, Übersetzung in Alternativsprache"
@@ -4035,6 +4200,10 @@
       "jsonModeHint": "JSON-Darstellung der MCP-Server-Konfiguration. Bitte sicherstellen, dass das Format korrekt ist, bevor gespeichert wird",
       "jsonSaveError": "JSON-Konfiguration speichern fehlgeschlagen",
       "jsonSaveSuccess": "JSON-Konfiguration erfolgreich gespeichert",
+      "lanyun": {
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "Lanyun Technology"
+      },
       "logoUrl": "Logo-URL",
       "logs": "Protokolle",
       "longRunning": "Lang laufender Modus",
@@ -4131,6 +4300,14 @@
         "getToken": "API-Token abrufen",
         "getTokenDescription": "Persönlichen API-Token aus Ihrem Konto abrufen",
         "noServersAvailable": "Keine MCP-Server verfügbar",
+        "providerDescriptions": {
+          "302ai": "302.AI-Plattform MCP-Dienst",
+          "bailian": "Alibaba Cloud Bailian Platform MCP-Dienst",
+          "lanyun": "Lanyun Technology Cloud Platform MCP-Dienst",
+          "mcprouter": "MCP-Router-Plattform MCP-Service",
+          "modelscope": "ModelScope-Plattform MCP-Dienst",
+          "tokenflux": "TokenFlux Platform MCP Service"
+        },
         "selectProvider": "Anbieter auswählen:",
         "setToken": "Ihren Token eingeben",
         "success": "MCP-Server erfolgreich synchronisiert",
@@ -4608,6 +4785,9 @@
         "title": "Anbieter löschen"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com (Unternehmen)",
+        "platform_international": "www.DMXAPI.com (International)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Plattform auswählen"
       },
       "docs_check": "Anzeigen",

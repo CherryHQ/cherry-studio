@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "总是允许此工具",
         "allowRequest": "允许工具请求",
         "denyRequest": "拒绝工具请求",
         "hideDetails": "隐藏工具详情",
@@ -278,6 +279,7 @@
         "showDetails": "显示工具详情"
       },
       "button": {
+        "allowAll": "总是允许",
         "cancel": "取消",
         "run": "运行"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "新建话题"
       }
+    },
+    "alerts": {
+      "create_session": "请创建会话",
+      "select_agent": "请选择智能体"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "取消",
     "chat": "聊天",
     "clear": "清除",
+    "clear_all": "清除全部",
+    "click_to_replace": "点击替换",
     "close": "关闭",
     "collapse": "折叠",
     "completed": "完成",
@@ -1234,9 +1242,15 @@
     "footnote": "引用内容",
     "footnotes": "引用内容",
     "fullscreen": "已进入全屏模式，按 F11 退出",
+    "generate_random_seed": "生成随机种子",
+    "get_embedding_dimension": "获取嵌入维度",
     "go_to_settings": "前往设置",
+    "html_preview": "HTML 预览",
     "i_know": "我知道了",
     "ignore": "忽略",
+    "image_preview": "图片预览",
+    "image_url": "图片链接",
+    "image_url_or_upload": "输入图片链接或上传文件",
     "inspect": "检查",
     "invalid_value": "无效值",
     "knowledge_base": "知识库",
@@ -1246,6 +1260,7 @@
     "models": "模型",
     "more": "更多",
     "name": "名称",
+    "next_match": "下一个匹配",
     "no_results": "无结果",
     "none": "无",
     "off": "关闭",
@@ -1257,13 +1272,17 @@
         "model": "选择模型"
       }
     },
+    "powered_by": "由 ",
     "preview": "预览",
+    "previous_match": "上一个匹配",
     "prompt": "提示词",
     "provider": "提供商",
     "reasoning_content": "已深度思考",
     "refresh": "刷新",
     "regenerate": "重新生成",
+    "remove_image": "移除图片",
     "rename": "重命名",
+    "required_field": "必填字段",
     "reset": "重置",
     "save": "保存",
     "saved": "已保存",
@@ -1286,13 +1305,28 @@
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
+    "translate_text": "翻译文本",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "退订",
     "update_success": "更新成功",
     "upload_files": "上传文件",
+    "upload_image": "上传图片文件",
+    "uploaded_image": "已上传图片",
     "warning": "警告",
     "you": "用户"
+  },
+  "dialog": {
+    "all_files": "所有文件",
+    "html_files": "HTML 文件",
+    "open_file": "打开文件",
+    "pdf_files": "PDF 文件",
+    "png_image": "PNG 图片",
+    "save_as_html": "保存为 HTML",
+    "save_as_pdf": "保存为 PDF",
+    "save_file": "保存文件",
+    "select_folder": "选择文件夹",
+    "word_document": "Word 文档"
   },
   "docs": {
     "title": "帮助文档"
@@ -2015,10 +2049,65 @@
       "cancelled": "已取消",
       "completed": "已完成",
       "error": "发生错误",
+      "groupHeader": "{{count}} 个工具调用",
       "invoking": "调用中",
+      "labels": {
+        "bash": "执行命令",
+        "edit": "编辑",
+        "exitPlanMode": "退出计划模式",
+        "glob": "文件匹配",
+        "grep": "搜索",
+        "mcpServerTool": "MCP 服务器工具",
+        "multiEdit": "批量编辑",
+        "notebookEdit": "笔记本编辑",
+        "readFile": "读取文件",
+        "search": "搜索",
+        "skill": "技能",
+        "task": "任务",
+        "todoWrite": "待办写入",
+        "tool": "工具",
+        "webFetch": "网页获取",
+        "webSearch": "网页搜索",
+        "write": "写入"
+      },
+      "noData": "此工具暂无可用数据",
       "pending": "等待中",
       "preview": "预览",
-      "raw": "原始"
+      "raw": "原始",
+      "runningCount": "{{count}} 个工具运行中",
+      "sections": {
+        "command": "命令",
+        "exitCode": "退出码",
+        "input": "输入",
+        "output": "输出",
+        "prompt": "提示",
+        "searchQuery": "搜索查询",
+        "searchResults": "搜索结果",
+        "stderr": "标准错误",
+        "stdout": "标准输出"
+      },
+      "status": {
+        "done": "完成",
+        "error": "错误",
+        "failed": "失败",
+        "running": "运行中",
+        "success": "成功"
+      },
+      "truncated": "输出已截断（原始大小：{{size}}）",
+      "units": {
+        "done_one": "{{count}} 项完成",
+        "done_other": "{{count}} 项完成",
+        "file_one": "{{count}} 个文件",
+        "file_other": "{{count}} 个文件",
+        "item_one": "{{count}} 项",
+        "item_other": "{{count}} 项",
+        "line_one": "{{count}} 行",
+        "line_other": "{{count}} 行",
+        "plan_one": "{{count}} 个计划",
+        "plan_other": "{{count}} 个计划",
+        "result_one": "{{count}} 个结果",
+        "result_other": "{{count}} 个结果"
+      }
     },
     "topic": {
       "added": "话题添加成功"
@@ -2443,6 +2532,39 @@
       }
     },
     "custom_size": "自定义尺寸",
+    "dmxapi": {
+      "generating_tip": "正在使用官方的模型生成，预计等待2~5分钟效果最好，本次消耗金额请到DMXAPI后台日志查看",
+      "style": "，风格：",
+      "style_types": {
+        "25d_animation": "2.5D动画",
+        "3d_cartoon": "3D卡通",
+        "american_retro": "美式复古",
+        "baroque": "巴洛克",
+        "cartoon_illustration": "卡通插画",
+        "chinese_gongbi": "中国工笔",
+        "clay": "黏土",
+        "cyberpunk": "赛博朋克",
+        "felt": "毛毡",
+        "flat": "平坦",
+        "fresh_anime": "新鲜动漫",
+        "ghibli": "吉卜力",
+        "japanese_anime": "日本动漫",
+        "little_people_book": "小人书",
+        "monet_garden": "莫奈花园",
+        "oil_painting": "油画",
+        "pixar": "皮克斯",
+        "pixel_art": "像素艺术",
+        "poetic_ancient": "诗意古风",
+        "psychedelic": "迷幻",
+        "sketch": "草图",
+        "street_art": "街头艺术",
+        "texture": "纹理",
+        "ukiyo_e": "浮世绘",
+        "watercolor": "水彩",
+        "wood_carving": "木雕",
+        "yarn_doll": "纱线娃娃"
+      }
+    },
     "edit": {
       "image_file": "编辑的图像",
       "magic_prompt_option_tip": "智能优化编辑提示词",
@@ -2467,6 +2589,7 @@
       "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
       "width": "宽度"
     },
+    "generate_failed": "生成图像失败",
     "generated_image": "生成图片",
     "go_to_settings": "去设置",
     "guidance_scale": "引导比例",
@@ -2477,6 +2600,7 @@
     "image_file_required": "请先上传图片",
     "image_file_retry": "请重新上传图片",
     "image_handle_required": "请先上传图片",
+    "image_mix_failed": "图像混合失败",
     "image_placeholder": "暂无图片",
     "image_retry": "重试",
     "image_size_options": {
@@ -2486,6 +2610,7 @@
     "inference_steps_tip": "要执行的推理步数。步数越多，质量越高但耗时越长",
     "input_image": "输入图片",
     "input_parameters": "输入参数",
+    "invalid_image_url": "无效的图片URL格式",
     "learn_more": "了解更多",
     "magic_prompt_option": "提示词增强",
     "mode": {
@@ -2507,6 +2632,7 @@
     "no_image_generation_model": "暂无可用的图片生成模型，请先新增模型并设置端点类型为 {{endpoint_type}}",
     "number_images": "生成数量",
     "number_images_tip": "一次生成的图片数量 (1-4)",
+    "operation_failed": "操作失败，请稍后重试",
     "paint_course": "教程",
     "per_image": "每张图片",
     "per_images": "每张图片",
@@ -2582,6 +2708,26 @@
       "resemblance": "相似度",
       "resemblance_tip": "控制放大结果与原图的相似程度",
       "seed_tip": "控制放大结果的随机性"
+    },
+    "zhipu": {
+      "custom_size_divisible": "自定义尺寸必须能被16整除",
+      "custom_size_hint": "长宽均需满足512px-2048px之间，需被16整除，并保证最大像素数不超过2^21px",
+      "custom_size_pixels": "自定义尺寸的总像素数不能超过2,097,152",
+      "custom_size_range": "自定义尺寸必须在512px-2048px之间",
+      "custom_size_required": "请设置自定义尺寸的宽度和高度",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024（默认）",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768×1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "高清",
+        "standard_default": "标准（默认）"
+      }
     }
   },
   "plugins": {
@@ -2592,6 +2738,20 @@
     "category": "类别",
     "commands": "命令",
     "confirm_uninstall": "确定要卸载 {{name}} 吗？",
+    "content_saved": "插件内容保存成功",
+    "detail": {
+      "allowed_tools": "允许的工具",
+      "author": "作者",
+      "content": "内容",
+      "description": "描述",
+      "file": "文件",
+      "installed": "安装时间",
+      "metadata": "元数据",
+      "size": "大小",
+      "source": "来源",
+      "tags": "标签",
+      "tools": "工具"
+    },
     "install": "安装",
     "install_plugins_from_browser": "浏览可用插件以开始使用",
     "installing": "安装中...",
@@ -2941,6 +3101,11 @@
         "search": "搜索",
         "summary": "总结",
         "translate": "翻译"
+      },
+      "prompt": {
+        "explain": "请解释下面的内容。要求：使用 {{language}} 语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n",
+        "refine": "请对用XML标签<INPUT>包裹的用户输入内容进行优化或润色，并保持原内容的含义和完整性。要求：你的输出应当与用户输入内容的语言相同。；请不要包含对本提示词的任何解释，直接给出回复；请不要输出XML标签，直接输出优化后的内容: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "请总结下面的内容。要求：使用 {{language}} 语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n"
       },
       "translate": {
         "smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言"
@@ -4035,6 +4200,10 @@
       "jsonModeHint": "编辑 MCP 服务器配置的 JSON 表示。保存前请确保格式正确",
       "jsonSaveError": "保存 JSON 配置失败",
       "jsonSaveSuccess": "JSON 配置已保存",
+      "lanyun": {
+        "description": "蓝耘科技云平台 MCP 服务",
+        "name": "蓝耘科技"
+      },
       "logoUrl": "标志网址",
       "logs": "日志",
       "longRunning": "长时间运行模式",
@@ -4131,6 +4300,14 @@
         "getToken": "获取 API 令牌",
         "getTokenDescription": "从您的帐户中获取个人 API 令牌",
         "noServersAvailable": "无可用的 MCP 服务器",
+        "providerDescriptions": {
+          "302ai": "302.AI 平台 MCP 服务",
+          "bailian": "百炼平台服务",
+          "lanyun": "蓝耘科技云平台 MCP 服务",
+          "mcprouter": "MCP Router 平台 MCP 服务",
+          "modelscope": "ModelScope 平台 MCP 服务",
+          "tokenflux": "TokenFlux 平台 MCP 服务"
+        },
         "selectProvider": "选择提供商：",
         "setToken": "输入您的令牌",
         "success": "同步 MCP 服务器成功",
@@ -4608,6 +4785,9 @@
         "title": "删除提供商"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com 生产级商用站",
+        "platform_international": "www.DMXAPI.com 国际站",
+        "platform_official": "www.DMXAPI.cn 人民币站",
         "select_platform": "选择平台"
       },
       "docs_check": "查看",

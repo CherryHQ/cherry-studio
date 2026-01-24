@@ -182,7 +182,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
             ref={previewFrameRef}
             key={html} // Force recreate iframe when preview content changes
             srcDoc={html}
-            title="HTML Preview"
+            title={t('common.html_preview')}
             sandbox="allow-scripts allow-same-origin allow-forms"
           />
         ) : (

@@ -1,3 +1,5 @@
+import { configManager } from '@main/services/ConfigManager'
+
 import EnUs from '../../renderer/src/i18n/locales/en-us.json'
 import ZhCn from '../../renderer/src/i18n/locales/zh-cn.json'
 import ZhTw from '../../renderer/src/i18n/locales/zh-tw.json'
@@ -27,4 +29,21 @@ const locales = Object.fromEntries(
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
-export { locales }
+/**
+ * Get translation by key path (e.g., 'dialog.save_file')
+ * This is a simplified version for main process, similar to i18next's t() function
+ */
+const t = (key: string): string => {
+  const locale = locales[configManager.getLanguage()]
+  const keys = key.split('.')
+  let result: any = locale.translation
+  for (const k of keys) {
+    result = result?.[k]
+    if (result === undefined) {
+      return key
+    }
+  }
+  return typeof result === 'string' ? result : key
+}
+
+export { locales, t }

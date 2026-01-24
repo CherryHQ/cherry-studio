@@ -2,6 +2,7 @@
 // ExportService
 
 import { loggerService } from '@logger'
+import { t } from '@main/utils/locales'
 import {
   AlignmentType,
   BorderStyle,
@@ -391,8 +392,8 @@ export class ExportService {
       const buffer = await Packer.toBuffer(doc)
 
       const filePath = dialog.showSaveDialogSync({
-        title: '保存文件',
-        filters: [{ name: 'Word Document', extensions: ['docx'] }],
+        title: t('dialog.save_file'),
+        filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
         defaultPath: fileName
       })
 

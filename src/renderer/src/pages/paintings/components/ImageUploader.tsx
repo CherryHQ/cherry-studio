@@ -6,6 +6,7 @@ import { Popconfirm, Upload } from 'antd'
 import { Button } from 'antd'
 import type { RcFile, UploadProps } from 'antd/es/upload'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface ImageUploaderProps {
@@ -28,6 +29,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   onAddImage
 }) => {
   const { theme } = useTheme()
+  const { t } = useTranslation()
 
   const handleBeforeUpload = (file: RcFile, index?: number) => {
     onAddImage(file, index)
@@ -46,7 +48,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       <HeaderContainer>
         {fileMap.imageFiles && fileMap.imageFiles.length > 0 && (
           <Button size="small" onClick={onClearImages}>
-            清除全部
+            {t('common.clear_all')}
           </Button>
         )}
       </HeaderContainer>
@@ -68,13 +70,13 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                     handleBeforeUpload(file, index)
                   }}>
                   <ImagePreview>
-                    <img src={src} alt={`预览图${index + 1}`} />
+                    <img src={src} alt={`${t('common.image_preview')} ${index + 1}`} />
                   </ImagePreview>
                 </ImageUploadButton>
                 <Popconfirm
-                  title="确定要删除这张图片吗？"
-                  okText="确定"
-                  cancelText="取消"
+                  title={t('paintings.button.delete.image.confirm')}
+                  okText={t('common.confirm')}
+                  cancelText={t('common.cancel')}
                   onConfirm={() => onDeleteImage(index)}>
                   <DeleteButton>
                     <DeleteOutlined />

@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "Permiteți întotdeauna acest instrument",
         "allowRequest": "Permite cererea instrumentului",
         "denyRequest": "Refuză cererea instrumentului",
         "hideDetails": "Ascunde detaliile instrumentului",
@@ -278,6 +279,7 @@
         "showDetails": "Afișează detaliile instrumentului"
       },
       "button": {
+        "allowAll": "Permiteți întotdeauna",
         "cancel": "Anulează",
         "run": "Rulează"
       },
@@ -666,6 +668,10 @@
       "topic": {
         "title": "Subiect nou"
       }
+    },
+    "alerts": {
+      "create_session": "Creează o sesiune",
+      "select_agent": "Selectați un agent"
     },
     "artifacts": {
       "button": {
@@ -1200,6 +1206,8 @@
     "cancel": "Anulează",
     "chat": "Chat",
     "clear": "Golește",
+    "clear_all": "Șterge tot",
+    "click_to_replace": "Faceți clic pentru a înlocui",
     "close": "Închide",
     "collapse": "Restrânge",
     "completed": "Finalizat",
@@ -1234,9 +1242,15 @@
     "footnote": "Conținut de referință",
     "footnotes": "Referințe",
     "fullscreen": "S-a intrat în modul ecran complet. Apasă F11 pentru a ieși",
+    "generate_random_seed": "Generează sămânță aleatoare",
+    "get_embedding_dimension": "Obține dimensiunea de înglobare",
     "go_to_settings": "Mergi la setări",
+    "html_preview": "Previzualizare HTML",
     "i_know": "Am înțeles",
     "ignore": "Ignoră",
+    "image_preview": "Previzualizare imagine",
+    "image_url": "URL imagine",
+    "image_url_or_upload": "Introdu URL-ul imaginii sau încarcă fișierul",
     "inspect": "Inspectează",
     "invalid_value": "Valoare invalidă",
     "knowledge_base": "Bază de cunoștințe",
@@ -1246,6 +1260,7 @@
     "models": "Modele",
     "more": "Mai mult",
     "name": "Nume",
+    "next_match": "Următorul meci",
     "no_results": "Niciun rezultat",
     "none": "Nimic",
     "off": "Oprit",
@@ -1257,13 +1272,17 @@
         "model": "Selectează un model"
       }
     },
+    "powered_by": "Cu tehnologia",
     "preview": "Previzualizare",
+    "previous_match": "Meciul anterior",
     "prompt": "Prompt",
     "provider": "Furnizor",
     "reasoning_content": "Raționament profund",
     "refresh": "Reîmprospătează",
     "regenerate": "Regenerează",
+    "remove_image": "Elimină imaginea",
     "rename": "Redenumește",
+    "required_field": "Câmp obligatoriu",
     "reset": "Resetează",
     "save": "Salvează",
     "saved": "Salvat",
@@ -1286,13 +1305,28 @@
     "success": "Succes",
     "swap": "Schimbă",
     "topics": "Subiecte",
+    "translate_text": "Traduceți textul",
     "unknown": "Necunoscut",
     "unnamed": "Fără nume",
     "unsubscribe": "Dezabonează-te",
     "update_success": "Actualizat cu succes",
     "upload_files": "Încarcă fișier",
+    "upload_image": "Încarcă fișier imagine",
+    "uploaded_image": "Imagine încărcată",
     "warning": "Avertisment",
     "you": "Tu"
+  },
+  "dialog": {
+    "all_files": "Toate fișierele",
+    "html_files": "Fișiere HTML",
+    "open_file": "Deschide fișier",
+    "pdf_files": "Fișiere PDF",
+    "png_image": "Imagine PNG",
+    "save_as_html": "Salvează ca HTML",
+    "save_as_pdf": "Salvează ca PDF",
+    "save_file": "Salvează fișier",
+    "select_folder": "Selectează folderul",
+    "word_document": "Document Word"
   },
   "docs": {
     "title": "Documentație"
@@ -2015,10 +2049,65 @@
       "cancelled": "Anulat",
       "completed": "Finalizat",
       "error": "A apărut o eroare",
+      "groupHeader": "{{count}} apeluri de instrumente",
       "invoking": "Se invocă",
+      "labels": {
+        "bash": "Bash",
+        "edit": "Editare",
+        "exitPlanMode": "ExitPlanMode",
+        "glob": "Glob",
+        "grep": "Grep",
+        "mcpServerTool": "Instrument Server MCP",
+        "multiEdit": "MultiEdit",
+        "notebookEdit": "NotebookEdit",
+        "readFile": "Citește fișier",
+        "search": "Căutare",
+        "skill": "Abilitate",
+        "task": "Sarcină",
+        "todoWrite": "Totul Scrie",
+        "tool": "Unelte",
+        "webFetch": "Preluare web",
+        "webSearch": "Căutare pe web",
+        "write": "Scrie"
+      },
+      "noData": "Nu sunt disponibile date pentru acest instrument",
       "pending": "În așteptare",
       "preview": "Previzualizare",
-      "raw": "Brut"
+      "raw": "Brut",
+      "runningCount": "{{count}} instrumente în execuție",
+      "sections": {
+        "command": "Comandă",
+        "exitCode": "Cod de ieșire",
+        "input": "Intrare",
+        "output": "Ieșire",
+        "prompt": "Punct",
+        "searchQuery": "Interogare de căutare",
+        "searchResults": "Rezultatele căutării",
+        "stderr": "stderr",
+        "stdout": "stdout"
+      },
+      "status": {
+        "done": "Gata",
+        "error": "Eroare",
+        "failed": "Eșuat",
+        "running": "Alergare",
+        "success": "Succes"
+      },
+      "truncated": "Ieșire trunchiată (original: {{size}})",
+      "units": {
+        "done_one": "{{count}} Finalizat",
+        "done_other": "{{count}} Finalizat",
+        "file_one": "{{count}} fișier",
+        "file_other": "{{count}} fișiere",
+        "item_one": "{{count}} articol",
+        "item_other": "{{count}} articole",
+        "line_one": "{{count}} linie",
+        "line_other": "{{count}} linii",
+        "plan_one": "{{count}} plan",
+        "plan_other": "{{count}} planuri",
+        "result_one": "{{count}} rezultat",
+        "result_other": "{{count}} rezultate"
+      }
     },
     "topic": {
       "added": "Subiect nou adăugat"
@@ -2443,6 +2532,39 @@
       }
     },
     "custom_size": "Dimensiune personalizată",
+    "dmxapi": {
+      "generating_tip": "Generarea cu modelul oficial, timpul estimat de așteptare este de 2-5 minute pentru cele mai bune rezultate. Te rugăm să verifici logurile backend DMXAPI pentru costul acestei operațiuni.",
+      "style": ", Stil:",
+      "style_types": {
+        "25d_animation": "Animație 2.5D",
+        "3d_cartoon": "Desen animat 3D",
+        "american_retro": "Retro American",
+        "baroque": "Baroc",
+        "cartoon_illustration": "Ilustrație de desen animat",
+        "chinese_gongbi": "Gongbi chinezesc",
+        "clay": "Argilă",
+        "cyberpunk": "Cyberpunk",
+        "felt": "Filț",
+        "flat": "Plat",
+        "fresh_anime": "Anime Proaspăt",
+        "ghibli": "Ghibli",
+        "japanese_anime": "Anime japonez",
+        "little_people_book": "Cartea Oamenilor Mici",
+        "monet_garden": "Grădina Monet",
+        "oil_painting": "Pictură în ulei",
+        "pixar": "Pixar",
+        "pixel_art": "Artă pixelată",
+        "poetic_ancient": "Poetic Antic",
+        "psychedelic": "Psichedelic",
+        "sketch": "Schiță",
+        "street_art": "Artă stradală",
+        "texture": "Textură",
+        "ukiyo_e": "Ukiyo-e",
+        "watercolor": "Acuarelă",
+        "wood_carving": "Sculptură în lemn",
+        "yarn_doll": "Păpușă din fire de lână"
+      }
+    },
     "edit": {
       "image_file": "Imagine editată",
       "magic_prompt_option_tip": "Îmbunătățește inteligent prompturile de editare",
@@ -2467,6 +2589,7 @@
       "style_type_tip": "Stil generare imagine pentru V_2 și versiuni ulterioare",
       "width": "Lățime"
     },
+    "generate_failed": "Nu s-a putut genera imaginea",
     "generated_image": "Imagine generată",
     "go_to_settings": "Mergi la Setări",
     "guidance_scale": "Scară de ghidare",
@@ -2477,6 +2600,7 @@
     "image_file_required": "Te rugăm să încarci mai întâi o imagine",
     "image_file_retry": "Te rugăm să reîncarci mai întâi o imagine",
     "image_handle_required": "Te rugăm să încarci mai întâi o imagine.",
+    "image_mix_failed": "Nu s-au putut combina imaginile",
     "image_placeholder": "Nicio imagine disponibilă",
     "image_retry": "Reîncearcă",
     "image_size_options": {
@@ -2486,6 +2610,7 @@
     "inference_steps_tip": "Numărul de pași de inferență de efectuat. Mai mulți pași produc o calitate mai mare, dar durează mai mult",
     "input_image": "Imagine de intrare",
     "input_parameters": "Parametri de intrare",
+    "invalid_image_url": "Formatul URL-ului imaginii este invalid",
     "learn_more": "Află mai multe",
     "magic_prompt_option": "Prompt magic",
     "mode": {
@@ -2507,6 +2632,7 @@
     "no_image_generation_model": "Niciun model de generare imagini disponibil, te rugăm să adaugi un model și să setezi tipul endpoint-ului la {{endpoint_type}}",
     "number_images": "Număr imagini",
     "number_images_tip": "Numărul de imagini de generat (1-4)",
+    "operation_failed": "Operațiunea a eșuat, vă rugăm să încercați din nou mai târziu",
     "paint_course": "tutorial",
     "per_image": "pe imagine",
     "per_images": "pe imagini",
@@ -2582,6 +2708,26 @@
       "resemblance": "Similaritate",
       "resemblance_tip": "Controlează similaritatea cu imaginea originală",
       "seed_tip": "Controlează aleatoriul scalării"
+    },
+    "zhipu": {
+      "custom_size_divisible": "Dimensiunea personalizată trebuie să fie divizibilă cu 16",
+      "custom_size_hint": "Lățimea și înălțimea trebuie să fie între 512px-2048px, divizibile cu 16, iar numărul total de pixeli nu poate depăși 2^21px",
+      "custom_size_pixels": "Numărul total de pixeli ai dimensiunii personalizate nu poate depăși 2.097.152",
+      "custom_size_range": "Dimensiunea personalizată trebuie să fie între 512px și 2048px.",
+      "custom_size_required": "Vă rugăm să setați lățimea și înălțimea personalizate",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024 (Implicit)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "Standard (Implicit)"
+      }
     }
   },
   "plugins": {
@@ -2592,6 +2738,20 @@
     "category": "Categorie",
     "commands": "Comenzi",
     "confirm_uninstall": "Ești sigur că vrei să dezinstalezi {{name}}?",
+    "content_saved": "Conținutul plugin-ului a fost salvat cu succes",
+    "detail": {
+      "allowed_tools": "Unelte Permise",
+      "author": "Autor",
+      "content": "Conținut",
+      "description": "Descriere",
+      "file": "Fișier",
+      "installed": "Instalat",
+      "metadata": "Metadate",
+      "size": "Dimensiune",
+      "source": "Sursă",
+      "tags": "Etichete",
+      "tools": "Unelte"
+    },
     "install": "Instalează",
     "install_plugins_from_browser": "Răsfoiește pluginurile disponibile pentru a începe",
     "installing": "Se instalează...",
@@ -2941,6 +3101,11 @@
         "search": "Caută",
         "summary": "Rezumat",
         "translate": "Tradu"
+      },
+      "prompt": {
+        "explain": "Te rog să explici următorul conținut. Cerințe: Răspunde în {{language}}; nu include nicio explicație a acestui prompt, oferă direct răspunsul:",
+        "refine": "Te rugăm să optimizezi sau să îmbunătățești conținutul introdus de utilizator, cuprins în eticheta XML <INPUT>, păstrând sensul și integritatea textului original. Cerințe: rezultatul tău trebuie să fie în aceeași limbă cu cel introdus de utilizator; nu include nicio explicație referitoare la acest prompt, oferă direct răspunsul; nu afișa etichetele XML, ci doar conținutul optimizat.",
+        "summary": "Vă rog să rezumați următorul conținut. Cerințe: Răspundeți în {{language}}; nu includeți nicio explicație a acestui prompt, oferiți direct răspunsul:"
       },
       "translate": {
         "smart_translate_tips": "Traducere inteligentă: Conținutul va fi tradus mai întâi în limba țintă; conținutul aflat deja în limba țintă va fi tradus în limba alternativă"
@@ -4035,6 +4200,10 @@
       "jsonModeHint": "Editează reprezentarea JSON a configurației serverului MCP. Te rugăm să te asiguri că formatul este corect înainte de salvare.",
       "jsonSaveError": "Nu s-a putut salva configurația JSON.",
       "jsonSaveSuccess": "Configurația JSON a fost salvată.",
+      "lanyun": {
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "Lanyun Technology"
+      },
       "logoUrl": "URL logo",
       "logs": "Jurnale",
       "longRunning": "Mod rulare lungă",
@@ -4131,6 +4300,14 @@
         "getToken": "Obține token API",
         "getTokenDescription": "Obține tokenul tău personal API din contul tău",
         "noServersAvailable": "Nu există servere MCP disponibile",
+        "providerDescriptions": {
+          "302ai": "Serviciul MCP al Platformei 302.AI",
+          "bailian": "Serviciul MCP al Platformei Bailian Alibaba Cloud",
+          "lanyun": "Platforma Cloud Lanyun Technology - Serviciul MCP",
+          "mcprouter": "Platformă Router MCP Serviciu MCP",
+          "modelscope": "Serviciul MCP al Platformei ModelScope",
+          "tokenflux": "Serviciul MCP al Platformei TokenFlux"
+        },
         "selectProvider": "Selectează furnizor:",
         "setToken": "Introdu tokenul tău",
         "success": "Sincronizare servere MCP reușită",
@@ -4608,6 +4785,9 @@
         "title": "Șterge furnizor"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com (Întreprindere)",
+        "platform_international": "www.DMXAPI.com (Internațional)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Selectează platforma"
       },
       "docs_check": "Verifică",

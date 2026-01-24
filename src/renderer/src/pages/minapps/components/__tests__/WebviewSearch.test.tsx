@@ -10,7 +10,9 @@ const translations: Record<string, string> = {
   'common.close': 'Close',
   'common.error': 'Error',
   'common.no_results': 'No results',
-  'common.search': 'Search'
+  'common.search': 'Search',
+  'common.next_match': 'Next match',
+  'common.previous_match': 'Previous match'
 }
 
 vi.mock('react-i18next', () => ({
