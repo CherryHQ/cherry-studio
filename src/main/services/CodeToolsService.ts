@@ -26,6 +26,9 @@ const logger = loggerService.withContext('CodeToolsService')
 // Sensitive environment variable keys to redact in logs
 const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
 
+// Marker to identify CherryStudio-generated opencode.json configs
+const CHERRY_GENERATED_MARKER = '__cherryStudioGenerated'
+
 /**
  * Sanitize environment variables for safe logging
  * Redacts values of sensitive keys to prevent credential leakage
@@ -137,6 +140,10 @@ class CodeToolsService {
 
   /**
    * Generate opencode.json config file for OpenCode CLI
+   * Handles three scenarios:
+   * 1. Cherry-generated config exists: append model
+   * 2. User config exists: merge without marker
+   * 3. No existing config: create new with marker
    */
   private async generateOpenCodeConfig(
     directory: string,
@@ -144,9 +151,28 @@ class CodeToolsService {
     apiKey: string,
     baseUrl: string,
     isReasoning: boolean
-  ): Promise<string> {
+  ): Promise<{ configPath: string; isCherryGenerated: boolean }> {
     const configPath = path.join(directory, 'opencode.json')
 
+    let existingConfig: Record<string, any> | null = null
+    let isCherryGenerated = false
+
+    // Check for existing config
+    if (fs.existsSync(configPath)) {
+      try {
+        const content = fs.readFileSync(configPath, 'utf8')
+        const parsedConfig = JSON.parse(content)
+        isCherryGenerated = parsedConfig[CHERRY_GENERATED_MARKER] === true
+        existingConfig = parsedConfig
+        logger.info(`Found existing opencode.json (cherryGenerated: ${isCherryGenerated})`)
+      } catch (error) {
+        logger.warn(`Failed to parse existing opencode.json: ${error}`)
+        existingConfig = null
+        isCherryGenerated = false
+      }
+    }
+
+    // Build model config
     const modelConfig: Record<string, any> = {
       name: model.name,
       limit: { context: 128000 }
@@ -155,38 +181,100 @@ class CodeToolsService {
     if (isReasoning) {
       modelConfig.reasoning = true
       modelConfig.options = {
-        thinking: {
-          type: 'enabled'
-        }
+        thinking: { type: 'enabled' }
       }
     }
 
-    const config = {
-      $schema: 'https://opencode.ai/config.json',
-      provider: {
-        CherryStudio: {
-          npm: '@ai-sdk/openai-compatible',
-          name: 'CherryStudio',
-          options: { apiKey, baseURL: baseUrl },
-          models: { [model.id]: modelConfig }
+    let finalConfig: Record<string, any>
+
+    if (existingConfig && isCherryGenerated) {
+      // Case 1: Cherry-generated config exists - append model
+      const existingModels = existingConfig.provider?.CherryStudio?.models || {}
+      finalConfig = {
+        ...existingConfig,
+        provider: {
+          ...existingConfig.provider,
+          CherryStudio: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'CherryStudio',
+            options: { apiKey, baseURL: baseUrl },
+            models: {
+              ...existingModels,
+              [model.id]: modelConfig
+            }
+          }
         }
       }
+      logger.info(`Appended model ${model.id} to existing Cherry config`)
+    } else if (existingConfig && !isCherryGenerated) {
+      // Case 2: User config exists - merge without marker
+      const existingModels = existingConfig.provider?.CherryStudio?.models || {}
+      finalConfig = {
+        ...existingConfig,
+        provider: {
+          ...existingConfig.provider,
+          CherryStudio: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'CherryStudio',
+            options: { apiKey, baseURL: baseUrl },
+            models: {
+              ...existingModels,
+              [model.id]: modelConfig
+            }
+          }
+        }
+      }
+      logger.info(`Merged CherryStudio into user config with model ${model.id}`)
+    } else {
+      // Case 3: No existing config - create new with marker
+      isCherryGenerated = true
+      finalConfig = {
+        [CHERRY_GENERATED_MARKER]: true,
+        $schema: 'https://opencode.ai/config.json',
+        provider: {
+          CherryStudio: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'CherryStudio',
+            options: { apiKey, baseURL: baseUrl },
+            models: { [model.id]: modelConfig }
+          }
+        }
+      }
+      logger.info(`Created new Cherry config with model ${model.id}`)
     }
 
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
-    logger.info(`Generated opencode.json at: ${configPath}`)
-    return configPath
+    fs.writeFileSync(configPath, JSON.stringify(finalConfig, null, 2), 'utf8')
+    logger.info(`Wrote opencode.json at: ${configPath}`)
+
+    return { configPath, isCherryGenerated }
   }
 
   /**
    * Schedule cleanup of opencode.json config file after 60 seconds
+   * - Cherry-generated config: delete the entire file
+   * - User config was merged: only remove CherryStudio provider
    */
-  private scheduleOpenCodeConfigCleanup(configPath: string): void {
+  private scheduleOpenCodeConfigCleanup(configPath: string, isCherryGenerated: boolean): void {
     setTimeout(() => {
       try {
-        if (fs.existsSync(configPath)) {
+        if (!fs.existsSync(configPath)) {
+          return
+        }
+
+        if (isCherryGenerated) {
+          // Cherry-generated config: delete the entire file
           fs.unlinkSync(configPath)
-          logger.info(`Cleaned up opencode.json: ${configPath}`)
+          logger.info(`Deleted Cherry-generated opencode.json: ${configPath}`)
+        } else {
+          // User config was merged: only remove CherryStudio provider
+          const content = fs.readFileSync(configPath, 'utf8')
+          const config = JSON.parse(content)
+
+          if (config.provider?.CherryStudio) {
+            delete config.provider.CherryStudio
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
+            logger.info(`Removed CherryStudio provider from user config: ${configPath}`)
+          }
         }
       } catch (error) {
         logger.warn(`Failed to cleanup opencode.json: ${error}`)
@@ -761,14 +849,14 @@ class CodeToolsService {
       const modelName = options.modelName || modelId
       const isReasoning = options.isReasoning ?? false
 
-      const configPath = await this.generateOpenCodeConfig(
+      const { configPath, isCherryGenerated } = await this.generateOpenCodeConfig(
         directory,
         { id: modelId, name: modelName },
         apiKey,
         baseUrl,
         isReasoning
       )
-      this.scheduleOpenCodeConfigCleanup(configPath)
+      this.scheduleOpenCodeConfigCleanup(configPath, isCherryGenerated)
 
       // Add --model flag with provider prefix
       baseCommand = `${baseCommand} --model CherryStudio/${modelId}`
