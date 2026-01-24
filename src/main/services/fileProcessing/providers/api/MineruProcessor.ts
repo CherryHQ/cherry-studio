@@ -203,7 +203,6 @@ export class MineruProcessor extends BaseMarkdownConverter {
           const progress = Math.round(
             (fileResult.extract_progress.extracted_pages / fileResult.extract_progress.total_pages) * 100
           )
-          context.onProgress?.(progress)
           logger.debug(`File ${fileName} processing progress: ${progress}%`)
         }
       } catch (error) {

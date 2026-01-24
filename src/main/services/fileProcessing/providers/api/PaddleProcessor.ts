@@ -108,11 +108,13 @@ export class PaddleProcessor extends BaseTextExtractor {
   protected async doExtractText(
     input: FileMetadata,
     config: FileProcessorMerged,
-    _context: ProcessingContext
+    context: ProcessingContext
   ): Promise<ProcessingResult> {
     if (!isImageFileMetadata(input)) {
       throw new Error('PaddleProcessor only supports image files')
     }
+
+    this.checkCancellation(context)
 
     const apiUrl = this.getApiUrl(config)
     const apiKey = this.getApiKey(config)

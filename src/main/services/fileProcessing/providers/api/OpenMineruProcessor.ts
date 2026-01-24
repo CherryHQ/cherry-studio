@@ -194,7 +194,6 @@ export class OpenMineruProcessor extends BaseMarkdownConverter {
     await this.validatePdf(filePath)
     this.checkCancellation(context)
 
-    context.onProgress?.(50)
     logger.info(`File ${input.name} is starting processing...`)
 
     const extractPath = await this.uploadAndExtract(apiHost, apiKey, input, context)

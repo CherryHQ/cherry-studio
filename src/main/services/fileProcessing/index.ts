@@ -12,7 +12,7 @@ export { ConfigurationService, configurationService } from './config/Configurati
 export { ProcessorRegistry, processorRegistry } from './registry/ProcessorRegistry'
 
 // Main service
-export { FileProcessingService, fileProcessingService, type ProcessRuntimeOptions } from './FileProcessingService'
+export { FileProcessingService, fileProcessingService } from './FileProcessingService'
 
 // Interfaces and types
 export {

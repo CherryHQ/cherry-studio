@@ -141,7 +141,6 @@ export class Doc2xProcessor extends BaseMarkdownConverter {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
 
       const { status, progress } = await this.getStatus(apiHost, apiKey, uid)
-      context.onProgress?.(progress)
       logger.debug(`Processing status: ${status}, progress: ${progress}%`)
 
       if (status === 'success') {

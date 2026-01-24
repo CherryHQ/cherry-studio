@@ -10,8 +10,6 @@
 export interface ProcessOptions {
   /** Abort signal for cancellation */
   signal?: AbortSignal
-  /** Progress callback */
-  onProgress?: (progress: number) => void
 }
 
 /**
@@ -25,6 +23,4 @@ export interface ProcessingContext {
   requestId: string
   /** Abort signal for cancellation */
   signal?: AbortSignal
-  /** Progress callback */
-  onProgress?: (progress: number) => void
 }

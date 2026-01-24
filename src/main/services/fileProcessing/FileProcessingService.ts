@@ -34,14 +34,6 @@ interface ActiveRequest {
   startTime: number
 }
 
-/**
- * Runtime-only processing options (contains callbacks)
- */
-export interface ProcessRuntimeOptions {
-  /** Progress callback */
-  onProgress?: (progress: number) => void
-}
-
 export class FileProcessingService {
   private static instance: FileProcessingService | null = null
   private activeRequests: Map<string, ActiveRequest> = new Map()
@@ -63,15 +55,10 @@ export class FileProcessingService {
    *
    * @param file - File metadata
    * @param request - Processing request options
-   * @param runtimeOptions - Runtime-only options (callbacks)
    * @returns Process response with requestId and result
    * @throws Error if processor not found, not available, or processing fails
    */
-  async process(
-    file: FileMetadata,
-    request: ProcessFileRequest = {},
-    runtimeOptions: ProcessRuntimeOptions = {}
-  ): Promise<ProcessResponse> {
+  async process(file: FileMetadata, request: ProcessFileRequest = {}): Promise<ProcessResponse> {
     const requestId = uuidv4()
     const inputType = this.getInputType(file)
     const feature = request.feature ?? this.getDefaultFeature(inputType)
@@ -116,8 +103,7 @@ export class FileProcessingService {
     // Build processing context
     const context: ProcessingContext = {
       requestId,
-      signal: abortController.signal,
-      onProgress: runtimeOptions.onProgress
+      signal: abortController.signal
     }
 
     try {

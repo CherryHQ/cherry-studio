@@ -89,14 +89,11 @@ export class MistralProcessor extends BaseMarkdownConverter {
         throw new Error(`Failed to upload file: ${uploadResponse.displayName}`)
       }
 
-      context.onProgress?.(15)
       this.checkCancellation(context)
 
       const fileUrl = await sdk.files.getSignedUrl({
         fileId: uploadResponse.fileId
       })
-
-      context.onProgress?.(20)
 
       return {
         type: 'document_url',
@@ -229,8 +226,6 @@ export class MistralProcessor extends BaseMarkdownConverter {
     if (!result) {
       throw new Error('OCR processing failed: response is empty')
     }
-
-    context.onProgress?.(100)
 
     const { markdown, outputPath } = this.processOcrResponse(result, input)
 

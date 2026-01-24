@@ -75,7 +75,7 @@ export class SystemOcrProcessor extends BaseTextExtractor {
   protected async doExtractText(
     input: FileMetadata,
     config: FileProcessorMerged,
-    _context: ProcessingContext
+    context: ProcessingContext
   ): Promise<ProcessingResult> {
     if (!isImageFileMetadata(input)) {
       throw new Error('SystemOcrProcessor only supports image files')
@@ -84,6 +84,8 @@ export class SystemOcrProcessor extends BaseTextExtractor {
     if (isLinux) {
       throw new Error('System OCR is not available on Linux')
     }
+
+    this.checkCancellation(context)
 
     logger.debug('Processing file', { path: input.path })
 

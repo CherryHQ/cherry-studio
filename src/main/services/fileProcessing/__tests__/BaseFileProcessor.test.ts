@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { isMarkdownConverter, isTextExtractor } from '../interfaces'
 import {
@@ -130,17 +130,6 @@ describe('BaseTextExtractor', () => {
 
       expect(result).toEqual({ text: 'extracted text' })
     })
-
-    it('should pass progress callback in context', async () => {
-      const onProgress = vi.fn()
-      const input = createMockFileMetadata()
-      const config = createMockConfig()
-      const context = createMockContext({ onProgress })
-
-      await processor.extractText(input, config, context)
-
-      expect(processor.doExtractTextMock).toHaveBeenCalledWith(input, config, expect.objectContaining({ onProgress }))
-    })
   })
 })
 
@@ -206,17 +195,6 @@ describe('BaseMarkdownConverter', () => {
       const result = await processor.toMarkdown(input, config, context)
 
       expect(result).toEqual({ markdown: '# Converted Markdown' })
-    })
-
-    it('should pass progress callback in context', async () => {
-      const onProgress = vi.fn()
-      const input = createMockFileMetadata()
-      const config = createMockConfig()
-      const context = createMockContext({ onProgress })
-
-      await processor.toMarkdown(input, config, context)
-
-      expect(processor.doConvertMock).toHaveBeenCalledWith(input, config, expect.objectContaining({ onProgress }))
     })
   })
 })
