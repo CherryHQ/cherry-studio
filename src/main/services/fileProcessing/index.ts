@@ -39,8 +39,8 @@ import { Doc2xProcessor } from './providers/api/Doc2xProcessor'
 import { MineruProcessor } from './providers/api/MineruProcessor'
 import { MistralProcessor } from './providers/api/MistralProcessor'
 import { OpenMineruProcessor } from './providers/api/OpenMineruProcessor'
+import { PaddleProcessor } from './providers/api/PaddleProcessor'
 import { OvOcrProcessor } from './providers/builtin/OvOcrProcessor'
-import { PaddleOcrProcessor } from './providers/builtin/PaddleOcrProcessor'
 import { SystemOcrProcessor } from './providers/builtin/SystemOcrProcessor'
 import { TesseractProcessor } from './providers/builtin/TesseractProcessor'
 import { processorRegistry } from './registry/ProcessorRegistry'
@@ -57,15 +57,16 @@ export function registerProcessors(): void {
   logger.info('Registering file processors...')
 
   // Builtin processors (OCR)
-  const builtinProcessors = [
-    new TesseractProcessor(),
-    new SystemOcrProcessor(),
-    new PaddleOcrProcessor(),
-    new OvOcrProcessor()
-  ]
+  const builtinProcessors = [new TesseractProcessor(), new SystemOcrProcessor(), new OvOcrProcessor()]
 
-  // API processors (document conversion)
-  const apiProcessors = [new MineruProcessor(), new Doc2xProcessor(), new MistralProcessor(), new OpenMineruProcessor()]
+  // API processors (OCR + document conversion)
+  const apiProcessors = [
+    new MineruProcessor(),
+    new Doc2xProcessor(),
+    new MistralProcessor(),
+    new OpenMineruProcessor(),
+    new PaddleProcessor()
+  ]
 
   const allProcessors = [...builtinProcessors, ...apiProcessors]
 

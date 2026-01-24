@@ -1,5 +1,5 @@
 /**
- * PaddleOCR Processor
+ * Paddle Processor
  *
  * API-based OCR processor using PaddleOCR service.
  * Requires an API host to be configured.
@@ -17,7 +17,7 @@ import * as z from 'zod'
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
 import type { ProcessingContext } from '../../types'
 
-const logger = loggerService.withContext('PaddleOcrProcessor')
+const logger = loggerService.withContext('PaddleProcessor')
 
 /**
  * File type for PaddleOCR API
@@ -59,11 +59,11 @@ const OcrResponseSchema = z.object({
 })
 
 /**
- * PaddleOCR processor
+ * Paddle processor
  *
  * Sends images to a PaddleOCR API endpoint for text extraction.
  */
-export class PaddleOcrProcessor extends BaseTextExtractor {
+export class PaddleProcessor extends BaseTextExtractor {
   constructor() {
     const template = PRESETS_FILE_PROCESSORS.find((p) => p.id === 'paddleocr')
     if (!template) {
@@ -111,7 +111,7 @@ export class PaddleOcrProcessor extends BaseTextExtractor {
     _context: ProcessingContext
   ): Promise<ProcessingResult> {
     if (!isImageFileMetadata(input)) {
-      throw new Error('PaddleOcrProcessor only supports image files')
+      throw new Error('PaddleProcessor only supports image files')
     }
 
     const apiUrl = this.getApiUrl(config)
@@ -162,7 +162,7 @@ export class PaddleOcrProcessor extends BaseTextExtractor {
 
       return { text: recTexts.join('\n') }
     } catch (error) {
-      logger.error('Error during PaddleOCR process', { error })
+      logger.error('Error during PaddleProcessor process', { error })
       throw error
     }
   }
