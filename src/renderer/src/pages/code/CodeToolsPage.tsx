@@ -278,6 +278,7 @@ const CodeToolsPage: FC = () => {
       terminal?: string
       modelName?: string
       isReasoning?: boolean
+      providerType?: string
     } = {
       autoUpdateToLatest,
       terminal: selectedTerminal
@@ -287,6 +288,9 @@ const CodeToolsPage: FC = () => {
     if (selectedCliTool === codeTools.openCode && selectedModel) {
       runOptions.modelName = selectedModel.name
       runOptions.isReasoning = isReasoningModel(selectedModel)
+      // Add provider type for correct npm package selection
+      const modelProvider = providers.find((p) => p.id === selectedModel.provider)
+      runOptions.providerType = modelProvider?.type
     }
 
     window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
