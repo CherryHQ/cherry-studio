@@ -39,6 +39,7 @@
 | -------------- | --------------------- | ------------------------------ |
 | `id`           | string                | 唯一标识，也用于 i18n key      |
 | `type`         | `'api' \| 'builtin'`  | 服务类型                       |
+| `metadata`     | `FileProcessorMetadata?` | 处理器元数据（大小/页数限制）  |
 | `capabilities` | `FeatureCapability[]` | 能力定义数组                   |
 
 > **i18n**: 处理器显示名称通过 `processor.${id}.name` 获取，Template 不存储 name 字段
@@ -56,6 +57,15 @@
 | `excludedFormats`  | `string[]?`                            | 黑名单：除这些格式外都支持        |
 | `defaultApiHost`   | `string?`                              | Feature 级默认 API Host           |
 | `defaultModelId`   | `string?`                              | Feature 级默认 Model ID           |
+
+### 模板元数据：`FileProcessorMetadata`
+
+用于描述处理器的文件限制条件（主要针对文档类）。
+
+| 字段            | 类型       | 说明                     |
+| --------------- | ---------- | ------------------------ |
+| `maxFileSizeMb` | `number?`  | 单文件大小上限（MB）     |
+| `maxPageCount`  | `number?`  | 单文件页数上限（页数）   |
 
 ### 用户配置结构：`FileProcessorOverride`
 
@@ -148,6 +158,10 @@ type FileProcessorType = 'api' | 'builtin'
 {
   id: 'mineru',
   type: 'api',
+  metadata: {
+    maxFileSizeMb: 200,
+    maxPageCount: 600
+  },
   capabilities: [
     {
       feature: 'to_markdown',

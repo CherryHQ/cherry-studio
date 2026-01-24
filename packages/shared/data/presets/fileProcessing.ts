@@ -32,6 +32,14 @@ export type FileProcessorInput = 'image' | 'document'
 export type FileProcessorOutput = 'text' | 'markdown'
 
 /**
+ * Processor metadata
+ */
+export type FileProcessorMetadata = {
+  maxFileSizeMb?: number
+  maxPageCount?: number
+}
+
+/**
  * Feature capability definition
  *
  * Each capability binds a feature with its input/output and optional API settings.
@@ -54,6 +62,7 @@ export type FeatureCapability = {
 export type FileProcessorTemplate = {
   id: string // Unique identifier, also used for i18n key
   type: FileProcessorType // 'api' | 'builtin'
+  metadata?: FileProcessorMetadata // Optional processor metadata
   capabilities: FeatureCapability[] // Feature capabilities
 }
 
@@ -164,6 +173,10 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
   {
     id: 'mineru',
     type: 'api',
+    metadata: {
+      maxFileSizeMb: 200,
+      maxPageCount: 600
+    },
     capabilities: [
       {
         feature: 'to_markdown',
@@ -176,6 +189,10 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
   {
     id: 'doc2x',
     type: 'api',
+    metadata: {
+      maxFileSizeMb: 300,
+      maxPageCount: 1000
+    },
     capabilities: [
       {
         feature: 'to_markdown',
@@ -188,6 +205,10 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
   {
     id: 'mistral',
     type: 'api',
+    metadata: {
+      maxFileSizeMb: 50,
+      maxPageCount: 1000
+    },
     capabilities: [
       {
         feature: 'to_markdown',
@@ -201,6 +222,10 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
   {
     id: 'open-mineru',
     type: 'api',
+    metadata: {
+      maxFileSizeMb: 200,
+      maxPageCount: 600
+    },
     capabilities: [
       {
         feature: 'to_markdown',

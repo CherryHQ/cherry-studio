@@ -17,6 +17,7 @@ export type {
   FeatureCapability,
   FileProcessorFeature,
   FileProcessorInput,
+  FileProcessorMetadata,
   FileProcessorOutput,
   FileProcessorTemplate,
   FileProcessorType
