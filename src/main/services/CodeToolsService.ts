@@ -105,6 +105,8 @@ class CodeToolsService {
         return '@github/copilot'
       case codeTools.kimiCli:
         return 'kimi-cli' // Python package
+      case codeTools.openCode:
+        return 'opencode-ai'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -126,9 +128,70 @@ class CodeToolsService {
         return 'copilot'
       case codeTools.kimiCli:
         return 'kimi'
+      case codeTools.openCode:
+        return 'opencode'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
+  }
+
+  /**
+   * Generate opencode.json config file for OpenCode CLI
+   */
+  private async generateOpenCodeConfig(
+    directory: string,
+    model: { id: string; name: string },
+    apiKey: string,
+    baseUrl: string,
+    isReasoning: boolean
+  ): Promise<string> {
+    const configPath = path.join(directory, 'opencode.json')
+
+    const modelConfig: Record<string, any> = {
+      name: model.name,
+      limit: { context: 128000 }
+    }
+
+    if (isReasoning) {
+      modelConfig.reasoning = true
+      modelConfig.options = {
+        thinking: {
+          type: 'enabled'
+        }
+      }
+    }
+
+    const config = {
+      $schema: 'https://opencode.ai/config.json',
+      provider: {
+        CherryStudio: {
+          npm: '@ai-sdk/openai-compatible',
+          name: 'CherryStudio',
+          options: { apiKey, baseURL: baseUrl },
+          models: { [model.id]: modelConfig }
+        }
+      }
+    }
+
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
+    logger.info(`Generated opencode.json at: ${configPath}`)
+    return configPath
+  }
+
+  /**
+   * Schedule cleanup of opencode.json config file after 60 seconds
+   */
+  private scheduleOpenCodeConfigCleanup(configPath: string): void {
+    setTimeout(() => {
+      try {
+        if (fs.existsSync(configPath)) {
+          fs.unlinkSync(configPath)
+          logger.info(`Cleaned up opencode.json: ${configPath}`)
+        }
+      } catch (error) {
+        logger.warn(`Failed to cleanup opencode.json: ${error}`)
+      }
+    }, 60 * 1000)
   }
 
   /**
@@ -562,7 +625,7 @@ class CodeToolsService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string; modelName?: string; isReasoning?: boolean } = {}
   ) {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
@@ -688,6 +751,27 @@ class CodeToolsService {
         `--config model="${model}"`
       ].join(' ')
       baseCommand = `${baseCommand} ${configParams}`
+    }
+
+    // Special handling for OpenCode: generate config file and add --model flag
+    if (cliTool === codeTools.openCode) {
+      const apiKey = env.OPENCODE_API_KEY
+      const baseUrl = env.OPENCODE_BASE_URL
+      const modelId = _model
+      const modelName = options.modelName || modelId
+      const isReasoning = options.isReasoning ?? false
+
+      const configPath = await this.generateOpenCodeConfig(
+        directory,
+        { id: modelId, name: modelName },
+        apiKey,
+        baseUrl,
+        isReasoning
+      )
+      this.scheduleOpenCodeConfigCleanup(configPath)
+
+      // Add --model flag with provider prefix
+      baseCommand = `${baseCommand} --model CherryStudio/${modelId}`
     }
 
     const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
