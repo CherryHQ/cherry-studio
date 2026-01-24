@@ -911,7 +911,8 @@ const HeaderRow = styled.div`
   align-items: center;
   gap: 6px;
   padding-right: 10px;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
+  margin-top: 2px;
 `
 
 const HeaderIconButton = styled.div`

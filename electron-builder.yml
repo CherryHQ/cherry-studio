@@ -116,14 +116,17 @@ dmg:
   writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
+  executableName: CherryStudio
   target:
     - target: AppImage
     - target: deb
     - target: rpm
+    - target: pacman
   maintainer: electronjs.org
   category: Utility
   desktop:
     entry:
+      Name: Cherry Studio
       StartupWMClass: CherryStudio
   mimeTypes:
     - x-scheme-handler/cherrystudio
