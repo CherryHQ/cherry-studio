@@ -2,7 +2,7 @@ import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { isEmbeddingModel, isReasoningModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
@@ -124,6 +124,20 @@ const CodeToolsPage: FC = () => {
           return ['openai', 'openai-response'].some((type) =>
             m.supported_endpoint_types?.includes(type as EndpointType)
           )
+        }
+        return true
+      }
+
+      if (selectedCliTool === codeTools.openCode) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response', 'anthropic'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        // Check if model belongs to an anthropic type provider (including custom providers)
+        const anthropicProvider = providers.find((p) => p.id === m.provider)
+        if (anthropicProvider?.type === 'anthropic') {
+          return true
         }
         return true
       }
@@ -259,10 +273,23 @@ const CodeToolsPage: FC = () => {
   const executeLaunch = async (env: Record<string, string>) => {
     const modelId = selectedCliTool === codeTools.githubCopilotCli ? '' : selectedModel?.id!
 
-    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, {
+    const runOptions: {
+      autoUpdateToLatest?: boolean
+      terminal?: string
+      modelName?: string
+      isReasoning?: boolean
+    } = {
       autoUpdateToLatest,
       terminal: selectedTerminal
-    })
+    }
+
+    // OpenCode needs additional model info
+    if (selectedCliTool === codeTools.openCode && selectedModel) {
+      runOptions.modelName = selectedModel.name
+      runOptions.isReasoning = isReasoningModel(selectedModel)
+    }
+
+    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
     window.toast.success(t('code.launch.success'))
   }
 

@@ -539,7 +539,7 @@ const api = {
       model: string,
       directory: string,
       env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean; terminal?: string }
+      options?: { autoUpdateToLatest?: boolean; terminal?: string; modelName?: string; isReasoning?: boolean }
     ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
       ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals),
