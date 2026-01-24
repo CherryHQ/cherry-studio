@@ -501,7 +501,7 @@ packages/shared/data/presets/
 | 11 | `providers/builtin/PpocrProcessor.ts` | `ocr/builtin/PpocrService.ts` |
 | 12 | `providers/builtin/OvOcrProcessor.ts` | `ocr/builtin/OvOcrService.ts` |
 
-### Phase 4: 迁移 API 处理器
+### ✅ Phase 4: 迁移 API 处理器
 
 | 步骤 | 新文件 | 迁移自 |
 |------|--------|--------|
@@ -616,4 +616,4 @@ packages/shared/data/presets/
 
 ---
 
-*文档更新于 2026-01-23*
+*文档更新于 2026-01-24*

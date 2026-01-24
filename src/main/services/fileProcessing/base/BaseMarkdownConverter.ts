@@ -5,8 +5,11 @@
  * Uses the Template Method pattern to define a consistent processing pipeline.
  */
 
+import { getTempDir } from '@main/utils/file'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileMetadata } from '@types'
+import * as fs from 'fs'
+import * as path from 'path'
 
 import type { IMarkdownConverter } from '../interfaces'
 import type { ProcessingContext, ProcessingResult } from '../types'
@@ -15,41 +18,79 @@ import { BaseFileProcessor } from './BaseFileProcessor'
 /**
  * Abstract base class for markdown conversion processors
  *
- * Template method pattern:
- * 1. Check cancellation
- * 2. Validate document
- * 3. Execute conversion (doConvert - subclass implements)
- * 4. Check cancellation after processing
- * 5. Return result
+ * Provides common functionality for API-based document processors including:
+ * - Storage directory management
+ * - Configuration extraction (API host, API key)
+ * - Document limit validation
  */
 export abstract class BaseMarkdownConverter extends BaseFileProcessor implements IMarkdownConverter {
+  protected readonly storageDir: string
+
+  constructor(template: ConstructorParameters<typeof BaseFileProcessor>[0]) {
+    super(template)
+    this.storageDir = path.join(getTempDir(), 'preprocess')
+    this.ensureStorageDir()
+  }
+
+  private ensureStorageDir(): void {
+    if (!fs.existsSync(this.storageDir)) {
+      fs.mkdirSync(this.storageDir, { recursive: true })
+    }
+  }
+
+  /**
+   * Get document limits from template metadata
+   */
+  protected getDocumentLimits(): { maxFileSizeMb?: number; maxPageCount?: number } {
+    return this.template.metadata ?? {}
+  }
+
+  /**
+   * Get the API host from configuration
+   */
+  protected getApiHost(config: FileProcessorMerged, defaultHost?: string): string {
+    const featureConfig = config.featureConfigs?.find((fc) => fc.feature === 'to_markdown')
+    if (featureConfig?.apiHost) {
+      return featureConfig.apiHost
+    }
+
+    const capability = config.capabilities.find((cap) => cap.feature === 'to_markdown')
+    if (capability?.defaultApiHost) {
+      return capability.defaultApiHost
+    }
+
+    if (defaultHost) {
+      return defaultHost
+    }
+
+    throw new Error(`API host is required for ${this.id} processor`)
+  }
+
+  /**
+   * Get the API key from configuration
+   */
+  protected getApiKey(config: FileProcessorMerged, required = true): string | undefined {
+    if (required && !config.apiKey) {
+      throw new Error(`API key is required for ${this.id} processor`)
+    }
+    return config.apiKey
+  }
+
   /**
    * Convert the input document to markdown
-   *
-   * This is a template method that handles:
-   * - Cancellation checking
-   * - Document validation
-   * - Delegating to subclass implementation
    */
   async toMarkdown(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext
   ): Promise<ProcessingResult> {
-    // Check cancellation before starting
     this.checkCancellation(context)
-
-    // Validate document
     this.validateDocument(input)
-
-    // Execute conversion (subclass implementation)
     return this.doConvert(input, config, context)
   }
 
   /**
    * Validate the input document
-   *
-   * @throws Error if validation fails
    */
   protected validateDocument(input: FileMetadata): void {
     if (!input.path) {
@@ -58,9 +99,7 @@ export abstract class BaseMarkdownConverter extends BaseFileProcessor implements
   }
 
   /**
-   * Perform the actual markdown conversion
-   *
-   * Subclasses must implement this method with their specific conversion logic.
+   * Perform the actual markdown conversion (subclass implementation)
    */
   protected abstract doConvert(
     input: FileMetadata,
