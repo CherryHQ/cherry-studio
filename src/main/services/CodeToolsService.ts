@@ -26,9 +26,6 @@ const logger = loggerService.withContext('CodeToolsService')
 // Sensitive environment variable keys to redact in logs
 const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
 
-// Marker to identify CherryStudio-generated opencode.json configs
-const CHERRY_GENERATED_MARKER = '__cherryStudioGenerated'
-
 /**
  * Sanitize environment variables for safe logging
  * Redacts values of sensitive keys to prevent credential leakage
@@ -57,6 +54,7 @@ class CodeToolsService {
   private customTerminalPaths: Map<string, string> = new Map() // Store user-configured terminal paths
   private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
+  private openCodeCleanupTimers: Map<string, NodeJS.Timeout> = new Map() // Track cleanup timers by directory for debounce
 
   constructor() {
     this.getBunPath = this.getBunPath.bind(this)
@@ -140,10 +138,9 @@ class CodeToolsService {
 
   /**
    * Generate opencode.json config file for OpenCode CLI
-   * Handles three scenarios:
-   * 1. Cherry-generated config exists: append model
-   * 2. User config exists: merge without marker
-   * 3. No existing config: create new with marker
+   * Handles two scenarios:
+   * 1. Existing config: merge CherryStudio provider
+   * 2. No existing config: create new config
    */
   private async generateOpenCodeConfig(
     directory: string,
@@ -151,24 +148,20 @@ class CodeToolsService {
     apiKey: string,
     baseUrl: string,
     isReasoning: boolean
-  ): Promise<{ configPath: string; isCherryGenerated: boolean }> {
+  ): Promise<string> {
     const configPath = path.join(directory, 'opencode.json')
 
     let existingConfig: Record<string, any> | null = null
-    let isCherryGenerated = false
 
     // Check for existing config
     if (fs.existsSync(configPath)) {
       try {
         const content = fs.readFileSync(configPath, 'utf8')
-        const parsedConfig = JSON.parse(content)
-        isCherryGenerated = parsedConfig[CHERRY_GENERATED_MARKER] === true
-        existingConfig = parsedConfig
-        logger.info(`Found existing opencode.json (cherryGenerated: ${isCherryGenerated})`)
+        existingConfig = JSON.parse(content)
+        logger.info('Found existing opencode.json')
       } catch (error) {
         logger.warn(`Failed to parse existing opencode.json: ${error}`)
         existingConfig = null
-        isCherryGenerated = false
       }
     }
 
@@ -180,15 +173,13 @@ class CodeToolsService {
 
     if (isReasoning) {
       modelConfig.reasoning = true
-      modelConfig.options = {
-        thinking: { type: 'enabled' }
-      }
+      modelConfig.options = { thinking: { type: 'enabled' } }
     }
 
     let finalConfig: Record<string, any>
 
-    if (existingConfig && isCherryGenerated) {
-      // Case 1: Cherry-generated config exists - append model
+    if (existingConfig) {
+      // Existing config: merge/append CherryStudio provider
       const existingModels = existingConfig.provider?.CherryStudio?.models || {}
       finalConfig = {
         ...existingConfig,
@@ -198,38 +189,14 @@ class CodeToolsService {
             npm: '@ai-sdk/openai-compatible',
             name: 'CherryStudio',
             options: { apiKey, baseURL: baseUrl },
-            models: {
-              ...existingModels,
-              [model.id]: modelConfig
-            }
+            models: { ...existingModels, [model.id]: modelConfig }
           }
         }
       }
-      logger.info(`Appended model ${model.id} to existing Cherry config`)
-    } else if (existingConfig && !isCherryGenerated) {
-      // Case 2: User config exists - merge without marker
-      const existingModels = existingConfig.provider?.CherryStudio?.models || {}
-      finalConfig = {
-        ...existingConfig,
-        provider: {
-          ...existingConfig.provider,
-          CherryStudio: {
-            npm: '@ai-sdk/openai-compatible',
-            name: 'CherryStudio',
-            options: { apiKey, baseURL: baseUrl },
-            models: {
-              ...existingModels,
-              [model.id]: modelConfig
-            }
-          }
-        }
-      }
-      logger.info(`Merged CherryStudio into user config with model ${model.id}`)
+      logger.info(`Merged CherryStudio with model ${model.id} into existing config`)
     } else {
-      // Case 3: No existing config - create new with marker
-      isCherryGenerated = true
+      // No existing config: create new
       finalConfig = {
-        [CHERRY_GENERATED_MARKER]: true,
         $schema: 'https://opencode.ai/config.json',
         provider: {
           CherryStudio: {
@@ -240,46 +207,60 @@ class CodeToolsService {
           }
         }
       }
-      logger.info(`Created new Cherry config with model ${model.id}`)
+      logger.info(`Created new config with model ${model.id}`)
     }
 
     fs.writeFileSync(configPath, JSON.stringify(finalConfig, null, 2), 'utf8')
     logger.info(`Wrote opencode.json at: ${configPath}`)
 
-    return { configPath, isCherryGenerated }
+    return configPath
   }
 
   /**
-   * Schedule cleanup of opencode.json config file after 60 seconds
-   * - Cherry-generated config: delete the entire file
-   * - User config was merged: only remove CherryStudio provider
+   * Schedule cleanup of opencode.json config file after 60 seconds (debounce mode)
+   * - Config has other providers: only remove CherryStudio provider
+   * - Config only has CherryStudio: delete entire file
    */
-  private scheduleOpenCodeConfigCleanup(configPath: string, isCherryGenerated: boolean): void {
-    setTimeout(() => {
+  private scheduleOpenCodeConfigCleanup(configPath: string): void {
+    // Cancel any existing timer for this directory (debounce)
+    const existingTimer = this.openCodeCleanupTimers.get(configPath)
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+      logger.info(`Cancelled previous cleanup timer for: ${configPath}`)
+    }
+
+    // Schedule new cleanup
+    const timer = setTimeout(() => {
+      this.openCodeCleanupTimers.delete(configPath)
+
       try {
-        if (!fs.existsSync(configPath)) {
-          return
-        }
+        if (!fs.existsSync(configPath)) return
 
-        if (isCherryGenerated) {
-          // Cherry-generated config: delete the entire file
-          fs.unlinkSync(configPath)
-          logger.info(`Deleted Cherry-generated opencode.json: ${configPath}`)
+        const content = fs.readFileSync(configPath, 'utf8')
+        const config = JSON.parse(content)
+
+        if (!config.provider?.CherryStudio) return
+
+        // Check if there are other providers besides CherryStudio
+        const providerKeys = Object.keys(config.provider || {})
+        const hasOtherProviders = providerKeys.some((key) => key !== 'CherryStudio')
+
+        if (hasOtherProviders) {
+          // Other providers exist: only remove CherryStudio
+          delete config.provider.CherryStudio
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
+          logger.info(`Removed CherryStudio provider from config: ${configPath}`)
         } else {
-          // User config was merged: only remove CherryStudio provider
-          const content = fs.readFileSync(configPath, 'utf8')
-          const config = JSON.parse(content)
-
-          if (config.provider?.CherryStudio) {
-            delete config.provider.CherryStudio
-            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
-            logger.info(`Removed CherryStudio provider from user config: ${configPath}`)
-          }
+          // Only CherryStudio: delete entire file
+          fs.unlinkSync(configPath)
+          logger.info(`Deleted opencode.json: ${configPath}`)
         }
       } catch (error) {
         logger.warn(`Failed to cleanup opencode.json: ${error}`)
       }
     }, 60 * 1000)
+
+    this.openCodeCleanupTimers.set(configPath, timer)
   }
 
   /**
@@ -849,14 +830,14 @@ class CodeToolsService {
       const modelName = options.modelName || modelId
       const isReasoning = options.isReasoning ?? false
 
-      const { configPath, isCherryGenerated } = await this.generateOpenCodeConfig(
+      const configPath = await this.generateOpenCodeConfig(
         directory,
         { id: modelId, name: modelName },
         apiKey,
         baseUrl,
         isReasoning
       )
-      this.scheduleOpenCodeConfigCleanup(configPath, isCherryGenerated)
+      this.scheduleOpenCodeConfigCleanup(configPath)
 
       // Add --model flag with provider prefix
       baseCommand = `${baseCommand} --model CherryStudio/${modelId}`
