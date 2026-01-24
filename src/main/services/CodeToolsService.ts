@@ -147,7 +147,8 @@ class CodeToolsService {
     model: { id: string; name: string },
     apiKey: string,
     baseUrl: string,
-    isReasoning: boolean
+    isReasoning: boolean,
+    providerType?: string
   ): Promise<string> {
     const configPath = path.join(directory, 'opencode.json')
 
@@ -165,15 +166,38 @@ class CodeToolsService {
       }
     }
 
-    // Build model config
-    const modelConfig: Record<string, any> = {
-      name: model.name,
-      limit: { context: 128000 }
+    // Determine npm package based on provider type
+    let npmPackage = '@ai-sdk/openai-compatible'
+    if (providerType === 'anthropic') {
+      npmPackage = '@ai-sdk/anthropic'
+    } else if (providerType === 'openai-response') {
+      npmPackage = '@ai-sdk/openai'
     }
 
+    // Build model config - NO limit field (cannot determine output capacity)
+    const modelConfig: Record<string, any> = {
+      name: model.name
+    }
+
+    // Add reasoning config based on provider type
     if (isReasoning) {
       modelConfig.reasoning = true
-      modelConfig.options = { thinking: { type: 'enabled' } }
+      if (providerType === 'anthropic') {
+        // Anthropic style: thinking with budgetTokens
+        modelConfig.options = {
+          thinking: {
+            budgetTokens: 10000,
+            type: 'enabled'
+          }
+        }
+      } else {
+        // OpenAI style: reasoning with effort
+        modelConfig.options = {
+          reasoning: {
+            effort: 'medium'
+          }
+        }
+      }
     }
 
     let finalConfig: Record<string, any>
@@ -186,28 +210,28 @@ class CodeToolsService {
         provider: {
           ...existingConfig.provider,
           CherryStudio: {
-            npm: '@ai-sdk/openai-compatible',
+            npm: npmPackage,
             name: 'CherryStudio',
             options: { apiKey, baseURL: baseUrl },
             models: { ...existingModels, [model.id]: modelConfig }
           }
         }
       }
-      logger.info(`Merged CherryStudio with model ${model.id} into existing config`)
+      logger.info(`Merged CherryStudio with model ${model.id} into existing config (npm: ${npmPackage})`)
     } else {
       // No existing config: create new
       finalConfig = {
         $schema: 'https://opencode.ai/config.json',
         provider: {
           CherryStudio: {
-            npm: '@ai-sdk/openai-compatible',
+            npm: npmPackage,
             name: 'CherryStudio',
             options: { apiKey, baseURL: baseUrl },
             models: { [model.id]: modelConfig }
           }
         }
       }
-      logger.info(`Created new config with model ${model.id}`)
+      logger.info(`Created new config with model ${model.id} (npm: ${npmPackage})`)
     }
 
     fs.writeFileSync(configPath, JSON.stringify(finalConfig, null, 2), 'utf8')
@@ -694,7 +718,13 @@ class CodeToolsService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean; terminal?: string; modelName?: string; isReasoning?: boolean } = {}
+    options: {
+      autoUpdateToLatest?: boolean
+      terminal?: string
+      modelName?: string
+      isReasoning?: boolean
+      providerType?: string
+    } = {}
   ) {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
@@ -829,13 +859,15 @@ class CodeToolsService {
       const modelId = _model
       const modelName = options.modelName || modelId
       const isReasoning = options.isReasoning ?? false
+      const providerType = options.providerType
 
       const configPath = await this.generateOpenCodeConfig(
         directory,
         { id: modelId, name: modelName },
         apiKey,
         baseUrl,
-        isReasoning
+        isReasoning,
+        providerType
       )
       this.scheduleOpenCodeConfigCleanup(configPath)
 
