@@ -149,6 +149,7 @@ class CodeToolsService {
     baseUrl: string,
     isReasoning: boolean,
     supportsReasoningEffort: boolean,
+    budgetTokens: number | undefined,
     providerType: string,
     providerName: string
   ): Promise<string> {
@@ -188,7 +189,7 @@ class CodeToolsService {
         // Anthropic style: thinking with budgetTokens
         modelConfig.options = {
           thinking: {
-            budgetTokens: 10000,
+            budgetTokens: budgetTokens ?? 10000, // Use passed budget or fallback to default
             type: 'enabled'
           }
         }
@@ -735,6 +736,7 @@ class CodeToolsService {
       modelName?: string
       isReasoning?: boolean
       supportsReasoningEffort?: boolean
+      budgetTokens?: number
       providerType?: string
       providerName?: string
     } = {}
@@ -873,6 +875,7 @@ class CodeToolsService {
       const modelName = options.modelName || modelId
       const isReasoning = options.isReasoning ?? false
       const supportsReasoningEffort = options.supportsReasoningEffort ?? false
+      const budgetTokens = options.budgetTokens
       const providerType = options.providerType || 'openai-compatible'
       const providerName = options.providerName || 'Studio'
 
@@ -883,6 +886,7 @@ class CodeToolsService {
         baseUrl,
         isReasoning,
         supportsReasoningEffort,
+        budgetTokens,
         providerType,
         providerName
       )
