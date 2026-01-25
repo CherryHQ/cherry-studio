@@ -11,7 +11,8 @@ import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useV
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { getProviderById } from '@renderer/services/ProviderService'
 import store from '@renderer/store'
-import { EndpointType, isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import type { EndpointType } from '@renderer/types'
+import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { OpenAICompletionsStreamOptions } from '@renderer/types/aiCoreTypes'
 import {
   formatApiHost,
