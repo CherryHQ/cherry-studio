@@ -22,7 +22,8 @@ export const CLI_TOOLS = [
   { value: codeTools.geminiCli, label: 'Gemini CLI' },
   { value: codeTools.openaiCodex, label: 'OpenAI Codex' },
   { value: codeTools.iFlowCli, label: 'iFlow CLI' },
-  { value: codeTools.githubCopilotCli, label: 'GitHub Copilot CLI' }
+  { value: codeTools.githubCopilotCli, label: 'GitHub Copilot CLI' },
+  { value: codeTools.kimiCli, label: 'Kimi CLI' }
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
@@ -57,9 +58,10 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
   [codeTools.openaiCodex]: (providers) =>
-    providers.filter((p) => p.id === 'openai' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
+    providers.filter((p) => p.type === 'openai-response' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
-  [codeTools.githubCopilotCli]: () => []
+  [codeTools.githubCopilotCli]: () => [],
+  [codeTools.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai'))
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
@@ -144,7 +146,7 @@ export const generateToolEnvironment = ({
   modelProvider: Provider
   apiKey: string
   baseUrl: string
-}): Record<string, string> => {
+}): { env: Record<string, string> } => {
   const env: Record<string, string> = {}
   const formattedBaseUrl = formatApiHost(baseUrl)
 
@@ -179,6 +181,7 @@ export const generateToolEnvironment = ({
       env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       env.OPENAI_MODEL_PROVIDER = modelProvider.id
+      env.OPENAI_MODEL_PROVIDER_NAME = modelProvider.name
       break
 
     case codeTools.iFlowCli:
@@ -190,9 +193,15 @@ export const generateToolEnvironment = ({
     case codeTools.githubCopilotCli:
       env.GITHUB_TOKEN = apiKey || ''
       break
+
+    case codeTools.kimiCli:
+      env.KIMI_API_KEY = apiKey
+      env.KIMI_BASE_URL = formattedBaseUrl
+      env.KIMI_MODEL_NAME = model.id
+      break
   }
 
-  return env
+  return { env }
 }
 
 export { default } from './CodeToolsPage'

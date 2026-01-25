@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2025-11-29T03:44:52.215Z",
-    "totalItems": 385,
-    "classified": 256,
-    "pending": 123,
+    "lastUpdated": "2026-01-23T10:27:37.752Z",
+    "totalItems": 391,
+    "classified": 255,
+    "pending": 130,
     "deleted": 0
   },
   "classifications": {
@@ -640,11 +640,11 @@
       ],
       "runtime": [
         {
-          "originalKey": "chat",
-          "type": "object",
-          "defaultValue": "{ isMultiSelectMode: false, selectedMessageIds: [], activeTopic: null, activeAgentId: null, activeTopicOrSession: 'topic', activeSessionIdMap: {}, renamingTopics: [], newlyRenamedTopics: [], sessionWaiting: {} }",
-          "status": "classified",
-          "category": "cache",
+          "originalKey": "placeHolder",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
           "targetKey": null
         }
       ],
@@ -1903,6 +1903,14 @@
           "targetKey": "app.disable_hardware_acceleration"
         },
         {
+          "originalKey": "useSystemTitleBar",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.use_system_title_bar"
+        },
+        {
           "originalKey": "exportMenuOptions",
           "type": "unknown",
           "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true, notes: true }",
@@ -2142,6 +2150,22 @@
           "originalKey": "verbosity",
           "type": "string",
           "defaultValue": "medium",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "streamOptions",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "includeUsage",
+          "type": "unknown",
+          "defaultValue": null,
           "status": "pending",
           "category": null,
           "targetKey": null
@@ -2423,7 +2447,10 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": ["CommandOrControl", "="],
+                "key": [
+                  "CommandOrControl",
+                  "="
+                ],
                 "system": true
               },
               "originalKey": "zoom_in",
@@ -2436,7 +2463,10 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": ["CommandOrControl", "-"],
+                "key": [
+                  "CommandOrControl",
+                  "-"
+                ],
                 "system": true
               },
               "originalKey": "zoom_out",
@@ -2449,7 +2479,10 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": ["CommandOrControl", "0"],
+                "key": [
+                  "CommandOrControl",
+                  "0"
+                ],
                 "system": true
               },
               "originalKey": "zoom_reset",
@@ -2462,7 +2495,10 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": ["CommandOrControl", ","],
+                "key": [
+                  "CommandOrControl",
+                  ","
+                ],
                 "system": true
               },
               "originalKey": "show_settings",
@@ -2488,7 +2524,10 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": false,
-                "key": ["CommandOrControl", "E"],
+                "key": [
+                  "CommandOrControl",
+                  "E"
+                ],
                 "system": true
               },
               "originalKey": "mini_window",
@@ -2527,7 +2566,10 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "N"],
+                "key": [
+                  "CommandOrControl",
+                  "N"
+                ],
                 "system": false
               },
               "originalKey": "new_topic",
@@ -2540,7 +2582,10 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": false,
-                "key": ["CommandOrControl", "T"],
+                "key": [
+                  "CommandOrControl",
+                  "T"
+                ],
                 "system": false
               },
               "originalKey": "rename_topic",
@@ -2553,7 +2598,10 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "["],
+                "key": [
+                  "CommandOrControl",
+                  "["
+                ],
                 "system": false
               },
               "originalKey": "toggle_show_assistants",
@@ -2566,7 +2614,11 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": false,
-                "key": ["CommandOrControl", "Shift", "C"],
+                "key": [
+                  "CommandOrControl",
+                  "Shift",
+                  "C"
+                ],
                 "system": false
               },
               "originalKey": "copy_last_message",
@@ -2579,7 +2631,11 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": false,
-                "key": ["CommandOrControl", "Shift", "E"],
+                "key": [
+                  "CommandOrControl",
+                  "Shift",
+                  "E"
+                ],
                 "system": false
               },
               "originalKey": "edit_last_user_message",
@@ -2592,7 +2648,10 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "F"],
+                "key": [
+                  "CommandOrControl",
+                  "F"
+                ],
                 "system": false
               },
               "originalKey": "search_message_in_chat",
@@ -2605,7 +2664,11 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "Shift", "F"],
+                "key": [
+                  "CommandOrControl",
+                  "Shift",
+                  "F"
+                ],
                 "system": false
               },
               "originalKey": "search_message",
@@ -2618,7 +2681,10 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "L"],
+                "key": [
+                  "CommandOrControl",
+                  "L"
+                ],
                 "system": false
               },
               "originalKey": "clear_topic",
@@ -2631,7 +2697,10 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": ["CommandOrControl", "K"],
+                "key": [
+                  "CommandOrControl",
+                  "K"
+                ],
                 "system": false
               },
               "originalKey": "toggle_new_context",
@@ -2644,7 +2713,9 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": ["Escape"],
+                "key": [
+                  "Escape"
+                ],
                 "system": true
               },
               "originalKey": "exit_fullscreen",
@@ -3270,6 +3341,16 @@
           "targetKey": "app.disable_hardware_acceleration"
         }
       ],
+      "UseSystemTitleBar": [
+        {
+          "originalKey": "UseSystemTitleBar",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
       "Proxy": [
         {
           "originalKey": "Proxy",
@@ -3293,6 +3374,26 @@
       "ClientId": [
         {
           "originalKey": "ClientId",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "GitBashPath": [
+        {
+          "originalKey": "GitBashPath",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "GitBashPathSource": [
+        {
+          "originalKey": "GitBashPathSource",
           "type": "unknown",
           "defaultValue": null,
           "status": "pending",

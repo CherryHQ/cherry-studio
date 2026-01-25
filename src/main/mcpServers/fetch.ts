@@ -1,7 +1,9 @@
 // port https://github.com/zcaceres/fetch-mcp/blob/main/src/index.ts
 
+import { generateUserAgent } from '@main/utils/systemInfo'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { mergeHeaders } from '@shared/utils'
 import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
@@ -18,11 +20,12 @@ export class Fetcher {
   private static async _fetch({ url, headers }: RequestPayload): Promise<Response> {
     try {
       const response = await net.fetch(url, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          ...headers
-        }
+        headers: mergeHeaders(
+          {
+            'User-Agent': generateUserAgent()
+          },
+          headers
+        )
       })
 
       if (!response.ok) {
