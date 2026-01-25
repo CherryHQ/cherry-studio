@@ -8,7 +8,7 @@
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
-import type { ProcessingResult } from '@shared/data/types/fileProcessing'
+import type { ProcessingResult, ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import AdmZip from 'adm-zip'
 import { net } from 'electron'
@@ -17,6 +17,7 @@ import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
+import type { IProcessStatusProvider } from '../../interfaces'
 import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('Doc2xProcessor')
@@ -42,9 +43,16 @@ type ParsedFileResponse = {
   url: string
 }
 
-const POLL_INTERVAL_MS = 1000
+type Doc2xTaskPayload = {
+  uid: string
+  fileId: string
+  fileName: string
+  originalName: string
+}
 
-export class Doc2xProcessor extends BaseMarkdownConverter {
+export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessStatusProvider {
+  private convertRequested: Set<string> = new Set()
+
   constructor() {
     const template = PRESETS_FILE_PROCESSORS.find((p) => p.id === 'doc2x')
     if (!template) {
@@ -109,7 +117,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter {
     }
   }
 
-  private async getStatus(apiHost: string, apiKey: string, uid: string): Promise<StatusResponse> {
+  private async getParseStatus(apiHost: string, apiKey: string, uid: string): Promise<StatusResponse> {
     const response = await net.fetch(`${apiHost}/api/v2/parse/status?uid=${uid}`, {
       method: 'GET',
       headers: {
@@ -128,29 +136,6 @@ export class Doc2xProcessor extends BaseMarkdownConverter {
     }
 
     throw new Error(`API returned error: ${data.message || JSON.stringify(data)}`)
-  }
-
-  private async waitForProcessing(
-    apiHost: string,
-    apiKey: string,
-    uid: string,
-    context: ProcessingContext
-  ): Promise<void> {
-    while (true) {
-      this.checkCancellation(context)
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-
-      const { status, progress } = await this.getStatus(apiHost, apiKey, uid)
-      logger.debug(`Processing status: ${status}, progress: ${progress}%`)
-
-      if (status === 'success') {
-        return
-      }
-
-      if (status === 'failed') {
-        throw new Error('Doc2X processing failed')
-      }
-    }
   }
 
   private async convertFile(apiHost: string, apiKey: string, uid: string, fileName: string): Promise<void> {
@@ -200,27 +185,38 @@ export class Doc2xProcessor extends BaseMarkdownConverter {
     throw new Error('No data in response')
   }
 
-  private async waitForExport(
-    apiHost: string,
-    apiKey: string,
-    uid: string,
-    context: ProcessingContext
-  ): Promise<string> {
-    while (true) {
-      this.checkCancellation(context)
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+  private buildProviderTaskId(payload: Doc2xTaskPayload): string {
+    return JSON.stringify(payload)
+  }
 
-      const { status, url } = await this.getParsedFile(apiHost, apiKey, uid)
-      logger.debug(`Export status: ${status}`)
-
-      if (status === 'success' && url) {
-        return url
-      }
-
-      if (status === 'failed') {
-        throw new Error('Export failed')
-      }
+  private parseProviderTaskId(providerTaskId: string): Doc2xTaskPayload {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(providerTaskId)
+    } catch {
+      throw new Error('Invalid provider task id')
     }
+
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Invalid provider task id')
+    }
+
+    const record = parsed as Record<string, unknown>
+    const uid = record['uid']
+    const fileId = record['fileId']
+    const fileName = record['fileName']
+    const originalName = record['originalName']
+
+    if (
+      typeof uid !== 'string' ||
+      typeof fileId !== 'string' ||
+      typeof fileName !== 'string' ||
+      typeof originalName !== 'string'
+    ) {
+      throw new Error('Invalid provider task id')
+    }
+
+    return { uid, fileId, fileName, originalName }
   }
 
   private async downloadAndExtract(url: string, fileId: string): Promise<string> {
@@ -282,27 +278,104 @@ export class Doc2xProcessor extends BaseMarkdownConverter {
     logger.info('File uploaded successfully')
     this.checkCancellation(context)
 
-    await this.waitForProcessing(apiHost, apiKey, uid, context)
-    logger.info('Processing completed')
-
-    const fileName = path.parse(filePath).name
-    await this.convertFile(apiHost, apiKey, uid, fileName)
-    logger.info('Conversion initiated')
-
-    const exportUrl = await this.waitForExport(apiHost, apiKey, uid, context)
-    logger.info(`Export URL received: ${exportUrl}`)
-
-    const extractPath = await this.downloadAndExtract(exportUrl, input.id)
-    this.checkCancellation(context)
-
-    const { markdown, outputPath } = this.readMarkdownContent(extractPath, input.origin_name)
-
     return {
-      markdown,
-      outputPath,
       metadata: {
-        uid,
-        extractPath
+        providerTaskId: this.buildProviderTaskId({
+          uid,
+          fileId: input.id,
+          fileName: path.parse(filePath).name,
+          originalName: input.origin_name
+        })
+      }
+    }
+  }
+
+  async getStatus(providerTaskId: string, config: FileProcessorMerged): Promise<ProcessResultResponse> {
+    let payload: Doc2xTaskPayload
+    try {
+      payload = this.parseProviderTaskId(providerTaskId)
+    } catch (error) {
+      return {
+        requestId: providerTaskId,
+        status: 'failed',
+        progress: 0,
+        error: { code: 'invalid_provider_task_id', message: (error as Error).message }
+      }
+    }
+
+    const apiHost = this.getApiHost(config)
+    const apiKey = this.getApiKey(config)!
+
+    try {
+      const { status, progress } = await this.getParseStatus(apiHost, apiKey, payload.uid)
+
+      if (status === 'failed') {
+        this.convertRequested.delete(payload.uid)
+        return {
+          requestId: providerTaskId,
+          status: 'failed',
+          progress: 0,
+          error: { code: 'processing_failed', message: 'Doc2X processing failed' }
+        }
+      }
+
+      if (status !== 'success') {
+        return {
+          requestId: providerTaskId,
+          status: 'processing',
+          progress: Math.max(0, Math.min(progress, 99))
+        }
+      }
+
+      if (!this.convertRequested.has(payload.uid)) {
+        await this.convertFile(apiHost, apiKey, payload.uid, payload.fileName)
+        this.convertRequested.add(payload.uid)
+      }
+
+      const { status: exportStatus, url } = await this.getParsedFile(apiHost, apiKey, payload.uid)
+
+      if (exportStatus === 'failed') {
+        this.convertRequested.delete(payload.uid)
+        return {
+          requestId: providerTaskId,
+          status: 'failed',
+          progress: 0,
+          error: { code: 'export_failed', message: 'Doc2X export failed' }
+        }
+      }
+
+      if (exportStatus === 'success' && url) {
+        const extractPath = await this.downloadAndExtract(url, payload.fileId)
+        const { markdown, outputPath } = this.readMarkdownContent(extractPath, payload.originalName)
+        this.convertRequested.delete(payload.uid)
+
+        return {
+          requestId: providerTaskId,
+          status: 'completed',
+          progress: 100,
+          result: {
+            markdown,
+            outputPath,
+            metadata: {
+              uid: payload.uid,
+              extractPath
+            }
+          }
+        }
+      }
+
+      return {
+        requestId: providerTaskId,
+        status: 'processing',
+        progress: 90
+      }
+    } catch (error) {
+      this.convertRequested.delete(payload.uid)
+      return {
+        requestId: providerTaskId,
+        status: 'failed',
+        progress: 0,
+        error: { code: 'status_query_failed', message: error instanceof Error ? error.message : String(error) }
       }
     }
   }

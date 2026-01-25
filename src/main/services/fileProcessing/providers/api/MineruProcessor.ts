@@ -8,7 +8,7 @@
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
-import type { ProcessingResult } from '@shared/data/types/fileProcessing'
+import type { ProcessingResult, ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import AdmZip from 'adm-zip'
 import { net } from 'electron'
@@ -17,6 +17,7 @@ import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
+import type { IProcessStatusProvider } from '../../interfaces'
 import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('MineruProcessor')
@@ -54,10 +55,14 @@ type ExtractResultResponse = {
   extract_result: ExtractFileResult[]
 }
 
-const POLL_INTERVAL_MS = 5000
-const MAX_RETRIES = 60
+type MineruTaskPayload = {
+  batchId: string
+  fileId: string
+  fileName: string
+  originalName: string
+}
 
-export class MineruProcessor extends BaseMarkdownConverter {
+export class MineruProcessor extends BaseMarkdownConverter implements IProcessStatusProvider {
   constructor() {
     const template = PRESETS_FILE_PROCESSORS.find((p) => p.id === 'mineru')
     if (!template) {
@@ -170,53 +175,38 @@ export class MineruProcessor extends BaseMarkdownConverter {
     throw new Error(`API returned error: ${data.msg || JSON.stringify(data)}`)
   }
 
-  private async waitForCompletion(
-    apiHost: string,
-    apiKey: string,
-    batchId: string,
-    fileName: string,
-    context: ProcessingContext
-  ): Promise<ExtractFileResult> {
-    let retries = 0
+  private buildProviderTaskId(payload: MineruTaskPayload): string {
+    return JSON.stringify(payload)
+  }
 
-    while (retries < MAX_RETRIES) {
-      this.checkCancellation(context)
-
-      try {
-        const result = await this.getExtractResults(apiHost, apiKey, batchId)
-        const fileResult = result.extract_result.find((item) => item.file_name === fileName)
-
-        if (!fileResult) {
-          throw new Error(`File ${fileName} not found in batch results`)
-        }
-
-        if (fileResult.state === 'done' && fileResult.full_zip_url) {
-          logger.info(`Processing completed for file: ${fileName}`)
-          return fileResult
-        }
-
-        if (fileResult.state === 'failed') {
-          throw new Error(`Processing failed for file: ${fileName}, error: ${fileResult.err_msg}`)
-        }
-
-        if (fileResult.state === 'running' && fileResult.extract_progress) {
-          const progress = Math.round(
-            (fileResult.extract_progress.extracted_pages / fileResult.extract_progress.total_pages) * 100
-          )
-          logger.debug(`File ${fileName} processing progress: ${progress}%`)
-        }
-      } catch (error) {
-        logger.warn(`Failed to check status for batch ${batchId}, retry ${retries + 1}/${MAX_RETRIES}`)
-        if (retries === MAX_RETRIES - 1) {
-          throw error
-        }
-      }
-
-      retries++
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+  private parseProviderTaskId(providerTaskId: string): MineruTaskPayload {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(providerTaskId)
+    } catch {
+      throw new Error('Invalid provider task id')
     }
 
-    throw new Error(`Processing timeout for batch: ${batchId}`)
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Invalid provider task id')
+    }
+
+    const record = parsed as Record<string, unknown>
+    const batchId = record['batchId']
+    const fileId = record['fileId']
+    const fileName = record['fileName']
+    const originalName = record['originalName']
+
+    if (
+      typeof batchId !== 'string' ||
+      typeof fileId !== 'string' ||
+      typeof fileName !== 'string' ||
+      typeof originalName !== 'string'
+    ) {
+      throw new Error('Invalid provider task id')
+    }
+
+    return { batchId, fileId, fileName, originalName }
   }
 
   private async downloadAndExtract(zipUrl: string, fileId: string): Promise<string> {
@@ -290,23 +280,89 @@ export class MineruProcessor extends BaseMarkdownConverter {
     logger.info(`File uploaded successfully`)
     this.checkCancellation(context)
 
-    const extractResult = await this.waitForCompletion(apiHost, apiKey, batchId, input.origin_name, context)
-    logger.info(`Processing completed for batch: ${batchId}`)
-
-    if (!extractResult.full_zip_url) {
-      throw new Error(`No download URL available for completed file: ${input.origin_name}`)
-    }
-    const extractPath = await this.downloadAndExtract(extractResult.full_zip_url, input.id)
-    this.checkCancellation(context)
-
-    const { markdown, outputPath } = this.readMarkdownContent(extractPath, input.origin_name)
-
     return {
-      markdown,
-      outputPath,
       metadata: {
-        batchId,
-        extractPath
+        providerTaskId: this.buildProviderTaskId({
+          batchId,
+          fileId: input.id,
+          fileName: input.origin_name,
+          originalName: input.origin_name
+        })
+      }
+    }
+  }
+
+  async getStatus(providerTaskId: string, config: FileProcessorMerged): Promise<ProcessResultResponse> {
+    let payload: MineruTaskPayload
+    try {
+      payload = this.parseProviderTaskId(providerTaskId)
+    } catch (error) {
+      return {
+        requestId: providerTaskId,
+        status: 'failed',
+        progress: 0,
+        error: { code: 'invalid_provider_task_id', message: (error as Error).message }
+      }
+    }
+
+    const apiHost = this.getApiHost(config)
+    const apiKey = this.getApiKey(config)!
+
+    try {
+      const result = await this.getExtractResults(apiHost, apiKey, payload.batchId)
+      const fileResult = result.extract_result.find((item) => item.file_name === payload.fileName)
+
+      if (!fileResult) {
+        return {
+          requestId: providerTaskId,
+          status: 'processing',
+          progress: 0
+        }
+      }
+
+      if (fileResult.state === 'failed') {
+        return {
+          requestId: providerTaskId,
+          status: 'failed',
+          progress: 0,
+          error: { code: 'processing_failed', message: fileResult.err_msg || 'Processing failed' }
+        }
+      }
+
+      if (fileResult.state === 'done' && fileResult.full_zip_url) {
+        const extractPath = await this.downloadAndExtract(fileResult.full_zip_url, payload.fileId)
+        const { markdown, outputPath } = this.readMarkdownContent(extractPath, payload.originalName)
+
+        return {
+          requestId: providerTaskId,
+          status: 'completed',
+          progress: 100,
+          result: {
+            markdown,
+            outputPath,
+            metadata: {
+              batchId: payload.batchId,
+              extractPath
+            }
+          }
+        }
+      }
+
+      const progress = fileResult.extract_progress
+        ? Math.round((fileResult.extract_progress.extracted_pages / fileResult.extract_progress.total_pages) * 100)
+        : 0
+
+      return {
+        requestId: providerTaskId,
+        status: 'processing',
+        progress: Math.max(0, Math.min(progress, 99))
+      }
+    } catch (error) {
+      return {
+        requestId: providerTaskId,
+        status: 'failed',
+        progress: 0,
+        error: { code: 'status_query_failed', message: error instanceof Error ? error.message : String(error) }
       }
     }
   }

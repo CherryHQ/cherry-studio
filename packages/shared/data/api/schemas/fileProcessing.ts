@@ -8,7 +8,12 @@
  */
 
 import type { FileProcessorFeature, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
-import type { CancelResponse, ProcessFileRequest, ProcessResponse } from '@shared/data/types/fileProcessing'
+import type {
+  CancelResponse,
+  ProcessFileRequest,
+  ProcessResultResponse,
+  ProcessStartResponse
+} from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 
 // ============================================================================
@@ -44,7 +49,21 @@ export interface FileProcessingSchemas {
         file: FileMetadata
         request?: ProcessFileRequest
       }
-      response: ProcessResponse
+      response: ProcessStartResponse
+    }
+  }
+
+  /**
+   * Query processing result/status
+   * @example GET /file-processing/result?requestId=fp_123456
+   */
+  '/file-processing/result': {
+    /** Get processing status and result */
+    GET: {
+      query: {
+        requestId: string
+      }
+      response: ProcessResultResponse
     }
   }
 

@@ -66,7 +66,9 @@ src/main/knowledge/preprocess/
 2. **能力支持**: `text_extraction` (文字提取) 和 `to_markdown` (转 Markdown)
 3. **输入类型**: `image` (图片) 和 `document` (文档)
 4. **配置集成**: 从 Preference 系统获取配置（模板 + 用户覆盖合并）
-5. **取消支持**: 支持取消操作
+5. **异步处理**: `/process` 启动任务，`/result` 查询状态与结果
+6. **状态模型**: `pending | processing | completed | failed`，进度 `0-100`
+7. **取消支持**: 支持取消操作
 
 ### SOLID 原则目标
 
@@ -94,8 +96,10 @@ src/main/knowledge/preprocess/
 ┌─────────────────────────────────────────────────────────────────┐
 │                  FileProcessingService                           │
 │                    (主编排服务)                                   │
-│  - process(processorId, feature, input, context)                │
-│  - findProcessor(feature, inputType)                            │
+│  - startProcess(file, request)                                  │
+│  - getResult(requestId)                                         │
+│  - cancel(requestId)                                            │
+│  - listAvailableProcessors()                                    │
 └─────────┬───────────────────────────────────┬───────────────────┘
           │                                   │
           ▼                                   ▼
@@ -120,6 +124,9 @@ src/main/knowledge/preprocess/
 ├─────────────────────────────────────────────────────────────────┤
 │  ITextExtractor              │  IMarkdownConverter               │
 │  - extractText()             │  - toMarkdown()                   │
+├─────────────────────────────────────────────────────────────────┤
+│  IProcessStatusProvider                                        │
+│  - getStatus()                                                │
 ├─────────────────────────────────────────────────────────────────┤
 │  IDisposable                                                     │
 │  - dispose()                                                     │
@@ -146,10 +153,12 @@ src/main/knowledge/preprocess/
 ### 数据流
 
 ```
+A. 启动处理 /process
+
 1. IPC 请求
       │
       ▼
-2. FileProcessingService.process(processorId, feature, input, context)
+2. FileProcessingService.startProcess(file, request)
       │
       ├──► ConfigurationService.getConfiguration(processorId)
       │         │
@@ -164,17 +173,33 @@ src/main/knowledge/preprocess/
       │         ▼
       │    获取 IFileProcessor 实例
       │
-      ▼
-3. 路由到对应方法
-      │
-      ├── feature === 'text_extraction'
-      │         └──► processor.extractText(input, config, context)
-      │
-      └── feature === 'to_markdown'
-                └──► processor.toMarkdown(input, config, context)
+      ├──► ProcessorRegistry.get(processorId)
+      │         │
+      │         ▼
+      │    获取 IFileProcessor 实例
       │
       ▼
-4. 返回 ProcessingResult
+3. 创建任务记录 (pending) + 异步调度
+      │
+      ├── 同步处理器: 后台执行 extractText / toMarkdown
+      └── 异步处理器: processor.extractText/toMarkdown → 保存 providerTaskId
+      │
+      ▼
+4. 返回 { requestId, status: 'pending' }
+
+B. 查询结果 /result
+
+1. IPC 请求 /file-processing/result?requestId=...
+      │
+      ▼
+2. FileProcessingService.getResult(requestId)
+      │
+      ├── 同步处理器: 返回当前内存状态
+      └── 异步处理器: processor.getStatus(providerTaskId, ...) (由调用方触发查询，不在内部轮询)
+      │
+      ▼
+3. 返回 { status, progress, result?, error? }
+4. 若 status 为 completed/failed，TTL为 5 分钟
 ```
 
 ---
@@ -186,25 +211,47 @@ src/main/knowledge/preprocess/
 > **设计原则**：`types.ts` 只定义后端特有的类型，共享类型直接从 `@shared/data/presets/fileProcessing` 导入。
 
 ```typescript
+// 异步处理状态
+type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+// 处理错误信息
+interface ProcessingError {
+  code: string
+  message: string
+}
+
 // 处理结果 - 所有处理器的统一输出
 interface ProcessingResult {
   text?: string                       // 提取的文本内容
   markdown?: string                   // 转换的 Markdown 内容
   outputPath?: string                 // 输出文件路径（如果保存到磁盘）
-  metadata?: Record<string, unknown>  // 可选的扩展元数据（处理器特定）
+  metadata?: Record<string, unknown>  // 可选的扩展元数据（处理器特定，异步处理器返回 providerTaskId）
+}
+
+// 启动处理返回
+interface ProcessStartResponse {
+  requestId: string
+  status: ProcessingStatus
+}
+
+// 查询结果返回
+interface ProcessResultResponse {
+  requestId: string
+  status: ProcessingStatus
+  progress: number                    // 0-100
+  result?: ProcessingResult
+  error?: ProcessingError
 }
 
 // 处理选项
 interface ProcessOptions {
   signal?: AbortSignal                // 取消信号
-  onProgress?: (progress: number) => void  // 进度回调
 }
 
 // 内部处理上下文（由服务创建，传递给处理器）
 interface ProcessingContext {
   requestId: string                   // 请求追踪 ID
   signal?: AbortSignal                // 取消信号
-  onProgress?: (progress: number) => void  // 进度回调
 }
 ```
 
@@ -226,6 +273,11 @@ interface IFileProcessor {
   readonly template: FileProcessorTemplate
   supports(feature: FileProcessorFeature, inputType: FileProcessorInput): boolean
   isAvailable(): Promise<boolean>
+}
+
+// 状态查询能力 (可选，异步处理器实现)
+interface IProcessStatusProvider extends IFileProcessor {
+  getStatus(providerTaskId: string, config: FileProcessorMerged): Promise<ProcessResultResponse>
 }
 
 // 文字提取能力 (原 OCR)
@@ -255,13 +307,27 @@ const isTextExtractor = (p: IFileProcessor): p is ITextExtractor =>
 
 const isMarkdownConverter = (p: IFileProcessor): p is IMarkdownConverter =>
   'toMarkdown' in p && typeof p.toMarkdown === 'function'
+
+const isProcessStatusProvider = (p: IFileProcessor): p is IProcessStatusProvider =>
+  'getStatus' in p && typeof (p as IProcessStatusProvider).getStatus === 'function'
 ```
 
 ---
 
 ## 错误类型定义
 
-> **TODO**: 错误处理定义待补充。
+处理失败通过 `/result` 返回 `error` 字段：
+
+```typescript
+interface ProcessingError {
+  code: string
+  message: string
+}
+```
+
+约定：
+- 取消任务使用 `code = 'cancelled'`
+- 调用方需根据 `status` 判断是否展示错误
 
 ---
 
@@ -350,16 +416,18 @@ Template (只读)  +  UserOverride (Preference)  →  FileProcessorMerged
 ### FileProcessingService (主服务)
 
 **职责**：
-- 编排整个处理流程
-- 管理取消控制器
-- 路由到对应处理器方法
+- 启动异步任务并统一同步/异步处理器行为
+- 管理任务状态与取消控制器
+- 对外提供查询接口（不在内部轮询）
+- 完成/失败后即时清理任务记录
 
 **关键方法**：
 
 | 方法 | 说明 |
 |------|------|
-| `process(file, feature, processorId?, options?)` | 处理文件，processorId 可选（不传使用默认） |
-| `cancel(requestId)` | 取消处理 |
+| `startProcess(file, request?)` | 启动处理任务，返回 requestId |
+| `getResult(requestId)` | 查询处理状态/进度/结果 |
+| `cancel(requestId)` | 取消处理（返回失败状态） |
 | `listAvailableProcessors(inputType)` | 列出可用处理器 |
 | `getInputType(file)` | 判断文件输入类型 |
 
@@ -379,31 +447,36 @@ Template (只读)  +  UserOverride (Preference)  →  FileProcessorMerged
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/file-processing/processors` | GET | 获取可用处理器列表 |
-| `/file-processing/process` | POST | 处理文件 |
+| `/file-processing/process` | POST | 启动处理任务 |
+| `/file-processing/result` | GET | 查询处理状态/结果 |
 | `/file-processing/cancel` | POST | 取消处理 |
+
+> `/file-processing/result` 返回 `{ status, progress, result?, error? }`，`progress` 为 `0-100`。
 
 ### Renderer 端调用方式
 
 ```typescript
 // 使用 Hook
-const { process, cancel, canCancel, isLoading } = useFileProcessing()
+const { startProcess, getResult, cancel } = useFileProcessing()
 
-// OCR，使用默认处理器
-await process(file, 'text_extraction')
+// OCR，启动处理
+const { requestId } = await startProcess(file, 'text_extraction')
 
-// 文档转换，指定处理器
-await process(file, 'to_markdown', 'mineru')
+// 查询结果/进度
+const result = await getResult(requestId)
 
 // 取消
-cancel()
+cancel(requestId)
 ```
+
+> **注意**：当状态为 `completed` 或 `failed` 时，任务记录会在本次查询后立即清理，后续查询将返回未找到。取消任务同样只保留一次查询。
 
 ### Main 进程直接调用
 
 ```typescript
 // Service 调用
-await fileProcessingService.process(file, 'text_extraction')
-await fileProcessingService.process(file, 'to_markdown', 'mineru')
+const { requestId } = await fileProcessingService.startProcess(file, { feature: 'text_extraction' })
+const result = await fileProcessingService.getResult(requestId)
 fileProcessingService.cancel(requestId)
 ```
 
@@ -415,7 +488,7 @@ fileProcessingService.cancel(requestId)
 src/main/services/fileProcessing/
 ├── index.ts                          # 公共 API 导出 + 注册引导
 ├── FileProcessingService.ts          # 主编排服务
-├── types.ts                          # 后端特有类型 (ProcessingResult, ProcessingContext)
+├── types.ts                          # 后端特有类型 (Status/Result/Context)
 ├── interfaces.ts                     # 接口定义 (ISP)
 │
 ├── base/
@@ -433,14 +506,14 @@ src/main/services/fileProcessing/
 │   ├── builtin/
 │   │   ├── TesseractProcessor.ts     # Tesseract OCR
 │   │   ├── SystemOcrProcessor.ts     # 系统 OCR
-│   │   ├── PpocrProcessor.ts         # PaddleOCR
 │   │   └── OvOcrProcessor.ts         # Intel OpenVINO OCR
 │   │
 │   └── api/
 │       ├── MineruProcessor.ts        # MinerU 文档解析
 │       ├── Doc2xProcessor.ts         # Doc2x 文档转换
 │       ├── MistralProcessor.ts       # Mistral OCR
-│       └── OpenMineruProcessor.ts    # 开源 MinerU
+│       ├── OpenMineruProcessor.ts    # 开源 MinerU
+│       ├── PaddleProcessor.ts        # PaddleOCR
 │
 │
 └── __tests__/                        # 单元测试
@@ -457,7 +530,7 @@ packages/shared/data/presets/
 
 **类型组织原则**：
 - 共享类型（`FileProcessorMerged`、`FeatureCapability` 等）定义在 `packages/shared/data/presets/fileProcessing.ts`
-- 后端特有类型（`ProcessingResult`、`ProcessingContext`）定义在 `types.ts`
+- 后端特有类型（`ProcessingStatus`、`ProcessResultResponse`、`ProcessingContext`）定义在 `types.ts`
 - `interfaces.ts` 直接从 shared 导入共享类型
 
 ---
@@ -510,28 +583,47 @@ packages/shared/data/presets/
 | 15 | `providers/api/MistralProcessor.ts` | `preprocess/MistralPreprocessProvider.ts` |
 | 16 | `providers/api/OpenMineruProcessor.ts` | `preprocess/OpenMineruPreprocessProvider.ts` |
 
-### Phase 5: 集成
+### ✅ Phase 5: 异步任务迁移
 
 | 步骤 | 文件 | 说明 |
 |------|------|------|
-| 17 | `FileProcessingService.ts` | 创建主服务 |
-| 18 | `index.ts` | 创建注册引导和导出 |
-| 19 | `src/main/data/api/handlers/fileProcessing.ts` | 创建 DataApi Handler |
-| 20 | - | 添加向后兼容适配器（可选） |
+| 17 | `FileProcessingService.ts` | 异步任务迁移（启动/查询/取消） |
+
+**已完成的变更：**
+
+- `types.ts`: 添加 `TaskState` 内部类型
+- `interfaces.ts`: 添加 `IProcessStatusProvider` 接口和 `isProcessStatusProvider` 类型守卫
+- `FileProcessingService.ts`: 重构为异步模型
+  - `startProcess()`: 立即返回 `{ requestId, status: 'pending' }`
+  - `getResult()`: 查询任务状态/进度/结果
+  - `cancel()`: 取消正在进行的任务
+  - 已完成/失败任务在首次查询后立即清理
+- `packages/shared/data/types/fileProcessing.ts`: 添加 `ProcessingStatus`, `ProcessingError`, `ProcessStartResponse`, `ProcessResultResponse`
+- `packages/shared/data/api/schemas/fileProcessing.ts`: 添加 `/result` 端点
+- `src/main/data/api/handlers/fileProcessing.ts`: 添加 `/result` handler
+
+### Phase 6: 集成
+
+| 步骤 | 文件 | 说明 |
+|------|------|------|
+| 18 | `FileProcessingService.ts` | 创建主服务 |
+| 19 | `index.ts` | 创建注册引导和导出 |
+| 20 | `src/main/data/api/handlers/fileProcessing.ts` | 创建 DataApi Handler |
+| 21 | - | 不需要向后兼容 |
 
 **集成验证清单：**
 
 - [ ] Handler → Service → Processor 完整链路通畅
 - [ ] 取消机制正常工作
 
-### Phase 6: 清理与验收
+### Phase 7: 清理与验收
 
 | 步骤 | 说明 |
 |------|------|
-| 21 | 标记旧代码为 `@deprecated` |
-| 22 | 更新知识库服务使用新 API |
-| 23 | 移除旧的 `PreprocessProviderFactory` |
-| 24 | 创建端到端集成测试 |
+| 22 | 标记旧代码为 `@deprecated` |
+| 23 | 更新知识库服务使用新 API |
+| 24 | 移除旧的 `PreprocessProviderFactory` |
+| 25 | 创建端到端集成测试 |
 
 ---
 
@@ -549,7 +641,7 @@ packages/shared/data/presets/
 | ProcessorRegistry | 注册、获取、按能力查找、重复注册检测 |
 | ConfigurationService | 配置合并、默认处理器获取、变化通知 |
 | BaseFileProcessor | 取消检查、能力检查 |
-| FileProcessingService | 完整链路集成、取消流程 |
+| FileProcessingService | 启动/查询/取消流程、任务清理 |
 
 ### 验证方案
 

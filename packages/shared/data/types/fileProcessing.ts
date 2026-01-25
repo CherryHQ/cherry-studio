@@ -8,6 +8,25 @@
 import type { FileProcessorFeature } from '@shared/data/presets/fileProcessing'
 
 // ============================================================================
+// Processing Status Types
+// ============================================================================
+
+/**
+ * Processing status for async task model
+ */
+export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+/**
+ * Processing error information
+ */
+export interface ProcessingError {
+  /** Error code (e.g., 'cancelled', 'not_found', 'processing_error') */
+  code: string
+  /** Human-readable error message */
+  message: string
+}
+
+// ============================================================================
 // Processing Result Types
 // ============================================================================
 
@@ -37,16 +56,39 @@ export interface ProcessFileRequest {
   feature?: FileProcessorFeature
 }
 
+// ============================================================================
+// Async Task Response Types
+// ============================================================================
+
 /**
- * Process response - returned by process operation
+ * Response for starting a process (async model)
  *
- * Contains the request ID for tracking/cancellation and the processing result.
+ * Returns immediately with request ID and pending status.
+ * Use getResult() to poll for completion.
  */
-export interface ProcessResponse {
+export interface ProcessStartResponse {
   /** Unique request ID for tracking and cancellation */
   requestId: string
-  /** Processing result */
-  result: ProcessingResult
+  /** Initial status (always 'pending') */
+  status: ProcessingStatus
+}
+
+/**
+ * Response for querying process result
+ *
+ * Contains current status, progress, and result/error when complete.
+ */
+export interface ProcessResultResponse {
+  /** Unique request ID */
+  requestId: string
+  /** Current processing status */
+  status: ProcessingStatus
+  /** Progress percentage (0-100) */
+  progress: number
+  /** Processing result (when status is 'completed') */
+  result?: ProcessingResult
+  /** Error information (when status is 'failed') */
+  error?: ProcessingError
 }
 
 /**

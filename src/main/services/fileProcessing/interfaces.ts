@@ -12,7 +12,7 @@ import type {
   FileProcessorMerged,
   FileProcessorTemplate
 } from '@shared/data/presets/fileProcessing'
-import type { ProcessingResult } from '@shared/data/types/fileProcessing'
+import type { ProcessingResult, ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 
 import type { ProcessingContext } from './types'
@@ -94,6 +94,28 @@ export interface IDisposable {
   dispose(): Promise<void>
 }
 
+/**
+ * Interface for processors that support async status querying
+ *
+ * Processors implementing this interface can:
+ * 1. Start remote processing via extractText()/toMarkdown()
+ * 2. Report status/progress on demand via getStatus()
+ *
+ * This is OPTIONAL - synchronous processors work without implementing this.
+ * The FileProcessingService will use this interface when available to get
+ * real-time progress updates from API processors.
+ */
+export interface IProcessStatusProvider extends IFileProcessor {
+  /**
+   * Query current processing status
+   * Called by FileProcessingService when /result endpoint is hit
+   * @param providerTaskId - The provider task ID to query
+   * @param config - Processor configuration
+   * @returns Current status, progress, and result/error
+   */
+  getStatus(providerTaskId: string, config: FileProcessorMerged): Promise<ProcessResultResponse>
+}
+
 // ============================================================================
 // Type Guards
 // ============================================================================
@@ -117,6 +139,13 @@ export function isMarkdownConverter(processor: IFileProcessor): processor is IMa
  */
 export function isDisposable(processor: IFileProcessor): processor is IFileProcessor & IDisposable {
   return 'dispose' in processor && typeof (processor as IDisposable).dispose === 'function'
+}
+
+/**
+ * Check if a processor implements IProcessStatusProvider
+ */
+export function isProcessStatusProvider(processor: IFileProcessor): processor is IProcessStatusProvider {
+  return 'getStatus' in processor && typeof (processor as IProcessStatusProvider).getStatus === 'function'
 }
 
 // ============================================================================

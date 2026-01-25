@@ -3,6 +3,11 @@
  *
  * Main orchestration service for file processing operations.
  * Coordinates between ProcessorRegistry, ConfigurationService, and individual processors.
+ *
+ * Supports async task model:
+ * - startProcess(): Launch task, return immediately with pending status
+ * - getResult(): Query task status/progress/result (clears task on completion)
+ * - cancel(): Cancel an active task
  */
 
 import { loggerService } from '@logger'
@@ -11,38 +16,27 @@ import type {
   CancelResponse,
   ProcessFileRequest,
   ProcessingResult,
-  ProcessResponse
+  ProcessResultResponse,
+  ProcessStartResponse
 } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { configurationService } from './config/ConfigurationService'
-import { isMarkdownConverter, isTextExtractor } from './interfaces'
+import type { IFileProcessor } from './interfaces'
+import { isMarkdownConverter, isProcessStatusProvider, isTextExtractor } from './interfaces'
 import { processorRegistry } from './registry/ProcessorRegistry'
-import type { ProcessingContext } from './types'
+import type { ProcessingContext, TaskState } from './types'
 
 const logger = loggerService.withContext('FileProcessingService')
 
-/**
- * Active processing request tracker
- */
-interface ActiveRequest {
-  requestId: string
-  abortController: AbortController
-  processorId: string
-  startTime: number
-}
-
 export class FileProcessingService {
   private static instance: FileProcessingService | null = null
-  private activeRequests: Map<string, ActiveRequest> = new Map()
+  private taskStates: Map<string, TaskState> = new Map()
 
   private constructor() {}
 
-  /**
-   * Get the singleton instance
-   */
   static getInstance(): FileProcessingService {
     if (!FileProcessingService.instance) {
       FileProcessingService.instance = new FileProcessingService()
@@ -51,14 +45,16 @@ export class FileProcessingService {
   }
 
   /**
-   * Process a file using the specified or default processor
+   * Start processing a file asynchronously
+   *
+   * Returns immediately with a request ID. Use getResult() to poll for completion.
    *
    * @param file - File metadata
    * @param request - Processing request options
-   * @returns Process response with requestId and result
-   * @throws Error if processor not found, not available, or processing fails
+   * @returns Process start response with requestId and pending status
+   * @throws Error if processor not found or not available
    */
-  async process(file: FileMetadata, request: ProcessFileRequest = {}): Promise<ProcessResponse> {
+  async startProcess(file: FileMetadata, request: ProcessFileRequest = {}): Promise<ProcessStartResponse> {
     const requestId = uuidv4()
     const inputType = this.getInputType(file)
     const feature = request.feature ?? this.getDefaultFeature(inputType)
@@ -91,24 +87,59 @@ export class FileProcessingService {
       throw new Error(`Configuration not found for processor: ${processorId}`)
     }
 
-    // Create abort controller and track request
+    // Create abort controller
     const abortController = new AbortController()
-    this.activeRequests.set(requestId, {
+
+    // Initialize task state
+    const taskState: TaskState = {
       requestId,
-      abortController,
+      status: 'pending',
+      progress: 0,
       processorId,
-      startTime: Date.now()
+      providerTaskId: null,
+      config,
+      abortController
+    }
+    this.taskStates.set(requestId, taskState)
+
+    logger.info('Processing started', {
+      requestId,
+      processorId,
+      feature,
+      inputType,
+      file: file.origin_name
     })
 
-    // Build processing context
+    // Start async processing (don't await)
+    this.executeProcessing(requestId, processor, file, config, feature)
+
+    return { requestId, status: 'pending' }
+  }
+
+  /**
+   * Execute processing in background
+   *
+   * Updates task state as processing progresses.
+   */
+  private async executeProcessing(
+    requestId: string,
+    processor: IFileProcessor,
+    file: FileMetadata,
+    config: FileProcessorMerged,
+    feature: FileProcessorFeature
+  ): Promise<void> {
+    const task = this.taskStates.get(requestId)
+    if (!task) return
+
+    // Update to processing
+    task.status = 'processing'
+
     const context: ProcessingContext = {
       requestId,
-      signal: abortController.signal
+      signal: task.abortController.signal
     }
 
     try {
-      logger.info('Processing started', { requestId, processorId, feature, inputType, file: file.origin_name })
-
       let result: ProcessingResult
 
       if (feature === 'text_extraction' && isTextExtractor(processor)) {
@@ -116,21 +147,102 @@ export class FileProcessingService {
       } else if (feature === 'to_markdown' && isMarkdownConverter(processor)) {
         result = await processor.toMarkdown(file, config, context)
       } else {
-        throw new Error(`Processor ${processorId} does not implement ${feature}`)
+        throw new Error(`Processor ${processor.id} does not implement ${feature}`)
       }
 
-      const activeRequest = this.activeRequests.get(requestId)
-      const duration = activeRequest ? Date.now() - activeRequest.startTime : 0
+      if (isProcessStatusProvider(processor)) {
+        const providerTaskId = this.extractProviderTaskId(result)
+        if (!providerTaskId) {
+          throw new Error('Provider task id not found in processing metadata')
+        }
 
-      logger.info('Processing completed', { requestId, processorId, duration })
+        task.providerTaskId = providerTaskId
+        task.status = 'processing'
+        task.progress = 0
+        return
+      }
 
-      return { requestId, result }
+      task.status = 'completed'
+      task.progress = 100
+      task.result = result
     } catch (error) {
-      logger.error('Processing failed', { requestId, processorId, error })
-      throw error
-    } finally {
-      this.activeRequests.delete(requestId)
+      task.status = 'failed'
+      task.error = {
+        code: task.abortController.signal.aborted ? 'cancelled' : 'error',
+        message: error instanceof Error ? error.message : String(error)
+      }
     }
+  }
+
+  /**
+   * Get the result/status of a processing request
+   *
+   * @param requestId - The request ID to query
+   * @returns Current status, progress, and result/error
+   */
+  async getResult(requestId: string): Promise<ProcessResultResponse> {
+    const task = this.taskStates.get(requestId)
+
+    if (!task) {
+      return {
+        requestId,
+        status: 'failed',
+        progress: 0,
+        error: { code: 'not_found', message: 'Request not found' }
+      }
+    }
+
+    // For async processors that implement IProcessStatusProvider,
+    // query the processor for real-time status
+    if (task.status === 'pending' || task.status === 'processing') {
+      const processor = processorRegistry.get(task.processorId)
+      if (processor && isProcessStatusProvider(processor)) {
+        if (!task.providerTaskId) {
+          logger.warn('Missing provider task id for status query', {
+            requestId,
+            processorId: task.processorId
+          })
+          task.status = 'failed'
+          task.error = { code: 'missing_provider_task_id', message: 'Provider task id not found' }
+        } else {
+          try {
+            const providerStatus = await processor.getStatus(task.providerTaskId, task.config)
+            task.status = providerStatus.status
+            task.progress = providerStatus.progress
+            if (providerStatus.result) task.result = providerStatus.result
+            if (providerStatus.error) task.error = providerStatus.error
+          } catch {
+            // If provider query fails, return current local state
+          }
+        }
+      }
+    }
+
+    const response: ProcessResultResponse = {
+      requestId,
+      status: task.status,
+      progress: task.progress,
+      result: task.result,
+      error: task.error
+    }
+
+    // Clear task after returning completed/failed status
+    if (task.status === 'completed' || task.status === 'failed') {
+      this.taskStates.delete(requestId)
+    }
+
+    return response
+  }
+
+  private extractProviderTaskId(result: ProcessingResult): string | null {
+    if (!result.metadata || typeof result.metadata !== 'object') {
+      return null
+    }
+
+    const metadata = result.metadata as Record<string, unknown>
+    const providerTaskId = metadata['providerTaskId']
+
+    return typeof providerTaskId === 'string' && providerTaskId.trim().length > 0 ? providerTaskId : null
   }
 
   /**
@@ -140,22 +252,17 @@ export class FileProcessingService {
    * @returns Cancel response with success status and message
    */
   cancel(requestId: string): CancelResponse {
-    const request = this.activeRequests.get(requestId)
-    if (!request) {
-      logger.warn('Cancel requested for unknown request', { requestId })
-      return {
-        success: false,
-        message: `Processing request ${requestId} not found or already completed`
-      }
+    const task = this.taskStates.get(requestId)
+
+    if (!task || task.status === 'completed' || task.status === 'failed') {
+      return { success: false, message: 'Cannot cancel' }
     }
 
-    request.abortController.abort()
-    this.activeRequests.delete(requestId)
-    logger.info('Processing cancelled', { requestId, processorId: request.processorId })
-    return {
-      success: true,
-      message: `Processing request ${requestId} cancelled`
-    }
+    task.abortController.abort()
+    task.status = 'failed'
+    task.error = { code: 'cancelled', message: 'Cancelled' }
+
+    return { success: true, message: 'Cancelled' }
   }
 
   /**
@@ -181,9 +288,13 @@ export class FileProcessingService {
     return results.filter((config): config is FileProcessorMerged => config !== null)
   }
 
+  // ============================================================================
+  // Helper Methods
+  // ============================================================================
+
   /**
    * Determine the input type based on file metadata
-   *
+   * Will be replaced by FileTypes when file system is integrated
    * @param file - File metadata
    * @returns 'image' or 'document' based on file type
    */
@@ -205,17 +316,31 @@ export class FileProcessingService {
     return configurationService.getDefaultProcessor(inputType)
   }
 
+  // ============================================================================
+  // Lifecycle
+  // ============================================================================
+
   /**
-   * Get the count of active processing requests
+   * Dispose the service and release resources
+   *
+   * Cancels all active tasks and stops the cleanup timer.
    */
-  get activeRequestCount(): number {
-    return this.activeRequests.size
+  dispose(): void {
+    for (const task of this.taskStates.values()) {
+      if (task.status === 'pending' || task.status === 'processing') {
+        task.abortController.abort()
+      }
+    }
+    this.taskStates.clear()
   }
 
   /**
    * @internal Testing only - reset the singleton instance
    */
   static _resetForTesting(): void {
+    if (FileProcessingService.instance) {
+      FileProcessingService.instance.dispose()
+    }
     FileProcessingService.instance = null
   }
 }

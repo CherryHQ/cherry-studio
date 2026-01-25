@@ -3,7 +3,8 @@
  *
  * Implements all file processing-related API endpoints including:
  * - Listing available processors
- * - Processing files
+ * - Starting processing (async)
+ * - Querying processing result/status
  * - Cancelling processing requests
  */
 import { fileProcessingService } from '@main/services/fileProcessing'
@@ -36,7 +37,13 @@ export const fileProcessingHandlers: {
 
   '/file-processing/process': {
     POST: async ({ body }) => {
-      return await fileProcessingService.process(body.file, body.request)
+      return await fileProcessingService.startProcess(body.file, body.request)
+    }
+  },
+
+  '/file-processing/result': {
+    GET: async ({ query }) => {
+      return await fileProcessingService.getResult(query.requestId)
     }
   },
 
