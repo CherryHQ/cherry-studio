@@ -144,7 +144,7 @@ interface BaseExtraOptions {
   fetch?: typeof fetch
   endpoint: string
   mode?: 'responses' | 'chat'
-  headers?: Record<string, string>
+  headers: Record<string, string>
 }
 
 interface AzureOpenAIExtraOptions extends BaseExtraOptions {
@@ -166,9 +166,9 @@ interface BedrockAccessKeyExtraOptions extends BaseExtraOptions {
 type BedrockExtraOptions = BedrockApiKeyExtraOptions | BedrockAccessKeyExtraOptions
 
 interface VertexExtraOptions extends BaseExtraOptions {
-  project?: string
-  location?: string
-  googleCredentials?: {
+  project: string
+  location: string
+  googleCredentials: {
     privateKey: string
     clientEmail: string
   }
@@ -242,7 +242,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   // About mode of azure:
   // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
   // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
-  let mode: BaseExtraOptions['mode'] | undefined
+  let mode: BaseExtraOptions['mode']
   if (
     (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) ||
     aiSdkProviderId === 'azure-responses'
