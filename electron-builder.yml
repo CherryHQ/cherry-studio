@@ -121,7 +121,6 @@ linux:
     - target: AppImage
     - target: deb
     - target: rpm
-    - target: pacman
   maintainer: electronjs.org
   category: Utility
   desktop:
