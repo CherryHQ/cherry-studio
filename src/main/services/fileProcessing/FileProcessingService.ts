@@ -198,12 +198,13 @@ export class FileProcessingService {
       const processor = processorRegistry.get(task.processorId)
       if (processor && isProcessStatusProvider(processor)) {
         if (!task.providerTaskId) {
-          logger.warn('Missing provider task id for status query', {
+          // Task is still initializing, providerTaskId not yet available from async executeProcessing()
+          // Return current status and let client retry later
+          logger.debug('Provider task id not yet available, task still initializing', {
             requestId,
             processorId: task.processorId
           })
-          task.status = 'failed'
-          task.error = { code: 'missing_provider_task_id', message: 'Provider task id not found' }
+          // Skip processor status query, fall through to return current task state
         } else {
           try {
             const providerStatus = await processor.getStatus(task.providerTaskId, task.config)
