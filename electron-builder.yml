@@ -146,30 +146,60 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.13 - Security & Bug Fixes
+    Cherry Studio 1.7.14 - New Features & Improvements
 
-    🔒 Security
-    - [Plugin] Fix security vulnerability in DXT plugin system on Windows
+    ✨ New Features
+    - [Notes] Add export to Word document functionality
+    - [Code Tools] Add Kimi CLI support with auto-configuration
+    - [Code Tools] Support custom providers
+    - [Settings] Support viewing detailed error messages when model detection fails
+    - [Topics] Display year in topic timestamps (YYYY/MM/DD format)
+    - [Linux] Add system title bar setting option
+    - [Models] Add Baichuan m3/m3-plus models
+    - [Models] Add Qwen text-embedding models
+
+    🎨 Improvements
+    - [Translate] Simplify translation with single target language selector
+    - [Topics] Unpinned topics now move to top with auto-scroll
+    - [Minapps] Add locale-based filtering support
+    - [i18n] Update Romanian localization
 
     🐛 Bug Fixes
-    - [Agent] Fix Agent not working when Node.js is not installed on system
-    - [Chat] Fix app crash when opening certain agents
-    - [Chat] Fix reasoning process not displaying correctly for some providers
-    - [Chat] Fix memory leak issue during streaming conversations
-    - [MCP] Fix timeout field not accepting string format in MCP configuration
-    - [Settings] Add careers section in About page
+    - [Linux] Fix icon display and deb/rpm installation issues
+    - [Linux] Fix window not coming to front when clicking tray
+    - [Linux] Add Alpine Linux (musl) support
+    - [Code Tools] Fix Windows Terminal issues
+    - [Azure] Fix API preview link for completion mode
+    - [Images] Fix trailing slashes in API URLs for image generation
+    - [OpenRouter] Fix MCP tools support
+    - [Chat] Fix image enhancement model conversation history
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.13 - 安全与问题修复
+    Cherry Studio 1.7.14 - 新功能与改进
 
-    🔒 安全修复
-    - [插件] 修复 Windows 系统 DXT 插件的安全漏洞
+    ✨ 新功能
+    - [笔记] 支持导出为 Word 文档
+    - [代码工具] 新增 Kimi CLI 支持，自动配置环境
+    - [代码工具] 支持自定义服务商
+    - [设置] 模型检测失败时可查看详细错误信息
+    - [话题] 时间戳显示年份（YYYY/MM/DD 格式）
+    - [Linux] 新增系统标题栏设置选项
+    - [模型] 新增百川 m3/m3-plus 模型
+    - [模型] 新增通义 Embedding 模型
+
+    🎨 改进
+    - [翻译] 简化翻译操作，使用单一目标语言选择
+    - [话题] 取消置顶的话题移动到顶部并自动滚动
+    - [小程序] 支持按语言筛选小程序
+    - [国际化] 更新罗马尼亚语翻译
 
     🐛 问题修复
-    - [Agent] 修复系统未安装 Node.js 时 Agent 功能无法使用的问题
-    - [对话] 修复打开某些智能体时应用崩溃的问题
-    - [对话] 修复部分服务商推理过程无法正确显示的问题
-    - [对话] 修复流式对话时的内存泄漏问题
-    - [MCP] 修复 MCP 配置的 timeout 字段不支持字符串格式的问题
-    - [设置] 关于页面新增招聘入口
+    - [Linux] 修复图标显示和 deb/rpm 安装问题
+    - [Linux] 修复点击托盘后窗口无法置顶的问题
+    - [Linux] 新增 Alpine Linux (musl) 支持
+    - [代码工具] 修复 Windows 终端问题
+    - [Azure] 修复完成模式下 API 预览链接
+    - [图片生成] 修复 API 地址结尾斜杠问题
+    - [OpenRouter] 修复 MCP 工具支持
+    - [对话] 修复图片增强模型对话历史丢失问题
     <!--LANG:END-->
