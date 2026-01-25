@@ -123,29 +123,38 @@ describe('ConfigurationService', () => {
   })
 
   describe('getDefaultProcessor', () => {
-    it('should return default image processor', () => {
+    it('should return default text_extraction processor', () => {
       const service = ConfigurationService.getInstance()
-      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_processor', 'tesseract')
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_text_extraction_processor',
+        'tesseract'
+      )
 
-      const result = service.getDefaultProcessor('image')
+      const result = service.getDefaultProcessor('text_extraction')
 
       expect(result).toBe('tesseract')
     })
 
-    it('should return default document processor', () => {
+    it('should return default markdown_conversion processor', () => {
       const service = ConfigurationService.getInstance()
-      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_document_processor', 'mineru')
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_markdown_conversion_processor',
+        'mineru'
+      )
 
-      const result = service.getDefaultProcessor('document')
+      const result = service.getDefaultProcessor('markdown_conversion')
 
       expect(result).toBe('mineru')
     })
 
     it('should return null when no default is set', () => {
       const service = ConfigurationService.getInstance()
-      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_processor', null)
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_text_extraction_processor',
+        null
+      )
 
-      const result = service.getDefaultProcessor('image')
+      const result = service.getDefaultProcessor('text_extraction')
 
       expect(result).toBeNull()
     })
@@ -167,11 +176,11 @@ describe('ConfigurationService', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
 
       const result = service.updateConfiguration('mineru', {
-        capabilities: { to_markdown: { apiHost: 'https://custom.host' } }
+        capabilities: { markdown_conversion: { apiHost: 'https://custom.host' } }
       })
 
       expect(result).toBeDefined()
-      const cap = result?.capabilities.find((c) => c.feature === 'to_markdown')
+      const cap = result?.capabilities.find((c) => c.feature === 'markdown_conversion')
       expect(cap?.apiHost).toBe('https://custom.host')
     })
 
@@ -184,12 +193,12 @@ describe('ConfigurationService', () => {
 
       // Second update: set apiHost (should preserve apiKey)
       const result = service.updateConfiguration('mineru', {
-        capabilities: { to_markdown: { apiHost: 'https://custom.host' } }
+        capabilities: { markdown_conversion: { apiHost: 'https://custom.host' } }
       })
 
       expect(result).toBeDefined()
       expect(result?.apiKey).toBe('first-key')
-      const cap = result?.capabilities.find((c) => c.feature === 'to_markdown')
+      const cap = result?.capabilities.find((c) => c.feature === 'markdown_conversion')
       expect(cap?.apiHost).toBe('https://custom.host')
     })
 
@@ -199,16 +208,16 @@ describe('ConfigurationService', () => {
 
       // First update: set apiHost
       service.updateConfiguration('mineru', {
-        capabilities: { to_markdown: { apiHost: 'https://custom.host' } }
+        capabilities: { markdown_conversion: { apiHost: 'https://custom.host' } }
       })
 
       // Second update: set modelId (should preserve apiHost)
       const result = service.updateConfiguration('mineru', {
-        capabilities: { to_markdown: { modelId: 'custom-model' } }
+        capabilities: { markdown_conversion: { modelId: 'custom-model' } }
       })
 
       expect(result).toBeDefined()
-      const cap = result?.capabilities.find((c) => c.feature === 'to_markdown')
+      const cap = result?.capabilities.find((c) => c.feature === 'markdown_conversion')
       expect(cap?.apiHost).toBe('https://custom.host')
       expect(cap?.modelId).toBe('custom-model')
     })

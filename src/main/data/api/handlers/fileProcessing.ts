@@ -47,7 +47,7 @@ export const fileProcessingHandlers: {
 
   '/file-processing/process': {
     POST: async ({ body }) => {
-      return await fileProcessingService.startProcess(body.file, body.request)
+      return await fileProcessingService.startProcess(body)
     }
   },
 

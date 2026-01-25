@@ -170,8 +170,8 @@ describe('PreferenceTransformers', () => {
           apiKey: 'mistral-key'
         }
       })
-      expect(result['feature.file_processing.default_image_processor']).toBe('paddleocr')
-      expect(result['feature.file_processing.default_document_processor']).toBe('mistral')
+      expect(result['feature.file_processing.default_text_extraction_processor']).toBe('paddleocr')
+      expect(result['feature.file_processing.default_markdown_conversion_processor']).toBe('mistral')
     })
   })
 })

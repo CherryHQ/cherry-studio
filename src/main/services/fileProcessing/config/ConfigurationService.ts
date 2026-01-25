@@ -10,7 +10,6 @@ import { preferenceService } from '@main/data/PreferenceService'
 import {
   type CapabilityOverride,
   type FileProcessorFeature,
-  type FileProcessorInput,
   type FileProcessorMerged,
   type FileProcessorOverride,
   type FileProcessorTemplate,
@@ -203,15 +202,15 @@ export class ConfigurationService {
   }
 
   /**
-   * Get the user's default processor for a given input type
+   * Get the user's default processor for a given feature
    *
    * @returns The processor ID if set, null otherwise
    */
-  getDefaultProcessor(inputType: FileProcessorInput): string | null {
+  getDefaultProcessor(feature: FileProcessorFeature): string | null {
     const key =
-      inputType === 'image'
-        ? 'feature.file_processing.default_image_processor'
-        : 'feature.file_processing.default_document_processor'
+      feature === 'text_extraction'
+        ? 'feature.file_processing.default_text_extraction_processor'
+        : 'feature.file_processing.default_markdown_conversion_processor'
     return preferenceService.get(key)
   }
 

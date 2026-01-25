@@ -43,7 +43,7 @@ export class MistralProcessor extends BaseMarkdownConverter {
    * (template default overridden by user config if present)
    */
   private getModelId(config: FileProcessorMerged): string {
-    const capability = config.capabilities.find((cap) => cap.feature === 'to_markdown')
+    const capability = config.capabilities.find((cap) => cap.feature === 'markdown_conversion')
     if (capability?.modelId) {
       return capability.modelId
     }

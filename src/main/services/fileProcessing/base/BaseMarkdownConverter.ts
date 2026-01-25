@@ -53,7 +53,7 @@ export abstract class BaseMarkdownConverter extends BaseFileProcessor implements
    * (template default overridden by user config if present)
    */
   protected getApiHost(config: FileProcessorMerged, defaultHost?: string): string {
-    const capability = config.capabilities.find((cap) => cap.feature === 'to_markdown')
+    const capability = config.capabilities.find((cap) => cap.feature === 'markdown_conversion')
     if (capability?.apiHost) {
       return capability.apiHost
     }
@@ -78,7 +78,7 @@ export abstract class BaseMarkdownConverter extends BaseFileProcessor implements
   /**
    * Convert the input document to markdown
    */
-  async toMarkdown(
+  async convertToMarkdown(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext

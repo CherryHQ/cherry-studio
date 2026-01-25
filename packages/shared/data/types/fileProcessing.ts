@@ -6,6 +6,7 @@
  */
 
 import type { FileProcessorFeature } from '@shared/data/presets/fileProcessing'
+import type { FileMetadata } from '@types'
 
 // ============================================================================
 // Processing Status Types
@@ -47,13 +48,17 @@ export interface ProcessingResult {
 }
 
 /**
- * Request options for processing a file
+ * DTO for processing a file
+ *
+ * Contains file metadata, required feature, and optional processor ID.
  */
-export interface ProcessFileRequest {
+export interface ProcessFileDto {
+  /** File metadata */
+  file: FileMetadata
+  /** Feature to use (required) */
+  feature: FileProcessorFeature
   /** Processor ID to use (optional, uses default if not provided) */
   processorId?: string
-  /** Feature to use (optional, defaults based on input type) */
-  feature?: FileProcessorFeature
 }
 
 // ============================================================================

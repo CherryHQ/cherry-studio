@@ -28,7 +28,7 @@ export function createMockTemplate(overrides?: Partial<FileProcessorTemplate>): 
 }
 
 /**
- * Create a dual-capability template (supports both text_extraction and to_markdown)
+ * Create a dual-capability template (supports both text_extraction and markdown_conversion)
  */
 export function createDualCapabilityTemplate(overrides?: Partial<FileProcessorTemplate>): FileProcessorTemplate {
   return {
@@ -42,7 +42,7 @@ export function createDualCapabilityTemplate(overrides?: Partial<FileProcessorTe
         apiHost: 'https://ocr.example.com'
       },
       {
-        feature: 'to_markdown',
+        feature: 'markdown_conversion',
         input: 'document',
         output: 'markdown',
         apiHost: 'https://markdown.example.com'
@@ -150,7 +150,7 @@ export class MockDualProcessor extends BaseFileProcessor implements ITextExtract
     return this.doExtractTextMock(input, config, context)
   }
 
-  async toMarkdown(
+  async convertToMarkdown(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext

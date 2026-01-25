@@ -78,7 +78,11 @@ export interface IMarkdownConverter extends IFileProcessor {
    * @param context - Processing context
    * @returns Promise resolving to processing result
    */
-  toMarkdown(input: FileMetadata, config: FileProcessorMerged, context: ProcessingContext): Promise<ProcessingResult>
+  convertToMarkdown(
+    input: FileMetadata,
+    config: FileProcessorMerged,
+    context: ProcessingContext
+  ): Promise<ProcessingResult>
 }
 
 /**
@@ -98,7 +102,7 @@ export interface IDisposable {
  * Interface for processors that support async status querying
  *
  * Processors implementing this interface can:
- * 1. Start remote processing via extractText()/toMarkdown()
+ * 1. Start remote processing via extractText()/convertToMarkdown()
  * 2. Report status/progress on demand via getStatus()
  *
  * This is OPTIONAL - synchronous processors work without implementing this.
@@ -131,7 +135,7 @@ export function isTextExtractor(processor: IFileProcessor): processor is ITextEx
  * Check if a processor implements IMarkdownConverter
  */
 export function isMarkdownConverter(processor: IFileProcessor): processor is IMarkdownConverter {
-  return 'toMarkdown' in processor && typeof (processor as IMarkdownConverter).toMarkdown === 'function'
+  return 'convertToMarkdown' in processor && typeof (processor as IMarkdownConverter).convertToMarkdown === 'function'
 }
 
 /**

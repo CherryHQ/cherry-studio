@@ -93,8 +93,8 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: [
       'feature.file_processing.overrides',
-      'feature.file_processing.default_image_processor',
-      'feature.file_processing.default_document_processor'
+      'feature.file_processing.default_text_extraction_processor',
+      'feature.file_processing.default_markdown_conversion_processor'
     ],
     transform: transformFileProcessingConfig
   }

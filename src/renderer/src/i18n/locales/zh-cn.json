@@ -3894,7 +3894,7 @@
       "document_processors": "文档处理",
       "feature": "功能",
       "feature.text_extraction": "文字提取",
-      "feature.to_markdown": "转换为 Markdown",
+      "feature.markdown_conversion": "转换为 Markdown",
       "image_processors": "图片处理",
       "input.document": "文档",
       "input.image": "图片",

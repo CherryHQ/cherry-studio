@@ -312,9 +312,9 @@ export interface PreferenceSchemas {
     // redux/settings/apiServer.port
     'feature.csaas.port': number
     // target-key-definitions/complex/complex
-    'feature.file_processing.default_document_processor': string | null
+    'feature.file_processing.default_markdown_conversion_processor': string | null
     // target-key-definitions/complex/complex
-    'feature.file_processing.default_image_processor': string | null
+    'feature.file_processing.default_text_extraction_processor': string | null
     // target-key-definitions/complex/complex
     'feature.file_processing.overrides': FileProcessorOverrides
     // redux/memory/memoryConfig.isAutoDimensions
@@ -592,8 +592,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.csaas.enabled': false,
     'feature.csaas.host': '127.0.0.1',
     'feature.csaas.port': 23333,
-    'feature.file_processing.default_document_processor': null,
-    'feature.file_processing.default_image_processor': null,
+    'feature.file_processing.default_markdown_conversion_processor': null,
+    'feature.file_processing.default_text_extraction_processor': null,
     'feature.file_processing.overrides': {},
     'feature.memory.auto_dimensions': true,
     'feature.memory.current_user_id': 'default-user',

@@ -10,9 +10,9 @@ import ProcessorListItem from './components/ProcessorListItem'
 
 const FileProcessingSettings: FC = () => {
   const { t } = useTranslation()
-  const { processors: documentProcessors } = useFileProcessors({ feature: 'to_markdown' })
+  const { processors: documentProcessors } = useFileProcessors({ feature: 'markdown_conversion' })
   const { processors: imageProcessors } = useFileProcessors({ feature: 'text_extraction' })
-  const { defaultDocumentProcessor, defaultImageProcessor } = useDefaultProcessors()
+  const { defaultMarkdownConversionProcessor, defaultTextExtractionProcessor } = useDefaultProcessors()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -59,7 +59,7 @@ const FileProcessingSettings: FC = () => {
               key={processor.id}
               processor={processor}
               isActive={activeView === processor.id}
-              isDefault={defaultDocumentProcessor === processor.id}
+              isDefault={defaultMarkdownConversionProcessor === processor.id}
               isDocument={true}
             />
           ))}
@@ -73,7 +73,7 @@ const FileProcessingSettings: FC = () => {
               key={processor.id}
               processor={processor}
               isActive={activeView === processor.id}
-              isDefault={defaultImageProcessor === processor.id}
+              isDefault={defaultTextExtractionProcessor === processor.id}
               isDocument={false}
             />
           ))}

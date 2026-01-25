@@ -244,7 +244,7 @@ type CapabilityOverride = {
   modelId?: string
 }
 
-type FileProcessorFeature = 'text_extraction' | 'to_markdown'
+type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
 
 /**
  * User override for file processor (target format)
@@ -378,7 +378,7 @@ function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FilePr
   }
 
   // Only store apiHost if different from template default
-  const defaults = getTemplateDefaults(provider.id, 'to_markdown')
+  const defaults = getTemplateDefaults(provider.id, 'markdown_conversion')
   const apiHost = normalizeApiHost(provider.apiHost)
   if (apiHost && apiHost !== defaults.apiHost) {
     capabilityOverride.apiHost = apiHost
@@ -396,7 +396,7 @@ function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FilePr
 
   // Add capability override if any field was set
   if (hasCapabilityOverride) {
-    userConfig.capabilities = { to_markdown: capabilityOverride }
+    userConfig.capabilities = { markdown_conversion: capabilityOverride }
   }
 
   return hasUserConfig ? userConfig : null
@@ -443,10 +443,10 @@ export function transformFileProcessingConfig(sources: Record<string, unknown>):
   const hasOverrides = Object.keys(overrides).length > 0
   return {
     'feature.file_processing.overrides': hasOverrides ? overrides : undefined,
-    'feature.file_processing.default_image_processor': isNonEmptyString(ocrImageProviderId)
+    'feature.file_processing.default_text_extraction_processor': isNonEmptyString(ocrImageProviderId)
       ? ocrImageProviderId
       : undefined,
-    'feature.file_processing.default_document_processor': isNonEmptyString(preprocessDefaultProvider)
+    'feature.file_processing.default_markdown_conversion_processor': isNonEmptyString(preprocessDefaultProvider)
       ? preprocessDefaultProvider
       : undefined
   }

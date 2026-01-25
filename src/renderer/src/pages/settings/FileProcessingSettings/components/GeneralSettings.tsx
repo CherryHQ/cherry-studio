@@ -5,10 +5,14 @@ import { useTranslation } from 'react-i18next'
 
 const GeneralSettings: FC = () => {
   const { t } = useTranslation()
-  const { processors: documentProcessors } = useFileProcessors({ feature: 'to_markdown' })
+  const { processors: documentProcessors } = useFileProcessors({ feature: 'markdown_conversion' })
   const { processors: imageProcessors } = useFileProcessors({ feature: 'text_extraction' })
-  const { defaultDocumentProcessor, setDefaultDocumentProcessor, defaultImageProcessor, setDefaultImageProcessor } =
-    useDefaultProcessors()
+  const {
+    defaultMarkdownConversionProcessor,
+    setDefaultMarkdownConversionProcessor,
+    defaultTextExtractionProcessor,
+    setDefaultTextExtractionProcessor
+  } = useDefaultProcessors()
 
   // Filter document processors that are configured (have apiKey or are builtin)
   const availableDocumentProcessors = documentProcessors.filter((p) => p.type === 'builtin' || p.apiKey)
@@ -29,8 +33,8 @@ const GeneralSettings: FC = () => {
         <div className="mt-2 flex flex-row items-center justify-between">
           <div className="text-sm">{t('settings.file_processing.default_service')}</div>
           <Select
-            value={defaultDocumentProcessor || '__none__'}
-            onValueChange={(value) => setDefaultDocumentProcessor(value === '__none__' ? null : value)}>
+            value={defaultMarkdownConversionProcessor || '__none__'}
+            onValueChange={(value) => setDefaultMarkdownConversionProcessor(value === '__none__' ? null : value)}>
             <SelectTrigger className="w-50 rounded-2xs">
               <SelectValue placeholder={t('settings.file_processing.no_default')} />
             </SelectTrigger>
@@ -60,8 +64,8 @@ const GeneralSettings: FC = () => {
         <div className="mt-2 flex flex-row items-center justify-between">
           <div className="text-sm">{t('settings.file_processing.default_service')}</div>
           <Select
-            value={defaultImageProcessor || '__none__'}
-            onValueChange={(value) => setDefaultImageProcessor(value === '__none__' ? null : value)}>
+            value={defaultTextExtractionProcessor || '__none__'}
+            onValueChange={(value) => setDefaultTextExtractionProcessor(value === '__none__' ? null : value)}>
             <SelectTrigger className="w-50 rounded-2xs">
               <SelectValue placeholder={t('settings.file_processing.no_default')} />
             </SelectTrigger>

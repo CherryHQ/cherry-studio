@@ -6,8 +6,6 @@
  * modifying existing code.
  */
 
-import type { FileProcessorFeature, FileProcessorInput } from '@shared/data/presets/fileProcessing'
-
 import type { IFileProcessor } from '../interfaces'
 
 /**
@@ -66,57 +64,12 @@ export class ProcessorRegistry {
   }
 
   /**
-   * Find all processors that support a given feature and input type
-   *
-   * @returns Array of processors supporting the capability
+   * Get all registered processors that are available
    */
-  findByCapability(feature: FileProcessorFeature, inputType: FileProcessorInput): IFileProcessor[] {
-    return Array.from(this.processors.values()).filter((p) => p.supports(feature, inputType))
-  }
-
-  /**
-   * Check if a processor is available
-   *
-   * @returns true if the processor exists and is available, false otherwise
-   */
-  async isAvailable(processorId: string): Promise<boolean> {
-    const processor = this.processors.get(processorId)
-    return processor ? processor.isAvailable() : false
-  }
-
-  /**
-   * Get all registered processors
-   */
-  getAll(): IFileProcessor[] {
-    return Array.from(this.processors.values())
-  }
-
-  /**
-   * Get all registered processor IDs
-   */
-  getAllIds(): string[] {
-    return Array.from(this.processors.keys())
-  }
-
-  /**
-   * Check if a processor is registered
-   */
-  has(processorId: string): boolean {
-    return this.processors.has(processorId)
-  }
-
-  /**
-   * Get the number of registered processors
-   */
-  get size(): number {
-    return this.processors.size
-  }
-
-  /**
-   * @internal Testing only - reset the singleton instance
-   */
-  static _resetForTesting(): void {
-    ProcessorRegistry.instance = null
+  async getAll(): Promise<IFileProcessor[]> {
+    const processors = Array.from(this.processors.values())
+    const availability = await Promise.all(processors.map((processor) => processor.isAvailable()))
+    return processors.filter((_, index) => availability[index])
   }
 }
 

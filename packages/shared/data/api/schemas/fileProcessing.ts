@@ -14,11 +14,10 @@ import type {
 } from '@shared/data/presets/fileProcessing'
 import type {
   CancelResponse,
-  ProcessFileRequest,
+  ProcessFileDto,
   ProcessResultResponse,
   ProcessStartResponse
 } from '@shared/data/types/fileProcessing'
-import type { FileMetadata } from '@types'
 
 // ============================================================================
 // API Schema Definitions
@@ -63,15 +62,12 @@ export interface FileProcessingSchemas {
 
   /**
    * Process a file
-   * @example POST /file-processing/process { "file": {...}, "processorId": "tesseract" }
+   * @example POST /file-processing/process { "file": {...}, "feature": "text_extraction", "processorId": "tesseract" }
    */
   '/file-processing/process': {
     /** Process a file using specified or default processor */
     POST: {
-      body: {
-        file: FileMetadata
-        request?: ProcessFileRequest
-      }
+      body: ProcessFileDto
       response: ProcessStartResponse
     }
   }

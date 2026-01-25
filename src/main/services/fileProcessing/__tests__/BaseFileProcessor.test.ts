@@ -31,7 +31,7 @@ describe('BaseFileProcessor', () => {
         })
       )
 
-      expect(processor.supports('to_markdown', 'image')).toBe(false)
+      expect(processor.supports('markdown_conversion', 'image')).toBe(false)
     })
 
     it('should return false for unsupported input type', () => {
@@ -139,19 +139,19 @@ describe('BaseMarkdownConverter', () => {
   beforeEach(() => {
     processor = new MockMarkdownConverter(
       createMockTemplate({
-        capabilities: [{ feature: 'to_markdown', input: 'document', output: 'markdown' }]
+        capabilities: [{ feature: 'markdown_conversion', input: 'document', output: 'markdown' }]
       })
     )
     processor.doConvertMock.mockResolvedValue({ markdown: '# Converted Markdown' })
   })
 
-  describe('toMarkdown', () => {
+  describe('convertToMarkdown', () => {
     it('should call doConvert and return result', async () => {
       const input = createMockFileMetadata({ name: 'test.pdf', ext: '.pdf' })
       const config = createMockConfig()
       const context = createMockContext()
 
-      const result = await processor.toMarkdown(input, config, context)
+      const result = await processor.convertToMarkdown(input, config, context)
 
       expect(result).toEqual({ markdown: '# Converted Markdown' })
       expect(processor.doConvertMock).toHaveBeenCalledWith(input, config, context)
@@ -162,7 +162,9 @@ describe('BaseMarkdownConverter', () => {
       const config = createMockConfig()
       const context = createMockContext()
 
-      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Document file path is required')
+      await expect(processor.convertToMarkdown(input, config, context)).rejects.toThrow(
+        'Document file path is required'
+      )
     })
 
     it('should validate document path is not undefined', async () => {
@@ -170,7 +172,9 @@ describe('BaseMarkdownConverter', () => {
       const config = createMockConfig()
       const context = createMockContext()
 
-      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Document file path is required')
+      await expect(processor.convertToMarkdown(input, config, context)).rejects.toThrow(
+        'Document file path is required'
+      )
     })
 
     it('should check cancellation before processing', async () => {
@@ -181,7 +185,7 @@ describe('BaseMarkdownConverter', () => {
       const config = createMockConfig()
       const context = createMockContext({ signal: controller.signal })
 
-      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Processing cancelled')
+      await expect(processor.convertToMarkdown(input, config, context)).rejects.toThrow('Processing cancelled')
       expect(processor.doConvertMock).not.toHaveBeenCalled()
     })
 
@@ -192,7 +196,7 @@ describe('BaseMarkdownConverter', () => {
       const config = createMockConfig()
       const context = createMockContext({ signal: controller.signal })
 
-      const result = await processor.toMarkdown(input, config, context)
+      const result = await processor.convertToMarkdown(input, config, context)
 
       expect(result).toEqual({ markdown: '# Converted Markdown' })
     })
@@ -209,21 +213,21 @@ describe('MockDualProcessor (dual capability)', () => {
   })
 
   describe('supports', () => {
-    it('should support both text_extraction and to_markdown', () => {
+    it('should support both text_extraction and markdown_conversion', () => {
       expect(processor.supports('text_extraction', 'image')).toBe(true)
-      expect(processor.supports('to_markdown', 'document')).toBe(true)
+      expect(processor.supports('markdown_conversion', 'document')).toBe(true)
     })
 
     it('should not support unsupported combinations', () => {
       expect(processor.supports('text_extraction', 'document')).toBe(false)
-      expect(processor.supports('to_markdown', 'image')).toBe(false)
+      expect(processor.supports('markdown_conversion', 'image')).toBe(false)
     })
   })
 
   describe('getCapability', () => {
     it('should return different API hosts for different features', () => {
       const textCapability = processor.template.capabilities.find((c) => c.feature === 'text_extraction')
-      const markdownCapability = processor.template.capabilities.find((c) => c.feature === 'to_markdown')
+      const markdownCapability = processor.template.capabilities.find((c) => c.feature === 'markdown_conversion')
 
       expect(textCapability?.apiHost).toBe('https://ocr.example.com')
       expect(markdownCapability?.apiHost).toBe('https://markdown.example.com')
@@ -272,13 +276,13 @@ describe('MockDualProcessor (dual capability)', () => {
     })
   })
 
-  describe('toMarkdown', () => {
+  describe('convertToMarkdown', () => {
     it('should convert document to markdown', async () => {
       const input = createMockFileMetadata({ name: 'doc.pdf', ext: '.pdf' })
       const config = createMockConfig()
       const context = createMockContext()
 
-      const result = await processor.toMarkdown(input, config, context)
+      const result = await processor.convertToMarkdown(input, config, context)
 
       expect(result).toEqual({ markdown: '# Markdown from document' })
       expect(processor.doConvertMock).toHaveBeenCalledWith(input, config, context)
@@ -292,7 +296,7 @@ describe('MockDualProcessor (dual capability)', () => {
       const config = createMockConfig()
       const context = createMockContext({ signal: controller.signal })
 
-      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Processing cancelled')
+      await expect(processor.convertToMarkdown(input, config, context)).rejects.toThrow('Processing cancelled')
     })
 
     it('should validate document path', async () => {
@@ -300,19 +304,21 @@ describe('MockDualProcessor (dual capability)', () => {
       const config = createMockConfig()
       const context = createMockContext()
 
-      await expect(processor.toMarkdown(input, config, context)).rejects.toThrow('Document file path is required')
+      await expect(processor.convertToMarkdown(input, config, context)).rejects.toThrow(
+        'Document file path is required'
+      )
     })
   })
 
   describe('using both capabilities in sequence', () => {
-    it('should be able to call both extractText and toMarkdown', async () => {
+    it('should be able to call both extractText and convertToMarkdown', async () => {
       const imageInput = createMockFileMetadata({ name: 'image.png', ext: '.png' })
       const docInput = createMockFileMetadata({ name: 'doc.pdf', ext: '.pdf' })
       const config = createMockConfig()
       const context = createMockContext()
 
       const textResult = await processor.extractText(imageInput, config, context)
-      const markdownResult = await processor.toMarkdown(docInput, config, context)
+      const markdownResult = await processor.convertToMarkdown(docInput, config, context)
 
       expect(textResult).toEqual({ text: 'extracted text from OCR' })
       expect(markdownResult).toEqual({ markdown: '# Markdown from document' })

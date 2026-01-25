@@ -76,8 +76,8 @@ describe('ComplexPreferenceMappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toEqual([
         'feature.file_processing.overrides',
-        'feature.file_processing.default_image_processor',
-        'feature.file_processing.default_document_processor'
+        'feature.file_processing.default_text_extraction_processor',
+        'feature.file_processing.default_markdown_conversion_processor'
       ])
     })
 

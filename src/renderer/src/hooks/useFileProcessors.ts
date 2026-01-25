@@ -22,7 +22,7 @@ import { useCallback, useMemo } from 'react'
  * - Configuration merging (template + user overrides)
  * - Availability checking
  *
- * @param options.feature - Optional feature filter (text_extraction, to_markdown)
+ * @param options.feature - Optional feature filter (text_extraction, markdown_conversion)
  *
  * For updating individual processors, use useFileProcessor(processorId).
  */
@@ -71,17 +71,17 @@ export function useFileProcessor(processorId: string) {
  * Default processor IDs are stored in preferences, not fetched from API.
  */
 export function useDefaultProcessors() {
-  const [defaultDocumentProcessor, setDefaultDocumentProcessor] = usePreference(
-    'feature.file_processing.default_document_processor'
+  const [defaultMarkdownConversionProcessor, setDefaultMarkdownConversionProcessor] = usePreference(
+    'feature.file_processing.default_markdown_conversion_processor'
   )
-  const [defaultImageProcessor, setDefaultImageProcessor] = usePreference(
-    'feature.file_processing.default_image_processor'
+  const [defaultTextExtractionProcessor, setDefaultTextExtractionProcessor] = usePreference(
+    'feature.file_processing.default_text_extraction_processor'
   )
 
   return {
-    defaultDocumentProcessor,
-    setDefaultDocumentProcessor,
-    defaultImageProcessor,
-    setDefaultImageProcessor
+    defaultMarkdownConversionProcessor,
+    setDefaultMarkdownConversionProcessor,
+    defaultTextExtractionProcessor,
+    setDefaultTextExtractionProcessor
   }
 }

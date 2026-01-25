@@ -19,7 +19,7 @@ export type FileProcessorType = 'api' | 'builtin'
 /**
  * Feature type
  */
-export type FileProcessorFeature = 'text_extraction' | 'to_markdown'
+export type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
 
 /**
  * Input type (category)
@@ -187,7 +187,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
     },
     capabilities: [
       {
-        feature: 'to_markdown',
+        feature: 'markdown_conversion',
         input: 'document',
         output: 'markdown',
         apiHost: 'https://mineru.net'
@@ -203,7 +203,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
     },
     capabilities: [
       {
-        feature: 'to_markdown',
+        feature: 'markdown_conversion',
         input: 'document',
         output: 'markdown',
         apiHost: 'https://v2.doc2x.noedgeai.com'
@@ -219,7 +219,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
     },
     capabilities: [
       {
-        feature: 'to_markdown',
+        feature: 'markdown_conversion',
         input: 'document',
         output: 'markdown',
         apiHost: 'https://api.mistral.ai',
@@ -236,7 +236,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
     },
     capabilities: [
       {
-        feature: 'to_markdown',
+        feature: 'markdown_conversion',
         input: 'document',
         output: 'markdown',
         apiHost: 'http://127.0.0.1:8000'
