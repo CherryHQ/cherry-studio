@@ -3,6 +3,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isReasoningModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { isSupportedReasoningEffortModel } from '@renderer/config/models/reasoning'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
@@ -14,6 +15,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import type { EndpointType, Model } from '@renderer/types'
+import { getFancyProviderName } from '@renderer/utils/naming'
 import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
@@ -36,6 +38,17 @@ import {
 } from '.'
 
 const logger = loggerService.withContext('CodeToolsPage')
+
+/**
+ * Sanitize provider name for CLI usage
+ * - Replace spaces with dashes
+ * - Replace other dangerous characters with underscores
+ */
+const sanitizeProviderName = (name: string): string => {
+  return name
+    .replace(/\s+/g, '-') // spaces -> dashes
+    .replace(/[<>:"|?*\\/]/g, '_') // dangerous chars -> underscores
+}
 
 const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
@@ -278,6 +291,7 @@ const CodeToolsPage: FC = () => {
       terminal?: string
       modelName?: string
       isReasoning?: boolean
+      supportsReasoningEffort?: boolean
       providerType?: string
       providerName?: string
     } = {
@@ -289,11 +303,12 @@ const CodeToolsPage: FC = () => {
     if (selectedCliTool === codeTools.openCode && selectedModel) {
       runOptions.modelName = selectedModel.name
       runOptions.isReasoning = isReasoningModel(selectedModel)
+      runOptions.supportsReasoningEffort = isSupportedReasoningEffortModel(selectedModel)
       // Add provider type for correct npm package selection
       const modelProvider = providers.find((p) => p.id === selectedModel.provider)
       runOptions.providerType = modelProvider?.type
-      // Add provider name for dynamic provider key in opencode.json
-      runOptions.providerName = modelProvider?.id
+      // Add provider name for dynamic provider key in opencode.json (use friendly name, sanitized for CLI)
+      runOptions.providerName = modelProvider ? sanitizeProviderName(getFancyProviderName(modelProvider)) : undefined
     }
 
     window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
