@@ -139,7 +139,7 @@ class CodeToolsService {
   /**
    * Generate opencode.json config file for OpenCode CLI
    * Handles two scenarios:
-   * 1. Existing config: merge CherryStudio provider
+   * 1. Existing config: merge/append Cherry-{providerName} provider
    * 2. No existing config: create new config
    */
   private async generateOpenCodeConfig(
@@ -148,7 +148,8 @@ class CodeToolsService {
     apiKey: string,
     baseUrl: string,
     isReasoning: boolean,
-    providerType?: string
+    providerType: string,
+    providerName: string
   ): Promise<string> {
     const configPath = path.join(directory, 'opencode.json')
 
@@ -191,41 +192,43 @@ class CodeToolsService {
           }
         }
       } else {
-        // OpenAI style: reasoning with effort
+        // OpenAI style: direct reasoningEffort field
         modelConfig.options = {
-          reasoning: {
-            effort: 'medium'
-          }
+          reasoningEffort: 'medium'
         }
       }
     }
 
     let finalConfig: Record<string, any>
 
+    // Use dynamic provider name to avoid race conditions between different providers
+    const dynamicProviderKey = `Cherry-${providerName}`
+    const dynamicProviderName = `Cherry-${providerName}`
+
     if (existingConfig) {
-      // Existing config: merge/append CherryStudio provider
-      const existingModels = existingConfig.provider?.CherryStudio?.models || {}
+      // Existing config: merge/append Cherry-{providerName} provider
+      const existingModels = existingConfig.provider?.[dynamicProviderKey]?.models || {}
       finalConfig = {
         ...existingConfig,
         provider: {
           ...existingConfig.provider,
-          CherryStudio: {
+          [dynamicProviderKey]: {
             npm: npmPackage,
-            name: 'CherryStudio',
+            name: dynamicProviderName,
             options: { apiKey, baseURL: baseUrl },
             models: { ...existingModels, [model.id]: modelConfig }
           }
         }
       }
-      logger.info(`Merged CherryStudio with model ${model.id} into existing config (npm: ${npmPackage})`)
+      logger.info(`Merged ${dynamicProviderName} with model ${model.id} into existing config (npm: ${npmPackage})`)
     } else {
       // No existing config: create new
       finalConfig = {
         $schema: 'https://opencode.ai/config.json',
         provider: {
-          CherryStudio: {
+          [dynamicProviderKey]: {
             npm: npmPackage,
-            name: 'CherryStudio',
+            name: dynamicProviderName,
             options: { apiKey, baseURL: baseUrl },
             models: { [model.id]: modelConfig }
           }
@@ -242,8 +245,8 @@ class CodeToolsService {
 
   /**
    * Schedule cleanup of opencode.json config file after 60 seconds (debounce mode)
-   * - Config has other providers: only remove CherryStudio provider
-   * - Config only has CherryStudio: delete entire file
+   * - Config has other providers: only remove Cherry-* providers
+   * - Config only has Cherry-* providers: delete entire file
    */
   private scheduleOpenCodeConfigCleanup(configPath: string): void {
     // Cancel any existing timer for this directory (debounce)
@@ -263,19 +266,25 @@ class CodeToolsService {
         const content = fs.readFileSync(configPath, 'utf8')
         const config = JSON.parse(content)
 
-        if (!config.provider?.CherryStudio) return
-
-        // Check if there are other providers besides CherryStudio
         const providerKeys = Object.keys(config.provider || {})
-        const hasOtherProviders = providerKeys.some((key) => key !== 'CherryStudio')
+
+        // Find all Cherry-* providers
+        const cherryProviders = providerKeys.filter((key) => key.startsWith('Cherry-'))
+
+        if (cherryProviders.length === 0) return
+
+        // Check if there are other providers besides Cherry-*
+        const hasOtherProviders = providerKeys.some((key) => !key.startsWith('Cherry-'))
 
         if (hasOtherProviders) {
-          // Other providers exist: only remove CherryStudio
-          delete config.provider.CherryStudio
+          // Other providers exist: only remove Cherry-* providers
+          for (const provider of cherryProviders) {
+            delete config.provider[provider]
+          }
           fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
-          logger.info(`Removed CherryStudio provider from config: ${configPath}`)
+          logger.info(`Removed Cherry-* providers from config: ${configPath}`)
         } else {
-          // Only CherryStudio: delete entire file
+          // Only Cherry-* providers: delete entire file
           fs.unlinkSync(configPath)
           logger.info(`Deleted opencode.json: ${configPath}`)
         }
@@ -724,6 +733,7 @@ class CodeToolsService {
       modelName?: string
       isReasoning?: boolean
       providerType?: string
+      providerName?: string
     } = {}
   ) {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
@@ -859,7 +869,8 @@ class CodeToolsService {
       const modelId = _model
       const modelName = options.modelName || modelId
       const isReasoning = options.isReasoning ?? false
-      const providerType = options.providerType
+      const providerType = options.providerType || 'openai-compatible'
+      const providerName = options.providerName || 'Studio'
 
       const configPath = await this.generateOpenCodeConfig(
         directory,
@@ -867,12 +878,13 @@ class CodeToolsService {
         apiKey,
         baseUrl,
         isReasoning,
-        providerType
+        providerType,
+        providerName
       )
       this.scheduleOpenCodeConfigCleanup(configPath)
 
-      // Add --model flag with provider prefix
-      baseCommand = `${baseCommand} --model CherryStudio/${modelId}`
+      // Add --model flag with dynamic provider prefix to avoid race conditions
+      baseCommand = `${baseCommand} --model Cherry-${providerName}/${modelId}`
     }
 
     const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)

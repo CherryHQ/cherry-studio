@@ -279,6 +279,7 @@ const CodeToolsPage: FC = () => {
       modelName?: string
       isReasoning?: boolean
       providerType?: string
+      providerName?: string
     } = {
       autoUpdateToLatest,
       terminal: selectedTerminal
@@ -291,6 +292,8 @@ const CodeToolsPage: FC = () => {
       // Add provider type for correct npm package selection
       const modelProvider = providers.find((p) => p.id === selectedModel.provider)
       runOptions.providerType = modelProvider?.type
+      // Add provider name for dynamic provider key in opencode.json
+      runOptions.providerName = modelProvider?.id
     }
 
     window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
