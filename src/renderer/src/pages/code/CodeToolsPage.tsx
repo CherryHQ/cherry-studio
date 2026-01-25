@@ -1,15 +1,16 @@
 import AiProvider from '@renderer/aiCore'
+import { getAnthropicThinkingBudget } from '@renderer/aiCore/utils/reasoning'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isReasoningModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { isSupportedReasoningEffortModel } from '@renderer/config/models/reasoning'
+import { isSupportedReasoningEffortModel, isSupportedThinkingTokenClaudeModel } from '@renderer/config/models/reasoning'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -73,6 +74,10 @@ const CodeToolsPage: FC = () => {
     selectFolder
   } = useCodeTools()
   const { setTimeoutTimer } = useTimer()
+
+  // Get default assistant settings for budget tokens calculation
+  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
+  const { maxTokens, reasoning_effort } = getAssistantSettings(defaultAssistant)
 
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
@@ -292,6 +297,7 @@ const CodeToolsPage: FC = () => {
       modelName?: string
       isReasoning?: boolean
       supportsReasoningEffort?: boolean
+      budgetTokens?: number
       providerType?: string
       providerName?: string
     } = {
@@ -304,6 +310,12 @@ const CodeToolsPage: FC = () => {
       runOptions.modelName = selectedModel.name
       runOptions.isReasoning = isReasoningModel(selectedModel)
       runOptions.supportsReasoningEffort = isSupportedReasoningEffortModel(selectedModel)
+
+      // Calculate Anthropic budget tokens for thinking models
+      if (isSupportedThinkingTokenClaudeModel(selectedModel)) {
+        runOptions.budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoning_effort, selectedModel.id)
+      }
+
       // Add provider type for correct npm package selection
       const modelProvider = providers.find((p) => p.id === selectedModel.provider)
       runOptions.providerType = modelProvider?.type
