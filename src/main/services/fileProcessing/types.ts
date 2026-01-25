@@ -48,4 +48,6 @@ export interface TaskState {
   providerTaskId: string | null
   config: FileProcessorMerged
   abortController: AbortController
+  /** Timestamp when task completed/failed (ms), for TTL cleanup */
+  completedAt?: number
 }

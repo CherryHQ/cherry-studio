@@ -42,10 +42,16 @@ import type { ProcessingContext, TaskState } from './types'
 
 const logger = loggerService.withContext('FileProcessingService')
 
+/** TTL for completed/failed tasks before cleanup (1 minute) */
+const TASK_TTL_MS = 5 * 60 * 1000
+/** Interval for cleanup timer (30 seconds) */
+const CLEANUP_INTERVAL_MS = 60 * 1000
+
 export class FileProcessingService {
   private static instance: FileProcessingService | null = null
   private static processorsRegistered = false
   private taskStates: Map<string, TaskState> = new Map()
+  private cleanupTimer: NodeJS.Timeout | null = null
 
   private constructor() {}
 
@@ -227,12 +233,51 @@ export class FileProcessingService {
       error: task.error
     }
 
-    // Clear task after returning completed/failed status
-    if (task.status === 'completed' || task.status === 'failed') {
-      this.taskStates.delete(requestId)
+    // Mark completion time for TTL cleanup (don't delete immediately)
+    if ((task.status === 'completed' || task.status === 'failed') && !task.completedAt) {
+      task.completedAt = Date.now()
+      this.startCleanupTimer()
     }
 
     return response
+  }
+
+  /**
+   * Start cleanup timer if not already running
+   */
+  private startCleanupTimer(): void {
+    if (this.cleanupTimer) return
+    this.cleanupTimer = setInterval(() => this.cleanupExpiredTasks(), CLEANUP_INTERVAL_MS)
+  }
+
+  /**
+   * Remove tasks that have exceeded TTL
+   */
+  private cleanupExpiredTasks(): void {
+    const now = Date.now()
+    let cleanedCount = 0
+    let hasCompletedTasks = false
+
+    for (const [requestId, task] of this.taskStates) {
+      if (task.completedAt) {
+        if (now - task.completedAt > TASK_TTL_MS) {
+          this.taskStates.delete(requestId)
+          cleanedCount++
+        } else {
+          hasCompletedTasks = true
+        }
+      }
+    }
+
+    if (cleanedCount > 0) {
+      logger.debug(`Cleaned up ${cleanedCount} expired task(s)`)
+    }
+
+    // Stop timer if no completed tasks remaining
+    if (!hasCompletedTasks && this.cleanupTimer) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
   }
 
   private extractProviderTaskId(result: ProcessingResult): string | null {

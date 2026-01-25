@@ -170,10 +170,9 @@ describe('FileProcessingService', () => {
         expect(result.status).toBe('completed')
       })
 
-      // Second query returns not_found (task was cleared)
-      const notFound = await service.getResult(requestId)
-      expect(notFound.status).toBe('failed')
-      expect(notFound.error?.code).toBe('not_found')
+      // Second query still returns completed (TTL cache keeps task for a while)
+      const secondQuery = await service.getResult(requestId)
+      expect(secondQuery.status).toBe('completed')
     })
 
     it('should return failed status when processing errors', async () => {
