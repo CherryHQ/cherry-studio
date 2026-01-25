@@ -49,8 +49,8 @@ export type FeatureCapability = {
   feature: FileProcessorFeature
   input: FileProcessorInput
   output: FileProcessorOutput
-  defaultApiHost?: string // Feature-level default API Host
-  defaultModelId?: string // Feature-level default Model ID
+  apiHost?: string // API Host (template default, can be overridden)
+  modelId?: string // Model ID (template default, can be overridden)
   // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
   // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
 }
@@ -87,16 +87,13 @@ export type FileProcessorTemplate = {
 export type FileProcessorOptions = Record<string, unknown>
 
 /**
- * Feature-level user configuration
+ * Capability override (user customization for a specific feature)
  *
- * Allows per-feature API host and model overrides.
- * This is needed because some processors (e.g., PaddleOCR) have different
- * API endpoints for different features.
+ * Stored as Record<feature, CapabilityOverride> in FileProcessorOverride.
  */
-export type FeatureUserConfig = {
-  feature: FileProcessorFeature
-  apiHost?: string // User override for this feature's API Host
-  modelId?: string // User override for this feature's Model ID
+export type CapabilityOverride = {
+  apiHost?: string
+  modelId?: string
 }
 
 /**
@@ -105,12 +102,12 @@ export type FeatureUserConfig = {
  * Design principles:
  * - Only stores user-modified fields
  * - apiKey is shared across all features (processor-level)
- * - apiHost/modelId are per-feature (in featureConfigs)
+ * - apiHost/modelId are per-feature (in capabilities Record)
  * - Field names use camelCase (consistent with TypeScript conventions)
  */
 export type FileProcessorOverride = {
   apiKey?: string // API Key (shared across all features)
-  featureConfigs?: FeatureUserConfig[] // Feature-level configurations
+  capabilities?: Partial<Record<FileProcessorFeature, CapabilityOverride>> // Per-feature overrides
   options?: FileProcessorOptions // Processor-specific config (generic type)
 }
 
@@ -124,8 +121,18 @@ export type FileProcessorOverrides = Record<string, FileProcessorOverride>
  *
  * Used by both Renderer (UI display/editing) and Main (execution).
  * Combines the read-only template with user-configured overrides.
+ *
+ * Note: capabilities is an array (from template) with overrides merged in,
+ * NOT a Record like in FileProcessorOverride.
  */
-export type FileProcessorMerged = FileProcessorTemplate & FileProcessorOverride
+export type FileProcessorMerged = {
+  id: string
+  type: FileProcessorType
+  metadata?: FileProcessorMetadata
+  capabilities: FeatureCapability[] // Merged capabilities (array)
+  apiKey?: string
+  options?: FileProcessorOptions
+}
 
 // ============================================================================
 // Processor Presets
@@ -160,7 +167,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
         feature: 'text_extraction',
         input: 'image',
         output: 'text',
-        defaultApiHost: ''
+        apiHost: ''
       }
     ]
   },
@@ -183,7 +190,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
         feature: 'to_markdown',
         input: 'document',
         output: 'markdown',
-        defaultApiHost: 'https://mineru.net'
+        apiHost: 'https://mineru.net'
       }
     ]
   },
@@ -199,7 +206,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
         feature: 'to_markdown',
         input: 'document',
         output: 'markdown',
-        defaultApiHost: 'https://v2.doc2x.noedgeai.com'
+        apiHost: 'https://v2.doc2x.noedgeai.com'
       }
     ]
   },
@@ -215,8 +222,8 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
         feature: 'to_markdown',
         input: 'document',
         output: 'markdown',
-        defaultApiHost: 'https://api.mistral.ai',
-        defaultModelId: 'mistral-ocr-latest'
+        apiHost: 'https://api.mistral.ai',
+        modelId: 'mistral-ocr-latest'
       }
     ]
   },
@@ -232,7 +239,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
         feature: 'to_markdown',
         input: 'document',
         output: 'markdown',
-        defaultApiHost: 'http://127.0.0.1:8000'
+        apiHost: 'http://127.0.0.1:8000'
       }
     ]
   }

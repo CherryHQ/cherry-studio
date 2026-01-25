@@ -1,16 +1,12 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import {
-  useAvailableImageProcessors,
-  useDefaultProcessors,
-  useDocumentProcessors
-} from '@renderer/hooks/useFileProcessors'
+import { useDefaultProcessors, useFileProcessors } from '@renderer/hooks/useFileProcessors'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const GeneralSettings: FC = () => {
   const { t } = useTranslation()
-  const documentProcessors = useDocumentProcessors()
-  const imageProcessors = useAvailableImageProcessors()
+  const { processors: documentProcessors } = useFileProcessors({ feature: 'to_markdown' })
+  const { processors: imageProcessors } = useFileProcessors({ feature: 'text_extraction' })
   const { defaultDocumentProcessor, setDefaultDocumentProcessor, defaultImageProcessor, setDefaultImageProcessor } =
     useDefaultProcessors()
 

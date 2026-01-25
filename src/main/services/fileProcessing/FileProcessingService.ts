@@ -11,7 +11,12 @@
  */
 
 import { loggerService } from '@logger'
-import type { FileProcessorFeature, FileProcessorInput, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type {
+  FileProcessorFeature,
+  FileProcessorInput,
+  FileProcessorMerged,
+  FileProcessorOverride
+} from '@shared/data/presets/fileProcessing'
 import type {
   CancelResponse,
   ProcessFileRequest,
@@ -26,6 +31,14 @@ import { v4 as uuidv4 } from 'uuid'
 import { configurationService } from './config/ConfigurationService'
 import type { IFileProcessor } from './interfaces'
 import { isMarkdownConverter, isProcessStatusProvider, isTextExtractor } from './interfaces'
+import { Doc2xProcessor } from './providers/api/Doc2xProcessor'
+import { MineruProcessor } from './providers/api/MineruProcessor'
+import { MistralProcessor } from './providers/api/MistralProcessor'
+import { OpenMineruProcessor } from './providers/api/OpenMineruProcessor'
+import { PaddleProcessor } from './providers/api/PaddleProcessor'
+import { OvOcrProcessor } from './providers/builtin/OvOcrProcessor'
+import { SystemOcrProcessor } from './providers/builtin/SystemOcrProcessor'
+import { TesseractProcessor } from './providers/builtin/TesseractProcessor'
 import { processorRegistry } from './registry/ProcessorRegistry'
 import type { ProcessingContext, TaskState } from './types'
 
@@ -33,6 +46,7 @@ const logger = loggerService.withContext('FileProcessingService')
 
 export class FileProcessingService {
   private static instance: FileProcessingService | null = null
+  private static processorsRegistered = false
   private taskStates: Map<string, TaskState> = new Map()
 
   private constructor() {}
@@ -55,6 +69,7 @@ export class FileProcessingService {
    * @throws Error if processor not found or not available
    */
   async startProcess(file: FileMetadata, request: ProcessFileRequest = {}): Promise<ProcessStartResponse> {
+    this.ensureProcessorsRegistered()
     const requestId = uuidv4()
     const inputType = this.getInputType(file)
     const feature = request.feature ?? this.getDefaultFeature(inputType)
@@ -82,9 +97,10 @@ export class FileProcessingService {
     }
 
     // Get merged configuration
-    const config = configurationService.getConfiguration(processorId)
-    if (!config) {
-      throw new Error(`Configuration not found for processor: ${processorId}`)
+    const config = configurationService.getConfiguration(processorId) ?? {
+      ...processor.template,
+      apiKey: undefined,
+      options: undefined
     }
 
     // Create abort controller
@@ -266,12 +282,30 @@ export class FileProcessingService {
   }
 
   /**
+   * Get a single processor configuration by ID
+   *
+   * @param processorId - Processor ID to get
+   * @returns Merged processor config if found and available, null otherwise
+   */
+  async getProcessor(processorId: string): Promise<FileProcessorMerged | null> {
+    this.ensureProcessorsRegistered()
+    const processor = processorRegistry.get(processorId)
+    if (!processor) return null
+
+    const available = await processor.isAvailable()
+    if (!available) return null
+
+    return configurationService.getConfiguration(processorId) ?? { ...processor.template }
+  }
+
+  /**
    * List available processors with optional feature filter
    *
    * @param feature - Optional feature filter
    * @returns Array of merged processor configs (only available processors)
    */
   async listAvailableProcessors(feature?: FileProcessorFeature): Promise<FileProcessorMerged[]> {
+    this.ensureProcessorsRegistered()
     const processors = processorRegistry
       .getAll()
       .filter((p) => !feature || p.template.capabilities.some((cap) => cap.feature === feature))
@@ -281,11 +315,27 @@ export class FileProcessingService {
         const available = await processor.isAvailable()
         if (!available) return null
 
-        return configurationService.getConfiguration(processor.id)
+        return configurationService.getConfiguration(processor.id) ?? { ...processor.template }
       })
     )
 
     return results.filter((config): config is FileProcessorMerged => config !== null)
+  }
+
+  /**
+   * Update processor configuration
+   *
+   * @param processorId - Processor ID to update
+   * @param update - Partial override to merge
+   * @returns Updated merged configuration
+   * @throws Error if processor not found
+   */
+  updateProcessorConfig(processorId: string, update: FileProcessorOverride): FileProcessorMerged {
+    const result = configurationService.updateConfiguration(processorId, update)
+    if (!result) {
+      throw new Error(`Processor not found: ${processorId}`)
+    }
+    return result
   }
 
   // ============================================================================
@@ -316,6 +366,34 @@ export class FileProcessingService {
     return configurationService.getDefaultProcessor(inputType)
   }
 
+  private ensureProcessorsRegistered(): void {
+    if (FileProcessingService.processorsRegistered) {
+      return
+    }
+
+    logger.info('Registering file processors...')
+
+    const builtinProcessors = [new TesseractProcessor(), new SystemOcrProcessor(), new OvOcrProcessor()]
+    const apiProcessors = [
+      new MineruProcessor(),
+      new Doc2xProcessor(),
+      new MistralProcessor(),
+      new OpenMineruProcessor(),
+      new PaddleProcessor()
+    ]
+
+    for (const processor of [...builtinProcessors, ...apiProcessors]) {
+      try {
+        processorRegistry.register(processor)
+        logger.debug(`Registered processor: ${processor.id}`)
+      } catch (error) {
+        logger.warn(`Failed to register processor: ${processor.id}`, { error })
+      }
+    }
+
+    FileProcessingService.processorsRegistered = true
+  }
+
   // ============================================================================
   // Lifecycle
   // ============================================================================
@@ -342,6 +420,7 @@ export class FileProcessingService {
       FileProcessingService.instance.dispose()
     }
     FileProcessingService.instance = null
+    FileProcessingService.processorsRegistered = false
   }
 }
 

@@ -225,8 +225,8 @@ describe('MockDualProcessor (dual capability)', () => {
       const textCapability = processor.template.capabilities.find((c) => c.feature === 'text_extraction')
       const markdownCapability = processor.template.capabilities.find((c) => c.feature === 'to_markdown')
 
-      expect(textCapability?.defaultApiHost).toBe('https://ocr.example.com')
-      expect(markdownCapability?.defaultApiHost).toBe('https://markdown.example.com')
+      expect(textCapability?.apiHost).toBe('https://ocr.example.com')
+      expect(markdownCapability?.apiHost).toBe('https://markdown.example.com')
     })
   })
 

@@ -1,31 +1,47 @@
 import { Button, Field, FieldContent, FieldGroup, FieldLabel, Input } from '@cherrystudio/ui'
-import type { FileProcessorMerged, FileProcessorOverride } from '@shared/data/presets/fileProcessing'
+import { useFileProcessor } from '@renderer/hooks/useFileProcessors'
 import { Eye, EyeOff } from 'lucide-react'
 import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useApiProcessorSettings } from '../../hooks/useApiProcessorSettings'
-
 interface ApiProcessorSettingsProps {
-  processor: FileProcessorMerged
-  updateConfig: (update: FileProcessorOverride) => void
+  processorId: string
 }
 
-const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processor, updateConfig }) => {
+const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processorId }) => {
   const { t } = useTranslation()
+  const { processor, updateProcessor } = useFileProcessor(processorId)
 
-  // Get capability info
-  const capability = processor.capabilities[0]
-  const {
-    apiKeyInput,
-    apiHostInput,
-    showApiKey,
-    setApiKeyInput,
-    setApiHostInput,
-    toggleShowApiKey,
-    handleFieldBlur,
-    hasDefaultApiHost
-  } = useApiProcessorSettings({ processor, capability, updateConfig })
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [apiHostInput, setApiHostInput] = useState('')
+
+  const capability = processor?.capabilities[0]
+  const hasApiHost = capability && 'apiHost' in capability
+
+  useEffect(() => {
+    setApiKeyInput(processor?.apiKey || '')
+    setApiHostInput(capability?.apiHost || '')
+  }, [processor, capability])
+
+  if (!processor) return null
+
+  const handleBlur = (field: 'apiKey' | 'apiHost', value: string) => {
+    if (field === 'apiKey') {
+      if (value !== (processor.apiKey ?? '')) {
+        updateProcessor({ apiKey: value })
+      }
+      return
+    }
+
+    if (!capability) return
+    const trimmed = value.trim().replace(/\/$/, '')
+    if (trimmed !== (capability.apiHost ?? '')) {
+      updateProcessor({ capabilities: { [capability.feature]: { apiHost: trimmed } } })
+    }
+    setApiHostInput(trimmed)
+  }
 
   return (
     <div className="flex w-full flex-col gap-1">
@@ -42,7 +58,7 @@ const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processor, update
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
-                  onBlur={(e) => handleFieldBlur('apiKey', e.target.value)}
+                  onBlur={(e) => handleBlur('apiKey', e.target.value)}
                   placeholder={t('settings.file_processing.api_key_placeholder')}
                   className="rounded-2xs pr-10"
                 />
@@ -50,7 +66,7 @@ const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processor, update
                   variant="ghost"
                   size="icon-sm"
                   className="-translate-y-1/2 absolute top-1/2 right-2"
-                  onClick={toggleShowApiKey}>
+                  onClick={() => setShowApiKey((prev) => !prev)}>
                   {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                 </Button>
               </div>
@@ -59,14 +75,14 @@ const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processor, update
         </Field>
 
         {/* API Host (if has default) */}
-        {hasDefaultApiHost && (
+        {hasApiHost && (
           <Field>
             <FieldLabel>{t('settings.file_processing.api_host')}</FieldLabel>
             <FieldContent>
               <Input
                 value={apiHostInput}
                 onChange={(e) => setApiHostInput(e.target.value)}
-                onBlur={(e) => handleFieldBlur('apiHost', e.target.value)}
+                onBlur={(e) => handleBlur('apiHost', e.target.value)}
                 placeholder={t('settings.file_processing.api_host_placeholder')}
                 className="rounded-2xs"
               />

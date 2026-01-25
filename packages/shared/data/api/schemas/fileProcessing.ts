@@ -7,7 +7,11 @@
  * - Cancelling processing requests
  */
 
-import type { FileProcessorFeature, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type {
+  FileProcessorFeature,
+  FileProcessorMerged,
+  FileProcessorOverride
+} from '@shared/data/presets/fileProcessing'
 import type {
   CancelResponse,
   ProcessFileRequest,
@@ -35,6 +39,25 @@ export interface FileProcessingSchemas {
         feature?: FileProcessorFeature
       }
       response: FileProcessorMerged[]
+    }
+  }
+
+  /**
+   * Get or update processor configuration
+   * @example GET /file-processing/processors/tesseract
+   * @example PATCH /file-processing/processors/tesseract { "apiKey": "xxx" }
+   */
+  '/file-processing/processors/:id': {
+    /** Get processor configuration */
+    GET: {
+      params: { id: string }
+      response: FileProcessorMerged | null
+    }
+    /** Update processor configuration */
+    PATCH: {
+      params: { id: string }
+      body: FileProcessorOverride
+      response: FileProcessorMerged
     }
   }
 

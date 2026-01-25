@@ -1,0 +1,386 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { FileProcessingService } from '../FileProcessingService'
+import { processorRegistry } from '../registry/ProcessorRegistry'
+import {
+  createMockFileMetadata,
+  createMockTemplate,
+  MockMarkdownConverter,
+  MockTextExtractor
+} from './mocks/MockProcessor'
+
+describe('FileProcessingService', () => {
+  let service: FileProcessingService
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    MockMainPreferenceServiceUtils.resetMocks()
+    FileProcessingService._resetForTesting()
+
+    // Clear all processors from the shared registry
+    for (const id of processorRegistry.getAllIds()) {
+      processorRegistry.unregister(id)
+    }
+
+    service = FileProcessingService.getInstance()
+  })
+
+  describe('getInstance', () => {
+    it('should return the same instance', () => {
+      const instance1 = FileProcessingService.getInstance()
+      const instance2 = FileProcessingService.getInstance()
+      expect(instance1).toBe(instance2)
+    })
+
+    it('should return a new instance after reset', () => {
+      const instance1 = FileProcessingService.getInstance()
+      FileProcessingService._resetForTesting()
+      const instance2 = FileProcessingService.getInstance()
+      expect(instance1).not.toBe(instance2)
+    })
+  })
+
+  describe('startProcess', () => {
+    it('should start processing and return pending status', async () => {
+      const template = createMockTemplate({ id: 'test-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockResolvedValue({ text: 'extracted text' })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_processor', 'test-ocr')
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const response = await service.startProcess(file)
+
+      expect(response.requestId).toBeDefined()
+      expect(response.status).toBe('pending')
+    })
+
+    it('should use specified processorId from request', async () => {
+      const template = createMockTemplate({ id: 'custom-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockResolvedValue({ text: 'result' })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const response = await service.startProcess(file, { processorId: 'custom-ocr' })
+
+      expect(response.requestId).toBeDefined()
+      expect(response.status).toBe('pending')
+    })
+
+    it('should throw when no default processor is configured', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_processor', null)
+
+      const file = createMockFileMetadata()
+
+      await expect(service.startProcess(file)).rejects.toThrow('No default processor configured')
+    })
+
+    it('should throw when processor is not found', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_image_processor',
+        'nonexistent'
+      )
+
+      const file = createMockFileMetadata()
+
+      await expect(service.startProcess(file)).rejects.toThrow('Processor not found: nonexistent')
+    })
+
+    it('should throw when processor is not available', async () => {
+      const template = createMockTemplate({ id: 'unavailable-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(false)
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_image_processor',
+        'unavailable-ocr'
+      )
+
+      const file = createMockFileMetadata()
+
+      await expect(service.startProcess(file)).rejects.toThrow('Processor not available: unavailable-ocr')
+    })
+
+    it('should throw when processor does not support the capability', async () => {
+      const template = createMockTemplate({
+        id: 'limited-ocr',
+        capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+      })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+
+      await expect(service.startProcess(file, { processorId: 'limited-ocr', feature: 'to_markdown' })).rejects.toThrow(
+        'does not support'
+      )
+    })
+  })
+
+  describe('getResult', () => {
+    it('should return completed result for sync processor', async () => {
+      const template = createMockTemplate({ id: 'sync-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockResolvedValue({ text: 'hello world' })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_processor', 'sync-ocr')
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess(file)
+
+      // Allow async execution to complete
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('completed')
+      })
+
+      // Get the completed result
+      const result = await service.getResult(requestId)
+      expect(result.status).toBe('completed')
+      expect(result.progress).toBe(100)
+      expect(result.result?.text).toBe('hello world')
+    })
+
+    it('should return not_found for unknown requestId', async () => {
+      const result = await service.getResult('nonexistent-id')
+
+      expect(result.status).toBe('failed')
+      expect(result.error?.code).toBe('not_found')
+    })
+
+    it('should clear task after returning completed status', async () => {
+      const template = createMockTemplate({ id: 'cleanup-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockResolvedValue({ text: 'done' })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_image_processor',
+        'cleanup-ocr'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess(file)
+
+      // Wait for completion
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('completed')
+      })
+
+      // First query returns completed and clears
+      const completed = await service.getResult(requestId)
+      expect(completed.status).toBe('completed')
+
+      // Second query returns not_found (task was cleared)
+      const notFound = await service.getResult(requestId)
+      expect(notFound.status).toBe('failed')
+      expect(notFound.error?.code).toBe('not_found')
+    })
+
+    it('should return failed status when processing errors', async () => {
+      const template = createMockTemplate({ id: 'error-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockRejectedValue(new Error('Processing failed'))
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_processor', 'error-ocr')
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess(file)
+
+      // Wait for failure
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('failed')
+      })
+
+      const result = await service.getResult(requestId)
+      expect(result.status).toBe('failed')
+      expect(result.error?.code).toBe('error')
+      expect(result.error?.message).toBe('Processing failed')
+    })
+  })
+
+  describe('cancel', () => {
+    it('should cancel an active task', async () => {
+      const template = createMockTemplate({ id: 'slow-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve({ text: 'done' }), 5000))
+      )
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_processor', 'slow-ocr')
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess(file)
+
+      const cancelResult = service.cancel(requestId)
+
+      expect(cancelResult.success).toBe(true)
+      expect(cancelResult.message).toBe('Cancelled')
+    })
+
+    it('should return failure when cancelling non-existent task', () => {
+      const result = service.cancel('nonexistent-id')
+
+      expect(result.success).toBe(false)
+      expect(result.message).toBe('Cannot cancel')
+    })
+
+    it('should return failure when cancelling already completed task', async () => {
+      const template = createMockTemplate({ id: 'fast-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockResolvedValue({ text: 'result' })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_processor', 'fast-ocr')
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess(file)
+
+      // Wait for completion
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('completed')
+      })
+
+      // getResult already cleared the task, so cancel returns failure
+      const cancelResult = service.cancel(requestId)
+      expect(cancelResult.success).toBe(false)
+    })
+  })
+
+  describe('listAvailableProcessors', () => {
+    it('should return available processors', async () => {
+      const ocrTemplate = createMockTemplate({
+        id: 'avail-ocr',
+        capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+      })
+      const processor = new MockTextExtractor(ocrTemplate)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const processors = await service.listAvailableProcessors()
+
+      expect(processors.some((item) => item.id === 'avail-ocr')).toBe(true)
+    })
+
+    it('should filter by feature', async () => {
+      const ocrTemplate = createMockTemplate({
+        id: 'ocr-only',
+        capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+      })
+      const mdTemplate = createMockTemplate({
+        id: 'md-only',
+        capabilities: [{ feature: 'to_markdown', input: 'document', output: 'markdown' }]
+      })
+
+      const ocrProcessor = new MockTextExtractor(ocrTemplate)
+      vi.spyOn(ocrProcessor, 'isAvailable').mockResolvedValue(true)
+
+      const mdProcessor = new MockMarkdownConverter(mdTemplate)
+      vi.spyOn(mdProcessor, 'isAvailable').mockResolvedValue(true)
+
+      processorRegistry.register(ocrProcessor)
+      processorRegistry.register(mdProcessor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const ocrResults = await service.listAvailableProcessors('text_extraction')
+      expect(ocrResults.some((item) => item.id === 'ocr-only')).toBe(true)
+
+      const mdResults = await service.listAvailableProcessors('to_markdown')
+      expect(mdResults.some((item) => item.id === 'md-only')).toBe(true)
+    })
+
+    it('should exclude unavailable processors', async () => {
+      const template = createMockTemplate({ id: 'unavailable' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(false)
+
+      processorRegistry.register(processor)
+
+      const processors = await service.listAvailableProcessors()
+
+      expect(processors.some((item) => item.id === 'unavailable')).toBe(false)
+    })
+  })
+
+  describe('getInputType', () => {
+    it('should return image for IMAGE file type', () => {
+      const file = createMockFileMetadata()
+      expect(service.getInputType(file)).toBe('image')
+    })
+
+    it('should return document for non-image file types', () => {
+      const file = createMockFileMetadata({ type: 'file' as any })
+      expect(service.getInputType(file)).toBe('document')
+    })
+  })
+
+  describe('dispose', () => {
+    it('should cancel all active tasks', async () => {
+      const template = createMockTemplate({ id: 'dispose-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve({ text: 'done' }), 5000))
+      )
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_image_processor',
+        'dispose-ocr'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess(file)
+
+      service.dispose()
+
+      // Task should be cleared
+      const result = await service.getResult(requestId)
+      expect(result.status).toBe('failed')
+      expect(result.error?.code).toBe('not_found')
+    })
+  })
+})

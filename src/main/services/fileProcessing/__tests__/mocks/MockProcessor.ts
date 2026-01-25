@@ -39,13 +39,13 @@ export function createDualCapabilityTemplate(overrides?: Partial<FileProcessorTe
         feature: 'text_extraction',
         input: 'image',
         output: 'text',
-        defaultApiHost: 'https://ocr.example.com'
+        apiHost: 'https://ocr.example.com'
       },
       {
         feature: 'to_markdown',
         input: 'document',
         output: 'markdown',
-        defaultApiHost: 'https://markdown.example.com'
+        apiHost: 'https://markdown.example.com'
       }
     ],
     ...overrides
@@ -56,8 +56,11 @@ export function createDualCapabilityTemplate(overrides?: Partial<FileProcessorTe
  * Create a mock FileProcessorMerged with optional overrides
  */
 export function createMockConfig(overrides?: Partial<FileProcessorMerged>): FileProcessorMerged {
+  const template = createMockTemplate()
   return {
-    ...createMockTemplate(),
+    ...template,
+    apiKey: undefined,
+    options: undefined,
     ...overrides
   }
 }

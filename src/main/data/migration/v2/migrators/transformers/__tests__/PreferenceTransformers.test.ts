@@ -164,7 +164,7 @@ describe('PreferenceTransformers', () => {
       expect(result['feature.file_processing.overrides']).toEqual({
         paddleocr: {
           apiKey: 'paddle-key',
-          featureConfigs: [{ feature: 'text_extraction', apiHost: 'https://ocr.example.com' }]
+          capabilities: { text_extraction: { apiHost: 'https://ocr.example.com' } }
         },
         mistral: {
           apiKey: 'mistral-key'

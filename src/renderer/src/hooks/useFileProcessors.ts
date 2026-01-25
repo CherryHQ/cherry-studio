@@ -1,275 +1,74 @@
+/**
+ * File Processor Hooks
+ *
+ * React hooks for accessing and managing file processors via DataApi.
+ * Processors are fetched from the backend which handles configuration merging
+ * and availability checking.
+ */
+
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
-import type { FeatureCapability, FileProcessorTemplate } from '@renderer/config/fileProcessing'
-import {
-  FILE_PROCESSOR_TEMPLATES,
-  getDocumentProcessorTemplates,
-  getFileProcessorTemplate,
-  getImageProcessorTemplates,
-  supportsInput
-} from '@renderer/config/fileProcessing'
-import type {
-  FeatureUserConfig,
-  FileProcessorMerged,
-  FileProcessorOptions,
-  FileProcessorOverride,
-  FileProcessorOverrides
-} from '@shared/data/presets/fileProcessing'
+import type { FileProcessorFeature, FileProcessorOverride } from '@shared/data/presets/fileProcessing'
 import { useCallback, useMemo } from 'react'
-import useSWRImmutable from 'swr/immutable'
 
-function normalizeApiHost(value?: string): string | undefined {
-  if (!value) return undefined
-  const trimmed = value.trim()
-  if (!trimmed) return undefined
-  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
-}
-
-function normalizeOptionalString(value?: string): string | undefined {
-  if (!value) return undefined
-  const trimmed = value.trim()
-  return trimmed ? trimmed : undefined
-}
-
-function normalizeOptions(options?: FileProcessorOptions): FileProcessorOptions | undefined {
-  if (!options) return undefined
-  return Object.keys(options).length > 0 ? options : undefined
-}
-
-function getFeatureDefaults(
-  template: FileProcessorTemplate | undefined,
-  feature: FeatureUserConfig['feature']
-): FeatureUserConfig {
-  const capability = template?.capabilities.find((item) => item.feature === feature)
-  return {
-    feature,
-    apiHost: normalizeApiHost(capability?.defaultApiHost),
-    modelId: normalizeOptionalString(capability?.defaultModelId)
-  }
-}
-
-function normalizeFeatureConfigs(
-  template: FileProcessorTemplate | undefined,
-  featureConfigs?: FeatureUserConfig[]
-): FeatureUserConfig[] | undefined {
-  if (!featureConfigs || featureConfigs.length === 0) return undefined
-
-  const normalized = featureConfigs.reduce<FeatureUserConfig[]>((acc, config) => {
-    const defaults = getFeatureDefaults(template, config.feature)
-    const apiHost = normalizeApiHost(config.apiHost)
-    const modelId = normalizeOptionalString(config.modelId)
-
-    const nextConfig: FeatureUserConfig = { feature: config.feature }
-
-    if (apiHost && apiHost !== defaults.apiHost) {
-      nextConfig.apiHost = apiHost
-    }
-    if (modelId && modelId !== defaults.modelId) {
-      nextConfig.modelId = modelId
-    }
-
-    if (nextConfig.apiHost || nextConfig.modelId) {
-      acc.push(nextConfig)
-    }
-
-    return acc
-  }, [])
-
-  return normalized.length > 0 ? normalized : undefined
-}
-
-function normalizeOverride(processorId: string, override: FileProcessorOverride): FileProcessorOverride | undefined {
-  const template = getFileProcessorTemplate(processorId)
-  const apiKey = normalizeOptionalString(override.apiKey)
-  const featureConfigs = normalizeFeatureConfigs(template, override.featureConfigs)
-  const options = normalizeOptions(override.options)
-
-  if (!apiKey && !featureConfigs && !options) {
-    return undefined
-  }
-
-  return {
-    ...(apiKey ? { apiKey } : {}),
-    ...(featureConfigs ? { featureConfigs } : {}),
-    ...(options ? { options } : {})
-  }
-}
+// ============================================================================
+// Query Hooks
+// ============================================================================
 
 /**
- * Merge processor templates with user overrides
+ * Hook for accessing file processors with merged configurations
+ *
+ * Fetches processors from the backend via DataApi. The backend handles:
+ * - Configuration merging (template + user overrides)
+ * - Availability checking
+ *
+ * @param options.feature - Optional feature filter (text_extraction, to_markdown)
+ *
+ * For updating individual processors, use useFileProcessor(processorId).
  */
-function mergeProcessorConfigs(
-  templates: FileProcessorTemplate[],
-  overrides: FileProcessorOverrides
-): FileProcessorMerged[] {
-  return templates.map((template) => ({
-    ...template,
-    ...overrides[template.id]
-  }))
-}
+export function useFileProcessors(options?: { feature?: FileProcessorFeature }) {
+  const { data, isLoading } = useQuery('/file-processing/processors', { query: options })
+  const processors = useMemo(() => data ?? [], [data])
 
-function useFileProcessorOverrides() {
-  const [overrides, setOverrides] = usePreference('feature.file_processing.overrides')
-
-  return {
-    overrides,
-    setOverrides
-  }
-}
-
-/**
- * Get the effective API host for a specific capability
- * Priority: user config > template default
- */
-export function getEffectiveApiHost(processor: FileProcessorMerged, capability: FeatureCapability): string | undefined {
-  // Check user config for this feature
-  const featureConfig = processor.featureConfigs?.find((fc) => fc.feature === capability.feature)
-  if (featureConfig?.apiHost !== undefined) {
-    return featureConfig.apiHost
-  }
-  // Fall back to template default
-  return capability.defaultApiHost
-}
-
-/**
- * Get the effective model ID for a specific capability
- * Priority: user config > template default
- */
-export function getEffectiveModelId(processor: FileProcessorMerged, capability: FeatureCapability): string | undefined {
-  // Check user config for this feature
-  const featureConfig = processor.featureConfigs?.find((fc) => fc.feature === capability.feature)
-  if (featureConfig?.modelId) {
-    return featureConfig.modelId
-  }
-  // Fall back to template default
-  return capability.defaultModelId
-}
-
-/**
- * Hook for accessing all file processors with merged configurations
- */
-export function useFileProcessors() {
-  const { overrides, setOverrides } = useFileProcessorOverrides()
-
-  const processors = useMemo(() => mergeProcessorConfigs(FILE_PROCESSOR_TEMPLATES, overrides), [overrides])
-
-  const updateProcessorConfig = useCallback(
-    async (processorId: string, update: FileProcessorOverride) => {
-      const existingOverride = overrides[processorId] ?? {}
-      const nextOverride = normalizeOverride(processorId, { ...existingOverride, ...update })
-      const nextOverrides = { ...overrides }
-
-      if (nextOverride) {
-        nextOverrides[processorId] = nextOverride
-      } else {
-        delete nextOverrides[processorId]
-      }
-
-      await setOverrides(nextOverrides)
-    },
-    [overrides, setOverrides]
-  )
-
-  /**
-   * Reset a processor to default values (remove all overrides)
-   */
-  const resetProcessorConfig = useCallback(
-    async (processorId: string) => {
-      const nextOverrides = { ...overrides }
-      delete nextOverrides[processorId]
-      await setOverrides(nextOverrides)
-    },
-    [overrides, setOverrides]
-  )
-
-  /**
-   * Check if a processor has been customized (has any overrides)
-   */
-  const isProcessorCustomized = useCallback((processorId: string) => processorId in overrides, [overrides])
-
-  return {
-    processors,
-    overrides,
-    updateProcessorConfig,
-    resetProcessorConfig,
-    isProcessorCustomized
-  }
-}
-
-/**
- * Hook for accessing image processors (support IMAGE input)
- */
-export function useImageProcessors() {
-  const { overrides } = useFileProcessorOverrides()
-
-  const processors = useMemo(() => mergeProcessorConfigs(getImageProcessorTemplates(), overrides), [overrides])
-
-  return processors
-}
-
-function useOcrProviderAvailability(providerId: string): boolean | undefined {
-  const fetcher = useCallback(() => window.api.ocr.isProviderAvailable(providerId), [providerId])
-  const { data } = useSWRImmutable(`ocr/provider/${providerId}`, fetcher)
-
-  return data
-}
-
-/**
- * Hook for accessing available image processors based on OCR provider availability
- */
-export function useAvailableImageProcessors() {
-  const processors = useImageProcessors()
-  const systemAvailable = useOcrProviderAvailability('system')
-  const ovocrAvailable = useOcrProviderAvailability('ovocr')
-
-  return useMemo(
-    () =>
-      processors.filter((processor) => {
-        if (processor.id === 'system') {
-          return systemAvailable === true
-        }
-        if (processor.id === 'ovocr') {
-          return ovocrAvailable === true
-        }
-        return true
-      }),
-    [ovocrAvailable, processors, systemAvailable]
-  )
-}
-
-/**
- * Hook for accessing document processors (support DOCUMENT input)
- */
-export function useDocumentProcessors() {
-  const { overrides } = useFileProcessorOverrides()
-
-  const processors = useMemo(() => mergeProcessorConfigs(getDocumentProcessorTemplates(), overrides), [overrides])
-
-  return processors
+  return { processors, isLoading }
 }
 
 /**
  * Hook for accessing a single processor by ID
+ *
+ * Fetches all processors and filters by ID. The GET /file-processing/processors/:id
+ * endpoint exists for direct API calls but useQuery doesn't support parameterized paths.
  */
 export function useFileProcessor(processorId: string) {
-  const { processors, updateProcessorConfig } = useFileProcessors()
+  const { data: processor, isLoading } = useQuery(`/file-processing/processors/${processorId}`, {})
 
-  const processor = useMemo(() => processors.find((p) => p.id === processorId), [processors, processorId])
+  const { trigger: patchProcessor, isLoading: isUpdating } = useMutation(
+    'PATCH',
+    `/file-processing/processors/${processorId}`,
+    {
+      refresh: ['/file-processing/processors']
+    }
+  )
 
-  const updateConfig = useCallback(
-    (update: FileProcessorOverride) => {
-      updateProcessorConfig(processorId, update)
+  const updateProcessor = useCallback(
+    async (update: FileProcessorOverride) => {
+      await patchProcessor({ body: update })
     },
-    [processorId, updateProcessorConfig]
+    [patchProcessor]
   )
 
   return {
     processor,
-    updateConfig
+    isLoading,
+    isUpdating,
+    updateProcessor
   }
 }
 
 /**
  * Hook for managing default processors
+ *
+ * Default processor IDs are stored in preferences, not fetched from API.
  */
 export function useDefaultProcessors() {
   const [defaultDocumentProcessor, setDefaultDocumentProcessor] = usePreference(
@@ -284,30 +83,5 @@ export function useDefaultProcessors() {
     setDefaultDocumentProcessor,
     defaultImageProcessor,
     setDefaultImageProcessor
-  }
-}
-
-/**
- * Hook for getting configured (with apiKey) processors
- */
-export function useConfiguredProcessors() {
-  const { processors } = useFileProcessors()
-
-  const configuredProcessors = useMemo(() => processors.filter((p) => p.apiKey || p.type === 'builtin'), [processors])
-
-  const configuredImageProcessors = useMemo(
-    () => configuredProcessors.filter((p) => supportsInput(p, 'image')),
-    [configuredProcessors]
-  )
-
-  const configuredDocumentProcessors = useMemo(
-    () => configuredProcessors.filter((p) => supportsInput(p, 'document')),
-    [configuredProcessors]
-  )
-
-  return {
-    configuredProcessors,
-    configuredImageProcessors,
-    configuredDocumentProcessors
   }
 }

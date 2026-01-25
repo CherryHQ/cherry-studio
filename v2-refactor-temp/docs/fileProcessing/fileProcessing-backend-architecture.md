@@ -602,7 +602,7 @@ packages/shared/data/presets/
 - `packages/shared/data/api/schemas/fileProcessing.ts`: 添加 `/result` 端点
 - `src/main/data/api/handlers/fileProcessing.ts`: 添加 `/result` handler
 
-### Phase 6: 集成
+### ✅ Phase 6: 集成
 
 | 步骤 | 文件 | 说明 |
 |------|------|------|
@@ -668,7 +668,7 @@ packages/shared/data/presets/
 
 ### 步骤 2: 注册到系统
 
-在 `index.ts` 中调用 `processorRegistry.register(processor)`
+在 `FileProcessingService` 的懒注册列表中加入处理器，或在初始化时调用 `processorRegistry.register(processor)`
 
 ### 步骤 3: 添加模板配置
 
@@ -681,7 +681,7 @@ packages/shared/data/presets/
 | 原则 | 实现方式 |
 |------|----------|
 | **S - 单一职责** | 每个类只有一个变化原因：`ProcessorRegistry` 管理注册，`ConfigurationService` 合并配置，各 Processor 只负责具体处理逻辑 |
-| **O - 开闭原则** | 新增 Provider 只需创建类并调用 `processorRegistry.register()`，无需修改现有代码 |
+| **O - 开闭原则** | 新增 Provider 只需创建类并注册到 `processorRegistry`，无需修改现有代码 |
 | **L - 里氏替换** | 所有处理器继承 `BaseFileProcessor` 并实现 `IFileProcessor`，可以互换使用 |
 | **I - 接口隔离** | 分离 `ITextExtractor`、`IMarkdownConverter`、`IDisposable` 等细粒度接口 |
 | **D - 依赖倒置** | `FileProcessingService` 依赖 `IFileProcessor` 抽象和 `IConfigurationProvider` 接口，不依赖具体实现 |

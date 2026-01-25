@@ -36,15 +36,16 @@ export class MistralProcessor extends BaseMarkdownConverter {
     super(template)
   }
 
+  /**
+   * Get the model ID from configuration
+   *
+   * After merging, capability.modelId contains the effective value
+   * (template default overridden by user config if present)
+   */
   private getModelId(config: FileProcessorMerged): string {
-    const featureConfig = config.featureConfigs?.find((fc) => fc.feature === 'to_markdown')
-    if (featureConfig?.modelId) {
-      return featureConfig.modelId
-    }
-
     const capability = config.capabilities.find((cap) => cap.feature === 'to_markdown')
-    if (capability?.defaultModelId) {
-      return capability.defaultModelId
+    if (capability?.modelId) {
+      return capability.modelId
     }
 
     throw new Error(`Model ID is required for ${this.id} processor`)

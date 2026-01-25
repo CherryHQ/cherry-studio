@@ -1,10 +1,6 @@
 import { DividerWithText } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import {
-  useAvailableImageProcessors,
-  useDefaultProcessors,
-  useDocumentProcessors
-} from '@renderer/hooks/useFileProcessors'
+import { useDefaultProcessors, useFileProcessors } from '@renderer/hooks/useFileProcessors'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { FileText } from 'lucide-react'
 import type { FC } from 'react'
@@ -14,8 +10,8 @@ import ProcessorListItem from './components/ProcessorListItem'
 
 const FileProcessingSettings: FC = () => {
   const { t } = useTranslation()
-  const documentProcessors = useDocumentProcessors()
-  const imageProcessors = useAvailableImageProcessors()
+  const { processors: documentProcessors } = useFileProcessors({ feature: 'to_markdown' })
+  const { processors: imageProcessors } = useFileProcessors({ feature: 'text_extraction' })
   const { defaultDocumentProcessor, defaultImageProcessor } = useDefaultProcessors()
   const navigate = useNavigate()
   const location = useLocation()

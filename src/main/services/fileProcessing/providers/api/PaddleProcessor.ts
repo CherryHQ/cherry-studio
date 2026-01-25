@@ -75,21 +75,13 @@ export class PaddleProcessor extends BaseTextExtractor {
   /**
    * Get the API URL from configuration
    *
-   * Priority:
-   * 1. featureConfigs[].apiHost (user override)
-   * 2. capabilities[].defaultApiHost (template default)
+   * After merging, capability.apiHost contains the effective value
+   * (template default overridden by user config if present)
    */
   private getApiUrl(config: FileProcessorMerged): string {
-    // Check user override in featureConfigs
-    const featureConfig = config.featureConfigs?.find((fc) => fc.feature === 'text_extraction')
-    if (featureConfig?.apiHost) {
-      return featureConfig.apiHost
-    }
-
-    // Check template default
     const capability = config.capabilities.find((cap) => cap.feature === 'text_extraction')
-    if (capability?.defaultApiHost) {
-      return capability.defaultApiHost
+    if (capability?.apiHost) {
+      return capability.apiHost
     }
 
     throw new Error('API URL is required for PaddleOCR processor')

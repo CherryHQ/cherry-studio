@@ -3,6 +3,7 @@
  *
  * Implements all file processing-related API endpoints including:
  * - Listing available processors
+ * - Updating processor configuration
  * - Starting processing (async)
  * - Querying processing result/status
  * - Cancelling processing requests
@@ -32,6 +33,15 @@ export const fileProcessingHandlers: {
     GET: async ({ query }) => {
       const q = (query || {}) as { feature?: FileProcessorFeature }
       return await fileProcessingService.listAvailableProcessors(q.feature)
+    }
+  },
+
+  '/file-processing/processors/:id': {
+    GET: async ({ params }) => {
+      return await fileProcessingService.getProcessor(params.id)
+    },
+    PATCH: async ({ params, body }) => {
+      return fileProcessingService.updateProcessorConfig(params.id, body)
     }
   },
 

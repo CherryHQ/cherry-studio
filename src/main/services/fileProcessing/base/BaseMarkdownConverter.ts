@@ -48,16 +48,14 @@ export abstract class BaseMarkdownConverter extends BaseFileProcessor implements
 
   /**
    * Get the API host from configuration
+   *
+   * After merging, capability.apiHost contains the effective value
+   * (template default overridden by user config if present)
    */
   protected getApiHost(config: FileProcessorMerged, defaultHost?: string): string {
-    const featureConfig = config.featureConfigs?.find((fc) => fc.feature === 'to_markdown')
-    if (featureConfig?.apiHost) {
-      return featureConfig.apiHost
-    }
-
     const capability = config.capabilities.find((cap) => cap.feature === 'to_markdown')
-    if (capability?.defaultApiHost) {
-      return capability.defaultApiHost
+    if (capability?.apiHost) {
+      return capability.apiHost
     }
 
     if (defaultHost) {

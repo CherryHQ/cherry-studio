@@ -237,20 +237,21 @@ interface LegacyPreprocessProvider {
 }
 
 /**
- * Feature-level user configuration (for migration)
+ * Capability override (for migration)
  */
-interface FeatureUserConfig {
-  feature: 'text_extraction' | 'to_markdown'
+type CapabilityOverride = {
   apiHost?: string
   modelId?: string
 }
+
+type FileProcessorFeature = 'text_extraction' | 'to_markdown'
 
 /**
  * User override for file processor (target format)
  */
 interface FileProcessorOverride {
   apiKey?: string
-  featureConfigs?: FeatureUserConfig[]
+  capabilities?: Partial<Record<FileProcessorFeature, CapabilityOverride>>
   options?: Record<string, unknown>
 }
 
@@ -269,32 +270,26 @@ function normalizeModelId(value?: string): string | undefined {
   return trimmed ? trimmed : undefined
 }
 
-function getTemplateDefaults(processorId: string, feature: FeatureUserConfig['feature']): FeatureUserConfig {
+function getTemplateDefaults(processorId: string, feature: FileProcessorFeature): CapabilityOverride {
   const template = getTemplate(processorId)
   const capability = template?.capabilities.find((item) => item.feature === feature)
   return {
-    feature,
-    apiHost: normalizeApiHost(capability?.defaultApiHost),
-    modelId: normalizeModelId(capability?.defaultModelId)
+    apiHost: normalizeApiHost(capability?.apiHost),
+    modelId: normalizeModelId(capability?.modelId)
   }
 }
 
-function mergeFeatureConfigs(
-  base?: FeatureUserConfig[],
-  incoming?: FeatureUserConfig[]
-): FeatureUserConfig[] | undefined {
+function mergeCapabilities(
+  base?: Partial<Record<FileProcessorFeature, CapabilityOverride>>,
+  incoming?: Partial<Record<FileProcessorFeature, CapabilityOverride>>
+): Partial<Record<FileProcessorFeature, CapabilityOverride>> | undefined {
   if (!base && !incoming) return undefined
-  if (!base) return incoming ? [...incoming] : undefined
-  if (!incoming) return [...base]
+  if (!base) return incoming ? { ...incoming } : undefined
+  if (!incoming) return { ...base }
 
-  const merged = [...base]
-  for (const next of incoming) {
-    const existingIndex = merged.findIndex((config) => config.feature === next.feature)
-    if (existingIndex >= 0) {
-      merged[existingIndex] = { ...merged[existingIndex], ...next }
-    } else {
-      merged.push(next)
-    }
+  const merged = { ...base }
+  for (const [feature, cap] of Object.entries(incoming) as [FileProcessorFeature, CapabilityOverride][]) {
+    merged[feature] = { ...merged[feature], ...cap }
   }
 
   return merged
@@ -308,7 +303,7 @@ function mergeOverrides(
 
   return {
     apiKey: next.apiKey ?? existing.apiKey,
-    featureConfigs: mergeFeatureConfigs(existing.featureConfigs, next.featureConfigs),
+    capabilities: mergeCapabilities(existing.capabilities, next.capabilities),
     options: existing.options || next.options ? { ...existing.options, ...next.options } : undefined
   }
 }
@@ -320,7 +315,7 @@ function mergeOverrides(
 function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverride | null {
   const userConfig: FileProcessorOverride = {}
   let hasUserConfig = false
-  const featureConfigs: FeatureUserConfig[] = []
+  const capabilities: Partial<Record<FileProcessorFeature, CapabilityOverride>> = {}
 
   // Extract API config (for API-based providers like paddleocr)
   if (provider.config?.api?.apiKey) {
@@ -328,24 +323,18 @@ function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverrid
     hasUserConfig = true
   }
 
-  // Only store apiHost if different from template default (store in featureConfigs)
+  // Only store apiHost if different from template default
   const defaultOcrApiHost = getTemplateDefaults(provider.id, 'text_extraction').apiHost
   const apiHost = normalizeApiHost(provider.config?.api?.apiHost)
   if (apiHost && apiHost !== defaultOcrApiHost) {
-    featureConfigs.push({ feature: 'text_extraction', apiHost })
+    capabilities['text_extraction'] = { ...capabilities['text_extraction'], apiHost }
     hasUserConfig = true
   }
 
   // Extract PaddleOCR specific config (apiUrl as apiHost)
   const apiUrlHost = normalizeApiHost(provider.config?.apiUrl)
   if (apiUrlHost) {
-    // Check if we already have a featureConfig for text_extraction
-    const existingConfig = featureConfigs.find((fc) => fc.feature === 'text_extraction')
-    if (existingConfig) {
-      existingConfig.apiHost = apiUrlHost
-    } else {
-      featureConfigs.push({ feature: 'text_extraction', apiHost: apiUrlHost })
-    }
+    capabilities['text_extraction'] = { ...capabilities['text_extraction'], apiHost: apiUrlHost }
     hasUserConfig = true
   }
   if (provider.config?.accessToken) {
@@ -365,9 +354,9 @@ function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverrid
     }
   }
 
-  // Add featureConfigs if any
-  if (featureConfigs.length > 0) {
-    userConfig.featureConfigs = featureConfigs
+  // Add capabilities if any
+  if (Object.keys(capabilities).length > 0) {
+    userConfig.capabilities = capabilities
   }
 
   return hasUserConfig ? userConfig : null
@@ -380,38 +369,34 @@ function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverrid
 function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FileProcessorOverride | null {
   const userConfig: FileProcessorOverride = {}
   let hasUserConfig = false
-  const featureConfigs: FeatureUserConfig[] = []
+  const capabilityOverride: CapabilityOverride = {}
+  let hasCapabilityOverride = false
 
   if (provider.apiKey) {
     userConfig.apiKey = provider.apiKey
     hasUserConfig = true
   }
 
-  // Build featureConfig for to_markdown feature
-  const featureConfig: FeatureUserConfig = { feature: 'to_markdown' }
-  let hasFeatureConfig = false
-
   // Only store apiHost if different from template default
   const defaults = getTemplateDefaults(provider.id, 'to_markdown')
   const apiHost = normalizeApiHost(provider.apiHost)
   if (apiHost && apiHost !== defaults.apiHost) {
-    featureConfig.apiHost = apiHost
-    hasFeatureConfig = true
+    capabilityOverride.apiHost = apiHost
+    hasCapabilityOverride = true
     hasUserConfig = true
   }
 
   // Only store modelId if different from template default
   const modelId = normalizeModelId(provider.model)
   if (modelId && modelId !== defaults.modelId) {
-    featureConfig.modelId = modelId
-    hasFeatureConfig = true
+    capabilityOverride.modelId = modelId
+    hasCapabilityOverride = true
     hasUserConfig = true
   }
 
-  // Add featureConfig if any field was set
-  if (hasFeatureConfig) {
-    featureConfigs.push(featureConfig)
-    userConfig.featureConfigs = featureConfigs
+  // Add capability override if any field was set
+  if (hasCapabilityOverride) {
+    userConfig.capabilities = { to_markdown: capabilityOverride }
   }
 
   return hasUserConfig ? userConfig : null
