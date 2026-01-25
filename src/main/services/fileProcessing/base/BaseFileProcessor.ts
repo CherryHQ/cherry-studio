@@ -8,11 +8,12 @@
 import type {
   FeatureCapability,
   FileProcessorFeature,
-  FileProcessorInput,
+  FileProcessorMerged,
   FileProcessorTemplate
 } from '@shared/data/presets/fileProcessing'
+import type { FileMetadata } from '@types'
 
-import { findCapability, type IFileProcessor } from '../interfaces'
+import type { IFileProcessor } from '../interfaces'
 import type { ProcessingContext } from '../types'
 
 /**
@@ -20,7 +21,6 @@ import type { ProcessingContext } from '../types'
  *
  * Provides:
  * - Common property management (id, template)
- * - Capability checking via `supports()`
  * - Default availability check
  * - Cancellation checking utility
  * - Capability lookup utility
@@ -32,13 +32,6 @@ export abstract class BaseFileProcessor implements IFileProcessor {
   constructor(template: FileProcessorTemplate) {
     this.id = template.id
     this.template = template
-  }
-
-  /**
-   * Check if this processor supports the given feature and input type
-   */
-  supports(feature: FileProcessorFeature, inputType: FileProcessorInput): boolean {
-    return findCapability(this.template, feature, inputType) !== undefined
   }
 
   /**
@@ -61,6 +54,24 @@ export abstract class BaseFileProcessor implements IFileProcessor {
     if (context.signal?.aborted) {
       throw new Error('Processing cancelled')
     }
+  }
+
+  /**
+   * Validate the input file has a path
+   *
+   * @throws Error if validation fails
+   */
+  protected validateFile(file: FileMetadata): void {
+    if (!file.path) {
+      throw new Error('File path is required')
+    }
+  }
+
+  /**
+   * Get the API key from configuration
+   */
+  protected getApiKey(config: FileProcessorMerged): string | undefined {
+    return config.apiKey
   }
 
   /**

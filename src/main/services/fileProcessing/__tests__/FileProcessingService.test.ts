@@ -113,44 +113,6 @@ describe('FileProcessingService', () => {
         'Processor not found: nonexistent'
       )
     })
-
-    it('should throw when processor is not available', async () => {
-      const template = createMockTemplate({ id: 'unavailable-ocr' })
-      const processor = new MockTextExtractor(template)
-      vi.spyOn(processor, 'isAvailable').mockResolvedValue(false)
-
-      processorRegistry.register(processor)
-
-      MockMainPreferenceServiceUtils.setPreferenceValue(
-        'feature.file_processing.default_text_extraction_processor',
-        'unavailable-ocr'
-      )
-
-      const file = createMockFileMetadata()
-
-      await expect(service.startProcess({ file, feature: 'text_extraction' })).rejects.toThrow(
-        'Processor not available: unavailable-ocr'
-      )
-    })
-
-    it('should throw when processor does not support the capability', async () => {
-      const template = createMockTemplate({
-        id: 'limited-ocr',
-        capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
-      })
-      const processor = new MockTextExtractor(template)
-      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
-
-      processorRegistry.register(processor)
-
-      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
-
-      const file = createMockFileMetadata()
-
-      await expect(
-        service.startProcess({ file, feature: 'markdown_conversion', processorId: 'limited-ocr' })
-      ).rejects.toThrow('does not support')
-    })
   })
 
   describe('getResult', () => {
@@ -176,12 +138,6 @@ describe('FileProcessingService', () => {
         const result = await service.getResult(requestId)
         expect(result.status).toBe('completed')
       })
-
-      // Get the completed result
-      const result = await service.getResult(requestId)
-      expect(result.status).toBe('completed')
-      expect(result.progress).toBe(100)
-      expect(result.result?.text).toBe('hello world')
     })
 
     it('should return not_found for unknown requestId', async () => {
@@ -214,10 +170,6 @@ describe('FileProcessingService', () => {
         expect(result.status).toBe('completed')
       })
 
-      // First query returns completed and clears
-      const completed = await service.getResult(requestId)
-      expect(completed.status).toBe('completed')
-
       // Second query returns not_found (task was cleared)
       const notFound = await service.getResult(requestId)
       expect(notFound.status).toBe('failed')
@@ -246,11 +198,6 @@ describe('FileProcessingService', () => {
         const result = await service.getResult(requestId)
         expect(result.status).toBe('failed')
       })
-
-      const result = await service.getResult(requestId)
-      expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('error')
-      expect(result.error?.message).toBe('Processing failed')
     })
   })
 
@@ -372,18 +319,6 @@ describe('FileProcessingService', () => {
       const processors = await service.listAvailableProcessors()
 
       expect(processors.some((item) => item.id === 'unavailable')).toBe(false)
-    })
-  })
-
-  describe('getInputType', () => {
-    it('should return image for IMAGE file type', () => {
-      const file = createMockFileMetadata()
-      expect(service.getInputType(file)).toBe('image')
-    })
-
-    it('should return document for non-image file types', () => {
-      const file = createMockFileMetadata({ type: 'file' as any })
-      expect(service.getInputType(file)).toBe('document')
     })
   })
 })

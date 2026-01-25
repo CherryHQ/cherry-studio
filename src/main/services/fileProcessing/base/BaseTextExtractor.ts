@@ -2,7 +2,6 @@
  * Base Text Extractor
  *
  * Abstract base class for text extraction processors (OCR).
- * Uses the Template Method pattern to define a consistent processing pipeline.
  */
 
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
@@ -16,55 +15,29 @@ import { BaseFileProcessor } from './BaseFileProcessor'
 /**
  * Abstract base class for text extraction processors
  *
- * Template method pattern:
- * 1. Check cancellation
- * 2. Validate input
- * 3. Execute extraction (doExtractText - subclass implements)
- * 4. Check cancellation after processing
- * 5. Return result
+ * Subclasses must implement extractText() with their specific extraction logic.
  */
 export abstract class BaseTextExtractor extends BaseFileProcessor implements ITextExtractor {
   /**
-   * Extract text from the input file
+   * Get the API host from configuration
    *
-   * This is a template method that handles:
-   * - Cancellation checking
-   * - Input validation
-   * - Delegating to subclass implementation
+   * After merging, capability.apiHost contains the effective value
+   * (template default overridden by user config if present)
    */
-  async extractText(
-    input: FileMetadata,
-    config: FileProcessorMerged,
-    context: ProcessingContext
-  ): Promise<ProcessingResult> {
-    // Check cancellation before starting
-    this.checkCancellation(context)
-
-    // Validate input
-    this.validateInput(input)
-
-    // Execute extraction (subclass implementation)
-    return this.doExtractText(input, config, context)
-  }
-
-  /**
-   * Validate the input file
-   *
-   * @throws Error if validation fails
-   */
-  protected validateInput(input: FileMetadata): void {
-    if (!input.path) {
-      throw new Error('Input file path is required')
+  protected getApiHost(config: FileProcessorMerged): string {
+    const capability = config.capabilities.find((cap) => cap.feature === 'text_extraction')
+    if (capability?.apiHost) {
+      return capability.apiHost
     }
+
+    throw new Error(`API host is required for ${this.id} processor`)
   }
 
   /**
-   * Perform the actual text extraction
-   *
-   * Subclasses must implement this method with their specific extraction logic.
+   * Extract text from the input file
    */
-  protected abstract doExtractText(
-    input: FileMetadata,
+  abstract extractText(
+    file: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext
   ): Promise<ProcessingResult>

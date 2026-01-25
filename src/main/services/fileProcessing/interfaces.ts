@@ -5,13 +5,7 @@
  * Follows SOLID principles with clear separation of concerns.
  */
 
-import type {
-  FeatureCapability,
-  FileProcessorFeature,
-  FileProcessorInput,
-  FileProcessorMerged,
-  FileProcessorTemplate
-} from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged, FileProcessorTemplate } from '@shared/data/presets/fileProcessing'
 import type { ProcessingResult, ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 
@@ -32,14 +26,6 @@ export interface IFileProcessor {
 
   /** Processor template (read-only metadata) */
   readonly template: FileProcessorTemplate
-
-  /**
-   * Check if this processor supports the given feature and input type
-   * @param feature - The feature to check
-   * @param inputType - The input type to check
-   * @returns True if supported
-   */
-  supports(feature: FileProcessorFeature, inputType: FileProcessorInput): boolean
 
   /**
    * Check if this processor is currently available
@@ -86,19 +72,6 @@ export interface IMarkdownConverter extends IFileProcessor {
 }
 
 /**
- * Interface for disposable resources
- *
- * Processors that hold resources (workers, connections) should implement this.
- */
-export interface IDisposable {
-  /**
-   * Release any held resources
-   * @returns Promise resolving when disposal is complete
-   */
-  dispose(): Promise<void>
-}
-
-/**
  * Interface for processors that support async status querying
  *
  * Processors implementing this interface can:
@@ -139,41 +112,8 @@ export function isMarkdownConverter(processor: IFileProcessor): processor is IMa
 }
 
 /**
- * Check if a processor implements IDisposable
- */
-export function isDisposable(processor: IFileProcessor): processor is IFileProcessor & IDisposable {
-  return 'dispose' in processor && typeof (processor as IDisposable).dispose === 'function'
-}
-
-/**
  * Check if a processor implements IProcessStatusProvider
  */
 export function isProcessStatusProvider(processor: IFileProcessor): processor is IProcessStatusProvider {
   return 'getStatus' in processor && typeof (processor as IProcessStatusProvider).getStatus === 'function'
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Find a capability in a template that matches the given feature and input type
- */
-export function findCapability(
-  template: FileProcessorTemplate,
-  feature: FileProcessorFeature,
-  inputType: FileProcessorInput
-): FeatureCapability | undefined {
-  return template.capabilities.find((cap) => cap.feature === feature && cap.input === inputType)
-}
-
-/**
- * Check if a template supports a given feature and input type
- */
-export function templateSupports(
-  template: FileProcessorTemplate,
-  feature: FileProcessorFeature,
-  inputType: FileProcessorInput
-): boolean {
-  return findCapability(template, feature, inputType) !== undefined
 }

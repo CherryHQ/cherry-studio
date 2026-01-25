@@ -11,6 +11,7 @@ import {
   type CapabilityOverride,
   type FileProcessorFeature,
   type FileProcessorMerged,
+  type FileProcessorOptions,
   type FileProcessorOverride,
   type FileProcessorTemplate,
   PRESETS_FILE_PROCESSORS
@@ -44,45 +45,18 @@ export class ConfigurationService {
   }
 
   /**
-   * Get a processor template by ID
-   *
-   * @returns The template if found, undefined otherwise
-   */
-  getTemplate(processorId: string): FileProcessorTemplate | undefined {
-    return this.templateMap.get(processorId)
-  }
-
-  /**
-   * Get all processor templates
-   */
-  getAllTemplates(): FileProcessorTemplate[] {
-    return Array.from(this.templateMap.values())
-  }
-
-  /**
    * Get merged configuration for a processor (template + user override)
    *
    * @returns The merged configuration if template exists, undefined otherwise
    */
   getConfiguration(processorId: string): FileProcessorMerged | undefined {
-    const template = this.getTemplate(processorId)
+    const template = this.templateMap.get(processorId)
     if (!template) return undefined
 
     const overrides = preferenceService.get('feature.file_processing.overrides')
     const override: FileProcessorOverride = overrides[processorId] ?? {}
 
     return this.mergeConfiguration(template, override)
-  }
-
-  /**
-   * Get merged configurations for all processors
-   */
-  getAllConfigurations(): FileProcessorMerged[] {
-    return this.getAllTemplates().map((template) => {
-      const overrides = preferenceService.get('feature.file_processing.overrides')
-      const override: FileProcessorOverride = overrides[template.id] ?? {}
-      return this.mergeConfiguration(template, override)
-    })
   }
 
   /**
@@ -93,7 +67,7 @@ export class ConfigurationService {
    * @returns Updated merged configuration, or undefined if processor not found
    */
   updateConfiguration(processorId: string, update: FileProcessorOverride): FileProcessorMerged | undefined {
-    const template = this.getTemplate(processorId)
+    const template = this.templateMap.get(processorId)
     if (!template) return undefined
 
     const overrides = preferenceService.get('feature.file_processing.overrides')
@@ -119,27 +93,64 @@ export class ConfigurationService {
    * Merge two overrides, with update taking precedence
    */
   private mergeOverrides(existing: FileProcessorOverride, update: FileProcessorOverride): FileProcessorOverride {
-    const mergedCapabilities: Partial<Record<FileProcessorFeature, CapabilityOverride>> = {}
+    const mergedCapabilities = this.mergeCapabilities(existing.capabilities, update.capabilities)
+    const mergedOptions = this.mergeOptions(existing.options, update.options)
 
-    // Merge capabilities
+    const result: FileProcessorOverride = {}
+
+    const apiKey = update.apiKey !== undefined ? update.apiKey : existing.apiKey
+    if (apiKey !== undefined) {
+      result.apiKey = apiKey
+    }
+
+    if (mergedCapabilities) {
+      result.capabilities = mergedCapabilities
+    }
+
+    if (mergedOptions) {
+      result.options = mergedOptions
+    }
+
+    return result
+  }
+
+  /**
+   * Merge capability overrides from existing and update
+   */
+  private mergeCapabilities(
+    existing?: Partial<Record<FileProcessorFeature, CapabilityOverride>>,
+    update?: Partial<Record<FileProcessorFeature, CapabilityOverride>>
+  ): Partial<Record<FileProcessorFeature, CapabilityOverride>> | undefined {
+    if (!existing && !update) return undefined
+
     const allFeatures = new Set([
-      ...Object.keys(existing.capabilities ?? {}),
-      ...Object.keys(update.capabilities ?? {})
+      ...Object.keys(existing ?? {}),
+      ...Object.keys(update ?? {})
     ]) as Set<FileProcessorFeature>
 
+    const merged: Partial<Record<FileProcessorFeature, CapabilityOverride>> = {}
+
     for (const feature of allFeatures) {
-      const existingCap = existing.capabilities?.[feature]
-      const updateCap = update.capabilities?.[feature]
+      const existingCap = existing?.[feature]
+      const updateCap = update?.[feature]
       if (existingCap || updateCap) {
-        mergedCapabilities[feature] = { ...existingCap, ...updateCap }
+        merged[feature] = { ...existingCap, ...updateCap }
       }
     }
 
-    return {
-      apiKey: update.apiKey !== undefined ? update.apiKey : existing.apiKey,
-      ...(Object.keys(mergedCapabilities).length > 0 ? { capabilities: mergedCapabilities } : {}),
-      ...(update.options || existing.options ? { options: { ...existing.options, ...update.options } } : {})
-    }
+    return Object.keys(merged).length > 0 ? merged : undefined
+  }
+
+  /**
+   * Merge options from existing and update
+   */
+  private mergeOptions(
+    existing?: FileProcessorOptions,
+    update?: FileProcessorOptions
+  ): FileProcessorOptions | undefined {
+    if (!existing && !update) return undefined
+    const merged = { ...existing, ...update }
+    return Object.keys(merged).length > 0 ? merged : undefined
   }
 
   /**
@@ -161,44 +172,60 @@ export class ConfigurationService {
    */
   private normalizeOverride(override: FileProcessorOverride): FileProcessorOverride | undefined {
     const apiKey = this.normalizeString(override.apiKey)
-
-    // Normalize capabilities Record
-    let capabilities: Partial<Record<FileProcessorFeature, CapabilityOverride>> | undefined
-    if (override.capabilities) {
-      const normalizedCaps: Partial<Record<FileProcessorFeature, CapabilityOverride>> = {}
-      for (const [feature, cap] of Object.entries(override.capabilities)) {
-        if (!cap) continue
-        const apiHost = this.normalizeString(cap.apiHost)
-        const modelId = this.normalizeString(cap.modelId)
-        if (apiHost || modelId) {
-          normalizedCaps[feature as FileProcessorFeature] = {
-            ...(apiHost ? { apiHost } : {}),
-            ...(modelId ? { modelId } : {})
-          }
-        }
-      }
-      if (Object.keys(normalizedCaps).length > 0) {
-        capabilities = normalizedCaps
-      }
-    }
-
-    const options = override.options && Object.keys(override.options).length > 0 ? override.options : undefined
+    const capabilities = this.normalizeCapabilities(override.capabilities)
+    const options = this.normalizeOptions(override.options)
 
     if (!apiKey && !capabilities && !options) {
       return undefined
     }
 
-    return {
-      ...(apiKey ? { apiKey } : {}),
-      ...(capabilities ? { capabilities } : {}),
-      ...(options ? { options } : {})
+    const result: FileProcessorOverride = {}
+    if (apiKey) result.apiKey = apiKey
+    if (capabilities) result.capabilities = capabilities
+    if (options) result.options = options
+
+    return result
+  }
+
+  /**
+   * Normalize capabilities record by removing empty values
+   */
+  private normalizeCapabilities(
+    capabilities?: Partial<Record<FileProcessorFeature, CapabilityOverride>>
+  ): Partial<Record<FileProcessorFeature, CapabilityOverride>> | undefined {
+    if (!capabilities) return undefined
+
+    const normalized: Partial<Record<FileProcessorFeature, CapabilityOverride>> = {}
+
+    for (const [feature, cap] of Object.entries(capabilities)) {
+      if (!cap) continue
+
+      const apiHost = this.normalizeString(cap.apiHost)
+      const modelId = this.normalizeString(cap.modelId)
+
+      if (apiHost || modelId) {
+        const capOverride: CapabilityOverride = {}
+        if (apiHost) capOverride.apiHost = apiHost
+        if (modelId) capOverride.modelId = modelId
+        normalized[feature as FileProcessorFeature] = capOverride
+      }
     }
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined
+  }
+
+  /**
+   * Normalize options by removing empty objects
+   */
+  private normalizeOptions(options?: FileProcessorOptions): FileProcessorOptions | undefined {
+    if (!options || Object.keys(options).length === 0) return undefined
+    return options
   }
 
   private normalizeString(value?: string): string | undefined {
     if (!value) return undefined
     const trimmed = value.trim()
-    return trimmed ? trimmed : undefined
+    return trimmed || undefined
   }
 
   /**
@@ -207,27 +234,10 @@ export class ConfigurationService {
    * @returns The processor ID if set, null otherwise
    */
   getDefaultProcessor(feature: FileProcessorFeature): string | null {
-    const key =
-      feature === 'text_extraction'
-        ? 'feature.file_processing.default_text_extraction_processor'
-        : 'feature.file_processing.default_markdown_conversion_processor'
-    return preferenceService.get(key)
-  }
-
-  /**
-   * Subscribe to configuration changes
-   *
-   * @returns Unsubscribe function
-   */
-  onConfigurationChange(callback: () => void): () => void {
-    return preferenceService.subscribeChange('feature.file_processing.overrides', callback)
-  }
-
-  /**
-   * @internal Testing only - reset the singleton instance
-   */
-  static _resetForTesting(): void {
-    ConfigurationService.instance = null
+    if (feature === 'text_extraction') {
+      return preferenceService.get('feature.file_processing.default_text_extraction_processor')
+    }
+    return preferenceService.get('feature.file_processing.default_markdown_conversion_processor')
   }
 }
 

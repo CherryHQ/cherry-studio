@@ -14,7 +14,6 @@ import AdmZip from 'adm-zip'
 import { net } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
-import { PDFDocument } from 'pdf-lib'
 
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
 import type { IProcessStatusProvider } from '../../interfaces'
@@ -59,25 +58,6 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
       throw new Error('Doc2X processor template not found in presets')
     }
     super(template)
-  }
-
-  private async validatePdf(filePath: string): Promise<void> {
-    const stats = await fs.promises.stat(filePath)
-    const fileSizeBytes = stats.size
-    const { maxFileSizeMb, maxPageCount } = this.getDocumentLimits()
-
-    if (maxFileSizeMb !== undefined && fileSizeBytes > maxFileSizeMb * 1024 * 1024) {
-      const fileSizeMB = Math.round(fileSizeBytes / (1024 * 1024))
-      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of ${maxFileSizeMb}MB`)
-    }
-
-    const pdfBuffer = await fs.promises.readFile(filePath)
-    const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true })
-    const numPages = pdfDoc.getPageCount()
-
-    if (maxPageCount !== undefined && numPages > maxPageCount) {
-      throw new Error(`PDF page count (${numPages}) exceeds the limit of ${maxPageCount} pages`)
-    }
   }
 
   private async preupload(apiHost: string, apiKey: string): Promise<PreuploadResponse> {
@@ -257,19 +237,19 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
     return { markdown, outputPath: outputFilePath }
   }
 
-  protected async doConvert(
+  async convertToMarkdown(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext
   ): Promise<ProcessingResult> {
+    await this.validateFile(input)
+    this.checkCancellation(context)
+
     const apiHost = this.getApiHost(config)
     const apiKey = this.getApiKey(config)!
 
     const filePath = fileStorage.getFilePathById(input)
     logger.info(`Doc2X processing started: ${filePath}`)
-
-    await this.validatePdf(filePath)
-    this.checkCancellation(context)
 
     const { uid, url } = await this.preupload(apiHost, apiKey)
     logger.info(`Preupload completed: uid=${uid}`)

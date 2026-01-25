@@ -131,7 +131,7 @@ export class OvOcrProcessor extends BaseTextExtractor {
   /**
    * Perform text extraction using OpenVINO OCR
    */
-  protected async doExtractText(
+  async extractText(
     input: FileMetadata,
     _config: FileProcessorMerged,
     context: ProcessingContext

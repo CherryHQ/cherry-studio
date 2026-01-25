@@ -14,7 +14,6 @@ import AdmZip from 'adm-zip'
 import { net } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
-import { PDFDocument } from 'pdf-lib'
 
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
 import type { IProcessStatusProvider } from '../../interfaces'
@@ -69,36 +68,6 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
       throw new Error('MinerU processor template not found in presets')
     }
     super(template)
-  }
-
-  private async validatePdf(filePath: string): Promise<void> {
-    const stats = await fs.promises.stat(filePath)
-    const fileSizeBytes = stats.size
-    const { maxFileSizeMb, maxPageCount } = this.getDocumentLimits()
-
-    if (maxFileSizeMb !== undefined && fileSizeBytes > maxFileSizeMb * 1024 * 1024) {
-      const fileSizeMB = Math.round(fileSizeBytes / (1024 * 1024))
-      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of ${maxFileSizeMb}MB`)
-    }
-
-    const pdfBuffer = await fs.promises.readFile(filePath)
-
-    try {
-      const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true })
-      const numPages = pdfDoc.getPageCount()
-
-      if (maxPageCount !== undefined && numPages > maxPageCount) {
-        throw new Error(`PDF page count (${numPages}) exceeds the limit of ${maxPageCount} pages`)
-      }
-
-      logger.info(`PDF validation passed: ${numPages} pages, ${Math.round(fileSizeBytes / (1024 * 1024))}MB`)
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      if (errorMessage.includes('exceeds the limit')) {
-        throw error
-      }
-      logger.warn(`Failed to parse PDF structure, skipping page count validation: ${errorMessage}`)
-    }
   }
 
   private async getBatchUploadUrls(
@@ -261,17 +230,18 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
     return { markdown, outputPath: actualPath }
   }
 
-  protected async doConvert(
+  async convertToMarkdown(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext
   ): Promise<ProcessingResult> {
+    await this.validateFile(input)
+    this.checkCancellation(context)
+
     const apiHost = this.getApiHost(config)
     const apiKey = this.getApiKey(config)!
     const filePath = fileStorage.getFilePathById(input)
     logger.info(`MinerU processing started: ${filePath}`)
-
-    await this.validatePdf(filePath)
 
     const { batchId, fileUrls, uploadHeaders } = await this.getBatchUploadUrls(apiHost, apiKey, input)
     logger.info(`Got batch upload URL: batchId=${batchId}`)

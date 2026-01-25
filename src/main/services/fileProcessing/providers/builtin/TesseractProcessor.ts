@@ -2,7 +2,6 @@
  * Tesseract OCR Processor
  *
  * Worker-based OCR processor using Tesseract.js.
- * Implements IDisposable for proper worker cleanup.
  */
 
 import { loggerService } from '@logger'
@@ -22,7 +21,6 @@ import type Tesseract from 'tesseract.js'
 import { createWorker } from 'tesseract.js'
 
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
-import type { IDisposable } from '../../interfaces'
 import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('TesseractProcessor')
@@ -41,7 +39,7 @@ enum TesseractLangsDownloadUrl {
  * Uses Tesseract.js for text extraction from images.
  * Manages a worker instance that is reinitialized when language config changes.
  */
-export class TesseractProcessor extends BaseTextExtractor implements IDisposable {
+export class TesseractProcessor extends BaseTextExtractor {
   private worker: Tesseract.Worker | null = null
   private currentLangs: LanguageCode[] = []
 
@@ -129,7 +127,7 @@ export class TesseractProcessor extends BaseTextExtractor implements IDisposable
   /**
    * Perform text extraction using Tesseract
    */
-  protected async doExtractText(
+  async extractText(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext

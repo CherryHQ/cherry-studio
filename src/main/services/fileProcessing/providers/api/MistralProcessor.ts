@@ -18,7 +18,6 @@ import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata, Provider } from '@types'
 import * as fs from 'fs'
 import * as path from 'path'
-import { PDFDocument } from 'pdf-lib'
 
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
 import type { ProcessingContext } from '../../types'
@@ -83,7 +82,6 @@ export class MistralProcessor extends BaseMarkdownConverter {
     logger.info(`Preparing document for OCR: ${filePath}`)
 
     if (file.ext.toLowerCase() === '.pdf') {
-      await this.validatePdf(filePath)
       const uploadResponse = await fileService.uploadFile(file)
 
       if (uploadResponse.status === 'failed') {
@@ -106,34 +104,6 @@ export class MistralProcessor extends BaseMarkdownConverter {
     return {
       type: 'image_url',
       imageUrl: `data:image/png;base64,${base64Image}`
-    }
-  }
-
-  private async validatePdf(filePath: string): Promise<void> {
-    const { maxFileSizeMb, maxPageCount } = this.getDocumentLimits()
-
-    if (maxFileSizeMb === undefined && maxPageCount === undefined) {
-      return
-    }
-
-    const stats = await fs.promises.stat(filePath)
-    const fileSizeBytes = stats.size
-
-    if (maxFileSizeMb !== undefined && fileSizeBytes > maxFileSizeMb * 1024 * 1024) {
-      const fileSizeMB = Math.round(fileSizeBytes / (1024 * 1024))
-      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of ${maxFileSizeMb}MB`)
-    }
-
-    if (maxPageCount === undefined) {
-      return
-    }
-
-    const pdfBuffer = await fs.promises.readFile(filePath)
-    const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true })
-    const numPages = pdfDoc.getPageCount()
-
-    if (numPages > maxPageCount) {
-      throw new Error(`PDF page count (${numPages}) exceeds the limit of ${maxPageCount} pages`)
     }
   }
 
@@ -205,11 +175,14 @@ export class MistralProcessor extends BaseMarkdownConverter {
     return { markdown: combinedMarkdown, outputPath: mdFilePath }
   }
 
-  protected async doConvert(
+  async convertToMarkdown(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext
   ): Promise<ProcessingResult> {
+    await this.validateFile(input)
+    this.checkCancellation(context)
+
     const modelId = this.getModelId(config)
     const { sdk, fileService } = this.createClient(config)
 

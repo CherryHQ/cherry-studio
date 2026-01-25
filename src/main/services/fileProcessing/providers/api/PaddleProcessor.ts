@@ -73,31 +73,9 @@ export class PaddleProcessor extends BaseTextExtractor {
   }
 
   /**
-   * Get the API URL from configuration
-   *
-   * After merging, capability.apiHost contains the effective value
-   * (template default overridden by user config if present)
-   */
-  private getApiUrl(config: FileProcessorMerged): string {
-    const capability = config.capabilities.find((cap) => cap.feature === 'text_extraction')
-    if (capability?.apiHost) {
-      return capability.apiHost
-    }
-
-    throw new Error('API URL is required for PaddleOCR processor')
-  }
-
-  /**
-   * Get the API key from configuration (optional)
-   */
-  private getApiKey(config: FileProcessorMerged): string | undefined {
-    return config.apiKey
-  }
-
-  /**
    * Perform text extraction using PaddleOCR API
    */
-  protected async doExtractText(
+  async extractText(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext
@@ -108,7 +86,7 @@ export class PaddleProcessor extends BaseTextExtractor {
 
     this.checkCancellation(context)
 
-    const apiUrl = this.getApiUrl(config)
+    const apiUrl = this.getApiHost(config)
     const apiKey = this.getApiKey(config)
 
     logger.debug('Using API URL', { apiUrl })

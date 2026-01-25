@@ -14,15 +14,11 @@ export { FileProcessingService, fileProcessingService } from './FileProcessingSe
 
 // Interfaces and types
 export {
-  findCapability,
-  type IDisposable,
   type IFileProcessor,
   type IMarkdownConverter,
-  isDisposable,
   isMarkdownConverter,
   isTextExtractor,
-  type ITextExtractor,
-  templateSupports
+  type ITextExtractor
 } from './interfaces'
 export type { ProcessingContext, ProcessOptions } from './types'
 

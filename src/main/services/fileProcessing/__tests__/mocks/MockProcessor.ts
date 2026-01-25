@@ -100,11 +100,13 @@ export class MockTextExtractor extends BaseTextExtractor {
   doExtractTextMock =
     vi.fn<(input: FileMetadata, config: FileProcessorMerged, context: ProcessingContext) => Promise<ProcessingResult>>()
 
-  protected async doExtractText(
+  async extractText(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext
   ): Promise<ProcessingResult> {
+    this.checkCancellation(context)
+    this.validateFile(input)
     return this.doExtractTextMock(input, config, context)
   }
 }
@@ -116,11 +118,13 @@ export class MockMarkdownConverter extends BaseMarkdownConverter {
   doConvertMock =
     vi.fn<(input: FileMetadata, config: FileProcessorMerged, context: ProcessingContext) => Promise<ProcessingResult>>()
 
-  protected async doConvert(
+  async convertToMarkdown(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext
   ): Promise<ProcessingResult> {
+    this.checkCancellation(context)
+    await this.validateFile(input)
     return this.doConvertMock(input, config, context)
   }
 }
@@ -144,9 +148,7 @@ export class MockDualProcessor extends BaseFileProcessor implements ITextExtract
     context: ProcessingContext
   ): Promise<ProcessingResult> {
     this.checkCancellation(context)
-    if (!input.path) {
-      throw new Error('Input file path is required')
-    }
+    this.validateFile(input)
     return this.doExtractTextMock(input, config, context)
   }
 
@@ -156,9 +158,7 @@ export class MockDualProcessor extends BaseFileProcessor implements ITextExtract
     context: ProcessingContext
   ): Promise<ProcessingResult> {
     this.checkCancellation(context)
-    if (!input.path) {
-      throw new Error('Document file path is required')
-    }
+    this.validateFile(input)
     return this.doConvertMock(input, config, context)
   }
 }

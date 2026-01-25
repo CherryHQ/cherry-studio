@@ -72,7 +72,7 @@ export class SystemOcrProcessor extends BaseTextExtractor {
   /**
    * Perform text extraction using system OCR
    */
-  protected async doExtractText(
+  async extractText(
     input: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext

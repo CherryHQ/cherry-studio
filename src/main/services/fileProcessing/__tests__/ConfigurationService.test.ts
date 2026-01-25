@@ -7,7 +7,8 @@ describe('ConfigurationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    ConfigurationService._resetForTesting()
+    // @ts-expect-error - Reset singleton for testing
+    ConfigurationService.instance = null
   })
 
   describe('getInstance', () => {
@@ -19,41 +20,10 @@ describe('ConfigurationService', () => {
 
     it('should return a new instance after reset', () => {
       const instance1 = ConfigurationService.getInstance()
-      ConfigurationService._resetForTesting()
+      // @ts-expect-error - Reset singleton for testing
+      ConfigurationService.instance = null
       const instance2 = ConfigurationService.getInstance()
       expect(instance1).not.toBe(instance2)
-    })
-  })
-
-  describe('getTemplate', () => {
-    it('should return template for known processor', () => {
-      const service = ConfigurationService.getInstance()
-
-      const template = service.getTemplate('tesseract')
-
-      expect(template).toBeDefined()
-      expect(template?.id).toBe('tesseract')
-      expect(template?.type).toBe('builtin')
-    })
-
-    it('should return undefined for unknown processor', () => {
-      const service = ConfigurationService.getInstance()
-
-      const template = service.getTemplate('unknown-processor')
-
-      expect(template).toBeUndefined()
-    })
-  })
-
-  describe('getAllTemplates', () => {
-    it('should return all processor templates', () => {
-      const service = ConfigurationService.getInstance()
-
-      const templates = service.getAllTemplates()
-
-      expect(templates.length).toBeGreaterThan(0)
-      expect(templates.some((t) => t.id === 'tesseract')).toBe(true)
-      expect(templates.some((t) => t.id === 'mineru')).toBe(true)
     })
   })
 
@@ -104,21 +74,6 @@ describe('ConfigurationService', () => {
       const config = service.getConfiguration('unknown-processor')
 
       expect(config).toBeUndefined()
-    })
-  })
-
-  describe('getAllConfigurations', () => {
-    it('should return merged configurations for all processors', () => {
-      const service = ConfigurationService.getInstance()
-      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
-        tesseract: { options: { langs: ['eng'] } }
-      })
-
-      const configs = service.getAllConfigurations()
-
-      expect(configs.length).toBeGreaterThan(0)
-      const tesseractConfig = configs.find((c) => c.id === 'tesseract')
-      expect(tesseractConfig?.options).toEqual({ langs: ['eng'] })
     })
   })
 
@@ -229,17 +184,6 @@ describe('ConfigurationService', () => {
       const result = service.updateConfiguration('unknown-processor', { apiKey: 'test' })
 
       expect(result).toBeUndefined()
-    })
-  })
-
-  describe('onConfigurationChange', () => {
-    it('should subscribe to preference changes', () => {
-      const service = ConfigurationService.getInstance()
-      const callback = vi.fn()
-
-      const unsubscribe = service.onConfigurationChange(callback)
-
-      expect(typeof unsubscribe).toBe('function')
     })
   })
 })
