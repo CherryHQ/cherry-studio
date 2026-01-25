@@ -9,7 +9,7 @@ import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import { Bot, MoreVertical } from 'lucide-react'
 import type { FC } from 'react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // const logger = loggerService.withContext('AgentItem')
@@ -24,6 +24,7 @@ interface AgentItemProps {
 const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
   const { t } = useTranslation()
   const { clickAssistantToShowTopic, topicPosition, assistantIconType } = useSettings()
+  const [isHovered, setIsHovered] = useState(false)
 
   const handlePress = useCallback(() => {
     // Show session sidebar if setting is enabled (reusing the assistant setting for consistency)
@@ -35,13 +36,9 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
     onPress()
   }, [clickAssistantToShowTopic, topicPosition, onPress])
 
-  const handleMoreClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      agent.id && AgentSettingsPopup.show({ agentId: agent.id })
-    },
-    [agent.id]
-  )
+  const handleMenuButtonClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+  }, [])
 
   const menuItems: MenuProps['items'] = useMemo(
     () => [
@@ -75,17 +72,26 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
       menu={{ items: menuItems }}
       trigger={['contextMenu']}
       popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-      <Container onClick={handlePress} isActive={isActive}>
+      <Container
+        onClick={handlePress}
+        isActive={isActive}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}>
         <AssistantNameRow className="name" title={agent.name ?? agent.id}>
           <AgentNameWrapper>
             <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
           </AgentNameWrapper>
-          {isActive && (
-            <MenuButton onClick={handleMoreClick}>
-              <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
-            </MenuButton>
+          {(isActive || isHovered) && (
+            <Dropdown
+              menu={{ items: menuItems }}
+              trigger={['click']}
+              popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
+              <MenuButton onClick={handleMenuButtonClick}>
+                <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
+              </MenuButton>
+            </Dropdown>
           )}
-          {!isActive && assistantIconType !== 'none' && <BotIcon />}
+          {!isActive && !isHovered && assistantIconType !== 'none' && <BotIcon />}
         </AssistantNameRow>
       </Container>
     </Dropdown>

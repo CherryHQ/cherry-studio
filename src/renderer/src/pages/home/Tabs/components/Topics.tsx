@@ -911,7 +911,7 @@ const HeaderRow = styled.div`
   align-items: center;
   gap: 6px;
   padding-right: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   margin-top: 2px;
 `
 
