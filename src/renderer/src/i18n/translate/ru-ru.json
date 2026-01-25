@@ -3851,6 +3851,78 @@
         "title": "Настройки масштаба"
       }
     },
+    "file_processing": {
+      "api_config": "Конфигурация API",
+      "api_host": "Хост API",
+      "api_host_hint": "Адрес API по умолчанию, пользовательские адреса пока не поддерживаются",
+      "api_host_placeholder": "Пожалуйста, введите хост API",
+      "api_key": "Ключ API",
+      "api_key_placeholder": "Пожалуйста, введите ключ API",
+      "builtin": "Встроенный",
+      "capability": "Возможность",
+      "configured_count": "{{count}} / {{total}} сервисов настроено",
+      "default_document_processor": "Обработчик документов по умолчанию",
+      "default_image_processor": "Обработчик изображений по умолчанию",
+      "default_service": "Сервис по умолчанию",
+      "default_setting": "Настройки по умолчанию",
+      "document_processors": "Обработка документов",
+      "feature": "Функция",
+      "feature.markdown_conversion": "Преобразовать в Markdown",
+      "feature.text_extraction": "Извлечение текста",
+      "image_processors": "Обработка изображений",
+      "input.document": "Документ",
+      "input.image": "Изображение",
+      "is_default": "Установлено по умолчанию",
+      "langs": "Поддерживаемые языки",
+      "langs_placeholder": "Выберите язык",
+      "langs_tooltip": "Выберите языки, поддерживаемые Tesseract OCR",
+      "no_config_needed": "Настройка не требуется",
+      "no_default": "Не использовать предобработку",
+      "output.markdown": "Markdown",
+      "output.text": "Текст",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "Системный OCR"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "scenario": {
+        "chat_image": {
+          "description": "Используется при загрузке изображений в чате",
+          "title": "Понимание изображений в чате"
+        },
+        "knowledge_base": {
+          "description": "Используется при добавлении PDF в базу знаний",
+          "title": "Анализ документов базы знаний"
+        }
+      },
+      "service_config": "Конфигурация сервиса",
+      "set_as_default": "Установить по умолчанию",
+      "title": "Обработка файлов",
+      "type": "Тип",
+      "type_api": "API-сервис",
+      "type_builtin": "Встроенный сервис"
+    },
     "font_size": {
       "title": "Размер шрифта сообщений"
     },
@@ -4744,40 +4816,6 @@
     },
     "title": "Настройки",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Поддерживаемые языки"
-        },
-        "error": {
-          "not_system": "Системный OCR поддерживается только в Windows и MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "Поставщик не существует"
-          },
-          "system": {
-            "no_need_configure": "MacOS не требует настройки"
-          },
-          "title": "Изображение"
-        },
-        "image_provider": "Поставщик услуг OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Токен доступа сообщества AI Studio",
-          "aistudio_url_label": "Сообщество AI Studio",
-          "api_url": "URL API",
-          "serving_doc_url_label": "Документация по PaddleOCR Serving",
-          "tip": "Вы можете обратиться к официальной документации PaddleOCR, чтобы развернуть локальный сервис, либо развернуть облачный сервис в сообществе PaddlePaddle AI Studio. В последнем случае, пожалуйста, предоставьте токен доступа сообщества AI Studio."
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Для предоставления служб Windows необходимо загрузить языковой пакет в системе для поддержки соответствующего языка."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Ознакомьтесь с документацией, чтобы узнать, какие пользовательские языки поддерживаются"
-        },
-        "title": "OCR-сервис"
-      },
       "preprocess": {
         "provider": "Поставщик обработки документов",
         "provider_placeholder": "Выберите поставщика услуг обработки документов",
@@ -4946,7 +4984,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Новая вкладка"
   },
   "title": {
     "apps": "Приложения",

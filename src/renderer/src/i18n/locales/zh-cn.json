@@ -2623,32 +2623,6 @@
     "zoom_in": "放大",
     "zoom_out": "缩小"
   },
-  "processor": {
-    "doc2x": {
-      "name": "Doc2X"
-    },
-    "mineru": {
-      "name": "MinerU"
-    },
-    "mistral": {
-      "name": "Mistral OCR"
-    },
-    "open-mineru": {
-      "name": "Open MinerU"
-    },
-    "ovocr": {
-      "name": "Intel OV OCR"
-    },
-    "paddleocr": {
-      "name": "PaddleOCR"
-    },
-    "system": {
-      "name": "系统 OCR"
-    },
-    "tesseract": {
-      "name": "Tesseract"
-    }
-  },
   "prompts": {
     "explanation": "帮我解释一下这个概念",
     "summarize": "帮我总结一下这段话",
@@ -3893,8 +3867,8 @@
       "default_setting": "默认设置",
       "document_processors": "文档处理",
       "feature": "功能",
-      "feature.text_extraction": "文字提取",
       "feature.markdown_conversion": "转换为 Markdown",
+      "feature.text_extraction": "文字提取",
       "image_processors": "图片处理",
       "input.document": "文档",
       "input.image": "图片",
@@ -3906,6 +3880,32 @@
       "no_default": "不使用预处理",
       "output.markdown": "Markdown",
       "output.text": "文本",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "系统 OCR"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
       "scenario": {
         "chat_image": {
           "description": "在对话中上传图片时使用",
@@ -4816,40 +4816,6 @@
     },
     "title": "设置",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "支持的语言"
-        },
-        "error": {
-          "not_system": "系统 OCR 仅支持 Windows 与 MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "该提供商不存在"
-          },
-          "system": {
-            "no_need_configure": "MacOS 无需配置"
-          },
-          "title": "图片"
-        },
-        "image_provider": "OCR 服务提供商",
-        "paddleocr": {
-          "aistudio_access_token": "星河社区访问令牌",
-          "aistudio_url_label": "星河社区",
-          "api_url": "API URL",
-          "serving_doc_url_label": "PaddleOCR 服务化部署文档",
-          "tip": "您可以参考 PaddleOCR 官方文档部署本地服务，或者在飞桨星河社区部署云服务。对于后一种情况，请填写星河社区访问令牌。"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "依赖 Windows 提供服务，您需要在系统中下载语言包来支持相关语言。"
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "阅读文档以了解哪些自定义语言是受支持的"
-        },
-        "title": "OCR 服务"
-      },
       "preprocess": {
         "provider": "文档处理服务商",
         "provider_placeholder": "选择一个文档处理服务商",

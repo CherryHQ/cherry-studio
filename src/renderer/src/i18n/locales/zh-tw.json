@@ -3851,6 +3851,78 @@
         "title": "縮放設定"
       }
     },
+    "file_processing": {
+      "api_config": "API 配置",
+      "api_host": "API Host",
+      "api_host_hint": "預設 API 地址，暫不支援自訂",
+      "api_host_placeholder": "請輸入 API Host",
+      "api_key": "API Key",
+      "api_key_placeholder": "請輸入 API Key",
+      "builtin": "內建",
+      "capability": "能力",
+      "configured_count": "已配置 {{count}} / {{total}} 個服務",
+      "default_document_processor": "預設文件處理器",
+      "default_image_processor": "預設圖片處理器",
+      "default_service": "預設服務",
+      "default_setting": "預設設定",
+      "document_processors": "文件處理",
+      "feature": "功能",
+      "feature.markdown_conversion": "轉換為 Markdown",
+      "feature.text_extraction": "文字擷取",
+      "image_processors": "圖片處理",
+      "input.document": "文件",
+      "input.image": "圖片",
+      "is_default": "已設為預設",
+      "langs": "支援的語言",
+      "langs_placeholder": "選擇語言",
+      "langs_tooltip": "選擇 Tesseract OCR 支援的語言",
+      "no_config_needed": "無需配置",
+      "no_default": "不使用預處理",
+      "output.markdown": "Markdown",
+      "output.text": "文字",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "系統 OCR"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "scenario": {
+        "chat_image": {
+          "description": "在對話中上傳圖片時使用",
+          "title": "聊天圖片理解"
+        },
+        "knowledge_base": {
+          "description": "當新增 PDF 到知識庫時使用",
+          "title": "知識庫文件解析"
+        }
+      },
+      "service_config": "服務配置",
+      "set_as_default": "設為預設",
+      "title": "檔案處理",
+      "type": "類型",
+      "type_api": "API 服務",
+      "type_builtin": "內建服務"
+    },
     "font_size": {
       "title": "訊息字型大小"
     },
@@ -4744,40 +4816,6 @@
     },
     "title": "設定",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "支援的語言"
-        },
-        "error": {
-          "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "該供應商不存在"
-          },
-          "system": {
-            "no_need_configure": "MacOS 無需設定"
-          },
-          "title": "圖片"
-        },
-        "image_provider": "OCR 服務供應商",
-        "paddleocr": {
-          "aistudio_access_token": "星河社群存取權杖",
-          "aistudio_url_label": "星河社群",
-          "api_url": "API 網址",
-          "serving_doc_url_label": "PaddleOCR 服務化部署文件",
-          "tip": "您可以參考 PaddleOCR 官方文件來部署本機服務，或是在飛槳星河社群部署雲端服務。對於後者，請提供星河社群的存取權杖。"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "仰賴 Windows 提供的服務，需要在系統中下載語言套件，才能支援相關語言。"
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "閱讀文件以了解哪些自訂語言受支援"
-        },
-        "title": "OCR 服務"
-      },
       "preprocess": {
         "provider": "文件處理供應商",
         "provider_placeholder": "選擇一個文件處理供應商",

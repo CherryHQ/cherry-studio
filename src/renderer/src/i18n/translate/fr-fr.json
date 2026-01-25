@@ -3851,6 +3851,78 @@
         "title": "Paramètres de zoom"
       }
     },
+    "file_processing": {
+      "api_config": "Configuration API",
+      "api_host": "Hôte API",
+      "api_host_hint": "Adresse API par défaut, les adresses personnalisées ne sont pas encore prises en charge",
+      "api_host_placeholder": "Veuillez entrer l'hôte API",
+      "api_key": "Clé API",
+      "api_key_placeholder": "Veuillez entrer la clé API",
+      "builtin": "Intégré",
+      "capability": "Capacité",
+      "configured_count": "{{count}} / {{total}} services configurés",
+      "default_document_processor": "Processeur de documents par défaut",
+      "default_image_processor": "Processeur d'images par défaut",
+      "default_service": "Service par défaut",
+      "default_setting": "Paramètres par défaut",
+      "document_processors": "Traitement de documents",
+      "feature": "Fonctionnalité",
+      "feature.markdown_conversion": "Convertir en Markdown",
+      "feature.text_extraction": "Extraction de texte",
+      "image_processors": "Traitement d'images",
+      "input.document": "Document",
+      "input.image": "Image",
+      "is_default": "Défini par défaut",
+      "langs": "Langues prises en charge",
+      "langs_placeholder": "Sélectionner la langue",
+      "langs_tooltip": "Sélectionner les langues prises en charge par Tesseract OCR",
+      "no_config_needed": "Aucune configuration requise",
+      "no_default": "Ne pas utiliser le prétraitement",
+      "output.markdown": "Markdown",
+      "output.text": "Texte",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "OCR système"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "scenario": {
+        "chat_image": {
+          "description": "Utilisé lors du téléchargement d'images dans le chat",
+          "title": "Compréhension d'images de chat"
+        },
+        "knowledge_base": {
+          "description": "Utilisé lors de l'ajout de PDF à la base de connaissances",
+          "title": "Analyse de documents de la base de connaissances"
+        }
+      },
+      "service_config": "Configuration du service",
+      "set_as_default": "Définir par défaut",
+      "title": "Traitement de fichiers",
+      "type": "Type",
+      "type_api": "Service API",
+      "type_builtin": "Service intégré"
+    },
     "font_size": {
       "title": "Taille de police des messages"
     },
@@ -4744,40 +4816,6 @@
     },
     "title": "Paramètres",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Langues prises en charge"
-        },
-        "error": {
-          "not_system": "L'OCR système prend uniquement en charge Windows et MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "Ce fournisseur n'existe pas"
-          },
-          "system": {
-            "no_need_configure": "MacOS ne nécessite aucune configuration"
-          },
-          "title": "Image"
-        },
-        "image_provider": "Fournisseur de service OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Jeton d’accès de la communauté AI Studio",
-          "aistudio_url_label": "Communauté AI Studio",
-          "api_url": "URL de l’API",
-          "serving_doc_url_label": "Documentation de PaddleOCR Serving",
-          "tip": "Vous pouvez consulter la documentation officielle de PaddleOCR pour déployer un service local, ou déployer un service cloud sur la Communauté PaddlePaddle AI Studio. Dans ce dernier cas, veuillez fournir le jeton d’accès de la Communauté AI Studio."
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dépendre de Windows pour fournir des services, vous devez télécharger des packs linguistiques dans le système afin de prendre en charge les langues concernées."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Lisez la documentation pour connaître les langues personnalisées prises en charge"
-        },
-        "title": "Service OCR"
-      },
       "preprocess": {
         "provider": "fournisseur de services de prétraitement de documents",
         "provider_placeholder": "Choisissez un prestataire de traitement de documents",
@@ -4946,7 +4984,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Nouvel onglet"
   },
   "title": {
     "apps": "Mini-programmes",

@@ -50,7 +50,7 @@ const ProcessorListItem: FC<ProcessorListItemProps> = ({ processor, isActive, is
       )}
       onClick={handleClick}>
       {isDocument ? <FileText size={18} /> : <Image size={18} />}
-      <span className="flex-1">{t(`processor.${processor.id}.name`)}</span>
+      <span className="flex-1">{t(`settings.file_processing.processor.${processor.id}.name`)}</span>
       {renderTag()}
     </div>
   )

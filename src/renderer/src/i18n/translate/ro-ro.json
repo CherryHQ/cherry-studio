@@ -3851,6 +3851,78 @@
         "title": "Setări zoom"
       }
     },
+    "file_processing": {
+      "api_config": "Configurare API",
+      "api_host": "Gazdă API",
+      "api_host_hint": "Adresă API implicită, adresele personalizate nu sunt încă suportate",
+      "api_host_placeholder": "Vă rugăm să introduceți gazda API",
+      "api_key": "Cheie API",
+      "api_key_placeholder": "Vă rugăm să introduceți cheia API",
+      "builtin": "Încorporat",
+      "capability": "Capacitate",
+      "configured_count": "{{count}} / {{total}} servicii configurate",
+      "default_document_processor": "Procesor de documente implicit",
+      "default_image_processor": "Procesor de imagini implicit",
+      "default_service": "Serviciu implicit",
+      "default_setting": "Setări implicite",
+      "document_processors": "Procesare documente",
+      "feature": "Funcționalitate",
+      "feature.markdown_conversion": "Convertire în Markdown",
+      "feature.text_extraction": "Extragere text",
+      "image_processors": "Procesare imagini",
+      "input.document": "Document",
+      "input.image": "Imagine",
+      "is_default": "Setat ca implicit",
+      "langs": "Limbi suportate",
+      "langs_placeholder": "Selectați limba",
+      "langs_tooltip": "Selectați limbile suportate de Tesseract OCR",
+      "no_config_needed": "Nu este necesară configurarea",
+      "no_default": "Nu folosiți preprocesarea",
+      "output.markdown": "Markdown",
+      "output.text": "Text",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "OCR de sistem"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "scenario": {
+        "chat_image": {
+          "description": "Utilizat la încărcarea imaginilor în chat",
+          "title": "Înțelegerea imaginilor din chat"
+        },
+        "knowledge_base": {
+          "description": "Utilizat la adăugarea PDF în baza de cunoștințe",
+          "title": "Analiză documente bază de cunoștințe"
+        }
+      },
+      "service_config": "Configurare serviciu",
+      "set_as_default": "Setează ca implicit",
+      "title": "Procesare fișiere",
+      "type": "Tip",
+      "type_api": "Serviciu API",
+      "type_builtin": "Serviciu încorporat"
+    },
     "font_size": {
       "title": "Dimensiune font mesaj"
     },
@@ -4744,40 +4816,6 @@
     },
     "title": "Setări",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Limbi acceptate"
-        },
-        "error": {
-          "not_system": "OCR-ul de sistem acceptă doar Windows și MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "Furnizorul nu există"
-          },
-          "system": {
-            "no_need_configure": "MacOS nu necesită configurare"
-          },
-          "title": "Imagine"
-        },
-        "image_provider": "Furnizor serviciu OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Token de acces Comunitatea AI Studio",
-          "aistudio_url_label": "Comunitatea AI Studio",
-          "api_url": "URL API",
-          "serving_doc_url_label": "Documentație servire PaddleOCR",
-          "tip": "Poți consulta documentația oficială PaddleOCR pentru a implementa un serviciu local sau poți implementa un serviciu cloud pe Comunitatea PaddlePaddle AI Studio. Pentru ultimul caz, te rugăm să furnizezi tokenul de acces al Comunității AI Studio."
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dependent de Windows pentru a furniza servicii, trebuie să descarci pachete lingvistice în sistem pentru a suporta limbile relevante."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Citește documentația pentru a afla ce limbi personalizate sunt acceptate"
-        },
-        "title": "Serviciu OCR"
-      },
       "preprocess": {
         "provider": "Furnizor procesare documente",
         "provider_placeholder": "Alege un furnizor de procesare documente",
@@ -4944,6 +4982,9 @@
       "reset": "Resetează",
       "title": "Zoom pagină"
     }
+  },
+  "tab": {
+    "new": "Filă nouă"
   },
   "title": {
     "apps": "Aplicații",

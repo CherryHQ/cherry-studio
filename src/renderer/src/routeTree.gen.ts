@@ -26,7 +26,6 @@ import { Route as SettingsMemoryRouteImport } from './routes/settings/memory'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
-import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
 import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
@@ -141,11 +140,6 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
 const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
   id: '/file-processing',
   path: '/file-processing',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsDocprocessRoute = SettingsDocprocessRouteImport.update({
-  id: '/docprocess',
-  path: '/docprocess',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsDisplayRoute = SettingsDisplayRouteImport.update({
@@ -316,7 +310,6 @@ export interface FileRoutesByFullPath {
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
-  '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/file-processing': typeof SettingsFileProcessingRouteWithChildren
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
@@ -364,7 +357,6 @@ export interface FileRoutesByTo {
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
-  '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
@@ -411,7 +403,6 @@ export interface FileRoutesById {
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
-  '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/file-processing': typeof SettingsFileProcessingRouteWithChildren
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
@@ -462,7 +453,6 @@ export interface FileRouteTypes {
     | '/settings/api-server'
     | '/settings/data'
     | '/settings/display'
-    | '/settings/docprocess'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/mcp'
@@ -510,7 +500,6 @@ export interface FileRouteTypes {
     | '/settings/api-server'
     | '/settings/data'
     | '/settings/display'
-    | '/settings/docprocess'
     | '/settings/general'
     | '/settings/memory'
     | '/settings/model'
@@ -556,7 +545,6 @@ export interface FileRouteTypes {
     | '/settings/api-server'
     | '/settings/data'
     | '/settings/display'
-    | '/settings/docprocess'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/mcp'
@@ -716,13 +704,6 @@ declare module '@tanstack/react-router' {
       path: '/file-processing'
       fullPath: '/settings/file-processing'
       preLoaderRoute: typeof SettingsFileProcessingRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/docprocess': {
-      id: '/settings/docprocess'
-      path: '/docprocess'
-      fullPath: '/settings/docprocess'
-      preLoaderRoute: typeof SettingsDocprocessRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/display': {
@@ -1027,7 +1008,6 @@ interface SettingsRouteChildren {
   SettingsApiServerRoute: typeof SettingsApiServerRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDisplayRoute: typeof SettingsDisplayRoute
-  SettingsDocprocessRoute: typeof SettingsDocprocessRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRouteWithChildren
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
@@ -1048,7 +1028,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsApiServerRoute: SettingsApiServerRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsDisplayRoute: SettingsDisplayRoute,
-  SettingsDocprocessRoute: SettingsDocprocessRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRouteWithChildren,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
