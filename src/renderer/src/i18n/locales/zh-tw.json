@@ -5208,6 +5208,8 @@
     "detected": {
       "language": "自動偵測"
     },
+    "detected_source": "偵測到",
+    "detecting": "偵測中...",
     "empty": "翻譯內容為空",
     "error": {
       "chat_qwen_mt": "Qwen MT 模型無法在對話中使用，請前往翻譯頁面",
@@ -5260,6 +5262,7 @@
       "not_pair": "來源語言與設定的語言不同",
       "same": "來源語言和目標語言相同"
     },
+    "language_settings": "語言設定",
     "menu": {
       "description": "對目前輸入框內容進行翻譯"
     },
@@ -5269,6 +5272,7 @@
     "output": {
       "placeholder": "翻譯"
     },
+    "preferred_target": "首選目標",
     "processing": "翻譯中...",
     "settings": {
       "autoCopy": "翻譯完成後自動複製",

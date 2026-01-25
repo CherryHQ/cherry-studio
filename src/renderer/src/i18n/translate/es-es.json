@@ -5208,6 +5208,8 @@
     "detected": {
       "language": "Detección automática"
     },
+    "detected_source": "Detectado",
+    "detecting": "Detectando...",
     "empty": "El contenido de traducción está vacío",
     "error": {
       "chat_qwen_mt": "El modelo Qwen MT no está disponible para uso en conversaciones, por favor vaya a la página de traducción.",
@@ -5260,6 +5262,7 @@
       "not_pair": "El idioma de origen es diferente al idioma configurado",
       "same": "El idioma de origen y el idioma de destino son iguales"
     },
+    "language_settings": "Configuración de idioma",
     "menu": {
       "description": "Traducir el contenido del campo de entrada actual"
     },
@@ -5269,6 +5272,7 @@
     "output": {
       "placeholder": "Traducción"
     },
+    "preferred_target": "Objetivo Preferido",
     "processing": "Traduciendo...",
     "settings": {
       "autoCopy": "Copiar automáticamente después de completar la traducción",

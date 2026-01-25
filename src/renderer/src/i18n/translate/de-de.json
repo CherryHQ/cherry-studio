@@ -5208,6 +5208,8 @@
     "detected": {
       "language": "Automatische Erkennung"
     },
+    "detected_source": "Erfasst",
+    "detecting": "Erkenne...",
     "empty": "Übersetzungsinhalt leer",
     "error": {
       "chat_qwen_mt": "Qwen MT-Modell kann nicht in der Konversation verwendet werden, bitte gehen Sie zur Übersetzungsseite",
@@ -5260,6 +5262,7 @@
       "not_pair": "Quellsprache unterscheidet sich von eingestellter Sprache",
       "same": "Quell- und Zielsprache sind identisch"
     },
+    "language_settings": "Spracheinstellungen",
     "menu": {
       "description": "Inhalt des aktuellen Eingabefelds übersetzen"
     },
@@ -5269,6 +5272,7 @@
     "output": {
       "placeholder": "Übersetzen"
     },
+    "preferred_target": "Bevorzugtes Ziel",
     "processing": "Wird übersetzt...",
     "settings": {
       "autoCopy": "Nach Übersetzung automatisch kopieren",

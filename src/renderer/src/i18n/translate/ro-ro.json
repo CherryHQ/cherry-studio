@@ -5208,6 +5208,8 @@
     "detected": {
       "language": "Detectare automată"
     },
+    "detected_source": "Detectat",
+    "detecting": "Se detectează...",
     "empty": "Conținutul traducerii este gol",
     "error": {
       "chat_qwen_mt": "Modelul Qwen MT nu poate fi folosit în chat. Te rugăm să mergi la pagina de traducere.",
@@ -5260,6 +5262,7 @@
       "not_pair": "Limba sursă este diferită de limba setată",
       "same": "Limbile sursă și țintă sunt aceleași"
     },
+    "language_settings": "Setări limbă",
     "menu": {
       "description": "Tradu conținutul casetei de intrare curente"
     },
@@ -5269,6 +5272,7 @@
     "output": {
       "placeholder": "Traducere"
     },
+    "preferred_target": "Țintă Preferată",
     "processing": "Traducere în curs...",
     "settings": {
       "autoCopy": "Copiază după traducere ",

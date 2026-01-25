@@ -5208,6 +5208,8 @@
     "detected": {
       "language": "自动检测"
     },
+    "detected_source": "检测到",
+    "detecting": "检测中...",
     "empty": "翻译内容为空",
     "error": {
       "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，请转至翻译页面",
@@ -5260,6 +5262,7 @@
       "not_pair": "源语言与设置的语言不同",
       "same": "源语言和目标语言相同"
     },
+    "language_settings": "语言设置",
     "menu": {
       "description": "对当前输入框内容进行翻译"
     },
@@ -5269,6 +5272,7 @@
     "output": {
       "placeholder": "翻译"
     },
+    "preferred_target": "首选目标",
     "processing": "翻译中...",
     "settings": {
       "autoCopy": "翻译完成后自动复制",

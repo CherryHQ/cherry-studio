@@ -5208,6 +5208,8 @@
     "detected": {
       "language": "Auto Detect"
     },
+    "detected_source": "Detected",
+    "detecting": "Detecting...",
     "empty": "Translation content is empty",
     "error": {
       "chat_qwen_mt": "Qwen MT model cannot be used in chat. Please go to the translation page.",
@@ -5260,6 +5262,7 @@
       "not_pair": "Source language is different from the set language",
       "same": "Source and target languages are the same"
     },
+    "language_settings": "Language Settings",
     "menu": {
       "description": "Translate the content of the current input box"
     },
@@ -5269,6 +5272,7 @@
     "output": {
       "placeholder": "Translation"
     },
+    "preferred_target": "Preferred Target",
     "processing": "Translation in progress...",
     "settings": {
       "autoCopy": "Copy after translation ",
