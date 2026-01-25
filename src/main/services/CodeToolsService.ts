@@ -148,6 +148,7 @@ class CodeToolsService {
     apiKey: string,
     baseUrl: string,
     isReasoning: boolean,
+    supportsReasoningEffort: boolean,
     providerType: string,
     providerName: string
   ): Promise<string> {
@@ -191,12 +192,13 @@ class CodeToolsService {
             type: 'enabled'
           }
         }
-      } else {
-        // OpenAI style: direct reasoningEffort field
+      } else if (supportsReasoningEffort) {
+        // OpenAI style: only add reasoningEffort if model supports it
         modelConfig.options = {
           reasoningEffort: 'medium'
         }
       }
+      // else: model is a reasoning model but doesn't support reasoningEffort - don't add options
     }
 
     let finalConfig: Record<string, any>
@@ -732,6 +734,7 @@ class CodeToolsService {
       terminal?: string
       modelName?: string
       isReasoning?: boolean
+      supportsReasoningEffort?: boolean
       providerType?: string
       providerName?: string
     } = {}
@@ -869,6 +872,7 @@ class CodeToolsService {
       const modelId = _model
       const modelName = options.modelName || modelId
       const isReasoning = options.isReasoning ?? false
+      const supportsReasoningEffort = options.supportsReasoningEffort ?? false
       const providerType = options.providerType || 'openai-compatible'
       const providerName = options.providerName || 'Studio'
 
@@ -878,6 +882,7 @@ class CodeToolsService {
         apiKey,
         baseUrl,
         isReasoning,
+        supportsReasoningEffort,
         providerType,
         providerName
       )
