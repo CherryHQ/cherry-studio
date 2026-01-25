@@ -1,12 +1,10 @@
 // just import the themeService to ensure the theme is initialized
 import './ThemeService'
 
-import { normalizeHeaders, withUserAgentSuffix } from '@ai-sdk/provider-utils'
 import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
-import { generateUserAgent } from '@main/utils/systemInfo'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
@@ -318,23 +316,7 @@ export class WindowService {
   }
 
   private setupWebRequestHeaders(mainWindow: BrowserWindow) {
-    const webSession = mainWindow.webContents.session
-
-    // 拦截请求头，将 x-custom-user-agent 转换为 User-Agent
-    // 这是因为 User-Agent 在 renderer 进程的 Fetch API 中是 forbidden header，无法直接设置
-    webSession.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
-      const requestHeaders = normalizeHeaders(details.requestHeaders)
-
-      const customUA = requestHeaders['x-custom-user-agent']
-      if (customUA) {
-        requestHeaders['User-Agent'] = customUA
-        delete requestHeaders['x-custom-user-agent']
-      }
-
-      callback({ requestHeaders: withUserAgentSuffix(requestHeaders, generateUserAgent()) })
-    })
-
-    webSession.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+    mainWindow.webContents.session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
       if (details.responseHeaders?.['X-Frame-Options']) {
         delete details.responseHeaders['X-Frame-Options']
       }

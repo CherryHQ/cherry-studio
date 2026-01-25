@@ -73,6 +73,10 @@ export async function fetchWebContent(
       html = await Promise.race(promisesToRace)
     } else {
       const response = await fetch(url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
         ...httpOptions,
         signal: httpOptions?.signal
           ? AbortSignal.any([httpOptions.signal, AbortSignal.timeout(30000)])
@@ -130,7 +134,11 @@ export async function fetchRedirectUrl(url: string) {
   try {
     const response = await fetch(url, {
       method: 'HEAD',
-      redirect: 'follow'
+      redirect: 'follow',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
     })
     return response.url
   } catch (e) {

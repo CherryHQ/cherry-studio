@@ -3,8 +3,6 @@
  * 提供类型安全的 Provider 配置构建器
  */
 
-import { normalizeHeaders } from '@ai-sdk/provider-utils'
-
 import type { ProviderId, ProviderSettingsMap } from './types'
 
 /**
@@ -81,7 +79,7 @@ export class ProviderConfigBuilder<T extends ProviderId = ProviderId> {
    */
   withRequestConfig(options: { headers?: Record<string, string>; fetch?: typeof fetch }): this {
     if (options.headers) {
-      this.config.headers = normalizeHeaders({ ...this.config.headers, ...options.headers })
+      this.config.headers = { ...this.config.headers, ...options.headers }
     }
     if (options.fetch) {
       this.config.fetch = options.fetch
@@ -142,7 +140,6 @@ export class ProviderConfigFactory {
     provider: CompleteProviderConfig<T>,
     options?: {
       headers?: Record<string, string>
-      fetch?: typeof globalThis.fetch
       [key: string]: any
     }
   ): ProviderSettingsMap[T] {
@@ -158,10 +155,9 @@ export class ProviderConfigFactory {
     }
 
     // 设置请求配置
-    if (options?.headers || options?.fetch) {
+    if (options?.headers) {
       builder.withRequestConfig({
-        headers: options.headers,
-        fetch: options.fetch
+        headers: options.headers
       })
     }
 
@@ -175,7 +171,6 @@ export class ProviderConfigFactory {
     if (options) {
       const customOptions = { ...options }
       delete customOptions.headers // 已经处理过了
-      delete customOptions.fetch
       if (Object.keys(customOptions).length > 0) {
         builder.withCustomParams(customOptions)
       }

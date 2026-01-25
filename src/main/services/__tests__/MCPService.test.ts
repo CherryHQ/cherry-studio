@@ -1,15 +1,6 @@
 import type { MCPServer, MCPTool } from '@types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('os', () => ({
-  default: {
-    release: vi.fn(() => '10.0.0'),
-    homedir: vi.fn(() => '/home/test')
-  },
-  release: vi.fn(() => '10.0.0'),
-  homedir: vi.fn(() => '/home/test')
-}))
-
 vi.mock('@main/apiServer/utils/mcp', () => ({
   getMCPServersFromRedux: vi.fn()
 }))
