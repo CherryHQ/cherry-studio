@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
@@ -51,7 +51,7 @@ const MinAppPage: FC = () => {
     if (!appId) return null
 
     // First try to find in default and custom mini-apps
-    let foundApp = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+    let foundApp = [...allMinApps, ...minapps].find((app) => app.id === appId)
 
     // If not found and we have cache, try to find in cache (for temporary apps)
     if (!foundApp && minAppsCache) {

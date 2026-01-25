@@ -1,5 +1,5 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
@@ -32,9 +32,9 @@ const MiniAppSettings: FC = () => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleResetMinApps = useCallback(() => {
-    setVisibleMiniApps(DEFAULT_MIN_APPS)
+    setVisibleMiniApps(allMinApps)
     setDisabledMiniApps([])
-    updateMinapps(DEFAULT_MIN_APPS)
+    updateMinapps(allMinApps)
     updateDisabledMinapps([])
   }, [updateDisabledMinapps, updateMinapps])
 

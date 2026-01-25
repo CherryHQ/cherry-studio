@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isLinux, isMac } from '@renderer/config/constant'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -58,7 +58,7 @@ const getTabIcon = (
   // Check if it's a minapp tab (format: apps:appId)
   if (tabId.startsWith('apps:')) {
     const appId = tabId.replace('apps:', '')
-    let app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+    let app = [...allMinApps, ...minapps].find((app) => app.id === appId)
 
     // If not found in permanent apps, search in temporary apps cache
     // The cache stores apps opened via openSmartMinapp() for top navbar mode
@@ -140,7 +140,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     // Check if it's a minapp tab
     if (tabId.startsWith('apps:')) {
       const appId = tabId.replace('apps:', '')
-      let app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+      let app = [...allMinApps, ...minapps].find((app) => app.id === appId)
 
       // If not found in permanent apps, search in temporary apps cache
       // This ensures temporary MinApps display proper titles while being used

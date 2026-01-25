@@ -13,7 +13,7 @@ import {
 import { loggerService } from '@logger'
 import WindowControls from '@renderer/components/WindowControls'
 import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -246,7 +246,7 @@ const MinappPopupContainer: React.FC = () => {
       (acc, app) => ({
         ...acc,
         [app.id]: {
-          canPinned: DEFAULT_MIN_APPS.some((item) => item.id === app.id),
+          canPinned: allMinApps.some((item) => item.id === app.id),
           isPinned: pinned.some((item) => item.id === app.id),
           canOpenExternalLink: app.url.startsWith('http://') || app.url.startsWith('https://')
         }

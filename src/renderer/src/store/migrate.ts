@@ -22,7 +22,7 @@ import {
   DEFAULT_TEMPERATURE,
   isMac
 } from '@renderer/config/constant'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import {
   glm45FlashModel,
   isFunctionCallingModel,
@@ -99,7 +99,7 @@ function removeMiniAppFromState(state: RootState, id: string) {
 
 function addMiniApp(state: RootState, id: string) {
   if (state.minapps) {
-    const app = DEFAULT_MIN_APPS.find((app) => app.id === id)
+    const app = allMinApps.find((app) => app.id === id)
     if (app) {
       if (!state.minapps.enabled.find((app) => app.id === id)) {
         state.minapps.enabled.push(app)
@@ -1076,7 +1076,7 @@ const migrateConfig = {
 
       if (state.minapps) {
         appIds.forEach((id) => {
-          const app = DEFAULT_MIN_APPS.find((app) => app.id === id)
+          const app = allMinApps.find((app) => app.id === id)
           if (app) {
             state.minapps.enabled.push(app)
           }
