@@ -48,15 +48,13 @@
 
 将能力（Feature）与输入/输出类型绑定，支持 Feature 级别的 API 配置：
 
-| 字段               | 类型                                   | 说明                              |
-| ------------------ | -------------------------------------- | --------------------------------- |
-| `feature`          | `'text_extraction' \| 'to_markdown'`   | 能力类型                          |
-| `input`            | `'image' \| 'document'`                | 输入类型                          |
-| `output`           | `'text' \| 'markdown'`                 | 输出类型                          |
-| `supportedFormats` | `string[]?`                            | 白名单：仅支持这些格式            |
-| `excludedFormats`  | `string[]?`                            | 黑名单：除这些格式外都支持        |
-| `defaultApiHost`   | `string?`                              | Feature 级默认 API Host           |
-| `defaultModelId`   | `string?`                              | Feature 级默认 Model ID           |
+| 字段       | 类型                                   | 说明                              |
+| ---------- | -------------------------------------- | --------------------------------- |
+| `feature`  | `'text_extraction' \| 'markdown_conversion'` | 能力类型                          |
+| `input`    | `'image' \| 'document'`                | 输入类型                          |
+| `output`   | `'text' \| 'markdown'`                 | 输出类型                          |
+| `apiHost`  | `string?`                              | 模板默认 API Host（可被用户覆盖） |
+| `modelId`  | `string?`                              | 模板默认 Model ID（可被用户覆盖） |
 
 ### 模板元数据：`FileProcessorMetadata`
 
@@ -73,31 +71,20 @@
 
 Preference Key: `feature.file_processing.overrides`，类型为 `FileProcessorOverrides`（`Record<string, FileProcessorOverride>`）。
 
-| 字段             | 类型                    | 说明                              |
-| ---------------- | ----------------------- | --------------------------------- |
-| `apiKey`         | `string?`                  | API Key（处理器级共享）           |
-| `featureConfigs` | `FeatureUserConfig[]?`     | Feature 级配置                    |
-| `options`        | `Record<string, unknown>?` | 处理器特定配置                    |
+| 字段            | 类型                                                           | 说明                              |
+| --------------- | -------------------------------------------------------------- | --------------------------------- |
+| `apiKey`        | `string?`                                                      | API Key（处理器级共享）           |
+| `capabilities`  | `Partial<Record<FileProcessorFeature, CapabilityOverride>>?`   | Feature 级覆盖配置                |
+| `options`       | `Record<string, unknown>?`                                     | 处理器特定配置                    |
 
-### Feature 用户配置：`FeatureUserConfig`
+### Feature 覆盖配置：`CapabilityOverride`
 
 允许用户对特定 Feature 覆盖 API Host 和 Model ID：
 
 | 字段       | 类型                                   | 说明                              |
 | ---------- | -------------------------------------- | --------------------------------- |
-| `feature`  | `'text_extraction' \| 'to_markdown'`   | 能力类型                          |
 | `apiHost`  | `string?`                              | 用户覆盖的 API Host               |
 | `modelId`  | `string?`                              | 用户覆盖的 Model ID               |
-
-### 格式过滤规则
-
-`FeatureCapability` 中的 `supportedFormats` 和 `excludedFormats` 用于控制格式支持：
-
-| 情况                     | 行为                                    |
-| ------------------------ | --------------------------------------- |
-| 都不指定                 | 支持该 input 类别的所有格式             |
-| 指定 `supportedFormats`  | 仅支持列出的格式（白名单模式）          |
-| 指定 `excludedFormats`   | 支持除列出格式外的所有格式（黑名单模式）|
 
 ---
 
@@ -108,13 +95,13 @@ Preference Key: `feature.file_processing.overrides`，类型为 `FileProcessorOv
 ### Feature（能力）
 
 ```typescript
-type FileProcessorFeature = 'text_extraction' | 'to_markdown'
+type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
 ```
 
 | 类型              | 说明                                    |
 | ----------------- | --------------------------------------- |
 | `text_extraction` | 文字提取（继承 OCR 功能）               |
-| `to_markdown`     | 转换为 Markdown（继承文档预处理功能）   |
+| `markdown_conversion` | 转换为 Markdown（继承文档预处理功能）   |
 
 **设计说明**：简化为两个核心能力，不再细分 `layout_analysis`、`table_detection`、`formula_detection`、`multimodal` 等具体实现细节。这些能力细节由具体 processor 内部实现。
 
@@ -164,10 +151,10 @@ type FileProcessorType = 'api' | 'builtin'
   },
   capabilities: [
     {
-      feature: 'to_markdown',
+      feature: 'markdown_conversion',
       input: 'document',
       output: 'markdown',
-      defaultApiHost: 'https://mineru.net'
+      apiHost: 'https://mineru.net'
     }
   ]
 }
@@ -193,11 +180,11 @@ type FileProcessorType = 'api' | 'builtin'
   type: 'api',
   capabilities: [
     {
-      feature: 'to_markdown',
+      feature: 'markdown_conversion',
       input: 'document',
       output: 'markdown',
-      defaultApiHost: 'https://api.mistral.ai',
-      defaultModelId: 'mistral-ocr-latest'
+      apiHost: 'https://api.mistral.ai',
+      modelId: 'mistral-ocr-latest'
     }
   ]
 }
@@ -206,19 +193,19 @@ type FileProcessorType = 'api' | 'builtin'
 ### 用户配置示例（UserConfig）
 
 ```typescript
-// 用户为 MinerU 配置了 API Key
+// overrides 以处理器 id 为 key
 {
-  id: 'mineru',
-  apiKey: '***'
+  mineru: { apiKey: '***' }
 }
 
-// 用户为 PaddleOCR 配置了不同 feature 的 API Host
+// 用户为 PaddleOCR 配置了不同 Feature 的 API Host
 {
-  id: 'paddleocr',
-  apiKey: '***',
-  featureConfigs: [
-    { feature: 'text_extraction', apiHost: 'https://my-paddleocr-server.com' }
-  ]
+  paddleocr: {
+    apiKey: '***',
+    capabilities: {
+      text_extraction: { apiHost: 'https://my-paddleocr-server.com' }
+    }
+  }
 }
 ```
 
@@ -230,10 +217,10 @@ type FileProcessorType = 'api' | 'builtin'
 | System OCR    | builtin | text_extraction (image → text)                         |
 | PaddleOCR     | api     | text_extraction (image → text)                         |
 | Intel OV OCR  | builtin | text_extraction (image → text)                         |
-| MinerU        | api     | to_markdown (document → markdown)                      |
-| Doc2x         | api     | to_markdown (document → markdown)                      |
-| Mistral       | api     | to_markdown (document → markdown)                      |
-| Open MinerU   | api     | to_markdown (document → markdown)                      |
+| MinerU        | api     | markdown_conversion (document → markdown)                |
+| Doc2x         | api     | markdown_conversion (document → markdown)                |
+| Mistral       | api     | markdown_conversion (document → markdown)                |
+| Open MinerU   | api     | markdown_conversion (document → markdown)                |
 
 ### 本质区别对比
 
@@ -298,9 +285,14 @@ type FileProcessorType = 'api' | 'builtin'
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 下一步
+## 现状与后续
 
-1. 完善 TypeScript 类型定义
-2. 设计统一服务接口 `FileProcessingService`
-3. 迁移现有 OCR 和 Preprocess 实现
-4. 实现 UI 设置页面
+当前实现已覆盖：
+1. TypeScript 类型定义与模板预设
+2. `FileProcessingService` 统一服务接口
+3. OCR 与 Preprocess 处理器迁移
+4. 文件处理设置页（默认处理器 + API 配置）
+
+后续可选方向：
+1. 增加更多处理器与输入类型
+2. 补充格式过滤等能力字段

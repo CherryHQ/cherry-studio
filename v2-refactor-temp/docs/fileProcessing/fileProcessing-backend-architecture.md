@@ -63,7 +63,7 @@ src/main/knowledge/preprocess/
 ### 功能需求
 
 1. **统一接口**: 将 OCR 和 Preprocess 统一为 File Processing 服务
-2. **能力支持**: `text_extraction` (文字提取) 和 `to_markdown` (转 Markdown)
+2. **能力支持**: `text_extraction` (文字提取) 和 `markdown_conversion` (转 Markdown)
 3. **输入类型**: `image` (图片) 和 `document` (文档)
 4. **配置集成**: 从 Preference 系统获取配置（模板 + 用户覆盖合并）
 5. **异步处理**: `/process` 启动任务，`/result` 查询状态与结果
@@ -96,10 +96,12 @@ src/main/knowledge/preprocess/
 ┌─────────────────────────────────────────────────────────────────┐
 │                  FileProcessingService                           │
 │                    (主编排服务)                                   │
-│  - startProcess(file, request)                                  │
+│  - startProcess(dto)                                            │
 │  - getResult(requestId)                                         │
 │  - cancel(requestId)                                            │
-│  - listAvailableProcessors()                                    │
+│  - listAvailableProcessors(feature?)                            │
+│  - getProcessor(processorId)                                    │
+│  - updateProcessorConfig(processorId, update)                   │
 └─────────┬───────────────────────────────────┬───────────────────┘
           │                                   │
           ▼                                   ▼
@@ -109,7 +111,8 @@ src/main/knowledge/preprocess/
 │                     │             │                      │
 │ - register()        │             │ - getConfiguration() │
 │ - get()             │             │ - getDefaultProcessor│
-│ - findByCapability()│             │ - onConfigChange()   │
+│ - getAll()           │             │ - updateConfiguration()│
+│ - unregister()       │             │                      │
 └─────────┬───────────┘             └──────────┬──────────┘
           │                                    │
           │                                    ▼
@@ -123,13 +126,10 @@ src/main/knowledge/preprocess/
 │                       (接口抽象)                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │  ITextExtractor              │  IMarkdownConverter               │
-│  - extractText()             │  - toMarkdown()                   │
+│  - extractText()             │  - convertToMarkdown()             │
 ├─────────────────────────────────────────────────────────────────┤
 │  IProcessStatusProvider                                        │
 │  - getStatus()                                                │
-├─────────────────────────────────────────────────────────────────┤
-│  IDisposable                                                     │
-│  - dispose()                                                     │
 └─────────────────────────────────────────────────────────────────┘
           │
           ▼
@@ -145,7 +145,7 @@ src/main/knowledge/preprocess/
 │  Builtin:                    │  API:                             │
 │  - TesseractProcessor        │  - MineruProcessor                │
 │  - SystemOcrProcessor        │  - Doc2xProcessor                 │
-│  - PpocrProcessor            │  - MistralProcessor               │
+│  - PaddleProcessor           │  - MistralProcessor               │
 │  - OvOcrProcessor            │  - OpenMineruProcessor            │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -158,7 +158,7 @@ A. 启动处理 /process
 1. IPC 请求
       │
       ▼
-2. FileProcessingService.startProcess(file, request)
+2. FileProcessingService.startProcess(dto)
       │
       ├──► ConfigurationService.getConfiguration(processorId)
       │         │
@@ -173,16 +173,11 @@ A. 启动处理 /process
       │         ▼
       │    获取 IFileProcessor 实例
       │
-      ├──► ProcessorRegistry.get(processorId)
-      │         │
-      │         ▼
-      │    获取 IFileProcessor 实例
-      │
       ▼
 3. 创建任务记录 (pending) + 异步调度
       │
-      ├── 同步处理器: 后台执行 extractText / toMarkdown
-      └── 异步处理器: processor.extractText/toMarkdown → 保存 providerTaskId
+      ├── 同步处理器: 后台执行 extractText / convertToMarkdown
+      └── 异步处理器: processor.extractText/convertToMarkdown → metadata.providerTaskId
       │
       ▼
 4. 返回 { requestId, status: 'pending' }
@@ -271,7 +266,6 @@ import type { ProcessingContext, ProcessingResult } from './types'
 interface IFileProcessor {
   readonly id: string
   readonly template: FileProcessorTemplate
-  supports(feature: FileProcessorFeature, inputType: FileProcessorInput): boolean
   isAvailable(): Promise<boolean>
 }
 
@@ -287,12 +281,7 @@ interface ITextExtractor extends IFileProcessor {
 
 // Markdown 转换能力 (原 Preprocess)
 interface IMarkdownConverter extends IFileProcessor {
-  toMarkdown(input: FileMetadata, config: FileProcessorMerged, context: ProcessingContext): Promise<ProcessingResult>
-}
-
-// 资源释放能力 - 有状态的 Provider 实现
-interface IDisposable {
-  dispose(): Promise<void>
+  convertToMarkdown(input: FileMetadata, config: FileProcessorMerged, context: ProcessingContext): Promise<ProcessingResult>
 }
 ```
 
@@ -306,7 +295,7 @@ const isTextExtractor = (p: IFileProcessor): p is ITextExtractor =>
   'extractText' in p && typeof p.extractText === 'function'
 
 const isMarkdownConverter = (p: IFileProcessor): p is IMarkdownConverter =>
-  'toMarkdown' in p && typeof p.toMarkdown === 'function'
+  'convertToMarkdown' in p && typeof p.convertToMarkdown === 'function'
 
 const isProcessStatusProvider = (p: IFileProcessor): p is IProcessStatusProvider =>
   'getStatus' in p && typeof (p as IProcessStatusProvider).getStatus === 'function'
@@ -336,44 +325,32 @@ interface ProcessingError {
 ### BaseFileProcessor (抽象基类)
 
 **职责**：
-- 提供通用的能力检查方法 (`supports`)
 - 提供取消检查方法 (`checkCancellation`)
 - 提供可用性检查默认实现 (`isAvailable`)
+- 提供基础校验与配置访问工具
 
 **关键方法**：
 
 | 方法 | 说明 |
 |------|------|
-| `supports(feature, inputType)` | 检查是否支持指定能力 |
 | `isAvailable()` | 检查处理器是否可用（子类可覆盖） |
 | `checkCancellation(context)` | 检查取消状态 |
+| `validateFile(file)` | 校验输入文件路径 |
+| `getApiKey(config)` | 获取 API Key |
 | `getCapability(feature)` | 获取能力配置 |
 
 ### BaseTextExtractor / BaseMarkdownConverter
 
 **职责**：
-- 实现模板方法模式，定义处理框架
-- 统一验证、日志、取消检查
-- 子类只需实现核心业务逻辑
-
-**模板方法流程**：
-
-```
-extractText / toMarkdown
-    │
-    ├── 日志记录
-    ├── 取消检查 (checkCancellation)
-    ├── 输入验证 (validateInput / validateDocument)
-    ├── 核心处理 (doExtractText / doConvert) ← 子类实现
-    └── 返回结果
-```
+- 提供 API Host 获取与通用校验工具
+- BaseMarkdownConverter 负责临时目录与文档限制检查
+- 子类实现具体处理逻辑（`extractText` / `convertToMarkdown`）
 
 ### ProcessorRegistry (注册表)
 
 **职责**：
 - 管理处理器注册和获取
-- 按能力查找处理器
-- 检查处理器可用性
+- 批量获取可用处理器
 
 **关键方法**：
 
@@ -382,26 +359,21 @@ extractText / toMarkdown
 | `register(processor)` | 注册处理器（OCP：新增不修改现有代码） |
 | `unregister(processorId)` | 注销处理器 |
 | `get(processorId)` | 获取处理器 |
-| `findByCapability(feature, inputType)` | 按能力查找处理器 |
-| `isAvailable(processorId)` | 检查处理器可用性 |
-| `_resetForTesting()` | 测试专用：重置实例 |
+| `getAll()` | 获取全部可用处理器（内部检查 availability） |
 
 ### ConfigurationService (配置服务)
 
 **职责**：
 - 合并模板配置与用户覆盖配置，生成 `FileProcessorMerged`
 - 获取默认处理器设置
-- 监听配置变化
 
 **关键方法**：
 
 | 方法 | 说明 |
 |------|------|
 | `getConfiguration(processorId)` | 获取合并后的 `FileProcessorMerged` 配置 |
-| `getTemplate(processorId)` | 获取模板配置 |
-| `getDefaultProcessor(inputType)` | 获取默认处理器 |
-| `onConfigurationChange(callback)` | 订阅配置变化 |
-| `_resetForTesting()` | 测试专用：重置实例 |
+| `updateConfiguration(processorId, update)` | 合并并写回用户覆盖配置 |
+| `getDefaultProcessor(feature)` | 获取默认处理器 |
 
 **配置合并逻辑**：
 
@@ -409,7 +381,7 @@ extractText / toMarkdown
 Template (只读)  +  UserOverride (Preference)  →  FileProcessorMerged
       │                      │
       ├── id                 ├── apiKey
-      ├── type               ├── featureConfigs[]
+      ├── type               ├── capabilities (Record)
       └── capabilities       └── options
 ```
 
@@ -419,17 +391,18 @@ Template (只读)  +  UserOverride (Preference)  →  FileProcessorMerged
 - 启动异步任务并统一同步/异步处理器行为
 - 管理任务状态与取消控制器
 - 对外提供查询接口（不在内部轮询）
-- 完成/失败后即时清理任务记录
+- 完成/失败后标记完成时间并由 TTL 清理任务记录
 
 **关键方法**：
 
 | 方法 | 说明 |
 |------|------|
-| `startProcess(file, request?)` | 启动处理任务，返回 requestId |
+| `startProcess(dto)` | 启动处理任务，返回 requestId |
 | `getResult(requestId)` | 查询处理状态/进度/结果 |
 | `cancel(requestId)` | 取消处理（返回失败状态） |
-| `listAvailableProcessors(inputType)` | 列出可用处理器 |
-| `getInputType(file)` | 判断文件输入类型 |
+| `listAvailableProcessors(feature?)` | 列出可用处理器 |
+| `getProcessor(processorId)` | 获取单个处理器配置 |
+| `updateProcessorConfig(processorId, update)` | 更新处理器配置 |
 
 ---
 
@@ -456,26 +429,27 @@ Template (只读)  +  UserOverride (Preference)  →  FileProcessorMerged
 ### Renderer 端调用方式
 
 ```typescript
-// 使用 Hook
-const { startProcess, getResult, cancel } = useFileProcessing()
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 
-// OCR，启动处理
-const { requestId } = await startProcess(file, 'text_extraction')
+// 启动处理
+const { trigger: startProcess } = useMutation('POST', '/file-processing/process')
+const { requestId } = await startProcess({ body: { file, feature: 'text_extraction' } })
 
 // 查询结果/进度
-const result = await getResult(requestId)
+const { data: result } = useQuery('/file-processing/result', { query: { requestId } })
 
 // 取消
-cancel(requestId)
+const { trigger: cancel } = useMutation('POST', '/file-processing/cancel')
+await cancel({ body: { requestId } })
 ```
 
-> **注意**：当状态为 `completed` 或 `failed` 时，任务记录会在本次查询后立即清理，后续查询将返回未找到。取消任务同样只保留一次查询。
+> **注意**：当状态为 `completed` 或 `failed` 时，任务记录会标记完成并在 TTL（5 分钟）后清理，TTL 过后查询将返回未找到。
 
 ### Main 进程直接调用
 
 ```typescript
 // Service 调用
-const { requestId } = await fileProcessingService.startProcess(file, { feature: 'text_extraction' })
+const { requestId } = await fileProcessingService.startProcess({ file, feature: 'text_extraction' })
 const result = await fileProcessingService.getResult(requestId)
 fileProcessingService.cancel(requestId)
 ```
@@ -571,8 +545,7 @@ packages/shared/data/presets/
 |------|--------|--------|
 | 9 | `providers/builtin/TesseractProcessor.ts` | `ocr/builtin/TesseractService.ts` |
 | 10 | `providers/builtin/SystemOcrProcessor.ts` | `ocr/builtin/SystemOcrService.ts` |
-| 11 | `providers/builtin/PpocrProcessor.ts` | `ocr/builtin/PpocrService.ts` |
-| 12 | `providers/builtin/OvOcrProcessor.ts` | `ocr/builtin/OvOcrService.ts` |
+| 11 | `providers/builtin/OvOcrProcessor.ts` | `ocr/builtin/OvOcrService.ts` |
 
 ### ✅ Phase 4: 迁移 API 处理器
 
@@ -582,12 +555,13 @@ packages/shared/data/presets/
 | 14 | `providers/api/Doc2xProcessor.ts` | `preprocess/Doc2xPreprocessProvider.ts` |
 | 15 | `providers/api/MistralProcessor.ts` | `preprocess/MistralPreprocessProvider.ts` |
 | 16 | `providers/api/OpenMineruProcessor.ts` | `preprocess/OpenMineruPreprocessProvider.ts` |
+| 17 | `providers/api/PaddleProcessor.ts` | `ocr/builtin/PpocrService.ts` |
 
 ### ✅ Phase 5: 异步任务迁移
 
 | 步骤 | 文件 | 说明 |
 |------|------|------|
-| 17 | `FileProcessingService.ts` | 异步任务迁移（启动/查询/取消） |
+| 18 | `FileProcessingService.ts` | 异步任务迁移（启动/查询/取消） |
 
 **已完成的变更：**
 
@@ -597,7 +571,7 @@ packages/shared/data/presets/
   - `startProcess()`: 立即返回 `{ requestId, status: 'pending' }`
   - `getResult()`: 查询任务状态/进度/结果
   - `cancel()`: 取消正在进行的任务
-  - 已完成/失败任务在首次查询后立即清理
+  - 已完成/失败任务标记完成时间并由 TTL 清理
 - `packages/shared/data/types/fileProcessing.ts`: 添加 `ProcessingStatus`, `ProcessingError`, `ProcessStartResponse`, `ProcessResultResponse`
 - `packages/shared/data/api/schemas/fileProcessing.ts`: 添加 `/result` 端点
 - `src/main/data/api/handlers/fileProcessing.ts`: 添加 `/result` handler
@@ -606,10 +580,10 @@ packages/shared/data/presets/
 
 | 步骤 | 文件 | 说明 |
 |------|------|------|
-| 18 | `FileProcessingService.ts` | 创建主服务 |
-| 19 | `index.ts` | 创建注册引导和导出 |
-| 20 | `src/main/data/api/handlers/fileProcessing.ts` | 创建 DataApi Handler |
-| 21 | - | 不需要向后兼容 |
+| 19 | `FileProcessingService.ts` | 创建主服务 |
+| 20 | `index.ts` | 创建注册引导和导出 |
+| 21 | `src/main/data/api/handlers/fileProcessing.ts` | 创建 DataApi Handler |
+| 22 | - | 不需要向后兼容 |
 
 **集成验证清单：**
 
@@ -620,10 +594,10 @@ packages/shared/data/presets/
 
 | 步骤 | 说明 |
 |------|------|
-| 22 | 标记旧代码为 `@deprecated` |
-| 23 | 更新知识库服务使用新 API |
-| 24 | 移除旧的 `PreprocessProviderFactory` |
-| 25 | 创建端到端集成测试 |
+| 23 | 标记旧代码为 `@deprecated` |
+| 24 | 更新知识库服务使用新 API |
+| 25 | 移除旧的 `PreprocessProviderFactory` |
+| 26 | 创建端到端集成测试 |
 
 ---
 
@@ -638,9 +612,9 @@ packages/shared/data/presets/
 
 | 组件 | 测试内容 |
 |------|----------|
-| ProcessorRegistry | 注册、获取、按能力查找、重复注册检测 |
-| ConfigurationService | 配置合并、默认处理器获取、变化通知 |
-| BaseFileProcessor | 取消检查、能力检查 |
+| ProcessorRegistry | 注册、获取、可用性过滤、重复注册检测 |
+| ConfigurationService | 配置合并、默认处理器获取、更新写入 |
+| BaseFileProcessor | 取消检查、基础校验 |
 | FileProcessingService | 启动/查询/取消流程、任务清理 |
 
 ### 验证方案
@@ -663,8 +637,8 @@ packages/shared/data/presets/
 ### 步骤 1: 创建 Provider 类
 
 根据能力类型选择基类：
-- **文字提取 (OCR)**: 继承 `BaseTextExtractor`，实现 `doExtractText()`
-- **Markdown 转换**: 继承 `BaseMarkdownConverter`，实现 `doConvert()`
+- **文字提取 (OCR)**: 继承 `BaseTextExtractor`，实现 `extractText()`
+- **Markdown 转换**: 继承 `BaseMarkdownConverter`，实现 `convertToMarkdown()`
 
 ### 步骤 2: 注册到系统
 
@@ -683,7 +657,7 @@ packages/shared/data/presets/
 | **S - 单一职责** | 每个类只有一个变化原因：`ProcessorRegistry` 管理注册，`ConfigurationService` 合并配置，各 Processor 只负责具体处理逻辑 |
 | **O - 开闭原则** | 新增 Provider 只需创建类并注册到 `processorRegistry`，无需修改现有代码 |
 | **L - 里氏替换** | 所有处理器继承 `BaseFileProcessor` 并实现 `IFileProcessor`，可以互换使用 |
-| **I - 接口隔离** | 分离 `ITextExtractor`、`IMarkdownConverter`、`IDisposable` 等细粒度接口 |
+| **I - 接口隔离** | 分离 `ITextExtractor`、`IMarkdownConverter`、`IProcessStatusProvider` 等细粒度接口 |
 | **D - 依赖倒置** | `FileProcessingService` 依赖 `IFileProcessor` 抽象和 `IConfigurationProvider` 接口，不依赖具体实现 |
 
 ---
@@ -702,10 +676,7 @@ packages/shared/data/presets/
 | 文件 | 说明 |
 |------|------|
 | `packages/shared/data/presets/fileProcessing.ts` | 类型定义 + 模板配置 |
-| `src/renderer/src/config/fileProcessing.ts` | Renderer 配置入口 |
-| `src/main/services/ocr/` | 现有 OCR 实现（待迁移） |
-| `src/main/knowledge/preprocess/` | 现有 Preprocess 实现（待迁移） |
+| `src/main/services/ocr/` | 旧 OCR 实现（历史参考） |
+| `src/main/knowledge/preprocess/` | 旧 Preprocess 实现（历史参考） |
 
 ---
-
-*文档更新于 2026-01-24*
