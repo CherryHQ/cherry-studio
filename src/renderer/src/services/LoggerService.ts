@@ -61,6 +61,13 @@ class LoggerService {
         }
       }
     }
+
+    // Listen for log level broadcasts from main process
+    if (!IS_WORKER) {
+      window.api.onLogLevelChange((level: LogLevel) => {
+        this.setLevel(level)
+      })
+    }
   }
 
   /**

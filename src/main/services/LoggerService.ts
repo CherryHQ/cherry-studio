@@ -56,6 +56,9 @@ class LoggerService {
   private envLevel: LogLevel = LEVEL.NONE
   private envShowModules: string[] = []
 
+  // user-configurable log level for console output
+  private consoleLevel: LogLevel = DEFAULT_LEVEL
+
   private logsDir: string = ''
 
   private module: string = ''
@@ -180,73 +183,95 @@ class LoggerService {
   }
 
   /**
+   * Check if should output to console based on level and dev mode settings
+   */
+  private shouldOutputToConsole(level: LogLevel): boolean {
+    const currentLevelValue = LEVEL_MAP[level]
+
+    // Check user-configured console level
+    if (currentLevelValue < LEVEL_MAP[this.consoleLevel]) {
+      return false
+    }
+
+    // Additional dev mode checks
+    if (isDev) {
+      if (this.envLevel !== LEVEL.NONE && currentLevelValue < LEVEL_MAP[this.envLevel]) {
+        return false
+      }
+      if (this.module && this.envShowModules.length > 0 && !this.envShowModules.includes(this.module)) {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  /**
+   * Output log to console with formatting
+   */
+  private outputToConsole(source: LogSourceWithContext, level: LogLevel, message: string, meta: any[]): void {
+    const datetimeColored = colorText(
+      new Date().toLocaleString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits: 3,
+        hour12: false
+      }),
+      'CYAN'
+    )
+
+    let moduleString = ''
+    if (source.process === 'main') {
+      moduleString = this.module ? ` [${colorText(this.module, 'UNDERLINE')}] ` : ' '
+    } else {
+      moduleString = ` [${colorText(source.window || '', 'UNDERLINE')}::${colorText(source.module || '', 'UNDERLINE')}] `
+    }
+
+    const formatted = `${datetimeColored} ${colorText(colorText(`<${level.toUpperCase()}>`, this.getLevelColor(level)), 'BOLD')}${moduleString}${message}`
+
+    switch (level) {
+      case LEVEL.ERROR:
+        console.error(formatted, ...meta)
+        break
+      case LEVEL.WARN:
+        console.warn(formatted, ...meta)
+        break
+      case LEVEL.INFO:
+        console.info(formatted, ...meta)
+        break
+      case LEVEL.DEBUG:
+        console.debug(formatted, ...meta)
+        break
+      default:
+        console.log(formatted, ...meta)
+    }
+  }
+
+  /**
+   * Get color for log level
+   */
+  private getLevelColor(level: LogLevel): string {
+    switch (level) {
+      case LEVEL.ERROR:
+        return 'RED'
+      case LEVEL.WARN:
+        return 'YELLOW'
+      case LEVEL.INFO:
+        return 'GREEN'
+      case LEVEL.DEBUG:
+        return 'BLUE'
+      default:
+        return 'END'
+    }
+  }
+
+  /**
    * Process and output log messages with source information
-   * @param source - The log source with context
-   * @param level - The log level
-   * @param message - The log message
-   * @param meta - Additional metadata to log
    */
   private processLog(source: LogSourceWithContext, level: LogLevel, message: string, meta: any[]): void {
-    if (isDev) {
-      // skip if env level is set and current level is less than env level
-      if (this.envLevel !== LEVEL.NONE && LEVEL_MAP[level] < LEVEL_MAP[this.envLevel]) {
-        return
-      }
-      // skip if env show modules is set and current module is not in the list
-      if (this.module && this.envShowModules.length > 0 && !this.envShowModules.includes(this.module)) {
-        return
-      }
-
-      const datetimeColored = colorText(
-        new Date().toLocaleString('zh-CN', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          fractionalSecondDigits: 3,
-          hour12: false
-        }),
-        'CYAN'
-      )
-
-      let moduleString = ''
-      if (source.process === 'main') {
-        moduleString = this.module ? ` [${colorText(this.module, 'UNDERLINE')}] ` : ' '
-      } else {
-        moduleString = ` [${colorText(source.window || '', 'UNDERLINE')}::${colorText(source.module || '', 'UNDERLINE')}] `
-      }
-
-      switch (level) {
-        case LEVEL.ERROR:
-          console.error(
-            `${datetimeColored} ${colorText(colorText('<ERROR>', 'RED'), 'BOLD')}${moduleString}${message}`,
-            ...meta
-          )
-          break
-        case LEVEL.WARN:
-          console.warn(
-            `${datetimeColored} ${colorText(colorText('<WARN>', 'YELLOW'), 'BOLD')}${moduleString}${message}`,
-            ...meta
-          )
-          break
-        case LEVEL.INFO:
-          console.info(
-            `${datetimeColored} ${colorText(colorText('<INFO>', 'GREEN'), 'BOLD')}${moduleString}${message}`,
-            ...meta
-          )
-          break
-        case LEVEL.DEBUG:
-          console.debug(
-            `${datetimeColored} ${colorText(colorText('<DEBUG>', 'BLUE'), 'BOLD')}${moduleString}${message}`,
-            ...meta
-          )
-          break
-        case LEVEL.VERBOSE:
-          console.log(`${datetimeColored} ${colorText('<VERBOSE>', 'BOLD')}${moduleString}${message}`, ...meta)
-          break
-        case LEVEL.SILLY:
-          console.log(`${datetimeColored} ${colorText('<SILLY>', 'BOLD')}${moduleString}${message}`, ...meta)
-          break
-      }
+    if (this.shouldOutputToConsole(level)) {
+      this.outputToConsole(source, level, message, meta)
     }
 
     // add source information to meta
@@ -341,6 +366,7 @@ class LoggerService {
    * @param level - The log level to set
    */
   public setLevel(level: LogLevel): void {
+    this.consoleLevel = level
     this.logger.level = level
   }
 
@@ -349,7 +375,7 @@ class LoggerService {
    * @returns The current log level
    */
   public getLevel(): LogLevel {
-    return this.logger.level as LogLevel
+    return this.consoleLevel
   }
 
   /**
