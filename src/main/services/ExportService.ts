@@ -22,7 +22,6 @@ import {
 import { dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
 
-import { configManager } from './ConfigManager'
 import { fileStorage } from './FileStorage'
 
 const logger = loggerService.withContext('ExportService')
@@ -391,9 +390,6 @@ export class ExportService {
       })
 
       const buffer = await Packer.toBuffer(doc)
-
-      const locale = locales[configManager.getLanguage()]
-      const { dialog: dialogLocale } = locale.translation
 
       const filePath = dialog.showSaveDialogSync({
         title: t('dialog.save_file'),

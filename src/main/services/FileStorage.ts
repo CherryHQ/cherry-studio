@@ -31,8 +31,6 @@ import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
 
-import { configManager } from './ConfigManager'
-
 const logger = loggerService.withContext('FileStorage')
 
 // Get ripgrep binary path
@@ -823,9 +821,6 @@ class FileStorage {
     options: OpenDialogOptions
   ): Promise<{ fileName: string; filePath: string; content?: Buffer; size: number } | null> => {
     try {
-      const locale = locales[configManager.getLanguage()]
-      const { dialog: dialogLocale } = locale.translation
-
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
         title: t('dialog.open_file'),
         properties: ['openFile'],
@@ -1442,9 +1437,6 @@ class FileStorage {
     options?: SaveDialogOptions
   ): Promise<string> => {
     try {
-      const locale = locales[configManager.getLanguage()]
-      const { dialog: dialogLocale } = locale.translation
-
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
         title: t('dialog.save_file'),
         defaultPath: fileName,
@@ -1468,9 +1460,6 @@ class FileStorage {
 
   public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<void> => {
     try {
-      const locale = locales[configManager.getLanguage()]
-      const { dialog: dialogLocale } = locale.translation
-
       const filePath = dialog.showSaveDialogSync({
         defaultPath: `${name}.png`,
         filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
@@ -1487,9 +1476,6 @@ class FileStorage {
 
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {
     try {
-      const locale = locales[configManager.getLanguage()]
-      const { dialog: dialogLocale } = locale.translation
-
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
         title: t('dialog.select_folder'),
         properties: ['openDirectory'],
