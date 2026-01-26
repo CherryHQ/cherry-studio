@@ -3873,6 +3873,7 @@
       "feature": "機能",
       "feature.markdown_conversion": "Markdownに変換",
       "feature.text_extraction": "テキスト抽出",
+      "get_api_key": "APIキーを取得",
       "image_processors": "画像処理",
       "input.document": "ドキュメント",
       "input.image": "画像",

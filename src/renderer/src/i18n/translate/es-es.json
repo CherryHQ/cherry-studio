@@ -3873,6 +3873,7 @@
       "feature": "Función",
       "feature.markdown_conversion": "Convertir a Markdown",
       "feature.text_extraction": "Extracción de texto",
+      "get_api_key": "Obtener clave API",
       "image_processors": "Procesamiento de imágenes",
       "input.document": "Documento",
       "input.image": "Imagen",

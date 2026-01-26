@@ -3873,6 +3873,7 @@
       "feature": "功能",
       "feature.markdown_conversion": "转换为 Markdown",
       "feature.text_extraction": "文字提取",
+      "get_api_key": "点击这里获取密钥",
       "image_processors": "图片处理",
       "input.document": "文档",
       "input.image": "图片",

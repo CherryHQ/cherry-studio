@@ -141,7 +141,7 @@ export type FileProcessorMerged = {
 /**
  * Built-in processor presets
  */
-export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
+export const PRESETS_FILE_PROCESSORS = [
   // === Image Processors (former OCR) ===
   {
     id: 'tesseract',
@@ -243,4 +243,7 @@ export const PRESETS_FILE_PROCESSORS: FileProcessorTemplate[] = [
       }
     ]
   }
-]
+] as const satisfies readonly FileProcessorTemplate[]
+
+// Processor ID type derived from PRESETS_FILE_PROCESSORS
+export type FileProcessorId = (typeof PRESETS_FILE_PROCESSORS)[number]['id']

@@ -1,4 +1,5 @@
 import type { TesseractLangCode, TranslateLanguageCode } from '@renderer/types'
+import type { FileProcessorId } from '@shared/data/presets/fileProcessing'
 
 export const TESSERACT_LANG_MAP: Record<TranslateLanguageCode, TesseractLangCode> = {
   'af-za': 'afr',
@@ -103,4 +104,24 @@ export const TESSERACT_LANG_MAP: Record<TranslateLanguageCode, TesseractLangCode
   'uz-cyrl-uz': 'uzb_cyrl',
   'vi-vn': 'vie',
   'yi-us': 'yid'
+}
+
+type FileProcessorConfig = {
+  websites: {
+    official: string
+    apiKey?: string
+  }
+}
+
+export const FILE_PROCESSOR_CONFIG: Partial<Record<FileProcessorId, FileProcessorConfig>> = {
+  tesseract: { websites: { official: 'https://github.com/tesseract-ocr/tesseract' } },
+  system: { websites: { official: '' } },
+  paddleocr: {
+    websites: { official: 'https://aistudio.baidu.com/paddleocr', apiKey: 'https://aistudio.baidu.com/paddleocr' }
+  },
+  ovocr: { websites: { official: 'https://www.intel.com/content/www/us/en/homepage.html' } },
+  mineru: { websites: { official: 'https://mineru.net/', apiKey: 'https://mineru.net/apiManage/token' } },
+  doc2x: { websites: { official: 'https://doc2x.noedgeai.com/', apiKey: 'https://open.noedgeai.com/apiKeys' } },
+  mistral: { websites: { official: 'https://mistral.ai/', apiKey: 'https://console.mistral.ai/' } },
+  'open-mineru': { websites: { official: 'https://github.com/opendatalab/MinerU' } }
 }

@@ -3873,6 +3873,7 @@
       "feature": "Funcționalitate",
       "feature.markdown_conversion": "Convertire în Markdown",
       "feature.text_extraction": "Extragere text",
+      "get_api_key": "Obține cheie API",
       "image_processors": "Procesare imagini",
       "input.document": "Document",
       "input.image": "Imagine",

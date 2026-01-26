@@ -1,6 +1,7 @@
 import { Button, Field, FieldContent, FieldGroup, FieldLabel, Input } from '@cherrystudio/ui'
+import { FILE_PROCESSOR_CONFIG } from '@renderer/config/fileProcessing'
 import { useFileProcessor } from '@renderer/hooks/useFileProcessors'
-import { Eye, EyeOff } from 'lucide-react'
+import { ExternalLink, Eye, EyeOff } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,7 +51,16 @@ const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processorId }) =>
 
   return (
     <div className="flex w-full flex-col gap-1">
-      <div className="px-4 py-2">{t(`processor.${processor.id}.name`)}</div>
+      <div className="flex items-center gap-2 px-4 py-2">
+        {t(`settings.file_processing.processor.${processor.id}.name`)}
+        {FILE_PROCESSOR_CONFIG[processor.id]?.websites.official && (
+          <ExternalLink
+            size={14}
+            className="cursor-pointer text-muted-foreground hover:text-foreground"
+            onClick={() => window.open(FILE_PROCESSOR_CONFIG[processor.id]?.websites.official, '_blank')}
+          />
+        )}
+      </div>
       <div className="border-border border-b" />
       <FieldGroup className="px-4 py-2">
         {/* API Key */}
@@ -76,6 +86,13 @@ const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processorId }) =>
                 </Button>
               </div>
             </div>
+            {FILE_PROCESSOR_CONFIG[processor.id]?.websites.apiKey && (
+              <span
+                className="mt-1 flex cursor-pointer items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
+                onClick={() => window.open(FILE_PROCESSOR_CONFIG[processor.id]?.websites.apiKey, '_blank')}>
+                {t('settings.file_processing.get_api_key')}
+              </span>
+            )}
           </FieldContent>
         </Field>
 
