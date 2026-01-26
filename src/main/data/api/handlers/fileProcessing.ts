@@ -4,12 +4,11 @@
  * Implements all file processing-related API endpoints including:
  * - Listing available processors
  * - Updating processor configuration
- * - Starting processing (async)
- * - Querying processing result/status
- * - Cancelling processing requests
+ * - Creating processing requests (async)
+ * - Querying processing request status/result
  */
 import { fileProcessingService } from '@main/services/fileProcessing'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import { type ApiHandler, type ApiMethods, SuccessStatus } from '@shared/data/api/apiTypes'
 import type { FileProcessingSchemas } from '@shared/data/api/schemas/fileProcessing'
 import type { FileProcessorFeature } from '@shared/data/presets/fileProcessing'
 
@@ -45,21 +44,16 @@ export const fileProcessingHandlers: {
     }
   },
 
-  '/file-processing/process': {
+  '/file-processing/requests': {
     POST: async ({ body }) => {
-      return await fileProcessingService.startProcess(body)
+      const result = await fileProcessingService.startProcess(body)
+      return { data: result, status: SuccessStatus.ACCEPTED }
     }
   },
 
-  '/file-processing/result': {
-    GET: async ({ query }) => {
-      return await fileProcessingService.getResult(query.requestId)
-    }
-  },
-
-  '/file-processing/cancel': {
-    POST: async ({ body }) => {
-      return fileProcessingService.cancel(body.requestId)
+  '/file-processing/requests/:requestId': {
+    GET: async ({ params }) => {
+      return await fileProcessingService.getResult(params.requestId)
     }
   }
 }

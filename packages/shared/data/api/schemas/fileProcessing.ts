@@ -3,8 +3,8 @@
  *
  * Contains all file processing-related endpoints for:
  * - Listing available processors
- * - Processing files
- * - Cancelling processing requests
+ * - Processing files (async requests)
+ * - Querying processing request status
  */
 
 import type {
@@ -12,12 +12,7 @@ import type {
   FileProcessorMerged,
   FileProcessorOverride
 } from '@shared/data/presets/fileProcessing'
-import type {
-  CancelResponse,
-  ProcessFileDto,
-  ProcessResultResponse,
-  ProcessStartResponse
-} from '@shared/data/types/fileProcessing'
+import type { ProcessFileDto, ProcessResultResponse, ProcessStartResponse } from '@shared/data/types/fileProcessing'
 
 // ============================================================================
 // API Schema Definitions
@@ -61,11 +56,11 @@ export interface FileProcessingSchemas {
   }
 
   /**
-   * Process a file
-   * @example POST /file-processing/process { "file": {...}, "feature": "text_extraction", "processorId": "tesseract" }
+   * Processing requests collection
+   * @example POST /file-processing/requests { "file": {...}, "feature": "text_extraction" }
    */
-  '/file-processing/process': {
-    /** Process a file using specified or default processor */
+  '/file-processing/requests': {
+    /** Create a new processing request (async task) */
     POST: {
       body: ProcessFileDto
       response: ProcessStartResponse
@@ -73,30 +68,14 @@ export interface FileProcessingSchemas {
   }
 
   /**
-   * Query processing result/status
-   * @example GET /file-processing/result?requestId=fp_123456
+   * Individual processing request resource
+   * @example GET /file-processing/requests/fp_123456
    */
-  '/file-processing/result': {
+  '/file-processing/requests/:requestId': {
     /** Get processing status and result */
     GET: {
-      query: {
-        requestId: string
-      }
+      params: { requestId: string }
       response: ProcessResultResponse
-    }
-  }
-
-  /**
-   * Cancel a processing request
-   * @example POST /file-processing/cancel { "requestId": "fp_123456_abc" }
-   */
-  '/file-processing/cancel': {
-    /** Cancel an active processing request */
-    POST: {
-      body: {
-        requestId: string
-      }
-      response: CancelResponse
     }
   }
 }

@@ -20,8 +20,7 @@ vi.mock('@main/services/fileProcessing', () => {
       getProcessor: vi.fn(),
       updateProcessorConfig: vi.fn(),
       startProcess: vi.fn(),
-      getResult: vi.fn(),
-      cancel: vi.fn()
+      getResult: vi.fn()
     },
     FileProcessingService: {
       getInstance: vi.fn()
@@ -145,8 +144,8 @@ describe('fileProcessingHandlers', () => {
     })
   })
 
-  describe('POST /file-processing/process', () => {
-    it('should start processing and return requestId', async () => {
+  describe('POST /file-processing/requests', () => {
+    it('should create processing request and return requestId with 202 status', async () => {
       const mockResponse = { requestId: 'abc-123', status: 'pending' as const }
       vi.mocked(fileProcessingService.startProcess).mockResolvedValue(mockResponse)
 
@@ -162,7 +161,7 @@ describe('fileProcessingHandlers', () => {
         count: 1
       }
 
-      const handler = fileProcessingHandlers['/file-processing/process'].POST
+      const handler = fileProcessingHandlers['/file-processing/requests'].POST
       const result = await handler({
         body: { file: mockFile, feature: 'text_extraction' }
       })
@@ -171,13 +170,14 @@ describe('fileProcessingHandlers', () => {
         file: mockFile,
         feature: 'text_extraction'
       })
-      expect(result).toEqual(mockResponse)
+      // Handler returns custom status for async task acceptance
+      expect(result).toEqual({ data: mockResponse, status: 202 })
     })
 
     it('should throw validation error for invalid body', async () => {
       vi.mocked(fileProcessingService.startProcess).mockRejectedValue(new Error('Validation failed'))
 
-      const handler = fileProcessingHandlers['/file-processing/process'].POST
+      const handler = fileProcessingHandlers['/file-processing/requests'].POST
 
       await expect(
         handler({
@@ -187,7 +187,7 @@ describe('fileProcessingHandlers', () => {
     })
   })
 
-  describe('GET /file-processing/result', () => {
+  describe('GET /file-processing/requests/:requestId', () => {
     it('should return result for valid requestId', async () => {
       const mockResult = {
         requestId: 'abc-123',
@@ -197,9 +197,9 @@ describe('fileProcessingHandlers', () => {
       }
       vi.mocked(fileProcessingService.getResult).mockResolvedValue(mockResult)
 
-      const handler = fileProcessingHandlers['/file-processing/result'].GET
+      const handler = fileProcessingHandlers['/file-processing/requests/:requestId'].GET
       const result = await handler({
-        query: { requestId: 'abc-123' }
+        params: { requestId: 'abc-123' }
       })
 
       expect(fileProcessingService.getResult).toHaveBeenCalledWith('abc-123')
@@ -215,9 +215,9 @@ describe('fileProcessingHandlers', () => {
       }
       vi.mocked(fileProcessingService.getResult).mockResolvedValue(mockResult)
 
-      const handler = fileProcessingHandlers['/file-processing/result'].GET
+      const handler = fileProcessingHandlers['/file-processing/requests/:requestId'].GET
       const result = await handler({
-        query: { requestId: 'unknown' }
+        params: { requestId: 'unknown' }
       })
 
       expect(result).toEqual(mockResult)
@@ -231,39 +231,12 @@ describe('fileProcessingHandlers', () => {
       }
       vi.mocked(fileProcessingService.getResult).mockResolvedValue(mockResult)
 
-      const handler = fileProcessingHandlers['/file-processing/result'].GET
+      const handler = fileProcessingHandlers['/file-processing/requests/:requestId'].GET
       const result = await handler({
-        query: { requestId: 'abc-123' }
+        params: { requestId: 'abc-123' }
       })
 
       expect(result).toEqual(mockResult)
-    })
-  })
-
-  describe('POST /file-processing/cancel', () => {
-    it('should cancel active processing', async () => {
-      const mockResponse = { success: true, message: 'Cancelled' }
-      vi.mocked(fileProcessingService.cancel).mockReturnValue(mockResponse)
-
-      const handler = fileProcessingHandlers['/file-processing/cancel'].POST
-      const result = await handler({
-        body: { requestId: 'abc-123' }
-      })
-
-      expect(fileProcessingService.cancel).toHaveBeenCalledWith('abc-123')
-      expect(result).toEqual(mockResponse)
-    })
-
-    it('should return failure for non-cancellable task', async () => {
-      const mockResponse = { success: false, message: 'Cannot cancel' }
-      vi.mocked(fileProcessingService.cancel).mockReturnValue(mockResponse)
-
-      const handler = fileProcessingHandlers['/file-processing/cancel'].POST
-      const result = await handler({
-        body: { requestId: 'completed-task' }
-      })
-
-      expect(result).toEqual(mockResponse)
     })
   })
 })

@@ -104,11 +104,10 @@ export function useFileProcess() {
     reject: (error: Error) => void
   } | null>(null)
 
-  const { trigger: startProcess } = useMutation('POST', '/file-processing/process', {})
+  const { trigger: startProcess } = useMutation('POST', '/file-processing/requests', {})
 
   // TODO: need refactor translate page
-  const { data: resultData } = useQuery('/file-processing/result', {
-    query: { requestId: requestId ?? '' },
+  const { data: resultData } = useQuery(`/file-processing/requests/${requestId ?? '_'}`, {
     enabled: !!requestId,
     swrOptions: {
       refreshInterval: 2000

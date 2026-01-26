@@ -313,11 +313,11 @@ export interface PreferenceSchemas {
     'feature.csaas.host': string
     // redux/settings/apiServer.port
     'feature.csaas.port': number
-    // target-key-definitions/complex/complex
+    // migration: redux/preprocess/defaultProvider
     'feature.file_processing.default_markdown_conversion_processor': string | null
-    // target-key-definitions/complex/complex
+    // migration: redux/ocr/imageProviderId
     'feature.file_processing.default_text_extraction_processor': string | null
-    // target-key-definitions/complex/complex
+    // migration: redux/ocr/providers + redux/preprocess/providers
     'feature.file_processing.overrides': FileProcessorOverrides
     // redux/memory/memoryConfig.isAutoDimensions
     'feature.memory.auto_dimensions': boolean
