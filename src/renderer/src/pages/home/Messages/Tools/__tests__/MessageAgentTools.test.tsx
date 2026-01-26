@@ -5,6 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isValidAgentToolsType, MessageAgentTools } from '../MessageAgentTools'
 
+vi.mock('@renderer/services/AssistantService', () => ({
+  getDefaultAssistant: vi.fn(() => ({
+    id: 'test-assistant',
+    name: 'Test Assistant',
+    settings: {}
+  })),
+  getDefaultTopic: vi.fn(() => ({
+    id: 'test-topic',
+    assistantId: 'test-assistant',
+    createdAt: new Date().toISOString()
+  }))
+}))
+
 // Mock dependencies
 const mockUseAppSelector = vi.fn()
 const mockUseTranslation = vi.fn()
@@ -37,55 +50,69 @@ vi.mock('@logger', () => ({
 }))
 
 // Mock antd components
-vi.mock('antd', () => ({
-  Collapse: ({ items, defaultActiveKey, className }: any) => (
-    <div data-testid="collapse" className={className} data-active-key={JSON.stringify(defaultActiveKey)}>
-      {items?.map((item: any) => (
-        <div key={item.key} data-testid={`collapse-item-${item.key}`}>
-          <div data-testid={`collapse-header-${item.key}`}>{item.label}</div>
-          <div data-testid={`collapse-content-${item.key}`}>{item.children}</div>
-        </div>
-      ))}
-    </div>
-  ),
-  Spin: ({ size }: any) => <div data-testid="spin" data-size={size} />,
-  Skeleton: {
-    Input: ({ style }: any) => <span data-testid="skeleton-input" style={style} />
-  },
-  Tag: ({ children, className }: any) => (
-    <span data-testid="tag" className={className}>
-      {children}
-    </span>
-  ),
-  Popover: ({ children }: any) => <>{children}</>,
-  Card: ({ children, className }: any) => (
-    <div data-testid="card" className={className}>
-      {children}
-    </div>
-  ),
-  Button: ({ children, onClick, type, size, icon, disabled }: any) => (
-    <button data-testid="button" onClick={onClick} data-type={type} data-size={size} disabled={disabled}>
-      {icon}
-      {children}
-    </button>
-  )
-}))
+vi.mock('antd', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    Collapse: ({ items, defaultActiveKey, className }: any) => (
+      <div data-testid="collapse" className={className} data-active-key={JSON.stringify(defaultActiveKey)}>
+        {items?.map((item: any) => (
+          <div key={item.key} data-testid={`collapse-item-${item.key}`}>
+            <div data-testid={`collapse-header-${item.key}`}>{item.label}</div>
+            <div data-testid={`collapse-content-${item.key}`}>{item.children}</div>
+          </div>
+        ))}
+      </div>
+    ),
+    Spin: ({ size }: any) => <div data-testid="spin" data-size={size} />,
+    Skeleton: {
+      Input: ({ style }: any) => <span data-testid="skeleton-input" style={style} />
+    },
+    Tag: ({ children, className }: any) => (
+      <span data-testid="tag" className={className}>
+        {children}
+      </span>
+    ),
+    Popover: ({ children }: any) => <>{children}</>,
+    Card: ({ children, className }: any) => (
+      <div data-testid="card" className={className}>
+        {children}
+      </div>
+    ),
+    Button: ({ children, onClick, type, size, icon, disabled }: any) => (
+      <button
+        type="button"
+        data-testid="button"
+        onClick={onClick}
+        data-type={type}
+        data-size={size}
+        disabled={disabled}>
+        {icon}
+        {children}
+      </button>
+    )
+  }
+})
 
 // Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Loader2: ({ className }: any) => <span data-testid="loader-icon" className={className} />,
-  FileText: () => <span data-testid="file-icon" />,
-  Terminal: () => <span data-testid="terminal-icon" />,
-  ListTodo: () => <span data-testid="list-icon" />,
-  Circle: () => <span data-testid="circle-icon" />,
-  CheckCircle: () => <span data-testid="check-circle-icon" />,
-  Clock: () => <span data-testid="clock-icon" />,
-  Check: () => <span data-testid="check-icon" />,
-  TriangleAlert: () => <span data-testid="triangle-alert-icon" />,
-  X: () => <span data-testid="x-icon" />,
-  Wrench: () => <span data-testid="wrench-icon" />,
-  ImageIcon: () => <span data-testid="image-icon" />
-}))
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    Loader2: ({ className }: any) => <span data-testid="loader-icon" className={className} />,
+    FileText: () => <span data-testid="file-icon" />,
+    Terminal: () => <span data-testid="terminal-icon" />,
+    ListTodo: () => <span data-testid="list-icon" />,
+    Circle: () => <span data-testid="circle-icon" />,
+    CheckCircle: () => <span data-testid="check-circle-icon" />,
+    Clock: () => <span data-testid="clock-icon" />,
+    Check: () => <span data-testid="check-icon" />,
+    TriangleAlert: () => <span data-testid="triangle-alert-icon" />,
+    X: () => <span data-testid="x-icon" />,
+    Wrench: () => <span data-testid="wrench-icon" />,
+    ImageIcon: () => <span data-testid="image-icon" />
+  }
+})
 
 // Mock LoadingIcon
 vi.mock('@renderer/components/Icons', () => ({
