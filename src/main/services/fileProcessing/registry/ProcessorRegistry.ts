@@ -14,7 +14,6 @@ import type { IFileProcessor } from '../interfaces'
  * Provides:
  * - Processor registration and unregistration
  * - Lookup by ID
- * - Lookup by capability (feature + input type)
  * - Availability checking
  */
 export class ProcessorRegistry {

@@ -24,7 +24,6 @@ import {
  * - Template lookup
  * - Merged configuration (template + user override)
  * - Default processor settings
- * - Configuration change notifications
  */
 export class ConfigurationService {
   private static instance: ConfigurationService | null = null

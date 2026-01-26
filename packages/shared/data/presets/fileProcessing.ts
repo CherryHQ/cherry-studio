@@ -33,12 +33,9 @@ export type FileProcessorInput = 'image' | 'document'
 export type FileProcessorOutput = 'text' | 'markdown'
 
 /**
- * Processor metadata
+ * Processor metadata (reserved for future use)
  */
-export type FileProcessorMetadata = {
-  maxFileSizeMb?: number
-  maxPageCount?: number
-}
+export type FileProcessorMetadata = Record<string, never>
 
 /**
  * Feature capability definition
@@ -181,10 +178,6 @@ export const PRESETS_FILE_PROCESSORS = [
   {
     id: 'mineru',
     type: 'api',
-    metadata: {
-      maxFileSizeMb: 200,
-      maxPageCount: 600
-    },
     capabilities: [
       {
         feature: 'markdown_conversion',
@@ -197,10 +190,6 @@ export const PRESETS_FILE_PROCESSORS = [
   {
     id: 'doc2x',
     type: 'api',
-    metadata: {
-      maxFileSizeMb: 300,
-      maxPageCount: 1000
-    },
     capabilities: [
       {
         feature: 'markdown_conversion',
@@ -213,10 +202,6 @@ export const PRESETS_FILE_PROCESSORS = [
   {
     id: 'mistral',
     type: 'api',
-    metadata: {
-      maxFileSizeMb: 50,
-      maxPageCount: 1000
-    },
     capabilities: [
       {
         feature: 'markdown_conversion',
@@ -230,10 +215,6 @@ export const PRESETS_FILE_PROCESSORS = [
   {
     id: 'open-mineru',
     type: 'api',
-    metadata: {
-      maxFileSizeMb: 200,
-      maxPageCount: 600
-    },
     capabilities: [
       {
         feature: 'markdown_conversion',

@@ -118,7 +118,13 @@ export function useFileProcess() {
     if (!resultData || !callbacksRef.current) return
 
     if (resultData.status === 'completed') {
-      callbacksRef.current.resolve(resultData.result!)
+      if (!resultData.result) {
+        callbacksRef.current.reject(new Error('Processing completed but result is missing'))
+        callbacksRef.current = null
+        setRequestId(null)
+        return
+      }
+      callbacksRef.current.resolve(resultData.result)
       callbacksRef.current = null
       setRequestId(null)
     } else if (resultData.status === 'failed') {
