@@ -62,6 +62,12 @@ vi.mock('antd', () => ({
     <div data-testid="card" className={className}>
       {children}
     </div>
+  ),
+  Button: ({ children, onClick, type, size, icon, disabled }: any) => (
+    <button data-testid="button" onClick={onClick} data-type={type} data-size={size} disabled={disabled}>
+      {icon}
+      {children}
+    </button>
   )
 }))
 
