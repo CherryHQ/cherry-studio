@@ -4947,10 +4947,8 @@
         "image_provider": "Proveedor de servicios OCR",
         "paddleocr": {
           "aistudio_access_token": "Token de acceso de la comunidad de AI Studio",
-          "aistudio_url_label": "Comunidad de AI Studio",
           "api_url": "URL de la API",
-          "serving_doc_url_label": "Documentación de PaddleOCR Serving",
-          "tip": "Puede consultar la documentación oficial de PaddleOCR para implementar un servicio local, o implementar un servicio en la nube en la Comunidad de PaddlePaddle AI Studio. En este último caso, proporcione el token de acceso de la Comunidad de AI Studio."
+          "api_url_label": "Obtener el token de acceso y la URL de la API"
         },
         "system": {
           "win": {
@@ -4963,6 +4961,12 @@
         "title": "Servicio OCR"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "Token de acceso de la Comunidad AI Studio",
+          "api_url": "URL de la API",
+          "api_url_label": "Obtener el token de acceso y la URL de la API",
+          "paddleocr_url_label": "Sitio web oficial de PaddleOCR"
+        },
         "provider": "Proveedor de servicios de preprocesamiento de documentos",
         "provider_placeholder": "Seleccionar un proveedor de servicios de preprocesamiento de documentos",
         "title": "Preprocesamiento de documentos",

@@ -4947,10 +4947,8 @@
         "image_provider": "OCR 服务提供商",
         "paddleocr": {
           "aistudio_access_token": "星河社区访问令牌",
-          "aistudio_url_label": "星河社区",
           "api_url": "API URL",
-          "serving_doc_url_label": "PaddleOCR 服务化部署文档",
-          "tip": "您可以参考 PaddleOCR 官方文档部署本地服务，或者在飞桨星河社区部署云服务。对于后一种情况，请填写星河社区访问令牌。"
+          "api_url_label": "获取访问令牌及API URL"
         },
         "system": {
           "win": {
@@ -4963,6 +4961,12 @@
         "title": "OCR 服务"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "星河社区访问令牌",
+          "api_url": "API URL",
+          "api_url_label": "获取访问令牌及API URL",
+          "paddleocr_url_label": "PaddleOCR 官网"
+        },
         "provider": "文档处理服务商",
         "provider_placeholder": "选择一个文档处理服务商",
         "title": "文档处理",

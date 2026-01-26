@@ -3159,6 +3159,16 @@ const migrateConfig = {
       logger.error('migrate 192 error', error as Error)
       return state
     }
+  },
+  '193': (state: RootState) => {
+    try {
+      addPreprocessProviders(state, 'paddleocr')
+      logger.info('migrate 193 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 193 error', error as Error)
+      return state
+    }
   }
 }
 
