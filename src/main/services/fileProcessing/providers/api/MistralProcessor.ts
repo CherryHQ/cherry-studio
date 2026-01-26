@@ -107,7 +107,7 @@ export class MistralProcessor extends BaseMarkdownConverter {
     }
   }
 
-  private processOcrResponse(result: OCRResponse, file: FileMetadata): { markdown: string; outputPath: string } {
+  private processOcrResponse(result: OCRResponse, file: FileMetadata): string {
     const outputPath = path.join(this.storageDir, file.id)
     fs.mkdirSync(outputPath, { recursive: true })
 
@@ -172,7 +172,7 @@ export class MistralProcessor extends BaseMarkdownConverter {
     const mdFilePath = path.join(outputPath, mdFileName)
     fs.writeFileSync(mdFilePath, combinedMarkdown)
 
-    return { markdown: combinedMarkdown, outputPath: mdFilePath }
+    return mdFilePath
   }
 
   async convertToMarkdown(
@@ -201,15 +201,10 @@ export class MistralProcessor extends BaseMarkdownConverter {
       throw new Error('OCR processing failed: response is empty')
     }
 
-    const { markdown, outputPath } = this.processOcrResponse(result, input)
+    const markdownPath = this.processOcrResponse(result, input)
 
     return {
-      markdown,
-      outputPath,
-      metadata: {
-        model: modelId,
-        pageCount: result.pages.length
-      }
+      markdownPath
     }
   }
 }

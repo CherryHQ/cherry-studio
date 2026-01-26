@@ -505,7 +505,7 @@ describe('FileProcessingService', () => {
           requestId: 'test',
           status: 'completed',
           progress: 100,
-          result: { markdown: '# Converted Document' }
+          result: { markdownPath: '/path/to/output.md' }
         }
       })
 
@@ -530,7 +530,7 @@ describe('FileProcessingService', () => {
       await vi.waitFor(async () => {
         const result = await service.getResult(requestId)
         expect(result.status).toBe('completed')
-        expect(result.result?.markdown).toBe('# Converted Document')
+        expect(result.result?.markdownPath).toBe('/path/to/output.md')
       })
     })
 

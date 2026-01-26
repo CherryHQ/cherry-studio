@@ -33,7 +33,7 @@ export class OpenMineruProcessor extends BaseMarkdownConverter {
     super(template)
   }
 
-  private async uploadAndExtract(
+  private async uploadAndExtractMarkdown(
     apiHost: string,
     apiKey: string | undefined,
     file: FileMetadata,
@@ -99,7 +99,15 @@ export class OpenMineruProcessor extends BaseMarkdownConverter {
           fs.unlinkSync(zipPath)
         }
 
-        return extractPath
+        const fileOutputPath = path.join(extractPath, file.id)
+        const files = fs.readdirSync(fileOutputPath)
+        const mdFile = files.find((f) => f.endsWith('.md'))
+
+        if (!mdFile) {
+          throw new Error('No markdown file found in extraction output')
+        }
+
+        return path.join(fileOutputPath, mdFile)
       } catch (error) {
         logger.warn(`Failed to upload and extract: ${(error as Error).message}, retry ${retries + 1}/${MAX_RETRIES}`)
 
@@ -123,59 +131,27 @@ export class OpenMineruProcessor extends BaseMarkdownConverter {
     throw new Error(`Processing timeout for file: ${file.id}`)
   }
 
-  private readMarkdownContent(extractPath: string, file: FileMetadata): { markdown: string; outputPath: string } {
-    const fileOutputPath = path.join(extractPath, file.id)
-    const files = fs.readdirSync(fileOutputPath)
-
-    const mdFile = files.find((f) => f.endsWith('.md'))
-    if (!mdFile) {
-      throw new Error('No markdown file found in extraction output')
-    }
-
-    const originalMdPath = path.join(fileOutputPath, mdFile)
-    const finalName = file.origin_name.replace(/\.[^/.]+$/, '.md')
-    const finalPath = path.join(fileOutputPath, finalName)
-
-    try {
-      fs.renameSync(originalMdPath, finalPath)
-      logger.info(`Renamed markdown file from ${mdFile} to ${finalName}`)
-    } catch {
-      logger.warn(`Failed to rename file, using original: ${mdFile}`)
-    }
-
-    const actualPath = fs.existsSync(finalPath) ? finalPath : originalMdPath
-    const markdown = fs.readFileSync(actualPath, 'utf-8')
-
-    return { markdown, outputPath: actualPath }
-  }
-
   async convertToMarkdown(
-    input: FileMetadata,
+    file: FileMetadata,
     config: FileProcessorMerged,
     context: ProcessingContext
   ): Promise<ProcessingResult> {
-    await this.validateFile(input)
+    await this.validateFile(file)
     this.checkCancellation(context)
 
     const apiHost = this.getApiHost(config)
     const apiKey = this.getApiKey(config)
 
-    const filePath = fileStorage.getFilePathById(input)
+    const filePath = fileStorage.getFilePathById(file)
     logger.info(`Open MinerU processing started: ${filePath}`)
 
-    logger.info(`File ${input.name} is starting processing...`)
+    logger.info(`File ${file.name} is starting processing...`)
 
-    const extractPath = await this.uploadAndExtract(apiHost, apiKey, input, context)
+    const markdownPath = await this.uploadAndExtractMarkdown(apiHost, apiKey, file, context)
     this.checkCancellation(context)
 
-    const { markdown, outputPath } = this.readMarkdownContent(extractPath, input)
-
     return {
-      markdown,
-      outputPath,
-      metadata: {
-        extractPath
-      }
+      markdownPath
     }
   }
 }

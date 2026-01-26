@@ -113,7 +113,7 @@ describe('BaseMarkdownConverter', () => {
         capabilities: [{ feature: 'markdown_conversion', input: 'document', output: 'markdown' }]
       })
     )
-    processor.doConvertMock.mockResolvedValue({ markdown: '# Converted Markdown' })
+    processor.doConvertMock.mockResolvedValue({ markdownPath: '/path/to/output.md' })
   })
 
   afterEach(() => {
@@ -128,7 +128,7 @@ describe('BaseMarkdownConverter', () => {
 
       const result = await processor.convertToMarkdown(input, config, context)
 
-      expect(result).toEqual({ markdown: '# Converted Markdown' })
+      expect(result).toEqual({ markdownPath: '/path/to/output.md' })
       expect(processor.doConvertMock).toHaveBeenCalledWith(input, config, context)
     })
 
@@ -169,7 +169,7 @@ describe('BaseMarkdownConverter', () => {
 
       const result = await processor.convertToMarkdown(input, config, context)
 
-      expect(result).toEqual({ markdown: '# Converted Markdown' })
+      expect(result).toEqual({ markdownPath: '/path/to/output.md' })
     })
   })
 
@@ -182,7 +182,7 @@ describe('BaseMarkdownConverter', () => {
           metadata: { maxFileSizeMb: 10 }
         })
       )
-      processorWithLimit.doConvertMock.mockResolvedValue({ markdown: '# Converted' })
+      processorWithLimit.doConvertMock.mockResolvedValue({ markdownPath: '/path/to/output.md' })
 
       // Mock file size larger than limit (15MB > 10MB)
       vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 15 * 1024 * 1024 } as fs.Stats)
@@ -203,7 +203,7 @@ describe('BaseMarkdownConverter', () => {
           metadata: { maxFileSizeMb: 10 }
         })
       )
-      processorWithLimit.doConvertMock.mockResolvedValue({ markdown: '# Converted' })
+      processorWithLimit.doConvertMock.mockResolvedValue({ markdownPath: '/path/to/output.md' })
 
       // Mock file size smaller than limit (5MB < 10MB)
       vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 5 * 1024 * 1024 } as fs.Stats)
@@ -214,7 +214,7 @@ describe('BaseMarkdownConverter', () => {
 
       const result = await processorWithLimit.convertToMarkdown(input, config, context)
 
-      expect(result).toEqual({ markdown: '# Converted' })
+      expect(result).toEqual({ markdownPath: '/path/to/output.md' })
     })
   })
 
@@ -226,7 +226,7 @@ describe('BaseMarkdownConverter', () => {
           metadata: { maxPageCount: 100 }
         })
       )
-      processorWithLimit.doConvertMock.mockResolvedValue({ markdown: '# Converted' })
+      processorWithLimit.doConvertMock.mockResolvedValue({ markdownPath: '/path/to/output.md' })
 
       // Mock file stats
       vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1024 } as fs.Stats)
@@ -257,7 +257,7 @@ describe('BaseMarkdownConverter', () => {
           metadata: { maxPageCount: 100 }
         })
       )
-      processorWithLimit.doConvertMock.mockResolvedValue({ markdown: '# Converted' })
+      processorWithLimit.doConvertMock.mockResolvedValue({ markdownPath: '/path/to/output.md' })
 
       // Mock file stats
       vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1024 } as fs.Stats)
@@ -277,7 +277,7 @@ describe('BaseMarkdownConverter', () => {
 
       const result = await processorWithLimit.convertToMarkdown(input, config, context)
 
-      expect(result).toEqual({ markdown: '# Converted' })
+      expect(result).toEqual({ markdownPath: '/path/to/output.md' })
     })
 
     it('should skip page count validation for non-PDF files', async () => {
@@ -287,7 +287,7 @@ describe('BaseMarkdownConverter', () => {
           metadata: { maxPageCount: 100 }
         })
       )
-      processorWithLimit.doConvertMock.mockResolvedValue({ markdown: '# Converted' })
+      processorWithLimit.doConvertMock.mockResolvedValue({ markdownPath: '/path/to/output.md' })
 
       // Mock file stats
       vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1024 } as fs.Stats)
@@ -301,7 +301,7 @@ describe('BaseMarkdownConverter', () => {
       const result = await processorWithLimit.convertToMarkdown(input, config, context)
 
       // Should succeed without checking page count
-      expect(result).toEqual({ markdown: '# Converted' })
+      expect(result).toEqual({ markdownPath: '/path/to/output.md' })
     })
 
     it('should handle PDF parsing errors gracefully', async () => {
@@ -311,7 +311,7 @@ describe('BaseMarkdownConverter', () => {
           metadata: { maxPageCount: 100 }
         })
       )
-      processorWithLimit.doConvertMock.mockResolvedValue({ markdown: '# Converted' })
+      processorWithLimit.doConvertMock.mockResolvedValue({ markdownPath: '/path/to/output.md' })
 
       // Mock file stats
       vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1024 } as fs.Stats)
@@ -326,7 +326,7 @@ describe('BaseMarkdownConverter', () => {
       // Should proceed without throwing - graceful degradation
       const result = await processorWithLimit.convertToMarkdown(input, config, context)
 
-      expect(result).toEqual({ markdown: '# Converted' })
+      expect(result).toEqual({ markdownPath: '/path/to/output.md' })
     })
   })
 })
@@ -337,7 +337,7 @@ describe('MockDualProcessor (dual capability)', () => {
   beforeEach(() => {
     processor = new MockDualProcessor(createDualCapabilityTemplate())
     processor.doExtractTextMock.mockResolvedValue({ text: 'extracted text from OCR' })
-    processor.doConvertMock.mockResolvedValue({ markdown: '# Markdown from document' })
+    processor.doConvertMock.mockResolvedValue({ markdownPath: '/path/to/document.md' })
   })
 
   describe('getCapability', () => {
@@ -400,7 +400,7 @@ describe('MockDualProcessor (dual capability)', () => {
 
       const result = await processor.convertToMarkdown(input, config, context)
 
-      expect(result).toEqual({ markdown: '# Markdown from document' })
+      expect(result).toEqual({ markdownPath: '/path/to/document.md' })
       expect(processor.doConvertMock).toHaveBeenCalledWith(input, config, context)
     })
 
@@ -435,7 +435,7 @@ describe('MockDualProcessor (dual capability)', () => {
       const markdownResult = await processor.convertToMarkdown(docInput, config, context)
 
       expect(textResult).toEqual({ text: 'extracted text from OCR' })
-      expect(markdownResult).toEqual({ markdown: '# Markdown from document' })
+      expect(markdownResult).toEqual({ markdownPath: '/path/to/document.md' })
       expect(processor.doExtractTextMock).toHaveBeenCalledTimes(1)
       expect(processor.doConvertMock).toHaveBeenCalledTimes(1)
     })

@@ -149,36 +149,19 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
   }
 
   private parseProviderTaskId(providerTaskId: string): MineruTaskPayload {
-    let parsed: unknown
     try {
-      parsed = JSON.parse(providerTaskId)
+      const payload = JSON.parse(providerTaskId) as MineruTaskPayload
+      const { batchId, fileId, fileName, originalName } = payload
+      if (!batchId || !fileId || !fileName || !originalName) {
+        throw new Error('Missing required fields')
+      }
+      return { batchId, fileId, fileName, originalName }
     } catch {
       throw new Error('Invalid provider task id')
     }
-
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error('Invalid provider task id')
-    }
-
-    const record = parsed as Record<string, unknown>
-    const batchId = record['batchId']
-    const fileId = record['fileId']
-    const fileName = record['fileName']
-    const originalName = record['originalName']
-
-    if (
-      typeof batchId !== 'string' ||
-      typeof fileId !== 'string' ||
-      typeof fileName !== 'string' ||
-      typeof originalName !== 'string'
-    ) {
-      throw new Error('Invalid provider task id')
-    }
-
-    return { batchId, fileId, fileName, originalName }
   }
 
-  private async downloadAndExtract(zipUrl: string, fileId: string): Promise<string> {
+  private async downloadAndExtractMarkdown(zipUrl: string, fileId: string): Promise<string> {
     const zipPath = path.join(this.storageDir, `${fileId}.zip`)
     const extractPath = path.join(this.storageDir, fileId)
 
@@ -202,10 +185,6 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
 
     fs.unlinkSync(zipPath)
 
-    return extractPath
-  }
-
-  private readMarkdownContent(extractPath: string, originalName: string): { markdown: string; outputPath: string } {
     const files = fs.readdirSync(extractPath)
     const mdFile = files.find((f) => f.endsWith('.md'))
 
@@ -213,21 +192,7 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
       throw new Error('No markdown file found in extraction output')
     }
 
-    const originalMdPath = path.join(extractPath, mdFile)
-    const finalName = originalName.replace(/\.[^/.]+$/, '.md')
-    const finalPath = path.join(extractPath, finalName)
-
-    try {
-      fs.renameSync(originalMdPath, finalPath)
-      logger.info(`Renamed markdown file from ${mdFile} to ${finalName}`)
-    } catch (error: unknown) {
-      logger.warn(`Failed to rename file, using original: ${mdFile}`, { error })
-    }
-
-    const actualPath = fs.existsSync(finalPath) ? finalPath : originalMdPath
-    const markdown = fs.readFileSync(actualPath, 'utf-8')
-
-    return { markdown, outputPath: actualPath }
+    return path.join(extractPath, mdFile)
   }
 
   async convertToMarkdown(
@@ -300,20 +265,14 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
       }
 
       if (fileResult.state === 'done' && fileResult.full_zip_url) {
-        const extractPath = await this.downloadAndExtract(fileResult.full_zip_url, payload.fileId)
-        const { markdown, outputPath } = this.readMarkdownContent(extractPath, payload.originalName)
+        const markdownPath = await this.downloadAndExtractMarkdown(fileResult.full_zip_url, payload.fileId)
 
         return {
           requestId: providerTaskId,
           status: 'completed',
           progress: 100,
           result: {
-            markdown,
-            outputPath,
-            metadata: {
-              batchId: payload.batchId,
-              extractPath
-            }
+            markdownPath
           }
         }
       }

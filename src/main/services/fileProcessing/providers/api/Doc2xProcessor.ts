@@ -23,8 +23,9 @@ const logger = loggerService.withContext('Doc2xProcessor')
 
 type ApiResponse<T> = {
   code: string
-  data: T
+  data?: T
   message?: string
+  msg?: string
 }
 
 type PreuploadResponse = {
@@ -35,11 +36,13 @@ type PreuploadResponse = {
 type StatusResponse = {
   status: string
   progress: number
+  detail?: string
 }
 
 type ParsedFileResponse = {
   status: string
   url: string
+  detail?: string
 }
 
 type Doc2xTaskPayload = {
@@ -60,27 +63,29 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
     super(template)
   }
 
+  private getApiErrorMessage(data: ApiResponse<unknown>): string {
+    return data.message ?? data.msg ?? JSON.stringify(data)
+  }
+
   private async preupload(apiHost: string, apiKey: string): Promise<PreuploadResponse> {
     const response = await net.fetch(`${apiHost}/api/v2/parse/preupload`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`
-      },
-      body: null
+      }
     })
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data = (await response.json()) as ApiResponse<PreuploadResponse>
+    const data: ApiResponse<PreuploadResponse> = await response.json()
 
     if (data.code === 'success' && data.data) {
       return data.data
     }
 
-    throw new Error(`API returned error: ${data.message || JSON.stringify(data)}`)
+    throw new Error(`API returned error: ${this.getApiErrorMessage(data)}`)
   }
 
   private async putFile(filePath: string, url: string): Promise<void> {
@@ -109,13 +114,17 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data = (await response.json()) as ApiResponse<StatusResponse>
+    const data: ApiResponse<StatusResponse> = await response.json()
 
     if (data.code === 'success' && data.data) {
       return data.data
     }
 
-    throw new Error(`API returned error: ${data.message || JSON.stringify(data)}`)
+    return {
+      status: 'failed',
+      progress: 0,
+      detail: this.getApiErrorMessage(data)
+    }
   }
 
   private async convertFile(apiHost: string, apiKey: string, uid: string, fileName: string): Promise<void> {
@@ -137,10 +146,10 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data = (await response.json()) as ApiResponse<unknown>
+    const data: ApiResponse<unknown> = await response.json()
 
     if (data.code !== 'success') {
-      throw new Error(`API returned error: ${data.message || JSON.stringify(data)}`)
+      throw new Error(`API returned error: ${this.getApiErrorMessage(data)}`)
     }
   }
 
@@ -156,13 +165,17 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data = (await response.json()) as ApiResponse<ParsedFileResponse>
+    const data: ApiResponse<ParsedFileResponse> = await response.json()
 
-    if (data.data) {
+    if (data.code === 'success' && data.data) {
       return data.data
     }
 
-    throw new Error('No data in response')
+    return {
+      status: 'failed',
+      url: '',
+      detail: this.getApiErrorMessage(data)
+    }
   }
 
   private buildProviderTaskId(payload: Doc2xTaskPayload): string {
@@ -199,7 +212,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
     return { uid, fileId, fileName, originalName }
   }
 
-  private async downloadAndExtract(url: string, fileId: string): Promise<string> {
+  private async downloadAndExtractMarkdown(url: string, fileId: string, originalName: string): Promise<string> {
     const extractPath = path.join(this.storageDir, fileId)
     const zipPath = path.join(this.storageDir, `${fileId}.zip`)
 
@@ -221,20 +234,14 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
 
     fs.unlinkSync(zipPath)
 
-    return extractPath
-  }
-
-  private readMarkdownContent(extractPath: string, originalName: string): { markdown: string; outputPath: string } {
     const baseName = originalName.split('.').slice(0, -1).join('.')
-    const outputFilePath = path.join(extractPath, `${baseName}.md`)
+    const markdownPath = path.join(extractPath, `${baseName}.md`)
 
-    if (!fs.existsSync(outputFilePath)) {
-      throw new Error(`Markdown file not found at: ${outputFilePath}`)
+    if (!fs.existsSync(markdownPath)) {
+      throw new Error(`Markdown file not found at: ${markdownPath}`)
     }
 
-    const markdown = fs.readFileSync(outputFilePath, 'utf-8')
-
-    return { markdown, outputPath: outputFilePath }
+    return markdownPath
   }
 
   async convertToMarkdown(
@@ -287,7 +294,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
     const apiKey = this.getApiKey(config)!
 
     try {
-      const { status, progress } = await this.getParseStatus(apiHost, apiKey, payload.uid)
+      const { status, progress, detail } = await this.getParseStatus(apiHost, apiKey, payload.uid)
 
       if (status === 'failed') {
         this.convertRequested.delete(payload.uid)
@@ -295,7 +302,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
           requestId: providerTaskId,
           status: 'failed',
           progress: 0,
-          error: { code: 'processing_failed', message: 'Doc2X processing failed' }
+          error: { code: 'processing_failed', message: detail || 'Doc2X processing failed' }
         }
       }
 
@@ -312,7 +319,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
         this.convertRequested.add(payload.uid)
       }
 
-      const { status: exportStatus, url } = await this.getParsedFile(apiHost, apiKey, payload.uid)
+      const { status: exportStatus, url, detail: exportDetail } = await this.getParsedFile(apiHost, apiKey, payload.uid)
 
       if (exportStatus === 'failed') {
         this.convertRequested.delete(payload.uid)
@@ -320,13 +327,12 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
           requestId: providerTaskId,
           status: 'failed',
           progress: 0,
-          error: { code: 'export_failed', message: 'Doc2X export failed' }
+          error: { code: 'export_failed', message: exportDetail || 'Doc2X export failed' }
         }
       }
 
       if (exportStatus === 'success' && url) {
-        const extractPath = await this.downloadAndExtract(url, payload.fileId)
-        const { markdown, outputPath } = this.readMarkdownContent(extractPath, payload.originalName)
+        const markdownPath = await this.downloadAndExtractMarkdown(url, payload.fileId, payload.originalName)
         this.convertRequested.delete(payload.uid)
 
         return {
@@ -334,12 +340,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
           status: 'completed',
           progress: 100,
           result: {
-            markdown,
-            outputPath,
-            metadata: {
-              uid: payload.uid,
-              extractPath
-            }
+            markdownPath
           }
         }
       }

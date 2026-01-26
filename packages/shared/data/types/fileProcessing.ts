@@ -39,10 +39,8 @@ export interface ProcessingError {
 export interface ProcessingResult {
   /** Extracted text content */
   text?: string
-  /** Converted markdown content */
-  markdown?: string
-  /** Output file path (if saved to disk) */
-  outputPath?: string
+  /** Markdown file path (if saved to disk) */
+  markdownPath?: string
   /** Optional extension metadata (processor-specific) */
   metadata?: Record<string, unknown>
 }
