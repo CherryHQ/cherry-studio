@@ -5562,6 +5562,13 @@
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
+      "restore_builtins": {
+        "button": "Restore Built-in Providers",
+        "content": "This will re-add missing built-in providers (without overwriting existing settings). Total: {{count}}. Continue?",
+        "none": "All built-in providers already exist",
+        "success": "Restored {{count}} built-in providers",
+        "title": "Restore Built-in Providers"
+      },
       "search": "Search Providers...",
       "search_placeholder": "Search model id or name",
       "title": "Model Provider",

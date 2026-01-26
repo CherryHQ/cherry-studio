@@ -3195,7 +3195,6 @@ const migrateConfig = {
       return state
     }
   },
-  },
   '195': (state: RootState) => {
     try {
       if (state.settings && state.settings.sidebarIcons) {
@@ -3203,6 +3202,16 @@ const migrateConfig = {
         if (!state.settings.sidebarIcons.visible.includes('openclaw')) {
           state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'openclaw']
         }
+      }
+
+      if (state.minapps) {
+        const allowedDefaultMinapps = new Set(['openai', 'gemini', 'anthropic', 'perplexity', 'grok', 'you'])
+        const filterApps = (apps: any[]) =>
+          apps.filter((app) => app?.type === 'Custom' || allowedDefaultMinapps.has(app?.id))
+
+        state.minapps.enabled = filterApps(state.minapps.enabled || [])
+        state.minapps.disabled = filterApps(state.minapps.disabled || [])
+        state.minapps.pinned = filterApps(state.minapps.pinned || [])
       }
       logger.info('migrate 195 success')
       return state
@@ -3219,6 +3228,11 @@ const migrateConfig = {
       if (state.paintings && !state.paintings.ppio_edit) {
         state.paintings.ppio_edit = []
       }
+
+      // 恢复 DeepSeek 默认系统 Provider（避免回滚 195 的“裁剪默认项”目的）
+      if (state.llm?.providers) {
+        addProvider(state, 'deepseek')
+      }
       logger.info('migrate 196 success')
       return state
     } catch (error) {
@@ -3230,6 +3244,11 @@ const migrateConfig = {
     try {
       if (state.openclaw?.gatewayPort === 18789) {
         state.openclaw.gatewayPort = 18790
+      }
+
+      // 回退“清除默认提供商”：补齐所有内置 Provider（不覆盖已有配置）
+      if (state.llm?.providers) {
+        fixMissingProvider(state)
       }
       logger.info('migrate 197 success')
       return state

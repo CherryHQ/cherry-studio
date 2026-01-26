@@ -739,7 +739,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
   }
 } as const
 
-export const SYSTEM_PROVIDERS: SystemProvider[] = []
+export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS_CONFIG)
 
 export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   cherryin: CherryInProviderLogo,

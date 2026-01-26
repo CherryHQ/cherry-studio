@@ -95,7 +95,7 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 }))
 
 vi.mock('@renderer/services/ProviderService', () => ({
-  // 测试环境不依赖默认系统 Provider，避免空列表导致找不到 provider
+  // 测试环境不依赖真实 Provider 配置，直接返回最小可用结构
   getProviderById: vi.fn((id) => ({
     id,
     name: 'Mock Provider',

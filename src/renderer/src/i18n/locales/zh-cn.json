@@ -5562,6 +5562,13 @@
       },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
+      "restore_builtins": {
+        "button": "恢复内置提供商",
+        "content": "将把缺失的内置提供商重新加入列表（不会覆盖已有配置）。共 {{count}} 个。是否继续？",
+        "none": "内置提供商已全部存在，无需恢复",
+        "success": "已恢复 {{count}} 个内置提供商",
+        "title": "恢复内置提供商"
+      },
       "search": "搜索模型平台...",
       "search_placeholder": "搜索模型 ID 或名称",
       "title": "模型服务",

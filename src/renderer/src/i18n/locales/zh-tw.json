@@ -5562,6 +5562,13 @@
       },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
+      "restore_builtins": {
+        "button": "恢復內建提供者",
+        "content": "將把缺失的內建提供者重新加入清單（不會覆蓋既有設定）。共 {{count}} 個。是否繼續？",
+        "none": "內建提供者已全部存在，無需恢復",
+        "success": "已恢復 {{count}} 個內建提供者",
+        "title": "恢復內建提供者"
+      },
       "search": "搜尋模型平臺...",
       "search_placeholder": "搜尋模型 ID 或名稱",
       "title": "模型提供者",

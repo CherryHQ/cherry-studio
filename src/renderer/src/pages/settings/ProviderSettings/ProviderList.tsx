@@ -7,16 +7,16 @@ import {
 } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { ProviderAvatar } from '@renderer/components/ProviderAvatar'
+import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
-import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
 import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
 import type { MenuProps } from 'antd'
-import { Button, Dropdown, Input, Tag } from 'antd'
-import { Check, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
+import { Button, Dropdown, Empty, Input, Space, Tag } from 'antd'
+import { Check, ChevronDown, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +31,9 @@ import UrlSchemaInfoPopup from './UrlSchemaInfoPopup'
 
 const logger = loggerService.withContext('ProviderList')
 
-const BUTTON_WRAPPER_HEIGHT = 50
+// 控制区（搜索/按钮）统一高度：更紧凑，避免底部按钮块“显得很高”
+const CONTROL_HEIGHT = 24
+const BUTTON_WRAPPER_HEIGHT = 28
 
 const getIsOvmsSupported = async (): Promise<boolean> => {
   try {
@@ -53,7 +55,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
-  const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
+  const [selectedProvider, _setSelectedProvider] = useState<Provider | undefined>(providers[0])
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
@@ -63,9 +65,38 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
 
   const { data: isOvmsSupported } = useSWRImmutable('ovms/isSupported', getIsOvmsSupported)
 
-  const setSelectedProvider = useCallback((provider: Provider) => {
+  const setSelectedProvider = useCallback((provider?: Provider) => {
     startTransition(() => _setSelectedProvider(provider))
   }, [])
+
+  const addButtonMenu: MenuProps['items'] = [
+    {
+      key: 'restoreBuiltins',
+      label: t('settings.provider.restore_builtins.button')
+    }
+  ]
+
+  const onRestoreBuiltinProviders = useCallback(() => {
+    const existingIds = new Set(providers.map((p) => p.id))
+    const missingProviders = SYSTEM_PROVIDERS.filter((p) => !existingIds.has(p.id))
+
+    if (missingProviders.length === 0) {
+      window.toast.info(t('settings.provider.restore_builtins.none'))
+      return
+    }
+
+    window.modal.confirm({
+      title: t('settings.provider.restore_builtins.title'),
+      content: t('settings.provider.restore_builtins.content', { count: missingProviders.length }),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk: async () => {
+        updateProviders(providers.concat(missingProviders))
+        window.toast.success(t('settings.provider.restore_builtins.success', { count: missingProviders.length }))
+      }
+    })
+  }, [providers, t, updateProviders])
 
   useEffect(() => {
     const loadAllLogos = async () => {
@@ -123,6 +154,17 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       setSearchParams(searchParams)
     }
   }, [providers, searchParams, setSearchParams, setSelectedProvider, setTimeoutTimer])
+
+  useEffect(() => {
+    if (providers.length === 0) {
+      setSelectedProvider(undefined)
+      return
+    }
+
+    if (!selectedProvider || !providers.some((provider) => provider.id === selectedProvider.id)) {
+      setSelectedProvider(providers[0])
+    }
+  }, [providers, selectedProvider, setSelectedProvider])
 
   // Handle provider add key from URL schema
   useEffect(() => {
@@ -284,7 +326,8 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
               }
             }
 
-            setSelectedProvider(providers.filter((p) => isSystemProvider(p))[0])
+            const nextProviders = providers.filter((p) => p.id !== provider.id)
+            setSelectedProvider(nextProviders[0])
             removeProvider(provider)
           }
         })
@@ -297,11 +340,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       return menus
     }
 
-    if (isSystemProvider(provider)) {
-      return [noteMenu]
-    } else if (provider.isSystem) {
-      // 这里是处理数据中存在新版本删掉的系统提供商的情况
-      // 未来期望能重构一下，不要依赖isSystem字段
+    if (provider.isSystem) {
       return [noteMenu, deleteMenu]
     } else {
       return menus
@@ -352,7 +391,13 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
             type="text"
             placeholder={t('settings.provider.search')}
             value={searchText}
-            style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
+            size="small"
+            style={{
+              width: '100%',
+              borderRadius: 'var(--list-item-border-radius)',
+              height: CONTROL_HEIGHT,
+              minHeight: CONTROL_HEIGHT
+            }}
             prefix={<Search size={14} />}
             suffix={
               <Dropdown
@@ -436,16 +481,79 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
           )}
         </DraggableVirtualList>
         <AddButtonWrapper>
-          <Button
-            style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
-            icon={<PlusIcon size={16} />}
-            onClick={onAddProvider}
-            disabled={dragging}>
-            {t('button.add')}
-          </Button>
+          <Space.Compact block>
+            <ButtonWithIcon
+              size="small"
+              icon={<PlusIcon size={16} />}
+              onClick={onAddProvider}
+              disabled={dragging}
+              style={{ width: '100%' }}>
+              {t('button.add')}
+            </ButtonWithIcon>
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                items: addButtonMenu,
+                onClick: ({ key }) => {
+                  if (key === 'restoreBuiltins') {
+                    onRestoreBuiltinProviders()
+                  }
+                }
+              }}>
+              <ButtonWithIcon
+                $square
+                size="small"
+                aria-label={t('settings.provider.restore_builtins.button')}
+                icon={<ChevronDown size={16} />}
+                disabled={dragging}
+              />
+            </Dropdown>
+          </Space.Compact>
         </AddButtonWrapper>
       </ProviderListContainer>
-      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
+      {selectedProvider ? (
+        <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
+      ) : (
+        <EmptyState>
+          <Empty
+            description={
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{t('no_provider_selected')}</div>
+              </div>
+            }>
+            <Space.Compact block>
+              <ButtonWithIcon
+                type="primary"
+                size="small"
+                icon={<PlusIcon size={16} />}
+                onClick={onAddProvider}
+                disabled={dragging}
+                style={{ width: '100%' }}>
+                {t('button.add')}
+              </ButtonWithIcon>
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items: addButtonMenu,
+                  onClick: ({ key }) => {
+                    if (key === 'restoreBuiltins') {
+                      onRestoreBuiltinProviders()
+                    }
+                  }
+                }}>
+                <ButtonWithIcon
+                  type="primary"
+                  $square
+                  size="small"
+                  aria-label={t('settings.provider.restore_builtins.button')}
+                  icon={<ChevronDown size={16} />}
+                  disabled={dragging}
+                />
+              </Dropdown>
+            </Space.Compact>
+          </Empty>
+        </EmptyState>
+      )}
     </Container>
   )
 }
@@ -487,6 +595,14 @@ const ProviderListItem = styled.div`
   }
 `
 
+const EmptyState = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - var(--navbar-height));
+`
+
 const DragHandle = styled.div`
   display: flex;
   align-items: center;
@@ -513,11 +629,39 @@ const ProviderItemName = styled.div`
 `
 
 const AddButtonWrapper = styled.div`
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
   height: ${BUTTON_WRAPPER_HEIGHT}px;
   flex-direction: row;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 2px 8px;
+
+  > * {
+    width: 100%;
+  }
+`
+
+const ButtonWithIcon = styled(Button)<{ $square?: boolean }>`
+  display: inline-flex;
   align-items: center;
-  padding: 10px 8px;
+  justify-content: center;
+  height: ${CONTROL_HEIGHT}px !important;
+  min-height: ${CONTROL_HEIGHT}px !important;
+  padding-block: 0 !important;
+  line-height: 1;
+
+  ${({ $square }) =>
+    $square
+      ? `
+  width: ${CONTROL_HEIGHT}px !important;
+  min-width: ${CONTROL_HEIGHT}px !important;
+  padding-inline: 0 !important;
+`
+      : `
+  flex: 1;
+`}
 `
 
 const FilterButton = styled.div`
