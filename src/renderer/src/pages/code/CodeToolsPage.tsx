@@ -1,10 +1,8 @@
 import AiProvider from '@renderer/aiCore'
-import { getAnthropicThinkingBudget } from '@renderer/aiCore/utils/reasoning'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
-import { isEmbeddingModel, isReasoningModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { isSupportedReasoningEffortModel, isSupportedThinkingTokenClaudeModel } from '@renderer/config/models/reasoning'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
@@ -16,7 +14,6 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import type { EndpointType, Model } from '@renderer/types'
-import { getFancyProviderName } from '@renderer/utils/naming'
 import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
@@ -45,12 +42,6 @@ const logger = loggerService.withContext('CodeToolsPage')
  * - Replace spaces with dashes
  * - Replace other dangerous characters with underscores
  */
-const sanitizeProviderName = (name: string): string => {
-  return name
-    .replace(/\s+/g, '-') // spaces -> dashes
-    .replace(/[<>:"|?*\\/]/g, '_') // dangerous chars -> underscores
-}
-
 const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
@@ -278,7 +269,8 @@ const CodeToolsPage: FC = () => {
       model: selectedModel,
       modelProvider,
       apiKey,
-      baseUrl
+      baseUrl,
+      context: { maxTokens, reasoningEffort: reasoning_effort }
     })
 
     // 合并用户自定义的环境变量
@@ -291,36 +283,9 @@ const CodeToolsPage: FC = () => {
   const executeLaunch = async (env: Record<string, string>) => {
     const modelId = selectedCliTool === codeTools.githubCopilotCli ? '' : selectedModel?.id!
 
-    const runOptions: {
-      autoUpdateToLatest?: boolean
-      terminal?: string
-      modelName?: string
-      isReasoning?: boolean
-      supportsReasoningEffort?: boolean
-      budgetTokens?: number
-      providerType?: string
-      providerName?: string
-    } = {
+    const runOptions = {
       autoUpdateToLatest,
       terminal: selectedTerminal
-    }
-
-    // OpenCode needs additional model info
-    if (selectedCliTool === codeTools.openCode && selectedModel) {
-      runOptions.modelName = selectedModel.name
-      runOptions.isReasoning = isReasoningModel(selectedModel)
-      runOptions.supportsReasoningEffort = isSupportedReasoningEffortModel(selectedModel)
-
-      // Calculate Anthropic budget tokens for thinking models
-      if (isSupportedThinkingTokenClaudeModel(selectedModel)) {
-        runOptions.budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoning_effort, selectedModel.id)
-      }
-
-      // Add provider type for correct npm package selection
-      const modelProvider = providers.find((p) => p.id === selectedModel.provider)
-      runOptions.providerType = modelProvider?.type
-      // Add provider name for dynamic provider key in opencode.json (use friendly name, sanitized for CLI)
-      runOptions.providerName = modelProvider ? sanitizeProviderName(getFancyProviderName(modelProvider)) : undefined
     }
 
     window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)

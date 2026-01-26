@@ -730,16 +730,7 @@ class CodeToolsService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: {
-      autoUpdateToLatest?: boolean
-      terminal?: string
-      modelName?: string
-      isReasoning?: boolean
-      supportsReasoningEffort?: boolean
-      budgetTokens?: number
-      providerType?: string
-      providerName?: string
-    } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
   ) {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
@@ -872,12 +863,12 @@ class CodeToolsService {
       const apiKey = env.OPENCODE_API_KEY
       const baseUrl = env.OPENCODE_BASE_URL
       const modelId = _model
-      const modelName = options.modelName || modelId
-      const isReasoning = options.isReasoning ?? false
-      const supportsReasoningEffort = options.supportsReasoningEffort ?? false
-      const budgetTokens = options.budgetTokens
-      const providerType = options.providerType || 'openai-compatible'
-      const providerName = options.providerName || 'Studio'
+      const modelName = env.OPENCODE_MODEL_NAME || modelId
+      const isReasoning = env.OPENCODE_MODEL_IS_REASONING === 'true'
+      const supportsReasoningEffort = env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT === 'true'
+      const budgetTokens = env.OPENCODE_MODEL_BUDGET_TOKENS ? Number(env.OPENCODE_MODEL_BUDGET_TOKENS) : undefined
+      const providerType = env.OPENCODE_PROVIDER_TYPE || 'openai-compatible'
+      const providerName = env.OPENCODE_PROVIDER_NAME || 'Studio'
 
       const configPath = await this.generateOpenCodeConfig(
         directory,
