@@ -1,6 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { getMcpProviderDescriptionLabel, getProviderLabel } from '@renderer/i18n/label'
 import type { MCPServer } from '@renderer/types'
 import { Button, Form, Input, Modal, Select } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
