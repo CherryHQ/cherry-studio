@@ -11,6 +11,7 @@
  */
 
 import { loggerService } from '@logger'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/apiErrors'
 import type {
   FileProcessorFeature,
   FileProcessorMerged,
@@ -76,15 +77,32 @@ export class FileProcessingService {
     const requestId = uuidv4()
     const { file, feature, processorId: requestedProcessorId } = dto
 
+    // Validate required parameters
+    if (!file) {
+      throw DataApiErrorFactory.validation({ file: ['File is required'] })
+    }
+    if (!feature) {
+      throw DataApiErrorFactory.validation({ feature: ['Feature is required'] })
+    }
+
     // Resolve processor
     const processorId = requestedProcessorId ?? configurationService.getDefaultProcessor(feature)
     if (!processorId) {
-      throw new Error(`No default processor configured for feature: ${feature}`)
+      throw DataApiErrorFactory.create(ErrorCode.BAD_REQUEST, `No default processor configured for feature: ${feature}`)
     }
 
     const processor = processorRegistry.get(processorId)
     if (!processor) {
-      throw new Error(`Processor not found: ${processorId}`)
+      throw DataApiErrorFactory.notFound('Processor', processorId)
+    }
+
+    // Check processor supports the requested feature
+    const hasCapability = processor.template.capabilities.some((cap) => cap.feature === feature)
+    if (!hasCapability) {
+      throw DataApiErrorFactory.invalidOperation(
+        'startProcess',
+        `Processor '${processorId}' does not support feature '${feature}'`
+      )
     }
 
     // Get merged configuration
@@ -174,7 +192,7 @@ export class FileProcessingService {
     } catch (error) {
       task.status = 'failed'
       task.error = {
-        code: task.abortController.signal.aborted ? 'cancelled' : 'error',
+        code: task.abortController.signal.aborted ? 'cancelled' : 'processing_error',
         message: error instanceof Error ? error.message : String(error)
       }
     }
@@ -187,6 +205,11 @@ export class FileProcessingService {
    * @returns Current status, progress, and result/error
    */
   async getResult(requestId: string): Promise<ProcessResultResponse> {
+    // Validate requestId
+    if (!requestId?.trim()) {
+      throw DataApiErrorFactory.validation({ requestId: ['Request ID is required'] })
+    }
+
     const task = this.taskStates.get(requestId)
 
     if (!task) {
@@ -218,8 +241,19 @@ export class FileProcessingService {
             task.progress = providerStatus.progress
             if (providerStatus.result) task.result = providerStatus.result
             if (providerStatus.error) task.error = providerStatus.error
-          } catch {
-            // If provider query fails, return current local state
+          } catch (error) {
+            // Log the error and update task state
+            logger.error('Failed to query provider status', {
+              requestId,
+              processorId: task.processorId,
+              error: error instanceof Error ? error.message : String(error)
+            })
+            // Mark task as failed with the error from provider
+            task.status = 'failed'
+            task.error = {
+              code: 'status_query_failed',
+              message: error instanceof Error ? error.message : String(error)
+            }
           }
         }
       }
@@ -298,6 +332,11 @@ export class FileProcessingService {
    * @returns Cancel response with success status and message
    */
   cancel(requestId: string): CancelResponse {
+    // Validate requestId
+    if (!requestId?.trim()) {
+      throw DataApiErrorFactory.validation({ requestId: ['Request ID is required'] })
+    }
+
     const task = this.taskStates.get(requestId)
 
     if (!task || task.status === 'completed' || task.status === 'failed') {
@@ -318,6 +357,11 @@ export class FileProcessingService {
    * @returns Merged processor config if found, null otherwise
    */
   getProcessor(processorId: string): FileProcessorMerged | null {
+    // Validate processorId
+    if (!processorId?.trim()) {
+      throw DataApiErrorFactory.validation({ processorId: ['Processor ID is required'] })
+    }
+
     this.ensureProcessorsRegistered()
     const processor = processorRegistry.get(processorId)
     if (!processor) return null
@@ -353,9 +397,17 @@ export class FileProcessingService {
    * @throws Error if processor not found
    */
   updateProcessorConfig(processorId: string, update: FileProcessorOverride): FileProcessorMerged {
+    // Validate parameters
+    if (!processorId?.trim()) {
+      throw DataApiErrorFactory.validation({ processorId: ['Processor ID is required'] })
+    }
+    if (!update || typeof update !== 'object') {
+      throw DataApiErrorFactory.validation({ update: ['Update object is required'] })
+    }
+
     const result = configurationService.updateConfiguration(processorId, update)
     if (!result) {
-      throw new Error(`Processor not found: ${processorId}`)
+      throw DataApiErrorFactory.notFound('Processor', processorId)
     }
     return result
   }

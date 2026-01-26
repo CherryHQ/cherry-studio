@@ -5,14 +5,14 @@
  */
 
 import type { FileProcessorMerged, FileProcessorTemplate } from '@shared/data/presets/fileProcessing'
-import type { ProcessingResult } from '@shared/data/types/fileProcessing'
+import type { ProcessingResult, ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 
 import { BaseFileProcessor } from '../../base/BaseFileProcessor'
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
-import type { IMarkdownConverter, ITextExtractor } from '../../interfaces'
+import type { IMarkdownConverter, IProcessStatusProvider, ITextExtractor } from '../../interfaces'
 import type { ProcessingContext } from '../../types'
 
 /**
@@ -160,5 +160,32 @@ export class MockDualProcessor extends BaseFileProcessor implements ITextExtract
     this.checkCancellation(context)
     this.validateFile(input)
     return this.doConvertMock(input, config, context)
+  }
+}
+
+/**
+ * Mock Async Processor implementing IProcessStatusProvider
+ *
+ * For testing async processors that return a providerTaskId and require
+ * status polling via getStatus().
+ */
+export class MockAsyncProcessor extends BaseMarkdownConverter implements IProcessStatusProvider {
+  doConvertMock =
+    vi.fn<(input: FileMetadata, config: FileProcessorMerged, context: ProcessingContext) => Promise<ProcessingResult>>()
+
+  getStatusMock = vi.fn<(providerTaskId: string, config: FileProcessorMerged) => Promise<ProcessResultResponse>>()
+
+  async convertToMarkdown(
+    input: FileMetadata,
+    config: FileProcessorMerged,
+    context: ProcessingContext
+  ): Promise<ProcessingResult> {
+    this.checkCancellation(context)
+    await this.validateFile(input)
+    return this.doConvertMock(input, config, context)
+  }
+
+  async getStatus(providerTaskId: string, config: FileProcessorMerged): Promise<ProcessResultResponse> {
+    return this.getStatusMock(providerTaskId, config)
   }
 }

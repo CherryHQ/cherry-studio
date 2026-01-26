@@ -1,4 +1,5 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import * as fs from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FileProcessingService } from '../FileProcessingService'
@@ -6,6 +7,7 @@ import { processorRegistry } from '../registry/ProcessorRegistry'
 import {
   createMockFileMetadata,
   createMockTemplate,
+  MockAsyncProcessor,
   MockMarkdownConverter,
   MockTextExtractor
 } from './mocks/MockProcessor'
@@ -23,7 +25,12 @@ const testProcessorIds = [
   'avail-ocr',
   'ocr-only',
   'md-only',
-  'unavailable'
+  'unavailable',
+  'get-processor-test',
+  'update-processor-test',
+  'feature-mismatch',
+  'async-processor',
+  'async-error-processor'
 ]
 
 describe('FileProcessingService', () => {
@@ -110,7 +117,7 @@ describe('FileProcessingService', () => {
       const file = createMockFileMetadata()
 
       await expect(service.startProcess({ file, feature: 'text_extraction' })).rejects.toThrow(
-        'Processor not found: nonexistent'
+        "Processor with id 'nonexistent' not found"
       )
     })
   })
@@ -318,6 +325,245 @@ describe('FileProcessingService', () => {
       const processors = await service.listAvailableProcessors()
 
       expect(processors.some((item) => item.id === 'unavailable')).toBe(false)
+    })
+  })
+
+  describe('getProcessor', () => {
+    it('should return processor config for valid id', () => {
+      const template = createMockTemplate({ id: 'get-processor-test' })
+      const processor = new MockTextExtractor(template)
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const config = service.getProcessor('get-processor-test')
+
+      expect(config).toBeDefined()
+      expect(config?.id).toBe('get-processor-test')
+    })
+
+    it('should throw validation error for empty processorId', () => {
+      expect(() => service.getProcessor('')).toThrow()
+    })
+
+    it('should throw validation error for whitespace-only processorId', () => {
+      expect(() => service.getProcessor('   ')).toThrow()
+    })
+
+    it('should return null for unknown processor', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const config = service.getProcessor('nonexistent-processor')
+
+      expect(config).toBeNull()
+    })
+  })
+
+  describe('updateProcessorConfig', () => {
+    it('should update processor apiKey', () => {
+      // Use a real processor ID from presets (mineru is an API processor)
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const updated = service.updateProcessorConfig('mineru', { apiKey: 'new-key' })
+
+      expect(updated.apiKey).toBe('new-key')
+    })
+
+    it('should throw validation error for empty processorId', () => {
+      expect(() => service.updateProcessorConfig('', { apiKey: 'test' })).toThrow()
+    })
+
+    it('should throw validation error for whitespace-only processorId', () => {
+      expect(() => service.updateProcessorConfig('   ', { apiKey: 'test' })).toThrow()
+    })
+
+    it('should throw validation error for invalid update object', () => {
+      expect(() => service.updateProcessorConfig('test-id', null as never)).toThrow()
+    })
+
+    it('should throw NotFound for unknown processor', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      expect(() => service.updateProcessorConfig('nonexistent', { apiKey: 'test' })).toThrow('not found')
+    })
+  })
+
+  describe('startProcess - validation', () => {
+    it('should throw validation error when file is missing', async () => {
+      await expect(service.startProcess({ file: undefined as never, feature: 'text_extraction' })).rejects.toThrow()
+    })
+
+    it('should throw validation error when feature is missing', async () => {
+      const file = createMockFileMetadata()
+
+      await expect(service.startProcess({ file, feature: undefined as never })).rejects.toThrow()
+    })
+
+    it('should throw error when processor does not support feature', async () => {
+      const template = createMockTemplate({
+        id: 'feature-mismatch',
+        capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+      })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+
+      await expect(
+        service.startProcess({ file, feature: 'markdown_conversion', processorId: 'feature-mismatch' })
+      ).rejects.toThrow("does not support feature 'markdown_conversion'")
+    })
+  })
+
+  describe('getResult - validation', () => {
+    it('should throw validation error for empty requestId', async () => {
+      await expect(service.getResult('')).rejects.toThrow()
+    })
+
+    it('should throw validation error for whitespace-only requestId', async () => {
+      await expect(service.getResult('   ')).rejects.toThrow()
+    })
+  })
+
+  describe('cancel - validation', () => {
+    it('should throw validation error for empty requestId', () => {
+      expect(() => service.cancel('')).toThrow()
+    })
+
+    it('should throw validation error for whitespace-only requestId', () => {
+      expect(() => service.cancel('   ')).toThrow()
+    })
+  })
+
+  describe('IProcessStatusProvider flow', () => {
+    beforeEach(() => {
+      // Mock fs.promises.stat to avoid file system access
+      vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1024 } as fs.Stats)
+    })
+
+    it('should handle async processor returning providerTaskId', async () => {
+      const template = createMockTemplate({
+        id: 'async-processor',
+        capabilities: [{ feature: 'markdown_conversion', input: 'document', output: 'markdown' }]
+      })
+      const processor = new MockAsyncProcessor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doConvertMock.mockResolvedValue({
+        metadata: { providerTaskId: 'provider-task-123' }
+      })
+      processor.getStatusMock.mockResolvedValue({
+        requestId: 'test',
+        status: 'processing',
+        progress: 50
+      })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_markdown_conversion_processor',
+        'async-processor'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata({ name: 'doc.pdf', ext: '.pdf' })
+      const { requestId } = await service.startProcess({ file, feature: 'markdown_conversion' })
+
+      expect(requestId).toBeDefined()
+
+      // Wait for async processing to set providerTaskId
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        // Should be processing since we have a providerTaskId
+        expect(result.status).toBe('processing')
+        expect(result.progress).toBe(50)
+      })
+
+      expect(processor.getStatusMock).toHaveBeenCalled()
+    })
+
+    it('should update task state from provider status to completed', async () => {
+      const template = createMockTemplate({
+        id: 'async-processor',
+        capabilities: [{ feature: 'markdown_conversion', input: 'document', output: 'markdown' }]
+      })
+      const processor = new MockAsyncProcessor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doConvertMock.mockResolvedValue({
+        metadata: { providerTaskId: 'provider-task-456' }
+      })
+
+      let callCount = 0
+      processor.getStatusMock.mockImplementation(async () => {
+        callCount++
+        if (callCount === 1) {
+          return { requestId: 'test', status: 'processing', progress: 75 }
+        }
+        return {
+          requestId: 'test',
+          status: 'completed',
+          progress: 100,
+          result: { markdown: '# Converted Document' }
+        }
+      })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_markdown_conversion_processor',
+        'async-processor'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata({ name: 'doc.pdf', ext: '.pdf' })
+      const { requestId } = await service.startProcess({ file, feature: 'markdown_conversion' })
+
+      // Wait for providerTaskId to be set first
+      await vi.waitFor(async () => {
+        await service.getResult(requestId)
+        expect(processor.getStatusMock).toHaveBeenCalled()
+      })
+
+      // Second call should get completed status
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('completed')
+        expect(result.result?.markdown).toBe('# Converted Document')
+      })
+    })
+
+    it('should handle provider status query failure', async () => {
+      const template = createMockTemplate({
+        id: 'async-error-processor',
+        capabilities: [{ feature: 'markdown_conversion', input: 'document', output: 'markdown' }]
+      })
+      const processor = new MockAsyncProcessor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doConvertMock.mockResolvedValue({
+        metadata: { providerTaskId: 'provider-task-error' }
+      })
+      processor.getStatusMock.mockRejectedValue(new Error('Provider API error'))
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_markdown_conversion_processor',
+        'async-error-processor'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata({ name: 'doc.pdf', ext: '.pdf' })
+      const { requestId } = await service.startProcess({ file, feature: 'markdown_conversion' })
+
+      // Wait for providerTaskId to be set and status query to fail
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('failed')
+        expect(result.error?.code).toBe('status_query_failed')
+        expect(result.error?.message).toContain('Provider API error')
+      })
     })
   })
 })

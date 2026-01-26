@@ -38,7 +38,7 @@ export const fileProcessingHandlers: {
 
   '/file-processing/processors/:id': {
     GET: async ({ params }) => {
-      return await fileProcessingService.getProcessor(params.id)
+      return fileProcessingService.getProcessor(params.id)
     },
     PATCH: async ({ params, body }) => {
       return fileProcessingService.updateProcessorConfig(params.id, body)
