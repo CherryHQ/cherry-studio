@@ -75,9 +75,13 @@ vi.mock('@renderer/utils/api', () => ({
   })
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = (await importOriginal()) as { useTranslation: () => { t: (key: string) => string } }
+  return {
+    ...actual,
+    useTranslation: () => ({ t: (key: string) => key })
+  }
+})
 
 describe('generateToolEnvironment', () => {
   const createMockModel = (id: string, provider: string): Model => ({
