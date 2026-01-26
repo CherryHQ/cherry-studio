@@ -65,6 +65,26 @@ class DbService implements MessageDataSource {
     return this.dexieSource
   }
 
+  /**
+   * Resolve topicId for a message
+   */
+  private resolveMessageTopicId(messageId: string): string | undefined {
+    const state = store.getState()
+
+    const parentMessage = state.messages.entities[messageId]
+    if (parentMessage) {
+      return parentMessage.topicId
+    }
+
+    const agentInfo = this.agentSource.getStreamingCacheInfo(messageId)
+    if (agentInfo) {
+      const topicId = `agent-session:${agentInfo.sessionId}`
+      return topicId
+    }
+
+    return undefined
+  }
+
   // ============ Read Operations ============
 
   async fetchMessages(
@@ -75,7 +95,7 @@ class DbService implements MessageDataSource {
     blocks: MessageBlock[]
   }> {
     const source = this.getDataSource(topicId)
-    return source.fetchMessages(topicId, forceReload)
+    return await source.fetchMessages(topicId, forceReload)
   }
 
   // ============ Write Operations ============
@@ -115,16 +135,18 @@ class DbService implements MessageDataSource {
       return
     }
 
-    const state = store.getState()
-
     const agentBlocks: MessageBlock[] = []
     const regularBlocks: MessageBlock[] = []
 
     for (const block of blocks) {
-      const parentMessage = state.messages.entities[block.messageId]
-      if (parentMessage && isAgentSessionTopicId(parentMessage.topicId)) {
+      const topicId = this.resolveMessageTopicId(block.messageId)
+
+      if (topicId && isAgentSessionTopicId(topicId)) {
         agentBlocks.push(block)
       } else {
+        if (!topicId) {
+          logger.warn(`Unable to resolve topicId for block ${block.id}, defaulting to Dexie`)
+        }
         regularBlocks.push(block)
       }
     }
@@ -169,7 +191,24 @@ class DbService implements MessageDataSource {
   }
 
   async updateSingleBlock(blockId: string, updates: Partial<MessageBlock>): Promise<void> {
-    // For single block operations, default to Dexie since agent blocks are immutable
+    const state = store.getState()
+    const existingBlock = state.messageBlocks.entities[blockId]
+
+    if (!existingBlock) {
+      logger.warn(`Block ${blockId} not found in state, defaulting to Dexie`)
+      if (this.dexieSource.updateSingleBlock) {
+        return this.dexieSource.updateSingleBlock(blockId, updates)
+      }
+      return this.dexieSource.updateBlocks([{ ...updates, id: blockId } as MessageBlock])
+    }
+
+    const topicId = this.resolveMessageTopicId(existingBlock.messageId)
+
+    if (topicId && isAgentSessionTopicId(topicId)) {
+      return this.agentSource.updateSingleBlock(blockId, updates)
+    }
+
+    // Default to Dexie for regular blocks
     if (this.dexieSource.updateSingleBlock) {
       return this.dexieSource.updateSingleBlock(blockId, updates)
     }

@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 export * from './types'
 
 // 导入所有渲染器
+import { AskUserQuestionCard } from '../AskUserQuestionCard'
 import ToolPermissionRequestCard from '../ToolPermissionRequestCard'
 import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
@@ -96,6 +97,11 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
   const pendingPermission = useAppSelector((state) =>
     selectPendingPermission(state.toolPermissions, toolResponse.toolCallId)
   )
+
+  // AskUserQuestion uses a unified card for both pending and completed states
+  if (tool?.name === AgentToolsType.AskUserQuestion) {
+    return <AskUserQuestionCard toolResponse={toolResponse} />
+  }
 
   if (status === 'pending') {
     if (pendingPermission) {
