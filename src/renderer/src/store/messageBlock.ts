@@ -376,6 +376,34 @@ export const selectLatestTodoWriteBlockForTopic = createSelector(
   }
 )
 
+/**
+ * Select all TodoWrite tool block IDs for a specific topic
+ * Used by PinnedTodoPanel to delete all TodoWrite blocks when closing
+ */
+export const selectAllTodoWriteBlockIdsForTopic = createSelector(
+  [
+    messageBlocksSelectors.selectAll,
+    (state: RootState) => state.messages.messageIdsByTopic,
+    (_state: RootState, topicId: string) => topicId
+  ],
+  (allBlocks, messageIdsByTopic, topicId): { blockId: string; messageId: string }[] => {
+    const topicMessageIds = messageIdsByTopic[topicId]
+    if (!topicMessageIds?.length) return []
+
+    const topicMessageIdSet = new Set(topicMessageIds)
+    const result: { blockId: string; messageId: string }[] = []
+
+    for (const block of allBlocks) {
+      if (block.type !== MessageBlockType.TOOL || !topicMessageIdSet.has(block.messageId)) continue
+      const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
+      if (toolResponse?.tool?.name === 'TodoWrite') {
+        result.push({ blockId: block.id, messageId: block.messageId })
+      }
+    }
+    return result
+  }
+)
+
 // --- Selector Integration --- END
 
 export default messageBlocksSlice.reducer

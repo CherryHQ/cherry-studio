@@ -1,7 +1,9 @@
+import { useAppDispatch } from '@renderer/store'
+import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { Typography } from 'antd'
-import { CheckCircle, ChevronDown, ChevronUp, Circle, Clock } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, Circle, Clock, X } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -47,8 +49,29 @@ interface PinnedTodoPanelProps {
 
 export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
   const { t } = useTranslation()
+  const dispatch = useAppDispatch()
   const activeTodoInfo = useActiveTodos(topicId)
   const [isCollapsed, setIsCollapsed] = useState(false)
+
+  const handleClose = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (activeTodoInfo) {
+        // Group by messageId for batch deletion
+        const blocksByMessage = new Map<string, string[]>()
+        for (const { blockId, messageId } of activeTodoInfo.allTodoWriteBlocks) {
+          const blocks = blocksByMessage.get(messageId) || []
+          blocks.push(blockId)
+          blocksByMessage.set(messageId, blocks)
+        }
+        // Delete all TodoWrite blocks
+        for (const [messageId, blockIds] of blocksByMessage) {
+          dispatch(removeBlocksThunk(topicId, messageId, blockIds))
+        }
+      }
+    },
+    [dispatch, topicId, activeTodoInfo]
+  )
 
   if (!activeTodoInfo) {
     return null
@@ -60,8 +83,13 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
     <Container>
       <PanelBody>
         <PanelHeader onClick={() => setIsCollapsed(!isCollapsed)}>
-          <HeaderTitle>{t('agent.todo.panel.title', { completed: completedCount, total: totalCount })}</HeaderTitle>
-          {isCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <HeaderLeft>
+            {isCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            <HeaderTitle>{t('agent.todo.panel.title', { completed: completedCount, total: totalCount })}</HeaderTitle>
+          </HeaderLeft>
+          <CloseButton onClick={handleClose}>
+            <X size={14} />
+          </CloseButton>
         </PanelHeader>
         <TodoList $collapsed={isCollapsed}>
           {todos.map((todo, index) => (
@@ -104,6 +132,28 @@ const PanelHeader = styled.div`
   cursor: pointer;
   font-size: 12px;
   color: var(--color-text-2);
+`
+
+const HeaderLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`
+
+const CloseButton = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-3);
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--color-text-1);
+    background-color: var(--color-fill-2);
+  }
 `
 
 const HeaderTitle = styled(Text)`
