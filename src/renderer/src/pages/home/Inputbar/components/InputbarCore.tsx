@@ -651,6 +651,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         {quickPanelElement}
         <InputBarContainer
           id="inputbar"
+          data-guide-target="chat-input"
           className={classNames('inputbar-container', isDragging && 'file-dragging', isExpanded && 'expanded')}>
           <DragHandle onMouseDown={handleDragStart}>
             <HolderOutlined style={{ fontSize: 12 }} />

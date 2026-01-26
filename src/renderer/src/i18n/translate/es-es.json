@@ -5352,6 +5352,119 @@
     "saveDataError": "Error al guardar los datos, inténtalo de nuevo",
     "title": "Actualización"
   },
+  "userGuide": {
+    "buttons": {
+      "gotIt": "[to be translated]:Got it",
+      "useNow": "[to be translated]:Use Now"
+    },
+    "checklist": {
+      "progress": "[to be translated]:{{completed}} of {{total}} completed",
+      "subtitle": "[to be translated]:Complete tasks to unlock Cherry Studio advanced tips",
+      "tasks": {
+        "configureProvider": "[to be translated]:Configure your first AI provider",
+        "sendFirstMessage": "[to be translated]:Send your first message",
+        "useFreeModel": "[to be translated]:Try the free built-in model"
+      },
+      "title": "[to be translated]:Start Your AI Journey"
+    },
+    "completionModal": {
+      "exploreMore": "[to be translated]:Explore More Assistants",
+      "recommendedAssistants": "[to be translated]:Recommended Assistants",
+      "startChat": "[to be translated]:Start Chatting",
+      "subtitle": "[to be translated]:Welcome to Cherry Studio. You're all set to explore!",
+      "title": "[to be translated]:Setup Complete!"
+    },
+    "guidePage": {
+      "carousel": {
+        "assistants": {
+          "description": "[to be translated]:From project management to chart drawing, define dedicated system prompts to build your professional AI team.",
+          "title": "[to be translated]:AI Assistants for Every Task"
+        },
+        "models": {
+          "description": "[to be translated]:One-stop management of OpenAI, Claude, DeepSeek and many other model services. Free switching, local storage, giving the choice back to you.",
+          "title": "[to be translated]:World-Class AI Models"
+        },
+        "paintings": {
+          "description": "[to be translated]:Integrate multiple mainstream drawing models with fine-grained parameter control. Whether it's art creation or asset generation, it's all at your fingertips.",
+          "title": "[to be translated]:Unlimited Creativity"
+        }
+      },
+      "navStyle": {
+        "left": "[to be translated]:Sidebar",
+        "title": "[to be translated]:Navigation Style",
+        "top": "[to be translated]:Top Navbar"
+      },
+      "startButton": "[to be translated]:Get Started",
+      "welcome": {
+        "subtitle": "[to be translated]:Your powerful AI desktop client. Let's set up your preferences before getting started.",
+        "title": "[to be translated]:Welcome to Cherry Studio"
+      }
+    },
+    "guides": {
+      "configureProvider": {
+        "description": "[to be translated]:Set up your AI provider to get started",
+        "steps": {
+          "apiKey": {
+            "description": "[to be translated]:Enter your API key and click the check button to verify the connection.",
+            "shortDescription": "[to be translated]:Enter your API key here",
+            "title": "[to be translated]:Connect Your AI Service"
+          }
+        },
+        "title": "[to be translated]:Configure Provider"
+      },
+      "sendMessage": {
+        "description": "[to be translated]:Start chatting with AI",
+        "steps": {
+          "input": {
+            "description": "[to be translated]:Type your message here and press Enter to send. Cherry Studio supports Markdown, code highlighting, and file attachments.",
+            "shortDescription": "[to be translated]:Type your message here and send",
+            "title": "[to be translated]:Send Your First Message"
+          }
+        },
+        "title": "[to be translated]:Chat with AI"
+      },
+      "useFreeModel": {
+        "description": "[to be translated]:Try our free built-in model",
+        "steps": {
+          "selector": {
+            "description": "[to be translated]:Click here to select a model. Try the free built-in model to get started without an API key.",
+            "shortDescription": "[to be translated]:Click here to select a free model",
+            "title": "[to be translated]:Select a Model"
+          }
+        },
+        "title": "[to be translated]:Use Free Model"
+      }
+    },
+    "taskPopover": {
+      "configureProvider": {
+        "button": "[to be translated]:Start Setup",
+        "features": {
+          "connectApi": "[to be translated]:🔑 Connect your API service",
+          "multiProvider": "[to be translated]:⚙️ Support multiple providers",
+          "secureStorage": "[to be translated]:🔒 Keys stored securely on your device"
+        },
+        "title": "[to be translated]:Configure AI Provider"
+      },
+      "sendFirstMessage": {
+        "button": "[to be translated]:Start Chatting",
+        "features": {
+          "fileAnalysis": "[to be translated]:📎 File analysis — supports PDF/Word",
+          "markdown": "[to be translated]:✨ Markdown rendering — perfect code highlighting",
+          "typewriter": "[to be translated]:🎨 Typewriter effect — smooth experience"
+        },
+        "title": "[to be translated]:Send Your First Message"
+      },
+      "useFreeModel": {
+        "button": "[to be translated]:Use Now",
+        "features": {
+          "allInOne": "[to be translated]:📝 All-in-one assistant — for Q&A, translation and coding",
+          "fastResponse": "[to be translated]:⚡️ Fast response — millisecond-level latency",
+          "noRegistration": "[to be translated]:🟢 No registration required — built-in free computing power"
+        },
+        "title": "[to be translated]:Use Free Model"
+      }
+    }
+  },
   "warning": {
     "missing_provider": "El proveedor no existe, se ha revertido al proveedor predeterminado {{provider}}. Esto podría causar problemas."
   },

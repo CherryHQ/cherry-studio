@@ -3,9 +3,11 @@ import './styles/driver-theme.css'
 
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { completeFeatureGuide, completeOnboarding, skipOnboarding } from '@renderer/store/onboarding'
-import type { GuideStep, VersionGuide } from '@renderer/types/onboarding'
+import { completeFeatureGuide, completeOnboarding, completeTask, skipOnboarding } from '@renderer/store/onboarding'
+import type { GuideStep, UserGuideTaskStatus, VersionGuide } from '@renderer/types/onboarding'
 import { type Driver, driver, type DriveStep } from 'driver.js'
 import type { FC, PropsWithChildren } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -13,6 +15,13 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 const logger = loggerService.withContext('Onboarding')
+
+// Mapping from user guide version to task key
+const USER_GUIDE_TASK_MAP: Record<string, keyof UserGuideTaskStatus> = {
+  'user-guide-use-free-model': 'useFreeModel',
+  'user-guide-configure-provider': 'configureProvider',
+  'user-guide-send-message': 'sendFirstMessage'
+}
 
 interface OnboardingContextType {
   startGuide: (guide: VersionGuide) => void
@@ -72,6 +81,49 @@ export const OnboardingProvider: FC<PropsWithChildren> = ({ children }) => {
     (state) => state.onboarding
   )
 
+  // Process guide-video elements: show skeleton while loading, fade in when ready
+  const injectVideos = useCallback(() => {
+    const videoContainers = document.querySelectorAll('.guide-video[data-video-light]')
+    videoContainers.forEach((container) => {
+      // Skip if already processed
+      if (container.getAttribute('data-processed')) return
+      container.setAttribute('data-processed', 'true')
+
+      const lightUrl = container.getAttribute('data-video-light')
+      const darkUrl = container.getAttribute('data-video-dark')
+      const videoUrl = theme === 'dark' && darkUrl ? darkUrl : lightUrl
+
+      if (!videoUrl) return
+
+      // Create skeleton placeholder
+      const skeleton = document.createElement('div')
+      skeleton.className = 'guide-video-skeleton'
+      skeleton.innerHTML = `
+        <div class="ant-skeleton ant-skeleton-active ant-skeleton-element">
+          <span class="ant-skeleton-image"></span>
+        </div>
+      `
+      container.appendChild(skeleton)
+
+      // Create and load video
+      const video = document.createElement('video')
+      video.src = videoUrl
+      video.autoplay = true
+      video.loop = true
+      video.muted = true
+      video.playsInline = true
+      video.style.opacity = '0'
+      video.style.transition = 'opacity 0.3s ease'
+      container.appendChild(video)
+
+      // Show video and hide skeleton when loaded
+      video.onloadeddata = () => {
+        video.style.opacity = '1'
+        skeleton.style.display = 'none'
+      }
+    })
+  }, [theme])
+
   const finishGuide = useCallback(
     (wasCompleted: boolean) => {
       const guide = guideRef.current.guide
@@ -86,6 +138,14 @@ export const OnboardingProvider: FC<PropsWithChildren> = ({ children }) => {
         dispatch(completeFeatureGuide(guide.version))
       }
 
+      if (wasCompleted) {
+        const taskKey = USER_GUIDE_TASK_MAP[guide.version]
+        if (taskKey && taskKey !== 'configureProvider' && taskKey !== 'sendFirstMessage') {
+          dispatch(completeTask(taskKey))
+          logger.info(`Task completed via guide`, { taskKey, guideVersion: guide.version })
+        }
+      }
+
       setIsGuideActive(false)
       setCurrentGuide(null)
       guideRef.current = { guide: null, steps: [] }
@@ -95,28 +155,40 @@ export const OnboardingProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const createDriverSteps = useCallback(
     (guideSteps: GuideStep[]): DriveStep[] =>
-      guideSteps.map((step) => ({
-        element: resolveElement(step),
-        popover: {
-          title: t(step.titleKey),
-          description: t(step.descriptionKey),
-          side: step.side === 'over' ? undefined : step.side,
-          align: step.align
+      guideSteps.map((step, index) => {
+        const isLastStep = index === guideSteps.length - 1
+        return {
+          element: resolveElement(step),
+          popover: {
+            title: t(step.titleKey),
+            description: t(step.descriptionKey, step.descriptionInterpolation),
+            side: step.side === 'over' ? undefined : step.side,
+            align: step.align,
+            // Custom button text per step
+            nextBtnText: step.nextBtnTextKey ? t(step.nextBtnTextKey) : undefined,
+            doneBtnText: isLastStep && step.doneBtnTextKey ? t(step.doneBtnTextKey) : undefined
+          }
         }
-      })),
+      }),
     [t]
   )
 
   const createAndStartDriver = useCallback(
     (fromStepIndex: number) => {
-      const { steps: guideSteps } = guideRef.current
+      const { guide, steps: guideSteps } = guideRef.current
       if (!guideSteps.length) return
 
       const steps = createDriverSteps(guideSteps)
+      const popoverClass = guide?.popoverClass || 'cherry-driver-popover'
+      const isUserGuide = popoverClass.includes('user-guide-popover')
+
+      // For user guide popovers, use custom button text from the last step
+      const lastStep = guideSteps[guideSteps.length - 1]
+      const doneBtnText = lastStep?.doneBtnTextKey ? t(lastStep.doneBtnTextKey) : t('onboarding.done')
 
       const driverInstance = driver({
         animate: true,
-        showProgress: true,
+        showProgress: !isUserGuide,
         overlayColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.75)' : 'rgba(255, 255, 255, 0.75)',
         stagePadding: 10,
         stageRadius: 8,
@@ -125,9 +197,13 @@ export const OnboardingProvider: FC<PropsWithChildren> = ({ children }) => {
         progressText: t('onboarding.progress'),
         nextBtnText: t('onboarding.next'),
         prevBtnText: t('onboarding.previous'),
-        doneBtnText: t('onboarding.done'),
-        popoverClass: `cherry-driver-popover ${theme}`,
+        doneBtnText,
+        popoverClass: `${popoverClass} ${theme}`,
         steps,
+        onPopoverRender: () => {
+          // Inject videos after popover is rendered
+          injectVideos()
+        },
         onHighlightStarted: () => {
           // Skip if we just navigated (waiting for re-drive)
           if (navigatingRef.current) return
@@ -160,7 +236,7 @@ export const OnboardingProvider: FC<PropsWithChildren> = ({ children }) => {
       driverRef.current = driverInstance
       driverInstance.drive(fromStepIndex)
     },
-    [theme, t, navigate, createDriverSteps, finishGuide]
+    [theme, t, navigate, createDriverSteps, finishGuide, injectVideos]
   )
 
   const startGuide = useCallback(
@@ -186,6 +262,33 @@ export const OnboardingProvider: FC<PropsWithChildren> = ({ children }) => {
       driverRef.current.destroy()
     }
   }, [])
+
+  const { models: cherryinModels } = useProvider('cherryin')
+  const { taskStatus } = useAppSelector((state) => state.onboarding)
+
+  useEffect(() => {
+    if (!taskStatus.configureProvider && cherryinModels.length > 0) {
+      dispatch(completeTask('configureProvider'))
+      logger.info('Task completed via CherryIN models', {
+        taskKey: 'configureProvider',
+        modelCount: cherryinModels.length
+      })
+    }
+  }, [cherryinModels.length, taskStatus.configureProvider, dispatch])
+
+  useEffect(() => {
+    if (taskStatus.sendFirstMessage) return
+
+    const handleMessageSent = () => {
+      dispatch(completeTask('sendFirstMessage'))
+      logger.info('Task completed via message sent', { taskKey: 'sendFirstMessage' })
+    }
+
+    EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, handleMessageSent)
+    return () => {
+      EventEmitter.off(EVENT_NAMES.SEND_MESSAGE, handleMessageSent)
+    }
+  }, [taskStatus.sendFirstMessage, dispatch])
 
   // Cleanup on unmount
   useEffect(() => {

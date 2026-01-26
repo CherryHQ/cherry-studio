@@ -477,7 +477,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   </Tooltip>
                 )}
               </SettingSubtitle>
-              <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+              <Space.Compact style={{ width: '100%', marginTop: 5 }} data-guide-target="provider-api-key">
                 <Input.Password
                   id="api-key-input"
                   value={localApiKey}

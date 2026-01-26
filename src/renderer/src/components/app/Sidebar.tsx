@@ -1,4 +1,5 @@
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
+import { ChecklistContent } from '@renderer/components/UserGuide/UserGuideChecklist'
 import { isMac } from '@renderer/config/constant'
 import { UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -10,10 +11,13 @@ import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setChecklistVisible } from '@renderer/store/onboarding'
 import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
-import { Avatar, Tooltip } from 'antd'
+import { Avatar, Popover, Tooltip } from 'antd'
 import {
+  BadgeCheck,
   Code,
   FileSearch,
   Folder,
@@ -29,6 +33,7 @@ import {
   Sun
 } from 'lucide-react'
 import type { FC } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -41,6 +46,7 @@ const Sidebar: FC = () => {
   const { minappShow } = useRuntime()
   const { sidebarIcons } = useSettings()
   const { pinned } = useMinapps()
+  const dispatch = useAppDispatch()
 
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -48,6 +54,20 @@ const Sidebar: FC = () => {
   const { theme, settedTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
   const { t } = useTranslation()
+
+  // User guide state
+  const { guidePageCompleted, checklistDismissed, checklistVisible, taskStatus } = useAppSelector(
+    (state) => state.onboarding
+  )
+  const allTasksCompleted = taskStatus.useFreeModel && taskStatus.configureProvider && taskStatus.sendFirstMessage
+  const showUserGuideButton = guidePageCompleted && !checklistDismissed && !allTasksCompleted
+
+  const handleChecklistVisibleChange = useCallback(
+    (visible: boolean) => {
+      dispatch(setChecklistVisible(visible))
+    },
+    [dispatch]
+  )
 
   const onEditUser = () => UserPopup.show()
 
@@ -89,6 +109,22 @@ const Sidebar: FC = () => {
         )}
       </MainMenusContainer>
       <Menus>
+        {showUserGuideButton && (
+          <Popover
+            content={<ChecklistContent />}
+            trigger="click"
+            open={checklistVisible}
+            onOpenChange={handleChecklistVisibleChange}
+            placement="rightBottom"
+            arrow={false}
+            styles={{ body: { padding: 0 } }}>
+            <Tooltip title={t('userGuide.checklist.title')} placement="right">
+              <Icon theme={theme} data-guide-target="user-guide-badge">
+                <BadgeCheck size={20} className="icon" />
+              </Icon>
+            </Tooltip>
+          </Popover>
+        )}
         <Tooltip title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)} placement="right">
           <Icon theme={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (

@@ -3,11 +3,13 @@ import '@renderer/databases'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
+import styled from 'styled-components'
 
 import Sidebar from './components/app/Sidebar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { OnboardingProvider } from './components/Onboarding'
 import TabsContainer from './components/Tab/TabContainer'
+import { CompletionModal, GuidePage, useTaskCompletion, useUserGuide } from './components/UserGuide'
 import NavigationHandler from './handler/NavigationHandler'
 import { useNavbarPosition } from './hooks/useSettings'
 import CodeToolsPage from './pages/code/CodeToolsPage'
@@ -23,7 +25,37 @@ import SettingsPage from './pages/settings/SettingsPage'
 import AssistantPresetsPage from './pages/store/assistants/presets/AssistantPresetsPage'
 import TranslatePage from './pages/translate/TranslatePage'
 
-const Router: FC = () => {
+const UserGuideComponents: FC = () => {
+  // Enable task completion detection
+  useTaskCompletion()
+
+  return <CompletionModal />
+}
+
+/**
+ * Main container that sets navbar-position attribute for child CSS selectors
+ */
+const AppContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  width: 100vw;
+`
+
+/**
+ * Main content area for left navbar layout
+ */
+const MainContent = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+`
+
+/**
+ * Main app layout that renders after GuidePage is completed
+ */
+const MainAppLayout: FC = () => {
   const { navbarPosition } = useNavbarPosition()
 
   const routes = useMemo(() => {
@@ -49,21 +81,48 @@ const Router: FC = () => {
 
   if (navbarPosition === 'left') {
     return (
-      <HashRouter>
-        <OnboardingProvider>
-          <Sidebar />
-          {routes}
-          <NavigationHandler />
-        </OnboardingProvider>
-      </HashRouter>
+      <AppContainer navbar-position="left">
+        <Sidebar />
+        <MainContent>{routes}</MainContent>
+        <NavigationHandler />
+        <UserGuideComponents />
+      </AppContainer>
     )
   }
 
   return (
+    <AppContainer navbar-position="top">
+      <NavigationHandler />
+      <TabsContainer>{routes}</TabsContainer>
+      <UserGuideComponents />
+    </AppContainer>
+  )
+}
+
+/**
+ * Content switcher that shows either GuidePage or MainAppLayout
+ * based on user guide completion status
+ */
+const AppContent: FC = () => {
+  const { shouldShowGuidePage } = useUserGuide()
+
+  if (shouldShowGuidePage) {
+    return <GuidePage />
+  }
+
+  return <MainAppLayout />
+}
+
+/**
+ * Router component that conditionally renders GuidePage as a full-screen overlay
+ * before showing the main app layout. This ensures users complete the guide page
+ * before seeing any navigation elements.
+ */
+const Router: FC = () => {
+  return (
     <HashRouter>
       <OnboardingProvider>
-        <NavigationHandler />
-        <TabsContainer>{routes}</TabsContainer>
+        <AppContent />
       </OnboardingProvider>
     </HashRouter>
   )
