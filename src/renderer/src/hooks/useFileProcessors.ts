@@ -9,7 +9,9 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import type { FileProcessorFeature, FileProcessorOverride } from '@shared/data/presets/fileProcessing'
-import { useCallback, useMemo } from 'react'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
+import type { FileMetadata } from '@types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 // ============================================================================
 // Query Hooks
@@ -84,4 +86,62 @@ export function useDefaultProcessors() {
     defaultTextExtractionProcessor,
     setDefaultTextExtractionProcessor
   }
+}
+
+// ============================================================================
+// Processing Hooks
+// ============================================================================
+
+/**
+ * Hook for processing files via the async API
+ *
+ * Uses useQuery with refreshInterval for automatic polling instead of manual loop.
+ */
+export function useFileProcess() {
+  const [requestId, setRequestId] = useState<string | null>(null)
+  const callbacksRef = useRef<{
+    resolve: (result: ProcessingResult) => void
+    reject: (error: Error) => void
+  } | null>(null)
+
+  const { trigger: startProcess } = useMutation('POST', '/file-processing/process', {})
+
+  // TODO: need refactor translate page
+  const { data: resultData } = useQuery('/file-processing/result', {
+    query: { requestId: requestId ?? '' },
+    enabled: !!requestId,
+    swrOptions: {
+      refreshInterval: 2000
+    }
+  })
+
+  useEffect(() => {
+    if (!resultData || !callbacksRef.current) return
+
+    if (resultData.status === 'completed') {
+      callbacksRef.current.resolve(resultData.result!)
+      callbacksRef.current = null
+      setRequestId(null)
+    } else if (resultData.status === 'failed') {
+      callbacksRef.current.reject(new Error(resultData.error?.message || 'Processing failed'))
+      callbacksRef.current = null
+      setRequestId(null)
+    }
+  }, [resultData])
+
+  const processFile = useCallback(
+    (file: FileMetadata, feature: FileProcessorFeature, processorId?: string): Promise<ProcessingResult> => {
+      return new Promise((resolve, reject) => {
+        startProcess({ body: { file, feature, processorId } })
+          .then(({ requestId }) => {
+            callbacksRef.current = { resolve, reject }
+            setRequestId(requestId)
+          })
+          .catch(reject)
+      })
+    },
+    [startProcess]
+  )
+
+  return { processFile }
 }

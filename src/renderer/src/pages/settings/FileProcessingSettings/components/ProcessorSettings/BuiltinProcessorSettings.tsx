@@ -9,7 +9,7 @@ import {
   InfoTooltip
 } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
-import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
+import { TESSERACT_LANG_MAP } from '@renderer/config/fileProcessors'
 import { useFileProcessor } from '@renderer/hooks/useFileProcessors'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { FC } from 'react'

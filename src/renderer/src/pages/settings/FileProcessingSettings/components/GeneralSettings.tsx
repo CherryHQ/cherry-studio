@@ -42,7 +42,7 @@ const GeneralSettings: FC = () => {
               <SelectItem value="__none__">{t('settings.file_processing.no_default')}</SelectItem>
               {availableDocumentProcessors.map((processor) => (
                 <SelectItem key={processor.id} value={processor.id}>
-                  {t(`processor.${processor.id}.name`)}
+                  {t(`settings.file_processing.processor.${processor.id}.name`)}
                   {processor.type === 'builtin' ? ` (${t('settings.file_processing.builtin')})` : ''}
                 </SelectItem>
               ))}
@@ -73,7 +73,7 @@ const GeneralSettings: FC = () => {
               <SelectItem value="__none__">{t('settings.file_processing.no_default')}</SelectItem>
               {availableImageProcessors.map((processor) => (
                 <SelectItem key={processor.id} value={processor.id}>
-                  {t(`processor.${processor.id}.name`)}
+                  {t(`settings.file_processing.processor.${processor.id}.name`)}
                   {processor.type === 'builtin' ? ` (${t('settings.file_processing.builtin')})` : ''}
                 </SelectItem>
               ))}
