@@ -59,7 +59,7 @@ export function createMockConfig(overrides?: Partial<FileProcessorMerged>): File
   const template = createMockTemplate()
   return {
     ...template,
-    apiKey: undefined,
+    apiKeys: undefined,
     options: undefined,
     ...overrides
   }

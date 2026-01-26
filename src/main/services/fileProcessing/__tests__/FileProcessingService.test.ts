@@ -360,21 +360,21 @@ describe('FileProcessingService', () => {
   })
 
   describe('updateProcessorConfig', () => {
-    it('should update processor apiKey', () => {
+    it('should update processor apiKeys', () => {
       // Use a real processor ID from presets (mineru is an API processor)
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
 
-      const updated = service.updateProcessorConfig('mineru', { apiKey: 'new-key' })
+      const updated = service.updateProcessorConfig('mineru', { apiKeys: ['new-key'] })
 
-      expect(updated.apiKey).toBe('new-key')
+      expect(updated.apiKeys).toEqual(['new-key'])
     })
 
     it('should throw validation error for empty processorId', () => {
-      expect(() => service.updateProcessorConfig('', { apiKey: 'test' })).toThrow()
+      expect(() => service.updateProcessorConfig('', { apiKeys: ['test'] })).toThrow()
     })
 
     it('should throw validation error for whitespace-only processorId', () => {
-      expect(() => service.updateProcessorConfig('   ', { apiKey: 'test' })).toThrow()
+      expect(() => service.updateProcessorConfig('   ', { apiKeys: ['test'] })).toThrow()
     })
 
     it('should throw validation error for invalid update object', () => {
@@ -384,7 +384,7 @@ describe('FileProcessingService', () => {
     it('should throw NotFound for unknown processor', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
 
-      expect(() => service.updateProcessorConfig('nonexistent', { apiKey: 'test' })).toThrow('not found')
+      expect(() => service.updateProcessorConfig('nonexistent', { apiKeys: ['test'] })).toThrow('not found')
     })
   })
 

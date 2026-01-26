@@ -54,18 +54,18 @@ describe('ConfigurationService', () => {
       expect(config?.options).toEqual({ langs: ['chi_sim', 'eng'] })
     })
 
-    it('should merge API key from override', () => {
+    it('should merge API keys from override', () => {
       const service = ConfigurationService.getInstance()
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
         mineru: {
-          apiKey: 'test-api-key'
+          apiKeys: ['test-api-key']
         }
       })
 
       const config = service.getConfiguration('mineru')
 
       expect(config).toBeDefined()
-      expect(config?.apiKey).toBe('test-api-key')
+      expect(config?.apiKeys).toEqual(['test-api-key'])
     })
 
     it('should return undefined for unknown processor', () => {
@@ -116,14 +116,14 @@ describe('ConfigurationService', () => {
   })
 
   describe('updateConfiguration', () => {
-    it('should update apiKey', () => {
+    it('should update apiKeys', () => {
       const service = ConfigurationService.getInstance()
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
 
-      const result = service.updateConfiguration('mineru', { apiKey: 'test-key' })
+      const result = service.updateConfiguration('mineru', { apiKeys: ['test-key'] })
 
       expect(result).toBeDefined()
-      expect(result?.apiKey).toBe('test-key')
+      expect(result?.apiKeys).toEqual(['test-key'])
     })
 
     it('should update capabilities', () => {
@@ -139,20 +139,20 @@ describe('ConfigurationService', () => {
       expect(cap?.apiHost).toBe('https://custom.host')
     })
 
-    it('should merge apiKey and capabilities across multiple updates', () => {
+    it('should merge apiKeys and capabilities across multiple updates', () => {
       const service = ConfigurationService.getInstance()
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
 
-      // First update: set apiKey
-      service.updateConfiguration('mineru', { apiKey: 'first-key' })
+      // First update: set apiKeys
+      service.updateConfiguration('mineru', { apiKeys: ['first-key'] })
 
-      // Second update: set apiHost (should preserve apiKey)
+      // Second update: set apiHost (should preserve apiKeys)
       const result = service.updateConfiguration('mineru', {
         capabilities: { markdown_conversion: { apiHost: 'https://custom.host' } }
       })
 
       expect(result).toBeDefined()
-      expect(result?.apiKey).toBe('first-key')
+      expect(result?.apiKeys).toEqual(['first-key'])
       const cap = result?.capabilities.find((c) => c.feature === 'markdown_conversion')
       expect(cap?.apiHost).toBe('https://custom.host')
     })
@@ -181,7 +181,7 @@ describe('ConfigurationService', () => {
       const service = ConfigurationService.getInstance()
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
 
-      const result = service.updateConfiguration('unknown-processor', { apiKey: 'test' })
+      const result = service.updateConfiguration('unknown-processor', { apiKeys: ['test'] })
 
       expect(result).toBeUndefined()
     })

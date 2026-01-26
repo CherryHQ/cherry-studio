@@ -250,7 +250,7 @@ type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
  * User override for file processor (target format)
  */
 interface FileProcessorOverride {
-  apiKey?: string
+  apiKeys?: string[]
   capabilities?: Partial<Record<FileProcessorFeature, CapabilityOverride>>
   options?: Record<string, unknown>
 }
@@ -302,7 +302,7 @@ function mergeOverrides(
   if (!existing) return next
 
   return {
-    apiKey: next.apiKey ?? existing.apiKey,
+    apiKeys: next.apiKeys ?? existing.apiKeys,
     capabilities: mergeCapabilities(existing.capabilities, next.capabilities),
     options: existing.options || next.options ? { ...existing.options, ...next.options } : undefined
   }
@@ -319,7 +319,7 @@ function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverrid
 
   // Extract API config (for API-based providers like paddleocr)
   if (provider.config?.api?.apiKey) {
-    userConfig.apiKey = provider.config.api.apiKey
+    userConfig.apiKeys = [provider.config.api.apiKey]
     hasUserConfig = true
   }
 
@@ -338,7 +338,7 @@ function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverrid
     hasUserConfig = true
   }
   if (provider.config?.accessToken) {
-    userConfig.apiKey = provider.config.accessToken
+    userConfig.apiKeys = [provider.config.accessToken]
     hasUserConfig = true
   }
 
@@ -373,7 +373,7 @@ function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FilePr
   let hasCapabilityOverride = false
 
   if (provider.apiKey) {
-    userConfig.apiKey = provider.apiKey
+    userConfig.apiKeys = [provider.apiKey]
     hasUserConfig = true
   }
 

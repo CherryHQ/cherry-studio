@@ -14,11 +14,15 @@ const GeneralSettings: FC = () => {
     setDefaultTextExtractionProcessor
   } = useDefaultProcessors()
 
-  // Filter document processors that are configured (have apiKey or are builtin)
-  const availableDocumentProcessors = documentProcessors.filter((p) => p.type === 'builtin' || p.apiKey)
+  // Filter document processors that are configured (have apiKeys or are builtin)
+  const availableDocumentProcessors = documentProcessors.filter(
+    (p) => p.type === 'builtin' || (p.apiKeys && p.apiKeys.length > 0)
+  )
 
-  // Filter image processors that are configured (have apiKey or are builtin)
-  const availableImageProcessors = imageProcessors.filter((p) => p.type === 'builtin' || p.apiKey)
+  // Filter image processors that are configured (have apiKeys or are builtin)
+  const availableImageProcessors = imageProcessors.filter(
+    (p) => p.type === 'builtin' || (p.apiKeys && p.apiKeys.length > 0)
+  )
 
   return (
     <div className="flex w-full flex-col gap-1">

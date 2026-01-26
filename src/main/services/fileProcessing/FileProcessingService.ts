@@ -108,7 +108,7 @@ export class FileProcessingService {
     // Get merged configuration
     const config = configurationService.getConfiguration(processorId) ?? {
       ...processor.template,
-      apiKey: undefined,
+      apiKeys: undefined,
       options: undefined
     }
 

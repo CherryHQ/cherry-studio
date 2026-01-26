@@ -122,10 +122,10 @@ describe('fileProcessingHandlers', () => {
       const handler = fileProcessingHandlers['/file-processing/processors/:id'].PATCH
       const result = await handler({
         params: { id: 'mineru' },
-        body: { apiKey: 'new-key' }
+        body: { apiKeys: ['new-key'] }
       })
 
-      expect(fileProcessingService.updateProcessorConfig).toHaveBeenCalledWith('mineru', { apiKey: 'new-key' })
+      expect(fileProcessingService.updateProcessorConfig).toHaveBeenCalledWith('mineru', { apiKeys: ['new-key'] })
       expect(result).toEqual(mockUpdated)
     })
 
@@ -139,7 +139,7 @@ describe('fileProcessingHandlers', () => {
       await expect(
         handler({
           params: { id: 'unknown' },
-          body: { apiKey: 'test' }
+          body: { apiKeys: ['test'] }
         })
       ).rejects.toThrow('Processor not found')
     })

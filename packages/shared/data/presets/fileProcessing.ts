@@ -106,7 +106,7 @@ export type CapabilityOverride = {
  * - Field names use camelCase (consistent with TypeScript conventions)
  */
 export type FileProcessorOverride = {
-  apiKey?: string // API Key (shared across all features)
+  apiKeys?: string[] // API Keys (shared across all features)
   capabilities?: Partial<Record<FileProcessorFeature, CapabilityOverride>> // Per-feature overrides
   options?: FileProcessorOptions // Processor-specific config (generic type)
 }
@@ -130,7 +130,7 @@ export type FileProcessorMerged = {
   type: FileProcessorType
   metadata?: FileProcessorMetadata
   capabilities: FeatureCapability[] // Merged capabilities (array)
-  apiKey?: string
+  apiKeys?: string[]
   options?: FileProcessorOptions
 }
 

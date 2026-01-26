@@ -98,9 +98,9 @@ export class ConfigurationService {
 
     const result: FileProcessorOverride = {}
 
-    const apiKey = update.apiKey !== undefined ? update.apiKey : existing.apiKey
-    if (apiKey !== undefined) {
-      result.apiKey = apiKey
+    const apiKeys = update.apiKeys !== undefined ? update.apiKeys : existing.apiKeys
+    if (apiKeys !== undefined) {
+      result.apiKeys = apiKeys
     }
 
     if (mergedCapabilities) {
@@ -171,16 +171,16 @@ export class ConfigurationService {
    * Normalize override to remove empty values
    */
   private normalizeOverride(override: FileProcessorOverride): FileProcessorOverride | undefined {
-    const apiKey = this.normalizeString(override.apiKey)
+    const apiKeys = this.normalizeApiKeys(override.apiKeys)
     const capabilities = this.normalizeCapabilities(override.capabilities)
     const options = this.normalizeOptions(override.options)
 
-    if (!apiKey && !capabilities && !options) {
+    if (!apiKeys && !capabilities && !options) {
       return undefined
     }
 
     const result: FileProcessorOverride = {}
-    if (apiKey) result.apiKey = apiKey
+    if (apiKeys) result.apiKeys = apiKeys
     if (capabilities) result.capabilities = capabilities
     if (options) result.options = options
 
@@ -226,6 +226,12 @@ export class ConfigurationService {
     if (!value) return undefined
     const trimmed = value.trim()
     return trimmed || undefined
+  }
+
+  private normalizeApiKeys(keys?: string[]): string[] | undefined {
+    if (!keys || keys.length === 0) return undefined
+    const normalized = keys.map((k) => k.trim()).filter((k) => k.length > 0)
+    return normalized.length > 0 ? normalized : undefined
   }
 
   /**

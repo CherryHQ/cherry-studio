@@ -24,10 +24,14 @@ import type { ProcessingContext } from '../types'
  * - Default availability check
  * - Cancellation checking utility
  * - Capability lookup utility
+ * - Round-robin API key selection
  */
 export abstract class BaseFileProcessor implements IFileProcessor {
   readonly id: string
   readonly template: FileProcessorTemplate
+
+  /** Track current API key index for each processor (round-robin) */
+  private static apiKeyIndexMap: Map<string, number> = new Map()
 
   constructor(template: FileProcessorTemplate) {
     this.id = template.id
@@ -68,10 +72,21 @@ export abstract class BaseFileProcessor implements IFileProcessor {
   }
 
   /**
-   * Get the API key from configuration
+   * Get the API key from configuration using round-robin selection
+   *
+   * Cycles through available API keys for load balancing across multiple keys.
    */
   protected getApiKey(config: FileProcessorMerged): string | undefined {
-    return config.apiKey
+    const keys = config.apiKeys
+    if (!keys || keys.length === 0) return undefined
+    if (keys.length === 1) return keys[0]
+
+    // Round-robin: get current index and advance
+    const currentIndex = BaseFileProcessor.apiKeyIndexMap.get(this.id) ?? 0
+    const nextIndex = (currentIndex + 1) % keys.length
+    BaseFileProcessor.apiKeyIndexMap.set(this.id, nextIndex)
+
+    return keys[currentIndex]
   }
 
   /**

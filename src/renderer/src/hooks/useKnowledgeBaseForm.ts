@@ -57,7 +57,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
       label: t('settings.tool.preprocess.provider'),
       title: t('settings.tool.preprocess.provider'),
       options: markdownConverters
-        .filter((p) => p.apiKey || p.id === 'open-mineru')
+        .filter((p) => (p.apiKeys && p.apiKeys.length > 0) || p.id === 'open-mineru')
         .map((p) => ({ value: p.id, label: t(`processor.${p.id}.name`) }))
     }
     return [preprocessOptions]

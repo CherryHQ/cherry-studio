@@ -163,11 +163,11 @@ describe('PreferenceTransformers', () => {
 
       expect(result['feature.file_processing.overrides']).toEqual({
         paddleocr: {
-          apiKey: 'paddle-key',
+          apiKeys: ['paddle-key'],
           capabilities: { text_extraction: { apiHost: 'https://ocr.example.com' } }
         },
         mistral: {
-          apiKey: 'mistral-key'
+          apiKeys: ['mistral-key']
         }
       })
       expect(result['feature.file_processing.default_text_extraction_processor']).toBe('paddleocr')

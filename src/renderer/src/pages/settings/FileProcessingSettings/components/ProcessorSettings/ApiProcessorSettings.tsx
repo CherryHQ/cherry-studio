@@ -21,16 +21,21 @@ const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processorId }) =>
   const hasApiHost = capability && 'apiHost' in capability
 
   useEffect(() => {
-    setApiKeyInput(processor?.apiKey || '')
+    setApiKeyInput(processor?.apiKeys?.join(', ') || '')
     setApiHostInput(capability?.apiHost || '')
   }, [processor, capability])
 
   if (!processor) return null
 
-  const handleBlur = (field: 'apiKey' | 'apiHost', value: string) => {
-    if (field === 'apiKey') {
-      if (value !== (processor.apiKey ?? '')) {
-        updateProcessor({ apiKey: value })
+  const handleBlur = (field: 'apiKeys' | 'apiHost', value: string) => {
+    if (field === 'apiKeys') {
+      const newKeys = value
+        .split(',')
+        .map((k) => k.trim())
+        .filter((k) => k.length > 0)
+      const currentKeys = processor.apiKeys ?? []
+      if (JSON.stringify(newKeys) !== JSON.stringify(currentKeys)) {
+        updateProcessor({ apiKeys: newKeys })
       }
       return
     }
@@ -58,7 +63,7 @@ const ApiProcessorSettings: FC<ApiProcessorSettingsProps> = ({ processorId }) =>
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
-                  onBlur={(e) => handleBlur('apiKey', e.target.value)}
+                  onBlur={(e) => handleBlur('apiKeys', e.target.value)}
                   placeholder={t('settings.file_processing.api_key_placeholder')}
                   className="rounded-2xs pr-10"
                 />
