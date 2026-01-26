@@ -27,6 +27,19 @@ const logger = loggerService.withContext('CodeToolsService')
 const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
 
 /**
+ * Parse JSON with comments (JSONC) support
+ * Strips comments for parsing while preserving structure
+ */
+function parseJSONC(content: string): Record<string, any> | null {
+  try {
+    // Use Function to parse JSON with comments (safer than eval)
+    return new Function(`return ${content}`)()
+  } catch {
+    return null
+  }
+}
+
+/**
  * Sanitize environment variables for safe logging
  * Redacts values of sensitive keys to prevent credential leakage
  */
@@ -55,6 +68,7 @@ class CodeToolsService {
   private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
   private openCodeCleanupTimers: Map<string, NodeJS.Timeout> = new Map() // Track cleanup timers by directory for debounce
+  private openCodeConfigBackups: Map<string, string | null> = new Map() // Store raw backup content of opencode.json
 
   constructor() {
     this.getBunPath = this.getBunPath.bind(this)
@@ -138,9 +152,10 @@ class CodeToolsService {
 
   /**
    * Generate opencode.json config file for OpenCode CLI
-   * Handles two scenarios:
-   * 1. Existing config: merge/append Cherry-{providerName} provider
-   * 2. No existing config: create new config
+   * Merge approach:
+   * 1. Parse existing config (if any) with JSONC support
+   * 2. Merge CherryStudio provider into provider object
+   * 3. Preserve other fields like $schema, model, etc.
    */
   private async generateOpenCodeConfig(
     directory: string,
@@ -154,20 +169,6 @@ class CodeToolsService {
     providerName: string
   ): Promise<string> {
     const configPath = path.join(directory, 'opencode.json')
-
-    let existingConfig: Record<string, any> | null = null
-
-    // Check for existing config
-    if (fs.existsSync(configPath)) {
-      try {
-        const content = fs.readFileSync(configPath, 'utf8')
-        existingConfig = JSON.parse(content)
-        logger.info('Found existing opencode.json')
-      } catch (error) {
-        logger.warn(`Failed to parse existing opencode.json: ${error}`)
-        existingConfig = null
-      }
-    }
 
     // Determine npm package based on provider type
     let npmPackage = '@ai-sdk/openai-compatible'
@@ -202,54 +203,65 @@ class CodeToolsService {
       // else: model is a reasoning model but doesn't support reasoningEffort - don't add options
     }
 
-    let finalConfig: Record<string, any>
-
-    // Use dynamic provider name to avoid race conditions between different providers
+    // Dynamic provider key to avoid race conditions between different providers
     const dynamicProviderKey = `Cherry-${providerName}`
     const dynamicProviderName = `Cherry-${providerName}`
 
-    if (existingConfig) {
-      // Existing config: merge/append Cherry-{providerName} provider
-      const existingModels = existingConfig.provider?.[dynamicProviderKey]?.models || {}
-      finalConfig = {
-        ...existingConfig,
-        provider: {
-          ...existingConfig.provider,
-          [dynamicProviderKey]: {
-            npm: npmPackage,
-            name: dynamicProviderName,
-            options: { apiKey, baseURL: baseUrl },
-            models: { ...existingModels, [model.id]: modelConfig }
-          }
-        }
+    // Parse existing config (if any) with JSONC support
+    let existingConfig: Record<string, any> | null = null
+    let backupContent: string | null = null
+    if (fs.existsSync(configPath)) {
+      const rawContent = fs.readFileSync(configPath, 'utf8')
+      backupContent = rawContent // Store raw content for restoration
+      existingConfig = parseJSONC(rawContent)
+      logger.info('Parsed existing opencode.json config')
+    }
+    this.openCodeConfigBackups.set(configPath, backupContent)
+
+    // Build CherryStudio provider config
+    const cherryProviderConfig = {
+      npm: npmPackage,
+      name: dynamicProviderName,
+      options: { apiKey, baseURL: baseUrl },
+      models: { [model.id]: modelConfig }
+    }
+
+    // Merge into existing config or create new one
+    let finalConfig: Record<string, any>
+    if (existingConfig && typeof existingConfig === 'object') {
+      // Deep merge: preserve existing fields, add Cherry provider
+      finalConfig = { ...existingConfig }
+      if (!finalConfig.provider || typeof finalConfig.provider !== 'object') {
+        finalConfig.provider = {}
       }
-      logger.info(`Merged ${dynamicProviderName} with model ${model.id} into existing config (npm: ${npmPackage})`)
+      // Merge Cherry provider into existing providers
+      finalConfig.provider = {
+        ...finalConfig.provider,
+        [dynamicProviderKey]: cherryProviderConfig
+      }
     } else {
-      // No existing config: create new
+      // No existing config, create fresh one
       finalConfig = {
         $schema: 'https://opencode.ai/config.json',
         provider: {
-          [dynamicProviderKey]: {
-            npm: npmPackage,
-            name: dynamicProviderName,
-            options: { apiKey, baseURL: baseUrl },
-            models: { [model.id]: modelConfig }
-          }
+          [dynamicProviderKey]: cherryProviderConfig
         }
       }
-      logger.info(`Created new config with model ${model.id} (npm: ${npmPackage})`)
     }
 
     fs.writeFileSync(configPath, JSON.stringify(finalConfig, null, 2), 'utf8')
-    logger.info(`Wrote opencode.json at: ${configPath}`)
+    logger.info(`Wrote opencode.json at: ${configPath} (merged: ${existingConfig !== null})`)
 
     return configPath
   }
 
   /**
    * Schedule cleanup of opencode.json config file after 60 seconds (debounce mode)
-   * - Config has other providers: only remove Cherry-* providers
-   * - Config only has Cherry-* providers: delete entire file
+   * Precise cleanup approach:
+   * - Parse current config
+   * - Remove only providers starting with "Cherry-"
+   * - Keep all other providers and fields
+   * - If provider object becomes empty, remove it
    */
   private scheduleOpenCodeConfigCleanup(configPath: string): void {
     // Cancel any existing timer for this directory (debounce)
@@ -264,33 +276,60 @@ class CodeToolsService {
       this.openCodeCleanupTimers.delete(configPath)
 
       try {
-        if (!fs.existsSync(configPath)) return
-
-        const content = fs.readFileSync(configPath, 'utf8')
-        const config = JSON.parse(content)
-
-        const providerKeys = Object.keys(config.provider || {})
-
-        // Find all Cherry-* providers
-        const cherryProviders = providerKeys.filter((key) => key.startsWith('Cherry-'))
-
-        if (cherryProviders.length === 0) return
-
-        // Check if there are other providers besides Cherry-*
-        const hasOtherProviders = providerKeys.some((key) => !key.startsWith('Cherry-'))
-
-        if (hasOtherProviders) {
-          // Other providers exist: only remove Cherry-* providers
-          for (const provider of cherryProviders) {
-            delete config.provider[provider]
-          }
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8')
-          logger.info(`Removed Cherry-* providers from config: ${configPath}`)
-        } else {
-          // Only Cherry-* providers: delete entire file
-          fs.unlinkSync(configPath)
-          logger.info(`Deleted opencode.json: ${configPath}`)
+        // Check if file still exists
+        if (!fs.existsSync(configPath)) {
+          logger.info(`opencode.json already deleted: ${configPath}`)
+          this.openCodeConfigBackups.delete(configPath)
+          return
         }
+
+        // Get backup content
+        const backupContent = this.openCodeConfigBackups.get(configPath) ?? null
+
+        // Parse current config
+        const currentContent = fs.readFileSync(configPath, 'utf8')
+        const currentConfig = parseJSONC(currentContent)
+
+        if (!currentConfig || typeof currentConfig !== 'object') {
+          // Invalid config, fall back to backup or deletion
+          if (backupContent !== null) {
+            fs.writeFileSync(configPath, backupContent, 'utf8')
+            logger.info(`Restored original opencode.json (invalid current config): ${configPath}`)
+          } else {
+            fs.unlinkSync(configPath)
+            logger.info(`Deleted opencode.json (invalid config, no backup): ${configPath}`)
+          }
+          this.openCodeConfigBackups.delete(configPath)
+          return
+        }
+
+        // Remove Cherry-* providers from current config
+        if (currentConfig.provider && typeof currentConfig.provider === 'object') {
+          const providers = currentConfig.provider as Record<string, any>
+          const keysToDelete = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
+
+          if (keysToDelete.length > 0) {
+            for (const key of keysToDelete) {
+              delete providers[key]
+            }
+
+            // If provider object becomes empty, remove it
+            if (Object.keys(providers).length === 0) {
+              delete currentConfig.provider
+            }
+
+            // Write back the cleaned config
+            fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2), 'utf8')
+            logger.info(`Removed ${keysToDelete.length} Cherry-* provider(s) from opencode.json: ${configPath}`)
+          } else {
+            logger.info(`No Cherry-* providers found in opencode.json: ${configPath}`)
+          }
+        } else {
+          logger.info(`No provider object in opencode.json: ${configPath}`)
+        }
+
+        // Clean up backup
+        this.openCodeConfigBackups.delete(configPath)
       } catch (error) {
         logger.warn(`Failed to cleanup opencode.json: ${error}`)
       }
