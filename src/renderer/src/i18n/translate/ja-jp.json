@@ -5253,6 +5253,8 @@
     "detected": {
       "language": "自動検出"
     },
+    "detected_source": "検出されました",
+    "detecting": "検出中...",
     "empty": "翻訳内容が空です",
     "error": {
       "chat_qwen_mt": "Qwen MT モデルは対話で使用できません。翻訳ページに移動してください",
@@ -5305,6 +5307,7 @@
       "not_pair": "ソース言語が設定された言語と異なります",
       "same": "ソース言語と目標言語が同じです"
     },
+    "language_settings": "言語設定",
     "menu": {
       "description": "對當前輸入框內容進行翻譯"
     },
@@ -5314,6 +5317,7 @@
     "output": {
       "placeholder": "翻訳"
     },
+    "preferred_target": "優先ターゲット",
     "processing": "翻訳中...",
     "settings": {
       "autoCopy": "翻訳完了後、自動的にコピー",

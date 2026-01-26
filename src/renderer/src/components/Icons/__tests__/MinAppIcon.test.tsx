@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import MinAppIcon from '../MinAppIcon'
 
 vi.mock('@renderer/config/minapps', () => ({
-  DEFAULT_MIN_APPS: [
+  allMinApps: [
     {
       id: 'test-app-1',
       name: 'Test App 1',
@@ -52,7 +52,7 @@ describe('MinAppIcon', () => {
     })
   })
 
-  it('should return null when app is not found in DEFAULT_MIN_APPS', () => {
+  it('should return null when app is not found in allMinApps', () => {
     const unknownApp = {
       id: 'unknown-app',
       name: 'Unknown App',

@@ -130,14 +130,22 @@ const SessionWorkspaceMeta: FC<{ agent: AgentEntity; session: AgentSessionEntity
   //   ? t(permissionModeCard.titleKey, permissionModeCard.titleFallback)
   //   : permissionMode
 
+  const getLastFolderName = (path: string): string => {
+    const trimmedPath = path.replace(/[/\\]+$/, '')
+    const parts = trimmedPath.split(/[/\\]/)
+    return parts[parts.length - 1] || path
+  }
+
   const infoItems: ReactNode[] = []
 
   const InfoTag = ({
     text,
+    tooltip,
     className,
     onClick
   }: {
     text: string
+    tooltip?: string
     className?: string
     classNames?: {}
     onClick?: (e: React.MouseEvent) => void
@@ -148,7 +156,7 @@ const SessionWorkspaceMeta: FC<{ agent: AgentEntity; session: AgentSessionEntity
         onClick !== undefined ? 'cursor-pointer' : undefined,
         className
       )}
-      title={text}
+      title={tooltip ?? text}
       onClick={onClick}>
       <Folder className="h-3.5 w-3.5 shrink-0" />
       <span className="block truncate">{text}</span>
@@ -161,7 +169,8 @@ const SessionWorkspaceMeta: FC<{ agent: AgentEntity; session: AgentSessionEntity
     infoItems.push(
       <InfoTag
         key="path"
-        text={firstAccessiblePath}
+        text={getLastFolderName(firstAccessiblePath)}
+        tooltip={firstAccessiblePath}
         className="max-w-60 transition-colors hover:border-primary hover:text-primary"
         onClick={() => {
           window.api.file
