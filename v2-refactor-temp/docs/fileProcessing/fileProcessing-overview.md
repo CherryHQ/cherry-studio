@@ -105,90 +105,7 @@ type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
 
 **设计说明**：简化为两个核心能力，不再细分 `layout_analysis`、`table_detection`、`formula_detection`、`multimodal` 等具体实现细节。这些能力细节由具体 processor 内部实现。
 
-### Input（输入类型）
-
-```typescript
-type FileProcessorInput = 'image' | 'document'
-```
-
-| 类型       | 说明 | 包含格式                          |
-| ---------- | ---- | --------------------------------- |
-| `image`    | 图片 | jpg, png, webp, gif...            |
-| `document` | 文档 | pdf, docx, pptx, xlsx, md, txt... |
-
-> **未来扩展**：可添加 `audio`（mp3, wav, m4a...）、`video`（mp4, mov, webm...）
-
-### Output（输出格式）
-
-```typescript
-type FileProcessorOutput = 'text' | 'markdown'
-```
-
-### ProcessorType（服务类型）
-
-```typescript
-type FileProcessorType = 'api' | 'builtin'
-```
-
-| 类型      | 说明                                         |
-| --------- | -------------------------------------------- |
-| `api`     | API 服务（需要配置 API Key/Host，含云端和自部署） |
-| `builtin` | 系统内置（应用内嵌或系统原生，无需外部配置） |
-
----
-
 ## 示例数据
-
-### MinerU（Template）
-
-```typescript
-{
-  id: 'mineru',
-  type: 'api',
-  metadata: {
-    maxFileSizeMb: 200,
-    maxPageCount: 600
-  },
-  capabilities: [
-    {
-      feature: 'markdown_conversion',
-      input: 'document',
-      output: 'markdown',
-      apiHost: 'https://mineru.net'
-    }
-  ]
-}
-```
-
-### Tesseract（Template）
-
-```typescript
-{
-  id: 'tesseract',
-  type: 'builtin',
-  capabilities: [
-    { feature: 'text_extraction', input: 'image', output: 'text' }
-  ]
-}
-```
-
-### Mistral（Template）
-
-```typescript
-{
-  id: 'mistral',
-  type: 'api',
-  capabilities: [
-    {
-      feature: 'markdown_conversion',
-      input: 'document',
-      output: 'markdown',
-      apiHost: 'https://api.mistral.ai',
-      modelId: 'mistral-ocr-latest'
-    }
-  ]
-}
-```
 
 ### 用户配置示例（UserConfig）
 
@@ -203,7 +120,8 @@ type FileProcessorType = 'api' | 'builtin'
   paddleocr: {
     apiKey: '***',
     capabilities: {
-      text_extraction: { apiHost: 'https://my-paddleocr-server.com' }
+      text_extraction: { apiHost: 'https://my-paddleocr-server.com' },
+      markdown_conversion: { apiHost: 'https://my-markdown-server.com' }
     }
   }
 }
@@ -215,7 +133,7 @@ type FileProcessorType = 'api' | 'builtin'
 | ------------- | ------- | ------------------------------------------------------ |
 | Tesseract     | builtin | text_extraction (image → text)                         |
 | System OCR    | builtin | text_extraction (image → text)                         |
-| PaddleOCR     | api     | text_extraction (image → text)                         |
+| PaddleOCR     | api     | text_extraction (image → text) / markdown_conversion (document → markdown) |
 | Intel OV OCR  | builtin | text_extraction (image → text)                         |
 | MinerU        | api     | markdown_conversion (document → markdown)                |
 | Doc2x         | api     | markdown_conversion (document → markdown)                |
@@ -243,56 +161,3 @@ type FileProcessorType = 'api' | 'builtin'
 - **MinerU**：专业文档解析，"一模一样还原"文档结构，但不具备语义理解能力
 
 ---
-
-## UI 设计方案
-
-采用**场景优先 + 智能推荐**的设计：
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  设置 > 文件处理                                                  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─ 📚 知识库文档解析 ─────────────────────────────────────────┐│
-│  │                                                             ││
-│  │  当添加 PDF 到知识库时使用                                   ││
-│  │                                                             ││
-│  │  默认服务: [MinerU                              ▼]          ││
-│  │            ├─ MinerU        精确 · 表格 · 公式 · 推荐       ││
-│  │            ├─ Doc2x         精确 · 表格 · 公式              ││
-│  │            ├─ DeepSeek-OCR  智能 · 快速                     ││
-│  │            └─ 不使用预处理                                   ││
-│  │                                                             ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  ┌─ 🖼️ 聊天图片理解 ───────────────────────────────────────────┐│
-│  │                                                             ││
-│  │  当在对话中上传图片时使用                                    ││
-│  │                                                             ││
-│  │  默认服务: [DeepSeek-OCR                        ▼]          ││
-│  │            ├─ DeepSeek-OCR  多模态 · 描述 · 推荐            ││
-│  │            ├─ Tesseract     纯文本 · 本地                   ││
-│  │            └─ 系统 OCR      纯文本 · 本地                   ││
-│  │                                                             ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  ┌─ 🔧 服务配置 ───────────────────────────────────────────────┐│
-│  │                                                             ││
-│  │  已配置 3 个服务，点击展开配置 API Key                       ││
-│  │                                                     [展开 ▼]││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## 现状与后续
-
-当前实现已覆盖：
-1. TypeScript 类型定义与模板预设
-2. `FileProcessingService` 统一服务接口
-3. OCR 与 Preprocess 处理器迁移
-4. 文件处理设置页（默认处理器 + API 配置）
-
-后续可选方向：
-1. 增加更多处理器与输入类型
-2. 补充格式过滤等能力字段
