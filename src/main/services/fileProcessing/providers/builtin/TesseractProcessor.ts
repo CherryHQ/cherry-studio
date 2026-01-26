@@ -42,6 +42,7 @@ enum TesseractLangsDownloadUrl {
 export class TesseractProcessor extends BaseTextExtractor {
   private worker: Tesseract.Worker | null = null
   private currentLangs: LanguageCode[] = []
+  private lastWorkerError: Error | null = null
 
   constructor() {
     const template = PRESETS_FILE_PROCESSORS.find((p) => p.id === 'tesseract')
@@ -67,11 +68,18 @@ export class TesseractProcessor extends BaseTextExtractor {
       const langPath = await this.getLangPath()
       const cachePath = await this.getCacheDir()
 
+      // Clear any previous error before creating new worker
+      this.lastWorkerError = null
+
       this.worker = await createWorker(langs, undefined, {
         langPath,
         cachePath,
         logger: (m) => logger.debug('Worker progress', m),
-        errorHandler: (e) => logger.error('Worker error', e)
+        errorHandler: (e) => {
+          const error = e instanceof Error ? e : new Error(String(e))
+          logger.error('Worker error', { error: error.message })
+          this.lastWorkerError = error
+        }
       })
 
       this.currentLangs = [...langs]
@@ -149,6 +157,13 @@ export class TesseractProcessor extends BaseTextExtractor {
     // Get worker and perform OCR
     const worker = await this.getWorker(langs)
 
+    // Check for worker initialization errors
+    if (this.lastWorkerError) {
+      const error = this.lastWorkerError
+      this.lastWorkerError = null
+      throw new Error(`Tesseract worker error: ${error.message}`)
+    }
+
     // Check cancellation before processing
     this.checkCancellation(context)
 
@@ -157,6 +172,13 @@ export class TesseractProcessor extends BaseTextExtractor {
 
     // Perform recognition
     const result = await worker.recognize(buffer)
+
+    // Check for errors that occurred during recognition
+    if (this.lastWorkerError) {
+      const error = this.lastWorkerError
+      this.lastWorkerError = null
+      throw new Error(`Tesseract worker error during recognition: ${(error as Error).message}`)
+    }
 
     return { text: result.data.text }
   }
@@ -169,6 +191,7 @@ export class TesseractProcessor extends BaseTextExtractor {
       await this.worker.terminate()
       this.worker = null
       this.currentLangs = []
+      this.lastWorkerError = null
       logger.debug('Worker disposed')
     }
   }

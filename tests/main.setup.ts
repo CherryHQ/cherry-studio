@@ -61,6 +61,9 @@ vi.mock('electron', () => {
       }),
       getVersion: vi.fn(() => '1.0.0')
     },
+    net: {
+      fetch: vi.fn()
+    },
     ipcMain: {
       handle: vi.fn(),
       on: vi.fn(),
@@ -173,7 +176,9 @@ vi.mock('node:fs', () => {
       readdir: vi.fn(),
       stat: vi.fn(),
       unlink: vi.fn(),
-      rmdir: vi.fn()
+      rmdir: vi.fn(),
+      rm: vi.fn(),
+      copyFile: vi.fn()
     },
     existsSync: vi.fn(),
     readFileSync: vi.fn(),

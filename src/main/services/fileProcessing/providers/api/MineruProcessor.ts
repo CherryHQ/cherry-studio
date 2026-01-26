@@ -153,11 +153,13 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
       const payload = JSON.parse(providerTaskId) as MineruTaskPayload
       const { batchId, fileId, fileName, originalName } = payload
       if (!batchId || !fileId || !fileName || !originalName) {
-        throw new Error('Missing required fields')
+        throw new Error(
+          `Missing required fields in provider task id: ${JSON.stringify({ batchId: !!batchId, fileId: !!fileId, fileName: !!fileName, originalName: !!originalName })}`
+        )
       }
       return { batchId, fileId, fileName, originalName }
-    } catch {
-      throw new Error('Invalid provider task id')
+    } catch (error) {
+      throw new Error(`Invalid provider task id: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -204,7 +206,7 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
     this.checkCancellation(context)
 
     const apiHost = this.getApiHost(config)
-    const apiKey = this.getApiKey(config)!
+    const apiKey = this.requireApiKey(config)
     const filePath = fileStorage.getFilePathById(input)
     logger.info(`MinerU processing started: ${filePath}`)
 
@@ -241,7 +243,7 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
     }
 
     const apiHost = this.getApiHost(config)
-    const apiKey = this.getApiKey(config)!
+    const apiKey = this.requireApiKey(config)
 
     try {
       const result = await this.getExtractResults(apiHost, apiKey, payload.batchId)

@@ -51,7 +51,7 @@ export class MistralProcessor extends BaseMarkdownConverter {
   }
 
   private createClient(config: FileProcessorMerged): { sdk: Mistral; fileService: MistralService } {
-    const apiKey = this.getApiKey(config)!
+    const apiKey = this.requireApiKey(config)
     const apiHost = this.getApiHost(config)
 
     const provider: Provider = {
@@ -158,7 +158,12 @@ export class MistralProcessor extends BaseMarkdownConverter {
 
           imageCounter++
         } catch (error) {
-          logger.error(`Failed to save image ${imageFileName}:`, error as Error)
+          logger.error('Failed to save image during OCR processing', {
+            imageFileName,
+            fileId: file.id,
+            imagePath,
+            error: error instanceof Error ? error.message : String(error)
+          })
         }
       }
 

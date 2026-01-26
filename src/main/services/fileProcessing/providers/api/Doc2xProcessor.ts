@@ -53,7 +53,10 @@ type Doc2xTaskPayload = {
 }
 
 export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessStatusProvider {
-  private convertRequested: Set<string> = new Set()
+  private static readonly CONVERT_REQUEST_TTL_MS = 30 * 60 * 1000
+  private static readonly CONVERT_REQUEST_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
+  private convertRequested: Map<string, number> = new Map()
+  private lastConvertRequestCleanupAt = 0
 
   constructor() {
     const template = PRESETS_FILE_PROCESSORS.find((p) => p.id === 'doc2x')
@@ -182,6 +185,18 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
     return JSON.stringify(payload)
   }
 
+  private cleanupConvertRequests(now: number): void {
+    if (now - this.lastConvertRequestCleanupAt < Doc2xProcessor.CONVERT_REQUEST_CLEANUP_INTERVAL_MS) return
+
+    this.lastConvertRequestCleanupAt = now
+
+    for (const [uid, lastSeenAt] of this.convertRequested) {
+      if (now - lastSeenAt > Doc2xProcessor.CONVERT_REQUEST_TTL_MS) {
+        this.convertRequested.delete(uid)
+      }
+    }
+  }
+
   private parseProviderTaskId(providerTaskId: string): Doc2xTaskPayload {
     let parsed: unknown
     try {
@@ -253,7 +268,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
     this.checkCancellation(context)
 
     const apiHost = this.getApiHost(config)
-    const apiKey = this.getApiKey(config)!
+    const apiKey = this.requireApiKey(config)
 
     const filePath = fileStorage.getFilePathById(input)
     logger.info(`Doc2X processing started: ${filePath}`)
@@ -286,12 +301,14 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
         requestId: providerTaskId,
         status: 'failed',
         progress: 0,
-        error: { code: 'invalid_provider_task_id', message: (error as Error).message }
+        error: { code: 'get_status_error', message: (error as Error).message }
       }
     }
 
     const apiHost = this.getApiHost(config)
-    const apiKey = this.getApiKey(config)!
+    const apiKey = this.requireApiKey(config)
+    const now = Date.now()
+    this.cleanupConvertRequests(now)
 
     try {
       const { status, progress, detail } = await this.getParseStatus(apiHost, apiKey, payload.uid)
@@ -316,8 +333,8 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
 
       if (!this.convertRequested.has(payload.uid)) {
         await this.convertFile(apiHost, apiKey, payload.uid, payload.fileName)
-        this.convertRequested.add(payload.uid)
       }
+      this.convertRequested.set(payload.uid, now)
 
       const { status: exportStatus, url, detail: exportDetail } = await this.getParsedFile(apiHost, apiKey, payload.uid)
 

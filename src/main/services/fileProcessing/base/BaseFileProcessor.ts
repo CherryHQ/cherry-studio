@@ -90,6 +90,24 @@ export abstract class BaseFileProcessor implements IFileProcessor {
   }
 
   /**
+   * Get the API key from configuration, throwing if not configured
+   *
+   * Use this for processors that require an API key to function.
+   * Provides a clear error message directing users to configure the key.
+   *
+   * @throws Error if API key is not configured
+   */
+  protected requireApiKey(config: FileProcessorMerged): string {
+    const apiKey = this.getApiKey(config)
+    if (!apiKey) {
+      throw new Error(
+        `API key is required for ${this.id} processor. Please configure it in Settings > File Processing.`
+      )
+    }
+    return apiKey
+  }
+
+  /**
    * Get a capability configuration for the given feature
    */
   protected getCapability(feature: FileProcessorFeature): FeatureCapability | undefined {

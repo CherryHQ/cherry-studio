@@ -43,9 +43,9 @@ import type { ProcessingContext, TaskState } from './types'
 
 const logger = loggerService.withContext('FileProcessingService')
 
-/** TTL for completed/failed tasks before cleanup (1 minute) */
+/** TTL for completed/failed tasks before cleanup (5 minutes) */
 const TASK_TTL_MS = 5 * 60 * 1000
-/** Interval for cleanup timer (30 seconds) */
+/** Interval for cleanup timer (1 minute) */
 const CLEANUP_INTERVAL_MS = 60 * 1000
 
 export class FileProcessingService {
@@ -53,6 +53,10 @@ export class FileProcessingService {
   private static processorsRegistered = false
   private taskStates: Map<string, TaskState> = new Map()
   private cleanupTimer: NodeJS.Timeout | null = null
+  /** Track recently expired request IDs to distinguish from "not_found" */
+  private expiredRequestIds: Map<string, number> = new Map()
+  /** TTL for expired request tracking (same as task TTL) */
+  private static readonly EXPIRED_TRACKING_TTL_MS = TASK_TTL_MS
 
   private constructor() {}
 
@@ -190,11 +194,20 @@ export class FileProcessingService {
       task.progress = 100
       task.result = result
     } catch (error) {
+      const isCancelled = task.abortController.signal.aborted
+      const errorCode = isCancelled ? 'cancelled' : 'processing_error'
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
       task.status = 'failed'
       task.error = {
-        code: task.abortController.signal.aborted ? 'cancelled' : 'processing_error',
-        message: error instanceof Error ? error.message : String(error)
+        code: errorCode,
+        message: errorMessage
       }
+      logger.error('Processing failed', {
+        requestId,
+        processorId: processor.id,
+        error: errorMessage
+      })
     }
   }
 
@@ -213,6 +226,18 @@ export class FileProcessingService {
     const task = this.taskStates.get(requestId)
 
     if (!task) {
+      // Check if this request was recently expired (cleaned up due to TTL)
+      if (this.expiredRequestIds.has(requestId)) {
+        return {
+          requestId,
+          status: 'failed',
+          progress: 0,
+          error: {
+            code: 'expired',
+            message: 'Request result has expired and been cleaned up. Please retry the operation.'
+          }
+        }
+      }
       return {
         requestId,
         status: 'failed',
@@ -292,14 +317,32 @@ export class FileProcessingService {
     let cleanedCount = 0
     let hasCompletedTasks = false
 
+    // Clean up expired task states
     for (const [requestId, task] of this.taskStates) {
       if (task.completedAt) {
         if (now - task.completedAt > TASK_TTL_MS) {
+          // Log each evicted task with details
+          logger.info('Task expired and cleaned up', {
+            requestId,
+            processorId: task.processorId,
+            status: task.status,
+            completedAt: new Date(task.completedAt).toISOString(),
+            ttlMs: TASK_TTL_MS
+          })
           this.taskStates.delete(requestId)
+          // Track this request as expired for a while
+          this.expiredRequestIds.set(requestId, now)
           cleanedCount++
         } else {
           hasCompletedTasks = true
         }
+      }
+    }
+
+    // Clean up old expired tracking entries
+    for (const [requestId, expiredAt] of this.expiredRequestIds) {
+      if (now - expiredAt > FileProcessingService.EXPIRED_TRACKING_TTL_MS) {
+        this.expiredRequestIds.delete(requestId)
       }
     }
 

@@ -114,8 +114,12 @@ export class OpenMineruProcessor extends BaseMarkdownConverter {
         if (zipPath && fs.existsSync(zipPath)) {
           try {
             fs.unlinkSync(zipPath)
-          } catch {
-            // Ignore cleanup errors
+          } catch (cleanupError) {
+            logger.warn('Failed to cleanup zip file during retry', {
+              zipPath,
+              fileId: file.id,
+              error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+            })
           }
         }
 
