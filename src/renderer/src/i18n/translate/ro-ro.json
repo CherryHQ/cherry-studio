@@ -4947,10 +4947,8 @@
         "image_provider": "Furnizor serviciu OCR",
         "paddleocr": {
           "aistudio_access_token": "Token de acces Comunitatea AI Studio",
-          "aistudio_url_label": "Comunitatea AI Studio",
           "api_url": "URL API",
-          "serving_doc_url_label": "Documentație servire PaddleOCR",
-          "tip": "Poți consulta documentația oficială PaddleOCR pentru a implementa un serviciu local sau poți implementa un serviciu cloud pe Comunitatea PaddlePaddle AI Studio. Pentru ultimul caz, te rugăm să furnizezi tokenul de acces al Comunității AI Studio."
+          "api_url_label": "Obțineți token-ul de acces și URL-ul API"
         },
         "system": {
           "win": {
@@ -4963,6 +4961,12 @@
         "title": "Serviciu OCR"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "Token de acces al Comunității AI Studio",
+          "api_url": "URL API",
+          "api_url_label": "Obțineți token-ul de acces și URL-ul API",
+          "paddleocr_url_label": "Site-ul oficial PaddleOCR"
+        },
         "provider": "Furnizor procesare documente",
         "provider_placeholder": "Alege un furnizor de procesare documente",
         "title": "Procesare documente",

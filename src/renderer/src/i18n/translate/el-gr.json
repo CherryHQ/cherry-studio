@@ -4947,10 +4947,8 @@
         "image_provider": "Πάροχοι υπηρεσιών OCR",
         "paddleocr": {
           "aistudio_access_token": "Διακριτικό πρόσβασης της κοινότητας AI Studio",
-          "aistudio_url_label": "Κοινότητα AI Studio",
           "api_url": "Διεύθυνση URL API",
-          "serving_doc_url_label": "Τεκμηρίωση PaddleOCR Serving",
-          "tip": "Μπορείτε να ανατρέξετε στην επίσημη τεκμηρίωση του PaddleOCR για να αναπτύξετε μια τοπική υπηρεσία, ή να αναπτύξετε μια υπηρεσία στο cloud στην Κοινότητα PaddlePaddle AI Studio. Στη δεύτερη περίπτωση, παρακαλώ παρέχετε το διακριτικό πρόσβασης (access token) της Κοινότητας AI Studio."
+          "api_url_label": "Λήψη Διακριτικού Πρόσβασης και URL του API"
         },
         "system": {
           "win": {
@@ -4963,6 +4961,12 @@
         "title": "Υπηρεσία OCR"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "Δείκτης πρόσβασης της κοινότητας AI Studio",
+          "api_url": "Διεύθυνση URL του API",
+          "api_url_label": "Λήψη Διακριτικού Πρόσβασης και URL API",
+          "paddleocr_url_label": "Επίσημη ιστοσελίδα του PaddleOCR"
+        },
         "provider": "πάροχος υπηρεσιών προεπεξεργασίας εγγράφων",
         "provider_placeholder": "Επιλέξτε έναν πάροχο υπηρεσιών προεπεξεργασίας εγγράφων",
         "title": "Προεπεξεργασία εγγράφων",
