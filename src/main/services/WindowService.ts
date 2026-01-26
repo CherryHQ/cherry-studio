@@ -7,11 +7,11 @@ import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
+import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
-import icon from '../../../build/icon.png?asset'
+import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
@@ -22,6 +22,9 @@ const DEFAULT_MINIWINDOW_HEIGHT = 400
 
 // const logger = loggerService.withContext('WindowService')
 const logger = loggerService.withContext('WindowService')
+
+// Create nativeImage for Linux window icon (required for Wayland)
+const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -75,11 +78,12 @@ export class WindowService {
             trafficLightPosition: { x: 8, y: 13 }
           }
         : {
-            frame: false // Frameless window for Windows and Linux
+            // On Linux, allow using system title bar if setting is enabled
+            frame: isLinux && configManager.getUseSystemTitleBar() ? true : false
           }),
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      ...(isLinux ? { icon } : {}),
+      ...(isLinux ? { icon: linuxIcon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -412,6 +416,23 @@ export class WindowService {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore()
+        return
+      }
+
+      /**
+       * [Linux] Special handling for window activation
+       * When the window is visible but covered by other windows, simply calling show() and focus()
+       * is not enough to bring it to the front. We need to hide it first, then show it again.
+       * This mimics the "close to tray and reopen" behavior which works correctly.
+       */
+      if (isLinux && this.mainWindow.isVisible() && !this.mainWindow.isFocused()) {
+        this.mainWindow.hide()
+        setImmediate(() => {
+          if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.show()
+            this.mainWindow.focus()
+          }
+        })
         return
       }
 

@@ -459,6 +459,10 @@ export interface PaintingsState {
 export type MinAppType = {
   id: string
   name: string
+  /** i18n key for translatable names */
+  nameKey?: string
+  /** Locale codes where this app should be visible (e.g., ['zh-CN', 'zh-TW']) */
+  locales?: LanguageVarious[]
   logo?: string
   url: string
   // FIXME: It should be `bordered`

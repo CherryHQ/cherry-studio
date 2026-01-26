@@ -271,7 +271,7 @@
     },
     "toolPermission": {
       "aria": {
-        "allowAllRequest": "[to be translated]:Always allow this tool",
+        "allowAllRequest": "Να επιτρέπεται πάντα αυτό το εργαλείο",
         "allowRequest": "Επίτρεψη αίτησης εργαλείου",
         "denyRequest": "Απόρριψη αιτήματος εργαλείου",
         "hideDetails": "Απόκρυψη λεπτομερειών εργαλείου",
@@ -279,7 +279,7 @@
         "showDetails": "Εμφάνιση λεπτομερειών εργαλείου"
       },
       "button": {
-        "allowAll": "[to be translated]:Always Allow",
+        "allowAll": "Να Επιτρέπεται Πάντα",
         "cancel": "Ακύρωση",
         "run": "Τρέξε"
       },
@@ -670,8 +670,8 @@
       }
     },
     "alerts": {
-      "create_session": "[to be translated]:Create a session",
-      "select_agent": "[to be translated]:Select an agent"
+      "create_session": "Δημιουργία συνεδρίας",
+      "select_agent": "Επιλέξτε έναν πράκτορα"
     },
     "artifacts": {
       "button": {
@@ -1206,8 +1206,8 @@
     "cancel": "Άκυρο",
     "chat": "Συζήτηση",
     "clear": "Καθαρισμός",
-    "clear_all": "[to be translated]:Clear All",
-    "click_to_replace": "[to be translated]:Click to replace",
+    "clear_all": "Εκκαθάριση Όλων",
+    "click_to_replace": "Κάντε κλικ για αντικατάσταση",
     "close": "Κλείσιμο",
     "collapse": "Σύμπτυξη",
     "completed": "Ολοκληρώθηκε",
@@ -1242,15 +1242,15 @@
     "footnote": "Παραπομπή",
     "footnotes": "Παραπομπές",
     "fullscreen": "Εισήχθη σε πλήρη οθόνη, πατήστε F11 για να έξω",
-    "generate_random_seed": "[to be translated]:Generate random seed",
-    "get_embedding_dimension": "[to be translated]:Get embedding dimension",
+    "generate_random_seed": "Δημιουργία τυχαίου σπόρου",
+    "get_embedding_dimension": "Λήψη διάστασης ενσωμάτωσης",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
-    "html_preview": "[to be translated]:HTML Preview",
+    "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
     "ignore": "Αγνόησε",
-    "image_preview": "[to be translated]:Image preview",
-    "image_url": "[to be translated]:Image URL",
-    "image_url_or_upload": "[to be translated]:Enter image URL or upload file",
+    "image_preview": "Προεπισκόπηση εικόνας",
+    "image_url": "Διεύθυνση URL εικόνας",
+    "image_url_or_upload": "Εισαγάγετε διεύθυνση URL εικόνας ή ανεβάστε αρχείο",
     "inspect": "Επιθεώρηση",
     "invalid_value": "Μη έγκυρη τιμή",
     "knowledge_base": "Βάση Γνώσεων",
@@ -1260,7 +1260,7 @@
     "models": "Μοντέλα",
     "more": "Περισσότερα",
     "name": "Όνομα",
-    "next_match": "[to be translated]:Next match",
+    "next_match": "Επόμενος αγώνας",
     "no_results": "Δεν βρέθηκαν αποτελέσματα",
     "none": "Χωρίς",
     "off": "Κλειστό",
@@ -1272,17 +1272,17 @@
         "model": "Επιλέξτε μοντέλο"
       }
     },
-    "powered_by": "[to be translated]:Powered by ",
+    "powered_by": "Με την υποστήριξη της",
     "preview": "Προεπισκόπηση",
-    "previous_match": "[to be translated]:Previous match",
+    "previous_match": "Προηγούμενος αγώνας",
     "prompt": "Ενδεικτικός ρήματος",
     "provider": "Παρέχων",
     "reasoning_content": "Έχει σκεφτεί πολύ καλά",
     "refresh": "Ανανέωση",
     "regenerate": "Ξαναπαραγωγή",
-    "remove_image": "[to be translated]:Remove image",
+    "remove_image": "Αφαίρεση εικόνας",
     "rename": "Μετονομασία",
-    "required_field": "[to be translated]:Required field",
+    "required_field": "Υποχρεωτικό πεδίο",
     "reset": "Επαναφορά",
     "save": "Αποθήκευση",
     "saved": "Αποθηκεύτηκε",
@@ -1305,24 +1305,28 @@
     "success": "Επιτυχία",
     "swap": "Εναλλαγή",
     "topics": "Θέματα",
-    "translate_text": "[to be translated]:Translate text",
+    "translate_text": "Μετάφραση κειμένου",
     "unknown": "Άγνωστο",
     "unnamed": "Χωρίς όνομα",
     "unsubscribe": "Απεγγραφή",
     "update_success": "Επιτυχής ενημέρωση",
     "upload_files": "Ανέβασμα αρχείου",
-    "upload_image": "[to be translated]:Upload image file",
-    "uploaded_image": "[to be translated]:Uploaded image",
+    "upload_image": "Μεταφόρτωση αρχείου εικόνας",
+    "uploaded_image": "Μεταφορτωμένη εικόνα",
     "warning": "Προσοχή",
     "you": "Εσείς"
   },
   "dialog": {
-    "all_files": "[to be translated]:All Files",
-    "open_file": "[to be translated]:Open File",
-    "png_image": "[to be translated]:PNG Image",
-    "save_file": "[to be translated]:Save File",
-    "select_folder": "[to be translated]:Select Folder",
-    "word_document": "[to be translated]:Word Document"
+    "all_files": "Όλα τα Αρχεία",
+    "html_files": "Αρχεία HTML",
+    "open_file": "Άνοιγμα Αρχείου",
+    "pdf_files": "Αρχεία PDF",
+    "png_image": "Εικόνα PNG",
+    "save_as_html": "Αποθήκευση ως HTML",
+    "save_as_pdf": "Αποθήκευση ως PDF",
+    "save_file": "Αποθήκευση Αρχείου",
+    "select_folder": "Επιλέξτε φάκελο",
+    "word_document": "Έγγραφο Word"
   },
   "docs": {
     "title": "Βοήθεια"
@@ -2045,62 +2049,64 @@
       "cancelled": "Ακυρώθηκε",
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
-      "groupHeader": "[to be translated]:{{count}} tool calls",
+      "groupHeader": "{{count}} κλήσεις εργαλείων",
       "invoking": "κλήση σε εξέλιξη",
       "labels": {
-        "bash": "[to be translated]:Bash",
-        "edit": "[to be translated]:Edit",
-        "exitPlanMode": "[to be translated]:ExitPlanMode",
-        "glob": "[to be translated]:Glob",
-        "grep": "[to be translated]:Grep",
-        "mcpServerTool": "[to be translated]:MCP Server Tool",
-        "multiEdit": "[to be translated]:MultiEdit",
-        "notebookEdit": "[to be translated]:NotebookEdit",
-        "readFile": "[to be translated]:Read File",
-        "search": "[to be translated]:Search",
-        "skill": "[to be translated]:Skill",
-        "task": "[to be translated]:Task",
-        "todoWrite": "[to be translated]:Todo Write",
-        "tool": "[to be translated]:Tool",
-        "webFetch": "[to be translated]:Web Fetch",
-        "webSearch": "[to be translated]:Web Search",
-        "write": "[to be translated]:Write"
+        "bash": "Μπας",
+        "edit": "Επεξεργασία",
+        "exitPlanMode": "ΛειτουργίαΈξοδουΣχεδίου",
+        "glob": "Σφαίρα",
+        "grep": "Grep",
+        "mcpServerTool": "Εργαλείο Διακομιστή MCP",
+        "multiEdit": "ΠολλαπλήΕπεξεργασία",
+        "notebookEdit": "ΣημειωματάριοΕπεξεργασία",
+        "readFile": "Διάβασε Αρχείο",
+        "search": "Αναζήτηση",
+        "skill": "Δεξιότητα",
+        "task": "Εργασία",
+        "todoWrite": "Να γράψεις",
+        "tool": "Εργαλείο",
+        "webFetch": "Ανάκτηση Ιστού",
+        "webSearch": "Αναζήτηση στον Ιστό",
+        "write": "Γράψε"
       },
-      "noData": "[to be translated]:No data available for this tool",
+      "noData": "Δεν υπάρχουν διαθέσιμα δεδομένα για αυτό το εργαλείο",
       "pending": "Εκκρεμεί",
       "preview": "Προεπισκόπηση",
       "raw": "Ακατέργαστο",
-      "runningCount": "[to be translated]:{{count}} tools running",
+      "runningCount": "{{count}} εργαλεία εκτελούνται",
       "sections": {
-        "command": "[to be translated]:Command",
-        "exitCode": "[to be translated]:Exit Code",
-        "input": "[to be translated]:Input",
-        "output": "[to be translated]:Output",
-        "prompt": "[to be translated]:Prompt",
-        "searchQuery": "[to be translated]:Search Query",
-        "searchResults": "[to be translated]:Search Results",
-        "stderr": "[to be translated]:stderr",
-        "stdout": "[to be translated]:stdout"
+        "command": "Εντολή",
+        "exitCode": "Κωδικός Εξόδου",
+        "input": "Εισαγωγή",
+        "output": "Έξοδος",
+        "prompt": "Προτροπή",
+        "searchQuery": "ερώτημα αναζήτησης",
+        "searchResults": "Αποτελέσματα Αναζήτησης",
+        "stderr": "stderr",
+        "stdout": "stdout"
       },
       "status": {
-        "done": "[to be translated]:Done",
-        "error": "[to be translated]:Error",
-        "failed": "[to be translated]:Failed",
-        "running": "[to be translated]:Running",
-        "success": "[to be translated]:Success"
+        "done": "Έγινε",
+        "error": "Σφάλμα",
+        "failed": "Απέτυχε",
+        "running": "Τρέξιμο",
+        "success": "Επιτυχία"
       },
-      "truncated": "[to be translated]:Output truncated (original: {{size}})",
+      "truncated": "Η έξοδος περικόπηκε (πρωτότυπο: {{size}})",
       "units": {
-        "file": "[to be translated]:file",
-        "files": "[to be translated]:files",
-        "item": "[to be translated]:item",
-        "items": "[to be translated]:items",
-        "line": "[to be translated]:line",
-        "lines": "[to be translated]:lines",
-        "plan": "[to be translated]:plan",
-        "plans": "[to be translated]:plans",
-        "result": "[to be translated]:result",
-        "results": "[to be translated]:results"
+        "done_one": "{{count}} Ολοκληρώθηκε",
+        "done_other": "{{count}} Ολοκληρώθηκαν",
+        "file_one": "{{count}} αρχείο",
+        "file_other": "{{count}} αρχεία",
+        "item_one": "{{count}} αντικείμενο",
+        "item_other": "{{count}} αντικείμενα",
+        "line_one": "{{count}} γραμμή",
+        "line_other": "{{count}} γραμμές",
+        "plan_one": "{{count}} σχέδιο",
+        "plan_other": "{{count}} σχέδια",
+        "result_one": "{{count}} αποτέλεσμα",
+        "result_other": "{{count}} αποτελέσματα"
       }
     },
     "topic": {
@@ -2309,14 +2315,18 @@
     "drop_markdown_hint": "Σύρετε και αποθέστε αρχεία ή φακέλους .md εδώ για εισαγωγή",
     "empty": "δεν υπάρχει σημείωση για τώρα",
     "expand": "να ανοίξει",
+    "exportToWord": "Εξαγωγή σε Word",
     "export_failed": "Εξαγωγή στη βάση γνώσης απέτυχε",
     "export_knowledge": "εξαγωγή σημειώσεων στη βάση γνώσης",
     "export_success": "Επιτυχής εξαγωγή στην βάση γνώσης",
+    "export_to_word_failed": "Αποτυχία εξαγωγής στο Word",
     "folder": "φάκελος",
     "new_folder": "Νέος φάκελος",
     "new_note": "Δημιουργία νέας σημείωσης",
     "no_content_to_copy": "Δεν υπάρχει περιεχόμενο προς αντιγραφή",
+    "no_content_to_export": "Κανένα περιεχόμενο προς εξαγωγή",
     "no_file_selected": "Επιλέξτε το αρχείο για μεταφόρτωση",
+    "no_note_selected": "Παρακαλώ επιλέξτε πρώτα μια σημείωση",
     "no_valid_files": "Δεν ανέβηκε έγκυρο αρχείο",
     "open_folder": "Άνοιγμα εξωτερικού φακέλου",
     "open_outside": "Από το εξωτερικό",
@@ -2523,8 +2533,37 @@
     },
     "custom_size": "Προσαρμοσμένο μέγεθος",
     "dmxapi": {
-      "generating_tip": "[to be translated]:Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
-      "style": "[to be translated]:, Style: "
+      "generating_tip": "Η δημιουργία γίνεται με το επίσημο μοντέλο, ο εκτιμώμενος χρόνος αναμονής είναι 2-5 λεπτά για τα καλύτερα αποτελέσματα. Ελέγξτε τα αρχεία καταγραφής του διακομιστή DMXAPI για το κόστος αυτής της λειτουργίας.",
+      "style": ", Στυλ:",
+      "style_types": {
+        "25d_animation": "Κινούμενα Σχέδια 2.5D",
+        "3d_cartoon": "3D Καρτούν",
+        "american_retro": "Αμερικανικό Ρετρό",
+        "baroque": "Μπαρόκ",
+        "cartoon_illustration": "Κινούμενη εικονογράφηση",
+        "chinese_gongbi": "Κινέζικο Γκόνγκμπι",
+        "clay": "Πηλός",
+        "cyberpunk": "Κυβερνοπάνκ",
+        "felt": "Ύφασμα",
+        "flat": "Flat",
+        "fresh_anime": "Φρέσκο Anime",
+        "ghibli": "Γκίμπλι",
+        "japanese_anime": "Ιαπωνικό Άνιμε",
+        "little_people_book": "Βιβλίο για τους Μικρούς Ανθρώπους",
+        "monet_garden": "Κήπος Μονέ",
+        "oil_painting": "Ζωγραφική με λάδι",
+        "pixar": "Pixar",
+        "pixel_art": "Τέχνη των Πίξελ",
+        "poetic_ancient": "Ποιητικό Αρχαίο",
+        "psychedelic": "Ψυχεδελικό",
+        "sketch": "Σχέδιο",
+        "street_art": "Τέχνη του Δρόμου",
+        "texture": "Υφή",
+        "ukiyo_e": "Ουκιγιό-ε",
+        "watercolor": "Νερομπογιά",
+        "wood_carving": "Ξυλογλυπτική",
+        "yarn_doll": "Κούκλα από κλωστή"
+      }
     },
     "edit": {
       "image_file": "Επεξεργασμένη εικόνα",
@@ -2550,7 +2589,7 @@
       "style_type_tip": "Στυλ δημιουργίας εικόνας, ισχύει μόνο για την έκδοση V_2 και μεταγενέστερες",
       "width": "Πλάτος"
     },
-    "generate_failed": "[to be translated]:Failed to generate image",
+    "generate_failed": "Αποτυχία δημιουργίας εικόνας",
     "generated_image": "Δημιουργία εικόνας",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
     "guidance_scale": "Κλίμακα προσαρμογής",
@@ -2561,7 +2600,7 @@
     "image_file_required": "Παρακαλώ ανεβάστε πρώτα μια εικόνα",
     "image_file_retry": "Παρακαλώ ανεβάστε ξανά την εικόνα",
     "image_handle_required": "Παρακαλώ ανεβάστε πρώτα μια εικόνα",
-    "image_mix_failed": "[to be translated]:Failed to mix images",
+    "image_mix_failed": "Αποτυχία ανάμειξης εικόνων",
     "image_placeholder": "Δεν υπάρχει εικόνα για τη στιγμή",
     "image_retry": "Δοκιμάστε ξανά",
     "image_size_options": {
@@ -2571,7 +2610,7 @@
     "inference_steps_tip": "Το πλήθος των βημάτων επεξεργασίας που πρέπει να εκτελεστούν. Περισσότερα βήματα = χαμηλότερη ποιότητα και μεγαλύτερος χρόνος εκτέλεσης",
     "input_image": "Εικόνα εισόδου",
     "input_parameters": "Παράμετροι εισόδου",
-    "invalid_image_url": "[to be translated]:Invalid image URL format",
+    "invalid_image_url": "Μη έγκυρη μορφή διεύθυνσης URL εικόνας",
     "learn_more": "Μάθετε περισσότερα",
     "magic_prompt_option": "Ενίσχυση προτροπής",
     "mode": {
@@ -2593,7 +2632,7 @@
     "no_image_generation_model": "Δεν υπάρχει διαθέσιμο μοντέλο δημιουργίας εικόνας. Προσθέστε ένα μοντέλο και ορίστε τον τύπο τερματικού σημείου ως {{endpoint_type}}",
     "number_images": "Ποσότητα δημιουργιών",
     "number_images_tip": "Ποσότητα εικόνων που θα δημιουργηθούν μια φορά (1-4)",
-    "operation_failed": "[to be translated]:Operation failed, please try again later",
+    "operation_failed": "Η λειτουργία απέτυχε, παρακαλώ δοκιμάστε ξανά αργότερα",
     "paint_course": "Εκπαίδευση",
     "per_image": "Ανά εικόνα",
     "per_images": "Ανά εικόνα",
@@ -2671,11 +2710,24 @@
       "seed_tip": "Ελέγχει την τυχαιότητα του αποτελέσματος μεγέθυνσης"
     },
     "zhipu": {
-      "custom_size_divisible": "[to be translated]:Custom size must be divisible by 16",
-      "custom_size_hint": "[to be translated]:Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
-      "custom_size_pixels": "[to be translated]:Total pixels of custom size cannot exceed 2,097,152",
-      "custom_size_range": "[to be translated]:Custom size must be between 512px-2048px",
-      "custom_size_required": "[to be translated]:Please set custom width and height"
+      "custom_size_divisible": "Το προσαρμοσμένο μέγεθος πρέπει να διαιρείται με το 16",
+      "custom_size_hint": "Το πλάτος και το ύψος πρέπει να είναι μεταξύ 512px-2048px, να διαιρούνται με το 16 και τα συνολικά pixel να μην υπερβαίνουν τα 2^21px.",
+      "custom_size_pixels": "Το συνολικό πλήθος εικονοστοιχείων προσαρμοσμένου μεγέθους δεν μπορεί να υπερβαίνει τα 2.097.152",
+      "custom_size_range": "Το προσαρμοσμένο μέγεθος πρέπει να είναι μεταξύ 512px-2048px",
+      "custom_size_required": "Παρακαλώ ορίστε προσαρμοσμένο πλάτος και ύψος",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024 (Προεπιλογή)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "Πρότυπο (Προεπιλογή)"
+      }
     }
   },
   "plugins": {
@@ -2686,19 +2738,19 @@
     "category": "Κατηγορία",
     "commands": "εντολή",
     "confirm_uninstall": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε το {{name}};",
-    "content_saved": "[to be translated]:Plugin content saved successfully",
+    "content_saved": "Το περιεχόμενο του πρόσθετου αποθηκεύτηκε με επιτυχία",
     "detail": {
-      "allowed_tools": "[to be translated]:Allowed Tools",
-      "author": "[to be translated]:Author",
-      "content": "[to be translated]:Content",
-      "description": "[to be translated]:Description",
-      "file": "[to be translated]:File",
-      "installed": "[to be translated]:Installed",
-      "metadata": "[to be translated]:Metadata",
-      "size": "[to be translated]:Size",
-      "source": "[to be translated]:Source",
-      "tags": "[to be translated]:Tags",
-      "tools": "[to be translated]:Tools"
+      "allowed_tools": "Επιτρεπόμενα Εργαλεία",
+      "author": "Συγγραφέας",
+      "content": "Περιεχόμενο",
+      "description": "Περιγραφή",
+      "file": "Αρχείο",
+      "installed": "Εγκατεστημένο",
+      "metadata": "Μεταδεδομένα",
+      "size": "Μέγεθος",
+      "source": "Πηγή",
+      "tags": "Ετικέτες",
+      "tools": "Εργαλεία"
     },
     "install": "εγκατάσταση",
     "install_plugins_from_browser": "Περιηγηθείτε στα διαθέσιμα πρόσθετα για να ξεκινήσετε",
@@ -3051,9 +3103,9 @@
         "translate": "Μετάφραση"
       },
       "prompt": {
-        "explain": "[to be translated]:Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
-        "refine": "[to be translated]:Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
-        "summary": "[to be translated]:Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
+        "explain": "Παρακαλώ εξήγησε το ακόλουθο περιεχόμενο.",
+        "refine": "Παρακαλώ βελτιστοποιήστε ή γυαλίστε το περιεχόμενο που δίνει ο χρήστης, περιτριγυρισμένο με την ετικέτα XML <INPUT>, διατηρώντας το νόημα και την ακεραιότητα του αρχικού περιεχομένου. Απαιτήσεις: Η έξοδός σας πρέπει να είναι στην ίδια γλώσσα με την είσοδο του χρήστη· μην συμπεριλάβετε καμία εξήγηση αυτής της οδηγίας, δώστε απλώς την απάντηση· μην εκτυπώνετε ετικέτες XML, εκτυπώστε απευθείας το βελτιστοποιημένο περιεχόμενο.",
+        "summary": "Παρακαλώ συνοψίστε το ακόλουθο περιεχόμενο. Απαιτήσεις: Απαντήστε στα ελληνικά· μη συμπεριλάβετε καμία εξήγηση αυτού του προτρόπου, δώστε απευθείας την απάντηση:"
       },
       "translate": {
         "smart_translate_tips": "Έξυπνη μετάφραση: το περιεχόμενο θα μεταφραστεί προτεραιακά στη στόχος γλώσσα· αν το περιεχόμενο είναι ήδη στη στόχος γλώσσα, θα μεταφραστεί στην εναλλακτική γλώσσα"
@@ -4149,8 +4201,8 @@
       "jsonSaveError": "Αποτυχία αποθήκευσης της διαμορφωτικής ρύθμισης JSON",
       "jsonSaveSuccess": "Η διαμορφωτική ρύθμιση JSON αποθηκεύτηκε επιτυχώς",
       "lanyun": {
-        "description": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-        "name": "[to be translated]:Lanyun Technology"
+        "description": "Υπηρεσία MCP Πλατφόρμας Cloud Lanyun Technology",
+        "name": "Lanyun Technology"
       },
       "logoUrl": "URL Λογότυπου",
       "logs": "Αρχεία καταγραφής",
@@ -4249,12 +4301,12 @@
         "getTokenDescription": "Λήψη ενός προσωπικού API τοκεν από τον λογαριασμό σας",
         "noServersAvailable": "Δεν υπάρχουν διαθέσιμοι MCP διακομιστές",
         "providerDescriptions": {
-          "302ai": "[to be translated]:302.AI Platform MCP Service",
-          "bailian": "[to be translated]:Alibaba Cloud Bailian Platform MCP Service",
-          "lanyun": "[to be translated]:Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "[to be translated]:MCP Router Platform MCP Service",
-          "modelscope": "[to be translated]:ModelScope Platform MCP Service",
-          "tokenflux": "[to be translated]:TokenFlux Platform MCP Service"
+          "302ai": "302.Υπηρεσία MCP Πλατφόρμας AI",
+          "bailian": "Υπηρεσία MCP Πλατφόρμας Bailian της Alibaba Cloud",
+          "lanyun": "Υπηρεσία MCP της Πλατφόρμας Cloud Τεχνολογίας Lanyun",
+          "mcprouter": "Πλατφόρμα Δρομολογητή MCP Υπηρεσία MCP",
+          "modelscope": "Υπηρεσία MCP Πλατφόρμας ModelScope",
+          "tokenflux": "Υπηρεσία MCP της Πλατφόρμας TokenFlux"
         },
         "selectProvider": "Επιλέξτε Πάροχο:",
         "setToken": "Εισαγάγετε το τοκεν σας",
@@ -4733,9 +4785,9 @@
         "title": "Διαγραφή παρόχου"
       },
       "dmxapi": {
-        "platform_enterprise": "[to be translated]:ssvip.DMXAPI.com (Enterprise)",
-        "platform_international": "[to be translated]:www.DMXAPI.com (International)",
-        "platform_official": "[to be translated]:www.DMXAPI.cn (CNY)",
+        "platform_enterprise": "ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "www.DMXAPI.com (Διεθνές)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Επιλέξτε πλατφόρμα"
       },
       "docs_check": "Άνοιγμα",
@@ -4895,10 +4947,8 @@
         "image_provider": "Πάροχοι υπηρεσιών OCR",
         "paddleocr": {
           "aistudio_access_token": "Διακριτικό πρόσβασης της κοινότητας AI Studio",
-          "aistudio_url_label": "Κοινότητα AI Studio",
           "api_url": "Διεύθυνση URL API",
-          "serving_doc_url_label": "Τεκμηρίωση PaddleOCR Serving",
-          "tip": "Μπορείτε να ανατρέξετε στην επίσημη τεκμηρίωση του PaddleOCR για να αναπτύξετε μια τοπική υπηρεσία, ή να αναπτύξετε μια υπηρεσία στο cloud στην Κοινότητα PaddlePaddle AI Studio. Στη δεύτερη περίπτωση, παρακαλώ παρέχετε το διακριτικό πρόσβασης (access token) της Κοινότητας AI Studio."
+          "api_url_label": "Λήψη Διακριτικού Πρόσβασης και URL του API"
         },
         "system": {
           "win": {
@@ -4911,6 +4961,12 @@
         "title": "Υπηρεσία OCR"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "Δείκτης πρόσβασης της κοινότητας AI Studio",
+          "api_url": "Διεύθυνση URL του API",
+          "api_url_label": "Λήψη Διακριτικού Πρόσβασης και URL API",
+          "paddleocr_url_label": "Επίσημη ιστοσελίδα του PaddleOCR"
+        },
         "provider": "πάροχος υπηρεσιών προεπεξεργασίας εγγράφων",
         "provider_placeholder": "Επιλέξτε έναν πάροχο υπηρεσιών προεπεξεργασίας εγγράφων",
         "title": "Προεπεξεργασία εγγράφων",
@@ -5072,6 +5128,13 @@
       "show": "Εμφάνιση εικονιδίου συνδρομής",
       "title": "Συνδρομή"
     },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "Η αλλαγή του στυλ της γραμμής τίτλου απαιτεί επανεκκίνηση της εφαρμογής για να τεθεί σε ισχύ. Θέλετε να γίνει επανεκκίνηση τώρα;",
+        "title": "Απαιτείται επανεκκίνηση"
+      },
+      "title": "Χρήση γραμμής τίτλου συστήματος (Linux)"
+    },
     "zoom": {
       "reset": "Επαναφορά",
       "title": "Κλίμακα"
@@ -5149,6 +5212,8 @@
     "detected": {
       "language": "Αυτόματη ανίχνευση"
     },
+    "detected_source": "Εντοπίστηκε",
+    "detecting": "Ανίχνευση...",
     "empty": "Το μεταφρασμένο κείμενο είναι κενό",
     "error": {
       "chat_qwen_mt": "Τα μοντέλα Qwen MT δεν είναι διαθέσιμα για χρήση σε διαλόγους, παρακαλώ μεταβείτε στη σελίδα μετάφρασης",
@@ -5201,6 +5266,7 @@
       "not_pair": "Η γλώσσα πηγής διαφέρει από την οριζόμενη γλώσσα",
       "same": "Η γλώσσα πηγής και η γλώσσα προορισμού είναι ίδιες"
     },
+    "language_settings": "Ρυθμίσεις Γλώσσας",
     "menu": {
       "description": "Μεταφράστε το περιεχόμενο του τρέχοντος πεδίου εισαγωγής"
     },
@@ -5210,6 +5276,7 @@
     "output": {
       "placeholder": "Μετάφραση"
     },
+    "preferred_target": "Προτιμώμενος Στόχος",
     "processing": "Μεταφράζεται...",
     "settings": {
       "autoCopy": "Μετά τη μετάφραση, αντιγράφεται αυτόματα",

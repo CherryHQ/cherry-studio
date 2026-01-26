@@ -1318,8 +1318,12 @@
   },
   "dialog": {
     "all_files": "所有文件",
+    "html_files": "HTML 文件",
     "open_file": "打开文件",
+    "pdf_files": "PDF 文件",
     "png_image": "PNG 图片",
+    "save_as_html": "保存为 HTML",
+    "save_as_pdf": "保存为 PDF",
     "save_file": "保存文件",
     "select_folder": "选择文件夹",
     "word_document": "Word 文档"
@@ -2091,16 +2095,18 @@
       },
       "truncated": "输出已截断（原始大小：{{size}}）",
       "units": {
-        "file": "个文件",
-        "files": "个文件",
-        "item": "项",
-        "items": "项",
-        "line": "行",
-        "lines": "行",
-        "plan": "个计划",
-        "plans": "个计划",
-        "result": "个结果",
-        "results": "个结果"
+        "done_one": "{{count}} 项完成",
+        "done_other": "{{count}} 项完成",
+        "file_one": "{{count}} 个文件",
+        "file_other": "{{count}} 个文件",
+        "item_one": "{{count}} 项",
+        "item_other": "{{count}} 项",
+        "line_one": "{{count}} 行",
+        "line_other": "{{count}} 行",
+        "plan_one": "{{count}} 个计划",
+        "plan_other": "{{count}} 个计划",
+        "result_one": "{{count}} 个结果",
+        "result_other": "{{count}} 个结果"
       }
     },
     "topic": {
@@ -2309,14 +2315,18 @@
     "drop_markdown_hint": "拖拽 .md 文件或目录到此处导入",
     "empty": "暂无笔记",
     "expand": "展开",
+    "exportToWord": "导出为 Word",
     "export_failed": "导出到知识库失败",
     "export_knowledge": "导出笔记到知识库",
     "export_success": "成功导出到知识库",
+    "export_to_word_failed": "导出为 Word 失败",
     "folder": "文件夹",
     "new_folder": "新建文件夹",
     "new_note": "新建笔记",
     "no_content_to_copy": "没有内容可复制",
+    "no_content_to_export": "没有内容可导出",
     "no_file_selected": "请选择要上传的文件",
+    "no_note_selected": "请先选择一个笔记",
     "no_valid_files": "没有上传有效的文件",
     "open_folder": "打开外部文件夹",
     "open_outside": "从外部打开",
@@ -2524,7 +2534,36 @@
     "custom_size": "自定义尺寸",
     "dmxapi": {
       "generating_tip": "正在使用官方的模型生成，预计等待2~5分钟效果最好，本次消耗金额请到DMXAPI后台日志查看",
-      "style": "，风格："
+      "style": "，风格：",
+      "style_types": {
+        "25d_animation": "2.5D动画",
+        "3d_cartoon": "3D卡通",
+        "american_retro": "美式复古",
+        "baroque": "巴洛克",
+        "cartoon_illustration": "卡通插画",
+        "chinese_gongbi": "中国工笔",
+        "clay": "黏土",
+        "cyberpunk": "赛博朋克",
+        "felt": "毛毡",
+        "flat": "平坦",
+        "fresh_anime": "新鲜动漫",
+        "ghibli": "吉卜力",
+        "japanese_anime": "日本动漫",
+        "little_people_book": "小人书",
+        "monet_garden": "莫奈花园",
+        "oil_painting": "油画",
+        "pixar": "皮克斯",
+        "pixel_art": "像素艺术",
+        "poetic_ancient": "诗意古风",
+        "psychedelic": "迷幻",
+        "sketch": "草图",
+        "street_art": "街头艺术",
+        "texture": "纹理",
+        "ukiyo_e": "浮世绘",
+        "watercolor": "水彩",
+        "wood_carving": "木雕",
+        "yarn_doll": "纱线娃娃"
+      }
     },
     "edit": {
       "image_file": "编辑的图像",
@@ -2675,7 +2714,20 @@
       "custom_size_hint": "长宽均需满足512px-2048px之间，需被16整除，并保证最大像素数不超过2^21px",
       "custom_size_pixels": "自定义尺寸的总像素数不能超过2,097,152",
       "custom_size_range": "自定义尺寸必须在512px-2048px之间",
-      "custom_size_required": "请设置自定义尺寸的宽度和高度"
+      "custom_size_required": "请设置自定义尺寸的宽度和高度",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024（默认）",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768×1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "高清",
+        "standard_default": "标准（默认）"
+      }
     }
   },
   "plugins": {
@@ -4895,10 +4947,8 @@
         "image_provider": "OCR 服务提供商",
         "paddleocr": {
           "aistudio_access_token": "星河社区访问令牌",
-          "aistudio_url_label": "星河社区",
           "api_url": "API URL",
-          "serving_doc_url_label": "PaddleOCR 服务化部署文档",
-          "tip": "您可以参考 PaddleOCR 官方文档部署本地服务，或者在飞桨星河社区部署云服务。对于后一种情况，请填写星河社区访问令牌。"
+          "api_url_label": "获取访问令牌及API URL"
         },
         "system": {
           "win": {
@@ -4911,6 +4961,12 @@
         "title": "OCR 服务"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "星河社区访问令牌",
+          "api_url": "API URL",
+          "api_url_label": "获取访问令牌及API URL",
+          "paddleocr_url_label": "PaddleOCR 官网"
+        },
         "provider": "文档处理服务商",
         "provider_placeholder": "选择一个文档处理服务商",
         "title": "文档处理",
@@ -5072,6 +5128,13 @@
       "show": "显示托盘图标",
       "title": "托盘"
     },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "更改标题栏样式需要重启应用才能生效，是否现在重启？",
+        "title": "需要重启应用"
+      },
+      "title": "使用系统标题栏 (Linux)"
+    },
     "zoom": {
       "reset": "重置",
       "title": "缩放"
@@ -5149,6 +5212,8 @@
     "detected": {
       "language": "自动检测"
     },
+    "detected_source": "检测到",
+    "detecting": "检测中...",
     "empty": "翻译内容为空",
     "error": {
       "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，请转至翻译页面",
@@ -5201,6 +5266,7 @@
       "not_pair": "源语言与设置的语言不同",
       "same": "源语言和目标语言相同"
     },
+    "language_settings": "语言设置",
     "menu": {
       "description": "对当前输入框内容进行翻译"
     },
@@ -5210,6 +5276,7 @@
     "output": {
       "placeholder": "翻译"
     },
+    "preferred_target": "首选目标",
     "processing": "翻译中...",
     "settings": {
       "autoCopy": "翻译完成后自动复制",

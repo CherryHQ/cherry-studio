@@ -704,11 +704,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
             : item.options?.map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
 
         return (
@@ -728,11 +728,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
             : item.options?.map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
 
         return (

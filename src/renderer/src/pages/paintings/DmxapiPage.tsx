@@ -80,7 +80,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const modeOptions = MODEOPTIONS.map((ele) => {
     return {
-      label: t(ele.label),
+      label: t(ele.labelKey),
       value: ele.value
     }
   })
@@ -936,10 +936,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <RadioTextBox>
               {STYLE_TYPE_OPTIONS.map((ele) => (
                 <RadioTextItem
-                  key={ele.label}
-                  className={painting.style_type === ele.label ? 'selected' : ''}
-                  onClick={() => onSelectStyleType(ele.label)}>
-                  {ele.label}
+                  key={ele.value}
+                  className={painting.style_type === ele.value ? 'selected' : ''}
+                  onClick={() => onSelectStyleType(ele.value)}>
+                  {t(ele.labelKey)}
                 </RadioTextItem>
               ))}
             </RadioTextBox>

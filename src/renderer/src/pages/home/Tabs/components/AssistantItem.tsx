@@ -69,6 +69,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
   const dispatch = useAppDispatch()
 
   useEffect(() => {
@@ -148,20 +149,20 @@ const AssistantItem: FC<AssistantItemProps> = ({
     [assistant.emoji, assistantName]
   )
 
-  const handleMoreClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      AssistantSettingsPopup.show({ assistant })
-    },
-    [assistant]
-  )
+  const handleMenuButtonClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+  }, [])
 
   return (
     <Dropdown
       menu={{ items: menuItems }}
       trigger={['contextMenu']}
       popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-      <Container onClick={handleSwitch} isActive={isActive}>
+      <Container
+        onClick={handleSwitch}
+        isActive={isActive}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}>
         <AssistantNameRow className="name" title={fullAssistantName}>
           <AssistantAvatar
             assistant={assistant}
@@ -170,10 +171,15 @@ const AssistantItem: FC<AssistantItemProps> = ({
           />
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
-        {isActive && (
-          <MenuButton onClick={handleMoreClick}>
-            <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
-          </MenuButton>
+        {(isActive || isHovered) && (
+          <Dropdown
+            menu={{ items: menuItems }}
+            trigger={['click']}
+            popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
+            <MenuButton onClick={handleMenuButtonClick}>
+              <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
+            </MenuButton>
+          </Dropdown>
         )}
       </Container>
     </Dropdown>

@@ -260,11 +260,25 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       setFiles([])
       setTimeoutTimer('sendMessage_1', () => setText(''), 500)
       setTimeoutTimer('sendMessage_2', () => resizeTextArea(), 0)
+      // Restore focus to textarea after sending to maintain IME state (fcitx5 issue)
+      focusTextarea()
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, topic, text, mentionedModels, files, dispatch, setText, setFiles, setTimeoutTimer, resizeTextArea])
+  }, [
+    assistant,
+    topic,
+    text,
+    mentionedModels,
+    files,
+    dispatch,
+    setText,
+    setFiles,
+    setTimeoutTimer,
+    resizeTextArea,
+    focusTextarea
+  ])
 
   const tokenCountProps = useMemo(() => {
     if (!config.showTokenCount || estimateTokenCount === undefined || !showInputEstimatedTokens) {

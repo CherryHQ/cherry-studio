@@ -23,6 +23,22 @@ import { promisify } from 'util'
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')
 
+// Sensitive environment variable keys to redact in logs
+const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
+
+/**
+ * Sanitize environment variables for safe logging
+ * Redacts values of sensitive keys to prevent credential leakage
+ */
+function sanitizeEnvForLogging(env: Record<string, string>): Record<string, string> {
+  const sanitized: Record<string, string> = {}
+  for (const [key, value] of Object.entries(env)) {
+    const isSensitive = SENSITIVE_ENV_KEYS.some((k) => key.toUpperCase().includes(k))
+    sanitized[key] = isSensitive ? '<redacted>' : value
+  }
+  return sanitized
+}
+
 interface VersionInfo {
   installed: string | null
   latest: string | null
@@ -617,7 +633,7 @@ class CodeToolsService {
       }
 
       logger.info('Setting environment variables:', Object.keys(env))
-      logger.info('Environment variable values:', env)
+      logger.debug('Environment variable values:', sanitizeEnvForLogging(env))
 
       if (isWindows) {
         // Windows uses set command
@@ -640,8 +656,7 @@ class CodeToolsService {
           .map(([key, value]) => {
             const sanitizedValue = String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
             const exportCmd = `export ${key}="${sanitizedValue}"`
-            logger.info(`Setting env var: ${key}="${sanitizedValue}"`)
-            logger.info(`Export command: ${exportCmd}`)
+            logger.debug(`Setting env var: ${key}=<redacted>`)
             return exportCmd
           })
           .join(' && ')
@@ -657,19 +672,20 @@ class CodeToolsService {
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 
-    // Add configuration parameters for OpenAI Codex
-    if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER && env.OPENAI_MODEL_PROVIDER != 'openai') {
-      const provider = env.OPENAI_MODEL_PROVIDER
-      const model = env.OPENAI_MODEL
-      // delete the latest /
-      const baseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
+    // Add configuration parameters for OpenAI Codex using command line args
+    if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
+      const providerId = env.OPENAI_MODEL_PROVIDER
+      const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
+      const normalizedBaseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
+      const model = _model
 
       const configParams = [
-        `--config model_provider="${provider}"`,
-        `--config model="${model}"`,
-        `--config model_providers.${provider}.name="${provider}"`,
-        `--config model_providers.${provider}.base_url="${baseUrl}"`,
-        `--config model_providers.${provider}.env_key="OPENAI_API_KEY"`
+        `--config model_provider="${providerId}"`,
+        `--config model_providers.${providerId}.name="${providerName}"`,
+        `--config model_providers.${providerId}.base_url="${normalizedBaseUrl}"`,
+        `--config model_providers.${providerId}.env_key="OPENAI_API_KEY"`,
+        `--config model_providers.${providerId}.wire_api="responses"`,
+        `--config model="${model}"`
       ].join(' ')
       baseCommand = `${baseCommand} ${configParams}`
     }
@@ -791,14 +807,15 @@ class CodeToolsService {
           terminalArgs = args
         }
 
-        // Set cleanup task (delete temp file after 5 minutes)
+        // Set cleanup task (delete temp file after 60 seconds)
+        // Windows Terminal (UWP app) may take longer to initialize and read the file
         setTimeout(() => {
           try {
             fs.existsSync(batFilePath) && fs.unlinkSync(batFilePath)
           } catch (error) {
             logger.warn(`Failed to cleanup temp bat file: ${error}`)
           }
-        }, 10 * 1000) // Delete temp file after 10 seconds
+        }, 60 * 1000) // Delete temp file after 60 seconds
 
         break
       }

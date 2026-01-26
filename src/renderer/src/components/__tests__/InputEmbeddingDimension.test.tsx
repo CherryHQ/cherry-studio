@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
         'knowledge.provider_not_found': '找不到提供商',
         'message.error.get_embedding_dimensions': '获取嵌入维度失败',
         'knowledge.dimensions_size_placeholder': '请输入维度大小',
-        'knowledge.dimensions_auto_set': '自动设置维度'
+        'knowledge.dimensions_auto_set': '自动设置维度',
+        'common.get_embedding_dimension': 'Get Embedding Dimension'
       }
       return translations[k] || k
     }

@@ -30,6 +30,7 @@ import { isEmpty } from 'lodash'
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 import type { BlockManager } from './messageStreaming'
+import { estimateTextTokens } from './TokenService'
 
 const logger = loggerService.withContext('RendererKnowledgeService')
 
@@ -146,6 +147,16 @@ export const searchKnowledgeBase = async (
   parentSpanId?: string,
   modelName?: string
 ): Promise<Array<KnowledgeSearchResult & { file: FileMetadata | null }>> => {
+  // Truncate query based on embedding model's max_context to prevent embedding errors
+  const maxContext = getEmbeddingMaxContext(base.model.id)
+  if (maxContext) {
+    const estimatedTokens = estimateTextTokens(query)
+    if (estimatedTokens > maxContext) {
+      const ratio = maxContext / estimatedTokens
+      query = query.slice(0, Math.floor(query.length * ratio))
+    }
+  }
+
   let currentSpan: Span | undefined = undefined
   try {
     const baseParams = getKnowledgeBaseParams(base)

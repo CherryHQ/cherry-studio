@@ -9,7 +9,7 @@ import {
   readTextFileWithAutoEncoding,
   scanDir
 } from '@main/utils/file'
-import { locales } from '@main/utils/locales'
+import { t } from '@main/utils/locales'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
 import type { FileMetadata, NotesTreeNode } from '@types'
@@ -827,9 +827,9 @@ class FileStorage {
       const { dialog: dialogLocale } = locale.translation
 
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: dialogLocale.open_file,
+        title: t('dialog.open_file'),
         properties: ['openFile'],
-        filters: [{ name: dialogLocale.all_files, extensions: ['*'] }],
+        filters: [{ name: t('dialog.all_files'), extensions: ['*'] }],
         ...options
       })
 
@@ -1446,7 +1446,7 @@ class FileStorage {
       const { dialog: dialogLocale } = locale.translation
 
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
-        title: dialogLocale.save_file,
+        title: t('dialog.save_file'),
         defaultPath: fileName,
         ...options
       })
@@ -1473,7 +1473,7 @@ class FileStorage {
 
       const filePath = dialog.showSaveDialogSync({
         defaultPath: `${name}.png`,
-        filters: [{ name: dialogLocale.png_image, extensions: ['png'] }]
+        filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       })
 
       if (filePath) {
@@ -1491,7 +1491,7 @@ class FileStorage {
       const { dialog: dialogLocale } = locale.translation
 
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: dialogLocale.select_folder,
+        title: t('dialog.select_folder'),
         properties: ['openDirectory'],
         ...options
       })
