@@ -7,7 +7,7 @@ import type { AgentEntity, ApiModel, BaseAgentForm, PermissionMode } from '@rend
 import { AgentConfigurationSchema } from '@renderer/types'
 import type { GitBashPathInfo } from '@shared/config/constant'
 import { Button, Input, Select } from 'antd'
-import { AlertTriangleIcon } from 'lucide-react'
+import { AlertTriangleIcon, Trash2 } from 'lucide-react'
 import type { ChangeEvent } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -311,9 +311,11 @@ const AgentForm: React.FC<AgentFormProps> = ({ form, setForm, agent }) => {
             {form.accessible_paths.map((path) => (
               <PathItem key={path}>
                 <PathText title={path}>{path}</PathText>
-                <Button size="small" danger onClick={() => removeAccessiblePath(path)}>
-                  {t('common.delete')}
-                </Button>
+                <Trash2
+                  size={16}
+                  className="cursor-pointer text-[var(--color-error)] hover:opacity-80"
+                  onClick={() => removeAccessiblePath(path)}
+                />
               </PathItem>
             ))}
           </PathList>
@@ -410,9 +412,7 @@ const PathItem = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  padding: 8px 0;
   background-color: var(--color-bg-1);
 `
 
