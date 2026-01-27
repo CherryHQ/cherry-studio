@@ -132,9 +132,10 @@
 
 /* User Guide specific styles matching Figma design */
 /* Supports both light and dark modes */
+/* Default uses light mode colors, dark mode overrides below */
 .driver-popover.user-guide-popover {
-  background: var(--color-background-soft) !important;
-  background-color: var(--color-background-soft) !important;
+  background: #f7f8f7 !important;
+  background-color: #f7f8f7 !important;
   background-image: none !important;
   color: var(--color-text) !important;
   border: 1px solid var(--color-border) !important;
@@ -146,8 +147,10 @@
   opacity: 1 !important;
 }
 
-/* Dark mode shadow adjustment */
+/* Dark mode: solid dark background */
 .driver-popover.user-guide-popover.dark {
+  background: #222222 !important;
+  background-color: #222222 !important;
   box-shadow: 0px 4px 13.8px 0px rgba(0, 0, 0, 0.4) !important;
 }
 
@@ -322,27 +325,45 @@
   height: 24px !important;
 }
 
-/* Arrow styles for user guide popover */
+/* Arrow styles for user guide popover - default (light mode) */
 .driver-popover.user-guide-popover .driver-popover-arrow-side-left {
-  border-right-color: var(--color-background-soft) !important;
+  border-right-color: #f7f8f7 !important;
 }
 
 .driver-popover.user-guide-popover .driver-popover-arrow-side-right {
-  border-left-color: var(--color-background-soft) !important;
+  border-left-color: #f7f8f7 !important;
 }
 
 .driver-popover.user-guide-popover .driver-popover-arrow-side-top {
-  border-bottom-color: var(--color-background-soft) !important;
+  border-bottom-color: #f7f8f7 !important;
 }
 
 .driver-popover.user-guide-popover .driver-popover-arrow-side-bottom {
-  border-top-color: var(--color-background-soft) !important;
+  border-top-color: #f7f8f7 !important;
+}
+
+/* Arrow styles for user guide popover - dark mode */
+.driver-popover.user-guide-popover.dark .driver-popover-arrow-side-left {
+  border-right-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover.dark .driver-popover-arrow-side-right {
+  border-left-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover.dark .driver-popover-arrow-side-top {
+  border-bottom-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover.dark .driver-popover-arrow-side-bottom {
+  border-top-color: #222222 !important;
 }
 
 /* Step 2: Minimal popover for pointing to target elements */
+/* Default uses light mode colors, dark mode overrides below */
 .driver-popover.user-guide-popover-minimal {
-  background: var(--color-background-soft) !important;
-  background-color: var(--color-background-soft) !important;
+  background: #f7f8f7 !important;
+  background-color: #f7f8f7 !important;
   background-image: none !important;
   color: var(--color-text) !important;
   border: 1px solid var(--color-border) !important;
@@ -356,7 +377,10 @@
   opacity: 1 !important;
 }
 
+/* Dark mode: solid dark background */
 .driver-popover.user-guide-popover-minimal.dark {
+  background: #222222 !important;
+  background-color: #222222 !important;
   box-shadow: 0px 4px 13.8px 0px rgba(0, 0, 0, 0.4) !important;
 }
 
@@ -511,19 +535,36 @@
   background-color: #35c052 !important;
 }
 
-/* Arrow styles for minimal popover */
+/* Arrow styles for minimal popover - default (light mode) */
 .driver-popover.user-guide-popover-minimal .driver-popover-arrow-side-left {
-  border-right-color: var(--color-background-soft) !important;
+  border-right-color: #f7f8f7 !important;
 }
 
 .driver-popover.user-guide-popover-minimal .driver-popover-arrow-side-right {
-  border-left-color: var(--color-background-soft) !important;
+  border-left-color: #f7f8f7 !important;
 }
 
 .driver-popover.user-guide-popover-minimal .driver-popover-arrow-side-top {
-  border-bottom-color: var(--color-background-soft) !important;
+  border-bottom-color: #f7f8f7 !important;
 }
 
 .driver-popover.user-guide-popover-minimal .driver-popover-arrow-side-bottom {
-  border-top-color: var(--color-background-soft) !important;
+  border-top-color: #f7f8f7 !important;
+}
+
+/* Arrow styles for minimal popover - dark mode */
+.driver-popover.user-guide-popover-minimal.dark .driver-popover-arrow-side-left {
+  border-right-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover-minimal.dark .driver-popover-arrow-side-right {
+  border-left-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover-minimal.dark .driver-popover-arrow-side-top {
+  border-bottom-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover-minimal.dark .driver-popover-arrow-side-bottom {
+  border-top-color: #222222 !important;
 }

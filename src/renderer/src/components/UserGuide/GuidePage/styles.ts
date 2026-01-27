@@ -240,7 +240,8 @@ export const RightPanel = styled.div<{ $gradient?: string }>`
   justify-content: center;
   padding: 40px;
   background: ${(props) => props.$gradient || gradients.assistants};
-  border-radius: 24px;
+  border-top-left-radius: 24px;
+  border-bottom-left-radius: 24px;
   position: relative;
   overflow: hidden;
   margin: 0;
