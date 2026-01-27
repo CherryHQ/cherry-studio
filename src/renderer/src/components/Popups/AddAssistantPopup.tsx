@@ -11,11 +11,10 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AddAgentForm, AgentEntity, Assistant, AssistantPreset, BaseAgentForm } from '@renderer/types'
 import { isAgentType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { cn } from '@renderer/utils'
 import type { InputRef } from 'antd'
-import { Input, Modal, Tag } from 'antd'
+import { Input, Modal } from 'antd'
 import { take } from 'lodash'
-import { Bot, MessageSquare, Plus } from 'lucide-react'
+import { Bot, Check, MessageSquare, Plus } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -219,31 +218,27 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
         <ModeSelector>
           <ModeCard $active={mode === 'assistant'} onClick={() => setMode('assistant')}>
             <ModeIconWrapper $active={mode === 'assistant'}>
-              <MessageSquare
-                size={20}
-                className={cn(
-                  'transition-colors',
-                  mode === 'assistant' ? 'text-[var(--color-primary)]' : 'text-[var(--color-icon-white)]'
-                )}
-              />
+              {mode === 'assistant' ? (
+                <Check size={20} className="text-[var(--color-primary)]" />
+              ) : (
+                <MessageSquare size={20} className="text-[var(--color-icon-white)]" />
+              )}
             </ModeIconWrapper>
             <ModeCardContent>
-              <ModeCardTitle>{t('chat.add.assistant.title')}</ModeCardTitle>
+              <ModeCardTitle>{t('common.assistant')}</ModeCardTitle>
               <ModeCardDesc>{t('chat.add.assistant.description')}</ModeCardDesc>
             </ModeCardContent>
           </ModeCard>
           <ModeCard $active={mode === 'agent'} onClick={() => setMode('agent')}>
             <ModeIconWrapper $active={mode === 'agent'}>
-              <Bot
-                size={20}
-                className={cn(
-                  'transition-colors',
-                  mode === 'agent' ? 'text-[var(--color-primary)]' : 'text-[var(--color-icon-white)]'
-                )}
-              />
+              {mode === 'agent' ? (
+                <Check size={20} className="text-[var(--color-primary)]" />
+              ) : (
+                <Bot size={20} className="text-[var(--color-icon-white)]" />
+              )}
             </ModeIconWrapper>
             <ModeCardContent>
-              <ModeCardTitle>{t('agent.add.title')}</ModeCardTitle>
+              <ModeCardTitle>{t('common.agent')}</ModeCardTitle>
               <ModeCardDesc>{t('agent.add.description')}</ModeCardDesc>
             </ModeCardContent>
           </ModeCard>
@@ -273,9 +268,13 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
                       </PresetCardDesc>
                     )}
                     <PresetCardTags>
-                      {preset.id === 'default' && <Tag color="green">{t('assistants.presets.tag.system')}</Tag>}
-                      {preset.type === 'agent' && <Tag color="orange">{t('assistants.presets.tag.agent')}</Tag>}
-                      {preset.id === 'new' && <Tag color="green">{t('assistants.presets.tag.new')}</Tag>}
+                      {preset.id === 'default' && (
+                        <TagText $color="green">{t('assistants.presets.tag.system')}</TagText>
+                      )}
+                      {preset.type === 'agent' && (
+                        <TagText $color="orange">{t('assistants.presets.tag.agent')}</TagText>
+                      )}
+                      {preset.id === 'new' && <TagText $color="green">{t('assistants.presets.tag.new')}</TagText>}
                     </PresetCardTags>
                   </PresetCardInfo>
                   <PresetCardRight>
@@ -313,7 +312,7 @@ const ModeCard = styled.button<{ $active: boolean }>`
   gap: 12px;
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid ${(props) => (props.$active ? 'var(--color-primary-soft)' : 'transparent')};
+  border: 1px solid ${(props) => (props.$active ? 'var(--color-border)' : 'transparent')};
   background-color: var(--color-background-soft);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -442,10 +441,11 @@ const PresetCardTags = styled.div`
   gap: 4px;
   flex-wrap: wrap;
   margin-top: 4px;
+`
 
-  .ant-tag {
-    border: none;
-  }
+const TagText = styled.span<{ $color?: 'green' | 'orange' }>`
+  font-size: 12px;
+  color: ${(props) => (props.$color === 'green' ? '#52c41a' : props.$color === 'orange' ? '#fa8c16' : 'var(--color-text-3)')};
 `
 
 const PresetCardRight = styled.div`
