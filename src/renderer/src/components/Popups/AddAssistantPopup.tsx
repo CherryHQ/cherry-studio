@@ -462,8 +462,8 @@ const PresetCardAddBtn = styled.div`
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background-color: var(--color-primary);
-  color: white;
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
