@@ -3169,6 +3169,36 @@ const migrateConfig = {
       logger.error('migrate 193 error', error as Error)
       return state
     }
+  },
+  '194': (state: RootState) => {
+    try {
+      if (!state.onboarding) {
+        state.onboarding = {
+          completedOnboardingVersion: '1.7.15',
+          completedFeatureGuides: [],
+          onboardingSkipped: true,
+          guidePageCompleted: false,
+          checklistDismissed: false,
+          checklistVisible: false,
+          taskStatus: {
+            useFreeModel: false,
+            configureProvider: false,
+            sendFirstMessage: false
+          },
+          completionModalShown: false
+        }
+      } else {
+        if (!state.onboarding.completedOnboardingVersion) {
+          state.onboarding.completedOnboardingVersion = '1.7.15'
+        }
+        state.onboarding.onboardingSkipped = true
+      }
+      logger.info('migrate 194 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 194 error', error as Error)
+      return state
+    }
   }
 }
 
