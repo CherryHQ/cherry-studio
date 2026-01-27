@@ -1,6 +1,6 @@
 import assistantBackground from '@renderer/assets/images/guide/assistant_background.png'
 import cherryai3d from '@renderer/assets/images/guide/cherryai_3d.png'
-import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
+import { useSystemAssistantPresets } from '@renderer/pages/store/assistants/presets'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { showCompletionModal } from '@renderer/store/onboarding'
@@ -30,7 +30,7 @@ const CompletionModal: FC = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
-  const { presets } = useAssistantPresets()
+  const presets = useSystemAssistantPresets()
 
   const { taskStatus, completionModalShown, guidePageCompleted } = useAppSelector((state) => state.onboarding)
 
