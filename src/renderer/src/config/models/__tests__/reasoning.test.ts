@@ -341,6 +341,7 @@ describe('Claude & regional providers', () => {
   })
 
   it('covers zhipu/minimax/step specific classifiers', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.5' }))).toBe(true)
     expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.6-pro' }))).toBe(true)
     expect(isZhipuReasoningModel(createModel({ id: 'glm-z1' }))).toBe(true)
     expect(isStepReasoningModel(createModel({ id: 'step-r1-v-mini' }))).toBe(true)
@@ -422,12 +423,18 @@ describe('Qwen & Gemini thinking coverage', () => {
     expect(isSupportedThinkingTokenQwenModel(createModel({ id }))).toBe(true)
   })
 
-  it.each(['qwen3-thinking', 'qwen3-instruct', 'qwen3-max', 'qwen3-vl-thinking'])(
-    'blocks thinking tokens for %s',
-    (id) => {
-      expect(isSupportedThinkingTokenQwenModel(createModel({ id }))).toBe(false)
-    }
-  )
+  it.each(['qwen3-thinking', 'qwen3-instruct', 'qwen3-vl-thinking'])('blocks thinking tokens for %s', (id) => {
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id }))).toBe(false)
+  })
+
+  it('supports thinking tokens for qwen3-max-preview and qwen3-max-2026-01-23', () => {
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-preview' }))).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-2026-01-23' }))).toBe(true)
+  })
+
+  it('blocks thinking tokens for qwen3-max and other unsupported versions', () => {
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max' }))).toBe(false)
+  })
 
   it.each(['qwen3-thinking', 'qwen3-vl-235b-thinking'])('always thinks for %s', (id) => {
     expect(isQwenAlwaysThinkModel(createModel({ id }))).toBe(true)

@@ -82,10 +82,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
     // providers that use enable_thinking
     if (
-      isSupportEnableThinkingProvider(provider) &&
-      (isSupportedThinkingTokenQwenModel(model) ||
-        isSupportedThinkingTokenHunyuanModel(model) ||
-        (provider.id === SystemProviderIds.dashscope && isDeepSeekHybridInferenceModel(model)))
+      (isSupportEnableThinkingProvider(provider) &&
+        (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))) ||
+      (provider.id === SystemProviderIds.dashscope &&
+        (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
     ) {
       return { enable_thinking: false }
     }
@@ -309,17 +309,23 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
   }
 
+  // https://help.aliyun.com/zh/model-studio/deep-thinking
+  if (provider.id === SystemProviderIds.dashscope) {
+    // For dashscope: Qwen, DeepSeek, and GLM models use enable_thinking to control thinking
+    // No effort, only on/off
+    if (isQwenReasoningModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
+      return {
+        enable_thinking: true,
+        thinking_budget: budgetTokens
+      }
+    }
+  }
+
   // Qwen models, use enable_thinking
   if (isQwenReasoningModel(model)) {
     const thinkConfig = {
       enable_thinking: isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(provider) ? undefined : true,
       thinking_budget: budgetTokens
-    }
-    if (provider.id === SystemProviderIds.dashscope) {
-      return {
-        ...thinkConfig,
-        incremental_output: true
-      }
     }
     return thinkConfig
   }

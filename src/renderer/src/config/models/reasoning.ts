@@ -434,12 +434,15 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 
   if (modelId.startsWith('qwen3')) {
     // instruct 是非思考模型 thinking 是思考模型，二者都不能控制思考
-    if (modelId.includes('instruct') || modelId.includes('thinking') || modelId.includes('qwen3-max')) {
+    if (modelId.includes('instruct') || modelId.includes('thinking')) {
       return false
     }
-    return true
+    if (!modelId.includes('qwen3-max')) {
+      return true
+    }
   }
 
+  // https://help.aliyun.com/zh/model-studio/deep-thinking
   return [
     'qwen-plus',
     'qwen-plus-latest',
@@ -456,7 +459,9 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-turbo-0715',
     'qwen-turbo-2025-07-15',
     'qwen-flash',
-    'qwen-flash-2025-07-28'
+    'qwen-flash-2025-07-28',
+    'qwen3-max-2026-01-23',
+    'qwen3-max-preview'
   ].includes(modelId)
 }
 
