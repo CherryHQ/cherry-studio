@@ -26,6 +26,9 @@ const logger = loggerService.withContext('CodeToolsService')
 // Sensitive environment variable keys to redact in logs
 const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
 
+// Keys that don't represent functional configuration content
+const NON_FUNCTIONAL_KEYS = ['$schema']
+
 /**
  * Parse JSON with comments (JSONC) support
  * Strips comments for parsing while preserving structure
@@ -37,6 +40,13 @@ function parseJSONC(content: string): Record<string, any> | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Get functional keys from a config object (excluding non-functional keys like $schema)
+ */
+function getFunctionalKeys(obj: Record<string, any>): string[] {
+  return Object.keys(obj).filter((key) => !NON_FUNCTIONAL_KEYS.includes(key))
 }
 
 /**
@@ -212,7 +222,33 @@ class CodeToolsService {
     let backupContent: string | null = null
     if (fs.existsSync(configPath)) {
       const rawContent = fs.readFileSync(configPath, 'utf8')
-      backupContent = rawContent // Store raw content for restoration
+      // Parse and clean backup to only preserve non-Cherry content
+      const existingConfigForBackup = parseJSONC(rawContent)
+      if (existingConfigForBackup && typeof existingConfigForBackup === 'object') {
+        // Remove any existing Cherry-* providers from backup
+        if (existingConfigForBackup.provider && typeof existingConfigForBackup.provider === 'object') {
+          const providers = existingConfigForBackup.provider as Record<string, any>
+          const cherryKeys = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
+          for (const key of cherryKeys) {
+            delete providers[key]
+          }
+          // If provider object becomes empty, remove it
+          if (Object.keys(providers).length === 0) {
+            delete existingConfigForBackup.provider
+          }
+          // Check if config is empty after cleaning
+          const functionalKeys = getFunctionalKeys(existingConfigForBackup)
+          if (functionalKeys.length > 0) {
+            backupContent = JSON.stringify(existingConfigForBackup, null, 2)
+          } else {
+            backupContent = null // Backup was all Cherry content, nothing to preserve
+          }
+        } else {
+          backupContent = rawContent
+        }
+      } else {
+        backupContent = rawContent
+      }
       existingConfig = parseJSONC(rawContent)
       logger.info('Parsed existing opencode.json config')
     }
@@ -318,9 +354,38 @@ class CodeToolsService {
               delete currentConfig.provider
             }
 
-            // Write back the cleaned config
-            fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2), 'utf8')
-            logger.info(`Removed ${keysToDelete.length} Cherry-* provider(s) from opencode.json: ${configPath}`)
+            // Check if config is now "empty" (only contains non-functional fields like $schema)
+            const remainingKeys = getFunctionalKeys(currentConfig)
+            if (remainingKeys.length === 0) {
+              // Config is essentially empty after cleanup
+              // Check if backup also has no functional content
+              let backupHasFunctionalContent = false
+              if (backupContent !== null) {
+                try {
+                  const backupConfig = parseJSONC(backupContent)
+                  if (backupConfig && typeof backupConfig === 'object') {
+                    const backupKeys = getFunctionalKeys(backupConfig)
+                    backupHasFunctionalContent = backupKeys.length > 0
+                  }
+                } catch {
+                  // Parse failed, treat as no functional content
+                }
+              }
+
+              if (backupHasFunctionalContent && backupContent !== null) {
+                // Restore original content (it had functional content)
+                fs.writeFileSync(configPath, backupContent, 'utf8')
+                logger.info(`Restored original opencode.json (config empty after cleanup): ${configPath}`)
+              } else {
+                // No backup or backup had no functional content, delete the file
+                fs.unlinkSync(configPath)
+                logger.info(`Deleted opencode.json (config empty after cleanup): ${configPath}`)
+              }
+            } else {
+              // Write back the cleaned config
+              fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2), 'utf8')
+              logger.info(`Removed ${keysToDelete.length} Cherry-* provider(s) from opencode.json: ${configPath}`)
+            }
           } else {
             logger.info(`No Cherry-* providers found in opencode.json: ${configPath}`)
           }
