@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { isWin } from '@renderer/config/constant'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -60,6 +61,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
   // Agent mode state
   const [agentForm, setAgentForm] = useState<BaseAgentForm>(() => buildAgentForm())
   const { addAgent } = useAgents()
+  const { apiServerRunning, startApiServer } = useApiServer()
 
   const presets = useMemo(() => {
     const allPresets = [...userPresets, ...systemPresets] as AssistantPreset[]
@@ -126,6 +128,14 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
     AddAssistantPopup.hide()
     TopView.hide('AddAssistantPopup')
   }
+
+  const onSwitchToAgent = useCallback(() => {
+    setMode('agent')
+    // Start API server if not running (required for agent)
+    if (!apiServerRunning) {
+      startApiServer()
+    }
+  }, [apiServerRunning, startApiServer])
 
   // Agent form submission
   const onSubmitAgent = useCallback(async () => {
@@ -212,7 +222,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
           padding: 0
         }
       }}
-      width={560}
+      width={520}
       footer={null}>
       {showModeSwitch && (
         <ModeSelector>
@@ -228,7 +238,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
               <ModeCardDesc>{t('chat.add.assistant.description')}</ModeCardDesc>
             </ModeCardContent>
           </ModeCard>
-          <ModeCard $active={mode === 'agent'} onClick={() => setMode('agent')}>
+          <ModeCard $active={mode === 'agent'} onClick={onSwitchToAgent}>
             <ModeIconWrapper $active={mode === 'agent'}>
               <Bot
                 size={20}

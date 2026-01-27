@@ -1,5 +1,4 @@
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
-import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { Assistant, Topic } from '@renderer/types'
@@ -18,7 +17,6 @@ interface UnifiedAddButtonProps {
 const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ setActiveAssistant, setActiveAgentId }) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const { apiServerRunning, startApiServer } = useApiServer()
 
   const handleAddButtonClick = useCallback(async () => {
     const result = await AddAssistantPopup.show({ showModeSwitch: true })
@@ -32,7 +30,6 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ setActiveAssistant, setAc
     }
 
     if (result.type === 'agent' && result.agent) {
-      !apiServerRunning && startApiServer()
       // Set a fake assistant to allow agent mode
       setActiveAssistant({
         id: 'fake',
@@ -53,7 +50,7 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ setActiveAssistant, setAc
       setActiveAgentId(result.agent.id)
       dispatch(setActiveTopicOrSessionAction('session'))
     }
-  }, [apiServerRunning, dispatch, setActiveAgentId, setActiveAssistant, startApiServer])
+  }, [dispatch, setActiveAgentId, setActiveAssistant])
 
   return (
     <div className="-mt-[2px] mb-[6px]">
