@@ -1,7 +1,7 @@
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { Typography } from 'antd'
-import { CheckCircle, ChevronDown, ChevronUp, Circle, Clock, X } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,26 +20,10 @@ function getTodoStatusIcon(status: TodoItem['status']) {
     case 'completed':
       return <CheckCircle size={14} className="text-green-500" />
     case 'in_progress':
-      return <Clock size={14} className="text-blue-500" />
+      return <Loader2 size={14} className="animate-spin text-blue-500" />
     case 'pending':
     default:
-      return <Circle size={14} className="text-gray-400" />
-  }
-}
-
-/**
- * Get the translation key for a todo status
- */
-function getStatusTranslationKey(status: TodoItem['status']): string {
-  switch (status) {
-    case 'pending':
-      return 'agent.todo.status.pending'
-    case 'in_progress':
-      return 'agent.todo.status.in_progress'
-    case 'completed':
-      return 'agent.todo.status.completed'
-    default:
-      return 'agent.todo.status.pending'
+      return <Loader2 size={14} className="animate-spin text-gray-400" />
   }
 }
 
@@ -98,7 +82,6 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
               <TodoContent $completed={todo.status === 'completed'}>
                 {todo.status === 'in_progress' ? todo.activeForm : todo.content}
               </TodoContent>
-              <TodoStatus>{t(getStatusTranslationKey(todo.status))}</TodoStatus>
             </TodoItemRow>
           ))}
         </TodoList>
@@ -187,9 +170,4 @@ const TodoContent = styled.span<{ $completed: boolean }>`
   text-overflow: ellipsis;
   white-space: nowrap;
   text-decoration: ${(props) => (props.$completed ? 'line-through' : 'none')};
-`
-
-const TodoStatus = styled.span`
-  font-size: 11px;
-  color: var(--color-text-3);
 `
