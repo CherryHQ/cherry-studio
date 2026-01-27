@@ -8,7 +8,7 @@ import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
 import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
@@ -218,17 +218,19 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
           latency,
           error: undefined
         })
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 连通性检查失败
+        const serializedError = serializeHealthCheckError(error)
+
         updateConnectivityState(keyToCheck, {
           checking: false,
           status: HealthStatus.FAILED,
-          error: formatErrorMessage(error),
+          error: serializedError,
           model: undefined,
           latency: undefined
         })
 
-        logger.error('failed to validate the connectivity of the api key', error)
+        logger.error('failed to validate the connectivity of the api key', error as Error)
       }
     },
     [keys, connectivityStates, updateConnectivityState, provider]

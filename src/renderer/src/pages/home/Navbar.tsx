@@ -2,7 +2,6 @@ import { RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { isLinux, isWin } from '@renderer/config/constant'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
@@ -121,7 +120,7 @@ const HeaderNavbar: FC<Props> = ({
           justifyContent: 'flex-end',
           flex: activeTopicOrSession === 'topic' ? 1 : 'none',
           position: 'relative',
-          paddingRight: isWin || isLinux ? '144px' : '15px',
+          paddingRight: '15px',
           minWidth: activeTopicOrSession === 'topic' ? '' : 'auto'
         }}
         className="home-navbar-right">
