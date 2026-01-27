@@ -1,8 +1,10 @@
+import { formatFileSize } from '@renderer/utils/file'
 import type { CollapseProps } from 'antd'
-import { FileText } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
-import { ToolTitle } from './GenericTools'
+import { truncateOutput } from '../shared/truncateOutput'
+import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
 import type { ReadToolInput as ReadToolInputType, ReadToolOutput as ReadToolOutputType, TextOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -28,17 +30,9 @@ const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
 const getOutputStats = (outputString: string | null) => {
   if (!outputString) return null
 
-  const bytes = new Blob([outputString]).size
-  const formatSize = (size: number) => {
-    if (size < 1024) return `${size} B`
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`
-  }
-
   return {
     lineCount: outputString.split('\n').length,
-    fileSize: bytes,
-    formatSize
+    fileSize: new Blob([outputString]).size
   }
 }
 
@@ -49,19 +43,34 @@ export function ReadTool({
   input?: ReadToolInputType
   output?: ReadToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   const outputString = normalizeOutputString(output)
   const stats = getOutputStats(outputString)
+  const filename = input?.file_path?.split('/').pop()
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
 
   return {
     key: AgentToolsType.Read,
     label: (
-      <ToolTitle
-        icon={<FileText className="h-4 w-4" />}
-        label="Read File"
-        params={input?.file_path?.split('/').pop()}
-        stats={stats ? `${stats.lineCount} lines, ${stats.formatSize(stats.fileSize)}` : undefined}
+      <ToolHeader
+        toolName={AgentToolsType.Read}
+        params={<SkeletonValue value={filename} width="120px" />}
+        stats={
+          stats
+            ? `${stats.lineCount} ${t(stats.lineCount === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}, ${formatFileSize(stats.fileSize)}`
+            : undefined
+        }
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
-    children: outputString ? <ReactMarkdown>{outputString}</ReactMarkdown> : null
+    children: truncatedOutput ? (
+      <div>
+        <ReactMarkdown>{truncatedOutput}</ReactMarkdown>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
+    ) : (
+      <SkeletonValue value={null} width="100%" fallback={null} />
+    )
   }
 }

@@ -5,18 +5,12 @@
  */
 
 import { loggerService } from '@logger'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { processKnowledgeReferences } from '@renderer/services/KnowledgeService'
-import type {
-  BaseTool,
-  MCPCallToolResponse,
-  MCPTool,
-  MCPToolResponse,
-  MCPToolResultContent,
-  NormalToolResponse
-} from '@renderer/types'
+import type { BaseTool, MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import type { ToolSet, TypedToolCall, TypedToolError, TypedToolResult } from 'ai'
+import type { ProviderMetadata, ToolSet, TypedToolCall, TypedToolError, TypedToolResult } from 'ai'
 
 const logger = loggerService.withContext('ToolCallChunkHandler')
 
@@ -26,6 +20,8 @@ export type ToolcallsMap = {
   args: any
   // mcpTool 现在可以是 MCPTool 或我们为 Provider 工具创建的通用类型
   tool: BaseTool
+  // Streaming arguments buffer
+  streamingArgs?: string
 }
 /**
  * 工具调用处理器类
@@ -71,110 +67,169 @@ export class ToolCallChunkHandler {
     return ToolCallChunkHandler.addActiveToolCallImpl(toolCallId, map)
   }
 
-  //   /**
-  //    * 设置 onChunk 回调
-  //    */
-  //   public setOnChunk(callback: (chunk: Chunk) => void): void {
-  //     this.onChunk = callback
-  //   }
+  /**
+   * 根据工具名称确定工具类型
+   */
+  private determineToolType(toolName: string, toolCallId: string): BaseTool {
+    let mcpTool: MCPTool | undefined
+    if (toolName.startsWith('builtin_')) {
+      return {
+        id: toolCallId,
+        name: toolName,
+        description: toolName,
+        type: 'builtin'
+      } as BaseTool
+    } else if ((mcpTool = this.mcpTools.find((t) => t.id === toolName) as MCPTool)) {
+      return mcpTool
+    } else {
+      return {
+        id: toolCallId,
+        name: toolName,
+        description: toolName,
+        type: 'provider'
+      }
+    }
+  }
 
-  // handleToolCallCreated(
-  //   chunk:
-  //     | {
-  //         type: 'tool-input-start'
-  //         id: string
-  //         toolName: string
-  //         providerMetadata?: ProviderMetadata
-  //         providerExecuted?: boolean
-  //       }
-  //     | {
-  //         type: 'tool-input-end'
-  //         id: string
-  //         providerMetadata?: ProviderMetadata
-  //       }
-  //     | {
-  //         type: 'tool-input-delta'
-  //         id: string
-  //         delta: string
-  //         providerMetadata?: ProviderMetadata
-  //       }
-  // ): void {
-  //   switch (chunk.type) {
-  //     case 'tool-input-start': {
-  //       // 能拿到说明是mcpTool
-  //       // if (this.activeToolCalls.get(chunk.id)) return
+  /**
+   * 处理工具输入开始事件 - 流式参数开始
+   */
+  public handleToolInputStart(chunk: {
+    type: 'tool-input-start'
+    id: string
+    toolName: string
+    providerMetadata?: ProviderMetadata
+    providerExecuted?: boolean
+  }): void {
+    const { id: toolCallId, toolName, providerExecuted } = chunk
 
-  //       const tool: BaseTool | MCPTool = {
-  //         id: chunk.id,
-  //         name: chunk.toolName,
-  //         description: chunk.toolName,
-  //         type: chunk.toolName.startsWith('builtin_') ? 'builtin' : 'provider'
-  //       }
-  //       this.activeToolCalls.set(chunk.id, {
-  //         toolCallId: chunk.id,
-  //         toolName: chunk.toolName,
-  //         args: '',
-  //         tool
-  //       })
-  //       const toolResponse: MCPToolResponse | NormalToolResponse = {
-  //         id: chunk.id,
-  //         tool: tool,
-  //         arguments: {},
-  //         status: 'pending',
-  //         toolCallId: chunk.id
-  //       }
-  //       this.onChunk({
-  //         type: ChunkType.MCP_TOOL_PENDING,
-  //         responses: [toolResponse]
-  //       })
-  //       break
-  //     }
-  //     case 'tool-input-delta': {
-  //       const toolCall = this.activeToolCalls.get(chunk.id)
-  //       if (!toolCall) {
-  //         logger.warn(`🔧 [ToolCallChunkHandler] Tool call not found: ${chunk.id}`)
-  //         return
-  //       }
-  //       toolCall.args += chunk.delta
-  //       break
-  //     }
-  //     case 'tool-input-end': {
-  //       const toolCall = this.activeToolCalls.get(chunk.id)
-  //       this.activeToolCalls.delete(chunk.id)
-  //       if (!toolCall) {
-  //         logger.warn(`🔧 [ToolCallChunkHandler] Tool call not found: ${chunk.id}`)
-  //         return
-  //       }
-  //       // const toolResponse: ToolCallResponse = {
-  //       //   id: toolCall.toolCallId,
-  //       //   tool: toolCall.tool,
-  //       //   arguments: toolCall.args,
-  //       //   status: 'pending',
-  //       //   toolCallId: toolCall.toolCallId
-  //       // }
-  //       // logger.debug('toolResponse', toolResponse)
-  //       // this.onChunk({
-  //       //   type: ChunkType.MCP_TOOL_PENDING,
-  //       //   responses: [toolResponse]
-  //       // })
-  //       break
-  //     }
-  //   }
-  //   // if (!toolCall) {
-  //   //   Logger.warn(`🔧 [ToolCallChunkHandler] Tool call not found: ${chunk.id}`)
-  //   //   return
-  //   // }
-  //   // this.onChunk({
-  //   //   type: ChunkType.MCP_TOOL_CREATED,
-  //   //   tool_calls: [
-  //   //     {
-  //   //       id: chunk.id,
-  //   //       name: chunk.toolName,
-  //   //       status: 'pending'
-  //   //     }
-  //   //   ]
-  //   // })
-  // }
+    if (!toolCallId || !toolName) {
+      logger.warn(`🔧 [ToolCallChunkHandler] Invalid tool-input-start chunk: missing id or toolName`)
+      return
+    }
+
+    // 如果已存在，跳过
+    if (this.activeToolCalls.has(toolCallId)) {
+      return
+    }
+
+    let tool: BaseTool
+    if (providerExecuted) {
+      tool = {
+        id: toolCallId,
+        name: toolName,
+        description: toolName,
+        type: 'provider'
+      } as BaseTool
+    } else {
+      tool = this.determineToolType(toolName, toolCallId)
+    }
+
+    // 初始化流式工具调用
+    this.addActiveToolCall(toolCallId, {
+      toolCallId,
+      toolName,
+      args: undefined,
+      tool,
+      streamingArgs: ''
+    })
+
+    logger.info(`🔧 [ToolCallChunkHandler] Tool input streaming started: ${toolName} (${toolCallId})`)
+
+    // 发送初始 streaming chunk
+    const toolResponse: MCPToolResponse | NormalToolResponse = {
+      id: toolCallId,
+      tool: tool,
+      arguments: undefined,
+      status: 'streaming',
+      toolCallId: toolCallId,
+      partialArguments: ''
+    }
+
+    this.onChunk({
+      type: ChunkType.MCP_TOOL_STREAMING,
+      responses: [toolResponse]
+    })
+  }
+
+  /**
+   * 处理工具输入增量事件 - 流式参数片段
+   */
+  public handleToolInputDelta(chunk: {
+    type: 'tool-input-delta'
+    id: string
+    delta: string
+    providerMetadata?: ProviderMetadata
+  }): void {
+    const { id: toolCallId, delta } = chunk
+
+    const toolCall = this.activeToolCalls.get(toolCallId)
+    if (!toolCall) {
+      logger.warn(`🔧 [ToolCallChunkHandler] Tool call not found for delta: ${toolCallId}`)
+      return
+    }
+
+    // 累积流式参数
+    toolCall.streamingArgs = (toolCall.streamingArgs || '') + delta
+
+    // 发送 streaming chunk 更新
+    const toolResponse: MCPToolResponse | NormalToolResponse = {
+      id: toolCallId,
+      tool: toolCall.tool,
+      arguments: undefined,
+      status: 'streaming',
+      toolCallId: toolCallId,
+      partialArguments: toolCall.streamingArgs
+    }
+
+    this.onChunk({
+      type: ChunkType.MCP_TOOL_STREAMING,
+      responses: [toolResponse]
+    })
+  }
+
+  /**
+   * 处理工具输入结束事件 - 流式参数完成
+   */
+  public handleToolInputEnd(chunk: { type: 'tool-input-end'; id: string; providerMetadata?: ProviderMetadata }): void {
+    const { id: toolCallId } = chunk
+
+    const toolCall = this.activeToolCalls.get(toolCallId)
+    if (!toolCall) {
+      logger.warn(`🔧 [ToolCallChunkHandler] Tool call not found for end: ${toolCallId}`)
+      return
+    }
+
+    // 尝试解析完整的 JSON 参数
+    let parsedArgs: any = undefined
+    if (toolCall.streamingArgs) {
+      try {
+        parsedArgs = JSON.parse(toolCall.streamingArgs)
+        toolCall.args = parsedArgs
+      } catch (e) {
+        logger.warn(`🔧 [ToolCallChunkHandler] Failed to parse streaming args for ${toolCallId}:`, e as Error)
+        // 保留原始字符串
+        toolCall.args = toolCall.streamingArgs
+      }
+    }
+
+    logger.info(`🔧 [ToolCallChunkHandler] Tool input streaming completed: ${toolCall.toolName} (${toolCallId})`)
+
+    // 发送 streaming 完成 chunk
+    const toolResponse: MCPToolResponse | NormalToolResponse = {
+      id: toolCallId,
+      tool: toolCall.tool,
+      arguments: parsedArgs,
+      status: 'pending',
+      toolCallId: toolCallId,
+      partialArguments: toolCall.streamingArgs
+    }
+
+    this.onChunk({
+      type: ChunkType.MCP_TOOL_STREAMING,
+      responses: [toolResponse]
+    })
+  }
 
   /**
    * 处理工具调用事件
@@ -188,6 +243,15 @@ export class ToolCallChunkHandler {
 
     if (!toolCallId || !toolName) {
       logger.warn(`🔧 [ToolCallChunkHandler] Invalid tool call chunk: missing toolCallId or toolName`)
+      return
+    }
+
+    // Check if this tool call was already processed via streaming events
+    const existingToolCall = this.activeToolCalls.get(toolCallId)
+    if (existingToolCall?.streamingArgs !== undefined) {
+      // Tool call was already processed via streaming events (tool-input-start/delta/end)
+      // Update args if needed, but don't emit duplicate pending chunk
+      existingToolCall.args = args
       return
     }
 
@@ -216,11 +280,6 @@ export class ToolCallChunkHandler {
       // 如果是客户端执行的 MCP 工具，沿用现有逻辑
       // toolName is mcpTool.id (registered with id as key in convertMcpToolsToAiSdkTools)
       logger.info(`[ToolCallChunkHandler] Handling client-side MCP tool: ${toolName}`)
-      // mcpTool = this.mcpTools.find((t) => t.name === toolName) as MCPTool
-      // if (!mcpTool) {
-      //   logger.warn(`[ToolCallChunkHandler] MCP tool not found: ${toolName}`)
-      //   return
-      // }
       tool = mcpTool
     } else {
       tool = {
@@ -357,40 +416,20 @@ export class ToolCallChunkHandler {
 
 export const addActiveToolCall = ToolCallChunkHandler.addActiveToolCall.bind(ToolCallChunkHandler)
 
+/**
+ * 从工具输出中提取图片（使用 MCP SDK 类型安全验证）
+ */
 function extractImagesFromToolOutput(output: unknown): string[] {
   if (!output) {
     return []
   }
 
-  const contents: unknown[] = []
-
-  if (isMcpCallToolResponse(output)) {
-    contents.push(...output.content)
-  } else if (Array.isArray(output)) {
-    contents.push(...output)
-  } else if (hasContentArray(output)) {
-    contents.push(...output.content)
+  const result = CallToolResultSchema.safeParse(output)
+  if (result.success) {
+    return result.data.content
+      .filter((c) => c.type === 'image')
+      .map((content) => `data:${content.mimeType ?? 'image/png'};base64,${content.data}`)
   }
 
-  return contents
-    .filter(isMcpImageContent)
-    .map((content) => `data:${content.mimeType ?? 'image/png'};base64,${content.data}`)
-}
-
-function isMcpCallToolResponse(value: unknown): value is MCPCallToolResponse {
-  return typeof value === 'object' && value !== null && Array.isArray((value as MCPCallToolResponse).content)
-}
-
-function hasContentArray(value: unknown): value is { content: unknown[] } {
-  return typeof value === 'object' && value !== null && Array.isArray((value as { content?: unknown }).content)
-}
-
-function isMcpImageContent(content: unknown): content is MCPToolResultContent & { data: string } {
-  if (typeof content !== 'object' || content === null) {
-    return false
-  }
-
-  const resultContent = content as MCPToolResultContent
-
-  return resultContent.type === 'image' && typeof resultContent.data === 'string'
+  return []
 }

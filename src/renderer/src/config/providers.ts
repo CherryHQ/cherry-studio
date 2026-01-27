@@ -932,7 +932,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       official: 'https://www.together.ai/',
       apiKey: 'https://api.together.ai/settings/api-keys',
       docs: 'https://docs.together.ai/docs/introduction',
-      models: 'https://docs.together.ai/docs/chat-models'
+      models: 'https://docs.together.ai/docs/serverless-models'
     }
   },
   dmxapi: {
