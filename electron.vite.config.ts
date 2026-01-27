@@ -131,7 +131,8 @@ export default defineConfig({
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
           selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
           traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),
-          migrationV2: resolve(__dirname, 'src/renderer/migrationV2.html')
+          migrationV2: resolve(__dirname, 'src/renderer/migrationV2.html'),
+          detachedWindow: resolve(__dirname, 'src/renderer/detachedWindow.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
