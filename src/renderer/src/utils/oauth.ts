@@ -193,6 +193,264 @@ export const oauthWithAiOnly = async (setKey) => {
   window.addEventListener('message', messageHandler)
 }
 
+export interface NewApiOAuthConfig {
+  oauthServer: string
+  clientId: string
+  apiHost: string // New-API server host for fetching API keys
+  redirectUri?: string
+  scopes?: string
+}
+
+const DEFAULT_REDIRECT_URI = 'cherrystudio://oauth/callback'
+const DEFAULT_SCOPES = 'openid profile email offline_access balance:read usage:read tokens:read'
+
+/**
+ * Generate a cryptographically random string for PKCE code_verifier
+ * @param length - Length of the string (43-128 characters per RFC 7636)
+ */
+function generateRandomString(length: number): string {
+  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
+  const array = new Uint8Array(length)
+  crypto.getRandomValues(array)
+  return Array.from(array, (byte) => charset[byte % charset.length]).join('')
+}
+
+/**
+ * Base64URL encode an ArrayBuffer (no padding, URL-safe characters)
+ */
+function base64UrlEncode(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
+ * Generate PKCE code_challenge from code_verifier using S256 method
+ */
+async function generateCodeChallenge(codeVerifier: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(codeVerifier)
+  const hash = await crypto.subtle.digest('SHA-256', data)
+  return base64UrlEncode(hash)
+}
+
+// Store pending OAuth flows in memory (keyed by state parameter)
+const pendingOAuthFlows = new Map<string, { codeVerifier: string; config: NewApiOAuthConfig; timestamp: number }>()
+
+// Clean up expired flows (older than 10 minutes)
+function cleanupExpiredFlows(): void {
+  const now = Date.now()
+  for (const [state, flow] of pendingOAuthFlows.entries()) {
+    if (now - flow.timestamp > 10 * 60 * 1000) {
+      pendingOAuthFlows.delete(state)
+    }
+  }
+}
+
+/**
+ * OAuth 2.0 with PKCE for New-API (with Ory Hydra)
+ * Uses Authorization Code flow with S256 code challenge method
+ * @param setKey - Callback to set the API key
+ * @param config - OAuth configuration (oauthServer, clientId, redirectUri, scopes)
+ */
+export const oauthWithNewApi = async (setKey: (key: string) => void, config: NewApiOAuthConfig): Promise<string> => {
+  cleanupExpiredFlows()
+
+  const { oauthServer, clientId, redirectUri = DEFAULT_REDIRECT_URI, scopes = DEFAULT_SCOPES } = config
+
+  // Generate PKCE parameters
+  const codeVerifier = generateRandomString(64) // 43-128 chars per RFC 7636
+  const codeChallenge = await generateCodeChallenge(codeVerifier)
+  const state = generateRandomString(32)
+
+  // Store verifier and config for later use (keyed by state for CSRF protection)
+  pendingOAuthFlows.set(state, { codeVerifier, config, timestamp: Date.now() })
+
+  // Build authorization URL
+  const authUrl = new URL(`${oauthServer}/oauth2/auth`)
+  authUrl.searchParams.set('client_id', clientId)
+  authUrl.searchParams.set('redirect_uri', redirectUri)
+  authUrl.searchParams.set('response_type', 'code')
+  authUrl.searchParams.set('scope', scopes)
+  authUrl.searchParams.set('state', state)
+  authUrl.searchParams.set('code_challenge', codeChallenge)
+  authUrl.searchParams.set('code_challenge_method', 'S256')
+
+  logger.debug('[NewApi OAuth] Opening authorization URL')
+
+  // Open in popup window
+  window.open(
+    authUrl.toString(),
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  return new Promise<string>((resolve, reject) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const removeListener = window.api.protocol.onReceiveData(async (data) => {
+      try {
+        const url = new URL(data.url)
+
+        // Only handle our OAuth callback
+        if (url.hostname !== 'oauth' || url.pathname !== '/callback') {
+          return
+        }
+
+        const params = new URLSearchParams(url.search)
+        const code = params.get('code')
+        const returnedState = params.get('state')
+        const error = params.get('error')
+
+        // Handle OAuth errors
+        if (error) {
+          const errorDesc = params.get('error_description') || error
+          logger.error(`[NewApi OAuth] Error: ${errorDesc}`)
+          reject(new Error(`OAuth error: ${errorDesc}`))
+          cleanup()
+          return
+        }
+
+        if (!code) {
+          reject(new Error('No authorization code received'))
+          cleanup()
+          return
+        }
+
+        // Verify state exists in our pending flows (instead of comparing with closure variable)
+        // This handles the case where multiple login attempts create multiple listeners
+        if (!returnedState || !pendingOAuthFlows.has(returnedState)) {
+          // This callback might be for a different OAuth flow, ignore it
+          logger.debug('[NewApi OAuth] State not found in pending flows, ignoring callback')
+          return
+        }
+
+        // Only process if this is OUR state (the one we registered)
+        if (returnedState !== state) {
+          // This callback is for a different OAuth flow started by another click
+          logger.debug('[NewApi OAuth] State belongs to different flow, ignoring')
+          return
+        }
+
+        // Retrieve stored code_verifier and config
+        const flowData = pendingOAuthFlows.get(returnedState)
+        if (!flowData) {
+          reject(new Error('OAuth flow expired or not found'))
+          cleanup()
+          return
+        }
+        pendingOAuthFlows.delete(returnedState)
+
+        const { codeVerifier: storedVerifier, config: storedConfig } = flowData
+
+        logger.debug('[NewApi OAuth] Exchanging code for token')
+
+        // Exchange authorization code for access token
+        const tokenUrl = `${storedConfig.oauthServer}/oauth2/token`
+        const tokenResponse = await fetch(tokenUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: storedConfig.clientId,
+            code,
+            redirect_uri: storedConfig.redirectUri || DEFAULT_REDIRECT_URI,
+            code_verifier: storedVerifier
+          }).toString()
+        })
+
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text()
+          logger.error(`[NewApi OAuth] Token exchange failed: ${tokenResponse.status} ${errorText}`)
+          throw new Error(`Failed to exchange code for token: ${tokenResponse.status}`)
+        }
+
+        const tokenData = await tokenResponse.json()
+        const accessToken = tokenData.access_token
+
+        if (!accessToken) {
+          reject(new Error('No access token received'))
+          cleanup()
+          return
+        }
+
+        logger.debug('[NewApi OAuth] Successfully obtained access token, fetching API keys')
+
+        // Fetch API keys using the access token
+        const apiKeysUrl = `${storedConfig.apiHost}/api/v1/oauth/tokens`
+        const apiKeysResponse = await fetch(apiKeysUrl, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        })
+
+        if (!apiKeysResponse.ok) {
+          const errorText = await apiKeysResponse.text()
+          logger.error(`[NewApi OAuth] Failed to fetch API keys: ${apiKeysResponse.status} ${errorText}`)
+          throw new Error(`Failed to fetch API keys: ${apiKeysResponse.status}`)
+        }
+
+        const apiKeysData = await apiKeysResponse.json()
+        const extractKey = (item: any): string | null => {
+          if (typeof item === 'string') return item
+          if (item && typeof item.key === 'string') return item.key
+          if (item && typeof item.token === 'string') return item.token
+          return null
+        }
+
+        let apiKeys: string
+        if (Array.isArray(apiKeysData)) {
+          apiKeys = apiKeysData.map(extractKey).filter(Boolean).join(',')
+        } else if (apiKeysData.data && Array.isArray(apiKeysData.data)) {
+          apiKeys = apiKeysData.data.map(extractKey).filter(Boolean).join(',')
+        } else {
+          logger.error('[NewApi OAuth] Unexpected API keys response format:', apiKeysData)
+          throw new Error('Unexpected API keys response format')
+        }
+
+        if (apiKeys) {
+          logger.debug('[NewApi OAuth] Successfully obtained API keys')
+          setKey(apiKeys)
+          resolve(apiKeys)
+        } else {
+          reject(new Error('No API keys received'))
+        }
+
+        cleanup()
+      } catch (error) {
+        logger.error('[NewApi OAuth] Error processing callback:', error as Error)
+        reject(error)
+        cleanup()
+      }
+    })
+
+    function cleanup(): void {
+      removeListener()
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      pendingOAuthFlows.delete(state)
+    }
+
+    // Timeout after 5 minutes
+    timeoutId = setTimeout(
+      () => {
+        logger.warn('[NewApi OAuth] Flow timed out')
+        cleanup()
+        reject(new Error('OAuth flow timed out'))
+      },
+      5 * 60 * 1000
+    )
+  })
+}
+
 export const providerCharge = async (provider: string) => {
   const chargeUrlMap = {
     silicon: {

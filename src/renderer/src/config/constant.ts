@@ -19,6 +19,10 @@ export const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
 export const PPIO_APP_SECRET = import.meta.env.RENDERER_VITE_PPIO_APP_SECRET || ''
 export const TOKENFLUX_HOST = 'https://tokenflux.ai'
 
+// CherryIN OAuth configuration
+export const CHERRYIN_OAUTH_SERVER = 'http://39.105.14.191:4444'
+export const CHERRYIN_CLIENT_ID = 'e6fa4dab-c26d-4624-aa6d-0a458517f5ee'
+
 // Messages loading configuration
 export const INITIAL_MESSAGES_COUNT = 20
 export const LOAD_MORE_COUNT = 20
