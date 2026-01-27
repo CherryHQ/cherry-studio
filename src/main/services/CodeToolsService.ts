@@ -18,6 +18,7 @@ import {
   WINDOWS_TERMINALS_WITH_COMMANDS
 } from '@shared/config/constant'
 import { spawn } from 'child_process'
+import { parse as jsoncParse } from 'jsonc-parser'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
@@ -31,12 +32,15 @@ const NON_FUNCTIONAL_KEYS = ['$schema']
 
 /**
  * Parse JSON with comments (JSONC) support
- * Strips comments for parsing while preserving structure
+ * Uses jsonc-parser library for safe parsing without code execution
  */
 function parseJSONC(content: string): Record<string, any> | null {
   try {
-    // Use Function to parse JSON with comments (safer than eval)
-    return new Function(`return ${content}`)()
+    const result = jsoncParse(content, undefined, {
+      allowTrailingComma: false,
+      disallowComments: false
+    })
+    return result && typeof result === 'object' ? result : null
   } catch {
     return null
   }
