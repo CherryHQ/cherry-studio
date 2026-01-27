@@ -1,31 +1,54 @@
+import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
+import { isWin } from '@renderer/config/constant'
+import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useSystemAssistantPresets } from '@renderer/pages/store/assistants/presets'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, AssistantPreset } from '@renderer/types'
+import type { AddAgentForm, AgentEntity, Assistant, AssistantPreset, BaseAgentForm } from '@renderer/types'
+import { isAgentType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { cn } from '@renderer/utils'
 import type { InputRef } from 'antd'
-import { Divider, Input, Modal, Tag } from 'antd'
+import { Button, Input, Modal, Tag } from 'antd'
 import { take } from 'lodash'
-import { Search } from 'lucide-react'
+import { Bot, MessageSquare } from 'lucide-react'
+import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import EmojiIcon from '../EmojiIcon'
-import { HStack } from '../Layout'
 import Scrollbar from '../Scrollbar'
+import AgentForm, { buildAgentForm } from './agent/AgentForm'
 
-interface Props {
-  resolve: (value: Assistant | undefined) => void
+const logger = loggerService.withContext('AddAssistantPopup')
+
+type Mode = 'assistant' | 'agent'
+
+export interface AddAssistantPopupResult {
+  type: 'assistant' | 'agent'
+  assistant?: Assistant
+  agent?: AgentEntity
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
+interface ShowParams {
+  defaultMode?: Mode
+  showModeSwitch?: boolean
+}
+
+interface Props extends ShowParams {
+  resolve: (value: AddAssistantPopupResult | undefined) => void
+}
+
+const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', showModeSwitch = true }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
+  const [mode, setMode] = useState<Mode>(defaultMode)
+
+  // Assistant mode state
   const { presets: userPresets } = useAssistantPresets()
   const [searchText, setSearchText] = useState('')
   const { defaultAssistant } = useDefaultAssistant()
@@ -36,6 +59,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const { setTimeoutTimer } = useTimer()
+
+  // Agent mode state
+  const [agentForm, setAgentForm] = useState<BaseAgentForm>(() => buildAgentForm())
+  const { addAgent } = useAgents()
 
   const presets = useMemo(() => {
     const allPresets = [...userPresets, ...systemPresets] as AssistantPreset[]
@@ -55,14 +82,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         prompt: '',
         topics: [],
         type: 'assistant',
-        emoji: '⭐️'
+        emoji: '\u2B50\uFE0F'
       }
       return [newAgent, ...filtered]
     }
     return filtered
   }, [assistants, defaultAssistant, searchText, systemPresets, userPresets])
 
-  // 重置选中索引当搜索或列表内容变更时
   useEffect(() => {
     setSelectedIndex(0)
   }, [presets.length, searchText])
@@ -84,14 +110,15 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
 
       setTimeoutTimer('onCreateAssistant', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
-      resolve(assistant)
+      resolve({ type: 'assistant', assistant })
       setOpen(false)
     },
     [setTimeoutTimer, resolve, addAssistant]
-  ) // 添加函数内使用的依赖项
-  // 键盘导航处理
+  )
+
+  // Keyboard navigation for assistant mode
   useEffect(() => {
-    if (!open) return
+    if (!open || mode !== 'assistant') return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const displayedPresets = take(presets, 100)
@@ -107,13 +134,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           break
         case 'Enter':
         case 'NumpadEnter':
-          // 如果焦点在输入框且有搜索内容，则默认选择第一项
           if (document.activeElement === inputRef.current?.input && searchText.trim()) {
             e.preventDefault()
             onCreateAssistant(displayedPresets[selectedIndex])
-          }
-          // 否则选择当前选中项
-          else if (selectedIndex >= 0 && selectedIndex < displayedPresets.length) {
+          } else if (selectedIndex >= 0 && selectedIndex < displayedPresets.length) {
             e.preventDefault()
             onCreateAssistant(displayedPresets[selectedIndex])
           }
@@ -123,9 +147,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, selectedIndex, presets, searchText, onCreateAssistant])
+  }, [open, mode, selectedIndex, presets, searchText, onCreateAssistant])
 
-  // 确保选中项在可视区域
   useEffect(() => {
     if (containerRef.current) {
       const presetItems = containerRef.current.querySelectorAll('.agent-item')
@@ -145,14 +168,92 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const onClose = async () => {
     resolve(undefined)
     AddAssistantPopup.hide()
+    TopView.hide('AddAssistantPopup')
   }
 
-  useEffect(() => {
-    if (!open) return
+  // useEffect(() => {
+  //   if (!open || mode !== 'assistant') return
 
-    const timer = setTimeout(() => inputRef.current?.focus(), 0)
-    return () => clearTimeout(timer)
-  }, [open])
+  //   const timer = setTimeout(() => inputRef.current?.focus(), 0)
+  //   return () => clearTimeout(timer)
+  // }, [open, mode])
+
+  // Agent form submission
+  const onSubmitAgent = useCallback(
+    async (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault()
+      if (loadingRef.current) {
+        return
+      }
+
+      loadingRef.current = true
+
+      if (!isAgentType(agentForm.type)) {
+        window.toast.error(t('agent.add.error.invalid_agent'))
+        loadingRef.current = false
+        return
+      }
+      if (!agentForm.model) {
+        window.toast.error(t('error.model.not_exists'))
+        loadingRef.current = false
+        return
+      }
+
+      if (agentForm.accessible_paths.length === 0) {
+        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
+        loadingRef.current = false
+        return
+      }
+
+      if (isWin) {
+        try {
+          const pathInfo = await window.api.system.getGitBashPathInfo()
+          if (!pathInfo.path) {
+            window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
+            loadingRef.current = false
+            return
+          }
+        } catch (error) {
+          logger.error('Failed to check Git Bash:', error as Error)
+          loadingRef.current = false
+          return
+        }
+      }
+
+      const newAgent = {
+        type: agentForm.type,
+        name: agentForm.name,
+        description: agentForm.description,
+        instructions: agentForm.instructions,
+        model: agentForm.model,
+        accessible_paths: [...agentForm.accessible_paths],
+        allowed_tools: [...agentForm.allowed_tools],
+        configuration: agentForm.configuration ? { ...agentForm.configuration } : undefined
+      } satisfies AddAgentForm
+
+      const result = await addAgent(newAgent)
+
+      if (!result.success) {
+        loadingRef.current = false
+        window.toast.error(result.error?.message || t('agent.add.error.failed'))
+        return
+      }
+
+      resolve({ type: 'agent', agent: result.data })
+      loadingRef.current = false
+      setOpen(false)
+    },
+    [agentForm, t, addAgent, resolve]
+  )
+
+  const handleModeChange = (value: Mode) => {
+    setMode(value)
+    // if (value === 'assistant') {
+    //   setTimeout(() => inputRef.current?.focus(), 0)
+    // }
+  }
+
+  AddAssistantPopup.hide = onCancel
 
   return (
     <Modal
@@ -172,90 +273,260 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           padding: 0
         }
       }}
+      width={520}
       closeIcon={null}
       footer={null}>
-      <HStack style={{ padding: '0 12px', marginTop: 5 }}>
-        <Input
-          prefix={
-            <SearchIcon>
-              <Search size={14} />
-            </SearchIcon>
-          }
-          ref={inputRef}
-          placeholder={t('assistants.search')}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-          autoFocus
-          style={{ paddingLeft: 0 }}
-          variant="borderless"
-          size="middle"
-        />
-      </HStack>
-      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
-      <Container ref={containerRef}>
-        {take(presets, 100).map((preset, index) => (
-          <AgentItem
-            key={preset.id}
-            onClick={() => onCreateAssistant(preset)}
-            className={`agent-item ${preset.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
-            onMouseEnter={() => setSelectedIndex(index)}>
-            <HStack alignItems="center" gap={5} style={{ overflow: 'hidden', maxWidth: '100%' }}>
-              <EmojiIcon emoji={preset.emoji || ''} />
-              <span className="text-nowrap">{preset.name}</span>
-            </HStack>
-            {preset.id === 'default' && <Tag color="green">{t('assistants.presets.tag.system')}</Tag>}
-            {preset.type === 'agent' && <Tag color="orange">{t('assistants.presets.tag.agent')}</Tag>}
-            {preset.id === 'new' && <Tag color="green">{t('assistants.presets.tag.new')}</Tag>}
-          </AgentItem>
-        ))}
-      </Container>
+      {showModeSwitch && (
+        <ModeSelector>
+          <ModeCard $active={mode === 'assistant'} onClick={() => handleModeChange('assistant')}>
+            <ModeIconWrapper $active={mode === 'assistant'}>
+              <MessageSquare
+                size={20}
+                className={cn(
+                  'transition-colors',
+                  mode === 'assistant' ? 'text-[var(--color-primary)]' : 'text-[var(--color-icon-white)]'
+                )}
+              />
+            </ModeIconWrapper>
+            <ModeCardContent>
+              <ModeCardTitle>{t('chat.add.assistant.title')}</ModeCardTitle>
+              <ModeCardDesc>{t('chat.add.assistant.description')}</ModeCardDesc>
+            </ModeCardContent>
+          </ModeCard>
+          <ModeCard $active={mode === 'agent'} onClick={() => handleModeChange('agent')}>
+            <ModeIconWrapper $active={mode === 'agent'}>
+              <Bot
+                size={20}
+                className={cn(
+                  'transition-colors',
+                  mode === 'agent' ? 'text-[var(--color-primary)]' : 'text-[var(--color-icon-white)]'
+                )}
+              />
+            </ModeIconWrapper>
+            <ModeCardContent>
+              <ModeCardTitle>{t('agent.add.title')}</ModeCardTitle>
+              <ModeCardDesc>{t('agent.add.description')}</ModeCardDesc>
+            </ModeCardContent>
+          </ModeCard>
+        </ModeSelector>
+      )}
+
+      {mode === 'assistant' && (
+        <>
+          <Container ref={containerRef}>
+            <Input
+              ref={inputRef}
+              placeholder={t('assistants.search')}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              allowClear
+              style={{ marginBottom: 12, marginTop: 2, height: 36, borderRadius: 20 }}
+              variant="outlined"
+            />
+            {take(presets, 100).map((preset, index) => (
+              <PresetCard
+                key={preset.id}
+                onClick={() => onCreateAssistant(preset)}
+                className={`agent-item ${index === selectedIndex ? 'keyboard-selected' : ''}`}
+                onMouseEnter={() => setSelectedIndex(index)}>
+                <PresetCardBackground>{preset.emoji || ''}</PresetCardBackground>
+                <PresetCardHeader>
+                  <PresetCardInfo>
+                    <PresetCardTitle>{preset.name}</PresetCardTitle>
+                    <PresetCardTags>
+                      {preset.id === 'default' && <Tag color="green">{t('assistants.presets.tag.system')}</Tag>}
+                      {preset.type === 'agent' && <Tag color="orange">{t('assistants.presets.tag.agent')}</Tag>}
+                      {preset.id === 'new' && <Tag color="green">{t('assistants.presets.tag.new')}</Tag>}
+                    </PresetCardTags>
+                  </PresetCardInfo>
+                  <PresetCardEmoji>{preset.emoji || ''}</PresetCardEmoji>
+                </PresetCardHeader>
+                {(preset.description || preset.prompt) && (
+                  <PresetCardDesc>
+                    {(preset.description || preset.prompt || '').substring(0, 100).replace(/\\n/g, '')}
+                  </PresetCardDesc>
+                )}
+              </PresetCard>
+            ))}
+          </Container>
+        </>
+      )}
+
+      {mode === 'agent' && (
+        <StyledForm onSubmit={onSubmitAgent}>
+          <AgentForm form={agentForm} setForm={setAgentForm} />
+          <FormFooter>
+            <Button onClick={onCancel}>{t('common.close')}</Button>
+            <Button type="primary" htmlType="submit" loading={loadingRef.current}>
+              {t('common.add')}
+            </Button>
+          </FormFooter>
+        </StyledForm>
+      )}
     </Modal>
   )
 }
 
-const Container = styled(Scrollbar)`
-  padding: 0 12px;
-  height: 50vh;
-  margin-top: 10px;
+const ModeSelector = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px 16px 12px;
 `
 
-const AgentItem = styled.div`
+const ModeCard = styled.button<{ $active: boolean }>`
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 15px;
-  border-radius: 8px;
-  user-select: none;
-  margin-bottom: 8px;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid ${(props) => (props.$active ? 'var(--color-primary-soft)' : 'transparent')};
+  background-color: var(--color-background-soft);
   cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+`
+
+const ModeIconWrapper = styled.div<{ $active: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--color-list-item);
+  flex-shrink: 0;
+`
+
+const ModeCardContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   overflow: hidden;
-  &.default {
-    background-color: var(--color-background-mute);
-  }
+`
+
+const ModeCardTitle = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-1);
+`
+
+const ModeCardDesc = styled.div`
+  font-size: 12px;
+  color: var(--color-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+const Container = styled(Scrollbar)`
+  padding: 0 15px;
+  height: 55vh;
+`
+
+const PresetCard = styled.div`
+  border-radius: var(--list-item-border-radius);
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  padding: 12px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  position: relative;
+  transition:
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+
   &.keyboard-selected {
-    background-color: var(--color-background-mute);
+    background-color: var(--color-background-soft);
   }
-  .anticon {
-    font-size: 16px;
-    color: var(--color-icon);
-  }
+
   &:hover {
-    background-color: var(--color-background-mute);
+    background-color: var(--color-background-soft);
   }
 `
 
-const SearchIcon = styled.div`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+const PresetCardBackground = styled.div`
+  position: absolute;
+  top: 0;
+  right: -30px;
+  font-size: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0.08;
+  filter: blur(15px);
+`
+
+const PresetCardHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  position: relative;
+`
+
+const PresetCardInfo = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+`
+
+const PresetCardTitle = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const PresetCardTags = styled.div`
   display: flex;
   flex-direction: row;
-  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+`
+
+const PresetCardEmoji = styled.div`
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 20px;
+  flex-shrink: 0;
+  background-color: var(--color-background-soft);
+  display: flex;
   align-items: center;
-  background-color: var(--color-background-mute);
-  margin-right: 2px;
+  justify-content: center;
+`
+
+const PresetCardDesc = styled.div`
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-2);
+  margin-top: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  position: relative;
+`
+
+const StyledForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 16px;
+  height: 55vh;
+`
+
+const FormFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 0;
 `
 
 export default class AddAssistantPopup {
@@ -263,9 +534,9 @@ export default class AddAssistantPopup {
   static hide() {
     TopView.hide('AddAssistantPopup')
   }
-  static show() {
-    return new Promise<Assistant | undefined>((resolve) => {
-      TopView.show(<PopupContainer resolve={resolve} />, 'AddAssistantPopup')
+  static show(params: ShowParams = {}) {
+    return new Promise<AddAssistantPopupResult | undefined>((resolve) => {
+      TopView.show(<PopupContainer {...params} resolve={resolve} />, 'AddAssistantPopup')
     })
   }
 }

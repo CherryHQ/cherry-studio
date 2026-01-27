@@ -1,9 +1,8 @@
-import AddAssistantOrAgentPopup from '@renderer/components/Popups/AddAssistantOrAgentPopup'
-import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
+import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
-import type { AgentEntity, Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,14 +15,25 @@ interface UnifiedAddButtonProps {
   setActiveAgentId: (id: string) => void
 }
 
-const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setActiveAssistant, setActiveAgentId }) => {
+const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ setActiveAssistant, setActiveAgentId }) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const { apiServerRunning, startApiServer } = useApiServer()
 
-  const afterCreate = useCallback(
-    (a: AgentEntity) => {
-      // TODO: should allow it to be null
+  const handleAddButtonClick = useCallback(async () => {
+    const result = await AddAssistantPopup.show({ showModeSwitch: true })
+
+    if (!result) return
+
+    if (result.type === 'assistant' && result.assistant) {
+      setActiveAssistant(result.assistant)
+      setActiveAgentId('')
+      dispatch(setActiveTopicOrSessionAction('topic'))
+    }
+
+    if (result.type === 'agent' && result.agent) {
+      !apiServerRunning && startApiServer()
+      // Set a fake assistant to allow agent mode
       setActiveAssistant({
         id: 'fake',
         name: '',
@@ -40,26 +50,10 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setAct
         ],
         type: 'chat'
       })
-      setActiveAgentId(a.id)
+      setActiveAgentId(result.agent.id)
       dispatch(setActiveTopicOrSessionAction('session'))
-    },
-    [dispatch, setActiveAgentId, setActiveAssistant]
-  )
-
-  const handleAddButtonClick = async () => {
-    AddAssistantOrAgentPopup.show({
-      onSelect: (type) => {
-        if (type === 'assistant') {
-          onCreateAssistant()
-        }
-
-        if (type === 'agent') {
-          !apiServerRunning && startApiServer()
-          AgentModalPopup.show({ afterSubmit: afterCreate })
-        }
-      }
-    })
-  }
+    }
+  }, [apiServerRunning, dispatch, setActiveAgentId, setActiveAssistant, startApiServer])
 
   return (
     <div className="-mt-[2px] mb-[6px]">
