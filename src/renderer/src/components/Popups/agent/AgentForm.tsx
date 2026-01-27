@@ -326,7 +326,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ form, setForm, agent }) => {
 
       <FormItem>
         <Label>{t('common.prompt')}</Label>
-        <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
+        <TextArea rows={2} value={form.instructions ?? ''} onChange={onInstChange} />
       </FormItem>
     </FormContent>
   )

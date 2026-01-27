@@ -448,7 +448,6 @@ const FormFooter = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 10px 0;
 `
 
 export default class AddAssistantPopup {
