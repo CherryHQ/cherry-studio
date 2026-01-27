@@ -155,7 +155,14 @@ const ProviderList: FC = () => {
   }, [searchParams])
 
   const onAddProvider = async () => {
-    const { name: providerName, type, logo } = await AddProviderPopup.show()
+    const {
+      name: providerName,
+      type,
+      logo,
+      apiIdentifier
+    } = await AddProviderPopup.show(undefined, {
+      existingProviders: providers
+    })
 
     if (!providerName.trim()) {
       return
@@ -167,6 +174,7 @@ const ProviderList: FC = () => {
       type,
       apiKey: '',
       apiHost: '',
+      apiIdentifier: apiIdentifier?.trim() || undefined,
       models: [],
       enabled: true,
       isSystem: false
@@ -204,10 +212,12 @@ const ProviderList: FC = () => {
       key: 'edit',
       icon: <EditIcon size={14} />,
       async onClick() {
-        const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
+        const { name, type, logoFile, logo, apiIdentifier } = await AddProviderPopup.show(provider, {
+          existingProviders: providers
+        })
 
         if (name) {
-          updateProvider({ ...provider, name, type })
+          updateProvider({ ...provider, name, type, apiIdentifier: apiIdentifier?.trim() || undefined })
           if (provider.id) {
             if (logo) {
               try {

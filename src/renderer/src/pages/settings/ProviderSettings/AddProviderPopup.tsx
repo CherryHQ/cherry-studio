@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { Center, VStack } from '@renderer/components/Layout'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
+import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { TopView } from '@renderer/components/TopView'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
@@ -9,23 +10,111 @@ import type { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import type { ItemType } from 'antd/es/menu/interface'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('AddProviderPopup')
 
-interface Props {
-  provider?: Provider
-  resolve: (result: { name: string; type: ProviderType; logo?: string; logoFile?: File }) => void
+const API_IDENTIFIER_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$/
+
+type PopupResult = {
+  name: string
+  type: ProviderType
+  apiIdentifier?: string
+  logo?: string
+  logoFile?: File
 }
 
-const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
+interface Props {
+  provider?: Provider
+  existingProviders?: Provider[]
+  resolve: (result: PopupResult) => void
+}
+
+const normalizeApiIdentifier = (value: string) => value.trim()
+
+const isApiIdentifierConflicting = (
+  identifier: string,
+  providers: Provider[],
+  currentProviderId: string | undefined
+) => {
+  const normalizedIdentifier = normalizeApiIdentifier(identifier)
+  if (!normalizedIdentifier) {
+    return false
+  }
+
+  return providers.some((p) => {
+    if (p.id === currentProviderId) {
+      return false
+    }
+    if (p.id === normalizedIdentifier) {
+      return true
+    }
+    return normalizeApiIdentifier(p.apiIdentifier ?? '') === normalizedIdentifier
+  })
+}
+
+const suggestApiIdentifier = (providerName: string) => {
+  const base = providerName.trim().toLowerCase()
+  if (!base) {
+    return ''
+  }
+
+  const normalized = base
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-_]+/, '')
+    .replace(/[-_]+$/, '')
+
+  const safeStart = normalized.replace(/^[^a-z0-9]+/, '')
+  return safeStart.slice(0, 32)
+}
+
+const makeUniqueApiIdentifier = (
+  baseIdentifier: string,
+  providers: Provider[],
+  currentProviderId: string | undefined
+) => {
+  const normalizedBase = normalizeApiIdentifier(baseIdentifier)
+  if (!normalizedBase) {
+    return ''
+  }
+
+  if (
+    API_IDENTIFIER_PATTERN.test(normalizedBase) &&
+    !normalizedBase.includes(':') &&
+    !isApiIdentifierConflicting(normalizedBase, providers, currentProviderId)
+  ) {
+    return normalizedBase
+  }
+
+  for (let suffix = 2; suffix < 100; suffix++) {
+    const suffixPart = `-${suffix}`
+    const truncatedBase = normalizedBase.slice(0, Math.max(0, 32 - suffixPart.length))
+    const candidate = `${truncatedBase}${suffixPart}`
+
+    if (
+      API_IDENTIFIER_PATTERN.test(candidate) &&
+      !candidate.includes(':') &&
+      !isApiIdentifierConflicting(candidate, providers, currentProviderId)
+    ) {
+      return candidate
+    }
+  }
+
+  return ''
+}
+
+const PopupContainer: React.FC<Props> = ({ provider, existingProviders = [], resolve }) => {
   const [open, setOpen] = useState(true)
   const [name, setName] = useState(provider?.name || '')
   const [type, setType] = useState<ProviderType>(provider?.type || 'openai')
   const [displayType, setDisplayType] = useState<string>(provider?.type || 'openai')
   const [logo, setLogo] = useState<string | null>(null)
+  const [apiIdentifier, setApiIdentifier] = useState(provider?.apiIdentifier ?? '')
+  const [apiIdentifierEdited, setApiIdentifierEdited] = useState(!!provider)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
@@ -48,12 +137,19 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   }, [provider])
 
   const onOk = async () => {
+    const normalizedIdentifier = normalizeApiIdentifier(apiIdentifier)
+    if (apiIdentifierError) {
+      window.toast.error(apiIdentifierError)
+      return
+    }
+
     setOpen(false)
 
     // 返回结果，但不包含文件对象，因为文件已经直接保存到 ImageStorage
-    const result = {
+    const result: PopupResult = {
       name,
       type,
+      apiIdentifier: normalizedIdentifier || undefined,
       logo: logo || undefined
     }
     resolve(result)
@@ -65,10 +161,28 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   }
 
   const onClose = () => {
-    resolve({ name, type, logo: logo || undefined })
+    resolve({ name, type, apiIdentifier: normalizeApiIdentifier(apiIdentifier) || undefined, logo: logo || undefined })
   }
 
-  const buttonDisabled = name.length === 0
+  const apiIdentifierError = useMemo(() => {
+    const normalizedIdentifier = normalizeApiIdentifier(apiIdentifier)
+
+    if (!normalizedIdentifier) {
+      return null
+    }
+
+    if (!API_IDENTIFIER_PATTERN.test(normalizedIdentifier) || normalizedIdentifier.includes(':')) {
+      return t('settings.provider.api_identifier.error.invalid')
+    }
+
+    if (isApiIdentifierConflicting(normalizedIdentifier, existingProviders, provider?.id)) {
+      return t('settings.provider.api_identifier.error.duplicate')
+    }
+
+    return null
+  }, [apiIdentifier, existingProviders, provider?.id, t])
+
+  const buttonDisabled = name.length === 0 || !!apiIdentifierError
 
   // 处理内置头像的点击事件
   const handleProviderLogoClick = async (providerId: string) => {
@@ -234,13 +348,52 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
         <Form.Item label={t('settings.provider.add.name.label')} style={{ marginBottom: 8 }}>
           <Input
             value={name}
-            onChange={(e) => setName(e.target.value.trim())}
+            onChange={(e) => {
+              const nextName = e.target.value.trim()
+              setName(nextName)
+
+              if (!provider && !apiIdentifierEdited) {
+                const suggestedIdentifier = makeUniqueApiIdentifier(
+                  suggestApiIdentifier(nextName),
+                  existingProviders,
+                  undefined
+                )
+                setApiIdentifier(suggestedIdentifier)
+              }
+            }}
             placeholder={t('settings.provider.add.name.placeholder')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                 onOk()
               }
             }}
+            maxLength={32}
+          />
+        </Form.Item>
+        <Form.Item
+          label={
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {t('settings.provider.api_identifier.label')}
+              <HelpTooltip title={t('settings.provider.api_identifier.tip')}></HelpTooltip>
+            </span>
+          }
+          validateStatus={apiIdentifierError ? 'error' : undefined}
+          help={
+            apiIdentifierError
+              ? apiIdentifierError
+              : t('settings.provider.api_identifier.preview', {
+                  model: `${normalizeApiIdentifier(apiIdentifier) || provider?.id || 'uuid'}:glm-4.6`
+                })
+          }
+          style={{ marginBottom: 8 }}>
+          <Input
+            value={apiIdentifier}
+            onChange={(e) => {
+              setApiIdentifierEdited(true)
+              setApiIdentifier(e.target.value)
+            }}
+            placeholder={t('settings.provider.api_identifier.placeholder')}
+            spellCheck={false}
             maxLength={32}
           />
         </Form.Item>
@@ -313,16 +466,12 @@ export default class AddProviderPopup {
   static hide() {
     TopView.hide('AddProviderPopup')
   }
-  static show(provider?: Provider) {
-    return new Promise<{
-      name: string
-      type: ProviderType
-      logo?: string
-      logoFile?: File
-    }>((resolve) => {
+  static show(provider?: Provider, params?: { existingProviders?: Provider[] }) {
+    return new Promise<PopupResult>((resolve) => {
       TopView.show(
         <PopupContainer
           provider={provider}
+          existingProviders={params?.existingProviders}
           resolve={(v) => {
             resolve(v)
             this.hide()
