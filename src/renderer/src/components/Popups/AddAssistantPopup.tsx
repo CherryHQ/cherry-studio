@@ -212,7 +212,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
           padding: 0
         }
       }}
-      width={520}
+      width={560}
       footer={null}>
       {showModeSwitch && (
         <ModeSelector>
@@ -225,7 +225,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
               )}
             </ModeIconWrapper>
             <ModeCardContent>
-              <ModeCardTitle>{t('common.assistant')}</ModeCardTitle>
+              <ModeCardTitle>{t('common.assistant_one')}</ModeCardTitle>
               <ModeCardDesc>{t('chat.add.assistant.description')}</ModeCardDesc>
             </ModeCardContent>
           </ModeCard>
@@ -268,13 +268,9 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
                       </PresetCardDesc>
                     )}
                     <PresetCardTags>
-                      {preset.id === 'default' && (
-                        <TagText $color="green">{t('assistants.presets.tag.system')}</TagText>
-                      )}
-                      {preset.type === 'agent' && (
-                        <TagText $color="orange">{t('assistants.presets.tag.agent')}</TagText>
-                      )}
-                      {preset.id === 'new' && <TagText $color="green">{t('assistants.presets.tag.new')}</TagText>}
+                      {preset.id === 'default' && <TagText>{t('assistants.presets.tag.system')}</TagText>}
+                      {preset.type === 'agent' && <TagText>{t('assistants.presets.tag.agent')}</TagText>}
+                      {preset.id === 'new' && <TagText>{t('assistants.presets.tag.new')}</TagText>}
                     </PresetCardTags>
                   </PresetCardInfo>
                   <PresetCardRight>
@@ -443,9 +439,9 @@ const PresetCardTags = styled.div`
   margin-top: 4px;
 `
 
-const TagText = styled.span<{ $color?: 'green' | 'orange' }>`
+const TagText = styled.span`
   font-size: 12px;
-  color: ${(props) => (props.$color === 'green' ? '#52c41a' : props.$color === 'orange' ? '#fa8c16' : 'var(--color-text-3)')};
+  color: var(--color-text-3);
 `
 
 const PresetCardRight = styled.div`
