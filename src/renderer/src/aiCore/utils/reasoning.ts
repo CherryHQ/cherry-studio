@@ -82,10 +82,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
     // providers that use enable_thinking
     if (
-      isSupportEnableThinkingProvider(provider) &&
-      (isSupportedThinkingTokenQwenModel(model) ||
-        isSupportedThinkingTokenHunyuanModel(model) ||
-        (provider.id === SystemProviderIds.dashscope && isDeepSeekHybridInferenceModel(model)))
+      (isSupportEnableThinkingProvider(provider) &&
+        (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))) ||
+      (provider.id === SystemProviderIds.dashscope &&
+        (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
     ) {
       return { enable_thinking: false }
     }
@@ -309,17 +309,24 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
   }
 
+  if (provider.id === SystemProviderIds.dashscope) {
+    // For now, only deepseek and glm need to use enable_thinking to control thinking
+    // No effort, only on/off
+    if (isQwenReasoningModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
+      return {
+        enable_thinking: true,
+        thinking_budget: budgetTokens,
+        // NOTE: seems incremental_output is not needed anymore?
+        incremental_output: true
+      }
+    }
+  }
+
   // Qwen models, use enable_thinking
   if (isQwenReasoningModel(model)) {
     const thinkConfig = {
       enable_thinking: isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(provider) ? undefined : true,
       thinking_budget: budgetTokens
-    }
-    if (provider.id === SystemProviderIds.dashscope) {
-      return {
-        ...thinkConfig,
-        incremental_output: true
-      }
     }
     return thinkConfig
   }
