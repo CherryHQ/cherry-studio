@@ -43,6 +43,7 @@ const visionAllowedModels = [
   'o3(?:-[\\w-]+)?',
   'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
+  'kimi-k2.5',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',

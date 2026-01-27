@@ -175,6 +175,7 @@ describe('isVisionModel', () => {
     const doubao = createModel({ id: 'doubao-standard', provider: 'doubao', name: 'basic' })
     expect(isVisionModel(doubao)).toBe(false)
   })
+
   describe('Gemini Models', () => {
     it('should return true for gemini 1.5 models', () => {
       expect(
@@ -306,6 +307,16 @@ describe('isVisionModel', () => {
           group: ''
         })
       ).toBe(false)
+    })
+  })
+
+  describe('Kimi Models', () => {
+    it('should return true for kimi models', () => {
+      expect(isVisionModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(true)
+    })
+    it('should return false for kimi non-vision models', () => {
+      expect(isVisionModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(false)
     })
   })
 })

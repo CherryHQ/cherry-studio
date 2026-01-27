@@ -28,6 +28,7 @@ import {
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenHunyuanModel,
+  isSupportedThinkingTokenKimiModel,
   isSupportedThinkingTokenMiMoModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
@@ -109,7 +110,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
 
     // use thinking, doubao, zhipu, etc.
-    if (isSupportedThinkingTokenDoubaoModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
+    if (
+      isSupportedThinkingTokenDoubaoModel(model) ||
+      isSupportedThinkingTokenZhipuModel(model) ||
+      isSupportedThinkingTokenKimiModel(model)
+    ) {
       if (provider.id === SystemProviderIds.cerebras) {
         return {
           disable_reasoning: true
@@ -419,7 +424,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return { thinking: { type: 'enabled' } }
   }
 
-  if (isSupportedThinkingTokenMiMoModel(model)) {
+  if (isSupportedThinkingTokenMiMoModel(model) || isSupportedThinkingTokenKimiModel(model)) {
     return {
       thinking: { type: 'enabled' }
     }

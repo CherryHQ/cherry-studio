@@ -58,7 +58,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   mimo: ['auto'] as const,
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
-  deepseek_hybrid: ['auto'] as const
+  deepseek_hybrid: ['auto'] as const,
+  kimi_k2_5: ['none', 'auto'] as const
 } as const satisfies ReasoningEffortConfig
 
 // 模型类型到支持选项的映射表
@@ -90,7 +91,8 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   hunyuan: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
-  deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
+  deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
+  kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const
 } as const
 
 const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
@@ -171,6 +173,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'deepseek_hybrid'
   } else if (isSupportedThinkingTokenMiMoModel(model)) {
     thinkingModelType = 'mimo'
+  } else if (isSupportedThinkingTokenKimiModel(model)) {
+    thinkingModelType = 'kimi_k2_5'
   }
   return thinkingModelType
 }
@@ -281,7 +285,8 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
     isSupportedThinkingTokenDoubaoModel(model) ||
     isSupportedThinkingTokenHunyuanModel(model) ||
     isSupportedThinkingTokenZhipuModel(model) ||
-    isSupportedThinkingTokenMiMoModel(model)
+    isSupportedThinkingTokenMiMoModel(model) ||
+    isSupportedThinkingTokenKimiModel(model)
   )
 }
 
@@ -589,6 +594,20 @@ export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
   return ['mimo-v2-flash'].some((id) => modelId.includes(id))
 }
 
+/**
+ * Detects whether a Kimi model supports thinking control
+ *
+ * This function identifies Kimi models that support thinking token control.
+ * Currently only supports Kimi K2.5 and its variants.
+ *
+ * @param model - The model object to check
+ * @returns true if the model supports thinking control, false otherwise
+ */
+export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return ['kimi-k2.5'].some((id) => modelId.includes(id))
+}
+
 export const isDeepSeekHybridInferenceModel = (model: Model) => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
     const modelId = getLowerBaseModelName(model.id)
@@ -655,6 +674,27 @@ export const isBaichuanReasoningModel = (model?: Model): boolean => {
   return modelId === 'baichuan-m2' || modelId === 'baichuan-m3'
 }
 
+/**
+ * Check if the model is a Kimi reasoning model
+ *
+ * This function identifies Moonshot AI's Kimi series reasoning models.
+ * Currently should only support:
+ * - Kimi K2 Thinking and its variants (including -turbo suffix)
+ * - Kimi K2.5
+ *
+ * @param model - The model object to check, can be undefined
+ * @returns true if it's a Kimi reasoning model, false otherwise
+ */
+export function isKimiReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+  // Match kimi-k2-thinking, kimi-k2-thinking-turbo, or kimi-k2.5
+  // The regex ensures no extra suffixes after these patterns
+  return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k2\.5(?:-\w)*$/.test(modelId)
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -691,6 +731,7 @@ export function isReasoningModel(model?: Model): boolean {
     isMiniMaxReasoningModel(model) ||
     isMiMoReasoningModel(model) ||
     isBaichuanReasoningModel(model) ||
+    isKimiReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
@@ -768,7 +809,7 @@ export const isFixedReasoningModel = (model: Model) =>
 // https://docs.z.ai/guides/capabilities/thinking-mode
 // https://platform.moonshot.cn/docs/guide/use-kimi-k2-thinking-model#%E5%A4%9A%E6%AD%A5%E5%B7%A5%E5%85%B7%E8%B0%83%E7%94%A8
 const INTERLEAVED_THINKING_MODEL_REGEX =
-  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?$/i
+  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?|kimi-k2.5$/i
 
 /**
  * Determines whether the given model supports interleaved thinking.

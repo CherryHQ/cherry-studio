@@ -18,6 +18,7 @@ import {
   isGrok4FastReasoningModel,
   isHunyuanReasoningModel,
   isInterleavedThinkingModel,
+  isKimiReasoningModel,
   isLingReasoningModel,
   isMiniMaxReasoningModel,
   isPerplexityReasoningModel,
@@ -29,6 +30,7 @@ import {
   isSupportedReasoningEffortPerplexityModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
+  isSupportedThinkingTokenKimiModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
@@ -2288,6 +2290,128 @@ describe('isInterleavedThinkingModel', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
       expect(isInterleavedThinkingModel(createModel({ id: 'gemini-pro' }))).toBe(false)
       expect(isInterleavedThinkingModel(createModel({ id: 'deepseek-v3' }))).toBe(false)
+    })
+  })
+})
+
+describe('Kimi Models', () => {
+  describe('isKimiReasoningModel', () => {
+    describe('should return true for Kimi reasoning models', () => {
+      it('should recognize kimi-k2-thinking', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
+      })
+
+      it('should recognize kimi-k2-thinking-turbo', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-thinking-turbo' }))).toBe(true)
+      })
+
+      it('should recognize kimi-k2.5', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should handle model IDs with slashes', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'moonshot/kimi-k2-thinking' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should handle case insensitivity', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'KIMI-K2-THINKING' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'Kimi-K2.5' }))).toBe(true)
+      })
+    })
+
+    describe('should return false for non-reasoning models', () => {
+      it('should reject kimi-chat', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-chat' }))).toBe(false)
+      })
+
+      it('should reject kimi-k1', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k1' }))).toBe(false)
+      })
+
+      it('should reject kimi-k2 (without thinking suffix)', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2' }))).toBe(false)
+      })
+
+      it('should reject other Kimi models', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-preview' }))).toBe(false)
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-turbo' }))).toBe(false)
+      })
+
+      it('should reject models from other providers', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'gpt-4' }))).toBe(false)
+        expect(isKimiReasoningModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
+        expect(isKimiReasoningModel(createModel({ id: 'deepseek-chat' }))).toBe(false)
+      })
+    })
+
+    describe('edge cases', () => {
+      it('should return false for undefined', () => {
+        expect(isKimiReasoningModel(undefined)).toBe(false)
+      })
+
+      it('should handle model IDs with paths', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'providers/kimi-k2-thinking' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'openrouter/kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should correctly match model name variants', () => {
+        // kimi-k2-thinking but not kimi-k2-thinking-something
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-thinking-extra' }))).toBe(false)
+      })
+    })
+  })
+
+  describe('isSupportedThinkingTokenKimiModel', () => {
+    describe('should return true for Kimi models with thinking token support', () => {
+      it('should recognize kimi-k2.5', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should handle model IDs with provider prefixes', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'openrouter/kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should handle case insensitivity', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'KIMI-K2.5' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'Kimi-K2.5' }))).toBe(true)
+      })
+    })
+
+    describe('should return false for Kimi models without thinking token support', () => {
+      it('should reject kimi-k2-thinking', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(false)
+      })
+
+      it('should reject kimi-k2-thinking-turbo', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2-thinking-turbo' }))).toBe(false)
+      })
+
+      it('should reject other Kimi models', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-chat' }))).toBe(false)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k1' }))).toBe(false)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2' }))).toBe(false)
+      })
+
+      it('should reject models from other providers', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'gpt-4' }))).toBe(false)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'deepseek-chat' }))).toBe(false)
+      })
+    })
+
+    describe('edge cases', () => {
+      it('should handle model IDs with paths', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'providers/kimi-k2.5' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'api/kimi-k2.5-preview' }))).toBe(true)
+      })
+
+      it('should match models containing kimi-k2.5', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5-preview' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5-turbo' }))).toBe(true)
+      })
     })
   })
 })
