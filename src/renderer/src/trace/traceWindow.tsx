@@ -8,6 +8,7 @@ import { TracePage } from './pages/index'
 const App = () => {
   const [traceId, setTraceId] = useState('')
   const [topicId, setTopicId] = useState('')
+  const [assistantMsgId, setAssistantMsgId] = useState('')
   const [modelName, setModelName] = useState<string | undefined>(undefined)
   const [reload, setReload] = useState(false)
   const [title, setTitle] = useState('Call Chain Window')
@@ -17,6 +18,7 @@ const App = () => {
       if (data?.traceId && data?.topicId) {
         setTraceId(data.traceId)
         setTopicId(data.topicId)
+        setAssistantMsgId(data.assistantMsgId || '')
         setModelName(data.modelName)
         setReload(!reload)
       }
@@ -47,12 +49,18 @@ const App = () => {
   return (
     <>
       <header className="header">
-        <div className="headerIcon">
-          <TraceIcon color="#e74c3c" size={24} />
+        <div className="headerTitle">
+          <TraceIcon color="#e74c3c" size={16} />
+          <span style={{ marginLeft: '5px' }}>{title}</span>
         </div>
-        <div className="headerTitle">{title}</div>
       </header>
-      <TracePage traceId={traceId} topicId={topicId} reload={reload} modelName={modelName} />
+      <TracePage
+        traceId={traceId}
+        topicId={topicId}
+        reload={reload}
+        modelName={modelName}
+        assistantMsgId={assistantMsgId}
+      />
       <footer>
         <span onClick={handleFooterClick} className="footer-link">
           {i18n.t('trace.edasSupport')}
