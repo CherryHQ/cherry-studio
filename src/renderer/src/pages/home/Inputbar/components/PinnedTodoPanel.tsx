@@ -122,6 +122,10 @@ const PanelBody = styled.div`
   border: 0.5px solid var(--color-border);
   overflow: hidden;
   background-color: var(--color-background-opacity);
+
+  body[theme-mode='dark'] & {
+    background-color: var(--color-background-mute);
+  }
 `
 
 const PanelHeader = styled.div`
