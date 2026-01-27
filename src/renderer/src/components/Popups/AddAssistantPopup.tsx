@@ -346,9 +346,7 @@ const ModeCardTitle = styled.div`
 const ModeCardDesc = styled.div`
   font-size: 12px;
   color: var(--color-text-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;
 `
 
 const Container = styled(Scrollbar)`
