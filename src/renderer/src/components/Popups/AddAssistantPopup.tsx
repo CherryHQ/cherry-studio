@@ -306,7 +306,7 @@ const ModeCard = styled.button<{ $active: boolean }>`
   gap: 12px;
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid ${(props) => (props.$active ? 'var(--color-border)' : 'transparent')};
+  border: 0.5px solid ${(props) => (props.$active ? 'var(--color-primary)' : 'transparent')};
   background-color: var(--color-background-soft);
   cursor: pointer;
   transition: all 0.2s ease;
