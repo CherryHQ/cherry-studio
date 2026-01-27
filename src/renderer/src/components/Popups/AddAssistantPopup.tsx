@@ -95,20 +95,28 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
       }
 
       loadingRef.current = true
-      let assistant: Assistant
 
-      if (preset.id === 'default') {
-        assistant = { ...preset, id: uuid() }
-        addAssistant(assistant)
-      } else {
-        assistant = await createAssistantFromAgent(preset)
+      try {
+        let assistant: Assistant
+
+        if (preset.id === 'default') {
+          assistant = { ...preset, id: uuid() }
+          addAssistant(assistant)
+        } else {
+          assistant = await createAssistantFromAgent(preset)
+        }
+
+        setTimeoutTimer('onCreateAssistant', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
+        resolve({ type: 'assistant', assistant })
+        setOpen(false)
+      } catch (error) {
+        logger.error('Failed to create assistant:', error as Error)
+        window.toast.error(t('assistant.add.error.failed', 'Failed to create assistant'))
+      } finally {
+        loadingRef.current = false
       }
-
-      setTimeoutTimer('onCreateAssistant', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
-      resolve({ type: 'assistant', assistant })
-      setOpen(false)
     },
-    [setTimeoutTimer, resolve, addAssistant]
+    [setTimeoutTimer, resolve, addAssistant, t]
   )
 
   const onCancel = () => {
@@ -210,7 +218,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
           padding: 0
         }
       }}
-      width={650}
+      width={520}
       footer={null}>
       {showModeSwitch && (
         <ModeSelector>
