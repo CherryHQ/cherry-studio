@@ -345,6 +345,7 @@
     "oxlint-tsgolint": "^0.2.0",
     "p-queue": "^8.1.0",
     "pako": "1.0.11",
+    "partial-json": "0.1.7",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "prosemirror-model": "1.25.2",
