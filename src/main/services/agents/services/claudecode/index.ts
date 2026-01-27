@@ -16,6 +16,7 @@ import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
+import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { withoutTrailingApiVersion } from '@shared/utils'
@@ -33,6 +34,9 @@ const logger = loggerService.withContext('ClaudeCodeService')
 const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
+
+const getLanguageInstruction = () =>
+  `IMPORTANT: You MUST use ${configManager.getLanguage()} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
 
 type UserInputMessage = {
   type: 'user'
@@ -255,9 +259,13 @@ class ClaudeCodeService implements AgentServiceInterface {
         ? {
             type: 'preset',
             preset: 'claude_code',
-            append: session.instructions
+            append: `${session.instructions}\n\n${getLanguageInstruction()}`
           }
-        : { type: 'preset', preset: 'claude_code' },
+        : {
+            type: 'preset',
+            preset: 'claude_code',
+            append: getLanguageInstruction()
+          },
       settingSources: ['project'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,

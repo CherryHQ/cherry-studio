@@ -1,8 +1,13 @@
 import type { CollapseProps } from 'antd'
-import { Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
-import { StringInputTool, StringOutputTool, ToolTitle } from './GenericTools'
-import type { SearchToolInput as SearchToolInputType, SearchToolOutput as SearchToolOutputType } from './types'
+import { countLines, truncateOutput } from '../shared/truncateOutput'
+import { StringInputTool, StringOutputTool, ToolHeader, TruncatedIndicator } from './GenericTools'
+import {
+  AgentToolsType,
+  type SearchToolInput as SearchToolInputType,
+  type SearchToolOutput as SearchToolOutputType
+} from './types'
 
 export function SearchTool({
   input,
@@ -11,25 +16,37 @@ export function SearchTool({
   input?: SearchToolInputType
   output?: SearchToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   // 如果有输出，计算结果数量
-  const resultCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const resultCount = countLines(output)
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',
     label: (
-      <ToolTitle
-        icon={<Search className="h-4 w-4" />}
-        label="Search"
+      <ToolHeader
+        toolName={AgentToolsType.Search}
         params={input ? `"${input}"` : undefined}
-        stats={output ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}` : undefined}
+        stats={
+          output
+            ? `${resultCount} ${t(resultCount === 1 ? 'message.tools.units.result' : 'message.tools.units.results')}`
+            : undefined
+        }
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: (
       <div>
-        {input && <StringInputTool input={input} label="Search Query" />}
-        {output && (
+        {input && <StringInputTool input={input} label={t('message.tools.sections.searchQuery')} />}
+        {truncatedOutput && (
           <div>
-            <StringOutputTool output={output} label="Search Results" textColor="text-yellow-600 dark:text-yellow-400" />
+            <StringOutputTool
+              output={truncatedOutput}
+              label={t('message.tools.sections.searchResults')}
+              textColor="text-yellow-600 dark:text-yellow-400"
+            />
+            {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
           </div>
         )}
       </div>

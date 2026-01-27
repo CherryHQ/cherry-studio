@@ -1,8 +1,9 @@
 import type { CollapseProps } from 'antd'
-import { Globe } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
-import type { WebSearchToolInput, WebSearchToolOutput } from './types'
+import { countLines, truncateOutput } from '../shared/truncateOutput'
+import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { AgentToolsType, type WebSearchToolInput, type WebSearchToolOutput } from './types'
 
 export function WebSearchTool({
   input,
@@ -11,19 +12,31 @@ export function WebSearchTool({
   input?: WebSearchToolInput
   output?: WebSearchToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   // 如果有输出，计算结果数量
-  const resultCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const resultCount = countLines(output)
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',
     label: (
-      <ToolTitle
-        icon={<Globe className="h-4 w-4" />}
-        label="Web Search"
+      <ToolHeader
+        toolName={AgentToolsType.WebSearch}
         params={input?.query}
-        stats={output ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}` : undefined}
+        stats={
+          output
+            ? `${resultCount} ${t(resultCount === 1 ? 'message.tools.units.result' : 'message.tools.units.results')}`
+            : undefined
+        }
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
-    children: <div>{output}</div>
+    children: (
+      <div>
+        <div>{truncatedOutput}</div>
+        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+      </div>
+    )
   }
 }
