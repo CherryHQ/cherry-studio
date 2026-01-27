@@ -173,6 +173,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'deepseek_hybrid'
   } else if (isSupportedThinkingTokenMiMoModel(model)) {
     thinkingModelType = 'mimo'
+  } else if (isSupportedThinkingTokenKimiModel(model)) {
+    thinkingModelType = 'kimi_k2_5'
   }
   return thinkingModelType
 }
