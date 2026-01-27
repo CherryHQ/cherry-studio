@@ -316,11 +316,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     if (isQwenReasoningModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
       return {
         enable_thinking: true,
-        thinking_budget: budgetTokens,
-        // According to docs, incremental_output seems required for DashScope SDK to enable streaming output
-        // and not needed when using OpenAI-compatible API.
-        // But idk if it's really required even if we're actually using openai.
-        incremental_output: true
+        thinking_budget: budgetTokens
       }
     }
   }
