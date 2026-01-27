@@ -2,6 +2,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
+import { ChecklistContent } from '@renderer/components/UserGuide/UserGuideChecklist'
 import { isLinux, isMac } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -12,14 +13,16 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setChecklistVisible } from '@renderer/store/onboarding'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import type { MinAppType } from '@renderer/types'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Tooltip } from 'antd'
+import { Popover, Tooltip } from 'antd'
 import type { LRUCache } from 'lru-cache'
 import {
+  BadgeCheck,
   FileSearch,
   Folder,
   Home,
@@ -125,6 +128,20 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { minapps } = useMinapps()
   const { useSystemTitleBar } = useSettings()
   const { t } = useTranslation()
+
+  // User guide state
+  const { guidePageCompleted, checklistDismissed, checklistVisible, taskStatus } = useAppSelector(
+    (state) => state.onboarding
+  )
+  const allTasksCompleted = taskStatus.useFreeModel && taskStatus.configureProvider && taskStatus.sendFirstMessage
+  const showUserGuideButton = guidePageCompleted && !checklistDismissed && !allTasksCompleted
+
+  const handleChecklistVisibleChange = useCallback(
+    (visible: boolean) => {
+      dispatch(setChecklistVisible(visible))
+    },
+    [dispatch]
+  )
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -271,6 +288,22 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           </AddTabButton>
         </HorizontalScrollContainer>
         <RightButtonsContainer style={{ paddingRight: isLinux && useSystemTitleBar ? '12px' : undefined }}>
+          {showUserGuideButton && (
+            <Popover
+              content={<ChecklistContent />}
+              trigger="click"
+              open={checklistVisible}
+              onOpenChange={handleChecklistVisibleChange}
+              placement="bottomRight"
+              arrow={false}
+              styles={{ body: { padding: 0 } }}>
+              <Tooltip title={t('userGuide.checklist.title')} mouseEnterDelay={0.8} placement="bottom">
+                <UserGuideButton data-guide-target="user-guide-badge">
+                  <BadgeCheck size={16} />
+                </UserGuideButton>
+              </Tooltip>
+            </Popover>
+          )}
           <Tooltip
             title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
             mouseEnterDelay={0.8}
@@ -285,7 +318,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
               )}
             </ThemeButton>
           </Tooltip>
-          <SettingsButton onClick={handleSettingsClick} $active={activeTabId === 'settings'}>
+          <SettingsButton id="navbar-settings" onClick={handleSettingsClick} $active={activeTabId === 'settings'}>
             <Settings size={16} />
           </SettingsButton>
         </RightButtonsContainer>
@@ -433,6 +466,21 @@ const ThemeButton = styled.div`
   &:hover {
     background: var(--color-list-item);
     border-radius: 8px;
+  }
+`
+
+const UserGuideButton = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  color: var(--color-primary);
+  border-radius: 8px;
+
+  &:hover {
+    background: var(--color-list-item);
   }
 `
 

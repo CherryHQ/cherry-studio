@@ -2452,6 +2452,51 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "done": "[to be translated]:Get Started",
+    "next": "[to be translated]:Next",
+    "previous": "[to be translated]:Previous",
+    "progress": "[to be translated]:{{current}} of {{total}}",
+    "skip": "[to be translated]:Skip Tour",
+    "steps": {
+      "addModel": {
+        "description": "[to be translated]:Add the models you need from the provider page. Different models excel at different tasks like chatting, writing, coding, and more.",
+        "title": "[to be translated]:Add Models"
+      },
+      "addProvider": {
+        "description": "[to be translated]:Go to Settings to add AI providers. We recommend CherryIN for beginners - get free credits upon registration and access to various popular models.",
+        "title": "[to be translated]:Add Provider"
+      },
+      "complete": {
+        "description": "[to be translated]:You're all set! Start chatting with your first assistant. Need help? Check Settings for more options.",
+        "title": "[to be translated]:You're All Set!"
+      },
+      "fillApiKey": {
+        "description": "[to be translated]:Enter your API Key here. You can get the API Key from the provider's website. After filling it in, click the \"Check\" button to verify the connection.",
+        "title": "[to be translated]:Fill in API Key"
+      },
+      "freeModel": {
+        "description": "[to be translated]:Cherry Studio includes a free built-in GLM 4.5 Flash model. Start chatting right away without any configuration - perfect for a quick trial!",
+        "title": "[to be translated]:Free Model"
+      },
+      "settingsIntro": {
+        "description": "[to be translated]:Click here to access settings. Next, we'll guide you through adding AI providers and models.",
+        "title": "[to be translated]:Settings"
+      },
+      "useCases": {
+        "description": "[to be translated]:Cherry Studio can help you with: intelligent Q&A, document translation & summarization, code writing & debugging, creative writing, knowledge base queries, and more.",
+        "title": "[to be translated]:Use Cases"
+      },
+      "welcome": {
+        "description": "[to be translated]:Cherry Studio helps you interact with various AI models. Let's take a quick tour to help you get started.",
+        "title": "[to be translated]:Welcome to Cherry Studio!"
+      }
+    },
+    "welcome": {
+      "description": "[to be translated]:Your powerful AI assistant. Let's take a quick tour to help you get started.",
+      "title": "[to be translated]:Welcome to Cherry Studio"
+    }
+  },
   "ovms": {
     "action": {
       "install": "安裝",
@@ -5314,6 +5359,127 @@
     "noReleaseNotes": "暫無更新日誌",
     "saveDataError": "儲存資料失敗，請重試",
     "title": "更新提示"
+  },
+  "userGuide": {
+    "buttons": {
+      "gotIt": "知道了",
+      "next": "下一步",
+      "useNow": "立即使用"
+    },
+    "checklist": {
+      "progress": "已完成 {{completed}}/{{total}}",
+      "subtitle": "完成任務，解鎖 Cherry Studio 進階使用技巧",
+      "tasks": {
+        "configureProvider": "配置第一個模型服務",
+        "sendFirstMessage": "發送第一條訊息",
+        "useFreeModel": "使用免費模型"
+      },
+      "title": "開啟您的 AI 探索之旅"
+    },
+    "completionModal": {
+      "exploreMore": "探索更多助手",
+      "recommendedAssistants": "推薦助手",
+      "startChat": "開始對話",
+      "subtitle": "歡迎來到 Cherry Studio，您已準備就緒！",
+      "title": "配置完成！"
+    },
+    "guidePage": {
+      "carousel": {
+        "assistants": {
+          "description": "從項目管理到圖表繪製，定義專屬系統提示詞，打造屬於您的專業 AI 團隊。",
+          "title": "場景化 AI 助手，各司其職"
+        },
+        "models": {
+          "description": "一站式管理 OpenAI、Claude、DeepSeek 等眾多模型服務，自由切換，本地存儲，將選擇權交還給您。",
+          "title": "集結全球頂尖模型"
+        },
+        "paintings": {
+          "description": "整合多種主流繪圖模型，精細化參數控制。無論是藝術創作還是素材生成，皆可信手拈來。",
+          "title": "無限創意，繪你所想"
+        }
+      },
+      "navStyle": {
+        "left": "左側",
+        "title": "導航列",
+        "top": "頂部"
+      },
+      "startButton": "立即使用",
+      "welcome": {
+        "subtitle": "之後可以通過系統設定來更換",
+        "title": "請選擇您的頁面樣式"
+      }
+    },
+    "guides": {
+      "configureProvider": {
+        "description": "設定您的 AI 服務商開始使用",
+        "steps": {
+          "cherryin": {
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🍒 開啟 CherryIN 服務</div><div class=\"guide-features\"><p>🎟️ 官方聚合通道 —— 一個 Key 暢享多種主流大模型</p><p>🆓 內建免費資源 —— 驗證帳戶後，可一鍵添加多種免費模型</p><p>🚀 穩定高速 —— 官方維護的高可用 API 節點</p><p><em>⚠️ 需帳戶內有餘額才可啟用服務，啟用後即可使用免費模型。</em></p></div>",
+            "title": ""
+          },
+          "connect": {
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🔑 第一步：連接服務</div><div class=\"guide-features\"><p>1. 點擊連結取得您的 CherryIN 密鑰。</p><p>2. 貼上密鑰並點擊右側的「檢測」按鈕。</p></div>",
+            "title": ""
+          },
+          "useModel": {
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🎁 第二步：使用模型</div><div class=\"guide-features\"><p>密鑰驗證成功後，點擊「管理」按鈕，在列表中勾選您想使用的免費模型或商用模型即可！</p></div>",
+            "title": ""
+          }
+        },
+        "title": "配置服務商"
+      },
+      "sendMessage": {
+        "description": "[to be translated]:Start chatting with AI",
+        "steps": {
+          "input": {
+            "button": "[to be translated]:Start Now",
+            "description": "[to be translated]:Type your message here and press Enter to send. Cherry Studio supports Markdown, code highlighting, and file attachments.",
+            "title": "[to be translated]:Send Your First Message"
+          }
+        },
+        "title": "[to be translated]:Chat with AI"
+      },
+      "useFreeModel": {
+        "description": "試用內建免費模型",
+        "steps": {
+          "selector": {
+            "description": "<div class=\"guide-image\"><img src=\"{{imageUrl}}\" alt=\"\" /></div><div class=\"guide-title\">👆 使用免費模型在這裡</div><div class=\"guide-features\"><p>點擊下拉選單，選擇 GLM-4-Flash (Free) 即可開始免費對話。</p></div>",
+            "shortDescription": "點擊這裡選擇免費模型",
+            "title": ""
+          }
+        },
+        "title": "使用免費模型"
+      }
+    },
+    "taskPopover": {
+      "configureProvider": {
+        "button": "前往設定",
+        "features": {
+          "localModels": "🖥 本地模型支援——一鍵連接 Ollama，離線也能跑 AI",
+          "privacyFirst": "🔐 隱私優先——API Key 僅存本地，直連官方服務",
+          "unlockModels": "💎 解鎖最強模型——接入 Gemini 3, Claude 4.5, DeepSeek 等"
+        },
+        "title": "配置第一個模型服務"
+      },
+      "sendFirstMessage": {
+        "button": "開始對話",
+        "features": {
+          "fileAnalysis": "📎 檔案分析 —— 支援 PDF/Word",
+          "markdown": "✨ Markdown 渲染 —— 完美支援程式碼高亮",
+          "typewriter": "🎨 打字機特效 —— 享受流暢體驗"
+        },
+        "title": "發送第一條訊息"
+      },
+      "useFreeModel": {
+        "button": "立即使用",
+        "features": {
+          "allInOne": "📝 全能助手 —— 滿足日常問答、翻譯與程式碼需求",
+          "fastResponse": "⚡️ 高速響應 —— 毫秒級延遲，無需等待",
+          "noRegistration": "🟢 無需註冊，開箱即用 —— 內建免費算力"
+        },
+        "title": "使用免費模型"
+      }
+    }
   },
   "warning": {
     "missing_provider": "供應商不存在，已改用預設供應商 {{provider}}。這可能導致問題。"

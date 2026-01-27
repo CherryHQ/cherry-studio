@@ -55,7 +55,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
   const providerName = getProviderName(model)
 
   return (
-    <DropdownButton size="small" type="text" onClick={onSelectModel}>
+    <DropdownButton size="small" type="text" onClick={onSelectModel} data-guide-target="model-selector">
       <ButtonContent>
         <ModelAvatar model={model} size={20} />
         <ModelName>
