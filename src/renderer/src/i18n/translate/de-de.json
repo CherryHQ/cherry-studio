@@ -5363,6 +5363,7 @@
   "userGuide": {
     "buttons": {
       "gotIt": "[to be translated]:Got it",
+      "next": "[to be translated]:Next",
       "useNow": "[to be translated]:Use Now"
     },
     "checklist": {
@@ -5412,10 +5413,17 @@
       "configureProvider": {
         "description": "[to be translated]:Set up your AI provider to get started",
         "steps": {
-          "apiKey": {
-            "description": "[to be translated]:Enter your API key and click the check button to verify the connection.",
-            "shortDescription": "[to be translated]:Enter your API key here",
-            "title": "[to be translated]:Connect Your AI Service"
+          "cherryin": {
+            "description": "[to be translated]:<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🍒 Enable CherryIN Service</div><div class=\"guide-features\"><p>🎟️ Official aggregation — One Key to access multiple mainstream LLMs</p><p>🆓 Built-in free resources — Add free models with one click after account verification</p><p>🚀 Stable & fast — High-availability API nodes maintained officially</p><p><em>⚠️ Account balance required to activate service. Free models available after activation.</em></p></div>",
+            "title": "[to be translated]:"
+          },
+          "connect": {
+            "description": "[to be translated]:<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🔑 Step 1: Connect Service</div><div class=\"guide-features\"><p>1. Click the link to get your CherryIN API key.</p><p>2. Paste the key and click the \"Check\" button on the right.</p></div>",
+            "title": "[to be translated]:"
+          },
+          "useModel": {
+            "description": "[to be translated]:<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🎁 Step 2: Use Models</div><div class=\"guide-features\"><p>After key verification, click \"Manage\" button and select the free or commercial models you want to use!</p></div>",
+            "title": "[to be translated]:"
           }
         },
         "title": "[to be translated]:Configure Provider"
@@ -5424,8 +5432,8 @@
         "description": "[to be translated]:Start chatting with AI",
         "steps": {
           "input": {
+            "button": "[to be translated]:Start Now",
             "description": "[to be translated]:Type your message here and press Enter to send. Cherry Studio supports Markdown, code highlighting, and file attachments.",
-            "shortDescription": "[to be translated]:Type your message here and send",
             "title": "[to be translated]:Send Your First Message"
           }
         },
@@ -5447,9 +5455,9 @@
       "configureProvider": {
         "button": "[to be translated]:Start Setup",
         "features": {
-          "connectApi": "[to be translated]:🔑 Connect your API service",
-          "multiProvider": "[to be translated]:⚙️ Support multiple providers",
-          "secureStorage": "[to be translated]:🔒 Keys stored securely on your device"
+          "localModels": "[to be translated]:🖥 Local model support — One-click Ollama connection, run AI offline",
+          "privacyFirst": "[to be translated]:🔐 Privacy first — API Keys stored locally, direct connection to official services",
+          "unlockModels": "[to be translated]:💎 Unlock top models — Access Gemini 3, Claude 4.5, DeepSeek and more"
         },
         "title": "[to be translated]:Configure AI Provider"
       },

@@ -5432,8 +5432,8 @@
         "description": "[to be translated]:Start chatting with AI",
         "steps": {
           "input": {
+            "button": "[to be translated]:Start Now",
             "description": "[to be translated]:Type your message here and press Enter to send. Cherry Studio supports Markdown, code highlighting, and file attachments.",
-            "shortDescription": "[to be translated]:Type your message here and send",
             "title": "[to be translated]:Send Your First Message"
           }
         },
