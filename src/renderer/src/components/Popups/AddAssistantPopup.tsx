@@ -13,10 +13,9 @@ import { isAgentType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { cn } from '@renderer/utils'
 import type { InputRef } from 'antd'
-import { Button, Input, Modal, Tag } from 'antd'
+import { Input, Modal, Tag } from 'antd'
 import { take } from 'lodash'
 import { Bot, MessageSquare, Plus } from 'lucide-react'
-import type { FormEvent } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -130,72 +129,68 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
   }
 
   // Agent form submission
-  const onSubmitAgent = useCallback(
-    async (e: FormEvent<HTMLFormElement>) => {
-      e.preventDefault()
-      if (loadingRef.current) {
-        return
-      }
+  const onSubmitAgent = useCallback(async () => {
+    if (loadingRef.current) {
+      return
+    }
 
-      loadingRef.current = true
+    loadingRef.current = true
 
-      if (!isAgentType(agentForm.type)) {
-        window.toast.error(t('agent.add.error.invalid_agent'))
-        loadingRef.current = false
-        return
-      }
-      if (!agentForm.model) {
-        window.toast.error(t('error.model.not_exists'))
-        loadingRef.current = false
-        return
-      }
+    if (!isAgentType(agentForm.type)) {
+      window.toast.error(t('agent.add.error.invalid_agent'))
+      loadingRef.current = false
+      return
+    }
+    if (!agentForm.model) {
+      window.toast.error(t('error.model.not_exists'))
+      loadingRef.current = false
+      return
+    }
 
-      if (agentForm.accessible_paths.length === 0) {
-        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
-        loadingRef.current = false
-        return
-      }
+    if (agentForm.accessible_paths.length === 0) {
+      window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
+      loadingRef.current = false
+      return
+    }
 
-      if (isWin) {
-        try {
-          const pathInfo = await window.api.system.getGitBashPathInfo()
-          if (!pathInfo.path) {
-            window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
-            loadingRef.current = false
-            return
-          }
-        } catch (error) {
-          logger.error('Failed to check Git Bash:', error as Error)
+    if (isWin) {
+      try {
+        const pathInfo = await window.api.system.getGitBashPathInfo()
+        if (!pathInfo.path) {
+          window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
           loadingRef.current = false
           return
         }
-      }
-
-      const newAgent = {
-        type: agentForm.type,
-        name: agentForm.name,
-        description: agentForm.description,
-        instructions: agentForm.instructions,
-        model: agentForm.model,
-        accessible_paths: [...agentForm.accessible_paths],
-        allowed_tools: [...agentForm.allowed_tools],
-        configuration: agentForm.configuration ? { ...agentForm.configuration } : undefined
-      } satisfies AddAgentForm
-
-      const result = await addAgent(newAgent)
-
-      if (!result.success) {
+      } catch (error) {
+        logger.error('Failed to check Git Bash:', error as Error)
         loadingRef.current = false
-        window.toast.error(result.error?.message || t('agent.add.error.failed'))
         return
       }
+    }
 
-      resolve({ type: 'agent', agent: result.data })
+    const newAgent = {
+      type: agentForm.type,
+      name: agentForm.name,
+      description: agentForm.description,
+      instructions: agentForm.instructions,
+      model: agentForm.model,
+      accessible_paths: [...agentForm.accessible_paths],
+      allowed_tools: [...agentForm.allowed_tools],
+      configuration: agentForm.configuration ? { ...agentForm.configuration } : undefined
+    } satisfies AddAgentForm
+
+    const result = await addAgent(newAgent)
+
+    if (!result.success) {
       loadingRef.current = false
-      setOpen(false)
-    },
-    [agentForm, t, addAgent, resolve]
-  )
+      window.toast.error(result.error?.message || t('agent.add.error.failed'))
+      return
+    }
+
+    resolve({ type: 'agent', agent: result.data })
+    loadingRef.current = false
+    setOpen(false)
+  }, [agentForm, t, addAgent, resolve])
 
   AddAssistantPopup.hide = onCancel
 
@@ -258,13 +253,12 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
       {mode === 'assistant' && (
         <>
           <Container ref={containerRef}>
-            <Input
+            <SearchInput
               ref={inputRef}
               placeholder={t('assistants.search')}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               allowClear
-              style={{ marginBottom: 12, marginTop: 2, height: 36 }}
               variant="outlined"
             />
             {take(presets, 100).map((preset) => (
@@ -298,15 +292,9 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
       )}
 
       {mode === 'agent' && (
-        <StyledForm onSubmit={onSubmitAgent}>
-          <AgentForm form={agentForm} setForm={setAgentForm} />
-          <FormFooter>
-            <Button onClick={onCancel}>{t('common.close')}</Button>
-            <Button type="primary" htmlType="submit" loading={loadingRef.current}>
-              {t('common.add')}
-            </Button>
-          </FormFooter>
-        </StyledForm>
+        <AgentFormContainer>
+          <AgentForm form={agentForm} setForm={setAgentForm} onSubmit={onSubmitAgent} loading={loadingRef.current} />
+        </AgentFormContainer>
       )}
     </Modal>
   )
@@ -365,6 +353,24 @@ const ModeCardDesc = styled.div`
 const Container = styled(Scrollbar)`
   padding: 0 15px;
   height: 55vh;
+`
+
+const SearchInput = styled(Input)`
+  margin-bottom: 12px;
+  margin-top: 2px;
+  height: 36px;
+  border-color: var(--color-border-soft);
+  background-color: transparent;
+
+  &:hover,
+  &:focus,
+  &:focus-within,
+  &.ant-input-outlined:hover,
+  &.ant-input-outlined:focus,
+  &.ant-input-outlined:focus-within {
+    border-color: var(--color-border) !important;
+    box-shadow: none !important;
+  }
 `
 
 const PresetCard = styled.div`
@@ -435,6 +441,11 @@ const PresetCardTags = styled.div`
   flex-direction: row;
   gap: 4px;
   flex-wrap: wrap;
+  margin-top: 4px;
+
+  .ant-tag {
+    border: none;
+  }
 `
 
 const PresetCardRight = styled.div`
@@ -443,10 +454,10 @@ const PresetCardRight = styled.div`
 `
 
 const PresetCardEmoji = styled.div`
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  font-size: 20px;
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  font-size: 24px;
   flex-shrink: 0;
   background-color: var(--color-background-soft);
   display: flex;
@@ -459,11 +470,11 @@ const PresetCardAddBtn = styled.div`
   position: absolute;
   top: 0;
   left: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background-color: var(--color-primary-soft);
-  color: var(--color-primary);
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  background-color: var(--color-background-mute);
+  color: var(--color-text-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -481,18 +492,10 @@ const PresetCardDesc = styled.div`
   overflow: hidden;
 `
 
-const StyledForm = styled.form`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+const AgentFormContainer = styled.div`
   padding: 0 16px;
   height: 55vh;
-`
-
-const FormFooter = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  overflow-y: auto;
 `
 
 export default class AddAssistantPopup {

@@ -13,15 +13,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const { TextArea } = Input
-
 const logger = loggerService.withContext('AgentForm')
 
 export const buildAgentForm = (existing?: AgentEntity & { tools?: unknown[] }): BaseAgentForm => ({
   type: existing?.type ?? 'claude-code',
   name: existing?.name ?? 'Agent',
   description: existing?.description,
-  instructions: existing?.instructions,
   model: existing?.model ?? '',
   accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
   allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
@@ -33,9 +30,11 @@ interface AgentFormProps {
   form: BaseAgentForm
   setForm: React.Dispatch<React.SetStateAction<BaseAgentForm>>
   agent?: AgentEntity
+  onSubmit?: () => void
+  loading?: boolean
 }
 
-const AgentForm: React.FC<AgentFormProps> = ({ form, setForm, agent }) => {
+const AgentForm: React.FC<AgentFormProps> = ({ form, setForm, agent, onSubmit, loading }) => {
   const { t } = useTranslation()
   const [gitBashPathInfo, setGitBashPathInfo] = useState<GitBashPathInfo>({ path: null, source: null })
 
@@ -128,16 +127,6 @@ const AgentForm: React.FC<AgentFormProps> = ({ form, setForm, agent }) => {
     [setForm]
   )
 
-  const onInstChange = useCallback(
-    (e: ChangeEvent<HTMLTextAreaElement>) => {
-      setForm((prev) => ({
-        ...prev,
-        instructions: e.target.value
-      }))
-    },
-    [setForm]
-  )
-
   const addAccessiblePath = useCallback(async () => {
     try {
       const selected = await window.api.file.selectFolder()
@@ -179,7 +168,6 @@ const AgentForm: React.FC<AgentFormProps> = ({ form, setForm, agent }) => {
       accessible_paths: form.accessible_paths.length > 0 ? form.accessible_paths : ['/'],
       allowed_tools: form.allowed_tools ?? [],
       description: form.description,
-      instructions: form.instructions,
       configuration: form.configuration,
       created_at: agent?.created_at ?? new Date().toISOString(),
       updated_at: agent?.updated_at ?? new Date().toISOString()
@@ -324,10 +312,13 @@ const AgentForm: React.FC<AgentFormProps> = ({ form, setForm, agent }) => {
         )}
       </FormItem>
 
-      <FormItem>
-        <Label>{t('common.prompt')}</Label>
-        <TextArea rows={2} value={form.instructions ?? ''} onChange={onInstChange} />
-      </FormItem>
+      {onSubmit && (
+        <FormItem>
+          <Button type="primary" variant="outlined" onClick={onSubmit} loading={loading} block>
+            {t('common.add')}
+          </Button>
+        </FormItem>
+      )}
     </FormContent>
   )
 }
@@ -340,17 +331,6 @@ const FormContent = styled.div`
   flex-direction: column;
   gap: 16px;
   flex: 1;
-  overflow-y: auto;
-  padding-right: 8px;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: var(--color-border);
-    border-radius: 3px;
-  }
 `
 
 const FormRow = styled.div`
