@@ -113,7 +113,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
       case 'client':
         // Clear client registration information
         // Note: This requires re-registration with the authorization server
-        await this.storage.saveClientInformation(undefined as any)
+        await this.storage.saveClientInformation(undefined)
         logger.info('Cleared OAuth client information')
         break
 
