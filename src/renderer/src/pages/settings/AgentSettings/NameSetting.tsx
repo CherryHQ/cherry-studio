@@ -1,7 +1,7 @@
+import { Input } from '@cherrystudio/ui'
 import { EmojiAvatarWithPicker } from '@renderer/components/Avatar/EmojiAvatarWithPicker'
 import type { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
 import { AgentConfigurationSchema, isAgentEntity, isAgentType } from '@renderer/types'
-import { Input } from 'antd'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
