@@ -18,9 +18,9 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { AISDKWebSearchResult, Citation, WebSearchProviderResponse } from '@renderer/types'
+import type { AISDKWebSearchResult, Citation, NormalToolResponse, WebSearchProviderResponse } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
-import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
+import type { CitationMessageBlock, MessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
@@ -324,6 +324,85 @@ export const selectFormattedCitationsByBlockId = createSelector([selectBlockEnti
   }
   return []
 })
+
+// --- Active TodoWrite Block Selector ---
+
+interface TodoItem {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed'
+  activeForm: string
+}
+
+interface TodoWriteToolInput {
+  todos: TodoItem[]
+}
+
+/**
+ * Check if todos have any incomplete items
+ */
+const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
+  todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
+
+/**
+ * Select the latest TodoWrite tool block with incomplete todos for a specific topic
+ * Used by PinnedTodoPanel to display current task progress above the inputbar
+ */
+export const selectLatestTodoWriteBlockForTopic = createSelector(
+  [
+    messageBlocksSelectors.selectAll,
+    (state: RootState) => state.messages.messageIdsByTopic,
+    (_state: RootState, topicId: string) => topicId
+  ],
+  (allBlocks, messageIdsByTopic, topicId): ToolMessageBlock | undefined => {
+    const topicMessageIds = messageIdsByTopic[topicId]
+    if (!topicMessageIds?.length) return undefined
+
+    const topicMessageIdSet = new Set(topicMessageIds)
+
+    for (let i = allBlocks.length - 1; i >= 0; i--) {
+      const block = allBlocks[i]
+      if (block.type !== MessageBlockType.TOOL || !topicMessageIdSet.has(block.messageId)) continue
+
+      const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
+      if (toolResponse?.tool?.name !== 'TodoWrite') continue
+
+      const todos = (toolResponse.arguments as TodoWriteToolInput | undefined)?.todos ?? []
+      if (hasIncompleteTodos(todos)) {
+        return block as ToolMessageBlock
+      }
+    }
+
+    return undefined
+  }
+)
+
+/**
+ * Select all TodoWrite tool block IDs for a specific topic
+ * Used by PinnedTodoPanel to delete all TodoWrite blocks when closing
+ */
+export const selectAllTodoWriteBlockIdsForTopic = createSelector(
+  [
+    messageBlocksSelectors.selectAll,
+    (state: RootState) => state.messages.messageIdsByTopic,
+    (_state: RootState, topicId: string) => topicId
+  ],
+  (allBlocks, messageIdsByTopic, topicId): { blockId: string; messageId: string }[] => {
+    const topicMessageIds = messageIdsByTopic[topicId]
+    if (!topicMessageIds?.length) return []
+
+    const topicMessageIdSet = new Set(topicMessageIds)
+    const result: { blockId: string; messageId: string }[] = []
+
+    for (const block of allBlocks) {
+      if (block.type !== MessageBlockType.TOOL || !topicMessageIdSet.has(block.messageId)) continue
+      const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
+      if (toolResponse?.tool?.name === 'TodoWrite') {
+        result.push({ blockId: block.id, messageId: block.messageId })
+      }
+    }
+    return result
+  }
+)
 
 // --- Selector Integration --- END
 

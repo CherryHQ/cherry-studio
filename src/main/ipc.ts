@@ -269,6 +269,21 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   )
 
+  ipcMain.handle(
+    IpcChannel.AgentMessage_RemoveBlock,
+    async (
+      _event,
+      { sessionId, messageId, blockId }: { sessionId: string; messageId: string; blockId: string }
+    ): Promise<boolean> => {
+      try {
+        return await agentMessageRepository.removeBlockFromMessage(sessionId, messageId, blockId)
+      } catch (error) {
+        logger.error('Failed to remove block from agent session message', error as Error)
+        throw error
+      }
+    }
+  )
+
   //only for mac
   if (isMac) {
     ipcMain.handle(IpcChannel.App_MacIsProcessTrusted, (): boolean => {
