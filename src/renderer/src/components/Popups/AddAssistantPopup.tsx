@@ -17,7 +17,7 @@ import { Button, Input, Modal, Tag } from 'antd'
 import { take } from 'lodash'
 import { Bot, MessageSquare } from 'lucide-react'
 import type { FormEvent } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -56,7 +56,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
   const inputRef = useRef<InputRef>(null)
   const systemPresets = useSystemAssistantPresets()
   const loadingRef = useRef(false)
-  const [selectedIndex, setSelectedIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const { setTimeoutTimer } = useTimer()
 
@@ -82,16 +81,12 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
         prompt: '',
         topics: [],
         type: 'assistant',
-        emoji: '\u2B50\uFE0F'
+        emoji: '⭐️'
       }
       return [newAgent, ...filtered]
     }
     return filtered
   }, [assistants, defaultAssistant, searchText, systemPresets, userPresets])
-
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [presets.length, searchText])
 
   const onCreateAssistant = useCallback(
     async (preset: AssistantPreset) => {
@@ -115,18 +110,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
     },
     [setTimeoutTimer, resolve, addAssistant]
   )
-
-  useEffect(() => {
-    if (containerRef.current) {
-      const presetItems = containerRef.current.querySelectorAll('.agent-item')
-      if (presetItems[selectedIndex]) {
-        presetItems[selectedIndex].scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest'
-        })
-      }
-    }
-  }, [selectedIndex])
 
   const onCancel = () => {
     setOpen(false)
@@ -276,12 +259,8 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
               style={{ marginBottom: 12, marginTop: 2, height: 36 }}
               variant="outlined"
             />
-            {take(presets, 100).map((preset, index) => (
-              <PresetCard
-                key={preset.id}
-                onClick={() => onCreateAssistant(preset)}
-                className="agent-item"
-                onMouseEnter={() => setSelectedIndex(index)}>
+            {take(presets, 100).map((preset) => (
+              <PresetCard key={preset.id} onClick={() => onCreateAssistant(preset)} className="agent-item">
                 <PresetCardBackground>{preset.emoji || ''}</PresetCardBackground>
                 <PresetCardHeader>
                   <PresetCardInfo>
