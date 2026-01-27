@@ -1,13 +1,9 @@
-import type { DragEndEvent, DragMoveEvent, DragStartEvent, UniqueIdentifier } from '@dnd-kit/core'
-import { closestCenter, DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
-import { horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Home, Plus, X } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Tab } from '../../hooks/useTabs'
 
@@ -21,6 +17,7 @@ type AppShellTabBarProps = {
   addTab: (tab: Tab) => void
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   detachTab?: (tabId: string) => void
+  attachTab?: (tab: Tab) => void
   /** 是否为分离窗口模式（隐藏 Home tab、"+" 按钮、close icon） */
   isDetached?: boolean
 }
@@ -58,7 +55,7 @@ const HomeTab = ({ isActive, onClick }: { isActive: boolean; onClick: () => void
   </button>
 )
 
-// Tab 内容渲染（供 SortableTabItem 和 DragOverlay 复用）
+// Tab 内容渲染
 const TabContent = ({
   tab,
   isActive,
@@ -112,39 +109,37 @@ const TabContent = ({
   </>
 )
 
-const SortableTabItem = ({
+// 原生拖拽的 Tab 项
+const DraggableTabItem = ({
   tab,
   isActive,
   onSelect,
   onClose,
-  showClose = true
+  showClose = true,
+  isDragging,
+  onDragStart,
+  tabRef
 }: {
   tab: Tab
   isActive: boolean
   onSelect: () => void
   onClose: () => void
   showClose?: boolean
+  isDragging: boolean
+  onDragStart: (e: React.DragEvent, tab: Tab) => void
+  tabRef: (el: HTMLButtonElement | null) => void
 }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0 : 1
-  }
-
   return (
     <button
-      ref={setNodeRef}
-      style={style}
+      ref={tabRef}
+      draggable
+      onDragStart={(e) => onDragStart(e, tab)}
       data-tab-id={tab.id}
-      {...attributes}
-      {...listeners}
       type="button"
       onClick={() => !isDragging && onSelect()}
       className={cn(
         '@container group relative flex h-full min-w-[40px] max-w-[200px] flex-1 cursor-grab items-center gap-2 px-3 py-0.5 [-webkit-app-region:no-drag]',
-        isDragging && 'cursor-grabbing',
+        isDragging && 'cursor-grabbing opacity-50',
         isActive
           ? 'rounded-t-xs bg-background text-foreground'
           : 'rounded-2xs text-foreground-secondary hover:bg-gray-500/10 hover:text-foreground'
@@ -154,27 +149,32 @@ const SortableTabItem = ({
   )
 }
 
-const SortablePinnedTab = ({ tab, isActive, onSelect }: { tab: Tab; isActive: boolean; onSelect: () => void }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id })
+// 原生拖拽的固定 Tab 项
+const DraggablePinnedTab = ({
+  tab,
+  isActive,
+  onSelect,
+  isDragging,
+  onDragStart
+}: {
+  tab: Tab
+  isActive: boolean
+  onSelect: () => void
+  isDragging: boolean
+  onDragStart: (e: React.DragEvent, tab: Tab) => void
+}) => {
   const fallback = tab.title.slice(0, 1).toUpperCase()
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0 : 1
-  }
 
   return (
     <button
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
+      draggable
+      onDragStart={(e) => onDragStart(e, tab)}
+      data-tab-id={tab.id}
       type="button"
       onClick={() => !isDragging && onSelect()}
       className={cn(
         'flex size-7 cursor-grab items-center justify-center rounded-[8px] p-1',
-        isDragging && 'cursor-grabbing',
+        isDragging && 'cursor-grabbing opacity-50',
         isActive ? 'hover:bg-background' : 'hover:bg-gray-500/10'
       )}
       title={tab.title}>
@@ -183,77 +183,13 @@ const SortablePinnedTab = ({ tab, isActive, onSelect }: { tab: Tab; isActive: bo
   )
 }
 
-const PinnedTabs = ({
-  tabs,
-  activeTabId,
-  setActiveTab,
-  onReorder
-}: {
-  tabs: Tab[]
-  activeTabId: string
-  setActiveTab: (id: string) => void
-  onReorder: (oldIndex: number, newIndex: number) => void
-}) => {
-  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
-  const activeTab = activeId ? tabs.find((t) => t.id === activeId) : null
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 }
-    })
-  )
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id)
-  }
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    setActiveId(null)
-    const { active, over } = event
-    if (over && active.id !== over.id) {
-      const oldIndex = tabs.findIndex((t) => t.id === active.id)
-      const newIndex = tabs.findIndex((t) => t.id === over.id)
-      onReorder(oldIndex, newIndex)
-    }
-  }
-
-  return (
-    <div className="flex shrink-0 items-center gap-[2px] rounded-[12px] border border-border px-[12px] py-[4px] [-webkit-app-region:no-drag]">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToHorizontalAxis]}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}>
-        <SortableContext items={tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-          {tabs.map((tab) => (
-            <SortablePinnedTab
-              key={tab.id}
-              tab={tab}
-              isActive={tab.id === activeTabId}
-              onSelect={() => setActiveTab(tab.id)}
-            />
-          ))}
-        </SortableContext>
-        <DragOverlay>
-          {activeTab ? (
-            <button
-              type="button"
-              className={cn(
-                'flex size-7 cursor-grabbing items-center justify-center rounded-[8px] p-1',
-                activeTab.id === activeTabId ? 'bg-background' : 'bg-gray-500/10'
-              )}
-              title={activeTab.title}>
-              <span className="flex size-5 items-center justify-center text-foreground/80">
-                {activeTab.icon || activeTab.title.slice(0, 1).toUpperCase()}
-              </span>
-            </button>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-    </div>
-  )
-}
+// 插入指示器
+const DropIndicator = ({ left }: { left: number }) => (
+  <div
+    className="pointer-events-none absolute top-0 z-50 h-full w-0.5 bg-primary"
+    style={{ left: `${left}px`, transform: 'translateX(-50%)' }}
+  />
+)
 
 export const AppShellTabBar = ({
   tabs,
@@ -263,6 +199,7 @@ export const AppShellTabBar = ({
   addTab,
   reorderTabs,
   detachTab,
+  attachTab,
   isDetached = false
 }: AppShellTabBarProps) => {
   const { homeTab, pinnedTabs, normalTabs } = useMemo(() => {
@@ -280,20 +217,190 @@ export const AppShellTabBar = ({
     return { homeTab: home, pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
 
-  const [activeNormalTabId, setActiveNormalTabId] = useState<UniqueIdentifier | null>(null)
-  const activeNormalTab = activeNormalTabId ? normalTabs.find((t) => t.id === activeNormalTabId) : null
+  // 拖拽状态
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null)
+  const [currentDragId, setCurrentDragId] = useState<string | null>(null)
+  const [isReceivingDrag, setIsReceivingDrag] = useState(false)
+  const [insertIndicatorLeft, setInsertIndicatorLeft] = useState<number | null>(null)
 
-  // 记录拖拽元素的宽度
-  const draggedWidthRef = useRef<number>(0)
-  // tabbar 容器 ref，用于检测拖出边界
+  // Refs
   const tabBarRef = useRef<HTMLDivElement>(null)
-  // 追踪拖拽位置（因为 onDragEnd 中 rect.translated 是 null）
-  const lastDragPositionRef = useRef<{ x: number; y: number } | null>(null)
+  const normalTabsContainerRef = useRef<HTMLDivElement>(null)
+  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 }
+  // 计算插入位置索引
+  const calculateInsertIndex = useCallback(
+    (clientX: number): number => {
+      for (let i = 0; i < normalTabs.length; i++) {
+        const el = tabRefs.current.get(normalTabs[i].id)
+        if (el) {
+          const rect = el.getBoundingClientRect()
+          if (clientX < rect.left + rect.width / 2) {
+            return i
+          }
+        }
+      }
+      return normalTabs.length
+    },
+    [normalTabs]
+  )
+
+  // 获取插入指示器的位置
+  const getIndicatorLeft = useCallback(
+    (insertIndex: number): number | null => {
+      if (normalTabs.length === 0) {
+        return normalTabsContainerRef.current?.getBoundingClientRect().left ?? null
+      }
+
+      if (insertIndex >= normalTabs.length) {
+        // 插入到末尾
+        const lastTab = tabRefs.current.get(normalTabs[normalTabs.length - 1].id)
+        if (lastTab) {
+          const rect = lastTab.getBoundingClientRect()
+          return rect.right
+        }
+      } else {
+        // 插入到某个 Tab 之前
+        const targetTab = tabRefs.current.get(normalTabs[insertIndex].id)
+        if (targetTab) {
+          const rect = targetTab.getBoundingClientRect()
+          return rect.left
+        }
+      }
+      return null
+    },
+    [normalTabs]
+  )
+
+  // 拖拽开始 - 发送到 Main Process
+  const handleDragStart = useCallback((e: React.DragEvent, tab: Tab) => {
+    e.preventDefault() // 阻止默认行为，让 startDrag 接管
+
+    setDraggedTabId(tab.id)
+
+    // 发送到 Main Process，触发 startDrag
+    window.electron.ipcRenderer.send(IpcChannel.Tab_DragStart, {
+      id: tab.id,
+      url: tab.url,
+      title: tab.title,
+      type: tab.type,
+      isPinned: tab.isPinned
     })
+  }, [])
+
+  // 拖拽结束
+  const handleDragEnd = useCallback(() => {
+    if (currentDragId) {
+      window.electron.ipcRenderer.send(IpcChannel.Tab_DragEnd, currentDragId)
+    }
+    setDraggedTabId(null)
+    setInsertIndicatorLeft(null)
+    setCurrentDragId(null)
+  }, [currentDragId])
+
+  // 容器 DragOver - 计算插入位置
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+
+      const insertIndex = calculateInsertIndex(e.clientX)
+      const indicatorLeft = getIndicatorLeft(insertIndex)
+      setInsertIndicatorLeft(indicatorLeft)
+    },
+    [calculateInsertIndex, getIndicatorLeft]
+  )
+
+  // DragLeave
+  const handleDragLeave = useCallback(() => {
+    setInsertIndicatorLeft(null)
+  }, [])
+
+  // Drop 处理
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+
+      const insertIndex = calculateInsertIndex(e.clientX)
+
+      // 通过 IPC 获取缓存的 Tab 数据
+      if (currentDragId) {
+        const tabData = await window.electron.ipcRenderer.invoke(IpcChannel.Tab_GetDragData, currentDragId)
+
+        if (tabData) {
+          // 判断是内部排序还是外部附加
+          const existingTab = normalTabs.find((t) => t.id === tabData.id)
+          if (existingTab) {
+            // 内部排序
+            const oldIndex = normalTabs.findIndex((t) => t.id === tabData.id)
+            if (oldIndex !== insertIndex && oldIndex !== insertIndex - 1) {
+              // 如果拖到自己后面，需要调整索引
+              const adjustedNewIndex = oldIndex < insertIndex ? insertIndex - 1 : insertIndex
+              reorderTabs('normal', oldIndex, adjustedNewIndex)
+            }
+          } else {
+            // 外部附加
+            attachTab?.(tabData)
+          }
+        }
+      }
+
+      setInsertIndicatorLeft(null)
+      setIsReceivingDrag(false)
+    },
+    [calculateInsertIndex, currentDragId, normalTabs, reorderTabs, attachTab]
+  )
+
+  // 监听外部拖拽进入（从其他窗口）
+  useEffect(() => {
+    const handleExternalDragStart = (_: unknown, data: { dragId: string; tab: Tab }) => {
+      setIsReceivingDrag(true)
+      setCurrentDragId(data.dragId)
+    }
+
+    const handleExternalDragEnd = () => {
+      setIsReceivingDrag(false)
+      setInsertIndicatorLeft(null)
+      setCurrentDragId(null)
+      setDraggedTabId(null)
+    }
+
+    const removeStartListener = window.electron.ipcRenderer.on(IpcChannel.Tab_DragStart, handleExternalDragStart)
+    const removeEndListener = window.electron.ipcRenderer.on(IpcChannel.Tab_DragEnd, handleExternalDragEnd)
+
+    return () => {
+      removeStartListener()
+      removeEndListener()
+    }
+  }, [])
+
+  // 处理本窗口发起的拖拽结束（dragend 事件）
+  const handleLocalDragEnd = useCallback(
+    (e: React.DragEvent) => {
+      // 检测是否拖出 tabbar 边界（创建新窗口）
+      const tabBarRect = tabBarRef.current?.getBoundingClientRect()
+      if (tabBarRect && draggedTabId) {
+        const isOutOfBounds = e.clientY < tabBarRect.top - 50 || e.clientY > tabBarRect.bottom + 50
+
+        if (isOutOfBounds && e.dataTransfer.dropEffect !== 'move') {
+          // 分离窗口模式：不创建新窗口，而是触发 attach
+          if (isDetached) {
+            const tab = normalTabs.find((t) => t.id === draggedTabId)
+            if (tab && attachTab) {
+              attachTab(tab)
+            }
+          } else {
+            // 主窗口：触发 detach（拖出到新窗口）
+            if (detachTab) {
+              detachTab(draggedTabId)
+            }
+          }
+        }
+      }
+
+      handleDragEnd()
+    },
+    [draggedTabId, normalTabs, isDetached, attachTab, detachTab, handleDragEnd]
   )
 
   const handleHomeClick = () => {
@@ -319,112 +426,61 @@ export const AppShellTabBar = ({
     })
   }
 
-  const handleNormalTabsDragStart = (event: DragStartEvent) => {
-    setActiveNormalTabId(event.active.id)
-    lastDragPositionRef.current = null
-    // 获取拖拽元素的实际宽度
-    const element = document.querySelector(`[data-tab-id="${event.active.id}"]`)
-    if (element) {
-      draggedWidthRef.current = element.getBoundingClientRect().width
-    }
-  }
-
-  const handleNormalTabsDragMove = (event: DragMoveEvent) => {
-    // 追踪拖拽位置
-    const { activatorEvent, delta } = event
-    if (activatorEvent instanceof PointerEvent) {
-      lastDragPositionRef.current = {
-        x: activatorEvent.clientX + delta.x,
-        y: activatorEvent.clientY + delta.y
-      }
-    }
-  }
-
-  const handleNormalTabsDragEnd = (event: DragEndEvent) => {
-    setActiveNormalTabId(null)
-    draggedWidthRef.current = 0
-    const { active, over } = event
-
-    // 检测是否拖出 tabbar 边界
-    if (tabBarRef.current && lastDragPositionRef.current && detachTab) {
-      const tabBarRect = tabBarRef.current.getBoundingClientRect()
-      const { y } = lastDragPositionRef.current
-
-      // 如果拖拽位置超出 tabbar 垂直范围，触发 detach
-      if (y < tabBarRect.top || y > tabBarRect.bottom) {
-        lastDragPositionRef.current = null
-        detachTab(active.id as string)
-        return
-      }
-    }
-
-    lastDragPositionRef.current = null
-
-    if (!over) {
-      return
-    }
-
-    if (active.id !== over.id) {
-      const oldIndex = normalTabs.findIndex((t) => t.id === active.id)
-      const newIndex = normalTabs.findIndex((t) => t.id === over.id)
-      reorderTabs('normal', oldIndex, newIndex)
-    }
-  }
-
   return (
     <header
       ref={tabBarRef}
       className={cn(
-        'flex h-10 w-full items-center gap-[4px] bg-neutral-100 [-webkit-app-region:drag] dark:bg-neutral-900',
+        'relative flex h-10 w-full items-center gap-[4px] bg-neutral-100 [-webkit-app-region:drag] dark:bg-neutral-900',
         isWin || isLinux ? 'pr-36' : 'pr-4',
-        isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-4'
+        isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-4',
+        isReceivingDrag && 'ring-2 ring-primary/50 ring-inset'
       )}>
       {!isDetached && <HomeTab isActive={activeTabId === HOME_TAB_ID} onClick={handleHomeClick} />}
 
       {pinnedTabs.length > 0 && (
-        <PinnedTabs
-          tabs={pinnedTabs}
-          activeTabId={activeTabId}
-          setActiveTab={setActiveTab}
-          onReorder={(oldIndex, newIndex) => reorderTabs('pinned', oldIndex, newIndex)}
-        />
+        <div className="flex shrink-0 items-center gap-[2px] rounded-[12px] border border-border px-[12px] py-[4px] [-webkit-app-region:no-drag]">
+          {pinnedTabs.map((tab) => (
+            <DraggablePinnedTab
+              key={tab.id}
+              tab={tab}
+              isActive={tab.id === activeTabId}
+              onSelect={() => setActiveTab(tab.id)}
+              isDragging={draggedTabId === tab.id}
+              onDragStart={handleDragStart}
+            />
+          ))}
+        </div>
       )}
 
-      <div className="flex h-full flex-1 flex-nowrap items-center gap-3 overflow-hidden">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleNormalTabsDragStart}
-          onDragMove={handleNormalTabsDragMove}
-          onDragEnd={handleNormalTabsDragEnd}>
-          <SortableContext items={normalTabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-            {normalTabs.map((tab) => (
-              <SortableTabItem
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onSelect={() => setActiveTab(tab.id)}
-                onClose={() => closeTab(tab.id)}
-                showClose={!isDetached}
-              />
-            ))}
-          </SortableContext>
-          <DragOverlay>
-            {activeNormalTab ? (
-              <button
-                type="button"
-                style={{ width: draggedWidthRef.current || 'auto' }}
-                className={cn(
-                  '@container group relative flex h-full cursor-grabbing items-center gap-2 px-3 py-0.5',
-                  activeNormalTab.id === activeTabId
-                    ? 'rounded-t-xs bg-background text-foreground'
-                    : 'rounded-2xs bg-gray-500/10 text-foreground-secondary'
-                )}>
-                <TabContent tab={activeNormalTab} isActive={activeNormalTab.id === activeTabId} isDragging />
-              </button>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+      <div
+        ref={normalTabsContainerRef}
+        className="relative flex h-full flex-1 flex-nowrap items-center gap-3 overflow-hidden"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}>
+        {normalTabs.map((tab) => (
+          <DraggableTabItem
+            key={tab.id}
+            tab={tab}
+            isActive={tab.id === activeTabId}
+            onSelect={() => setActiveTab(tab.id)}
+            onClose={() => closeTab(tab.id)}
+            showClose={!isDetached}
+            isDragging={draggedTabId === tab.id}
+            onDragStart={handleDragStart}
+            tabRef={(el) => {
+              if (el) {
+                tabRefs.current.set(tab.id, el)
+              } else {
+                tabRefs.current.delete(tab.id)
+              }
+            }}
+          />
+        ))}
+
+        {/* 插入指示器 */}
+        {insertIndicatorLeft !== null && <DropIndicator left={insertIndicatorLeft} />}
+
         {!isDetached && (
           <button
             type="button"
@@ -435,6 +491,13 @@ export const AppShellTabBar = ({
           </button>
         )}
       </div>
+
+      {/* 全局 dragend 监听 */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        onDragEnd={handleLocalDragEnd}
+        style={{ pointerEvents: draggedTabId ? 'auto' : 'none' }}
+      />
     </header>
   )
 }

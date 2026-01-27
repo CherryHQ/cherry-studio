@@ -1,12 +1,17 @@
 import '@renderer/databases'
 
+import { loggerService } from '@logger'
+import type { Tab } from '@renderer/hooks/useTabs'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { TabType } from '@shared/data/cache/cacheValueTypes'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Activity, useEffect, useRef } from 'react'
 
 import { AppShellTabBar } from '../../components/layout/AppShellTabBar'
 import { TabRouter } from '../../components/layout/TabRouter'
+
+const logger = loggerService.withContext('DetachedAppShell')
 
 // Mock Webview component (TODO: Replace with actual MinApp/Webview)
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
@@ -80,6 +85,24 @@ export const DetachedAppShell = () => {
     updateTab(tabId, { url, title: getDefaultRouteTitle(url) })
   }
 
+  // Attach tab back to main window
+  const handleAttachTab = async (tab: Tab) => {
+    try {
+      // Send IPC message to main window
+      await window.electron.ipcRenderer.invoke(IpcChannel.Tab_Attach, tab)
+
+      logger.info('Tab attached to main window', { tabId: tab.id, url: tab.url })
+
+      // Close tab in detached window (handles unpinning if needed)
+      handleCloseTab(tab.id)
+
+      // Detached window only has one tab, close it directly after attach
+      window.api.windowControls.close()
+    } catch (error) {
+      logger.error('Failed to attach tab', { tabId: tab.id, error })
+    }
+  }
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       {/* Zone 1: Tab Bar (Full width, no sidebar gap) */}
@@ -90,6 +113,7 @@ export const DetachedAppShell = () => {
         closeTab={handleCloseTab}
         addTab={addTab}
         reorderTabs={reorderTabs}
+        attachTab={handleAttachTab}
         isDetached={true}
       />
 

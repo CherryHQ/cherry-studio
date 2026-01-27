@@ -4,8 +4,9 @@ import { TabLRUManager } from '@renderer/services/TabLRUManager'
 import { uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('TabsContext')
 
@@ -60,6 +61,9 @@ export interface TabsContextValue {
 
   // Detach
   detachTab: (tabId: string) => void
+
+  // Attach (from detached window)
+  attachTab: (tabData: Tab) => void
 }
 
 const TabsContext = createContext<TabsContextValue | null>(null)
@@ -370,13 +374,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       if (!tab) return
 
       // Send IPC message to create new window
-      window.electron.ipcRenderer.send('tab:detach', {
-        tabId: tab.id,
-        url: tab.url,
-        title: tab.title,
-        type: tab.type,
-        isPinned: tab.isPinned
-      })
+      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, tab)
 
       // Close tab in current window
       // If it's a pinned tab, we unpin it first to remove it from the list
@@ -405,6 +403,50 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     },
     [tabs, closeTab, setPinnedTabs] // setPinnedTabs added to deps
   )
+
+  /**
+   * Attach a tab from detached window
+   */
+  const attachTab = useCallback(
+    (tabData: Tab) => {
+      // Check if tab already exists
+      const exists = tabs.find((t) => t.id === tabData.id)
+      if (exists) {
+        setActiveTab(tabData.id)
+        logger.info('Tab already exists, activating', { tabId: tabData.id })
+        return
+      }
+
+      // Restore tab with updated timestamp
+      const restoredTab: Tab = {
+        ...tabData,
+        lastAccessTime: Date.now(),
+        isDormant: false
+      }
+
+      // Add to appropriate storage
+      if (restoredTab.isPinned) {
+        setPinnedTabs((prev) => [...prev, restoredTab])
+      } else {
+        setNormalTabs((prev) => [...prev, restoredTab])
+      }
+
+      setActiveTabIdState(restoredTab.id)
+      logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
+    },
+    [tabs, setActiveTab, setPinnedTabs]
+  )
+
+  // Listen for tab attach requests (from Main Process)
+  useEffect(() => {
+    if (!window.electron?.ipcRenderer) return
+
+    const handleAttachRequest = (_event: any, tabData: Tab) => {
+      attachTab(tabData)
+    }
+
+    return window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
+  }, [attachTab])
 
   /**
    * Get the currently active tab
@@ -436,6 +478,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
     // Detach
     detachTab,
+
+    // Attach
+    attachTab,
 
     // Drag and drop
     reorderTabs
