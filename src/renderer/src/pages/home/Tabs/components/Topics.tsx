@@ -36,7 +36,7 @@ import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
-import { findIndex } from 'lodash'
+import findIndex from 'lodash/findIndex'
 import {
   BrushCleaning,
   CheckSquare,
