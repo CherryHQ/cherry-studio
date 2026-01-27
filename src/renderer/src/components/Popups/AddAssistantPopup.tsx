@@ -210,7 +210,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
           padding: 0
         }
       }}
-      width={520}
+      width={650}
       footer={null}>
       {showModeSwitch && (
         <ModeSelector>
