@@ -310,13 +310,14 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   if (provider.id === SystemProviderIds.dashscope) {
-    // For now, only deepseek and glm need to use enable_thinking to control thinking
+    // For dashscope: Qwen, DeepSeek, and GLM models use enable_thinking to control thinking
     // No effort, only on/off
     if (isQwenReasoningModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
       return {
         enable_thinking: true,
         thinking_budget: budgetTokens,
-        // NOTE: seems incremental_output is not needed anymore?
+        // incremental_output is required for DashScope SDK to enable streaming output
+        // (not needed when using OpenAI-compatible API)
         incremental_output: true
       }
     }
