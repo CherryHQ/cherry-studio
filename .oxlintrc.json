@@ -20,7 +20,8 @@
     "src/main/integration/nutstore/sso/lib/**",
     "src/renderer/src/ui/**",
     "packages/**/dist",
-    "eslint.config.mjs"
+    "eslint.config.mjs",
+    "v2-refactor-temp/**"
   ],
   "overrides": [
     {

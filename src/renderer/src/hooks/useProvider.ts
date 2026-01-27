@@ -1,7 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit'
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { getDefaultProvider } from '@renderer/services/AssistantService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addModel,
   addProvider,
@@ -13,12 +13,43 @@ import {
 } from '@renderer/store/llm'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
+import { withoutTrailingSlash } from '@renderer/utils/api'
+import { useMemo } from 'react'
 
 import { useDefaultModel } from './useAssistant'
 
-const selectEnabledProviders = createSelector(
-  (state) => state.llm.providers,
-  (providers) => providers.filter((p) => p.enabled).concat(CHERRYAI_PROVIDER)
+/**
+ * Normalizes provider apiHost by removing trailing slashes.
+ * This ensures consistent URL concatenation across the application.
+ */
+function normalizeProvider<T extends Provider>(provider: T): T {
+  return {
+    ...provider,
+    apiHost: withoutTrailingSlash(provider.apiHost)
+  }
+}
+
+const selectProviders = (state: RootState) => state.llm.providers
+
+const selectEnabledProviders = createSelector(selectProviders, (providers) =>
+  providers
+    .map(normalizeProvider)
+    .filter((p) => p.enabled)
+    .concat(CHERRYAI_PROVIDER)
+)
+
+const selectSystemProviders = createSelector(selectProviders, (providers) =>
+  providers.filter((p) => isSystemProvider(p)).map(normalizeProvider)
+)
+
+const selectUserProviders = createSelector(selectProviders, (providers) =>
+  providers.filter((p) => !isSystemProvider(p)).map(normalizeProvider)
+)
+
+const selectAllProviders = createSelector(selectProviders, (providers) => providers.map(normalizeProvider))
+
+const selectAllProvidersWithCherryAI = createSelector(selectProviders, (providers) =>
+  [...providers, CHERRYAI_PROVIDER].map(normalizeProvider)
 )
 
 export function useProviders() {
@@ -35,21 +66,20 @@ export function useProviders() {
 }
 
 export function useSystemProviders() {
-  return useAppSelector((state) => state.llm.providers.filter((p) => isSystemProvider(p)))
+  return useAppSelector(selectSystemProviders)
 }
 
 export function useUserProviders() {
-  return useAppSelector((state) => state.llm.providers.filter((p) => !isSystemProvider(p)))
+  return useAppSelector(selectUserProviders)
 }
 
 export function useAllProviders() {
-  return useAppSelector((state) => state.llm.providers)
+  return useAppSelector(selectAllProviders)
 }
 
 export function useProvider(id: string) {
-  const provider =
-    useAppSelector((state) => state.llm.providers.concat([CHERRYAI_PROVIDER]).find((p) => p.id === id)) ||
-    getDefaultProvider()
+  const allProviders = useAppSelector(selectAllProvidersWithCherryAI)
+  const provider = useMemo(() => allProviders.find((p) => p.id === id) || getDefaultProvider(), [allProviders, id])
   const dispatch = useAppDispatch()
 
   return {

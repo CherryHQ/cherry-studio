@@ -56,8 +56,6 @@ type QuotaResponse = {
 export default class MineruPreprocessProvider extends BasePreprocessProvider {
   constructor(provider: PreprocessProvider, userId?: string) {
     super(provider, userId)
-    // TODO: remove after free period ends
-    this.provider.apiKey = this.provider.apiKey || import.meta.env.MAIN_VITE_MINERU_API_KEY
   }
 
   public async parseFile(
@@ -65,6 +63,10 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     file: FileMetadata
   ): Promise<{ processedFile: FileMetadata; quota: number }> {
     try {
+      if (!this.provider.apiKey) {
+        throw new Error('MinerU API key is required')
+      }
+
       const filePath = fileStorage.getFilePathById(file)
       logger.info(`MinerU preprocess processing started: ${filePath}`)
       await this.validateFile(filePath)
@@ -96,6 +98,10 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
   public async checkQuota() {
     try {
+      if (!this.provider.apiKey) {
+        throw new Error('MinerU API key is required')
+      }
+
       const quota = await net.fetch(`${this.provider.apiHost}/api/v4/quota`, {
         method: 'GET',
         headers: {

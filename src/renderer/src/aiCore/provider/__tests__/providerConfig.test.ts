@@ -174,8 +174,9 @@ describe('Copilot responses routing', () => {
     const config = providerToAiSdkConfig(provider, createModel('gpt-5-codex', 'GPT-5-CODEX'))
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
-    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_EDITOR_VERSION)
-    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
+    // Headers are normalized to lowercase by mergeHeaders
+    expect(config.options.headers?.['editor-version']).toBe(COPILOT_EDITOR_VERSION)
+    expect(config.options.headers?.['copilot-integration-id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
     expect(config.options.headers?.['copilot-vision-request']).toBe('true')
   })
 
@@ -184,8 +185,9 @@ describe('Copilot responses routing', () => {
     const config = providerToAiSdkConfig(provider, createModel('gpt-4'))
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
-    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
-    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
+    // Headers are normalized to lowercase by mergeHeaders
+    expect(config.options.headers?.['editor-version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
+    expect(config.options.headers?.['copilot-integration-id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
   })
 })
 

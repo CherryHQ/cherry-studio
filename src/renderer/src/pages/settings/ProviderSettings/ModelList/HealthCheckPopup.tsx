@@ -3,7 +3,7 @@ import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import type { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
+import { Divider, InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
 import { Alert } from 'antd'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -142,7 +142,6 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
           <Segmented
             value={keyCheckMode}
             onChange={(value) => dispatch({ type: 'SET_KEY_CHECK_MODE', payload: value as 'single' | 'all' })}
-            size="small"
             options={[
               { value: 'single', label: t('settings.models.check.single') },
               { value: 'all', label: t('settings.models.check.all') }
@@ -154,7 +153,6 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
           <Segmented
             value={isConcurrent ? 'enabled' : 'disabled'}
             onChange={(value) => dispatch({ type: 'SET_CONCURRENT', payload: value === 'enabled' })}
-            size="small"
             options={[
               { value: 'disabled', label: t('settings.models.check.disabled') },
               { value: 'enabled', label: t('settings.models.check.enabled') }
@@ -168,8 +166,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
             onChange={(value) => dispatch({ type: 'SET_TIMEOUT_SECONDS', payload: value || 15 })}
             min={5}
             max={60}
-            size="small"
-            className="w-[90px]"
+            style={{ width: 110 }}
             addonAfter="s"
           />
         </Flex>
@@ -193,6 +190,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
       footer={(_, { OkBtn, CancelBtn }) => (
         <>
           {renderFooter}
+          <Divider />
           <Flex className="mt-4 justify-between">
             <div /> {/* Empty div for spacing */}
             <Flex className="gap-2">
@@ -203,11 +201,10 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
         </>
       )}>
       <Alert
-        message={t('common.warning')}
         description={t('settings.models.check.disclaimer')}
         type="warning"
         showIcon
-        className="text-xs"
+        style={{ fontSize: 12, padding: 10, marginTop: 10 }}
       />
 
       {/* API key selection section - only shown for 'single' mode and multiple keys */}

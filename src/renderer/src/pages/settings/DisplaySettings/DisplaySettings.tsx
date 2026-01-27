@@ -5,10 +5,11 @@ import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
 import TextBadge from '@renderer/components/TextBadge'
-import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
+import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
@@ -61,10 +62,12 @@ const DisplaySettings: FC = () => {
   const [showTopicTime, setShowTopicTime] = usePreference('topic.tab.show_time')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [fontSize] = usePreference('chat.message.font_size')
+  const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
 
   const { navbarPosition, setNavbarPosition } = useNavbarPosition()
   const { theme, settedTheme, setTheme } = useTheme()
   const { t } = useTranslation()
+  const { setTimeoutTimer } = useTimer()
   const [currentZoom, setCurrentZoom] = useState(1.0)
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
@@ -78,6 +81,26 @@ const DisplaySettings: FC = () => {
     },
     [setWindowStyle]
   )
+
+  const handleUseSystemTitleBarChange = (checked: boolean) => {
+    window.modal.confirm({
+      title: t('settings.use_system_title_bar.confirm.title'),
+      content: t('settings.use_system_title_bar.confirm.content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk() {
+        setUseSystemTitleBar(checked)
+        setTimeoutTimer(
+          'handleUseSystemTitleBarChange',
+          () => {
+            window.api.relaunchApp()
+          },
+          500
+        )
+      }
+    })
+  }
 
   const handleColorPrimaryChange = useCallback(
     (colorHex: string) => {
@@ -247,6 +270,15 @@ const DisplaySettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
               <Switch checked={windowStyle === 'transparent'} onCheckedChange={handleWindowStyleChange} />
+            </SettingRow>
+          </>
+        )}
+        {isLinux && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.use_system_title_bar.title')}</SettingRowTitle>
+              <Switch checked={useSystemTitleBar} onCheckedChange={handleUseSystemTitleBarChange} />
             </SettingRow>
           </>
         )}

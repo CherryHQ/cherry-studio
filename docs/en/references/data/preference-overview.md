@@ -168,3 +168,8 @@ For detailed code examples and API usage, see [Preference Usage Guide](./prefere
 | Write single   | `setPreference(value)`      | `preferenceService.set(key, value)`        |
 | Read multiple  | `usePreferences([...keys])` | `preferenceService.getMultiple([...keys])` |
 | Write multiple | -                           | `preferenceService.setMultiple({...})`     |
+
+## Related Documentation
+
+- [Preference Schema Guide](./preference-schema-guide.md) - Adding new preference keys
+- [Preference Usage Guide](./preference-usage.md) - Hooks and service API

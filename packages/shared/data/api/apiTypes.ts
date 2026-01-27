@@ -9,6 +9,49 @@
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
 // ============================================================================
+// Success Status Codes
+// ============================================================================
+
+/**
+ * Success status code constants (avoid magic numbers)
+ */
+export const SuccessStatus = {
+  /** 200 OK - Request succeeded */
+  OK: 200,
+  /** 201 Created - Resource created successfully */
+  CREATED: 201,
+  /** 202 Accepted - Async task accepted, will be processed later */
+  ACCEPTED: 202,
+  /** 204 No Content - Success with no response body */
+  NO_CONTENT: 204
+} as const
+
+/**
+ * Success status code type (derived from constants, type-safe)
+ */
+export type SuccessStatusCode = (typeof SuccessStatus)[keyof typeof SuccessStatus]
+
+/**
+ * Handler result type:
+ * - Return data T directly (uses auto-inferred status code)
+ * - Return { data, status } object (uses custom status code)
+ */
+export type HandlerResult<T> = T | { data: T; status: SuccessStatusCode }
+
+/**
+ * Type guard: check if result is custom status format
+ */
+export function isCustomStatusResult<T>(result: unknown): result is { data: T; status: SuccessStatusCode } {
+  return (
+    result !== null &&
+    typeof result === 'object' &&
+    'status' in result &&
+    typeof (result as Record<string, unknown>).status === 'number' &&
+    Object.values(SuccessStatus).includes((result as Record<string, unknown>).status as SuccessStatusCode)
+  )
+}
+
+// ============================================================================
 // Schema Constraint Types
 // ============================================================================
 
@@ -472,6 +515,10 @@ type HasRequiredParams<Path extends ApiPaths, Method extends ApiMethods<Path>> =
  * Handler function for a specific API endpoint
  * Provides type-safe parameter extraction based on ApiSchemas
  * Parameters are required or optional based on the schema definition
+ *
+ * Handler can return:
+ * - Data directly (T) - status code will be auto-inferred
+ * - { data: T, status: SuccessStatusCode } - custom status code
  */
 export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>> = (
   params: (HasRequiredParams<Path, Method> extends true
@@ -481,7 +528,7 @@ export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>> =
       ? { query: ApiQuery<Path, Method> }
       : { query?: ApiQuery<Path, Method> }) &
     (HasRequiredBody<Path, Method> extends true ? { body: ApiBody<Path, Method> } : { body?: ApiBody<Path, Method> })
-) => Promise<ApiResponse<Path, Method>>
+) => Promise<HandlerResult<ApiResponse<Path, Method>>>
 
 /**
  * Complete API implementation that must match ApiSchemas structure

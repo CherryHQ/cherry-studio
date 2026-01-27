@@ -68,7 +68,8 @@ export default defineConfig([
       'src/main/integration/nutstore/sso/lib/**',
       'src/renderer/src/ui/**',
       'src/renderer/src/routeTree.gen.ts',
-      'packages/**/dist'
+      'packages/**/dist',
+      'v2-refactor-temp/**'
     ]
   },
   // turn off oxlint supported rules.
@@ -86,7 +87,7 @@ export default defineConfig([
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:
-            '❗CherryStudio uses unified LoggerService: 📖 docs/technical/how-to-use-logger-en.md\n❗CherryStudio 使用统一的日志服务：📖 docs/technical/how-to-use-logger-zh.md\n\n'
+            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n❗CherryStudio 使用统一的日志服务：📖 docs/zh/guides/logging.md\n\n'
         }
       ]
     }

@@ -86,8 +86,8 @@ export const useHealthStatus = ({ results, showLatency = false }: UseHealthStatu
                 {t('settings.provider.api.key.check.latency')}: {formatLatency(result.latency)}
               </div>
             )}
-            {result.error && result.status === HealthStatus.FAILED && (
-              <div style={{ marginTop: 2 }}>{result.error}</div>
+            {result.status === HealthStatus.FAILED && result.error?.message && (
+              <div style={{ marginTop: 2 }}>{result.error.message}</div>
             )}
           </li>
         )

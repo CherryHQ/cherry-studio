@@ -1,6 +1,7 @@
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
+import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -89,6 +90,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
+  const listRef = useRef<DraggableVirtualListRef>(null)
 
   // 管理模式状态
   const manageState = useTopicManageMode()
@@ -175,10 +177,46 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
 
   const onPinTopic = useCallback(
     (topic: Topic) => {
+      let newIndex = 0
+
+      if (topic.pinned) {
+        // 取消固定：将话题移到未固定话题的顶部
+        const pinnedTopics = assistant.topics.filter((t) => t.pinned)
+        const unpinnedTopics = assistant.topics.filter((t) => !t.pinned)
+
+        // 构建新顺序：其他固定话题 + 取消固定的话题(移到顶部) + 其他未固定话题
+        const reorderedTopics = [
+          ...pinnedTopics.filter((t) => t.id !== topic.id), // 其他固定话题
+          topic, // 取消固定的话题移到顶部
+          ...unpinnedTopics // 其他未固定话题
+        ]
+
+        newIndex = pinnedTopics.length - 1 // 最后一个固定话题的索引 + 1 = 第一个未固定的索引
+        updateTopics(reorderedTopics)
+      } else {
+        // 固定话题：移到固定区域顶部
+        const pinnedTopics = assistant.topics.filter((t) => t.pinned)
+        const unpinnedTopics = assistant.topics.filter((t) => !t.pinned)
+
+        const reorderedTopics = [
+          topic, // 新固定的话题移到顶部
+          ...pinnedTopics, // 其他固定话题
+          ...unpinnedTopics.filter((t) => t.id !== topic.id) // 其他未固定话题（排除 topic）
+        ]
+
+        newIndex = 0
+        updateTopics(reorderedTopics)
+      }
+
       const updatedTopic = { ...topic, pinned: !topic.pinned }
       updateTopic(updatedTopic)
+
+      // 延迟滚动到话题位置（等待渲染完成）
+      setTimeout(() => {
+        listRef.current?.scrollToIndex(newIndex, { align: 'auto' })
+      }, 50)
     },
-    [updateTopic]
+    [assistant.topics, updateTopic, updateTopics]
   )
 
   const onDeleteTopic = useCallback(
@@ -548,6 +586,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   return (
     <>
       <DraggableVirtualList
+        ref={listRef}
         className="topics-tab"
         list={filteredTopics}
         onUpdate={updateTopics}
@@ -682,7 +721,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                   </TopicPromptText>
                 )}
                 {showTopicTime && (
-                  <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
+                  <TopicTime className="time">{dayjs(topic.createdAt).format('YYYY/MM/DD HH:mm')}</TopicTime>
                 )}
               </TopicListItem>
             </Dropdown>
@@ -891,7 +930,8 @@ const HeaderRow = styled.div`
   align-items: center;
   gap: 6px;
   padding-right: 10px;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
+  margin-top: 2px;
 `
 
 const HeaderIconButton = styled.div`

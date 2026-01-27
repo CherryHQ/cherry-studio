@@ -44,32 +44,30 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
     resolve()
   }
 
-  const items = (
-    [
-      {
-        key: 'essential',
-        label: t('agent.settings.essential')
-      },
-      {
-        key: 'prompt',
-        label: t('agent.settings.prompt')
-      },
-      {
-        key: 'tooling',
-        label: t('agent.settings.tooling.tab', 'Tooling & permissions')
-      },
-      {
-        key: 'plugins',
-        label: t('agent.settings.plugins.tab', 'Plugins')
-      },
-      {
-        key: 'advanced',
-        label: t('agent.settings.advance.title', 'Advanced Settings')
-      }
-    ] as const satisfies { key: AgentSettingPopupTab; label: string }[]
-  ).filter(Boolean)
+  const items = [
+    {
+      key: 'essential',
+      label: t('agent.settings.essential')
+    },
+    {
+      key: 'prompt',
+      label: t('agent.settings.prompt')
+    },
+    {
+      key: 'tooling',
+      label: t('agent.settings.tooling.tab', 'Tooling & permissions')
+    },
+    {
+      key: 'plugins',
+      label: t('agent.settings.plugins.tab', 'Plugins')
+    },
+    {
+      key: 'advanced',
+      label: t('agent.settings.advance.title', 'Advanced Settings')
+    }
+  ] as const satisfies { key: AgentSettingPopupTab; label: string }[]
 
-  const ModalContent = () => {
+  const renderModalContent = () => {
     if (isLoading) {
       // TODO: use skeleton for better ux
       return (
@@ -146,7 +144,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       }}
       width="min(800px, 70vw)"
       centered>
-      <ModalContent />
+      {renderModalContent()}
     </StyledModal>
   )
 }

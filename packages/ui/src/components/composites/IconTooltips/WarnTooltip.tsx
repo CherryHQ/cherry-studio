@@ -1,19 +1,12 @@
-// Original path: src/renderer/src/components/TooltipIcons/WarnTooltip.tsx
 import { AlertTriangle } from 'lucide-react'
 
-import { Tooltip } from '../../primitives/tooltip'
+import { IconTooltip } from './IconTooltip'
 import type { IconTooltipProps } from './types'
 
-export const WarnTooltip = ({ iconProps, ...rest }: IconTooltipProps) => {
-  return (
-    <Tooltip {...rest}>
-      <AlertTriangle
-        size={iconProps?.size ?? 14}
-        color={iconProps?.color ?? 'var(--color-status-warning)'}
-        role="img"
-        aria-label="Warning"
-        {...iconProps}
-      />
-    </Tooltip>
-  )
+/**
+ * A tooltip with a warning icon.
+ * Used for displaying warnings or cautions.
+ */
+export const WarnTooltip = (props: IconTooltipProps) => {
+  return <IconTooltip icon={AlertTriangle} ariaLabel="Warning" defaultColor="var(--color-status-warning)" {...props} />
 }

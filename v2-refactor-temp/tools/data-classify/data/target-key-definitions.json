@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
+    "lastUpdated": "2025-01-18"
+  },
+  "definitions": [
+    {
+      "targetKey": "app.window.position.x",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "pending",
+      "description": "Window X position (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "app.window.position.y",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "pending",
+      "description": "Window Y position (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "app.window.size.width",
+      "type": "number",
+      "defaultValue": 800,
+      "status": "pending",
+      "description": "Window width (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "app.window.size.height",
+      "type": "number",
+      "defaultValue": 600,
+      "status": "pending",
+      "description": "Window height (from complex mapping) - Example, not active"
+    }
+  ]
+}

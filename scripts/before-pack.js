@@ -11,18 +11,24 @@ const workspaceConfigPath = path.join(__dirname, '..', 'pnpm-workspace.yaml')
 const packages = [
   '@img/sharp-darwin-arm64',
   '@img/sharp-darwin-x64',
-  '@img/sharp-linux-arm64',
-  '@img/sharp-linux-x64',
-  '@img/sharp-win32-arm64',
-  '@img/sharp-win32-x64',
   '@img/sharp-libvips-darwin-arm64',
   '@img/sharp-libvips-darwin-x64',
   '@img/sharp-libvips-linux-arm64',
+  '@img/sharp-libvips-linuxmusl-arm64',
   '@img/sharp-libvips-linux-x64',
+  '@img/sharp-libvips-linuxmusl-x64',
+  '@img/sharp-linux-arm64',
+  '@img/sharp-linux-x64',
+  '@img/sharp-linuxmusl-arm64',
+  '@img/sharp-linuxmusl-x64',
+  '@img/sharp-win32-arm64',
+  '@img/sharp-win32-x64',
   '@libsql/darwin-arm64',
   '@libsql/darwin-x64',
   '@libsql/linux-arm64-gnu',
   '@libsql/linux-x64-gnu',
+  '@libsql/linux-arm64-musl',
+  '@libsql/linux-x64-musl',
   '@libsql/win32-x64-msvc',
   '@napi-rs/system-ocr-darwin-arm64',
   '@napi-rs/system-ocr-darwin-x64',
@@ -34,7 +40,8 @@ const packages = [
 const platformToArch = {
   mac: 'darwin',
   windows: 'win32',
-  linux: 'linux'
+  linux: 'linux',
+  linuxmusl: 'linuxmusl'
 }
 
 exports.default = async function (context) {
