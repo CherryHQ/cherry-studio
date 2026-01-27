@@ -3,6 +3,7 @@ export { Avatar, AvatarGroup, type AvatarProps, EmojiAvatar } from './primitives
 export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
 export { default as CopyButton } from './primitives/copyButton'
 export { default as CustomTag } from './primitives/customTag'
+export { Divider, type DividerProps } from './primitives/divider'
 export { default as DividerWithText } from './primitives/dividerWithText'
 export { default as EmojiIcon } from './primitives/emojiIcon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/ErrorBoundary'
