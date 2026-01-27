@@ -15,7 +15,7 @@ import { cn } from '@renderer/utils'
 import type { InputRef } from 'antd'
 import { Button, Input, Modal, Tag } from 'antd'
 import { take } from 'lodash'
-import { Bot, MessageSquare } from 'lucide-react'
+import { Bot, MessageSquare, Plus } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -284,7 +284,12 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
                       {preset.id === 'new' && <Tag color="green">{t('assistants.presets.tag.new')}</Tag>}
                     </PresetCardTags>
                   </PresetCardInfo>
-                  <PresetCardEmoji>{preset.emoji || ''}</PresetCardEmoji>
+                  <PresetCardRight>
+                    <PresetCardEmoji>{preset.emoji || ''}</PresetCardEmoji>
+                    <PresetCardAddBtn className="add-btn">
+                      <Plus size={16} />
+                    </PresetCardAddBtn>
+                  </PresetCardRight>
                 </PresetCardHeader>
               </PresetCard>
             ))}
@@ -373,6 +378,18 @@ const PresetCard = styled.div`
   transition:
     box-shadow 0.2s ease,
     background-color 0.2s ease;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+
+    ${() => PresetCardEmoji} {
+      opacity: 0;
+    }
+
+    .add-btn {
+      opacity: 1;
+    }
+  }
 `
 
 const PresetCardBackground = styled.div`
@@ -420,6 +437,11 @@ const PresetCardTags = styled.div`
   flex-wrap: wrap;
 `
 
+const PresetCardRight = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`
+
 const PresetCardEmoji = styled.div`
   width: 36px;
   height: 36px;
@@ -430,6 +452,23 @@ const PresetCardEmoji = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: opacity 0.2s ease;
+`
+
+const PresetCardAddBtn = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: var(--color-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 `
 
 const PresetCardDesc = styled.div`
