@@ -2,6 +2,7 @@ import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystud
 import { HelpTooltip } from '@cherrystudio/ui'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
+import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
@@ -21,7 +22,7 @@ import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@render
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, validateApiHost } from '@renderer/utils'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { serializeHealthCheckError } from '@renderer/utils/error'
 import {
   isAIGatewayProvider,
   isAnthropicProvider,
@@ -129,6 +130,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     status: HealthStatus.NOT_CHECKED,
     checking: false
   })
+  const [showErrorModal, setShowErrorModal] = useState(false)
 
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
@@ -263,13 +265,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         },
         3000
       )
-    } catch (error: any) {
+    } catch (error: unknown) {
       window.toast.error({
         timeout: 8000,
         title: i18n.t('message.api.connection.failed')
       })
 
-      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: formatErrorMessage(error) }))
+      const serializedError = serializeHealthCheckError(error)
+
+      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: serializedError }))
     } finally {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: false }))
     }
@@ -298,7 +302,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     if (isAzureOpenAIProvider(provider)) {
       const apiVersion = provider.apiVersion || ''
       const path = !['preview', 'v1'].includes(apiVersion)
-        ? `/v1/chat/completion?apiVersion=v1`
+        ? `/v1/chat/completions?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`
       return formattedApiHost + path
     }
@@ -329,10 +333,20 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     return (
-      <WarnTooltip
-        content={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}
-        iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
-      />
+      <>
+        <WarnTooltip
+          content={
+            <ErrorOverlay>{apiKeyConnectivity.error?.message || t('settings.models.check.failed')}</ErrorOverlay>
+          }
+          iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
+          onClick={() => setShowErrorModal(true)}
+        />
+        <ErrorDetailModal
+          open={showErrorModal}
+          onClose={() => setShowErrorModal(false)}
+          error={apiKeyConnectivity.error}
+        />
+      </>
     )
   }
 

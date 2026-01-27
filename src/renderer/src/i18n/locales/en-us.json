@@ -2226,14 +2226,18 @@
     "drop_markdown_hint": "Drop .md files or folders here to import",
     "empty": "No notes available yet",
     "expand": "unfold",
+    "exportToWord": "Export to Word",
     "export_failed": "Failed to export to knowledge base",
     "export_knowledge": "Export notes to knowledge base",
     "export_success": "Successfully exported to the knowledge base",
+    "export_to_word_failed": "Failed to export to Word",
     "folder": "folder",
     "new_folder": "New Folder",
     "new_note": "Create a new note",
     "no_content_to_copy": "No content to copy",
+    "no_content_to_export": "No content to export",
     "no_file_selected": "Please select the file to upload",
+    "no_note_selected": "Please select a note first",
     "no_valid_files": "No valid file was uploaded",
     "open_folder": "Open an external folder",
     "open_outside": "Open from external",
@@ -4219,9 +4223,6 @@
       "title": "Message Settings",
       "use_serif_font": "Use serif font"
     },
-    "mineru": {
-      "api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key."
-    },
     "miniapps": {
       "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
       "cache_description": "Set the maximum number of active mini apps to keep in memory",
@@ -4942,6 +4943,13 @@
       "onclose": "Minimize to Tray on Close",
       "show": "Show Tray Icon",
       "title": "Tray"
+    },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",
+        "title": "Restart Required"
+      },
+      "title": "Use System Title Bar (Linux)"
     },
     "zoom": {
       "reset": "Reset",

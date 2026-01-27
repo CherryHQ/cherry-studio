@@ -275,7 +275,7 @@
         "denyRequest": "Refuză cererea instrumentului",
         "hideDetails": "Ascunde detaliile instrumentului",
         "runWithOptions": "Rulează cu opțiuni suplimentare",
-        "showDetails": "Arată detaliile instrumentului"
+        "showDetails": "Afișează detaliile instrumentului"
       },
       "button": {
         "cancel": "Anulează",
@@ -378,7 +378,7 @@
     "about": "Despre",
     "close": "Închide fereastra",
     "copy": "Copiază",
-    "cut": "Taie",
+    "cut": "Decupează",
     "delete": "Șterge",
     "documentation": "Documentație",
     "edit": "Editare",
@@ -401,7 +401,7 @@
     "toggleDevTools": "Comută instrumentele pentru dezvoltatori",
     "toggleFullscreen": "Comută ecranul complet",
     "undo": "Anulează",
-    "unhide": "Arată toate",
+    "unhide": "Afișează toate",
     "view": "Vizualizare",
     "website": "Site web",
     "window": "Fereastră",
@@ -649,7 +649,7 @@
     "manage": "Gestionează",
     "select_model": "Selectează modelul",
     "show": {
-      "all": "Arată tot"
+      "all": "Afișează tot"
     },
     "update_available": "Actualizare disponibilă",
     "whole_word": "Cuvânt întreg"
@@ -975,7 +975,7 @@
       },
       "reset": "Resetează",
       "set_as_default": "Aplică la asistentul implicit",
-      "show_line_numbers": "Arată numerele de linie în cod",
+      "show_line_numbers": "Afișează numerele liniilor de cod",
       "temperature": {
         "label": "Temperatură",
         "tip": "Valorile mai mari fac modelul mai creativ și imprevizibil, în timp ce valorile mai mici îl fac mai determinist și precis."
@@ -1134,7 +1134,7 @@
     "model": "Model",
     "model_placeholder": "Selectează modelul de utilizat",
     "model_required": "Te rugăm să selectezi un model",
-    "select_folder": "Selectează folderul",
+    "select_folder": "Selectează dosarul",
     "set_custom_path": "Setează calea personalizată a terminalului",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
@@ -1191,7 +1191,7 @@
     "agent_one": "Agent",
     "agent_other": "Agenți",
     "and": "și",
-    "assistant": "Agent",
+    "assistant": "Asistent",
     "assistant_one": "Asistent",
     "assistant_other": "Asistenți",
     "avatar": "Avatar",
@@ -1208,7 +1208,7 @@
     "copy": "Copiază",
     "copy_failed": "Copiere eșuată",
     "current": "Curent",
-    "cut": "Taie",
+    "cut": "Decupează",
     "default": "Implicit",
     "delete": "Șterge",
     "delete_confirm": "Ești sigur că vrei să ștergi?",
@@ -1222,10 +1222,10 @@
     "duplicate": "Duplică",
     "edit": "Editează",
     "enabled": "Activat",
-    "error": "eroare",
+    "error": "Eroare",
     "errors": {
       "create_message": "Nu s-a putut crea mesajul",
-      "validation": "Verificarea a eșuat"
+      "validation": "Validarea a eșuat"
     },
     "expand": "Extinde",
     "file": {
@@ -1611,7 +1611,7 @@
       "title": "Setări bază de cunoștințe"
     },
     "sitemap_added": "Adăugat cu succes",
-    "sitemap_placeholder": "Introdu URL-ul hărții site-ului",
+    "sitemap_placeholder": "Introdu URL-ul sitemap-ului",
     "sitemaps": "Site-uri web",
     "source": "Sursă",
     "status": "Stare",
@@ -1623,7 +1623,7 @@
     "status_pending": "În așteptare",
     "status_preprocess_completed": "Preprocesare finalizată",
     "status_preprocess_failed": "Preprocesare eșuată",
-    "status_processing": "Se procesează",
+    "status_processing": "În procesare",
     "subtitle_file": "fișier subtitrare",
     "threshold": "Prag de potrivire",
     "threshold_placeholder": "Nesetat",
@@ -1633,9 +1633,9 @@
     "topN": "Număr rezultate returnate",
     "topN_placeholder": "Nesetat",
     "topN_too_large_or_small": "Numărul de rezultate returnate nu poate fi mai mare de 30 sau mai mic de 1.",
-    "topN_tooltip": "Numărul de rezultate potrivite returnate; cu cât valoarea este mai mare, cu atât mai multe rezultate, dar și mai mulți tokeni consumați.",
+    "topN_tooltip": "Numărul de rezultate potrivite returnate; cu cât valoarea este mai mare, cu atât mai multe rezultate, dar și un consum mai mare de tokeni.",
     "url_added": "URL adăugat",
-    "url_placeholder": "Introdu URL, separă URL-urile multiple prin Enter",
+    "url_placeholder": "Introdu URL-ul; separă mai multe URL-uri prin Enter",
     "urls": "URL-uri",
     "videos": "video",
     "videos_file": "fișier video"
@@ -1760,7 +1760,7 @@
     "switch_user_confirm": "Schimbi contextul de utilizator la {{user}}?",
     "time": "Timp",
     "title": "Amintiri",
-    "total_memories": "total amintiri",
+    "total_memories": "Total amintiri",
     "try_different_filters": "Încearcă să ajustezi criteriile de căutare",
     "update_failed": "Nu s-a putut actualiza amintirea",
     "update_success": "Amintire actualizată cu succes",
@@ -1779,7 +1779,7 @@
     "user_memories_reset": "Toate amintirile pentru {{user}} au fost resetate",
     "user_switch_failed": "Nu s-a putut schimba utilizatorul",
     "user_switched": "Contextul de utilizator a fost schimbat la {{user}}",
-    "users": "utilizatori"
+    "users": "Utilizatori"
   },
   "message": {
     "agents": {
@@ -2196,7 +2196,7 @@
   "navbar": {
     "expand": "Extinde dialogul",
     "hide_sidebar": "Ascunde bara laterală",
-    "show_sidebar": "Arată bara laterală",
+    "show_sidebar": "Afișează bara laterală",
     "window": {
       "close": "Închide",
       "maximize": "Maximizează",
@@ -2216,27 +2216,31 @@
     },
     "characters": "Caractere",
     "collapse": "Restrânge",
-    "content_placeholder": "Te rugăm să introduci conținutul notiței...",
+    "content_placeholder": "Introdu conținutul notiței...",
     "copyContent": "Copiază conținutul",
     "crossPlatformRestoreWarning": "Configurația multi-platformă a fost restaurată, dar directorul de notițe este gol. Te rugăm să copiezi fișierele notițelor în: {{path}}",
-    "delete": "șterge",
+    "delete": "Șterge",
     "delete_confirm": "Ești sigur că vrei să ștergi acest {{type}}?",
     "delete_folder_confirm": "Ești sigur că vrei să ștergi dosarul \"{{name}}\" și tot conținutul său?",
     "delete_note_confirm": "Ești sigur că vrei să ștergi notița \"{{name}}\"?",
     "drop_markdown_hint": "Trage fișiere sau dosare .md aici pentru a importa",
     "empty": "Încă nu există notițe disponibile",
-    "expand": "desfășoară",
+    "expand": "Extinde",
+    "exportToWord": "Exportă în Word",
     "export_failed": "Exportul în baza de cunoștințe a eșuat",
     "export_knowledge": "Exportă notițele în baza de cunoștințe",
     "export_success": "Exportat cu succes în baza de cunoștințe",
-    "folder": "dosar",
+    "export_to_word_failed": "Exportul în Word a eșuat",
+    "folder": "Dosar",
     "new_folder": "Dosar nou",
     "new_note": "Creează o notiță nouă",
     "no_content_to_copy": "Niciun conținut de copiat",
+    "no_content_to_export": "Niciun conținut de exportat",
     "no_file_selected": "Te rugăm să selectezi fișierul de încărcat",
+    "no_note_selected": "Te rog selectează mai întâi o notă",
     "no_valid_files": "Nu a fost încărcat niciun fișier valid",
     "open_folder": "Deschide un dosar extern",
-    "open_outside": "Deschide din exterior",
+    "open_outside": "Deschide extern",
     "rename": "Redenumește",
     "rename_changed": "Din cauza politicilor de securitate, numele fișierului a fost schimbat din {{original}} în {{final}}",
     "save": "Salvează în Notițe",
@@ -2246,7 +2250,7 @@
       "found_results": "S-au găsit {{count}} rezultate (Nume: {{nameCount}}, Conținut: {{contentCount}})",
       "more_matches": "mai multe potriviri",
       "searching": "Se caută...",
-      "show_less": "Arată mai puțin"
+      "show_less": "Afișează mai puțin"
     },
     "settings": {
       "data": {
@@ -2275,7 +2279,7 @@
         "font_size_small": "Mic",
         "font_title": "Setări font",
         "serif_font": "Font cu serife",
-        "show_table_of_contents": "Arată cuprinsul",
+        "show_table_of_contents": "Afișează cuprinsul",
         "show_table_of_contents_description": "Afișează o bară laterală cu cuprinsul pentru o navigare ușoară în documente",
         "title": "Setări afișare"
       },
@@ -2297,7 +2301,7 @@
       },
       "title": "Notițe"
     },
-    "show_starred": "Arată notițele favorite",
+    "show_starred": "Afișează notițele favorite",
     "sort_a2z": "Nume fișier (A-Z)",
     "sort_created_asc": "Ora creării (cele mai vechi întâi)",
     "sort_created_desc": "Ora creării (cele mai noi întâi)",
@@ -2948,7 +2952,7 @@
         "opacity": "Opacitate fereastră",
         "original_copy": "Copiază originalul",
         "original_hide": "Ascunde originalul",
-        "original_show": "Arată originalul",
+        "original_show": "Afișează originalul",
         "pin": "Fixează",
         "pinned": "Fixat",
         "r_regenerate": "R: Regenerează"
@@ -3046,7 +3050,7 @@
             "windows": "Unele aplicații nu acceptă selectarea textului cu tasta Ctrl. Dacă ai remapat tasta Ctrl folosind instrumente precum AHK, acest lucru poate cauza eșecul selecției textului în unele aplicații."
           },
           "selected": "Selecție",
-          "selected_note": "Arată bara de instrumente imediat ce textul este selectat",
+          "selected_note": "Afișează bara de instrumente la selectarea textului",
           "shortcut": "Comandă rapidă",
           "shortcut_link": "Mergi la Setările comenzilor rapide",
           "shortcut_note": "După selecție, folosește comanda rapidă pentru a afișa bara de instrumente. Te rugăm să setezi comanda rapidă în pagina de setări și să o activezi. ",
@@ -3441,7 +3445,7 @@
         },
         "show_model_provider": {
           "help": "Afișează furnizorul modelului (de ex., OpenAI, Gemini) la exportul în Markdown",
-          "title": "Arată furnizorul modelului"
+          "title": "Afișează furnizorul modelului"
         },
         "standardize_citations": {
           "help": "Când este activat, marcatorii de citare vor fi convertiți în format standard de notă de subsol Markdown [^1], iar listele de citare vor fi formatate.",
@@ -3826,22 +3830,22 @@
         "disabled": "Ascunde pictograme",
         "empty": "Trage funcția ascunsă din partea stângă aici",
         "files": {
-          "icon": "Arată pictograma Fișiere"
+          "icon": "Afișează pictograma Fișiere"
         },
         "knowledge": {
-          "icon": "Arată pictograma Cunoștințe"
+          "icon": "Afișează pictograma Cunoștințe"
         },
         "minapp": {
-          "icon": "Arată pictograma MinApp"
+          "icon": "Afișează pictograma MinApp"
         },
         "painting": {
-          "icon": "Arată pictograma Pictură"
+          "icon": "Afișează pictograma Imagini"
         },
         "title": "Setări bară laterală",
         "translate": {
-          "icon": "Arată pictograma Traducere"
+          "icon": "Afișează pictograma Traducere"
         },
-        "visible": "Arată pictograme"
+        "visible": "Afișează pictograme"
       },
       "title": "Setări afișare",
       "topic": {
@@ -3917,7 +3921,7 @@
         "knowledge_base": "Golește bazele de cunoștințe selectate",
         "models": "Golește toate modelele"
       },
-      "show_translate_confirm": "Arată dialogul de confirmare a traducerii",
+      "show_translate_confirm": "Afișează fereastra de confirmare a traducerii",
       "target_language": {
         "chinese": "Chineză simplificată",
         "chinese-traditional": "Chineză tradițională",
@@ -4184,7 +4188,7 @@
     },
     "messages": {
       "divider": {
-        "label": "Arată divizor între mesaje",
+        "label": "Afișează divizor între mesaje",
         "tooltip": "Nu se aplică mesajelor stil bulă"
       },
       "grid_columns": "Coloane afișare grilă mesaje",
@@ -4200,7 +4204,7 @@
         "paste_long_text_as_file": "Lipește text lung ca fișier",
         "paste_long_text_threshold": "Lungime lipire text lung",
         "send_shortcuts": "Comenzi rapide trimitere",
-        "show_estimated_tokens": "Arată tokeni estimați",
+        "show_estimated_tokens": "Afișează numărul estimat de tokeni",
         "title": "Setări intrare"
       },
       "markdown_rendering_input_message": "Randare Markdown mesaj intrare",
@@ -4214,13 +4218,10 @@
         "label": "Bară navigare",
         "none": "Niciunul"
       },
-      "prompt": "Arată prompt",
-      "show_message_outline": "Arată contur mesaj",
+      "prompt": "Afișează prompt",
+      "show_message_outline": "Afișează conturul mesajului",
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
-    },
-    "mineru": {
-      "api_key": "Mineru oferă acum o cotă zilnică gratuită de 500 de pagini și nu este nevoie să introduci o cheie."
     },
     "miniapps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
@@ -4262,10 +4263,10 @@
       "display_title": "Setări afișare mini-aplicații",
       "empty": "Trage mini-aplicațiile din stânga pentru a le ascunde",
       "open_link_external": {
-        "title": "Deschide linkurile de fereastră nouă în browser"
+        "title": "Deschide în browser linkurile care deschid ferestre noi"
       },
       "reset_tooltip": "Resetează la implicit",
-      "sidebar_description": "Arată mini-aplicațiile active în bara laterală",
+      "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
       "sidebar_title": "Afișare mini-aplicații active în bara laterală",
       "title": "Setări mini-aplicații",
       "visible": "Mini-aplicații vizibile"
@@ -4362,7 +4363,7 @@
         "description": "Model folosit pentru sarcini simple, cum ar fi numirea subiectelor și extragerea cuvintelor cheie",
         "label": "Model rapid",
         "setting_title": "Configurare model rapid",
-        "tooltip": "Se recomandă alegerea unui model ușor și nu se recomandă alegerea unui model de gândire."
+        "tooltip": "Se recomandă alegerea unui model ușor, nu a unui model de raționament complex."
       },
       "topic_naming": {
         "auto": "Numire automată subiect",
@@ -4702,7 +4703,7 @@
     },
     "shortcuts": {
       "action": "Acțiune",
-      "actions": "operațiune",
+      "actions": "Comandă",
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
       "copy_last_message": "Copiază ultimul mesaj",
@@ -4721,7 +4722,7 @@
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
       "selection_assistant_select_text": "Asistent de selecție: Selectează text",
       "selection_assistant_toggle": "Comută Asistentul de selecție",
-      "show_app": "Arată/Ascunde aplicația",
+      "show_app": "Afișează/Ascunde aplicația",
       "show_settings": "Deschide setările",
       "title": "Comenzi rapide de la tastatură",
       "toggle_new_context": "Șterge contextul",
@@ -4733,8 +4734,8 @@
     },
     "theme": {
       "color_primary": "Culoare primară",
-      "dark": "Întunecat",
-      "light": "Luminos",
+      "dark": "Întunecată",
+      "light": "Luminoasă",
       "system": "Sistem",
       "title": "Temă",
       "window": {
@@ -4890,27 +4891,27 @@
         "right": "Dreapta"
       },
       "show": {
-        "time": "Arată ora subiectului"
+        "time": "Afișează ora subiectului"
       }
     },
     "translate": {
       "custom": {
         "delete": {
-          "description": "Ești sigur că vrei să ștergi?",
+          "description": "Ești sigur că vrei să ștergi această limbă?",
           "title": "Șterge limba personalizată"
         },
         "error": {
           "add": "Adăugarea a eșuat",
           "delete": "Ștergerea a eșuat",
           "langCode": {
-            "builtin": "Limba are suport integrat",
-            "empty": "Codul limbii este gol",
+            "builtin": "Limbă deja integrată",
+            "empty": "Codul limbii lipsește",
             "exists": "Limba există deja",
             "invalid": "Cod limbă invalid"
           },
           "update": "Actualizarea a eșuat",
           "value": {
-            "empty": "Numele limbii nu poate fi gol",
+            "empty": "Numele limbii este obligatoriu",
             "too_long": "Numele limbii este prea lung"
           }
         },
@@ -4920,13 +4921,13 @@
           "placeholder": "en-us"
         },
         "success": {
-          "add": "Adăugat cu succes",
-          "delete": "Șters cu succes",
-          "update": "Actualizare reușită"
+          "add": "Adăugată cu succes",
+          "delete": "Ștearsă cu succes",
+          "update": "Actualizată cu succes"
         },
         "table": {
           "action": {
-            "title": "Operațiune"
+            "title": "Acțiuni"
           }
         },
         "value": {
@@ -4940,8 +4941,15 @@
     },
     "tray": {
       "onclose": "Minimizează în zona de notificare la închidere",
-      "show": "Arată pictograma în zona de notificare",
+      "show": "Afișează pictograma în zona de notificare",
       "title": "Zonă de notificare"
+    },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "Schimbarea stilului barei de titlu necesită repornirea aplicației pentru a intra în vigoare. Doriți să reporniți acum?",
+        "title": "Repornire necesară"
+      },
+      "title": "Folosește bara de titlu a sistemului (Linux)"
     },
     "zoom": {
       "reset": "Resetează",
@@ -4958,7 +4966,7 @@
     "mcp-servers": "Servere MCP",
     "memories": "Amintiri",
     "notes": "Notițe",
-    "paintings": "Picturi",
+    "paintings": "Imagini",
     "settings": "Setări",
     "store": "Bibliotecă asistenți",
     "translate": "Traducere"
@@ -5002,7 +5010,7 @@
     "detect": {
       "method": {
         "algo": {
-          "label": "algoritm",
+          "label": "Algoritm",
           "tip": "Folosește biblioteca franc pentru detectarea limbii"
         },
         "auto": {
@@ -5109,7 +5117,7 @@
   "tray": {
     "quit": "Ieșire",
     "show_mini_window": "Asistent rapid",
-    "show_window": "Arată fereastra"
+    "show_window": "Afișează fereastra"
   },
   "update": {
     "install": "Instalează",
@@ -5125,7 +5133,7 @@
   "words": {
     "knowledgeGraph": "Grafic de cunoștințe",
     "quit": "Ieșire",
-    "show_window": "Arată fereastra",
+    "show_window": "Afișează fereastra",
     "visualization": "Vizualizare"
   }
 }

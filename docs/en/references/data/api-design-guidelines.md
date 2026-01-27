@@ -144,6 +144,7 @@ Use standard HTTP status codes consistently:
 |--------|-------|---------|
 | 200 OK | Successful GET/PUT/PATCH | Return updated resource |
 | 201 Created | Successful POST | Return created resource |
+| 202 Accepted | Async task accepted | Return task reference |
 | 204 No Content | Successful DELETE | No body |
 | 400 Bad Request | Invalid request format | Malformed JSON |
 | 400 Invalid Operation | Business rule violation | Delete root without cascade, cycle creation |
@@ -157,6 +158,87 @@ Use standard HTTP status codes consistently:
 | 500 Internal Error | Server error | Unexpected failure |
 | 503 Service Unavailable | Service temporarily down | Maintenance mode |
 | 504 Timeout | Request timed out | Long-running operation |
+
+### Success Status Constants
+
+Use the `SuccessStatus` constants to avoid magic numbers:
+
+```typescript
+import { SuccessStatus } from '@shared/data/api/apiTypes'
+
+SuccessStatus.OK          // 200 - Request succeeded
+SuccessStatus.CREATED     // 201 - Resource created
+SuccessStatus.ACCEPTED    // 202 - Async task accepted
+SuccessStatus.NO_CONTENT  // 204 - Success with no body
+```
+
+### Handler Status Code Behavior
+
+**Automatic Inference (Default)**
+
+The API server automatically infers status codes based on HTTP method:
+
+| Method | Default Status | Condition |
+|--------|----------------|-----------|
+| POST | 201 Created | Always |
+| DELETE | 204 No Content | When handler returns `undefined` |
+| DELETE | 200 OK | When handler returns data |
+| GET/PUT/PATCH | 200 OK | Always |
+
+```typescript
+// Status codes are inferred automatically - no extra code needed
+'/topics': {
+  POST: async ({ body }) => {
+    return await topicService.create(body)  // Returns 201
+  }
+},
+
+'/topics/:id': {
+  GET: async ({ params }) => {
+    return await topicService.getById(params.id)  // Returns 200
+  },
+
+  DELETE: async ({ params }) => {
+    await topicService.delete(params.id)
+    return undefined  // Returns 204
+  }
+}
+```
+
+**Custom Status Codes**
+
+Override the default by returning `{ data, status }`:
+
+```typescript
+import { SuccessStatus } from '@shared/data/api/apiTypes'
+
+'/async-tasks': {
+  POST: async ({ body }) => {
+    const task = await taskService.createAsync(body)
+    return { data: task, status: SuccessStatus.ACCEPTED }  // Returns 202
+  }
+},
+
+'/topics/:id': {
+  DELETE: async ({ params }) => {
+    const deleted = await topicService.delete(params.id)
+    return { data: deleted, status: SuccessStatus.OK }  // Returns 200 with data
+  }
+}
+```
+
+**Type Safety**
+
+Custom status codes are type-safe - only valid `SuccessStatusCode` values are allowed:
+
+```typescript
+// ✅ Valid
+return { data: result, status: SuccessStatus.CREATED }
+return { data: result, status: SuccessStatus.ACCEPTED }
+
+// ❌ Compile error - 999 is not a valid SuccessStatusCode
+return { data: result, status: 999 }
+```
 
 ## Error Response Format
 

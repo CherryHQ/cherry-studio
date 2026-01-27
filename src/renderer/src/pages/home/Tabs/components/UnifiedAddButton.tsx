@@ -60,7 +60,7 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setAct
   }
 
   return (
-    <div className="-mt-[4px] mb-[6px]">
+    <div className="-mt-[2px] mb-[6px]">
       <AddButton onClick={handleAddButtonClick} className="">
         {t('chat.add.assistant.title')}
       </AddButton>

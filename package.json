@@ -3,6 +3,7 @@
   "version": "2.0.0-alpha",
   "private": true,
   "description": "A powerful AI assistant for producer.",
+  "desktopName": "CherryStudio.desktop",
   "main": "./out/main/index.js",
   "author": "support@cherry-ai.com",
   "homepage": "https://github.com/CherryHQ/cherry-studio",
@@ -33,7 +34,6 @@
     "agents:push": "NODE_ENV='development' drizzle-kit push --config src/main/services/agents/drizzle.config.ts",
     "agents:studio": "NODE_ENV='development' drizzle-kit studio --config src/main/services/agents/drizzle.config.ts",
     "agents:drop": "NODE_ENV='development' drizzle-kit drop --config src/main/services/agents/drizzle.config.ts",
-    "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true pnpm build",
     "analyze:main": "VISUALIZER_MAIN=true pnpm build",
     "typecheck": "concurrently -n \"node,web\" -c \"cyan,magenta\" \"npm run typecheck:node\" \"npm run typecheck:web\"",
@@ -59,7 +59,7 @@
     "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format:check",
     "format": "biome format --write && biome lint --write",
     "format:check": "biome format && biome lint",
-    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && prek install",
     "claude": "dotenv -e .env -- claude",
     "db:migrations:generate": "drizzle-kit generate --config ./migrations/sqlite-drizzle.config.ts",
     "release:aicore:alpha": "pnpm --filter @cherrystudio/ai-core version prerelease --preid alpha && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag alpha --access public",
@@ -152,6 +152,7 @@
     "@floating-ui/dom": "1.7.3",
     "@google/genai": "1.0.1",
     "@hello-pangea/dnd": "^18.0.1",
+    "@j178/prek": "^0.2.28",
     "@langchain/community": "^1.0.0",
     "@langchain/core": "1.0.2",
     "@langchain/openai": "1.0.0",
@@ -317,7 +318,6 @@
     "html-to-image": "^1.11.13",
     "html-to-text": "^9.0.5",
     "htmlparser2": "^10.0.0",
-    "husky": "^9.1.7",
     "i18next": "^23.11.5",
     "iconv-lite": "^0.6.3",
     "ipaddr.js": "^2.2.0",
@@ -330,7 +330,6 @@
     "katex": "0.16.22",
     "ky": "1.8.1",
     "linguist-languages": "^8.1.0",
-    "lint-staged": "^15.5.0",
     "lodash": "^4.17.21",
     "lru-cache": "^11.1.0",
     "lucide-react": "^0.525.0",
@@ -437,7 +436,8 @@
       "@img/sharp-linux-x64": "0.34.3",
       "@img/sharp-win32-x64": "0.34.3",
       "@langchain/core": "1.0.2",
-      "@ai-sdk/openai-compatible@1.0.27": "1.0.28"
+      "@ai-sdk/openai-compatible@1.0.27": "1.0.28",
+      "@ai-sdk/openai-compatible@1.0.30": "1.0.28"
     },
     "patchedDependencies": {
       "@napi-rs/system-ocr@1.0.2": "patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",
@@ -457,10 +457,12 @@
       "file-stream-rotator@0.6.1": "patches/file-stream-rotator-npm-0.6.1-eab45fb13d.patch",
       "libsql@0.4.7": "patches/libsql-npm-0.4.7-444e260fb1.patch",
       "pdf-parse@1.1.1": "patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
-      "@ai-sdk/openai-compatible@1.0.28": "patches/@ai-sdk-openai-compatible-npm-1.0.28-5705188855.patch",
-      "@anthropic-ai/claude-agent-sdk@0.1.76": "patches/@anthropic-ai__claude-agent-sdk@0.1.76.patch"
+      "@ai-sdk/openai-compatible@1.0.28": "patches/@ai-sdk__openai-compatible@1.0.28.patch",
+      "@anthropic-ai/claude-agent-sdk@0.1.76": "patches/@anthropic-ai__claude-agent-sdk@0.1.76.patch",
+      "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch"
     },
     "onlyBuiltDependencies": [
+      "@j178/prek",
       "@kangfenmao/keyv-storage",
       "@paymoapp/electron-shutdown-handler",
       "@scarf/scarf",
@@ -478,30 +480,27 @@
     ]
   },
   "packageManager": "pnpm@10.27.0",
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
-      "biome format --write --no-errors-on-unmatched",
-      "eslint --fix"
-    ],
-    "*.{json,yml,yaml,css,html}": [
-      "biome format --write --no-errors-on-unmatched"
-    ]
-  },
   "optionalDependencies": {
     "@img/sharp-darwin-arm64": "0.34.3",
     "@img/sharp-darwin-x64": "0.34.3",
     "@img/sharp-libvips-darwin-arm64": "1.2.0",
     "@img/sharp-libvips-darwin-x64": "1.2.0",
     "@img/sharp-libvips-linux-arm64": "1.2.0",
+    "@img/sharp-libvips-linuxmusl-arm64": "1.2.0",
     "@img/sharp-libvips-linux-x64": "1.2.0",
+    "@img/sharp-libvips-linuxmusl-x64": "1.2.0",
     "@img/sharp-linux-arm64": "0.34.3",
     "@img/sharp-linux-x64": "0.34.3",
+    "@img/sharp-linuxmusl-arm64": "0.34.3",
+    "@img/sharp-linuxmusl-x64": "0.34.3",
     "@img/sharp-win32-arm64": "0.34.3",
     "@img/sharp-win32-x64": "0.34.3",
     "@libsql/darwin-arm64": "0.4.7",
     "@libsql/darwin-x64": "0.4.7",
     "@libsql/linux-arm64-gnu": "0.4.7",
     "@libsql/linux-x64-gnu": "0.4.7",
+    "@libsql/linux-arm64-musl": "0.4.7",
+    "@libsql/linux-x64-musl": "0.4.7",
     "@libsql/win32-x64-msvc": "0.4.7",
     "@napi-rs/system-ocr-darwin-arm64": "1.0.2",
     "@napi-rs/system-ocr-darwin-x64": "1.0.2",
