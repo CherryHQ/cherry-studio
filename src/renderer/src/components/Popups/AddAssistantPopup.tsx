@@ -14,7 +14,7 @@ import { uuid } from '@renderer/utils'
 import type { InputRef } from 'antd'
 import { Input, Modal } from 'antd'
 import { take } from 'lodash'
-import { Bot, Check, MessageSquare, Plus } from 'lucide-react'
+import { Bot, MessageSquare, Plus } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -218,11 +218,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
         <ModeSelector>
           <ModeCard $active={mode === 'assistant'} onClick={() => setMode('assistant')}>
             <ModeIconWrapper $active={mode === 'assistant'}>
-              {mode === 'assistant' ? (
-                <Check size={20} className="text-[var(--color-primary)]" />
-              ) : (
-                <MessageSquare size={20} className="text-[var(--color-icon-white)]" />
-              )}
+              <MessageSquare
+                size={20}
+                className={mode === 'assistant' ? 'text-[var(--color-primary)]' : 'text-[var(--color-icon-white)]'}
+              />
             </ModeIconWrapper>
             <ModeCardContent>
               <ModeCardTitle>{t('common.assistant_one')}</ModeCardTitle>
@@ -231,11 +230,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
           </ModeCard>
           <ModeCard $active={mode === 'agent'} onClick={() => setMode('agent')}>
             <ModeIconWrapper $active={mode === 'agent'}>
-              {mode === 'agent' ? (
-                <Check size={20} className="text-[var(--color-primary)]" />
-              ) : (
-                <Bot size={20} className="text-[var(--color-icon-white)]" />
-              )}
+              <Bot
+                size={20}
+                className={mode === 'agent' ? 'text-[var(--color-primary)]' : 'text-[var(--color-icon-white)]'}
+              />
             </ModeIconWrapper>
             <ModeCardContent>
               <ModeCardTitle>{t('common.agent')}</ModeCardTitle>
