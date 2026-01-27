@@ -309,6 +309,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
   }
 
+  // https://help.aliyun.com/zh/model-studio/deep-thinking
   if (provider.id === SystemProviderIds.dashscope) {
     // For dashscope: Qwen, DeepSeek, and GLM models use enable_thinking to control thinking
     // No effort, only on/off
@@ -316,8 +317,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return {
         enable_thinking: true,
         thinking_budget: budgetTokens,
-        // incremental_output is required for DashScope SDK to enable streaming output
-        // (not needed when using OpenAI-compatible API)
+        // According to docs, incremental_output seems required for DashScope SDK to enable streaming output
+        // and not needed when using OpenAI-compatible API.
+        // But idk if it's really required even if we're actually using openai.
         incremental_output: true
       }
     }
