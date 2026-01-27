@@ -11,8 +11,8 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useDrag } from '@renderer/hooks/useDrag'
+import { useFileProcess } from '@renderer/hooks/useFileProcessors'
 import { useFiles } from '@renderer/hooks/useFiles'
-import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -21,10 +21,10 @@ import { saveTranslateHistory, translateText } from '@renderer/services/Translat
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 // import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
-import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import {
   type AutoDetectionMethod,
-  isSupportedOcrFile,
+  isImageFileMetadata,
   type Model,
   type TranslateHistory,
   type TranslateLanguage
@@ -68,7 +68,7 @@ const TranslatePage: FC = () => {
   const { autoCopy } = settings
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
-  const { ocr } = useOcr()
+  const { processFile: processFileForOcr } = useFileProcess()
   const { setTimeoutTimer } = useTimer()
 
   // states
@@ -545,18 +545,18 @@ const TranslatePage: FC = () => {
   )
 
   const ocrFile = useCallback(
-    async (file: SupportedOcrFile) => {
-      const ocrResult = await ocr(file)
-      setText(text + ocrResult.text)
+    async (file: FileMetadata) => {
+      const ocrResult = await processFileForOcr(file, 'text_extraction')
+      setText(text + (ocrResult.text || ''))
     },
-    [ocr, setText, text]
+    [processFileForOcr, setText, text]
   )
 
   // 统一的文件处理
   const processFile = useCallback(
     async (file: FileMetadata) => {
       // extensible, only image for now
-      const shouldOCR = isSupportedOcrFile(file)
+      const shouldOCR = isImageFileMetadata(file)
 
       if (shouldOCR) {
         await ocrFile(file)

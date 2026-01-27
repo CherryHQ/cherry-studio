@@ -93,10 +93,10 @@ const SettingsPage: FC = () => {
               {t('apiServer.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/docprocess">
-            <MenuItem className={isRoute('/settings/docprocess')}>
+          <MenuItemLink to="/settings/file-processing">
+            <MenuItem className={isRoute('/settings/file-processing')}>
               <FileCode size={18} />
-              {t('settings.tool.preprocess.title')}
+              {t('settings.file_processing.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/quickphrase">
