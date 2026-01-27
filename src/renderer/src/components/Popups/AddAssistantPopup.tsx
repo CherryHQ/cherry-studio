@@ -116,39 +116,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
     [setTimeoutTimer, resolve, addAssistant]
   )
 
-  // Keyboard navigation for assistant mode
-  useEffect(() => {
-    if (!open || mode !== 'assistant') return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const displayedPresets = take(presets, 100)
-
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault()
-          setSelectedIndex((prev) => (prev >= displayedPresets.length - 1 ? 0 : prev + 1))
-          break
-        case 'ArrowUp':
-          e.preventDefault()
-          setSelectedIndex((prev) => (prev <= 0 ? displayedPresets.length - 1 : prev - 1))
-          break
-        case 'Enter':
-        case 'NumpadEnter':
-          if (document.activeElement === inputRef.current?.input && searchText.trim()) {
-            e.preventDefault()
-            onCreateAssistant(displayedPresets[selectedIndex])
-          } else if (selectedIndex >= 0 && selectedIndex < displayedPresets.length) {
-            e.preventDefault()
-            onCreateAssistant(displayedPresets[selectedIndex])
-          }
-          break
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, mode, selectedIndex, presets, searchText, onCreateAssistant])
-
   useEffect(() => {
     if (containerRef.current) {
       const presetItems = containerRef.current.querySelectorAll('.agent-item')
@@ -170,13 +137,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
     AddAssistantPopup.hide()
     TopView.hide('AddAssistantPopup')
   }
-
-  // useEffect(() => {
-  //   if (!open || mode !== 'assistant') return
-
-  //   const timer = setTimeout(() => inputRef.current?.focus(), 0)
-  //   return () => clearTimeout(timer)
-  // }, [open, mode])
 
   // Agent form submission
   const onSubmitAgent = useCallback(
@@ -246,13 +206,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
     [agentForm, t, addAgent, resolve]
   )
 
-  const handleModeChange = (value: Mode) => {
-    setMode(value)
-    // if (value === 'assistant') {
-    //   setTimeout(() => inputRef.current?.focus(), 0)
-    // }
-  }
-
   AddAssistantPopup.hide = onCancel
 
   return (
@@ -261,6 +214,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
       open={open}
       onCancel={onCancel}
       afterClose={onClose}
+      title={t('chat.add.option.title')}
       transitionName="animation-move-down"
       styles={{
         content: {
@@ -274,11 +228,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
         }
       }}
       width={520}
-      closeIcon={null}
       footer={null}>
       {showModeSwitch && (
         <ModeSelector>
-          <ModeCard $active={mode === 'assistant'} onClick={() => handleModeChange('assistant')}>
+          <ModeCard $active={mode === 'assistant'} onClick={() => setMode('assistant')}>
             <ModeIconWrapper $active={mode === 'assistant'}>
               <MessageSquare
                 size={20}
@@ -293,7 +246,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
               <ModeCardDesc>{t('chat.add.assistant.description')}</ModeCardDesc>
             </ModeCardContent>
           </ModeCard>
-          <ModeCard $active={mode === 'agent'} onClick={() => handleModeChange('agent')}>
+          <ModeCard $active={mode === 'agent'} onClick={() => setMode('agent')}>
             <ModeIconWrapper $active={mode === 'agent'}>
               <Bot
                 size={20}
@@ -320,14 +273,14 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               allowClear
-              style={{ marginBottom: 12, marginTop: 2, height: 36, borderRadius: 20 }}
+              style={{ marginBottom: 12, marginTop: 2, height: 36 }}
               variant="outlined"
             />
             {take(presets, 100).map((preset, index) => (
               <PresetCard
                 key={preset.id}
                 onClick={() => onCreateAssistant(preset)}
-                className={`agent-item ${index === selectedIndex ? 'keyboard-selected' : ''}`}
+                className="agent-item"
                 onMouseEnter={() => setSelectedIndex(index)}>
                 <PresetCardBackground>{preset.emoji || ''}</PresetCardBackground>
                 <PresetCardHeader>
@@ -371,7 +324,7 @@ const ModeSelector = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  padding: 16px 16px 12px;
+  padding: 5px 16px 12px;
 `
 
 const ModeCard = styled.button<{ $active: boolean }>`
@@ -427,7 +380,7 @@ const Container = styled(Scrollbar)`
 const PresetCard = styled.div`
   border-radius: var(--list-item-border-radius);
   cursor: pointer;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-soft);
   padding: 12px;
   overflow: hidden;
   margin-bottom: 8px;
@@ -435,14 +388,6 @@ const PresetCard = styled.div`
   transition:
     box-shadow 0.2s ease,
     background-color 0.2s ease;
-
-  &.keyboard-selected {
-    background-color: var(--color-background-soft);
-  }
-
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
 `
 
 const PresetCardBackground = styled.div`
