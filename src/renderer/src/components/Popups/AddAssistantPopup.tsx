@@ -273,6 +273,11 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
                 <PresetCardHeader>
                   <PresetCardInfo>
                     <PresetCardTitle>{preset.name}</PresetCardTitle>
+                    {(preset.description || preset.prompt) && (
+                      <PresetCardDesc>
+                        {(preset.description || preset.prompt || '').substring(0, 100).replace(/\\n/g, '')}
+                      </PresetCardDesc>
+                    )}
                     <PresetCardTags>
                       {preset.id === 'default' && <Tag color="green">{t('assistants.presets.tag.system')}</Tag>}
                       {preset.type === 'agent' && <Tag color="orange">{t('assistants.presets.tag.agent')}</Tag>}
@@ -281,11 +286,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, defaultMode = 'assistant', s
                   </PresetCardInfo>
                   <PresetCardEmoji>{preset.emoji || ''}</PresetCardEmoji>
                 </PresetCardHeader>
-                {(preset.description || preset.prompt) && (
-                  <PresetCardDesc>
-                    {(preset.description || preset.prompt || '').substring(0, 100).replace(/\\n/g, '')}
-                  </PresetCardDesc>
-                )}
               </PresetCard>
             ))}
           </Container>
@@ -400,7 +400,7 @@ const PresetCardInfo = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   overflow: hidden;
 `
 
@@ -436,12 +436,10 @@ const PresetCardDesc = styled.div`
   font-size: 12px;
   line-height: 1.4;
   color: var(--color-text-2);
-  margin-top: 8px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  position: relative;
 `
 
 const StyledForm = styled.form`
