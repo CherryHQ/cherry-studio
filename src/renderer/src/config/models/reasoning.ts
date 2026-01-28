@@ -690,14 +690,19 @@ export const isBaichuanReasoningModel = (model?: Model): boolean => {
  * @param model - The model object to check, can be undefined
  * @returns true if it's a Kimi reasoning model, false otherwise
  */
-export function isKimiReasoningModel(model?: Model): boolean {
-  if (!model) {
-    return false
-  }
+const _isKimiReasoningModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   // Match kimi-k2-thinking, kimi-k2-thinking-turbo, or kimi-k2.5
   // The regex ensures no extra suffixes after these patterns
   return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k2\.5(?:-\w)*$/.test(modelId)
+}
+
+export function isKimiReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, _isKimiReasoningModel)
+  return idResult || nameResult
 }
 
 export function isReasoningModel(model?: Model): boolean {
