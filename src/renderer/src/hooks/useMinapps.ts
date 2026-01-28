@@ -2,8 +2,9 @@ import { allMinApps } from '@renderer/config/minapps'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setDisabledMinApps, setMinApps, setPinnedMinApps } from '@renderer/store/minapps'
+import { type DetectedRegion, setDetectedRegion } from '@renderer/store/runtime'
 import type { LanguageVarious, MinAppType } from '@renderer/types'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 /**
  * Data Flow Design:
@@ -15,8 +16,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
  * - This hook applies locale/region filtering only when READING for UI display
  * - When WRITING, hidden apps are merged back to prevent data loss
  */
-
-export type DetectedRegion = 'CN' | 'Global'
 
 // Check if app should be visible for the given locale
 const isVisibleForLocale = (app: MinAppType, language: LanguageVarious): boolean => {
@@ -65,38 +64,57 @@ const getRegionHiddenApps = (region: DetectedRegion): MinAppType[] => {
   return allMinApps.filter((app) => !isVisibleForRegion(app, region))
 }
 
-// Detect user region via IPC call to main process
+// Module-level promise to ensure only one IP detection request is made
+let regionDetectionPromise: Promise<DetectedRegion> | null = null
+
+// Detect user region via IPC call to main process (cached at module level)
 const detectUserRegion = async (): Promise<DetectedRegion> => {
-  try {
-    const country = await window.api.getIpCountry()
-    return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
-  } catch {
-    // If detection fails, assume CN to show all apps (conservative approach)
-    return 'CN'
+  // Return existing promise if detection is already in progress
+  if (regionDetectionPromise) {
+    return regionDetectionPromise
   }
+
+  regionDetectionPromise = (async () => {
+    try {
+      const country = await window.api.getIpCountry()
+      return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
+    } catch {
+      // If detection fails, assume CN to show all apps (conservative approach)
+      return 'CN'
+    }
+  })()
+
+  return regionDetectionPromise
 }
 
 export const useMinapps = () => {
   const { enabled, disabled, pinned } = useAppSelector((state: RootState) => state.minapps)
   const language = useAppSelector((state: RootState) => state.settings.language)
   const minAppRegionSetting = useAppSelector((state: RootState) => state.settings.minAppRegion)
+  const detectedRegion = useAppSelector((state: RootState) => state.runtime.detectedRegion)
   const dispatch = useAppDispatch()
 
-  // Detect and cache the effective region
-  // Initialize as 'CN' to show all apps, then detect actual region
-  const [effectiveRegion, setEffectiveRegion] = useState<DetectedRegion>('CN')
+  // Track if this hook instance has initiated detection to avoid duplicate requests
+  const hasInitiatedDetection = useRef(false)
 
+  // Compute effective region: use cached detection result or manual setting
+  const effectiveRegion: DetectedRegion =
+    minAppRegionSetting === 'auto' ? (detectedRegion ?? 'CN') : minAppRegionSetting
+
+  // Only detect region once globally when in 'auto' mode and not yet detected
   useEffect(() => {
     const initRegion = async () => {
-      if (minAppRegionSetting === 'auto') {
-        const detected = await detectUserRegion()
-        setEffectiveRegion(detected)
-      } else {
-        setEffectiveRegion(minAppRegionSetting)
+      // Skip if not in auto mode, already detected, or this instance already initiated
+      if (minAppRegionSetting !== 'auto' || detectedRegion !== null || hasInitiatedDetection.current) {
+        return
       }
+
+      hasInitiatedDetection.current = true
+      const detected = await detectUserRegion()
+      dispatch(setDetectedRegion(detected))
     }
     initRegion()
-  }, [minAppRegionSetting])
+  }, [minAppRegionSetting, detectedRegion, dispatch])
 
   const mapApps = useCallback(
     (apps: MinAppType[]) => apps.map((app) => allMinApps.find((item) => item.id === app.id) || app),
