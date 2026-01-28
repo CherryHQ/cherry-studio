@@ -154,6 +154,7 @@
         "error": {
           "install": "Failed to install plugin",
           "load": "Failed to load plugins",
+          "load_more": "Failed to load more plugins",
           "uninstall": "Failed to uninstall plugin"
         },
         "filter": {
@@ -1312,6 +1313,7 @@
     "rename": "Rename",
     "required_field": "Required field",
     "reset": "Reset",
+    "retry": "Retry",
     "save": "Save",
     "saved": "Saved",
     "search": "Search",

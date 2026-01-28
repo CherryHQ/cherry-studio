@@ -154,6 +154,7 @@
         "error": {
           "install": "Nu s-a putut instala pluginul",
           "load": "Nu s-au putut încărca pluginurile",
+          "load_more": "[to be translated]:Failed to load more plugins",
           "uninstall": "Nu s-a putut dezinstala pluginul"
         },
         "filter": {
@@ -1312,6 +1313,7 @@
     "rename": "Redenumește",
     "required_field": "Câmp obligatoriu",
     "reset": "Resetează",
+    "retry": "[to be translated]:Retry",
     "save": "Salvează",
     "saved": "Salvat",
     "search": "Caută",

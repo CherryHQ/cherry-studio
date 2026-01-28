@@ -154,6 +154,7 @@
         "error": {
           "install": "Fehler beim Installieren des Plugins",
           "load": "Fehler beim Laden der Plugins",
+          "load_more": "[to be translated]:Failed to load more plugins",
           "uninstall": "Fehler beim Deinstallieren des Plugins"
         },
         "filter": {
@@ -1312,6 +1313,7 @@
     "rename": "Umbenennen",
     "required_field": "Pflichtfeld",
     "reset": "Zurücksetzen",
+    "retry": "[to be translated]:Retry",
     "save": "Speichern",
     "saved": "Gespeichert",
     "search": "Suchen",

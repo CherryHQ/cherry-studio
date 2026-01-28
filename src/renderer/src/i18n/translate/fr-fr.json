@@ -154,6 +154,7 @@
         "error": {
           "install": "Échec de l'installation du plugin",
           "load": "Échec du chargement du plugin",
+          "load_more": "[to be translated]:Failed to load more plugins",
           "uninstall": "Échec de la désinstallation du plugin"
         },
         "filter": {
@@ -1312,6 +1313,7 @@
     "rename": "Renommer",
     "required_field": "Champ obligatoire",
     "reset": "Réinitialiser",
+    "retry": "[to be translated]:Retry",
     "save": "Enregistrer",
     "saved": "enregistré",
     "search": "Rechercher",

@@ -154,6 +154,7 @@
         "error": {
           "install": "Error al instalar el complemento",
           "load": "Error al cargar el complemento",
+          "load_more": "[to be translated]:Failed to load more plugins",
           "uninstall": "Error al desinstalar el complemento"
         },
         "filter": {
@@ -1312,6 +1313,7 @@
     "rename": "Renombrar",
     "required_field": "Campo obligatorio",
     "reset": "Restablecer",
+    "retry": "[to be translated]:Retry",
     "save": "Guardar",
     "saved": "Guardado",
     "search": "Buscar",

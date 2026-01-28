@@ -154,6 +154,7 @@
         "error": {
           "install": "安裝外掛失敗",
           "load": "載入外掛失敗",
+          "load_more": "[to be translated]:Failed to load more plugins",
           "uninstall": "解除安裝外掛失敗"
         },
         "filter": {
@@ -1312,6 +1313,7 @@
     "rename": "重新命名",
     "required_field": "必填欄位",
     "reset": "重設",
+    "retry": "[to be translated]:Retry",
     "save": "儲存",
     "saved": "已儲存",
     "search": "搜尋",

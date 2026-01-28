@@ -154,6 +154,7 @@
         "error": {
           "install": "安装插件失败",
           "load": "加载插件失败",
+          "load_more": "加载更多插件失败",
           "uninstall": "卸载插件失败"
         },
         "filter": {
@@ -1312,6 +1313,7 @@
     "rename": "重命名",
     "required_field": "必填字段",
     "reset": "重置",
+    "retry": "重试",
     "save": "保存",
     "saved": "已保存",
     "search": "搜索",

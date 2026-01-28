@@ -1,10 +1,11 @@
+import { RefreshIcon } from '@renderer/components/Icons'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import DynamicVirtualList from '@renderer/components/VirtualList/dynamic'
 import { type MarketplaceEntry, useMarketplaceBrowser } from '@renderer/hooks/useMarketplaceBrowser'
 import type { MarketplaceSort } from '@renderer/services/MarketplaceService'
 import type { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
-import { Button as AntButton, Dropdown as AntDropdown, Input as AntInput, Tabs as AntTabs } from 'antd'
-import { Search } from 'lucide-react'
+import { Button as AntButton, Dropdown as AntDropdown, Input as AntInput, Tabs as AntTabs, Tooltip } from 'antd'
+import { AlertCircle, Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,7 +34,7 @@ const ROW_SIZE = 272
 const LOADER_ROW_SIZE = 80
 
 type PluginRow = {
-  type: 'data' | 'loader'
+  type: 'data' | 'loader' | 'error'
   entries: MarketplaceEntry[]
 }
 
@@ -65,7 +66,8 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
     isLoading,
     isLoadingMore,
     error: fetchError,
-    loadMore
+    loadMore,
+    refetch
   } = useMarketplaceBrowser({
     kind: activeType,
     query: normalizedQuery,
@@ -73,6 +75,8 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
   })
 
   const isInitialLoading = isLoading && entries.length === 0
+  const isInitialError = fetchError && entries.length === 0 && !isLoading
+  const isLoadMoreError = fetchError && entries.length > 0 && !isLoadingMore
 
   const displayedEntries = useMemo(() => entries, [entries])
 
@@ -83,9 +87,11 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
     }
     if (isLoadingMore) {
       nextRows.push({ type: 'loader', entries: [] })
+    } else if (isLoadMoreError) {
+      nextRows.push({ type: 'error', entries: [] })
     }
     return nextRows
-  }, [displayedEntries, isLoadingMore])
+  }, [displayedEntries, isLoadingMore, isLoadMoreError])
 
   const pluginTypeTabItems = useMemo(
     () => [
@@ -236,6 +242,15 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
           onChange={(e) => handleSearchChange(e.target.value)}
           prefix={<Search className="h-4 w-4 text-default-400" />}
         />
+        <Tooltip title={t('common.refresh')}>
+          <AntButton
+            variant="outlined"
+            size="middle"
+            icon={<RefreshIcon size={16} className={isLoading ? 'animation-rotate' : ''} />}
+            onClick={refetch}
+            disabled={isLoading}
+          />
+        </Tooltip>
         <AntDropdown
           menu={{ items: sortMenuItems }}
           trigger={['click']}
@@ -275,14 +290,19 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
         </p>
       </div>
 
-      {fetchError && (
-        <div className="rounded-md bg-danger-50 p-3 text-danger text-small">
-          {t('agent.settings.plugins.error.load')}: {fetchError}
-        </div>
-      )}
-
       {/* Plugin Grid */}
-      {displayedEntries.length === 0 && !isInitialLoading ? (
+      {isInitialError ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center">
+          <AlertCircle className="h-12 w-12 text-default-300" />
+          <div>
+            <p className="text-default-500">{t('agent.settings.plugins.error.load')}</p>
+            <p className="text-default-400 text-small">{fetchError}</p>
+          </div>
+          <AntButton type="primary" onClick={refetch}>
+            {t('common.retry')}
+          </AntButton>
+        </div>
+      ) : displayedEntries.length === 0 && !isInitialLoading ? (
         <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
           <p className="text-default-400">{t('plugins.no_results')}</p>
           <p className="text-default-300 text-small">{t('plugins.try_different_search')}</p>
@@ -303,6 +323,17 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
               return (
                 <div className="flex justify-center py-4">
                   <SkeletonSpan width="120px" />
+                </div>
+              )
+            }
+
+            if (row.type === 'error') {
+              return (
+                <div className="flex flex-col items-center justify-center gap-2 py-4 text-center">
+                  <p className="text-default-400 text-small">{t('agent.settings.plugins.error.load_more')}</p>
+                  <AntButton size="small" onClick={loadMore}>
+                    {t('common.retry')}
+                  </AntButton>
                 </div>
               )
             }

@@ -154,6 +154,7 @@
         "error": {
           "install": "Ошибка установки плагина",
           "load": "Ошибка загрузки плагина",
+          "load_more": "[to be translated]:Failed to load more plugins",
           "uninstall": "Не удалось удалить плагин"
         },
         "filter": {
@@ -1312,6 +1313,7 @@
     "rename": "Переименовать",
     "required_field": "Обязательное поле",
     "reset": "Сбросить",
+    "retry": "[to be translated]:Retry",
     "save": "Сохранить",
     "saved": "Сохранено",
     "search": "Поиск",
