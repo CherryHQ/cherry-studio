@@ -2152,13 +2152,6 @@
       "refresh": "Aktualisieren",
       "rightclick_copyurl": "Rechtsklick zum Kopieren der URL"
     },
-    "region": {
-      "auto": "Automatische Erkennung",
-      "cn": "China",
-      "description": "Erkennen Sie automatisch Ihre Region oder wählen Sie manuell",
-      "global": "Global",
-      "title": "MinApp-Region"
-    },
     "remove_from_launchpad": "Aus Launchpad entfernen",
     "remove_from_sidebar": "Aus Seitenleiste entfernen",
     "sidebar": {
@@ -4407,15 +4400,6 @@
       "title": "Nachrichteneinstellungen",
       "use_serif_font": "Serifenschrift verwenden"
     },
-    "minapp": {
-      "region": {
-        "auto": "[to be translated]:自动检测",
-        "cn": "[to be translated]:中国",
-        "description": "[to be translated]:自动检测您的地区，或手动选择",
-        "global": "[to be translated]:全球",
-        "title": "[to be translated]:小程序地区"
-      }
-    },
     "miniapps": {
       "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
       "cache_description": "Maximale Anzahl gleichzeitig aktiver Mini-Apps festlegen",
@@ -4457,6 +4441,13 @@
       "empty": "Mini-Apps die ausgeblendet werden sollen von links hierher ziehen",
       "open_link_external": {
         "title": "Neue Fensterlinks im Browser öffnen"
+      },
+      "region": {
+        "auto": "Automatische Erkennung",
+        "cn": "China",
+        "description": "Automatische Erkennung Ihres Standorts oder manuelle Auswahl",
+        "global": "global",
+        "title": "Region des Mini-Programms"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
       "sidebar_description": "Festlegen ob Seitenleiste aktive Mini-Apps anzeigt",

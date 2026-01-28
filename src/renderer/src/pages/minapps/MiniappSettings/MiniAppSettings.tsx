@@ -34,9 +34,9 @@ const RegionSelector: FC = () => {
   }
 
   const minAppRegionOptions: { value: 'auto' | 'CN' | 'Global'; label: string }[] = [
-    { value: 'auto', label: t('settings.minapp.region.auto') },
-    { value: 'CN', label: t('settings.minapp.region.cn') },
-    { value: 'Global', label: t('settings.minapp.region.global') }
+    { value: 'auto', label: t('settings.miniapps.region.auto') },
+    { value: 'CN', label: t('settings.miniapps.region.cn') },
+    { value: 'Global', label: t('settings.miniapps.region.global') }
   ]
 
   return <Selector size={14} value={minAppRegion} onChange={onMinAppRegionChange} options={minAppRegionOptions} />
@@ -119,8 +119,8 @@ const MiniAppSettings: FC = () => {
       {/* 小程序地区设置 */}
       <SettingRow style={{ height: 40, alignItems: 'center' }}>
         <Flex align="center" gap={4}>
-          <SettingRowTitle>{t('settings.minapp.region.title')}</SettingRowTitle>
-          <Tooltip title={t('settings.minapp.region.description')} placement="right">
+          <SettingRowTitle>{t('settings.miniapps.region.title')}</SettingRowTitle>
+          <Tooltip title={t('settings.miniapps.region.description')} placement="right">
             <InfoCircleOutlined style={{ cursor: 'pointer' }} />
           </Tooltip>
         </Flex>

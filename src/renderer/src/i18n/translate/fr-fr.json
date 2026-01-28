@@ -2152,13 +2152,6 @@
       "refresh": "Обновить",
       "rightclick_copyurl": "Скопировать URL через правую кнопку мыши"
     },
-    "region": {
-      "auto": "Détection automatique",
-      "cn": "Chine",
-      "description": "Détectez automatiquement votre région ou sélectionnez manuellement",
-      "global": "Global",
-      "title": "Région MinApp"
-    },
     "remove_from_launchpad": "Supprimer du tableau de bord",
     "remove_from_sidebar": "Supprimer de la barre latérale",
     "sidebar": {
@@ -4407,15 +4400,6 @@
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"
     },
-    "minapp": {
-      "region": {
-        "auto": "[to be translated]:自动检测",
-        "cn": "[to be translated]:中国",
-        "description": "[to be translated]:自动检测您的地区，或手动选择",
-        "global": "[to be translated]:全球",
-        "title": "[to be translated]:小程序地区"
-      }
-    },
     "miniapps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
       "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
@@ -4457,6 +4441,13 @@
       "empty": "Faites glisser vers ici les applications que vous souhaitez masquer",
       "open_link_external": {
         "title": "Ouvrir un nouveau lien dans une fenêtre du navigateur"
+      },
+      "region": {
+        "auto": "Détection automatique",
+        "cn": "Chine",
+        "description": "Détection automatique de votre région, ou sélection manuelle",
+        "global": "mondial",
+        "title": "Région de l'application mini-programme"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
       "sidebar_description": "Définir si les applications actives doivent s'afficher dans la barre latérale",

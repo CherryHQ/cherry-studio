@@ -2152,13 +2152,6 @@
       "refresh": "Atualizar",
       "rightclick_copyurl": "Copiar URL com botão direito"
     },
-    "region": {
-      "auto": "Detecção automática",
-      "cn": "China",
-      "description": "Detete automaticamente a sua região ou selecione manualmente",
-      "global": "Global",
-      "title": "Região do MinApp"
-    },
     "remove_from_launchpad": "Remover do Painel de Inicialização",
     "remove_from_sidebar": "Remover da Barra Lateral",
     "sidebar": {
@@ -4407,15 +4400,6 @@
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
     },
-    "minapp": {
-      "region": {
-        "auto": "[to be translated]:自动检测",
-        "cn": "[to be translated]:中国",
-        "description": "[to be translated]:自动检测您的地区，或手动选择",
-        "global": "[to be translated]:全球",
-        "title": "[to be translated]:小程序地区"
-      }
-    },
     "miniapps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
       "cache_description": "Defina o número máximo de mini aplicativos que permanecerão ativos simultaneamente",
@@ -4457,6 +4441,13 @@
       "empty": "Arraste para cá os mini aplicativos que deseja ocultar",
       "open_link_external": {
         "title": "Abrir link em nova janela do navegador"
+      },
+      "region": {
+        "auto": "Detecção automática",
+        "cn": "China",
+        "description": "Detecção automática da sua região ou seleção manual",
+        "global": "global",
+        "title": "Região do aplicativo mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
       "sidebar_description": "Defina se os mini aplicativos ativos serão exibidos na barra lateral",

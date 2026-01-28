@@ -2152,13 +2152,6 @@
       "refresh": "更新",
       "rightclick_copyurl": "右クリックでURLをコピー"
     },
-    "region": {
-      "auto": "自動検出",
-      "cn": "中国",
-      "description": "地域を自動的に検出するか、手動で選択してください",
-      "global": "グローバル",
-      "title": "MinApp リージョン"
-    },
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
     "sidebar": {
@@ -4407,15 +4400,6 @@
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
-    "minapp": {
-      "region": {
-        "auto": "[to be translated]:自动检测",
-        "cn": "[to be translated]:中国",
-        "description": "[to be translated]:自动检测您的地区，或手动选择",
-        "global": "[to be translated]:全球",
-        "title": "[to be translated]:小程序地区"
-      }
-    },
     "miniapps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
       "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
@@ -4457,6 +4441,13 @@
       "empty": "非表示にするミニアプリを左側からここにドラッグしてください",
       "open_link_external": {
         "title": "新視窗のリンクをブラウザで開く"
+      },
+      "region": {
+        "auto": "自動検出",
+        "cn": "中国",
+        "description": "自動的にあなたの地域を検出するか、手動で選択してください",
+        "global": "世界中",
+        "title": "小程序の対応地域"
       },
       "reset_tooltip": "デフォルト値にリセット",
       "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",

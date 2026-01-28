@@ -2152,13 +2152,6 @@
       "refresh": "重新整理",
       "rightclick_copyurl": "右鍵複製 URL"
     },
-    "region": {
-      "auto": "自動偵測",
-      "cn": "中國",
-      "description": "自動偵測您所在的地區，或手動選擇",
-      "global": "全球",
-      "title": "小工具地區"
-    },
     "remove_from_launchpad": "從啟動台移除",
     "remove_from_sidebar": "從側邊欄移除",
     "sidebar": {
@@ -4407,15 +4400,6 @@
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
     },
-    "minapp": {
-      "region": {
-        "auto": "[to be translated]:自动检测",
-        "cn": "[to be translated]:中国",
-        "description": "[to be translated]:自动检测您的地区，或手动选择",
-        "global": "[to be translated]:全球",
-        "title": "[to be translated]:小程序地区"
-      }
-    },
     "miniapps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
       "cache_description": "設定同時保持活躍狀態的小程式最大數量",
@@ -4457,6 +4441,13 @@
       "empty": "把要隱藏的小程式從左側拖曳到這裡",
       "open_link_external": {
         "title": "在瀏覽器中開啟新視窗連結"
+      },
+      "region": {
+        "auto": "自動檢測",
+        "cn": "中國",
+        "description": "自動偵測您的地區，或手動選擇",
+        "global": "全球",
+        "title": "小程序地區"
       },
       "reset_tooltip": "重設為預設值",
       "sidebar_description": "設定側邊欄是否顯示活躍的小程式",

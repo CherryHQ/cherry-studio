@@ -2152,13 +2152,6 @@
       "refresh": "刷新",
       "rightclick_copyurl": "右键复制 URL"
     },
-    "region": {
-      "auto": "自动检测",
-      "cn": "中国",
-      "description": "自动检测您的所在地区，或手动选择",
-      "global": "全球",
-      "title": "小程序地区"
-    },
     "remove_from_launchpad": "从启动台移除",
     "remove_from_sidebar": "从侧边栏移除",
     "sidebar": {
@@ -4407,15 +4400,6 @@
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
     },
-    "minapp": {
-      "region": {
-        "auto": "自动检测",
-        "cn": "中国",
-        "description": "自动检测您的地区，或手动选择",
-        "global": "全球",
-        "title": "小程序地区"
-      }
-    },
     "miniapps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
       "cache_description": "设置同时保持活跃状态的小程序最大数量",
@@ -4457,6 +4441,13 @@
       "empty": "把要隐藏的小程序从左侧拖拽到这里",
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
+      },
+      "region": {
+        "auto": "自动检测",
+        "cn": "中国",
+        "description": "根据所在地区过滤暂未当前地区的语言的小程序",
+        "global": "全球",
+        "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
       "sidebar_description": "设置侧边栏是否显示活跃的小程序",

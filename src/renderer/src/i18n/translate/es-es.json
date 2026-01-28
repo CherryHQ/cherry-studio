@@ -2152,13 +2152,6 @@
       "refresh": "Actualizar",
       "rightclick_copyurl": "Copiar URL con clic derecho"
     },
-    "region": {
-      "auto": "Detección automática",
-      "cn": "China",
-      "description": "Detecta automáticamente tu región o selecciona manualmente",
-      "global": "Global",
-      "title": "Región de MinApp"
-    },
     "remove_from_launchpad": "Eliminar del panel de inicio",
     "remove_from_sidebar": "Eliminar de la barra lateral",
     "sidebar": {
@@ -4407,15 +4400,6 @@
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"
     },
-    "minapp": {
-      "region": {
-        "auto": "[to be translated]:自动检测",
-        "cn": "[to be translated]:中国",
-        "description": "[to be translated]:自动检测您的地区，或手动选择",
-        "global": "[to be translated]:全球",
-        "title": "[to be translated]:小程序地区"
-      }
-    },
     "miniapps": {
       "cache_change_notice": "Los cambios surtirán efecto cuando el número de miniaplicaciones abiertas aumente o disminuya hasta alcanzar el valor configurado",
       "cache_description": "Establece el número máximo de miniaplicaciones que pueden permanecer activas simultáneamente",
@@ -4457,6 +4441,13 @@
       "empty": "Arrastra aquí las miniaplicaciones que deseas ocultar desde la izquierda",
       "open_link_external": {
         "title": "Abrir enlace en nueva ventana del navegador"
+      },
+      "region": {
+        "auto": "Detección automática",
+        "cn": "China",
+        "description": "Detección automática de su región, o selección manual",
+        "global": "global",
+        "title": "Región del programa pequeño"
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
       "sidebar_description": "Configura si se muestra o no en la barra lateral la miniaplicación activa",
