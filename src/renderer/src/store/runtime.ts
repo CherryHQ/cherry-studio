@@ -53,6 +53,8 @@ export interface UpdateState {
   ignore: boolean
 }
 
+export type DetectedRegion = 'CN' | 'Global'
+
 export interface RuntimeState {
   avatar: string
   generating: boolean
@@ -73,6 +75,8 @@ export interface RuntimeState {
   export: ExportState
   chat: ChatState
   websearch: WebSearchState
+  /** Detected region from IP lookup (not persisted, re-detected on each app start) */
+  detectedRegion: DetectedRegion | null
 }
 
 export interface ExportState {
@@ -115,7 +119,8 @@ const initialState: RuntimeState = {
   },
   websearch: {
     activeSearches: {}
-  }
+  },
+  detectedRegion: null
 }
 
 const runtimeSlice = createSlice({
@@ -205,6 +210,9 @@ const runtimeSlice = createSlice({
     setSessionWaitingAction: (state, action: PayloadAction<{ id: string; value: boolean }>) => {
       const { id, value } = action.payload
       state.chat.sessionWaiting[id] = value
+    },
+    setDetectedRegion: (state, action: PayloadAction<DetectedRegion | null>) => {
+      state.detectedRegion = action.payload
     }
   }
 })
@@ -235,7 +243,9 @@ export const {
   setSessionWaitingAction,
   // WebSearch related actions
   setActiveSearches,
-  setWebSearchStatus
+  setWebSearchStatus,
+  // Region detection
+  setDetectedRegion
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer
