@@ -71,8 +71,8 @@ const detectUserRegion = async (): Promise<DetectedRegion> => {
     const country = await window.api.getIpCountry()
     return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
   } catch {
-    // If detection fails, show all apps (conservative approach)
-    return 'Global'
+    // If detection fails, assume CN to show all apps (conservative approach)
+    return 'CN'
   }
 }
 
@@ -83,7 +83,8 @@ export const useMinapps = () => {
   const dispatch = useAppDispatch()
 
   // Detect and cache the effective region
-  const [effectiveRegion, setEffectiveRegion] = useState<DetectedRegion>('Global')
+  // Initialize as 'CN' to show all apps, then detect actual region
+  const [effectiveRegion, setEffectiveRegion] = useState<DetectedRegion>('CN')
 
   useEffect(() => {
     const initRegion = async () => {
