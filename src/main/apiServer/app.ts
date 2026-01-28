@@ -1,4 +1,5 @@
-import { loggerService } from '@main/services/LoggerService'
+import { loggerService } from '@logger'
+import { windowService } from '@main/services/WindowService'
 import cors from 'cors'
 import express from 'express'
 import { v4 as uuidv4 } from 'uuid'
@@ -9,6 +10,7 @@ import { errorHandler } from './middleware/error'
 import { setupOpenAPIDocumentation } from './middleware/openapi'
 import { agentsRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
+import { knowledgeRoutes } from './routes/knowledge'
 import { mcpRoutes } from './routes/mcp'
 import { messagesProviderRoutes, messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
@@ -134,12 +136,20 @@ app.use('/:provider/v1/messages', authMiddleware, extendMessagesTimeout, message
 // API v1 routes with auth
 const apiRouter = express.Router()
 apiRouter.use(authMiddleware)
+
+// Inject mainWindow into app for routes to access
+apiRouter.use((req, _res, next) => {
+  req.app.set('mainWindow', windowService.getMainWindow())
+  next()
+})
+
 // Mount routes
 apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
+apiRouter.use('/knowledge', knowledgeRoutes)
 app.use('/v1', apiRouter)
 
 // Error handling (must be last)

@@ -685,6 +685,15 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, KnowledgeService.checkQuota.bind(KnowledgeService))
 
+  // Browser extension: Trigger knowledge queue check
+  ipcMain.handle(IpcChannel.KnowledgeBase_TriggerQueueCheck, async () => {
+    const mainWindow = windowService.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IpcChannel.KnowledgeBase_TriggerQueueCheck)
+    }
+    return { success: true }
+  })
+
   // memory
   ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))
   ipcMain.handle(IpcChannel.Memory_Search, (_, query, config) => memoryService.search(query, config))
