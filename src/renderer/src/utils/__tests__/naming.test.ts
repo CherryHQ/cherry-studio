@@ -225,6 +225,9 @@ describe('naming', () => {
     it('should remove trailing (free)', () => {
       expect(getLowerBaseModelName('agent/gpt-4(free)')).toBe('gpt-4')
     })
+    it('should remove trailing :cloud', () => {
+      expect(getLowerBaseModelName('local/kimi-k2.5:cloud')).toBe('kimi-k2.5')
+    })
   })
 
   describe('getFirstCharacter', () => {
