@@ -139,7 +139,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
 }
 
 const requestJson = async <T>(input: RequestInfo, init: RequestInit): Promise<T> => {
-  const response = await withTimeout(fetch(input, { ...init, cache: 'no-store' }), REQUEST_TIMEOUT_MS)
+  const response = await withTimeout(fetch(input, init), REQUEST_TIMEOUT_MS)
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({ message: 'Request failed' }))
     const message =
