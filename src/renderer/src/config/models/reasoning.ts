@@ -603,9 +603,14 @@ export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
  * @param model - The model object to check
  * @returns true if the model supports thinking control, false otherwise
  */
-export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
+const _isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   return ['kimi-k2.5'].some((id) => modelId.includes(id))
+}
+
+export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, _isSupportedThinkingTokenKimiModel)
+  return idResult || nameResult
 }
 
 export const isDeepSeekHybridInferenceModel = (model: Model) => {
