@@ -4803,6 +4803,16 @@
       },
       "oauth": {
         "button": "Войти с {{provider}}",
+        "cherryIn": {
+          "client_id_placeholder": "[to be translated]:OAuth Client ID",
+          "description": "[to be translated]:Login with your self-hosted New-API server using OAuth 2.0 (PKCE)",
+          "logged_in": "[to be translated]:Logged in via OAuth",
+          "login_button": "[to be translated]:Login with OAuth",
+          "logout_button": "[to be translated]:Logout",
+          "missing_config": "[to be translated]:Please enter OAuth server URL and Client ID",
+          "server_url_placeholder": "[to be translated]:OAuth Server URL (e.g., https://your-domain)",
+          "title": "[to be translated]:OAuth Login"
+        },
         "description": "Сервис предоставляется <website>{{provider}}</website>",
         "error": "Ошибка аутентификации",
         "official_website": "Официальный сайт"

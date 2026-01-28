@@ -4803,6 +4803,13 @@
       },
       "oauth": {
         "button": "使用 {{provider}} 帳號登入",
+        "cherryIn": {
+          "description": "使用 OAuth 2.0 登入 CherryIN",
+          "logged_in": "已透過 OAuth 登入",
+          "login_button": "OAuth 登入",
+          "logout_button": "登出",
+          "title": "OAuth 登入"
+        },
         "description": "本服務由 <website>{{provider}}</website> 提供",
         "error": "認證失敗",
         "official_website": "官方網站"

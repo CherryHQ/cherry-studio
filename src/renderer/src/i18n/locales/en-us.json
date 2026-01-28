@@ -4803,6 +4803,13 @@
       },
       "oauth": {
         "button": "Login with {{provider}}",
+        "cherryIn": {
+          "description": "Login to CherryIN using OAuth 2.0",
+          "logged_in": "Logged in via OAuth",
+          "login_button": "Login with OAuth",
+          "logout_button": "Logout",
+          "title": "OAuth Login"
+        },
         "description": "This service is provided by <website>{{provider}}</website>",
         "error": "Authentication failed",
         "official_website": "Official Website"

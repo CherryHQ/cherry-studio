@@ -4803,6 +4803,13 @@
       },
       "oauth": {
         "button": "使用 {{provider}} 账号登录",
+        "cherryIn": {
+          "description": "使用 OAuth 2.0 登录 CherryIN",
+          "logged_in": "已通过 OAuth 登录",
+          "login_button": "OAuth 登录",
+          "logout_button": "退出登录",
+          "title": "OAuth 登录"
+        },
         "description": "本服务由 <website>{{provider}}</website> 提供",
         "error": "认证失败",
         "official_website": "官方网站"
