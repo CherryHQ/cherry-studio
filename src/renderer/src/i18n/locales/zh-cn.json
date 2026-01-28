@@ -1343,7 +1343,9 @@
     "availableProviders": "可用提供商",
     "availableTools": "可用工具",
     "backup": {
-      "file_format": "备份文件格式错误"
+      "file_format": "备份文件格式错误",
+      "file_locked": "无法恢复：某些文件正在使用中。请关闭所有知识库或重启应用后重试。",
+      "file_not_found": "备份文件未找到或已损坏"
     },
     "base64DataTruncated": "Base64 图片数据已截断，大小",
     "boundary": {
