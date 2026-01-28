@@ -159,34 +159,36 @@
         "filter": {
           "all": "すべてのカテゴリー"
         },
-        "install": "インストール",
+        "install": {
+          "button": "インストール",
+          "title": "プラグインをインストール"
+        },
         "installed": {
-          "empty": "まだプラグインがインストールされていません。利用可能なプラグインを見てみましょう。",
-          "title": "インストール済みプラグイン"
+          "empty": "まだプラグインがインストールされていません。利用可能なプラグインを見てみましょう。"
         },
         "installing": "インストール中...",
         "plugin_upload": {
-          "all_failed": "[to be translated]:All {{failed}} components failed to install",
-          "error": "[to be translated]:Installation failed",
-          "format_hint": "[to be translated]:Supports plugin packages (.claude-plugin/plugin.json)",
-          "hint": "[to be translated]:Drag and drop plugin ZIP here, or click to select",
-          "invalid_format": "[to be translated]:Please upload a ZIP file",
-          "partial_success": "[to be translated]:Plugin \"{{name}}\" partially installed: {{installed}} installed, {{failed}} failed",
-          "select_folder": "[to be translated]:Select Folder",
-          "select_folder_title": "[to be translated]:Select Plugin Folder",
-          "success": "[to be translated]:Plugin \"{{name}}\" installed successfully ({{count}} components)",
-          "success_multi": "[to be translated]:Installed {{count}} components from {{packages}} packages",
-          "uploading": "[to be translated]:Uploading and installing..."
+          "all_failed": "すべての{{failed}}コンポーネントのインストールに失敗しました",
+          "error": "インストールに失敗しました",
+          "format_hint": "プラグインパッケージ（.claude-plugin/plugin.json）をサポート",
+          "hint": "プラグインのZIPファイルをここにドラッグ＆ドロップするか、クリックして選択してください",
+          "invalid_format": "ZIPファイルをアップロードしてください",
+          "partial_success": "プラグイン「{{name}}」は部分的にインストールされました：{{installed}}個がインストールされ、{{failed}}個が失敗しました",
+          "select_folder": "フォルダを選択",
+          "select_folder_title": "プラグインフォルダを選択",
+          "success": "プラグイン「{{name}}」が正常にインストールされました（{{count}} コンポーネント）",
+          "success_multi": "{{packages}}個のパッケージから{{count}}個のコンポーネントをインストールしました",
+          "uploading": "アップロードとインストール中..."
         },
         "results": "{{count}} 個のプラグインが見つかりました",
         "search": {
           "placeholder": "検索プラグイン..."
         },
-        "standalone_plugins": "[to be translated]:Standalone Plugins",
+        "standalone_plugins": "スタンドアロンプラグイン",
         "success": {
           "install": "プラグインのインストールが成功しました",
           "uninstall": "プラグインのアンインストールが成功しました",
-          "uninstall_package": "[to be translated]:Package \"{{name}}\" uninstalled successfully"
+          "uninstall_package": "パッケージ「{{name}}」が正常にアンインストールされました"
         },
         "tab": "プラグイン",
         "type": {
@@ -198,8 +200,8 @@
           "skills": "技能"
         },
         "uninstall": "アンインストール",
-        "uninstall_package": "[to be translated]:Uninstall Package",
-        "uninstall_package_confirm": "[to be translated]:Are you sure you want to uninstall the entire \"{{name}}\" package? This will remove {{count}} component(s).",
+        "uninstall_package": "パッケージをアンインストール",
+        "uninstall_package_confirm": "「{{name}}」パッケージ全体をアンインストールしてもよろしいですか？これにより{{count}}個のコンポーネントが削除されます。",
         "uninstalling": "アンインストール中..."
       },
       "prompt": "プロンプト設定",
@@ -759,21 +761,21 @@
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "resource_panel": {
         "categories": {
-          "agents": "[to be translated]:Agents",
-          "files": "[to be translated]:Files",
-          "skills": "[to be translated]:Skills"
+          "agents": "エージェント",
+          "files": "ファイル",
+          "skills": "スキル"
         },
-        "description": "[to be translated]:Select from files, agents, or skills",
-        "loading": "[to be translated]:Loading...",
+        "description": "ファイル、エージェント、またはスキルから選択",
+        "loading": "読み込み中...",
         "no_file_found": {
-          "description": "[to be translated]:No files available in accessible directories",
-          "label": "[to be translated]:No File Found"
+          "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
+          "label": "ファイルが見つかりません"
         },
         "no_items_found": {
-          "description": "[to be translated]:No files, agents, or skills available",
-          "label": "[to be translated]:No Items Found"
+          "description": "ファイル、エージェント、スキルは利用できません",
+          "label": "アイテムが見つかりません"
         },
-        "title": "[to be translated]:Resources"
+        "title": "リソース"
       },
       "send": "送信",
       "settings": "設定",
@@ -2764,6 +2766,7 @@
     "category": "カテゴリー",
     "commands": "命令",
     "confirm_uninstall": "{{name}}をアンインストールしてもよろしいですか？",
+    "confirm_uninstall_package": "パッケージ「{{name}}」とそのすべてのコンポーネントをアンインストールしてもよろしいですか？",
     "content_saved": "プラグインコンテンツが正常に保存されました",
     "detail": {
       "allowed_tools": "許可されたツール",
@@ -2790,12 +2793,22 @@
     "showing_results_one": "{{count}} 個のプラグインを表示",
     "showing_results_other": "{{count}} 個のプラグインを表示",
     "showing_results_plural": "{{count}} 個のプラグインを表示",
+    "showing_results_skills": "{{count}}スキルを表示",
+    "showing_results_skills_one": "{{count}}件のスキルを表示",
+    "showing_results_skills_other": "{{count}}件のスキルを表示",
+    "showing_results_skills_plural": "{{count}}件のスキルを表示中",
     "skills": "スキル",
-    "standalone_plugins": "[to be translated]:Standalone Plugins",
+    "sort": {
+      "downloads": "ダウンロード",
+      "label": "並び替え",
+      "relevance": "関連性",
+      "stars": "スター"
+    },
+    "standalone_plugins": "スタンドアロンプラグイン",
     "try_different_search": "検索またはカテゴリフィルターを調整してみてください",
     "type": "タイプ",
     "uninstall": "アンインストール",
-    "uninstall_package": "[to be translated]:Uninstall Package",
+    "uninstall_package": "パッケージをアンインストール",
     "uninstalling": "アンインストール中..."
   },
   "preview": {

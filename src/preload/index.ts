@@ -52,7 +52,6 @@ import type {
   InstallFromZipOptions,
   InstallFromZipResult,
   InstallPluginOptions,
-  ListAvailablePluginsResult,
   PluginMetadata,
   PluginResult,
   UninstallPluginOptions,
@@ -596,8 +595,6 @@ const api = {
     }
   },
   claudeCodePlugin: {
-    listAvailable: (): Promise<PluginResult<ListAvailablePluginsResult>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListAvailable),
     install: (options: InstallPluginOptions): Promise<PluginResult<PluginMetadata>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Install, options),
     uninstall: (options: UninstallPluginOptions): Promise<PluginResult<void>> =>

@@ -1,45 +1,6 @@
-import type { InstalledPlugin, PluginError, PluginMetadata, UninstallPluginPackageResult } from '@renderer/types/plugin'
+import type { InstalledPlugin, PluginError, UninstallPluginPackageResult } from '@renderer/types/plugin'
 import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import { useCallback, useEffect, useState } from 'react'
-
-/**
- * Hook to fetch and cache available plugins from the resources directory
- * @returns Object containing available agents, commands, skills, loading state, and error
- */
-export function useAvailablePlugins() {
-  const [agents, setAgents] = useState<PluginMetadata[]>([])
-  const [commands, setCommands] = useState<PluginMetadata[]>([])
-  const [skills, setSkills] = useState<PluginMetadata[]>([])
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const fetchAvailablePlugins = async () => {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const result = await window.api.claudeCodePlugin.listAvailable()
-
-        if (result.success) {
-          setAgents(result.data.agents)
-          setCommands(result.data.commands)
-          setSkills(result.data.skills)
-        } else {
-          setError(getPluginErrorMessage(result.error, 'Failed to load available plugins'))
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error occurred')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchAvailablePlugins()
-  }, [])
-
-  return { agents, commands, skills, loading, error }
-}
 
 /**
  * Hook to fetch installed plugins for a specific agent

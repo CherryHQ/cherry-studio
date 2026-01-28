@@ -1,4 +1,4 @@
-import { usePluginZipUpload } from '@renderer/hooks/usePluginZipUpload'
+import { usePluginInstall } from '@renderer/hooks/usePluginInstall'
 import { Upload } from 'antd'
 import { Package, Upload as UploadIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -8,16 +8,16 @@ import styled from 'styled-components'
 
 const { Dragger } = Upload
 
-interface PluginZipUploaderProps {
+interface PluginUploaderProps {
   agentId: string
   onUploadSuccess?: () => void
   disabled?: boolean
 }
 
-export const PluginZipUploader: FC<PluginZipUploaderProps> = ({ agentId, onUploadSuccess, disabled }) => {
+export const PluginUploader: FC<PluginUploaderProps> = ({ agentId, onUploadSuccess, disabled }) => {
   const { t } = useTranslation()
 
-  const { uploading, uploadFromFile, uploadFromDirectory } = usePluginZipUpload({
+  const { uploading, uploadFromFile, uploadFromDirectory } = usePluginInstall({
     agentId,
     onSuccess: (result) => {
       const packageCount = result.packages.length
@@ -158,4 +158,4 @@ const UploadHint = styled.p`
   margin: 0;
 `
 
-export default PluginZipUploader
+export default PluginUploader

@@ -159,34 +159,36 @@
         "filter": {
           "all": "Alle Kategorien"
         },
-        "install": "Installieren",
+        "install": {
+          "button": "Installieren",
+          "title": "Install Plugins"
+        },
         "installed": {
-          "empty": "Noch keine Plugins installiert. Durchsuche verfügbare Plugins, um loszulegen.",
-          "title": "Installierte Plugins"
+          "empty": "Noch keine Plugins installiert. Durchsuche verfügbare Plugins, um loszulegen."
         },
         "installing": "Wird installiert...",
         "plugin_upload": {
-          "all_failed": "[to be translated]:All {{failed}} components failed to install",
-          "error": "[to be translated]:Installation failed",
-          "format_hint": "[to be translated]:Supports plugin packages (.claude-plugin/plugin.json)",
-          "hint": "[to be translated]:Drag and drop plugin ZIP here, or click to select",
-          "invalid_format": "[to be translated]:Please upload a ZIP file",
-          "partial_success": "[to be translated]:Plugin \"{{name}}\" partially installed: {{installed}} installed, {{failed}} failed",
-          "select_folder": "[to be translated]:Select Folder",
-          "select_folder_title": "[to be translated]:Select Plugin Folder",
-          "success": "[to be translated]:Plugin \"{{name}}\" installed successfully ({{count}} components)",
-          "success_multi": "[to be translated]:Installed {{count}} components from {{packages}} packages",
-          "uploading": "[to be translated]:Uploading and installing..."
+          "all_failed": "Alle {{failed}} Komponenten konnten nicht installiert werden",
+          "error": "Installation fehlgeschlagen",
+          "format_hint": "Unterstützt Plugin-Pakete (.claude-plugin/plugin.json)",
+          "hint": "Ziehen Sie das Plugin-ZIP hierher oder klicken Sie zum Auswählen",
+          "invalid_format": "Bitte laden Sie eine ZIP-Datei hoch",
+          "partial_success": "Plugin „{{name}}“ teilweise installiert: {{installed}} installiert, {{failed}} fehlgeschlagen",
+          "select_folder": "Ordner auswählen",
+          "select_folder_title": "Plugin-Ordner auswählen",
+          "success": "Plugin „{{name}}“ erfolgreich installiert ({{count}} Komponenten)",
+          "success_multi": "{{count}} Komponenten aus {{packages}} Paketen installiert",
+          "uploading": "Hochladen und installieren..."
         },
         "results": "{{count}} Plugin(s) gefunden",
         "search": {
           "placeholder": "Such-Plugins..."
         },
-        "standalone_plugins": "[to be translated]:Standalone Plugins",
+        "standalone_plugins": "Eigenständige Plugins",
         "success": {
           "install": "Plugin erfolgreich installiert",
           "uninstall": "Plugin erfolgreich deinstalliert",
-          "uninstall_package": "[to be translated]:Package \"{{name}}\" uninstalled successfully"
+          "uninstall_package": "Paket \"{{name}}\" erfolgreich deinstalliert"
         },
         "tab": "Plugins",
         "type": {
@@ -198,8 +200,8 @@
           "skills": "Fähigkeiten"
         },
         "uninstall": "Deinstallieren",
-        "uninstall_package": "[to be translated]:Uninstall Package",
-        "uninstall_package_confirm": "[to be translated]:Are you sure you want to uninstall the entire \"{{name}}\" package? This will remove {{count}} component(s).",
+        "uninstall_package": "Paket deinstallieren",
+        "uninstall_package_confirm": "Sind Sie sicher, dass Sie das gesamte Paket „{{name}}“ deinstallieren möchten? Dies entfernt {{count}} Komponente(n).",
         "uninstalling": "Deinstallation läuft..."
       },
       "prompt": "Prompt-Einstellungen",
@@ -759,21 +761,21 @@
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "resource_panel": {
         "categories": {
-          "agents": "[to be translated]:Agents",
-          "files": "[to be translated]:Files",
-          "skills": "[to be translated]:Skills"
+          "agents": "Agenten",
+          "files": "Dateien",
+          "skills": "Fähigkeiten"
         },
-        "description": "[to be translated]:Select from files, agents, or skills",
-        "loading": "[to be translated]:Loading...",
+        "description": "Wählen Sie aus Dateien, Agenten oder Fähigkeiten",
+        "loading": "Laden...",
         "no_file_found": {
-          "description": "[to be translated]:No files available in accessible directories",
-          "label": "[to be translated]:No File Found"
+          "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
+          "label": "Keine Datei gefunden"
         },
         "no_items_found": {
-          "description": "[to be translated]:No files, agents, or skills available",
-          "label": "[to be translated]:No Items Found"
+          "description": "Keine Dateien, Agenten oder Fähigkeiten verfügbar",
+          "label": "Keine Artikel gefunden"
         },
-        "title": "[to be translated]:Resources"
+        "title": "Ressourcen"
       },
       "send": "Senden",
       "settings": "Einstellungen",
@@ -2764,6 +2766,7 @@
     "category": "Kategorie",
     "commands": "Befehle",
     "confirm_uninstall": "Sind Sie sicher, dass Sie {{name}} deinstallieren möchten?",
+    "confirm_uninstall_package": "Sind Sie sicher, dass Sie das Paket {{name}} und alle seine Komponenten deinstallieren möchten?",
     "content_saved": "Plugin-Inhalt erfolgreich gespeichert",
     "detail": {
       "allowed_tools": "Erlaubte Werkzeuge",
@@ -2790,12 +2793,22 @@
     "showing_results_one": "{{count}} Plugin anzeigen",
     "showing_results_other": "Zeige {{count}} Plugins",
     "showing_results_plural": "{{count}} Plugins anzeigen",
+    "showing_results_skills": "Zeige {{count}} Fähigkeit",
+    "showing_results_skills_one": "{{count}} Fähigkeit anzeigen",
+    "showing_results_skills_other": "{{count}} Fähigkeiten anzeigen",
+    "showing_results_skills_plural": "{{count}} Fähigkeiten anzeigen",
     "skills": "Fähigkeiten",
-    "standalone_plugins": "[to be translated]:Standalone Plugins",
+    "sort": {
+      "downloads": "Downloads",
+      "label": "Sortieren",
+      "relevance": "Relevanz",
+      "stars": "Sterne"
+    },
+    "standalone_plugins": "Eigenständige Plugins",
     "try_different_search": "Versuchen Sie, Ihre Suche oder die Kategoriefilter anzupassen.",
     "type": "Typ",
     "uninstall": "Deinstallieren",
-    "uninstall_package": "[to be translated]:Uninstall Package",
+    "uninstall_package": "Paket deinstallieren",
     "uninstalling": "Deinstallation läuft..."
   },
   "preview": {

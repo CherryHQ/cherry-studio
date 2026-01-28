@@ -159,34 +159,36 @@
         "filter": {
           "all": "Все категории"
         },
-        "install": "установка",
+        "install": {
+          "button": "Установить",
+          "title": "Установить плагины"
+        },
         "installed": {
-          "empty": "Плагины ещё не установлены. Просмотрите доступные плагины, чтобы начать.",
-          "title": "Установленный плагин"
+          "empty": "Плагины ещё не установлены. Просмотрите доступные плагины, чтобы начать."
         },
         "installing": "Установка...",
         "plugin_upload": {
-          "all_failed": "[to be translated]:All {{failed}} components failed to install",
-          "error": "[to be translated]:Installation failed",
-          "format_hint": "[to be translated]:Supports plugin packages (.claude-plugin/plugin.json)",
-          "hint": "[to be translated]:Drag and drop plugin ZIP here, or click to select",
-          "invalid_format": "[to be translated]:Please upload a ZIP file",
-          "partial_success": "[to be translated]:Plugin \"{{name}}\" partially installed: {{installed}} installed, {{failed}} failed",
-          "select_folder": "[to be translated]:Select Folder",
-          "select_folder_title": "[to be translated]:Select Plugin Folder",
-          "success": "[to be translated]:Plugin \"{{name}}\" installed successfully ({{count}} components)",
-          "success_multi": "[to be translated]:Installed {{count}} components from {{packages}} packages",
-          "uploading": "[to be translated]:Uploading and installing..."
+          "all_failed": "Все {{failed}} компоненты не удалось установить",
+          "error": "Установка не удалась",
+          "format_hint": "Поддерживает пакеты плагинов (.claude-plugin/plugin.json)",
+          "hint": "Перетащите ZIP-архив плагина сюда или нажмите для выбора",
+          "invalid_format": "Пожалуйста, загрузите ZIP-файл",
+          "partial_success": "Плагин \"{{name}}\" частично установлен: {{installed}} установлено, {{failed}} не удалось",
+          "select_folder": "Выбрать папку",
+          "select_folder_title": "Выбрать папку плагина",
+          "success": "Плагин \"{{name}}\" успешно установлен ({{count}} компонентов)",
+          "success_multi": "Установлено {{count}} компонентов из {{packages}} пакетов",
+          "uploading": "Загрузка и установка..."
         },
         "results": "Найдено {{count}} плагинов",
         "search": {
           "placeholder": "Поиск плагинов..."
         },
-        "standalone_plugins": "[to be translated]:Standalone Plugins",
+        "standalone_plugins": "Автономные плагины",
         "success": {
           "install": "Плагин успешно установлен",
           "uninstall": "Плагин успешно удалён",
-          "uninstall_package": "[to be translated]:Package \"{{name}}\" uninstalled successfully"
+          "uninstall_package": "Пакет \"{{name}}\" успешно удалён"
         },
         "tab": "плагин",
         "type": {
@@ -198,8 +200,8 @@
           "skills": "навык"
         },
         "uninstall": "Удаление",
-        "uninstall_package": "[to be translated]:Uninstall Package",
-        "uninstall_package_confirm": "[to be translated]:Are you sure you want to uninstall the entire \"{{name}}\" package? This will remove {{count}} component(s).",
+        "uninstall_package": "Удалить пакет",
+        "uninstall_package_confirm": "Вы уверены, что хотите удалить весь пакет «{{name}}»? Это приведёт к удалению {{count}} компонента(-ов).",
         "uninstalling": "Удаление..."
       },
       "prompt": "Настройки подсказки",
@@ -759,21 +761,21 @@
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
       "resource_panel": {
         "categories": {
-          "agents": "[to be translated]:Agents",
-          "files": "[to be translated]:Files",
-          "skills": "[to be translated]:Skills"
+          "agents": "Агенты",
+          "files": "Файлы",
+          "skills": "Навыки"
         },
-        "description": "[to be translated]:Select from files, agents, or skills",
-        "loading": "[to be translated]:Loading...",
+        "description": "Выберите из файлов, агентов или навыков",
+        "loading": "Загрузка...",
         "no_file_found": {
-          "description": "[to be translated]:No files available in accessible directories",
-          "label": "[to be translated]:No File Found"
+          "description": "Нет доступных файлов в доступных каталогах",
+          "label": "Файл не найден"
         },
         "no_items_found": {
-          "description": "[to be translated]:No files, agents, or skills available",
-          "label": "[to be translated]:No Items Found"
+          "description": "Нет доступных файлов, агентов или навыков",
+          "label": "Элементы не найдены"
         },
-        "title": "[to be translated]:Resources"
+        "title": "Ресурсы"
       },
       "send": "Отправить",
       "settings": "Настройки",
@@ -2764,6 +2766,7 @@
     "category": "категория",
     "commands": "команда",
     "confirm_uninstall": "Вы уверены, что хотите удалить {{name}}?",
+    "confirm_uninstall_package": "Вы уверены, что хотите удалить пакет {{name}} и все его компоненты?",
     "content_saved": "Содержимое плагина успешно сохранено",
     "detail": {
       "allowed_tools": "Разрешённые инструменты",
@@ -2790,12 +2793,22 @@
     "showing_results_one": "Отображено {{count}} плагинов",
     "showing_results_other": "Отображено {{count}} плагинов",
     "showing_results_plural": "Отображение {{count}} плагинов",
+    "showing_results_skills": "Показано {{count}} навык",
+    "showing_results_skills_one": "Показано {{count}} навык",
+    "showing_results_skills_other": "Показано {{count}} навыков",
+    "showing_results_skills_plural": "Показано {{count}} навыков",
     "skills": "навык",
-    "standalone_plugins": "[to be translated]:Standalone Plugins",
+    "sort": {
+      "downloads": "Загрузки",
+      "label": "Сортировка",
+      "relevance": "Актуальность",
+      "stars": "Звезды"
+    },
+    "standalone_plugins": "Автономные плагины",
     "try_different_search": "Пожалуйста, попробуйте изменить поиск или фильтры категорий",
     "type": "тип",
     "uninstall": "Удаление",
-    "uninstall_package": "[to be translated]:Uninstall Package",
+    "uninstall_package": "Удалить пакет",
     "uninstalling": "Удаление..."
   },
   "preview": {

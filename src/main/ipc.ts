@@ -1014,30 +1014,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
 
   // Claude Code Plugins
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListAvailable, async () => {
-    try {
-      const data = await pluginService.listAvailable()
-      return { success: true, data }
-    } catch (error) {
-      const pluginError = extractPluginError(error)
-      if (pluginError) {
-        logger.error('Failed to list available plugins', pluginError)
-        return { success: false, error: pluginError }
-      }
-
-      const err = normalizeError(error)
-      logger.error('Failed to list available plugins', err)
-      return {
-        success: false,
-        error: {
-          type: 'TRANSACTION_FAILED',
-          operation: 'list-available',
-          reason: err.message
-        }
-      }
-    }
-  })
-
   ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
     try {
       const data = await pluginService.install(options)

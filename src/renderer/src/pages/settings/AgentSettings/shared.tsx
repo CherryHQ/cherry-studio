@@ -102,6 +102,8 @@ export const Settings = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
   padding: 16px 16px;
 `
 

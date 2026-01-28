@@ -159,10 +159,12 @@
         "filter": {
           "all": "All Categories"
         },
-        "install": "Install",
+        "install": {
+          "button": "Install",
+          "title": "Install Plugins"
+        },
         "installed": {
-          "empty": "No plugins installed yet. Browse available plugins to get started.",
-          "title": "Installed Plugins"
+          "empty": "No plugins installed yet. Browse available plugins to get started."
         },
         "installing": "Installing...",
         "plugin_upload": {
@@ -2764,6 +2766,7 @@
     "category": "Category",
     "commands": "Commands",
     "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
+    "confirm_uninstall_package": "Are you sure you want to uninstall the package {{name}} and all its components?",
     "content_saved": "Plugin content saved successfully",
     "detail": {
       "allowed_tools": "Allowed Tools",
@@ -2790,7 +2793,17 @@
     "showing_results_one": "Showing {{count}} plugin",
     "showing_results_other": "Showing {{count}} plugins",
     "showing_results_plural": "Showing {{count}} plugins",
+    "showing_results_skills": "Showing {{count}} skill",
+    "showing_results_skills_one": "Showing {{count}} skill",
+    "showing_results_skills_other": "Showing {{count}} skills",
+    "showing_results_skills_plural": "Showing {{count}} skills",
     "skills": "Skills",
+    "sort": {
+      "downloads": "Downloads",
+      "label": "Sort",
+      "relevance": "Relevance",
+      "stars": "Stars"
+    },
     "standalone_plugins": "Standalone Plugins",
     "try_different_search": "Try adjusting your search or category filters",
     "type": "Type",

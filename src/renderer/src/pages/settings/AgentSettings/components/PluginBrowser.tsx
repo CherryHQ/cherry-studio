@@ -1,9 +1,12 @@
+import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
+import DynamicVirtualList from '@renderer/components/VirtualList/dynamic'
+import { type MarketplaceEntry, useMarketplaceBrowser } from '@renderer/hooks/useMarketplaceBrowser'
+import type { MarketplaceSort } from '@renderer/services/MarketplaceService'
 import type { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
 import { Button as AntButton, Dropdown as AntDropdown, Input as AntInput, Tabs as AntTabs } from 'antd'
-import type { ItemType } from 'antd/es/menu/interface'
-import { Filter, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PluginCard } from './PluginCard'
@@ -11,142 +14,84 @@ import { PluginDetailModal } from './PluginDetailModal'
 
 export interface PluginBrowserProps {
   agentId: string
-  agents: PluginMetadata[]
-  commands: PluginMetadata[]
-  skills: PluginMetadata[]
   installedPlugins: InstalledPlugin[]
   onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => void
   onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => void
-  loading: boolean
 }
 
-type PluginType = 'all' | 'agent' | 'command' | 'skill'
+type PluginFilterType = 'plugin' | 'skill'
 
-const ITEMS_PER_PAGE = 12
+const SORT_OPTIONS: Array<{ key: MarketplaceSort; labelKey: string }> = [
+  { key: 'relevance', labelKey: 'plugins.sort.relevance' },
+  { key: 'stars', labelKey: 'plugins.sort.stars' },
+  { key: 'downloads', labelKey: 'plugins.sort.downloads' }
+]
 
-export const PluginBrowser: FC<PluginBrowserProps> = ({
-  agentId,
-  agents,
-  commands,
-  skills,
-  installedPlugins,
-  onInstall,
-  onUninstall,
-  loading
-}) => {
+const SKELETON_CARD_COUNT = 6
+const COUNT_SENTINEL = 123456789
+const ROW_SIZE = 272
+const LOADER_ROW_SIZE = 80
+
+type PluginRow = {
+  type: 'data' | 'loader'
+  entries: MarketplaceEntry[]
+}
+
+export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugins, onInstall, onUninstall }) => {
   const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [activeType, setActiveType] = useState<PluginType>('all')
-  const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE)
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const [activeType, setActiveType] = useState<PluginFilterType>('plugin')
+  const [sortOption, setSortOption] = useState<MarketplaceSort>('relevance')
   const [actioningPlugin, setActioningPlugin] = useState<string | null>(null)
   const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const observerTarget = useRef<HTMLDivElement>(null)
-  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
 
-  // Combine all plugins based on active type
-  const allPlugins = useMemo(() => {
-    switch (activeType) {
-      case 'agent':
-        return agents
-      case 'command':
-        return commands
-      case 'skill':
-        return skills
-      case 'all':
-      default:
-        return [...agents, ...commands, ...skills]
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim())
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const normalizedQuery = debouncedSearchQuery.trim()
+
+  const {
+    entries,
+    total,
+    hasMore,
+    isLoading,
+    isLoadingMore,
+    error: fetchError,
+    loadMore
+  } = useMarketplaceBrowser({
+    kind: activeType,
+    query: normalizedQuery,
+    sort: sortOption
+  })
+
+  const isInitialLoading = isLoading && entries.length === 0
+
+  const displayedEntries = useMemo(() => entries, [entries])
+
+  const rows = useMemo<PluginRow[]>(() => {
+    const nextRows: PluginRow[] = []
+    for (let i = 0; i < displayedEntries.length; i += 2) {
+      nextRows.push({ type: 'data', entries: displayedEntries.slice(i, i + 2) })
     }
-  }, [agents, commands, skills, activeType])
-
-  // Extract all unique categories
-  const allCategories = useMemo(() => {
-    const categories = new Set<string>()
-    allPlugins.forEach((plugin) => {
-      if (plugin.category) {
-        categories.add(plugin.category)
-      }
-    })
-    return Array.from(categories).sort()
-  }, [allPlugins])
-
-  // Filter plugins based on search query and selected categories
-  const filteredPlugins = useMemo(() => {
-    return allPlugins.filter((plugin) => {
-      // Filter by search query
-      const searchLower = searchQuery.toLowerCase()
-      const matchesSearch =
-        !searchQuery ||
-        plugin.name.toLowerCase().includes(searchLower) ||
-        plugin.description?.toLowerCase().includes(searchLower) ||
-        plugin.tags?.some((tag) => tag.toLowerCase().includes(searchLower))
-
-      // Filter by selected categories
-      const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(plugin.category)
-
-      return matchesSearch && matchesCategory
-    })
-  }, [allPlugins, searchQuery, selectedCategories])
-
-  // Display plugins based on displayCount
-  const displayedPlugins = useMemo(() => {
-    return filteredPlugins.slice(0, displayCount)
-  }, [filteredPlugins, displayCount])
-
-  const pluginCategoryMenuItems = useMemo(() => {
-    const isSelected = (category: string): boolean =>
-      category === 'all' ? selectedCategories.length === 0 : selectedCategories.includes(category)
-    const handleClick = (category: string) => {
-      if (category === 'all') {
-        handleCategoryChange(new Set(['all']))
-      } else {
-        const newKeys = selectedCategories.includes(category)
-          ? new Set(selectedCategories.filter((c) => c !== category))
-          : new Set([...selectedCategories, category])
-        handleCategoryChange(newKeys)
-      }
+    if (isLoadingMore) {
+      nextRows.push({ type: 'loader', entries: [] })
     }
-
-    const itemLabel = (category: string) => (
-      <div className="flex flex-row justify-between">
-        {category}
-        {isSelected(category) && <span className="ml-2 text-primary text-sm">✓</span>}
-      </div>
-    )
-
-    return [
-      {
-        key: 'all',
-        title: t('plugins.all_categories'),
-        label: itemLabel('all'),
-        onClick: () => handleClick('all')
-      },
-      ...allCategories.map(
-        (category) =>
-          ({
-            key: category,
-            title: category,
-            label: itemLabel(category),
-            onClick: () => handleClick(category)
-          }) satisfies ItemType
-      )
-    ]
-  }, [allCategories, selectedCategories, t])
+    return nextRows
+  }, [displayedEntries, isLoadingMore])
 
   const pluginTypeTabItems = useMemo(
     () => [
       {
-        key: 'all',
-        label: t('plugins.all_types')
-      },
-      {
-        key: 'agent',
-        label: t('plugins.agents')
-      },
-      {
-        key: 'command',
-        label: t('plugins.commands')
+        key: 'plugin',
+        label: t('agent.settings.plugins.tab')
       },
       {
         key: 'skill',
@@ -156,50 +101,74 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     [t]
   )
 
-  const hasMore = displayCount < filteredPlugins.length
+  const sortLabel = useMemo(() => {
+    const option = SORT_OPTIONS.find((item) => item.key === sortOption)
+    return option ? t(option.labelKey) : ''
+  }, [sortOption, t])
 
-  // Reset display count when filters change
-  useEffect(() => {
-    setDisplayCount(ITEMS_PER_PAGE)
-  }, [filteredPlugins])
+  const sortMenuItems = useMemo(
+    () =>
+      SORT_OPTIONS.map((option) => ({
+        key: option.key,
+        label: (
+          <div className="flex flex-row justify-between">
+            {t(option.labelKey)}
+            {sortOption === option.key && <span className="ml-2 text-primary text-sm">✓</span>}
+          </div>
+        ),
+        onClick: () => setSortOption(option.key)
+      })),
+    [sortOption, t]
+  )
 
-  // Infinite scroll observer
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore) {
-          setDisplayCount((prev) => prev + ITEMS_PER_PAGE)
-        }
-      },
-      { threshold: 0.1 }
-    )
+  const showingResultsKey = activeType === 'skill' ? 'plugins.showing_results_skills' : 'plugins.showing_results'
+  const showingResultsTemplate = useMemo(() => t(showingResultsKey, { count: COUNT_SENTINEL }), [showingResultsKey, t])
 
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current)
+  const showingResultsParts = useMemo(() => {
+    const sentinel = String(COUNT_SENTINEL)
+    const parts = showingResultsTemplate.split(sentinel)
+    if (parts.length === 1) {
+      return { prefix: showingResultsTemplate, suffix: '' }
     }
+    const [prefix, ...rest] = parts
+    return { prefix, suffix: rest.join(sentinel) }
+  }, [showingResultsTemplate])
 
-    return () => observer.disconnect()
-  }, [hasMore])
-
-  // Check if a plugin is installed
   const isPluginInstalled = (plugin: PluginMetadata): boolean => {
-    return installedPlugins.some(
-      (installed) => installed.filename === plugin.filename && installed.type === plugin.type
+    const pluginName = plugin.name.toLowerCase()
+
+    // Check by packageName (for plugin packages like agent-sdk-dev)
+    const foundByPackage = installedPlugins.some(
+      (installed) => installed.metadata.packageName?.toLowerCase() === pluginName
     )
+
+    // Check by name directly (for skills)
+    const foundByName = installedPlugins.some(
+      (installed) => installed.metadata.name.toLowerCase() === pluginName && installed.type === plugin.type
+    )
+
+    const found = foundByPackage || foundByName
+    return found
   }
 
   // Handle install with loading state
   const handleInstall = async (plugin: PluginMetadata) => {
     setActioningPlugin(plugin.sourcePath)
-    await onInstall(plugin.sourcePath, plugin.type)
-    setActioningPlugin(null)
+    try {
+      await onInstall(plugin.sourcePath, plugin.type)
+    } finally {
+      setActioningPlugin(null)
+    }
   }
 
   // Handle uninstall with loading state
   const handleUninstall = async (plugin: PluginMetadata) => {
     setActioningPlugin(plugin.sourcePath)
-    await onUninstall(plugin.filename, plugin.type)
-    setActioningPlugin(null)
+    try {
+      await onUninstall(plugin.filename, plugin.type)
+    } finally {
+      setActioningPlugin(null)
+    }
   }
 
   // Reset display count when filters change
@@ -207,17 +176,8 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     setSearchQuery(value)
   }
 
-  const handleCategoryChange = (keys: Set<string>) => {
-    // Reset if "all" selected, otherwise filter categories
-    if (keys.has('all') || keys.size === 0) {
-      setSelectedCategories([])
-    } else {
-      setSelectedCategories(Array.from(keys).filter((key) => key !== 'all'))
-    }
-  }
-
   const handleTypeChange = (type: string | number) => {
-    setActiveType(type as PluginType)
+    setActiveType(type as PluginFilterType)
   }
 
   const handlePluginClick = (plugin: PluginMetadata) => {
@@ -230,9 +190,45 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     setSelectedPlugin(null)
   }
 
+  const handleVirtualChange = useCallback(
+    (instance: { getVirtualItems: () => Array<{ index: number }> }) => {
+      if (!hasMore || isLoading || isLoadingMore) return
+      const virtualItems = instance.getVirtualItems()
+      const lastItem = virtualItems[virtualItems.length - 1]
+      if (!lastItem) return
+      if (lastItem.index >= rows.length - 2) {
+        loadMore()
+      }
+    },
+    [hasMore, isLoading, isLoadingMore, loadMore, rows.length]
+  )
+
+  const skeletonCards = useMemo(
+    () =>
+      Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => (
+        <div
+          key={`plugin-skeleton-${index}`}
+          className="flex h-full flex-col gap-3 rounded-lg border border-default-200 p-4">
+          <SkeletonSpan width="60%" />
+          <div className="flex gap-2">
+            <SkeletonSpan width="64px" />
+            <SkeletonSpan width="64px" />
+          </div>
+          <SkeletonSpan width="90%" />
+          <SkeletonSpan width="75%" />
+          <div className="flex items-center gap-4">
+            <SkeletonSpan width="48px" />
+            <SkeletonSpan width="48px" />
+          </div>
+          <SkeletonSpan width="100%" />
+        </div>
+      )),
+    []
+  )
+
   return (
-    <div className="flex flex-col gap-4">
-      {/* Search and Filter */}
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+      {/* Search and Sort */}
       <div className="flex gap-2">
         <AntInput
           placeholder={t('plugins.search_placeholder')}
@@ -241,17 +237,14 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
           prefix={<Search className="h-4 w-4 text-default-400" />}
         />
         <AntDropdown
-          menu={{ items: pluginCategoryMenuItems }}
+          menu={{ items: sortMenuItems }}
           trigger={['click']}
-          open={filterDropdownOpen}
+          open={sortDropdownOpen}
           placement="bottomRight"
-          onOpenChange={setFilterDropdownOpen}>
-          <AntButton
-            variant={selectedCategories.length > 0 ? 'filled' : 'outlined'}
-            color={selectedCategories.length > 0 ? 'primary' : 'default'}
-            size="middle"
-            icon={<Filter className="h-4 w-4" color="var(--color-text-2)" />}
-          />
+          onOpenChange={setSortDropdownOpen}>
+          <AntButton variant="outlined" size="middle">
+            {t('plugins.sort.label')}: {sortLabel}
+          </AntButton>
         </AntDropdown>
       </div>
 
@@ -268,40 +261,77 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
       </div>
 
       {/* Result Count */}
-      <div className="flex items-center justify-between">
-        <p className="text-default-500 text-small">{t('plugins.showing_results', { count: filteredPlugins.length })}</p>
+      <div className="flex items-center gap-2">
+        <p className="text-default-500 text-small">
+          {isInitialLoading ? (
+            <>
+              {showingResultsParts.prefix}
+              <SkeletonSpan width="48px" />
+              {showingResultsParts.suffix}
+            </>
+          ) : (
+            t(showingResultsKey, { count: total })
+          )}
+        </p>
       </div>
 
+      {fetchError && (
+        <div className="rounded-md bg-danger-50 p-3 text-danger text-small">
+          {t('agent.settings.plugins.error.load')}: {fetchError}
+        </div>
+      )}
+
       {/* Plugin Grid */}
-      {displayedPlugins.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
+      {displayedEntries.length === 0 && !isInitialLoading ? (
+        <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
           <p className="text-default-400">{t('plugins.no_results')}</p>
           <p className="text-default-300 text-small">{t('plugins.try_different_search')}</p>
         </div>
+      ) : isInitialLoading ? (
+        <div className="grid flex-1 grid-cols-1 gap-4 md:grid-cols-2">{skeletonCards}</div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {displayedPlugins.map((plugin) => {
-              const installed = isPluginInstalled(plugin)
-              const isActioning = actioningPlugin === plugin.sourcePath
-
+        <DynamicVirtualList
+          list={rows}
+          estimateSize={(index) => (rows[index]?.type === 'loader' ? LOADER_ROW_SIZE : ROW_SIZE)}
+          overscan={4}
+          onChange={handleVirtualChange}
+          size="100%"
+          className="flex-1"
+          scrollerStyle={{ paddingRight: '4px' }}>
+          {(row) => {
+            if (row.type === 'loader') {
               return (
-                <div key={`${plugin.type}-${plugin.sourcePath}`} className="h-full">
-                  <PluginCard
-                    plugin={plugin}
-                    installed={installed}
-                    onInstall={() => handleInstall(plugin)}
-                    onUninstall={() => handleUninstall(plugin)}
-                    loading={loading || isActioning}
-                    onClick={() => handlePluginClick(plugin)}
-                  />
+                <div className="flex justify-center py-4">
+                  <SkeletonSpan width="120px" />
                 </div>
               )
-            })}
-          </div>
-          {/* Infinite scroll trigger */}
-          {hasMore && <div ref={observerTarget} className="h-10" />}
-        </>
+            }
+
+            return (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {row.entries.map((entry) => {
+                  const plugin = entry.metadata
+                  const installed = isPluginInstalled(plugin)
+                  const isActioning = actioningPlugin === plugin.sourcePath
+
+                  return (
+                    <div key={`${plugin.type}-${plugin.sourcePath}`} className="h-full">
+                      <PluginCard
+                        plugin={plugin}
+                        stats={entry.stats}
+                        installed={installed}
+                        onInstall={() => handleInstall(plugin)}
+                        onUninstall={() => handleUninstall(plugin)}
+                        loading={isActioning}
+                        onClick={() => handlePluginClick(plugin)}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          }}
+        </DynamicVirtualList>
       )}
 
       {/* Plugin Detail Modal */}

@@ -159,34 +159,36 @@
         "filter": {
           "all": "Toate categoriile"
         },
-        "install": "Instalează",
+        "install": {
+          "button": "Instalare",
+          "title": "Instalați pluginuri"
+        },
         "installed": {
-          "empty": "Niciun plugin instalat încă. Răsfoiește pluginurile disponibile pentru a începe.",
-          "title": "Pluginuri instalate"
+          "empty": "Niciun plugin instalat încă. Răsfoiește pluginurile disponibile pentru a începe."
         },
         "installing": "Se instalează...",
         "plugin_upload": {
-          "all_failed": "[to be translated]:All {{failed}} components failed to install",
-          "error": "[to be translated]:Installation failed",
-          "format_hint": "[to be translated]:Supports plugin packages (.claude-plugin/plugin.json)",
-          "hint": "[to be translated]:Drag and drop plugin ZIP here, or click to select",
-          "invalid_format": "[to be translated]:Please upload a ZIP file",
-          "partial_success": "[to be translated]:Plugin \"{{name}}\" partially installed: {{installed}} installed, {{failed}} failed",
-          "select_folder": "[to be translated]:Select Folder",
-          "select_folder_title": "[to be translated]:Select Plugin Folder",
-          "success": "[to be translated]:Plugin \"{{name}}\" installed successfully ({{count}} components)",
-          "success_multi": "[to be translated]:Installed {{count}} components from {{packages}} packages",
-          "uploading": "[to be translated]:Uploading and installing..."
+          "all_failed": "Toate componentele {{failed}} nu au putut fi instalate",
+          "error": "Instalarea a eșuat",
+          "format_hint": "Acceptă pachete de pluginuri (.claude-plugin/plugin.json)",
+          "hint": "Trageți și plasați aici arhiva ZIP a pluginului sau faceți clic pentru a selecta",
+          "invalid_format": "Vă rugăm să încărcați un fișier ZIP",
+          "partial_success": "Pluginul \"{{name}}\" instalat parțial: {{installed}} instalat, {{failed}} eșuat",
+          "select_folder": "Selectați dosarul",
+          "select_folder_title": "Selectați dosarul pluginului",
+          "success": "Plugin-ul \"{{name}}\" a fost instalat cu succes ({{count}} componente)",
+          "success_multi": "Instalate {{count}} componente din {{packages}} pachete",
+          "uploading": "Se încarcă și se instalează..."
         },
         "results": "{{count}} plugin(uri) găsit(e)",
         "search": {
           "placeholder": "Caută pluginuri..."
         },
-        "standalone_plugins": "[to be translated]:Standalone Plugins",
+        "standalone_plugins": "Plugin-uri autonome",
         "success": {
           "install": "Plugin instalat cu succes",
           "uninstall": "Plugin dezinstalat cu succes",
-          "uninstall_package": "[to be translated]:Package \"{{name}}\" uninstalled successfully"
+          "uninstall_package": "Pachetul „{{name}}” a fost dezinstalat cu succes"
         },
         "tab": "Pluginuri",
         "type": {
@@ -198,8 +200,8 @@
           "skills": "Abilități"
         },
         "uninstall": "Dezinstalează",
-        "uninstall_package": "[to be translated]:Uninstall Package",
-        "uninstall_package_confirm": "[to be translated]:Are you sure you want to uninstall the entire \"{{name}}\" package? This will remove {{count}} component(s).",
+        "uninstall_package": "Dezinstalează Pachetul",
+        "uninstall_package_confirm": "Sigur dorești să dezinstalezi întregul pachet „{{name}}”? Aceasta va elimina {{count}} component(e).",
         "uninstalling": "Se dezinstalează..."
       },
       "prompt": "Setări prompt",
@@ -759,21 +761,21 @@
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
       "resource_panel": {
         "categories": {
-          "agents": "[to be translated]:Agents",
-          "files": "[to be translated]:Files",
-          "skills": "[to be translated]:Skills"
+          "agents": "Agenți",
+          "files": "Fișiere",
+          "skills": "Abilități"
         },
-        "description": "[to be translated]:Select from files, agents, or skills",
-        "loading": "[to be translated]:Loading...",
+        "description": "Selectați din fișiere, agenți sau competențe",
+        "loading": "Se încarcă...",
         "no_file_found": {
-          "description": "[to be translated]:No files available in accessible directories",
-          "label": "[to be translated]:No File Found"
+          "description": "Nicio fișier disponibil în directoare accesibile",
+          "label": "Niciun fișier găsit"
         },
         "no_items_found": {
-          "description": "[to be translated]:No files, agents, or skills available",
-          "label": "[to be translated]:No Items Found"
+          "description": "Niciun fișier, agent sau abilitate disponibilă",
+          "label": "Niciun element găsit"
         },
-        "title": "[to be translated]:Resources"
+        "title": "Resurse"
       },
       "send": "Trimite",
       "settings": "Setări",
@@ -2764,6 +2766,7 @@
     "category": "Categorie",
     "commands": "Comenzi",
     "confirm_uninstall": "Ești sigur că vrei să dezinstalezi {{name}}?",
+    "confirm_uninstall_package": "Sigur doriți să dezinstalați pachetul {{name}} și toate componentele sale?",
     "content_saved": "Conținutul plugin-ului a fost salvat cu succes",
     "detail": {
       "allowed_tools": "Unelte Permise",
@@ -2790,12 +2793,22 @@
     "showing_results_one": "Se afișează {{count}} plugin",
     "showing_results_other": "Se afișează {{count}} pluginuri",
     "showing_results_plural": "Se afișează {{count}} pluginuri",
+    "showing_results_skills": "Afișare {{count}} abilitate",
+    "showing_results_skills_one": "Afișare {{count}} abilitate",
+    "showing_results_skills_other": "Afișare {{count}} competențe",
+    "showing_results_skills_plural": "Afișare {{count}} competențe",
     "skills": "Abilități",
-    "standalone_plugins": "[to be translated]:Standalone Plugins",
+    "sort": {
+      "downloads": "Descărcări",
+      "label": "Sortare",
+      "relevance": "Relevanță",
+      "stars": "Stele"
+    },
+    "standalone_plugins": "Plugin-uri independente",
     "try_different_search": "Încearcă să ajustezi căutarea sau filtrele de categorie",
     "type": "Tip",
     "uninstall": "Dezinstalează",
-    "uninstall_package": "[to be translated]:Uninstall Package",
+    "uninstall_package": "Dezinstalează pachetul",
     "uninstalling": "Se dezinstalează..."
   },
   "preview": {

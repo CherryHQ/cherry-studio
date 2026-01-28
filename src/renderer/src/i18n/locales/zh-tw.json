@@ -159,10 +159,12 @@
         "filter": {
           "all": "所有類別"
         },
-        "install": "安裝",
+        "install": {
+          "button": "安裝",
+          "title": "[to be translated]:Install Plugins"
+        },
         "installed": {
-          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。",
-          "title": "已安裝外掛"
+          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。"
         },
         "installing": "安裝中...",
         "plugin_upload": {
@@ -688,7 +690,7 @@
     },
     "alerts": {
       "create_session": "建立工作階段",
-      "select_agent": "選擇一個代理人"
+      "select_agent": "選擇一個智能體"
     },
     "artifacts": {
       "button": {
@@ -759,21 +761,21 @@
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "resource_panel": {
         "categories": {
-          "agents": "[to be translated]:Agents",
-          "files": "[to be translated]:Files",
-          "skills": "[to be translated]:Skills"
+          "agents": "智能體",
+          "files": "檔案",
+          "skills": "技能"
         },
-        "description": "[to be translated]:Select from files, agents, or skills",
-        "loading": "[to be translated]:Loading...",
+        "description": "從檔案、智能體或技能中選擇",
+        "loading": "載入中...",
         "no_file_found": {
-          "description": "[to be translated]:No files available in accessible directories",
-          "label": "[to be translated]:No File Found"
+          "description": "可存取目錄中無可用檔案",
+          "label": "找不到檔案"
         },
         "no_items_found": {
-          "description": "[to be translated]:No files, agents, or skills available",
-          "label": "[to be translated]:No Items Found"
+          "description": "沒有可用的檔案、智能體或技能",
+          "label": "未找到項目"
         },
-        "title": "[to be translated]:Resources"
+        "title": "資源"
       },
       "send": "傳送",
       "settings": "設定",
@@ -1220,10 +1222,10 @@
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
-    "agent_one": "代理人",
-    "agent_other": "代理人",
+    "agent_one": "智能體",
+    "agent_other": "智能體",
     "and": "與",
-    "assistant": "智慧代理人",
+    "assistant": "智慧智能體",
     "assistant_one": "助手",
     "assistant_other": "助手",
     "avatar": "頭像",
@@ -2764,6 +2766,7 @@
     "category": "類別",
     "commands": "指令",
     "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "confirm_uninstall_package": "確定要解除安裝套件 {{name}} 及其所有組件嗎？",
     "content_saved": "外掛內容已成功儲存",
     "detail": {
       "allowed_tools": "允許的工具",
@@ -2790,7 +2793,17 @@
     "showing_results_one": "顯示 {{count}} 個外掛",
     "showing_results_other": "顯示 {{count}} 個外掛",
     "showing_results_plural": "顯示 {{count}} 個外掛",
+    "showing_results_skills": "顯示 {{count}} 個技能",
+    "showing_results_skills_one": "顯示 {{count}} 個技能",
+    "showing_results_skills_other": "顯示 {{count}} 個技能",
+    "showing_results_skills_plural": "顯示 {{count}} 個技能",
     "skills": "技能",
+    "sort": {
+      "downloads": "下載量",
+      "label": "排序",
+      "relevance": "相關性",
+      "stars": "星標"
+    },
     "standalone_plugins": "獨立外掛",
     "try_different_search": "請嘗試調整搜尋或類別篩選",
     "type": "類型",

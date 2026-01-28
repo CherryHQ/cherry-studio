@@ -181,12 +181,48 @@ export const PluginManifestSchema = z.object({
 export type PluginAuthor = z.infer<typeof PluginAuthorSchema>
 export type PluginManifest = z.infer<typeof PluginManifestSchema>
 
-export interface ListAvailablePluginsResult {
-  agents: PluginMetadata[]
-  commands: PluginMetadata[]
-  skills: PluginMetadata[] // NEW: skills plugin type
-  total: number
-}
+// Marketplace manifest schema (.claude-plugin/marketplace.json)
+// Reference: https://code.claude.com/docs/en/plugin-marketplaces#marketplace-schema
+export const MarketplaceOwnerSchema = z.object({
+  name: z.string(),
+  email: z.string().optional(),
+  url: z.string().optional()
+})
+
+export const MarketplacePluginSourceSchema = z.union([
+  z.string(),
+  z.object({
+    github: z.string().optional(),
+    npm: z.string().optional(),
+    git: z.string().optional()
+  })
+])
+
+// Marketplace plugin entry extends PluginManifest with marketplace-specific fields
+export const MarketplacePluginEntrySchema = PluginManifestSchema.extend({
+  source: MarketplacePluginSourceSchema,
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  strict: z.boolean().optional()
+})
+
+export const MarketplaceMetadataSchema = z.object({
+  description: z.string().optional(),
+  version: z.string().optional(),
+  pluginRoot: z.string().optional()
+})
+
+export const MarketplaceManifestSchema = z.object({
+  name: z.string().min(1),
+  owner: MarketplaceOwnerSchema,
+  plugins: z.array(MarketplacePluginEntrySchema),
+  metadata: MarketplaceMetadataSchema.optional()
+})
+
+export type MarketplaceOwner = z.infer<typeof MarketplaceOwnerSchema>
+export type MarketplacePluginEntry = z.infer<typeof MarketplacePluginEntrySchema>
+export type MarketplaceMetadata = z.infer<typeof MarketplaceMetadataSchema>
+export type MarketplaceManifest = z.infer<typeof MarketplaceManifestSchema>
 
 // IPC Channel Constants
 export const CLAUDE_CODE_PLUGIN_IPC_CHANNELS = {

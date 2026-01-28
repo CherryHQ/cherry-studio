@@ -379,7 +379,6 @@ export enum IpcChannel {
   Cherryai_GetSignature = 'cherryai:get-signature',
 
   // Claude Code Plugins
-  ClaudeCodePlugin_ListAvailable = 'claudeCodePlugin:list-available',
   ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
   ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
   ClaudeCodePlugin_UninstallPackage = 'claudeCodePlugin:uninstall-package',

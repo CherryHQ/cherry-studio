@@ -1,7 +1,15 @@
+import { spawn } from 'node:child_process'
+
 import { loggerService } from '@logger'
 import { isPathInside } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
-import { parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
+import {
+  findAllSkillDirectories,
+  findSkillMdPath,
+  parsePluginMetadata,
+  parseSkillMetadata
+} from '@main/utils/markdownParser'
+import { findExecutable } from '@main/utils/process'
 import {
   type GetAgentResponse,
   type InstalledPlugin,
@@ -9,7 +17,9 @@ import {
   type InstallFromZipOptions,
   type InstallFromZipResult,
   type InstallPluginOptions,
-  type ListAvailablePluginsResult,
+  type MarketplaceManifest,
+  MarketplaceManifestSchema,
+  type MarketplacePluginEntry,
   type PluginError,
   type PluginManifest,
   PluginManifestSchema,
@@ -20,7 +30,7 @@ import {
   type UninstallPluginPackageOptions,
   type UninstallPluginPackageResult
 } from '@types'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
@@ -31,15 +41,24 @@ import { PluginInstaller } from './PluginInstaller'
 
 const logger = loggerService.withContext('PluginService')
 
+const MARKETPLACE_API_BASE_URL = 'https://api.claude-plugins.dev'
+const MARKETPLACE_SOURCE_PREFIX = 'marketplace:'
+
 interface PluginServiceConfig {
   maxFileSize: number // bytes
-  cacheTimeout: number // milliseconds
 }
 
 // Install context for component installation
 interface InstallContext {
   agent: GetAgentResponse
   workdir: string
+}
+
+interface MarketplaceIdentifier {
+  kind: 'plugin' | 'skill'
+  owner: string
+  repository: string
+  name: string
 }
 
 // Result of creating installed plugin metadata
@@ -65,8 +84,6 @@ export class PluginService {
   private readonly MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
   private readonly MAX_FILES_COUNT = 1000
 
-  private availablePluginsCache: ListAvailablePluginsResult | null = null
-  private cacheTimestamp = 0
   private config: PluginServiceConfig
   private readonly cacheStore: PluginCacheStore
   private readonly installer: PluginInstaller
@@ -76,22 +93,19 @@ export class PluginService {
 
   private constructor(config?: Partial<PluginServiceConfig>) {
     this.config = {
-      maxFileSize: config?.maxFileSize ?? 1024 * 1024, // 1MB default
-      cacheTimeout: config?.cacheTimeout ?? 5 * 60 * 1000 // 5 minutes default
+      maxFileSize: config?.maxFileSize ?? 1024 * 1024 // 1MB default
     }
     this.agentService = AgentService.getInstance()
     this.cacheStore = new PluginCacheStore({
       allowedExtensions: this.ALLOWED_EXTENSIONS,
       getPluginDirectoryName: this.getPluginDirectoryName.bind(this),
       getClaudeBasePath: this.getClaudeBasePath.bind(this),
-      getClaudePluginDirectory: this.getClaudePluginDirectory.bind(this),
-      getPluginsBasePath: this.getPluginsBasePath.bind(this)
+      getClaudePluginDirectory: this.getClaudePluginDirectory.bind(this)
     })
     this.installer = new PluginInstaller()
 
     logger.info('PluginService initialized', {
-      maxFileSize: this.config.maxFileSize,
-      cacheTimeout: this.config.cacheTimeout
+      maxFileSize: this.config.maxFileSize
     })
   }
 
@@ -106,124 +120,334 @@ export class PluginService {
   }
 
   /**
-   * List all available plugins from resources directory (with caching)
-   */
-  async listAvailable(): Promise<ListAvailablePluginsResult> {
-    const now = Date.now()
-
-    // Return cached data if still valid
-    if (this.availablePluginsCache && now - this.cacheTimestamp < this.config.cacheTimeout) {
-      logger.debug('Returning cached plugin list', {
-        cacheAge: now - this.cacheTimestamp
-      })
-      return this.availablePluginsCache
-    }
-
-    logger.info('Scanning available plugins')
-
-    // Scan all plugin types
-    const [agents, commands, skills] = await Promise.all([
-      this.cacheStore.listAvailableFilePlugins('agent'),
-      this.cacheStore.listAvailableFilePlugins('command'),
-      this.cacheStore.listAvailableSkills()
-    ])
-
-    const result: ListAvailablePluginsResult = {
-      agents,
-      commands,
-      skills, // NEW: include skills
-      total: agents.length + commands.length + skills.length
-    }
-
-    // Update cache
-    this.availablePluginsCache = result
-    this.cacheTimestamp = now
-
-    logger.info('Available plugins scanned', {
-      agentsCount: agents.length,
-      commandsCount: commands.length,
-      skillsCount: skills.length,
-      total: result.total
-    })
-
-    return result
-  }
-
-  /**
    * Install plugin with validation and transactional safety
    */
   async install(options: InstallPluginOptions): Promise<PluginMetadata> {
     logger.info('Installing plugin', options)
-    const context = await this.prepareInstallContext(options)
-    return await this.installComponent(options, context)
+    if (this.isMarketplaceSource(options.sourcePath)) {
+      const agent = await this.getAgentOrThrow(options.agentId)
+      const workdir = this.getWorkdirOrThrow(agent, options.agentId)
+      await this.validateWorkdir(agent, workdir)
+      return await this.installMarketplace(options, { agent, workdir })
+    }
+
+    throw {
+      type: 'INVALID_METADATA',
+      reason: 'Local preset plugin sources are disabled. Use marketplace or upload installs.',
+      path: options.sourcePath
+    } as PluginError
   }
 
-  private async prepareInstallContext(
-    options: InstallPluginOptions
-  ): Promise<InstallContext & { sourceAbsolutePath: string }> {
-    const agent = await this.getAgentOrThrow(options.agentId)
-    const workdir = this.getWorkdirOrThrow(agent, options.agentId)
-
-    await this.validateWorkdir(agent, workdir)
-
-    const sourceAbsolutePath = this.cacheStore.resolveSourcePath(options.sourcePath)
-
-    return { agent, workdir, sourceAbsolutePath }
+  private isMarketplaceSource(sourcePath: string): boolean {
+    return sourcePath.startsWith(MARKETPLACE_SOURCE_PREFIX)
   }
 
-  private async installComponent(
-    options: InstallPluginOptions,
-    context: InstallContext & { sourceAbsolutePath: string }
+  private parseMarketplaceSource(sourcePath: string): MarketplaceIdentifier {
+    const trimmed = sourcePath.trim()
+    if (!trimmed.startsWith(MARKETPLACE_SOURCE_PREFIX)) {
+      throw {
+        type: 'INVALID_METADATA',
+        reason: 'Invalid marketplace source path',
+        path: sourcePath
+      } as PluginError
+    }
+
+    const [, kind, identifier] = trimmed.split(':')
+    if ((kind !== 'plugin' && kind !== 'skill') || !identifier) {
+      throw {
+        type: 'INVALID_METADATA',
+        reason: 'Marketplace source must include kind and identifier',
+        path: sourcePath
+      } as PluginError
+    }
+
+    const parts = identifier.split('/').filter(Boolean)
+    if (parts.length < 3) {
+      throw {
+        type: 'INVALID_METADATA',
+        reason: 'Marketplace identifier must include owner/repo/name',
+        path: sourcePath
+      } as PluginError
+    }
+
+    const [owner, repository, ...rest] = parts
+    const name = rest.join('/')
+
+    return { kind, owner, repository, name }
+  }
+
+  private async installMarketplace(options: InstallPluginOptions, context: InstallContext): Promise<PluginMetadata> {
+    const identifier = this.parseMarketplaceSource(options.sourcePath)
+    if (identifier.kind === 'skill') {
+      return await this.installMarketplaceSkill(identifier, context)
+    }
+    return await this.installMarketplacePlugin(identifier, context)
+  }
+
+  private async installMarketplacePlugin(
+    identifier: MarketplaceIdentifier,
+    context: InstallContext
   ): Promise<PluginMetadata> {
-    const { agent, workdir, sourceAbsolutePath } = context
-    const { type, sourcePath } = options
-    const isSkill = type === 'skill'
+    const resolveUrl = `${MARKETPLACE_API_BASE_URL}/api/resolve/${identifier.owner}/${identifier.repository}/${identifier.name}`
+    const payload = await this.requestMarketplaceJson(resolveUrl)
+    const repoUrl = this.extractRepositoryUrl(payload)
 
-    // Validate and parse based on type
-    if (isSkill) {
-      await this.cacheStore.ensureSkillSourceDirectory(sourceAbsolutePath, sourcePath)
-    } else {
-      await this.cacheStore.validatePluginFile(sourceAbsolutePath, this.config.maxFileSize)
+    if (!repoUrl) {
+      throw {
+        type: 'INVALID_METADATA',
+        reason: 'Marketplace resolve response missing repository URL',
+        path: resolveUrl
+      } as PluginError
     }
 
-    // Parse metadata
-    const category = isSkill ? 'skills' : path.basename(path.dirname(sourcePath))
-    const metadata = isSkill
-      ? await parseSkillMetadata(sourceAbsolutePath, sourcePath, category)
-      : await parsePluginMetadata(sourceAbsolutePath, sourcePath, category, type as 'agent' | 'command')
+    const tempDir = await this.createMarketplaceTempDir(identifier)
 
-    // Sanitize name
-    const sanitizedName = isSkill
-      ? this.sanitizeFolderName(metadata.filename)
-      : this.sanitizeFilename(metadata.filename)
+    try {
+      await this.cloneRepository(repoUrl, tempDir)
+      const result = await this.installFromSourceDir(
+        tempDir,
+        context.workdir,
+        context.agent,
+        context.agent.id,
+        'directory'
+      )
+      const installed = result.packages.flatMap((item) => item.installed)
+      if (installed.length === 0) {
+        throw { type: 'EMPTY_PLUGIN_PACKAGE', path: tempDir } as PluginError
+      }
+      return installed[0]
+    } finally {
+      await this.safeRemoveDirectory(tempDir)
+    }
+  }
 
-    // Ensure directory and get destination path
-    await this.ensureClaudeDirectory(workdir, type)
-    const destPath = this.getClaudePluginPath(workdir, type, sanitizedName)
+  private async installMarketplaceSkill(
+    identifier: MarketplaceIdentifier,
+    context: InstallContext
+  ): Promise<PluginMetadata> {
+    const resolveUrl = `${MARKETPLACE_API_BASE_URL}/api/skills/${identifier.owner}/${identifier.repository}/${identifier.name}`
+    const payload = await this.requestMarketplaceJson(resolveUrl)
+    const sourceUrl = this.extractSkillSourceUrl(payload)
+    const directoryPath = this.extractSkillDirectoryPath(payload)
 
-    // Install
-    if (isSkill) {
-      await this.installer.installSkill(agent.id, sourceAbsolutePath, destPath)
-    } else {
-      await this.installer.installFilePlugin(agent.id, sourceAbsolutePath, destPath)
+    if (!sourceUrl) {
+      throw {
+        type: 'INVALID_METADATA',
+        reason: 'Marketplace skill response missing source URL',
+        path: resolveUrl
+      } as PluginError
     }
 
-    // Create metadata and register in cache
+    const tempDir = await this.createMarketplaceTempDir(identifier)
+
+    try {
+      await this.cloneRepository(sourceUrl, tempDir)
+      const skillDir = await this.resolveSkillDirectory(tempDir, identifier.name, directoryPath)
+      const metadata = await this.installMarketplaceSkillFromDirectory(skillDir, context)
+      this.reportSkillInstall(identifier).catch((error) => {
+        logger.warn('Failed to report skill install', {
+          owner: identifier.owner,
+          repository: identifier.repository,
+          name: identifier.name,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      })
+      return metadata
+    } finally {
+      await this.safeRemoveDirectory(tempDir)
+    }
+  }
+
+  private async installMarketplaceSkillFromDirectory(
+    skillDir: string,
+    context: InstallContext
+  ): Promise<PluginMetadata> {
+    const folderName = path.basename(skillDir)
+    const sourcePath = path.join('skills', folderName)
+
+    const metadata = await parseSkillMetadata(skillDir, sourcePath, 'skills')
+    const sanitizedName = this.sanitizeFolderName(metadata.filename)
+
+    await this.ensureClaudeDirectory(context.workdir, 'skill')
+    const destPath = this.getClaudePluginPath(context.workdir, 'skill', sanitizedName)
+    await this.installer.installSkill(context.agent.id, skillDir, destPath)
+
     const { metadata: metadataWithInstall, installedPlugin } = this.createInstalledPluginMetadata(
       metadata,
       sanitizedName,
-      type
+      'skill'
     )
-
-    await this.registerPluginInCache(workdir, installedPlugin, agent)
-
-    logger.info('Plugin installed successfully', {
-      agentId: options.agentId,
-      filename: sanitizedName,
-      type
-    })
+    await this.registerPluginInCache(context.workdir, installedPlugin, context.agent)
 
     return metadataWithInstall
+  }
+
+  private async requestMarketplaceJson(url: string): Promise<unknown> {
+    const response = await net.fetch(url, { method: 'GET' })
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Request failed' }))
+      const message =
+        typeof errorBody?.message === 'string'
+          ? errorBody.message
+          : `HTTP ${response.status}: ${response.statusText || 'Request failed'}`
+      throw {
+        type: 'TRANSACTION_FAILED',
+        operation: 'marketplace-fetch',
+        reason: message
+      } as PluginError
+    }
+    return response.json()
+  }
+
+  private extractRepositoryUrl(payload: unknown): string | null {
+    if (typeof payload === 'string') return payload
+    if (!payload || typeof payload !== 'object') return null
+    const record = payload as Record<string, unknown>
+    const url = record.gitUrl ?? record.git_url ?? record.url ?? record.repoUrl ?? record.repo_url
+    return typeof url === 'string' && url.length > 0 ? url : null
+  }
+
+  private extractSkillSourceUrl(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object') return null
+    const record = payload as Record<string, unknown>
+    const sourceUrl = record.sourceUrl ?? record.source_url
+    return typeof sourceUrl === 'string' && sourceUrl.length > 0 ? sourceUrl : null
+  }
+
+  private extractSkillDirectoryPath(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object') return null
+    const record = payload as Record<string, unknown>
+    const metadata = record.metadata
+    if (!metadata || typeof metadata !== 'object') return null
+    const directoryPath = (metadata as Record<string, unknown>).directoryPath
+    return typeof directoryPath === 'string' && directoryPath.length > 0 ? directoryPath : null
+  }
+
+  private async resolveSkillDirectory(
+    repoDir: string,
+    skillName: string,
+    directoryPath: string | null
+  ): Promise<string> {
+    if (directoryPath) {
+      const resolved = path.resolve(repoDir, directoryPath)
+      const skillMdPath = await findSkillMdPath(resolved)
+      if (skillMdPath) {
+        return resolved
+      }
+    }
+
+    const candidates = await findAllSkillDirectories(repoDir, repoDir, 8)
+    const matched = candidates.find((candidate) => path.basename(candidate.folderPath) === skillName)
+    if (matched) {
+      return matched.folderPath
+    }
+
+    if (candidates.length === 1) {
+      return candidates[0].folderPath
+    }
+
+    throw {
+      type: 'INVALID_METADATA',
+      reason: 'Unable to locate skill directory',
+      path: repoDir
+    } as PluginError
+  }
+
+  private async createMarketplaceTempDir(identifier: MarketplaceIdentifier): Promise<string> {
+    const safeName = this.sanitizeFolderName(`${identifier.owner}-${identifier.repository}-${identifier.name}`)
+    const tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'marketplace-install', `${safeName}-${Date.now()}`)
+    await fs.promises.mkdir(tempDir, { recursive: true })
+    return tempDir
+  }
+
+  private async cloneRepository(repoUrl: string, destDir: string): Promise<void> {
+    const gitCommand = findExecutable('git') ?? 'git'
+    const branch = await this.resolveDefaultBranch(gitCommand, repoUrl)
+    if (branch) {
+      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, repoUrl, destDir])
+      return
+    }
+
+    try {
+      await this.runCommand(gitCommand, ['clone', '--depth', '1', repoUrl, destDir])
+    } catch (error) {
+      logger.warn('Default clone failed, retrying with master branch', {
+        repoUrl,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', repoUrl, destDir])
+    }
+  }
+
+  private async runCommand(command: string, args: string[]): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(command, args, { stdio: 'pipe' })
+      let errorOutput = ''
+
+      child.stderr?.on('data', (chunk) => {
+        errorOutput += chunk.toString()
+      })
+
+      child.on('error', (error) => {
+        reject(error)
+      })
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve()
+        } else {
+          reject(new Error(errorOutput || `Command failed with code ${code}`))
+        }
+      })
+    })
+  }
+
+  private async resolveDefaultBranch(command: string, repoUrl: string): Promise<string | null> {
+    try {
+      const output = await this.captureCommand(command, ['ls-remote', '--symref', repoUrl, 'HEAD'])
+      const match = output.match(/ref: refs\/heads\/([^\s]+)/)
+      return match?.[1] ?? null
+    } catch (error) {
+      logger.warn('Failed to resolve default branch', {
+        repoUrl,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
+  }
+
+  private async captureCommand(command: string, args: string[]): Promise<string> {
+    return await new Promise<string>((resolve, reject) => {
+      const child = spawn(command, args, { stdio: 'pipe' })
+      let output = ''
+      let errorOutput = ''
+
+      child.stdout?.on('data', (chunk) => {
+        output += chunk.toString()
+      })
+
+      child.stderr?.on('data', (chunk) => {
+        errorOutput += chunk.toString()
+      })
+
+      child.on('error', (error) => {
+        reject(error)
+      })
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve(output)
+        } else {
+          reject(new Error(errorOutput || `Command failed with code ${code}`))
+        }
+      })
+    })
+  }
+
+  private async reportSkillInstall(identifier: MarketplaceIdentifier): Promise<void> {
+    if (identifier.kind !== 'skill') return
+    const url = `${MARKETPLACE_API_BASE_URL}/api/skills/${identifier.owner}/${identifier.repository}/${identifier.name}/install`
+    await net.fetch(url, { method: 'POST' })
   }
 
   /**
@@ -375,12 +599,54 @@ export class PluginService {
   }
 
   /**
+   * List installed plugin package paths for Claude Code SDK (local plugins)
+   */
+  async listInstalledPluginPackagePaths(agentId: string): Promise<string[]> {
+    logger.debug('Listing installed plugin package paths', { agentId })
+
+    const agent = await this.getAgentOrThrow(agentId)
+    const workdir = this.getWorkdirOrThrow(agent, agentId)
+    await this.validateWorkdir(agent, workdir)
+
+    const installedPlugins = await this.listInstalledFromCache(workdir)
+    const packageNames = new Set<string>()
+
+    for (const plugin of installedPlugins) {
+      if (plugin.metadata.packageName) {
+        packageNames.add(this.sanitizeFolderName(plugin.metadata.packageName))
+      }
+    }
+
+    if (packageNames.size === 0) {
+      return []
+    }
+
+    const pluginPaths: string[] = []
+
+    for (const packageName of packageNames) {
+      const pluginPath = path.join(workdir, '.claude', 'plugins', packageName)
+      const manifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json')
+
+      if (await this.fileExists(manifestPath)) {
+        pluginPaths.push(pluginPath)
+      } else {
+        logger.warn('Skipping plugin without manifest', { pluginPath, manifestPath })
+      }
+    }
+
+    logger.info('Listed installed plugin package paths', {
+      agentId,
+      count: pluginPaths.length
+    })
+
+    return pluginPaths
+  }
+
+  /**
    * Invalidate plugin cache (for development/testing)
    */
   invalidateCache(): void {
-    this.availablePluginsCache = null
-    this.cacheTimestamp = 0
-    logger.info('Plugin cache invalidated')
+    logger.info('Plugin cache invalidated (no-op)')
   }
 
   private async safeRemoveDirectory(dirPath: string): Promise<void> {
@@ -580,6 +846,15 @@ export class PluginService {
     await this.copyPluginDirectory(pluginRoot, pluginDestPath)
 
     // 3. Scan and register components (default directories + custom paths)
+    logger.debug('Scanning plugin components', {
+      pluginDestPath,
+      manifest: {
+        name: manifest.name,
+        skills: manifest.skills,
+        agents: manifest.agents,
+        commands: manifest.commands
+      }
+    })
     const results = await Promise.all([
       this.scanComponentPaths(pluginDestPath, 'skills', manifest.skills, 'skill', workdir, agent, packageInfo),
       this.scanComponentPaths(pluginDestPath, 'agents', manifest.agents, 'agent', workdir, agent, packageInfo),
@@ -666,15 +941,27 @@ export class PluginService {
 
   /**
    * Find all plugin root directories.
-   * Supports: single plugin, single plugin with wrapper directory, multiple plugins.
+   * Supports: single plugin, single plugin with wrapper directory, multiple plugins, marketplace.
    * e.g., if ZIP extracts to: tempDir/plugin-name/.claude-plugin/plugin.json
    * this method returns: [tempDir/plugin-name]
    * e.g., if ZIP extracts to: tempDir/plugins/{plugin1, plugin2}/.claude-plugin/...
    * this method returns: [tempDir/plugins/plugin1, tempDir/plugins/plugin2]
+   * e.g., if directory has .claude-plugin/marketplace.json, resolve plugin sources from it
    */
   private async findPluginRoots(extractedDir: string): Promise<string[]> {
-    // Case 1: Directory itself is a plugin root
-    if (await this.hasClaudePluginDir(extractedDir)) {
+    // Case 0: Check for marketplace.json first
+    const marketplace = await this.readMarketplaceManifest(extractedDir)
+    if (marketplace) {
+      logger.debug('Marketplace manifest found', {
+        extractedDir,
+        marketplaceName: marketplace.name,
+        pluginCount: marketplace.plugins.length
+      })
+      return this.resolveMarketplacePluginRoots(extractedDir, marketplace)
+    }
+
+    // Case 1: Directory itself is a plugin root (has plugin.json)
+    if (await this.hasPluginJson(extractedDir)) {
       logger.debug('Plugin root found at extracted directory', { extractedDir })
       return [extractedDir]
     }
@@ -686,7 +973,7 @@ export class PluginService {
     const roots: string[] = []
     for (const dir of directories) {
       const subDir = path.join(extractedDir, dir.name)
-      if (await this.hasClaudePluginDir(subDir)) {
+      if (await this.hasPluginJson(subDir)) {
         roots.push(subDir)
       }
     }
@@ -712,10 +999,103 @@ export class PluginService {
   }
 
   /**
-   * Check if directory contains .claude-plugin subdirectory
+   * Resolve plugin roots from marketplace manifest
    */
-  private async hasClaudePluginDir(dir: string): Promise<boolean> {
-    return this.directoryExists(path.join(dir, '.claude-plugin'))
+  private async resolveMarketplacePluginRoots(
+    marketplaceDir: string,
+    marketplace: MarketplaceManifest
+  ): Promise<string[]> {
+    const pluginRoot = marketplace.metadata?.pluginRoot
+    const roots: string[] = []
+
+    for (const entry of marketplace.plugins) {
+      try {
+        const sourcePath = this.resolveMarketplacePluginSource(marketplaceDir, entry, pluginRoot)
+
+        // For relative paths, check if directory exists and has .claude-plugin
+        if (await this.directoryExists(sourcePath)) {
+          if (await this.hasPluginJson(sourcePath)) {
+            roots.push(sourcePath)
+            logger.debug('Resolved marketplace plugin', { name: entry.name, sourcePath })
+          } else {
+            // Plugin defined inline in marketplace (strict: false)
+            // For now, skip these - they need special handling
+            logger.debug('Marketplace plugin without plugin.json (inline definition)', {
+              name: entry.name,
+              sourcePath,
+              strict: entry.strict
+            })
+          }
+        } else {
+          logger.warn('Marketplace plugin source not found', { name: entry.name, sourcePath })
+        }
+      } catch (error) {
+        logger.warn('Failed to resolve marketplace plugin source', {
+          name: entry.name,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    return roots
+  }
+
+  /**
+   * Check if directory contains .claude-plugin/plugin.json
+   */
+  private async hasPluginJson(dir: string): Promise<boolean> {
+    return this.fileExists(path.join(dir, '.claude-plugin', 'plugin.json'))
+  }
+
+  /**
+   * Read and validate marketplace manifest from .claude-plugin/marketplace.json
+   */
+  private async readMarketplaceManifest(dir: string): Promise<MarketplaceManifest | null> {
+    const manifestPath = path.join(dir, '.claude-plugin', 'marketplace.json')
+
+    try {
+      await fs.promises.access(manifestPath, fs.constants.R_OK)
+    } catch {
+      return null
+    }
+
+    try {
+      const content = await fs.promises.readFile(manifestPath, 'utf-8')
+      const json = JSON.parse(content)
+      return MarketplaceManifestSchema.parse(json)
+    } catch (error) {
+      logger.warn('Failed to parse marketplace.json', {
+        path: manifestPath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
+  }
+
+  /**
+   * Resolve plugin source path from marketplace entry
+   * Supports: relative paths, github: prefix, git: prefix
+   */
+  private resolveMarketplacePluginSource(
+    marketplaceDir: string,
+    entry: MarketplacePluginEntry,
+    pluginRoot?: string
+  ): string {
+    const source = entry.source
+    if (typeof source === 'string') {
+      // Relative path (e.g., "./plugins/my-plugin" or "my-plugin")
+      if (source.startsWith('./') || source.startsWith('../') || !source.includes(':')) {
+        const basePath = pluginRoot ? path.join(marketplaceDir, pluginRoot) : marketplaceDir
+        return path.resolve(basePath, source)
+      }
+      // Already a full path or URL
+      return source
+    }
+    // Object source (github, npm, git)
+    if (source.github) return `github:${source.github}`
+    if (source.git) return `git:${source.git}`
+    if (source.npm) return `npm:${source.npm}`
+    throw new Error(`Invalid plugin source: ${JSON.stringify(source)}`)
   }
 
   /**
@@ -797,9 +1177,9 @@ export class PluginService {
 
         try {
           if (type === 'skill' && entry.isDirectory()) {
-            // Skills are directories with SKILL.md
-            const skillMdPath = path.join(entryPath, 'SKILL.md')
-            if (await this.fileExists(skillMdPath)) {
+            // Skills are directories with SKILL.md or skill.md
+            const skillMdPath = await findSkillMdPath(entryPath)
+            if (skillMdPath) {
               const metadata = await this.registerComponent(entryPath, entry.name, 'skill', workdir, agent, packageInfo)
               results.installed.push(metadata)
             }
@@ -928,12 +1308,11 @@ export class PluginService {
    */
   async readContent(sourcePath: string): Promise<string> {
     logger.info('Reading plugin content', { sourcePath })
-    const content = await this.cacheStore.readSourceContent(sourcePath)
-    logger.debug('Plugin content read successfully', {
-      sourcePath,
-      size: content.length
-    })
-    return content
+    throw {
+      type: 'INVALID_METADATA',
+      reason: 'Reading local preset plugin content is disabled',
+      path: sourcePath
+    } as PluginError
   }
 
   /**
@@ -1035,17 +1414,6 @@ export class PluginService {
    */
   private getClaudePluginPath(workdir: string, type: PluginType, filename: string): string {
     return path.join(this.getClaudePluginDirectory(workdir, type), filename)
-  }
-
-  /**
-   * Get absolute path to plugins directory (handles packaged vs dev)
-   */
-  private getPluginsBasePath(): string {
-    // Use the utility function which handles both dev and production correctly
-    if (app.isPackaged) {
-      return path.join(process.resourcesPath, 'claude-code-plugins')
-    }
-    return path.join(__dirname, '../../node_modules/claude-code-plugins/plugins')
   }
 
   /**

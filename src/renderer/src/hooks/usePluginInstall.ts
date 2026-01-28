@@ -3,22 +3,22 @@ import type { InstallFromZipResult, PluginError, PluginResult } from '@renderer/
 import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import { useCallback, useState } from 'react'
 
-const logger = loggerService.withContext('usePluginZipUpload')
+const logger = loggerService.withContext('usePluginInstall')
 
-export interface UsePluginZipUploadOptions {
+export interface UsePluginInstallOptions {
   agentId: string
   onSuccess?: (result: InstallFromZipResult) => void
   onError?: (error: string) => void
 }
 
-export interface UsePluginZipUploadResult {
+export interface UsePluginInstallResult {
   uploading: boolean
   uploadFromPath: (zipFilePath: string) => Promise<PluginResult<InstallFromZipResult>>
   uploadFromFile: (file: File) => Promise<PluginResult<InstallFromZipResult>>
   uploadFromDirectory: (directoryPath: string) => Promise<PluginResult<InstallFromZipResult>>
 }
 
-export function usePluginZipUpload(options: UsePluginZipUploadOptions): UsePluginZipUploadResult {
+export function usePluginInstall(options: UsePluginInstallOptions): UsePluginInstallResult {
   const { agentId, onSuccess, onError } = options
   const [uploading, setUploading] = useState(false)
 
