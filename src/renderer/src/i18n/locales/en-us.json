@@ -2152,6 +2152,13 @@
       "refresh": "Refresh",
       "rightclick_copyurl": "Right-click to copy URL"
     },
+    "region": {
+      "auto": "Auto Detect",
+      "cn": "China",
+      "description": "Automatically detect your region or manually select",
+      "global": "Global",
+      "title": "MinApp Region"
+    },
     "remove_from_launchpad": "Remove from Launchpad",
     "remove_from_sidebar": "Remove from Sidebar",
     "sidebar": {
@@ -4399,6 +4406,15 @@
       "show_message_outline": "Show message outline",
       "title": "Message Settings",
       "use_serif_font": "Use serif font"
+    },
+    "minapp": {
+      "region": {
+        "auto": "[to be translated]:自动检测",
+        "cn": "[to be translated]:中国",
+        "description": "[to be translated]:自动检测您的地区，或手动选择",
+        "global": "[to be translated]:全球",
+        "title": "[to be translated]:小程序地区"
+      }
     },
     "miniapps": {
       "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",

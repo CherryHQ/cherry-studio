@@ -2152,6 +2152,13 @@
       "refresh": "更新",
       "rightclick_copyurl": "右クリックでURLをコピー"
     },
+    "region": {
+      "auto": "自動検出",
+      "cn": "中国",
+      "description": "地域を自動的に検出するか、手動で選択してください",
+      "global": "グローバル",
+      "title": "MinApp リージョン"
+    },
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
     "sidebar": {
@@ -4399,6 +4406,15 @@
       "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
+    },
+    "minapp": {
+      "region": {
+        "auto": "[to be translated]:自动检测",
+        "cn": "[to be translated]:中国",
+        "description": "[to be translated]:自动检测您的地区，或手动选择",
+        "global": "[to be translated]:全球",
+        "title": "[to be translated]:小程序地区"
+      }
     },
     "miniapps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",

@@ -2152,6 +2152,13 @@
       "refresh": "Ανανέωση",
       "rightclick_copyurl": "Αντιγραφή URL με δεξί κλικ"
     },
+    "region": {
+      "auto": "Αυτόματος εντοπισμός",
+      "cn": "Κίνα",
+      "description": "Εντοπίστε αυτόματα την περιοχή σας ή επιλέξτε χειροκίνητα",
+      "global": "Παγκόσμια",
+      "title": "Περιοχή MinApp"
+    },
     "remove_from_launchpad": "Κατάργηση από το Launchpad",
     "remove_from_sidebar": "Κατάργηση από την πλευρική μπάρα",
     "sidebar": {
@@ -4399,6 +4406,15 @@
       "show_message_outline": "Εμφάνιση πλαισίου μηνύματος",
       "title": "Ρυθμίσεις μηνυμάτων",
       "use_serif_font": "Χρήση μορφής Serif"
+    },
+    "minapp": {
+      "region": {
+        "auto": "[to be translated]:自动检测",
+        "cn": "[to be translated]:中国",
+        "description": "[to be translated]:自动检测您的地区，或手动选择",
+        "global": "[to be translated]:全球",
+        "title": "[to be translated]:小程序地区"
+      }
     },
     "miniapps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",

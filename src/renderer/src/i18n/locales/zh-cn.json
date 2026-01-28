@@ -2152,6 +2152,13 @@
       "refresh": "刷新",
       "rightclick_copyurl": "右键复制 URL"
     },
+    "region": {
+      "auto": "自动检测",
+      "cn": "中国",
+      "description": "自动检测您的所在地区，或手动选择",
+      "global": "全球",
+      "title": "小程序地区"
+    },
     "remove_from_launchpad": "从启动台移除",
     "remove_from_sidebar": "从侧边栏移除",
     "sidebar": {
@@ -4399,6 +4406,15 @@
       "show_message_outline": "显示消息大纲",
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
+    },
+    "minapp": {
+      "region": {
+        "auto": "自动检测",
+        "cn": "中国",
+        "description": "自动检测您的地区，或手动选择",
+        "global": "全球",
+        "title": "小程序地区"
+      }
     },
     "miniapps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",

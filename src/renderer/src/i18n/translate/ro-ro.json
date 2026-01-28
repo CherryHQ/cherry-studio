@@ -2152,6 +2152,13 @@
       "refresh": "Reîmprospătează",
       "rightclick_copyurl": "Clic dreapta pentru a copia URL-ul"
     },
+    "region": {
+      "auto": "Detecție automată",
+      "cn": "China",
+      "description": "Detectați automat regiunea sau selectați manual",
+      "global": "Global",
+      "title": "Regiune MinApp"
+    },
     "remove_from_launchpad": "Elimină din Launchpad",
     "remove_from_sidebar": "Elimină din bara laterală",
     "sidebar": {
@@ -4399,6 +4406,15 @@
       "show_message_outline": "Afișează conturul mesajului",
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
+    },
+    "minapp": {
+      "region": {
+        "auto": "[to be translated]:自动检测",
+        "cn": "[to be translated]:中国",
+        "description": "[to be translated]:自动检测您的地区，或手动选择",
+        "global": "[to be translated]:全球",
+        "title": "[to be translated]:小程序地区"
+      }
     },
     "miniapps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",

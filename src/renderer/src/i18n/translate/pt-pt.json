@@ -2152,6 +2152,13 @@
       "refresh": "Atualizar",
       "rightclick_copyurl": "Copiar URL com botão direito"
     },
+    "region": {
+      "auto": "Detecção automática",
+      "cn": "China",
+      "description": "Detete automaticamente a sua região ou selecione manualmente",
+      "global": "Global",
+      "title": "Região do MinApp"
+    },
     "remove_from_launchpad": "Remover do Painel de Inicialização",
     "remove_from_sidebar": "Remover da Barra Lateral",
     "sidebar": {
@@ -4399,6 +4406,15 @@
       "show_message_outline": "Exibir esboço da mensagem",
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
+    },
+    "minapp": {
+      "region": {
+        "auto": "[to be translated]:自动检测",
+        "cn": "[to be translated]:中国",
+        "description": "[to be translated]:自动检测您的地区，或手动选择",
+        "global": "[to be translated]:全球",
+        "title": "[to be translated]:小程序地区"
+      }
     },
     "miniapps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",

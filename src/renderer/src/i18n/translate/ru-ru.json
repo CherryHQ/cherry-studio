@@ -2152,6 +2152,13 @@
       "refresh": "Обновить",
       "rightclick_copyurl": "ПКМ → Копировать URL"
     },
+    "region": {
+      "auto": "Автоопределение",
+      "cn": "Китай",
+      "description": "Автоматическое определение вашего региона или ручной выбор",
+      "global": "Глобальный",
+      "title": "Регион MinApp"
+    },
     "remove_from_launchpad": "Удалить из стартового экрана",
     "remove_from_sidebar": "Удалить из боковой панели",
     "sidebar": {
@@ -4399,6 +4406,15 @@
       "show_message_outline": "Показать наброски сообщения",
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"
+    },
+    "minapp": {
+      "region": {
+        "auto": "[to be translated]:自动检测",
+        "cn": "[to be translated]:中国",
+        "description": "[to be translated]:自动检测您的地区，或手动选择",
+        "global": "[to be translated]:全球",
+        "title": "[to be translated]:小程序地区"
+      }
     },
     "miniapps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
