@@ -292,9 +292,7 @@ const api = {
     rerank: (
       { search, base, results }: { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] },
       context?: SpanContext
-    ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results }),
-    checkQuota: ({ base, userId }: { base: KnowledgeBaseParams; userId: string }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Check_Quota, base, userId)
+    ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results })
   },
   memory: {
     add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>
