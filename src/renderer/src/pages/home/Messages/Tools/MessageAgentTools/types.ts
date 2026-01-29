@@ -1,3 +1,5 @@
+import type { CollapseProps } from 'antd'
+
 export enum AgentToolsType {
   Skill = 'Skill',
   Read = 'Read',
@@ -386,3 +388,52 @@ export type ToolOutput =
 export interface ToolRenderer {
   render: (props: { input: ToolInput; output?: ToolOutput }) => React.ReactElement
 }
+
+// 工具类型到输入类型的映射（用于文档和类型提示）
+export interface ToolInputMap {
+  [AgentToolsType.Skill]: SkillToolInput
+  [AgentToolsType.Read]: ReadToolInput
+  [AgentToolsType.Task]: TaskToolInput
+  [AgentToolsType.Bash]: BashToolInput
+  [AgentToolsType.Search]: SearchToolInput
+  [AgentToolsType.Glob]: GlobToolInput
+  [AgentToolsType.TodoWrite]: TodoWriteToolInput
+  [AgentToolsType.WebSearch]: WebSearchToolInput
+  [AgentToolsType.Grep]: GrepToolInput
+  [AgentToolsType.Write]: WriteToolInput
+  [AgentToolsType.WebFetch]: WebFetchToolInput
+  [AgentToolsType.Edit]: EditToolInput
+  [AgentToolsType.MultiEdit]: MultiEditToolInput
+  [AgentToolsType.BashOutput]: BashOutputToolInput
+  [AgentToolsType.NotebookEdit]: NotebookEditToolInput
+  [AgentToolsType.ExitPlanMode]: ExitPlanModeToolInput
+}
+
+// 工具类型到输出类型的映射
+export interface ToolOutputMap {
+  [AgentToolsType.Skill]: SkillToolOutput
+  [AgentToolsType.Read]: ReadToolOutput
+  [AgentToolsType.Task]: TaskToolOutput
+  [AgentToolsType.Bash]: BashToolOutput
+  [AgentToolsType.Search]: SearchToolOutput
+  [AgentToolsType.Glob]: GlobToolOutput
+  [AgentToolsType.TodoWrite]: TodoWriteToolOutput
+  [AgentToolsType.WebSearch]: WebSearchToolOutput
+  [AgentToolsType.Grep]: GrepToolOutput
+  [AgentToolsType.Write]: WriteToolOutput
+  [AgentToolsType.WebFetch]: WebFetchToolOutput
+  [AgentToolsType.Edit]: EditToolOutput
+  [AgentToolsType.MultiEdit]: MultiEditToolOutput
+  [AgentToolsType.BashOutput]: BashOutputToolOutput
+  [AgentToolsType.NotebookEdit]: NotebookEditToolOutput
+  [AgentToolsType.ExitPlanMode]: ExitPlanModeToolOutput
+}
+
+// 通用工具渲染器函数类型 - 接受宽松的输入类型
+export type ToolRendererFn = (props: {
+  input?: ToolInput | Record<string, unknown> | string
+  output?: ToolOutput | unknown
+}) => NonNullable<CollapseProps['items']>[number]
+
+// 工具渲染器映射类型
+export type ToolRenderersMap = Record<AgentToolsType, ToolRendererFn>

@@ -529,7 +529,7 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
  * 需要动态获取 OAuth token
  */
 async function buildAnthropicConfig(ctx: BuilderContext): Promise<ProviderConfig<'anthropic'>> {
-  const oauthToken = await window.api.anthropic_oauth.getAccessToken()
+  const oauthToken: string = await window.api.anthropic_oauth.getAccessToken()
 
   return {
     providerId: 'anthropic',

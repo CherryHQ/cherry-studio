@@ -183,7 +183,7 @@ const ProviderList: FC = () => {
         setProviderLogos(updatedLogos)
       } catch (error) {
         logger.error('Failed to save logo', error as Error)
-        window.toast.error('保存Provider Logo失败')
+        window.toast.error(t('message.error.save_provider_logo'))
       }
     }
 
@@ -218,7 +218,7 @@ const ProviderList: FC = () => {
                 }))
               } catch (error) {
                 logger.error('Failed to save logo', error as Error)
-                window.toast.error('更新Provider Logo失败')
+                window.toast.error(t('message.error.update_provider_logo'))
               }
             } else if (logo === undefined && logoFile === undefined) {
               try {

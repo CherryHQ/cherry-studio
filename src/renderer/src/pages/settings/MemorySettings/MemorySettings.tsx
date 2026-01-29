@@ -2,6 +2,7 @@ import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
+import Scrollbar from '@renderer/components/Scrollbar'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
@@ -14,11 +15,11 @@ import {
   setGlobalMemoryEnabled
 } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
-import { Badge, Button, Dropdown, Empty, Flex, Form, Input, Modal, Pagination, Space, Spin, Switch } from 'antd'
+import { Button, Dropdown, Empty, Flex, Form, Input, Modal, Space, Spin, Switch } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -285,8 +286,8 @@ const MemorySettings = () => {
   const [addUserModalVisible, setAddUserModalVisible] = useState(false)
   const [form] = Form.useForm()
   const [uniqueUsers, setUniqueUsers] = useState<string[]>([])
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
+  const [displayCount, setDisplayCount] = useState(50)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
   const memoryService = MemoryService.getInstance()
 
   // Utility functions
@@ -335,8 +336,8 @@ const MemorySettings = () => {
   // Sync memoryService with Redux store on mount and when currentUser changes
   useEffect(() => {
     logger.verbose(`useEffect triggered for currentUser: ${currentUser}`)
-    // Reset to first page when user changes
-    setCurrentPage(1)
+    // Reset display count when user changes
+    setDisplayCount(50)
     loadMemories(currentUser)
   }, [currentUser, loadMemories])
 
@@ -357,36 +358,51 @@ const MemorySettings = () => {
     })
   }, [allMemories, debouncedSearchText])
 
-  // Calculate paginated memories
-  const startIndex = (currentPage - 1) * pageSize
-  const endIndex = startIndex + pageSize
-  const paginatedMemories = filteredMemories.slice(startIndex, endIndex)
+  // Calculate displayed memories based on displayCount
+  const displayedMemories = filteredMemories.slice(0, displayCount)
+  const hasMore = displayCount < filteredMemories.length
 
   const handleSearch = (value: string) => {
     setSearchText(value)
-    // Reset to first page when searching
-    setCurrentPage(1)
+    // Reset display count when searching
+    setDisplayCount(50)
   }
 
-  // Reset to first page when debounced search changes
+  // Reset display count when debounced search changes
   useEffect(() => {
-    setCurrentPage(1)
+    setDisplayCount(50)
   }, [debouncedSearchText])
 
-  const handlePageChange = (page: number, size?: number) => {
-    setCurrentPage(page)
-    if (size && size !== pageSize) {
-      setPageSize(size)
+  // Infinite scroll using IntersectionObserver
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading) {
+          setDisplayCount((prev) => prev + 50)
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    const currentRef = loadMoreRef.current
+    if (currentRef) {
+      observer.observe(currentRef)
     }
-  }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef)
+      }
+    }
+  }, [hasMore, loading])
 
   const handleAddMemory = async (memory: string) => {
     try {
       // The memory service will automatically use the current user from its state
       await memoryService.add(memory, {})
       window.toast.success(t('memory.add_success'))
-      // Go to first page to see the newly added memory
-      setCurrentPage(1)
+      // Reset display count to see the newly added memory at the top
+      setDisplayCount(50)
       await loadMemories(currentUser)
     } catch (error) {
       logger.error('Failed to add memory:', error as Error)
@@ -432,8 +448,8 @@ const MemorySettings = () => {
     // Clear current memories to show loading state immediately
     setAllMemories([])
 
-    // Reset pagination
-    setCurrentPage(1)
+    // Reset display count
+    setDisplayCount(50)
 
     try {
       // Explicitly load memories for the new user
@@ -589,11 +605,9 @@ const MemorySettings = () => {
 
       {/* User Management */}
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('memory.user_management')}</SettingTitle>
-        <SettingDivider />
         <SettingRow>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <SettingRowTitle>{t('memory.user_id')}</SettingRowTitle>
+            <SettingRowTitle>{t('memory.user_management')}</SettingRowTitle>
             <SettingHelpText style={{ fontSize: '13px', lineHeight: '1.5', color: 'var(--color-text-secondary)' }}>
               {allMemories.length} {t('memory.total_memories')}
             </SettingHelpText>
@@ -605,20 +619,10 @@ const MemorySettings = () => {
             onAddUser={() => setAddUserModalVisible(true)}
           />
         </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <SettingRowTitle>{t('memory.users')}</SettingRowTitle>
-            <SettingHelpText style={{ fontSize: '13px', lineHeight: '1.5', color: 'var(--color-text-secondary)' }}>
-              {t('memory.statistics')}
-            </SettingHelpText>
-          </div>
-          <Badge count={uniqueUsers.length} showZero style={{ backgroundColor: 'var(--color-primary)' }} />
-        </SettingRow>
       </SettingGroup>
 
       {/* Memory List */}
-      <SettingGroup theme={theme}>
+      <SettingGroup theme={theme} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <SettingTitle>{t('memory.title')}</SettingTitle>
           <Space>
@@ -679,7 +683,7 @@ const MemorySettings = () => {
         <SettingDivider style={{ marginBottom: 15 }} />
 
         {/* Memory Content Area */}
-        <div style={{ minHeight: 400 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {allMemories.length === 0 && !loading ? (
             <Empty
               image={<Brain size={48} style={{ opacity: 0.3 }} />}
@@ -702,7 +706,7 @@ const MemorySettings = () => {
           ) : (
             <>
               {loading && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
                   <Spin indicator={<LoadingIcon color="var(--color-text-2)" />} />
                 </div>
               )}
@@ -712,60 +716,48 @@ const MemorySettings = () => {
               )}
 
               {!loading && filteredMemories.length > 0 && (
-                <>
-                  <MemoryListContainer>
-                    {paginatedMemories.map((memory) => (
-                      <MemoryItem key={memory.id}>
-                        <div className="memory-header">
-                          <div className="memory-meta">
-                            <Calendar size={14} style={{ marginRight: 4 }} />
-                            <span>{memory.createdAt ? dayjs(memory.createdAt).fromNow() : '-'}</span>
-                          </div>
-                          <Space size="small">
-                            <Button
-                              type="text"
-                              size="small"
-                              icon={<EditIcon size={14} />}
-                              onClick={() => handleEditMemory(memory)}
-                            />
-                            <Button
-                              type="text"
-                              size="small"
-                              danger
-                              icon={<DeleteIcon size={14} className="lucide-custom" />}
-                              onClick={() => {
-                                window.modal.confirm({
-                                  centered: true,
-                                  title: t('memory.delete_confirm'),
-                                  content: t('memory.delete_confirm_single'),
-                                  onOk: () => handleDeleteMemory(memory.id),
-                                  okText: t('common.confirm'),
-                                  cancelText: t('common.cancel')
-                                })
-                              }}
-                            />
-                          </Space>
+                <MemoryListContainer>
+                  {displayedMemories.map((memory) => (
+                    <MemoryItem key={memory.id}>
+                      <div className="memory-header">
+                        <div className="memory-meta">
+                          <Calendar size={14} style={{ marginRight: 4 }} />
+                          <span>{memory.createdAt ? dayjs(memory.createdAt).fromNow() : '-'}</span>
                         </div>
-                        <div className="memory-content">{memory.memory}</div>
-                      </MemoryItem>
-                    ))}
-                  </MemoryListContainer>
-
-                  <div style={{ marginTop: 16, textAlign: 'center' }}>
-                    <Pagination
-                      current={currentPage}
-                      pageSize={pageSize}
-                      total={filteredMemories.length}
-                      onChange={handlePageChange}
-                      showSizeChanger
-                      showTotal={(total, range) =>
-                        t('memory.pagination_total', { start: range[0], end: range[1], total })
-                      }
-                      pageSizeOptions={['20', '50', '100', '200']}
-                      defaultPageSize={50}
-                    />
-                  </div>
-                </>
+                        <Space size="small" className="memory-actions">
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<EditIcon size={14} />}
+                            onClick={() => handleEditMemory(memory)}
+                          />
+                          <Button
+                            type="text"
+                            size="small"
+                            danger
+                            icon={<DeleteIcon size={14} className="lucide-custom" />}
+                            onClick={() => {
+                              window.modal.confirm({
+                                centered: true,
+                                title: t('memory.delete_confirm'),
+                                content: t('memory.delete_confirm_single'),
+                                onOk: () => handleDeleteMemory(memory.id),
+                                okText: t('common.confirm'),
+                                cancelText: t('common.cancel')
+                              })
+                            }}
+                          />
+                        </Space>
+                      </div>
+                      <div className="memory-content">{memory.memory}</div>
+                    </MemoryItem>
+                  ))}
+                  {hasMore && (
+                    <LoadMoreTrigger ref={loadMoreRef}>
+                      <Spin indicator={<LoadingIcon color="var(--color-text-2)" />} size="small" />
+                    </LoadMoreTrigger>
+                  )}
+                </MemoryListContainer>
               )}
             </>
           )}
@@ -804,24 +796,39 @@ const MemorySettings = () => {
 }
 
 // Styled Components
-const MemoryListContainer = styled.div`
+const MemoryListContainer = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   gap: 15px;
-  max-height: 500px;
+  flex: 1;
   overflow-y: auto;
+`
+
+const LoadMoreTrigger = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
 `
 
 const MemoryItem = styled.div`
   padding: 12px;
-  background: var(--color-background-soft);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   transition: all 0.2s ease;
 
+  .memory-actions {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
   &:hover {
     border-color: var(--color-primary);
     background: var(--color-background);
+
+    .memory-actions {
+      opacity: 1;
+    }
   }
 
   .memory-header {

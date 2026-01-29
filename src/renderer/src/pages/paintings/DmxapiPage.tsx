@@ -80,7 +80,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const modeOptions = MODEOPTIONS.map((ele) => {
     return {
-      label: t(ele.label),
+      label: t(ele.labelKey),
       value: ele.value
     }
   })
@@ -387,7 +387,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     if (painting.style_type) {
-      params.prompt = prompt + ',风格：' + painting.style_type
+      params.prompt = prompt + t('paintings.dmxapi.style') + painting.style_type
     }
 
     if (Array.isArray(fileMap.imageFiles) && fileMap.imageFiles.length > 0) {
@@ -418,7 +418,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     if (painting.style_type) {
-      params.prompt = prompt + ',风格：' + painting.style_type
+      params.prompt = prompt + t('paintings.dmxapi.style') + painting.style_type
     }
 
     const formData = new FormData()
@@ -467,7 +467,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         throw new Error('paintings.req_error_no_balance')
       }
 
-      throw new Error('操作失败,请稍后重试')
+      throw new Error('paintings.operation_failed')
     }
 
     const data = await response.json()
@@ -712,13 +712,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     ) {
       return (
         <LoadTextWrap>
-          <div>
-            正在用使用官方的模型生产，
-            <br />
-            预计等待2~5分钟效果最好，
-            <br />
-            本次消耗金额请到DMXAPI后台日志查看
-          </div>
+          <div>{t('paintings.dmxapi.generating_tip')}</div>
         </LoadTextWrap>
       )
     }
@@ -822,7 +816,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           {painting.generationMode &&
             [generationModeType.EDIT, generationModeType.MERGE].includes(painting.generationMode) && (
               <>
-                <SettingTitle className="mt-4 mb-1">参考图</SettingTitle>
+                <SettingTitle className="mt-4 mb-1">{t('paintings.remix.image_file')}</SettingTitle>
                 <ImageUploader
                   fileMap={fileMap}
                   maxImages={painting.generationMode === generationModeType.EDIT ? 1 : 3}
@@ -942,10 +936,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <RadioTextBox>
               {STYLE_TYPE_OPTIONS.map((ele) => (
                 <RadioTextItem
-                  key={ele.label}
-                  className={painting.style_type === ele.label ? 'selected' : ''}
-                  onClick={() => onSelectStyleType(ele.label)}>
-                  {ele.label}
+                  key={ele.value}
+                  className={painting.style_type === ele.value ? 'selected' : ''}
+                  onClick={() => onSelectStyleType(ele.value)}>
+                  {t(ele.labelKey)}
                 </RadioTextItem>
               ))}
             </RadioTextBox>

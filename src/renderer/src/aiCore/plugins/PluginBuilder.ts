@@ -11,6 +11,7 @@ import { getAiSdkProviderId } from '../provider/factory'
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { getReasoningTagName } from '../utils/reasoning'
+import { createAnthropicCachePlugin } from './anthropicCachePlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterGenerateImagePlugin } from './openrouterGenerateImagePlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
@@ -54,6 +55,10 @@ export function buildPlugins(
     if (providerType === 'openai' || providerType === 'azure-openai') {
       const tagName = getReasoningTagName(middlewareConfig.model?.id.toLowerCase())
       plugins.push(createReasoningExtractionPlugin({ tagName }))
+    }
+
+    if (providerType === 'anthropic' && middlewareConfig.provider.anthropicCacheControl?.tokenThreshold) {
+      plugins.push(createAnthropicCachePlugin())
     }
   }
 
@@ -112,7 +117,8 @@ export function buildPlugins(
   if (middlewareConfig.isPromptToolUse) {
     plugins.push(
       createPromptToolUsePlugin({
-        enabled: true
+        enabled: true,
+        mcpMode: middlewareConfig.mcpMode
       })
     )
   }
