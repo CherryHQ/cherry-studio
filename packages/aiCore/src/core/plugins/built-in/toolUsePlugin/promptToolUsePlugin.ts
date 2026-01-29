@@ -302,7 +302,7 @@ export const createPromptToolUsePlugin = (
       const promptTools: ToolSet = {}
 
       for (const [toolName, tool] of Object.entries(params.tools as ToolSet)) {
-        if (tool.type === 'provider') {
+        if (tool.type === 'provider-defined') {
           // provider 类型的工具保留在 tools 参数中
           providerDefinedTools[toolName] = tool
         } else {
@@ -319,11 +319,6 @@ export const createPromptToolUsePlugin = (
       // 构建系统提示符（只包含非 provider 工具）
       const userSystemPrompt = typeof params.system === 'string' ? params.system : ''
       const systemPrompt = buildSystemPrompt(userSystemPrompt, promptTools, mcpMode)
-      let systemMessage: string | null = systemPrompt
-      if (config.createSystemMessage) {
-        // 🎯 如果用户提供了自定义处理函数，使用它
-        systemMessage = config.createSystemMessage(systemPrompt, params, context)
-      }
 
       // 保留 provide tools，移除其他 tools
       const transformedParams = {
