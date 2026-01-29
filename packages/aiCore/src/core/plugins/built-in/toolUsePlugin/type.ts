@@ -22,6 +22,7 @@ export interface PromptToolUseConfig extends BaseToolUsePluginConfig {
   buildSystemPrompt?: (userSystemPrompt: string, tools: ToolSet) => string
   // 自定义工具解析函数（可选，有默认实现）
   parseToolUse?: (content: string, tools: ToolSet) => { results: ToolUseResult[]; content: string }
+  mcpMode?: string
 }
 
 /**

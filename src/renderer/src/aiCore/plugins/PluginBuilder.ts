@@ -26,7 +26,7 @@ const logger = loggerService.withContext('PluginBuilder')
  * 根据条件构建插件数组
  */
 export function buildPlugins(
-  middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant; topicId?: string }
+  middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant; topicId?: string; mcpMode?: string }
 ): AiPlugin[] {
   const plugins: AiPlugin<any, any>[] = []
 
@@ -112,7 +112,8 @@ export function buildPlugins(
   if (middlewareConfig.isPromptToolUse) {
     plugins.push(
       createPromptToolUsePlugin({
-        enabled: true
+        enabled: true,
+        mcpMode: middlewareConfig.mcpMode
       })
     )
   }

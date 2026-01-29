@@ -10,8 +10,6 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('QuotaTag')
 
-const QUOTA_UNLIMITED = -9999
-
 const QuotaTag: FC<{ base: KnowledgeBase; providerId: PreprocessProviderId; quota?: number }> = ({
   base,
   providerId,
@@ -23,44 +21,40 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: PreprocessProviderId; quot
 
   useEffect(() => {
     const checkQuota = async () => {
-      if (provider.id !== 'mineru') return
-      // 使用用户的key时quota为无限
-      if (provider.apiKey) {
-        setQuota(QUOTA_UNLIMITED)
-        updateProvider({ quota: QUOTA_UNLIMITED })
-        return
+      const userId = getStoreSetting('userId')
+      const baseParams = getKnowledgeBaseParams(base)
+      try {
+        const response = await window.api.knowledgeBase.checkQuota({
+          base: baseParams,
+          userId: userId as string
+        })
+        setQuota(response)
+        updateProvider({ quota: response })
+      } catch (error) {
+        logger.error('[KnowledgeContent] Error checking quota:', error as Error)
       }
-      if (quota === undefined) {
-        const userId = getStoreSetting('userId')
-        const baseParams = getKnowledgeBaseParams(base)
-        try {
-          const response = await window.api.knowledgeBase.checkQuota({
-            base: baseParams,
-            userId: userId as string
-          })
-          setQuota(response)
-        } catch (error) {
-          logger.error('[KnowledgeContent] Error checking quota:', error as Error)
-        }
+    }
+
+    if (provider.id !== 'mineru') return
+    if (!provider.apiKey) {
+      if (quota !== undefined) {
+        setQuota(undefined)
+        updateProvider({ quota: undefined })
       }
+      return
     }
     if (_quota !== undefined) {
       setQuota(_quota)
       updateProvider({ quota: _quota })
       return
     }
-    checkQuota()
-  }, [_quota, base, provider.id, provider.apiKey, provider, quota, updateProvider])
+    if (quota === undefined) {
+      checkQuota()
+    }
+  }, [_quota, base, provider.id, provider.apiKey, quota, updateProvider])
 
   const getQuotaDisplay = () => {
     if (quota === undefined) return null
-    if (quota === QUOTA_UNLIMITED) {
-      return (
-        <Tag color="orange" style={{ borderRadius: 20, margin: 0 }}>
-          {t('knowledge.quota_infinity', { name: provider.name })}
-        </Tag>
-      )
-    }
     if (quota === 0) {
       return (
         <Tag color="red" style={{ borderRadius: 20, margin: 0 }}>

@@ -24,6 +24,7 @@ export enum ChunkType {
   MCP_TOOL_PENDING = 'mcp_tool_pending',
   MCP_TOOL_IN_PROGRESS = 'mcp_tool_in_progress',
   MCP_TOOL_COMPLETE = 'mcp_tool_complete',
+  MCP_TOOL_STREAMING = 'mcp_tool_streaming', // NEW: Streaming tool arguments
   EXTERNEL_TOOL_COMPLETE = 'externel_tool_complete',
   LLM_RESPONSE_CREATED = 'llm_response_created',
   LLM_RESPONSE_IN_PROGRESS = 'llm_response_in_progress',
@@ -329,6 +330,20 @@ export interface MCPToolCompleteChunk {
   type: ChunkType.MCP_TOOL_COMPLETE
 }
 
+/**
+ * Streaming tool arguments chunk - emitted during tool-input-delta events
+ */
+export interface MCPToolStreamingChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.MCP_TOOL_STREAMING
+  /**
+   * The tool responses with streaming arguments
+   */
+  responses: (MCPToolResponse | NormalToolResponse)[]
+}
+
 export interface LLMResponseCompleteChunk {
   /**
    * The response
@@ -438,6 +453,7 @@ export type Chunk =
   | MCPToolPendingChunk // MCP工具调用等待中
   | MCPToolInProgressChunk // MCP工具调用中
   | MCPToolCompleteChunk // MCP工具调用完成
+  | MCPToolStreamingChunk // MCP工具参数流式传输中
   | ExternalToolCompleteChunk // 外部工具调用完成，外部工具包含搜索互联网，知识库，MCP服务器
   | LLMResponseCreatedChunk // 大模型响应创建，返回即将创建的块类型
   | LLMResponseInProgressChunk // 大模型响应进行中

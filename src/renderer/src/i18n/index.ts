@@ -1,5 +1,17 @@
+import 'dayjs/locale/de'
+import 'dayjs/locale/el'
+import 'dayjs/locale/es'
+import 'dayjs/locale/fr'
+import 'dayjs/locale/ja'
+import 'dayjs/locale/pt'
+import 'dayjs/locale/ro'
+import 'dayjs/locale/ru'
+import 'dayjs/locale/zh-cn'
+import 'dayjs/locale/zh-tw'
+
 import { loggerService } from '@logger'
 import { defaultLanguage } from '@shared/config/constant'
+import dayjs from 'dayjs'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
@@ -41,6 +53,26 @@ export const getLanguage = () => {
 
 export const getLanguageCode = () => {
   return getLanguage().split('-')[0]
+}
+
+// Map i18n language codes to dayjs locale codes
+const dayjsLocaleMap: Record<string, string> = {
+  'en-US': 'en',
+  'ja-JP': 'ja',
+  'ru-RU': 'ru',
+  'zh-CN': 'zh-cn',
+  'zh-TW': 'zh-tw',
+  'de-DE': 'de',
+  'el-GR': 'el',
+  'es-ES': 'es',
+  'fr-FR': 'fr',
+  'pt-PT': 'pt',
+  'ro-RO': 'ro'
+}
+
+export const setDayjsLocale = (language: string) => {
+  const dayjsLocale = dayjsLocaleMap[language] || 'en'
+  dayjs.locale(dayjsLocale)
 }
 
 i18n.use(initReactI18next).init({
