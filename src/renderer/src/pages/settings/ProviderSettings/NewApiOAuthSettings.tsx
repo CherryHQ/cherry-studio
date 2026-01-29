@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { oauthWithNewApi } from '@renderer/utils/oauth'
 import { Button, Divider, Input } from 'antd'
 import { isEmpty } from 'lodash'
@@ -11,6 +12,8 @@ import styled from 'styled-components'
 
 const logger = loggerService.withContext('NewApiOAuthSettings')
 
+const OAUTH_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+
 interface NewApiOAuthSettingsProps {
   providerId: string
 }
@@ -18,6 +21,7 @@ interface NewApiOAuthSettingsProps {
 const NewApiOAuthSettings: FC<NewApiOAuthSettingsProps> = ({ providerId }) => {
   const { updateProvider, provider } = useProvider(providerId)
   const { t } = useTranslation()
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [oauthServer, setOauthServer] = useState('')
@@ -35,6 +39,17 @@ const NewApiOAuthSettings: FC<NewApiOAuthSettingsProps> = ({ providerId }) => {
     }
 
     setIsAuthenticating(true)
+
+    // Set a timeout to reset authenticating state (auto-cleanup on unmount via useTimer)
+    setTimeoutTimer(
+      'oauth-timeout',
+      () => {
+        logger.warn('[NewApi OAuth] Component-level timeout reached')
+        setIsAuthenticating(false)
+      },
+      OAUTH_TIMEOUT_MS
+    )
+
     try {
       await oauthWithNewApi(
         (apiKeys) => {
@@ -51,9 +66,10 @@ const NewApiOAuthSettings: FC<NewApiOAuthSettingsProps> = ({ providerId }) => {
       logger.error('[NewApi OAuth] Error:', error as Error)
       window.toast.error(t('settings.provider.oauth.error'))
     } finally {
+      clearTimeoutTimer('oauth-timeout')
       setIsAuthenticating(false)
     }
-  }, [updateProvider, t, oauthServer, clientId, provider.apiHost])
+  }, [updateProvider, t, oauthServer, clientId, provider.apiHost, setTimeoutTimer, clearTimeoutTimer])
 
   const handleLogout = useCallback(() => {
     updateProvider({ apiKey: '' })

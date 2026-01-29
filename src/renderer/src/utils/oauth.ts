@@ -202,7 +202,7 @@ export interface NewApiOAuthConfig {
 }
 
 const DEFAULT_REDIRECT_URI = 'cherrystudio://oauth/callback'
-const DEFAULT_SCOPES = 'openid profile email offline_access balance:read usage:read tokens:read'
+const DEFAULT_SCOPES = 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
 
 /**
  * Generate a cryptographically random string for PKCE code_verifier
@@ -439,14 +439,14 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
       pendingOAuthFlows.delete(state)
     }
 
-    // Timeout after 5 minutes
+    // Timeout after 10 minutes
     timeoutId = setTimeout(
       () => {
         logger.warn('[NewApi OAuth] Flow timed out')
         cleanup()
         reject(new Error('OAuth flow timed out'))
       },
-      5 * 60 * 1000
+      10 * 60 * 1000
     )
   })
 }
