@@ -12,6 +12,7 @@ import {
 } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import type { Assistant, Topic } from '@renderer/types'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { ChevronDown } from 'lucide-react'
@@ -34,8 +35,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { language } = useSettings()
   const [error, setError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
-  const [isContented, setIsContented] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
   const [contentToCopy, setContentToCopy] = useState('')
   const initialized = useRef(false)
 
@@ -67,17 +67,13 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     let userContent = ''
     switch (action.id) {
       case 'summary':
-        userContent =
-          `请总结下面的内容。要求：使用 ${language} 语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n` +
-          action.selectedText
+        userContent = t('selection.action.prompt.summary', { language }) + action.selectedText
         break
       case 'explain':
-        userContent =
-          `请解释下面的内容。要求：使用 ${language} 语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n` +
-          action.selectedText
+        userContent = t('selection.action.prompt.explain', { language }) + action.selectedText
         break
       case 'refine':
-        userContent = `请对用XML标签<INPUT>包裹的用户输入内容进行优化或润色，并保持原内容的含义和完整性。要求：你的输出应当与用户输入内容的语言相同。；请不要包含对本提示词的任何解释，直接给出回复；请不要输出XML标签，直接输出优化后的内容: \n\n<INPUT>${action.selectedText ?? ''}</INPUT>`
+        userContent = t('selection.action.prompt.refine', { text: action.selectedText ?? '' })
         break
       default:
         if (!action.prompt) {
@@ -93,22 +89,27 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         userContent = action.prompt + '\n\n' + action.selectedText
     }
     promptContentRef.current = userContent
-  }, [action, language])
+  }, [action, language, t])
 
   const fetchResult = useCallback(() => {
+    if (!initialized.current) {
+      return
+    }
+    setStatus('preparing')
+
     const setAskId = (id: string) => {
       askId.current = id
     }
     const onStream = () => {
-      setIsContented(true)
+      setStatus('streaming')
       scrollToBottom?.()
     }
     const onFinish = (content: string) => {
+      setStatus('finished')
       setContentToCopy(content)
-      setIsLoading(false)
     }
     const onError = (error: Error) => {
-      setIsLoading(false)
+      setStatus('finished')
       setError(error.message)
     }
 
@@ -131,17 +132,40 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const allMessages = useTopicMessages(topicRef.current?.id || '')
 
-  // Memoize the messages to prevent unnecessary re-renders
-  const messageContent = useMemo(() => {
+  const currentAssistantMessage = useMemo(() => {
     const assistantMessages = allMessages.filter((message) => message.role === 'assistant')
-    const lastAssistantMessage = assistantMessages[assistantMessages.length - 1]
-    return lastAssistantMessage ? <MessageContent key={lastAssistantMessage.id} message={lastAssistantMessage} /> : null
+    if (assistantMessages.length === 0) {
+      return null
+    }
+    return assistantMessages[assistantMessages.length - 1]
   }, [allMessages])
+
+  useEffect(() => {
+    // Sync message status
+    switch (currentAssistantMessage?.status) {
+      case AssistantMessageStatus.PROCESSING:
+      case AssistantMessageStatus.PENDING:
+      case AssistantMessageStatus.SEARCHING:
+        setStatus('streaming')
+        break
+      case AssistantMessageStatus.PAUSED:
+      case AssistantMessageStatus.ERROR:
+      case AssistantMessageStatus.SUCCESS:
+        setStatus('finished')
+        break
+      case undefined:
+        break
+      default:
+        logger.warn('Unexpected assistant message status:', { status: currentAssistantMessage?.status })
+    }
+  }, [currentAssistantMessage?.status])
+
+  const isPreparing = status === 'preparing'
+  const isStreaming = status === 'streaming'
 
   const handlePause = () => {
     if (askId.current) {
       abortCompletion(askId.current)
-      setIsLoading(false)
     }
     if (topicRef.current?.id) {
       pauseTrace(topicRef.current.id)
@@ -150,7 +174,6 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const handleRegenerate = () => {
     setContentToCopy('')
-    setIsLoading(true)
     fetchResult()
   }
 
@@ -178,13 +201,20 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
-          {!isContented && isLoading && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {messageContent}
+          {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
+          {!isPreparing && currentAssistantMessage && (
+            <MessageContent key={currentAssistantMessage.id} message={currentAssistantMessage} />
+          )}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter loading={isLoading} onPause={handlePause} onRegenerate={handleRegenerate} content={contentToCopy} />
+      <WindowFooter
+        loading={isStreaming}
+        onPause={handlePause}
+        onRegenerate={handleRegenerate}
+        content={contentToCopy}
+      />
     </>
   )
 })
