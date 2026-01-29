@@ -149,20 +149,28 @@ describe('MessageAgentTools', () => {
     'message.tools.sections.prompt': 'Prompt',
     'message.tools.sections.input': 'Input',
     'message.tools.status.done': 'Done',
-    'message.tools.units.item': 'item',
-    'message.tools.units.items': 'items',
-    'message.tools.units.line': 'line',
-    'message.tools.units.lines': 'lines',
-    'message.tools.units.file': 'file',
-    'message.tools.units.files': 'files',
-    'message.tools.units.result': 'result',
-    'message.tools.units.results': 'results'
+    'message.tools.units.item_one': '{{count}} item',
+    'message.tools.units.item_other': '{{count}} items',
+    'message.tools.units.line_one': '{{count}} line',
+    'message.tools.units.line_other': '{{count}} lines',
+    'message.tools.units.file_one': '{{count}} file',
+    'message.tools.units.file_other': '{{count}} files',
+    'message.tools.units.result_one': '{{count}} result',
+    'message.tools.units.result_other': '{{count}} results'
   }
 
   beforeEach(() => {
     mockUseAppSelector.mockReturnValue(null) // No pending permission
     mockUseTranslation.mockReturnValue({
-      t: (key: string, fallback?: string) => mockTranslations[key] ?? fallback ?? key
+      t: (key: string, options?: string | { count?: number }) => {
+        // Handle plural keys with count option
+        if (typeof options === 'object' && options.count !== undefined) {
+          const pluralKey = options.count === 1 ? `${key}_one` : `${key}_other`
+          const template = mockTranslations[pluralKey] ?? mockTranslations[key] ?? key
+          return template.replace('{{count}}', String(options.count))
+        }
+        return mockTranslations[key] ?? (typeof options === 'string' ? options : key)
+      }
     })
   })
 

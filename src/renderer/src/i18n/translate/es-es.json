@@ -2093,6 +2093,7 @@
         "running": "Corriendo",
         "success": "Éxito"
       },
+      "streaming": "Transmisión",
       "truncated": "Salida truncada (original: {{size}})",
       "units": {
         "done_one": "{{count}} Hecho",

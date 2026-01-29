@@ -2093,6 +2093,7 @@
         "running": "Alergare",
         "success": "Succes"
       },
+      "streaming": "Streaming",
       "truncated": "Ieșire trunchiată (original: {{size}})",
       "units": {
         "done_one": "{{count}} Finalizat",

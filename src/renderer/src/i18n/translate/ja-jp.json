@@ -2093,6 +2093,7 @@
         "running": "走っている",
         "success": "成功"
       },
+      "streaming": "ストリーミング",
       "truncated": "出力が切り捨てられました（元のサイズ: {{size}}）",
       "units": {
         "done_one": "{{count}} 完了",

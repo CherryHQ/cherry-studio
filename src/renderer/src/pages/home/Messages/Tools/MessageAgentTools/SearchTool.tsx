@@ -27,11 +27,7 @@ export function SearchTool({
       <ToolHeader
         toolName={AgentToolsType.Search}
         params={input ? `"${input}"` : undefined}
-        stats={
-          output
-            ? `${resultCount} ${t(resultCount === 1 ? 'message.tools.units.result' : 'message.tools.units.results')}`
-            : undefined
-        }
+        stats={output ? t('message.tools.units.result', { count: resultCount }) : undefined}
         variant="collapse-label"
         showStatus={false}
       />

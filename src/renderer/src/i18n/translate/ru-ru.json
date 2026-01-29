@@ -2093,6 +2093,7 @@
         "running": "Бег",
         "success": "Успех"
       },
+      "streaming": "Стриминг",
       "truncated": "Вывод усечён (оригинал: {{size}})",
       "units": {
         "done_one": "{{count}} Готово",

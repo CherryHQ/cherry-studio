@@ -2093,6 +2093,7 @@
         "running": "Courir",
         "success": "Succès"
       },
+      "streaming": "Streaming",
       "truncated": "Sortie tronquée (original : {{size}})",
       "units": {
         "done_one": "{{count}} Terminé",

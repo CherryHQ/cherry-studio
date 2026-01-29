@@ -45,7 +45,7 @@ export function TodoWriteTool({
       <ToolHeader
         toolName={AgentToolsType.TodoWrite}
         params={`${doneCount} ${t('message.tools.status.done')}`}
-        stats={`${todos.length} ${t(todos.length === 1 ? 'message.tools.units.item' : 'message.tools.units.items')}`}
+        stats={t('message.tools.units.item', { count: todos.length })}
         variant="collapse-label"
         showStatus={false}
       />

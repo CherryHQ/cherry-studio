@@ -2093,6 +2093,7 @@
         "running": "Τρέξιμο",
         "success": "Επιτυχία"
       },
+      "streaming": "Ροή",
       "truncated": "Η έξοδος περικόπηκε (πρωτότυπο: {{size}})",
       "units": {
         "done_one": "{{count}} Ολοκληρώθηκε",

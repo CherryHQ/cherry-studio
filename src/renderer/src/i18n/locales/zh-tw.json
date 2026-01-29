@@ -2093,6 +2093,7 @@
         "running": "執行中",
         "success": "成功"
       },
+      "streaming": "串流",
       "truncated": "輸出已截斷（原始大小：{{size}}）",
       "units": {
         "done_one": "{{count}} 完成",
