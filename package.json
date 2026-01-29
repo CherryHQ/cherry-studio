@@ -102,6 +102,8 @@
     "@ai-sdk/mistral": "^3.0.13",
     "@ai-sdk/openai": "3.0.0",
     "@ai-sdk/perplexity": "^3.0.12",
+    "@ai-sdk/provider": "^3.0.5",
+    "@ai-sdk/provider-utils": "^4.0.10",
     "@ai-sdk/test-server": "^1.0.3",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@anthropic-ai/sdk": "^0.41.0",
