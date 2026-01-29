@@ -2452,6 +2452,51 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "done": "开始使用",
+    "next": "下一步",
+    "previous": "上一步",
+    "progress": "{{current}} / {{total}}",
+    "skip": "跳过引导",
+    "steps": {
+      "addModel": {
+        "description": "添加服务商后，点击此按钮为该服务商添加模型。不同模型擅长不同任务：\n• GPT-4 适合复杂推理\n• Claude 适合长文本处理\n• GLM 适合中文对话",
+        "title": "添加模型"
+      },
+      "addProvider": {
+        "description": "点击此按钮添加 AI 服务商。推荐新手使用 CherryIN，注册即可获得免费额度，支持 GPT、Claude 等主流模型。",
+        "title": "添加服务商"
+      },
+      "complete": {
+        "description": "您已准备就绪！现在可以开始与 AI 对话了。探索更多功能，让 AI 成为您的得力助手！",
+        "title": "开始探索！"
+      },
+      "fillApiKey": {
+        "description": "在此处填入您的 API Key。您可以从服务商官网获取 API Key，填写后点击「检查」按钮验证连接。",
+        "title": "填写 API Key"
+      },
+      "freeModel": {
+        "description": "Cherry Studio 内置了免费的 GLM 4.5 Flash 模型，点击顶部导航栏的模型选择器即可切换使用。无需任何配置，立即开始对话！",
+        "title": "免费模型"
+      },
+      "settingsIntro": {
+        "description": "点击这里进入设置页面。接下来我们将引导您添加 AI 服务商和模型。",
+        "title": "设置入口"
+      },
+      "useCases": {
+        "description": "Cherry Studio 可以帮您完成多种任务：\n• 智能对话问答\n• 文档翻译与总结\n• 代码编写与调试\n• 创意写作\n• 知识库问答\n\n在输入框中输入您的问题，开始体验吧！",
+        "title": "功能用例"
+      },
+      "welcome": {
+        "description": "Cherry Studio 是一款强大的 AI 桌面客户端，支持多种 AI 模型。让我们快速了解如何开始使用！",
+        "title": "欢迎使用 Cherry Studio！"
+      }
+    },
+    "welcome": {
+      "description": "您的强大 AI 助手。让我们快速了解一下如何开始使用。",
+      "title": "欢迎使用 Cherry Studio"
+    }
+  },
   "ovms": {
     "action": {
       "install": "安装",
@@ -5314,6 +5359,127 @@
     "noReleaseNotes": "暂无更新日志",
     "saveDataError": "保存数据失败，请重试",
     "title": "更新提示"
+  },
+  "userGuide": {
+    "buttons": {
+      "gotIt": "知道了",
+      "next": "下一步",
+      "useNow": "立即使用"
+    },
+    "checklist": {
+      "progress": "已完成 {{completed}}/{{total}}",
+      "subtitle": "完成任务，解锁 Cherry Studio 进阶使用技巧",
+      "tasks": {
+        "configureProvider": "配置第一个模型服务",
+        "sendFirstMessage": "发送第一条消息",
+        "useFreeModel": "使用免费模型"
+      },
+      "title": "开启您的 AI 探索之旅"
+    },
+    "completionModal": {
+      "exploreMore": "探索更多助手",
+      "recommendedAssistants": "推荐助手",
+      "startChat": "开始对话",
+      "subtitle": "欢迎来到 Cherry Studio，您已准备就绪！",
+      "title": "配置完成！"
+    },
+    "guidePage": {
+      "carousel": {
+        "assistants": {
+          "description": "从项目管理到图表绘制，定义专属系统提示词，打造属于您的专业 AI 团队。",
+          "title": "场景化 AI 助手，各司其职"
+        },
+        "models": {
+          "description": "一站式管理 OpenAI、Claude、DeepSeek 等数多种模型服务，自由切换，本地存储，将选择权交还给您。",
+          "title": "集结全球顶尖模型"
+        },
+        "paintings": {
+          "description": "集成多种主流绘图模型，精细化参数控制。无论是艺术创作还是素材生成，皆可信手拈来。",
+          "title": "无限创意，绘你所想"
+        }
+      },
+      "navStyle": {
+        "left": "左侧",
+        "title": "导航栏",
+        "top": "顶部"
+      },
+      "startButton": "立即使用",
+      "welcome": {
+        "subtitle": "之后可以通过系统设置来更换",
+        "title": "请选择您的页面样式"
+      }
+    },
+    "guides": {
+      "configureProvider": {
+        "description": "设置您的 AI 服务商开始使用",
+        "steps": {
+          "cherryin": {
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🍒 开启 CherryIN 服务</div><div class=\"guide-features\"><p>🎟️ 官方聚合通道 —— 一个 Key 畅享多种主流大模型</p><p>🆓 内置免费资源 —— 验证账户后，可一键添加多种免费模型</p><p>🚀 稳定高速 —— 官方维护的高可用 API 节点</p><p><em>⚠️ 需账户内有余额才可激活服务，激活后即可使用免费模型。</em></p></div>",
+            "title": ""
+          },
+          "connect": {
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🔑 第一步：连接服务</div><div class=\"guide-features\"><p>1. 点击链接获取您的 CherryIN 密钥。</p><p>2. 粘贴密钥并点击右侧的「检测」按钮。</p></div>",
+            "title": ""
+          },
+          "useModel": {
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🎁 第二步：使用模型</div><div class=\"guide-features\"><p>密钥验证成功后，点击「管理」按钮，在列表中勾选您想使用的免费模型或商用模型即可！</p></div>",
+            "title": ""
+          }
+        },
+        "title": "配置服务商"
+      },
+      "sendMessage": {
+        "description": "开始与 AI 对话",
+        "steps": {
+          "input": {
+            "button": "立即开始",
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">💬 开始对话</div><div class=\"guide-features\"><p>试着问问我：「你不仅是一个AI，还是...」，看看我会怎么回？</p></div>",
+            "title": ""
+          }
+        },
+        "title": "与 AI 对话"
+      },
+      "useFreeModel": {
+        "description": "试用内置免费模型",
+        "steps": {
+          "selector": {
+            "description": "<div class=\"guide-image\"><img src=\"{{imageUrl}}\" alt=\"\" /></div><div class=\"guide-title\">👆 使用免费模型在这里</div><div class=\"guide-features\"><p>点击下拉菜单，选择 GLM-4-Flash (Free) 即可开始免费对话。</p></div>",
+            "shortDescription": "点击这里选择免费模型",
+            "title": ""
+          }
+        },
+        "title": "使用免费模型"
+      }
+    },
+    "taskPopover": {
+      "configureProvider": {
+        "button": "前往设置",
+        "features": {
+          "localModels": "🖥 本地模型支持——一键连接 Ollama，离线也能跑 AI",
+          "privacyFirst": "🔐 隐私优先——API Key 仅存本地，直连官方服务",
+          "unlockModels": "💎 解锁最强模型——接入 Gemini 3, Claude 4.5, DeepSeek 等"
+        },
+        "title": "配置第一个模型服务"
+      },
+      "sendFirstMessage": {
+        "button": "开始对话",
+        "features": {
+          "fileAnalysis": "📎 文件分析 —— 支持 PDF/Word",
+          "markdown": "✨ Markdown 渲染 —— 完美支持代码高亮",
+          "typewriter": "🎨 打字机特效 —— 享受流畅体验"
+        },
+        "title": "发送第一条消息"
+      },
+      "useFreeModel": {
+        "button": "立即使用",
+        "features": {
+          "allInOne": "📝 全能助手 —— 满足日常问答、翻译与代码需求",
+          "fastResponse": "⚡️ 高速响应 —— 毫秒级延迟，无需等待",
+          "noRegistration": "🟢 无需注册，开箱即用 —— 内置免费算力"
+        },
+        "title": "使用免费模型"
+      }
+    }
   },
   "warning": {
     "missing_provider": "供应商不存在，已回退到默认供应商 {{provider}}。这可能导致问题。"

@@ -2452,6 +2452,51 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "done": "[to be translated]:Get Started",
+    "next": "[to be translated]:Next",
+    "previous": "[to be translated]:Previous",
+    "progress": "[to be translated]:{{current}} of {{total}}",
+    "skip": "[to be translated]:Skip Tour",
+    "steps": {
+      "addModel": {
+        "description": "[to be translated]:Add the models you need from the provider page. Different models excel at different tasks like chatting, writing, coding, and more.",
+        "title": "[to be translated]:Add Models"
+      },
+      "addProvider": {
+        "description": "[to be translated]:Go to Settings to add AI providers. We recommend CherryIN for beginners - get free credits upon registration and access to various popular models.",
+        "title": "[to be translated]:Add Provider"
+      },
+      "complete": {
+        "description": "[to be translated]:You're all set! Start chatting with your first assistant. Need help? Check Settings for more options.",
+        "title": "[to be translated]:You're All Set!"
+      },
+      "fillApiKey": {
+        "description": "[to be translated]:Enter your API Key here. You can get the API Key from the provider's website. After filling it in, click the \"Check\" button to verify the connection.",
+        "title": "[to be translated]:Fill in API Key"
+      },
+      "freeModel": {
+        "description": "[to be translated]:Cherry Studio includes a free built-in GLM 4.5 Flash model. Start chatting right away without any configuration - perfect for a quick trial!",
+        "title": "[to be translated]:Free Model"
+      },
+      "settingsIntro": {
+        "description": "[to be translated]:Click here to access settings. Next, we'll guide you through adding AI providers and models.",
+        "title": "[to be translated]:Settings"
+      },
+      "useCases": {
+        "description": "[to be translated]:Cherry Studio can help you with: intelligent Q&A, document translation & summarization, code writing & debugging, creative writing, knowledge base queries, and more.",
+        "title": "[to be translated]:Use Cases"
+      },
+      "welcome": {
+        "description": "[to be translated]:Cherry Studio helps you interact with various AI models. Let's take a quick tour to help you get started.",
+        "title": "[to be translated]:Welcome to Cherry Studio!"
+      }
+    },
+    "welcome": {
+      "description": "[to be translated]:Your powerful AI assistant. Let's take a quick tour to help you get started.",
+      "title": "[to be translated]:Welcome to Cherry Studio"
+    }
+  },
   "ovms": {
     "action": {
       "install": "インストール",
@@ -5314,6 +5359,127 @@
     "noReleaseNotes": "暫無更新日誌",
     "saveDataError": "データの保存に失敗しました。もう一度お試しください。",
     "title": "更新"
+  },
+  "userGuide": {
+    "buttons": {
+      "gotIt": "[to be translated]:Got it",
+      "next": "[to be translated]:Next",
+      "useNow": "[to be translated]:Use Now"
+    },
+    "checklist": {
+      "progress": "[to be translated]:{{completed}} of {{total}} completed",
+      "subtitle": "[to be translated]:Complete tasks to unlock Cherry Studio advanced tips",
+      "tasks": {
+        "configureProvider": "[to be translated]:Configure your first AI provider",
+        "sendFirstMessage": "[to be translated]:Send your first message",
+        "useFreeModel": "[to be translated]:Try the free built-in model"
+      },
+      "title": "[to be translated]:Start Your AI Journey"
+    },
+    "completionModal": {
+      "exploreMore": "[to be translated]:Explore More Assistants",
+      "recommendedAssistants": "[to be translated]:Recommended Assistants",
+      "startChat": "[to be translated]:Start Chatting",
+      "subtitle": "[to be translated]:Welcome to Cherry Studio. You're all set to explore!",
+      "title": "[to be translated]:Setup Complete!"
+    },
+    "guidePage": {
+      "carousel": {
+        "assistants": {
+          "description": "[to be translated]:From project management to chart drawing, define dedicated system prompts to build your professional AI team.",
+          "title": "[to be translated]:AI Assistants for Every Task"
+        },
+        "models": {
+          "description": "[to be translated]:One-stop management of OpenAI, Claude, DeepSeek and many other model services. Free switching, local storage, giving the choice back to you.",
+          "title": "[to be translated]:World-Class AI Models"
+        },
+        "paintings": {
+          "description": "[to be translated]:Integrate multiple mainstream drawing models with fine-grained parameter control. Whether it's art creation or asset generation, it's all at your fingertips.",
+          "title": "[to be translated]:Unlimited Creativity"
+        }
+      },
+      "navStyle": {
+        "left": "[to be translated]:Sidebar",
+        "title": "[to be translated]:Navigation Style",
+        "top": "[to be translated]:Top Navbar"
+      },
+      "startButton": "[to be translated]:Get Started",
+      "welcome": {
+        "subtitle": "[to be translated]:Your powerful AI desktop client. Let's set up your preferences before getting started.",
+        "title": "[to be translated]:Welcome to Cherry Studio"
+      }
+    },
+    "guides": {
+      "configureProvider": {
+        "description": "[to be translated]:Set up your AI provider to get started",
+        "steps": {
+          "cherryin": {
+            "description": "[to be translated]:<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🍒 Enable CherryIN Service</div><div class=\"guide-features\"><p>🎟️ Official aggregation — One Key to access multiple mainstream LLMs</p><p>🆓 Built-in free resources — Add free models with one click after account verification</p><p>🚀 Stable & fast — High-availability API nodes maintained officially</p><p><em>⚠️ Account balance required to activate service. Free models available after activation.</em></p></div>",
+            "title": "[to be translated]:"
+          },
+          "connect": {
+            "description": "[to be translated]:<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🔑 Step 1: Connect Service</div><div class=\"guide-features\"><p>1. Click the link to get your CherryIN API key.</p><p>2. Paste the key and click the \"Check\" button on the right.</p></div>",
+            "title": "[to be translated]:"
+          },
+          "useModel": {
+            "description": "[to be translated]:<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🎁 Step 2: Use Models</div><div class=\"guide-features\"><p>After key verification, click \"Manage\" button and select the free or commercial models you want to use!</p></div>",
+            "title": "[to be translated]:"
+          }
+        },
+        "title": "[to be translated]:Configure Provider"
+      },
+      "sendMessage": {
+        "description": "[to be translated]:Start chatting with AI",
+        "steps": {
+          "input": {
+            "button": "[to be translated]:Start Now",
+            "description": "[to be translated]:Type your message here and press Enter to send. Cherry Studio supports Markdown, code highlighting, and file attachments.",
+            "title": "[to be translated]:Send Your First Message"
+          }
+        },
+        "title": "[to be translated]:Chat with AI"
+      },
+      "useFreeModel": {
+        "description": "[to be translated]:Try our free built-in model",
+        "steps": {
+          "selector": {
+            "description": "[to be translated]:Click here to select a model. Try the free built-in model to get started without an API key.",
+            "shortDescription": "[to be translated]:Click here to select a free model",
+            "title": "[to be translated]:Select a Model"
+          }
+        },
+        "title": "[to be translated]:Use Free Model"
+      }
+    },
+    "taskPopover": {
+      "configureProvider": {
+        "button": "[to be translated]:Start Setup",
+        "features": {
+          "localModels": "[to be translated]:🖥 Local model support — One-click Ollama connection, run AI offline",
+          "privacyFirst": "[to be translated]:🔐 Privacy first — API Keys stored locally, direct connection to official services",
+          "unlockModels": "[to be translated]:💎 Unlock top models — Access Gemini 3, Claude 4.5, DeepSeek and more"
+        },
+        "title": "[to be translated]:Configure AI Provider"
+      },
+      "sendFirstMessage": {
+        "button": "[to be translated]:Start Chatting",
+        "features": {
+          "fileAnalysis": "[to be translated]:📎 File analysis — supports PDF/Word",
+          "markdown": "[to be translated]:✨ Markdown rendering — perfect code highlighting",
+          "typewriter": "[to be translated]:🎨 Typewriter effect — smooth experience"
+        },
+        "title": "[to be translated]:Send Your First Message"
+      },
+      "useFreeModel": {
+        "button": "[to be translated]:Use Now",
+        "features": {
+          "allInOne": "[to be translated]:📝 All-in-one assistant — for Q&A, translation and coding",
+          "fastResponse": "[to be translated]:⚡️ Fast response — millisecond-level latency",
+          "noRegistration": "[to be translated]:🟢 No registration required — built-in free computing power"
+        },
+        "title": "[to be translated]:Use Free Model"
+      }
+    }
   },
   "warning": {
     "missing_provider": "サプライヤーが存在しないため、デフォルトのサプライヤー {{provider}} にロールバックされました。これにより問題が発生する可能性があります。"

@@ -1,0 +1,570 @@
+/* Cherry Studio driver.js theme customization */
+
+/* Base popover styles using CSS variables */
+/* popoverClass is applied directly to .driver-popover element */
+.driver-popover.cherry-driver-popover {
+  background-color: var(--color-background) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+  max-width: 360px !important;
+  font-family: var(--font-family) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-title {
+  color: var(--color-text) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  margin-bottom: 8px !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-description {
+  color: var(--color-text-2) !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-progress-text {
+  color: var(--color-text-3) !important;
+  font-size: 12px !important;
+}
+
+/* Button styles */
+.driver-popover.cherry-driver-popover .driver-popover-navigation-btns {
+  gap: 8px !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-next-btn,
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn,
+.driver-popover.cherry-driver-popover .driver-popover-close-btn {
+  border-radius: 6px !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* Remove any pseudo-elements that might cause text duplication */
+.driver-popover.cherry-driver-popover .driver-popover-next-btn::before,
+.driver-popover.cherry-driver-popover .driver-popover-next-btn::after,
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn::before,
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn::after {
+  content: none !important;
+  display: none !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-next-btn {
+  background-color: var(--color-primary) !important;
+  color: var(--color-white) !important;
+  border: none !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-next-btn:hover {
+  opacity: 0.9 !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn {
+  background-color: transparent !important;
+  color: var(--color-text-2) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-prev-btn:hover {
+  background-color: var(--color-background-soft) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-close-btn {
+  background-color: transparent !important;
+  color: var(--color-text-3) !important;
+  border: none !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-close-btn:hover {
+  color: var(--color-text) !important;
+}
+
+/* Dark theme specific adjustments */
+.driver-popover.cherry-driver-popover.dark {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Light theme specific adjustments */
+.driver-popover.cherry-driver-popover.light {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Highlight stage */
+.driver-active-element {
+  border-radius: 8px !important;
+}
+
+/* Arrow styles */
+.driver-popover.cherry-driver-popover .driver-popover-arrow {
+  border-color: var(--color-background) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-arrow-side-left {
+  border-right-color: var(--color-background) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-arrow-side-right {
+  border-left-color: var(--color-background) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-arrow-side-top {
+  border-bottom-color: var(--color-background) !important;
+}
+
+.driver-popover.cherry-driver-popover .driver-popover-arrow-side-bottom {
+  border-top-color: var(--color-background) !important;
+}
+
+/* Footer area */
+.driver-popover.cherry-driver-popover .driver-popover-footer {
+  margin-top: 16px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid var(--color-border) !important;
+}
+
+/* User Guide specific styles matching Figma design */
+/* Supports both light and dark modes */
+/* Default uses light mode colors, dark mode overrides below */
+.driver-popover.user-guide-popover {
+  background: #f7f8f7 !important;
+  background-color: #f7f8f7 !important;
+  background-image: none !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 24px !important;
+  box-shadow: 0px 4px 13.8px 0px rgba(107, 114, 128, 0.2) !important;
+  max-width: 427px !important;
+  padding: 12px !important;
+  font-family: var(--font-family) !important;
+  opacity: 1 !important;
+}
+
+/* Dark mode: solid dark background */
+.driver-popover.user-guide-popover.dark {
+  background: #222222 !important;
+  background-color: #222222 !important;
+  box-shadow: 0px 4px 13.8px 0px rgba(0, 0, 0, 0.4) !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-title {
+  color: var(--color-text) !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  font-family: inherit !important;
+  margin-bottom: 12px !important;
+  line-height: 18px !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-description {
+  color: var(--color-text-2) !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  font-family: inherit !important;
+  line-height: 1.5 !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* Hide progress text for user guide */
+.driver-popover.user-guide-popover .driver-popover-progress-text {
+  display: none !important;
+}
+
+/* Hide footer border for user guide */
+.driver-popover.user-guide-popover .driver-popover-footer {
+  border-top: none !important;
+  margin-top: 12px !important;
+  padding-top: 0 !important;
+}
+
+/* Image support in user guide popover */
+.driver-popover.user-guide-popover .guide-image {
+  width: 100%;
+  border-radius: 16px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.driver-popover.user-guide-popover .guide-image img {
+  width: 395px;
+  max-width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+  border-radius: 16px;
+}
+
+/* Feature description paragraphs in user guide popover */
+.driver-popover.user-guide-popover .guide-features {
+  margin: 0;
+  padding: 0;
+}
+
+.driver-popover.user-guide-popover .guide-features p {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Legacy list support - convert to paragraph style */
+.driver-popover.user-guide-popover .guide-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.driver-popover.user-guide-popover .guide-steps li {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Legacy popover-image and popover-list support */
+.driver-popover.user-guide-popover .popover-image {
+  width: 100%;
+  border-radius: 16px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.driver-popover.user-guide-popover .popover-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.driver-popover.user-guide-popover .popover-list {
+  margin: 12px 0;
+  padding-left: 20px;
+}
+
+.driver-popover.user-guide-popover .popover-list li {
+  margin-bottom: 8px;
+  color: var(--color-text-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* User guide popover buttons */
+.driver-popover.user-guide-popover .driver-popover-navigation-btns {
+  gap: 12px !important;
+  margin-top: 16px !important;
+  justify-content: flex-end !important;
+}
+
+/* Hide disabled Previous button (single-step guide) */
+.driver-popover.user-guide-popover .driver-popover-prev-btn[disabled] {
+  display: none !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-next-btn,
+.driver-popover.user-guide-popover .driver-popover-prev-btn {
+  font-family: var(--font-family) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 24px !important;
+  border-radius: 12px !important;
+  padding: 8px 16px !important;
+  text-align: center !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-next-btn {
+  background-color: #3cd45a !important;
+  color: white !important;
+  border: none !important;
+  min-width: 103px !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-next-btn:hover {
+  background-color: #35c052 !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-prev-btn {
+  background-color: var(--color-background) !important;
+  color: var(--color-text-2) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-prev-btn:hover {
+  background-color: var(--color-background-mute) !important;
+}
+
+/* Close button for user guide popover */
+.driver-popover.user-guide-popover .driver-popover-close-btn {
+  position: absolute !important;
+  top: 16px !important;
+  right: 16px !important;
+  background: transparent !important;
+  border: none !important;
+  color: var(--color-text-3) !important;
+  padding: 0 !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+/* Arrow styles for user guide popover - default (light mode) */
+.driver-popover.user-guide-popover .driver-popover-arrow-side-left {
+  border-right-color: #f7f8f7 !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-arrow-side-right {
+  border-left-color: #f7f8f7 !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-arrow-side-top {
+  border-bottom-color: #f7f8f7 !important;
+}
+
+.driver-popover.user-guide-popover .driver-popover-arrow-side-bottom {
+  border-top-color: #f7f8f7 !important;
+}
+
+/* Arrow styles for user guide popover - dark mode */
+.driver-popover.user-guide-popover.dark .driver-popover-arrow-side-left {
+  border-right-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover.dark .driver-popover-arrow-side-right {
+  border-left-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover.dark .driver-popover-arrow-side-top {
+  border-bottom-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover.dark .driver-popover-arrow-side-bottom {
+  border-top-color: #222222 !important;
+}
+
+/* Step 2: Minimal popover for pointing to target elements */
+/* Default uses light mode colors, dark mode overrides below */
+.driver-popover.user-guide-popover-minimal {
+  background: #f7f8f7 !important;
+  background-color: #f7f8f7 !important;
+  background-image: none !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 1.2vw !important;
+  box-shadow: 0px 4px 13.8px 0px rgba(107, 114, 128, 0.2) !important;
+  width: 20vw !important;
+  min-width: 280px !important;
+  max-width: 400px !important;
+  padding: 0.8vw !important;
+  font-family: var(--font-family) !important;
+  opacity: 1 !important;
+}
+
+/* Dark mode: solid dark background */
+.driver-popover.user-guide-popover-minimal.dark {
+  background: #222222 !important;
+  background-color: #222222 !important;
+  box-shadow: 0px 4px 13.8px 0px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Hide close button for minimal popover */
+.driver-popover.user-guide-popover-minimal .driver-popover-close-btn {
+  display: none !important;
+}
+
+/* Hide driver.js title for minimal popover - title is in description */
+.driver-popover.user-guide-popover-minimal .driver-popover-title {
+  display: none !important;
+}
+
+.driver-popover.user-guide-popover-minimal .driver-popover-description {
+  color: var(--color-text-2) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  font-family: var(--font-family) !important;
+  line-height: 1.5 !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* Image support in minimal popover */
+.driver-popover.user-guide-popover-minimal .guide-image {
+  width: 100%;
+  height: 10vw;
+  min-height: 120px;
+  max-height: 200px;
+  border-radius: 0.8vw;
+  margin-bottom: 0.8vw;
+  overflow: hidden;
+}
+
+.driver-popover.user-guide-popover-minimal .guide-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 0.8vw;
+}
+
+/* Video support in minimal popover */
+.driver-popover.user-guide-popover-minimal .guide-video {
+  position: relative;
+  width: 100%;
+  height: 10vw;
+  min-height: 120px;
+  max-height: 200px;
+  border-radius: 0.8vw;
+  margin-bottom: 0.8vw;
+  overflow: hidden;
+}
+
+.driver-popover.user-guide-popover-minimal .guide-video video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 0.8vw;
+}
+
+/* Skeleton placeholder for video loading */
+.driver-popover.user-guide-popover-minimal .guide-video-skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-background-mute);
+  border-radius: 0.8vw;
+}
+
+.driver-popover.user-guide-popover-minimal .guide-video-skeleton .ant-skeleton-image {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0.8vw;
+}
+
+/* Title inside description for minimal popover */
+.driver-popover.user-guide-popover-minimal .guide-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  font-family: var(--font-family);
+  line-height: 16px;
+  margin-bottom: 0.4vw;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Feature list in minimal popover */
+.driver-popover.user-guide-popover-minimal .guide-features p {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: 12px;
+  font-weight: 400;
+  font-family: var(--font-family);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Hide progress text for minimal popover */
+.driver-popover.user-guide-popover-minimal .driver-popover-progress-text {
+  display: none !important;
+}
+
+/* Hide footer border for minimal popover */
+.driver-popover.user-guide-popover-minimal .driver-popover-footer {
+  border-top: none !important;
+  margin-top: 0.8vw !important;
+  padding-top: 0 !important;
+}
+
+/* Hide disabled Previous button for minimal popover */
+.driver-popover.user-guide-popover-minimal .driver-popover-prev-btn[disabled] {
+  display: none !important;
+}
+
+/* Minimal popover buttons */
+.driver-popover.user-guide-popover-minimal .driver-popover-navigation-btns {
+  gap: 8px !important;
+  justify-content: flex-end !important;
+}
+
+.driver-popover.user-guide-popover-minimal .driver-popover-next-btn,
+.driver-popover.user-guide-popover-minimal .driver-popover-prev-btn {
+  font-family: var(--font-family) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  border-radius: 0.6vw !important;
+  padding: 0.4vw 0.8vw !important;
+  min-width: 80px !important;
+  text-align: center !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+.driver-popover.user-guide-popover-minimal .driver-popover-next-btn {
+  background-color: #3cd45a !important;
+  color: white !important;
+  border: none !important;
+}
+
+.driver-popover.user-guide-popover-minimal .driver-popover-next-btn:hover {
+  background-color: #35c052 !important;
+}
+
+/* Arrow styles for minimal popover - default (light mode) */
+.driver-popover.user-guide-popover-minimal .driver-popover-arrow-side-left {
+  border-right-color: #f7f8f7 !important;
+}
+
+.driver-popover.user-guide-popover-minimal .driver-popover-arrow-side-right {
+  border-left-color: #f7f8f7 !important;
+}
+
+.driver-popover.user-guide-popover-minimal .driver-popover-arrow-side-top {
+  border-bottom-color: #f7f8f7 !important;
+}
+
+.driver-popover.user-guide-popover-minimal .driver-popover-arrow-side-bottom {
+  border-top-color: #f7f8f7 !important;
+}
+
+/* Arrow styles for minimal popover - dark mode */
+.driver-popover.user-guide-popover-minimal.dark .driver-popover-arrow-side-left {
+  border-right-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover-minimal.dark .driver-popover-arrow-side-right {
+  border-left-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover-minimal.dark .driver-popover-arrow-side-top {
+  border-bottom-color: #222222 !important;
+}
+
+.driver-popover.user-guide-popover-minimal.dark .driver-popover-arrow-side-bottom {
+  border-top-color: #222222 !important;
+}

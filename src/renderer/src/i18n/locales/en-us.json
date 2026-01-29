@@ -2452,6 +2452,51 @@
     },
     "title": "Ollama"
   },
+  "onboarding": {
+    "done": "Get Started",
+    "next": "Next",
+    "previous": "Previous",
+    "progress": "{{current}} of {{total}}",
+    "skip": "Skip Tour",
+    "steps": {
+      "addModel": {
+        "description": "After adding a provider, click this button to add models. Different models excel at different tasks:\n• GPT-4 for complex reasoning\n• Claude for long-form content\n• GLM for Chinese conversations",
+        "title": "Add Models"
+      },
+      "addProvider": {
+        "description": "Click this button to add an AI provider. We recommend CherryIN for beginners - sign up to get free credits with access to GPT, Claude, and other popular models.",
+        "title": "Add Provider"
+      },
+      "complete": {
+        "description": "You're all set! Start chatting with AI now. Explore more features and let AI become your powerful assistant!",
+        "title": "Start Exploring!"
+      },
+      "fillApiKey": {
+        "description": "Enter your API Key here. You can get the API Key from the provider's website. After filling it in, click the \"Check\" button to verify the connection.",
+        "title": "Fill in API Key"
+      },
+      "freeModel": {
+        "description": "Cherry Studio includes a free built-in GLM 4.5 Flash model. Click the model selector in the top navbar to switch models. No configuration needed - start chatting right away!",
+        "title": "Free Model"
+      },
+      "settingsIntro": {
+        "description": "Click here to access settings. Next, we'll guide you through adding AI providers and models.",
+        "title": "Settings"
+      },
+      "useCases": {
+        "description": "Cherry Studio can help you with various tasks:\n• Intelligent Q&A\n• Document translation & summarization\n• Code writing & debugging\n• Creative writing\n• Knowledge base queries\n\nType your question in the input box to get started!",
+        "title": "Use Cases"
+      },
+      "welcome": {
+        "description": "Cherry Studio is a powerful AI desktop client supporting multiple AI models. Let's take a quick tour to get you started!",
+        "title": "Welcome to Cherry Studio!"
+      }
+    },
+    "welcome": {
+      "description": "Your powerful AI assistant. Let's take a quick tour to help you get started.",
+      "title": "Welcome to Cherry Studio"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Install",
@@ -5314,6 +5359,127 @@
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",
     "title": "Update"
+  },
+  "userGuide": {
+    "buttons": {
+      "gotIt": "Got it",
+      "next": "Next",
+      "useNow": "Use Now"
+    },
+    "checklist": {
+      "progress": "{{completed}} of {{total}} completed",
+      "subtitle": "Complete tasks to unlock Cherry Studio advanced tips",
+      "tasks": {
+        "configureProvider": "Configure your first AI provider",
+        "sendFirstMessage": "Send your first message",
+        "useFreeModel": "Try the free built-in model"
+      },
+      "title": "Start Your AI Journey"
+    },
+    "completionModal": {
+      "exploreMore": "Explore More Assistants",
+      "recommendedAssistants": "Recommended Assistants",
+      "startChat": "Start Chatting",
+      "subtitle": "Welcome to Cherry Studio. You're all set to explore!",
+      "title": "Setup Complete!"
+    },
+    "guidePage": {
+      "carousel": {
+        "assistants": {
+          "description": "From project management to chart drawing, define dedicated system prompts to build your professional AI team.",
+          "title": "AI Assistants for Every Task"
+        },
+        "models": {
+          "description": "One-stop management of OpenAI, Claude, DeepSeek and many other model services. Free switching, local storage, giving the choice back to you.",
+          "title": "World-Class AI Models"
+        },
+        "paintings": {
+          "description": "Integrate multiple mainstream drawing models with fine-grained parameter control. Whether it's art creation or asset generation, it's all at your fingertips.",
+          "title": "Unlimited Creativity"
+        }
+      },
+      "navStyle": {
+        "left": "Left",
+        "title": "Navigation",
+        "top": "Top"
+      },
+      "startButton": "Get Started",
+      "welcome": {
+        "subtitle": "You can change this later in system settings",
+        "title": "Choose Your Page Style"
+      }
+    },
+    "guides": {
+      "configureProvider": {
+        "description": "Set up your AI provider to get started",
+        "steps": {
+          "cherryin": {
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🍒 Enable CherryIN Service</div><div class=\"guide-features\"><p>🎟️ Official aggregation — One Key to access multiple mainstream LLMs</p><p>🆓 Built-in free resources — Add free models with one click after account verification</p><p>🚀 Stable & fast — High-availability API nodes maintained officially</p><p><em>⚠️ Account balance required to activate service. Free models available after activation.</em></p></div>",
+            "title": ""
+          },
+          "connect": {
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🔑 Step 1: Connect Service</div><div class=\"guide-features\"><p>1. Click the link to get your CherryIN API key.</p><p>2. Paste the key and click the \"Check\" button on the right.</p></div>",
+            "title": ""
+          },
+          "useModel": {
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">🎁 Step 2: Use Models</div><div class=\"guide-features\"><p>After key verification, click \"Manage\" button and select the free or commercial models you want to use!</p></div>",
+            "title": ""
+          }
+        },
+        "title": "Configure Provider"
+      },
+      "sendMessage": {
+        "description": "Start chatting with AI",
+        "steps": {
+          "input": {
+            "button": "Start Now",
+            "description": "<div class=\"guide-video\" data-video-light=\"{{videoUrlLight}}\" data-video-dark=\"{{videoUrlDark}}\"></div><div class=\"guide-title\">💬 Start Chatting</div><div class=\"guide-features\"><p>Try asking me: \"You are not just an AI, but...\" and see how I respond?</p></div>",
+            "title": ""
+          }
+        },
+        "title": "Chat with AI"
+      },
+      "useFreeModel": {
+        "description": "Try our free built-in model",
+        "steps": {
+          "selector": {
+            "description": "<div class=\"guide-image\"><img src=\"{{imageUrl}}\" alt=\"\" /></div><div class=\"guide-title\">👆 Use Free Model Here</div><div class=\"guide-features\"><p>Click the dropdown menu and select GLM-4-Flash (Free) to start chatting for free.</p></div>",
+            "shortDescription": "Click here to select a free model",
+            "title": ""
+          }
+        },
+        "title": "Use Free Model"
+      }
+    },
+    "taskPopover": {
+      "configureProvider": {
+        "button": "Go to Settings",
+        "features": {
+          "localModels": "🖥 Local model support — One-click Ollama connection, run AI offline",
+          "privacyFirst": "🔐 Privacy first — API Keys stored locally, direct connection to official services",
+          "unlockModels": "💎 Unlock top models — Access Gemini 3, Claude 4.5, DeepSeek and more"
+        },
+        "title": "Configure Your First AI Provider"
+      },
+      "sendFirstMessage": {
+        "button": "Start Chatting",
+        "features": {
+          "fileAnalysis": "📎 File analysis — supports PDF/Word",
+          "markdown": "✨ Markdown rendering — perfect code highlighting",
+          "typewriter": "🎨 Typewriter effect — smooth experience"
+        },
+        "title": "Send Your First Message"
+      },
+      "useFreeModel": {
+        "button": "Use Now",
+        "features": {
+          "allInOne": "📝 All-in-one assistant — for Q&A, translation and coding",
+          "fastResponse": "⚡️ Fast response — millisecond-level latency",
+          "noRegistration": "🟢 No registration required — built-in free computing power"
+        },
+        "title": "Use Free Model"
+      }
+    }
   },
   "warning": {
     "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."

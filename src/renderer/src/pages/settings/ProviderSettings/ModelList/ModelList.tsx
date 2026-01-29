@@ -179,11 +179,21 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         )}
       </Flex>
       <Flex gap={10} style={{ marginTop: 12 }}>
-        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+        <Button
+          type="primary"
+          onClick={onManageModel}
+          icon={<ListCheck size={16} />}
+          disabled={isHealthChecking}
+          data-guide-target="provider-manage-models">
           {t('button.manage')}
         </Button>
         {provider.id !== 'ovms' ? (
-          <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+          <Button
+            id="add-model-btn"
+            type="default"
+            onClick={onAddModel}
+            icon={<Plus size={16} />}
+            disabled={isHealthChecking}>
             {t('button.add')}
           </Button>
         ) : (
