@@ -4442,6 +4442,13 @@
       "open_link_external": {
         "title": "Deschide în browser linkurile care deschid ferestre noi"
       },
+      "region": {
+        "auto": "Detectare automată",
+        "cn": "China",
+        "description": "Detectare automată a regiunii dvs. sau selectare manuală",
+        "global": "Global",
+        "title": "Regiunea aplicației miniaturi"
+      },
       "reset_tooltip": "Resetează la implicit",
       "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
       "sidebar_title": "Afișare mini-aplicații active în bara laterală",

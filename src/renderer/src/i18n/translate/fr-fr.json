@@ -4442,6 +4442,13 @@
       "open_link_external": {
         "title": "Ouvrir un nouveau lien dans une fenêtre du navigateur"
       },
+      "region": {
+        "auto": "Détection automatique",
+        "cn": "Chine",
+        "description": "Détection automatique de votre région, ou sélection manuelle",
+        "global": "mondial",
+        "title": "Région de l'application mini-programme"
+      },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
       "sidebar_description": "Définir si les applications actives doivent s'afficher dans la barre latérale",
       "sidebar_title": "Affichage des applications actives dans la barre latérale",

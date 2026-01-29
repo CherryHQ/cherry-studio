@@ -4442,6 +4442,13 @@
       "open_link_external": {
         "title": "新視窗のリンクをブラウザで開く"
       },
+      "region": {
+        "auto": "自動検出",
+        "cn": "中国",
+        "description": "自動的にあなたの地域を検出するか、手動で選択してください",
+        "global": "世界中",
+        "title": "小程序の対応地域"
+      },
       "reset_tooltip": "デフォルト値にリセット",
       "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
       "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
