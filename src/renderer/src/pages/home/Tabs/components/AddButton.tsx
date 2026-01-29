@@ -6,6 +6,7 @@ import styled from 'styled-components'
 
 const StyledButton = styled(Button)`
   height: 36px;
+  min-height: 36px;
   width: calc(var(--assistants-width) - 20px);
   justify-content: flex-start;
   border-radius: var(--list-item-border-radius);

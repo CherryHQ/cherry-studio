@@ -64,16 +64,15 @@ import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
 import { OpenAIServiceTiers } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
-import { glm45FlashModel, qwen38bModel, SYSTEM_MODELS } from './models'
+import { qwen3Next80BModel, qwen38bModel, SYSTEM_MODELS } from './models'
 
 export const CHERRYAI_PROVIDER: SystemProvider = {
   id: 'cherryai' as SystemProviderId,
   name: 'CherryAI',
   type: 'openai',
   apiKey: '',
-  apiHost: 'https://api.cherry-ai.com/',
-  anthropicApiHost: 'https://api.cherry-ai.com',
-  models: [glm45FlashModel, qwen38bModel],
+  apiHost: 'https://api.cherry-ai.com',
+  models: [qwen38bModel, qwen3Next80BModel],
   isSystem: true,
   enabled: true
 }
@@ -932,7 +931,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       official: 'https://www.together.ai/',
       apiKey: 'https://api.together.ai/settings/api-keys',
       docs: 'https://docs.together.ai/docs/introduction',
-      models: 'https://docs.together.ai/docs/chat-models'
+      models: 'https://docs.together.ai/docs/serverless-models'
     }
   },
   dmxapi: {
