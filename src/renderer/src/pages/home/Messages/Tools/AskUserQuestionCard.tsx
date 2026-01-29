@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
-import { Button, Checkbox, Radio, Tag } from 'antd'
+import { Button, Checkbox, Input, Radio, Tag } from 'antd'
 import { CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -218,9 +218,8 @@ function PendingContent({
 
         {/* Custom input field */}
         {hasCustomInput && (
-          <input
-            type="text"
-            className="mt-2 w-full rounded-lg border border-default-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:bg-default-100"
+          <Input
+            className="mt-2"
             placeholder={t('agent.askUserQuestion.customPlaceholder', 'Enter your answer...')}
             value={customInputValue}
             onChange={(e) => onCustomInputChange(e.target.value)}
