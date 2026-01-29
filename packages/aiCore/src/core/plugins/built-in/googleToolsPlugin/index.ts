@@ -1,4 +1,5 @@
 import { google } from '@ai-sdk/google'
+import type { ToolSet } from 'ai'
 
 import { type AiPlugin, definePlugin, type StreamTextParams, type StreamTextResult } from '../../'
 
@@ -14,7 +15,7 @@ type ToolConfig = { googleSearch?: boolean; urlContext?: boolean; codeExecution?
 export const googleToolsPlugin = (config?: ToolConfig): AiPlugin<StreamTextParams, StreamTextResult> =>
   definePlugin<StreamTextParams, StreamTextResult>({
     name: 'googleToolsPlugin',
-    transformParams: (params, context) => {
+    transformParams: (params, context): Partial<StreamTextParams> => {
       const { providerId } = context
 
       // 只在 Google provider 且有配置时才修改参数
@@ -36,15 +37,15 @@ export const googleToolsPlugin = (config?: ToolConfig): AiPlugin<StreamTextParam
       }
 
       // 构建符合 AI SDK 的 tools 对象
-      const tools: Record<string, ReturnType<(typeof google.tools)[keyof typeof google.tools]>> = {}
+      const tools: ToolSet = {}
 
       ;(Object.keys(config) as ToolConfigKey[]).forEach((key) => {
         if (config[key] && key in toolNameMap && key in google.tools) {
           const toolName = toolNameMap[key]
-          tools[toolName] = google.tools[key]({})
+          tools[toolName] = google.tools[key]({}) as ToolSet[string]
         }
       })
 
-      return { tools: tools }
+      return { tools }
     }
   })

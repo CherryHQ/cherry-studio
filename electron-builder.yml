@@ -96,6 +96,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
+  differentialPackage: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
@@ -111,8 +112,11 @@ mac:
   target:
     - target: dmg
     - target: zip
+dmg:
+  writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
+  executableName: CherryStudio
   target:
     - target: AppImage
     - target: deb
@@ -121,6 +125,7 @@ linux:
   category: Utility
   desktop:
     entry:
+      Name: Cherry Studio
       StartupWMClass: CherryStudio
   mimeTypes:
     - x-scheme-handler/cherrystudio
@@ -140,44 +145,60 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.9 - New Features & Bug Fixes
+    Cherry Studio 1.7.14 - New Features & Improvements
 
     ✨ New Features
-    - [Agent] Add 302.AI provider support
-    - [Browser] Browser data now persists and supports multiple tabs
-    - [Language] Add Romanian language support
-    - [Search] Add fuzzy search for file list
-    - [Models] Add latest Zhipu models
-    - [Image] Improve text-to-image functionality
+    - [Notes] Add export to Word document functionality
+    - [Code Tools] Add Kimi CLI support with auto-configuration
+    - [Code Tools] Support custom providers
+    - [Settings] Support viewing detailed error messages when model detection fails
+    - [Topics] Display year in topic timestamps (YYYY/MM/DD format)
+    - [Linux] Add system title bar setting option
+    - [Models] Add Baichuan m3/m3-plus models
+    - [Models] Add Qwen text-embedding models
+
+    🎨 Improvements
+    - [Translate] Simplify translation with single target language selector
+    - [Topics] Unpinned topics now move to top with auto-scroll
+    - [Minapps] Add locale-based filtering support
+    - [i18n] Update Romanian localization
 
     🐛 Bug Fixes
-    - [Mac] Fix mini window unexpected closing issue
-    - [Preview] Fix HTML preview controls not working in fullscreen
-    - [Translate] Fix translation duplicate execution issue
-    - [Zoom] Fix page zoom reset issue during navigation
-    - [Agent] Fix crash when switching between agent and assistant
-    - [Agent] Fix navigation in agent mode
-    - [Copy] Fix markdown copy button issue
-    - [Windows] Fix compatibility issues on non-Windows systems
+    - [Linux] Fix icon display and deb/rpm installation issues
+    - [Linux] Fix window not coming to front when clicking tray
+    - [Linux] Add Alpine Linux (musl) support
+    - [Code Tools] Fix Windows Terminal issues
+    - [Azure] Fix API preview link for completion mode
+    - [Images] Fix trailing slashes in API URLs for image generation
+    - [OpenRouter] Fix MCP tools support
+    - [Chat] Fix image enhancement model conversation history
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.9 - 新功能与问题修复
+    Cherry Studio 1.7.14 - 新功能与改进
 
     ✨ 新功能
-    - [Agent] 新增 302.AI 服务商支持
-    - [浏览器] 浏览器数据现在可以保存，支持多标签页
-    - [语言] 新增罗马尼亚语支持
-    - [搜索] 文件列表新增模糊搜索功能
-    - [模型] 新增最新智谱模型
-    - [图片] 优化文生图功能
+    - [笔记] 支持导出为 Word 文档
+    - [代码工具] 新增 Kimi CLI 支持，自动配置环境
+    - [代码工具] 支持自定义服务商
+    - [设置] 模型检测失败时可查看详细错误信息
+    - [话题] 时间戳显示年份（YYYY/MM/DD 格式）
+    - [Linux] 新增系统标题栏设置选项
+    - [模型] 新增百川 m3/m3-plus 模型
+    - [模型] 新增通义 Embedding 模型
+
+    🎨 改进
+    - [翻译] 简化翻译操作，使用单一目标语言选择
+    - [话题] 取消置顶的话题移动到顶部并自动滚动
+    - [小程序] 支持按语言筛选小程序
+    - [国际化] 更新罗马尼亚语翻译
 
     🐛 问题修复
-    - [Mac] 修复迷你窗口意外关闭的问题
-    - [预览] 修复全屏模式下 HTML 预览控件无法使用的问题
-    - [翻译] 修复翻译重复执行的问题
-    - [缩放] 修复页面导航时缩放被重置的问题
-    - [智能体] 修复在智能体和助手间切换时崩溃的问题
-    - [智能体] 修复智能体模式下的导航问题
-    - [复制] 修复 Markdown 复制按钮问题
-    - [兼容性] 修复非 Windows 系统的兼容性问题
+    - [Linux] 修复图标显示和 deb/rpm 安装问题
+    - [Linux] 修复点击托盘后窗口无法置顶的问题
+    - [Linux] 新增 Alpine Linux (musl) 支持
+    - [代码工具] 修复 Windows 终端问题
+    - [Azure] 修复完成模式下 API 预览链接
+    - [图片生成] 修复 API 地址结尾斜杠问题
+    - [OpenRouter] 修复 MCP 工具支持
+    - [对话] 修复图片增强模型对话历史丢失问题
     <!--LANG:END-->

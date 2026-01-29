@@ -503,6 +503,7 @@ const api = {
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>
     ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
+  setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
     saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
     getData: (topicId: string, traceId: string, modelName?: string) =>
