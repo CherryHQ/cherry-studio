@@ -1,3 +1,0 @@
-# @cherryStudio-aiCore
-
-Core
