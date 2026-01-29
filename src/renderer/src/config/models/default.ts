@@ -1,12 +1,5 @@
 import type { Model, SystemProviderId } from '@renderer/types'
 
-export const glm45FlashModel: Model = {
-  id: 'glm-4.5-flash',
-  name: 'GLM-4.5-Flash',
-  provider: 'cherryai',
-  group: 'GLM-4.5'
-}
-
 export const qwen38bModel: Model = {
   id: 'Qwen/Qwen3-8B',
   name: 'Qwen3-8B',
@@ -14,16 +7,23 @@ export const qwen38bModel: Model = {
   group: 'Qwen'
 }
 
+export const qwen3Next80BModel: Model = {
+  id: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
+  name: 'Qwen3-Next-80B',
+  provider: 'cherryai',
+  group: 'Qwen'
+}
+
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
   defaultModel: [
     // Default assistant model
-    glm45FlashModel,
+    qwen3Next80BModel,
     // Default topic naming model
     qwen38bModel,
     // Default translation model
-    glm45FlashModel,
+    qwen3Next80BModel,
     // Default quick assistant model
-    glm45FlashModel
+    qwen3Next80BModel
   ],
   cherryin: [],
   vertexai: [],

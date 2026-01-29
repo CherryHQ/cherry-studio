@@ -24,12 +24,12 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
 
   let providerId
 
-  if (model.id === 'glm-4.5-flash') {
-    providerId = 'zhipu'
+  if (model.id === 'Qwen/Qwen3-8B') {
+    providerId = 'cherryin'
   }
 
-  if (model.id === 'Qwen/Qwen3-8B') {
-    providerId = 'silicon'
+  if (model.id === 'Qwen/Qwen3-Next-80B-A3B-Instruct') {
+    providerId = 'cherryin'
   }
 
   const onSelectProvider = () => {
