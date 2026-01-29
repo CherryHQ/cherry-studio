@@ -121,7 +121,10 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         const existingBlock = state.messageBlocks.entities[existingBlockId] as ToolMessageBlock | undefined
         const resolvedInput = state.toolPermissions.resolvedInputs[toolResponse.id]
 
-        const existingResponse = existingBlock?.metadata?.rawMcpToolResponse as MCPToolResponse | undefined
+        const existingResponse = existingBlock?.metadata?.rawMcpToolResponse as
+          | MCPToolResponse
+          | NormalToolResponse
+          | undefined
         const mergedArguments = Object.assign(
           {},
           resolvedInput && typeof resolvedInput === 'object' && !Array.isArray(resolvedInput) ? resolvedInput : null,
@@ -135,7 +138,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             : null
         )
 
-        const mergedToolResponse: MCPToolResponse = {
+        const mergedToolResponse: MCPToolResponse | NormalToolResponse = {
           ...(existingResponse ?? toolResponse),
           ...toolResponse,
           arguments: mergedArguments
