@@ -502,15 +502,12 @@ describe('promptToolUsePlugin', () => {
   describe('DEFAULT_SYSTEM_PROMPT', () => {
     it('should contain required sections', () => {
       expect(DEFAULT_SYSTEM_PROMPT).toContain('Tool Use Formatting')
-      expect(DEFAULT_SYSTEM_PROMPT).toContain('Tool Use Examples')
-      expect(DEFAULT_SYSTEM_PROMPT).toContain('Tool Use Available Tools')
       expect(DEFAULT_SYSTEM_PROMPT).toContain('Tool Use Rules')
       expect(DEFAULT_SYSTEM_PROMPT).toContain('Response rules')
     })
 
     it('should have placeholders for dynamic content', () => {
-      expect(DEFAULT_SYSTEM_PROMPT).toContain('{{ TOOL_USE_EXAMPLES }}')
-      expect(DEFAULT_SYSTEM_PROMPT).toContain('{{ AVAILABLE_TOOLS }}')
+      expect(DEFAULT_SYSTEM_PROMPT).toContain('{{ TOOLS_INFO }}')
       expect(DEFAULT_SYSTEM_PROMPT).toContain('{{ USER_SYSTEM_PROMPT }}')
     })
 
