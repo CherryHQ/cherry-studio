@@ -1855,6 +1855,15 @@ class FileStorage {
     }
   }
 
+  public isDirectory = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+    try {
+      const stat = await fs.promises.stat(filePath)
+      return stat.isDirectory()
+    } catch {
+      return false
+    }
+  }
+
   public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
     if (!fs.existsSync(path)) {
       const msg = `File or folder does not exist: ${path}`
