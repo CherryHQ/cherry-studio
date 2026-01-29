@@ -8,7 +8,7 @@ import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -37,6 +37,11 @@ import {
 
 const logger = loggerService.withContext('CodeToolsPage')
 
+/**
+ * Sanitize provider name for CLI usage
+ * - Replace spaces with dashes
+ * - Replace other dangerous characters with underscores
+ */
 const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
@@ -60,6 +65,10 @@ const CodeToolsPage: FC = () => {
     selectFolder
   } = useCodeTools()
   const { setTimeoutTimer } = useTimer()
+
+  // Get default assistant settings for budget tokens calculation
+  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
+  const { maxTokens, reasoning_effort } = getAssistantSettings(defaultAssistant)
 
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
@@ -124,6 +133,20 @@ const CodeToolsPage: FC = () => {
           return ['openai', 'openai-response'].some((type) =>
             m.supported_endpoint_types?.includes(type as EndpointType)
           )
+        }
+        return true
+      }
+
+      if (selectedCliTool === codeTools.openCode) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response', 'anthropic'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        // Check if model belongs to an anthropic type provider (including custom providers)
+        const anthropicProvider = providers.find((p) => p.id === m.provider)
+        if (anthropicProvider?.type === 'anthropic') {
+          return true
         }
         return true
       }
@@ -246,7 +269,8 @@ const CodeToolsPage: FC = () => {
       model: selectedModel,
       modelProvider,
       apiKey,
-      baseUrl
+      baseUrl,
+      context: { maxTokens, reasoningEffort: reasoning_effort }
     })
 
     // 合并用户自定义的环境变量
@@ -259,10 +283,12 @@ const CodeToolsPage: FC = () => {
   const executeLaunch = async (env: Record<string, string>) => {
     const modelId = selectedCliTool === codeTools.githubCopilotCli ? '' : selectedModel?.id!
 
-    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, {
+    const runOptions = {
       autoUpdateToLatest,
       terminal: selectedTerminal
-    })
+    }
+
+    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
     window.toast.success(t('code.launch.success'))
   }
 
