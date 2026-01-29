@@ -286,6 +286,19 @@ export const getMcpTypeLabel = (key: string): string => {
   return getLabel(mcpTypeKeyMap, key)
 }
 
+const mcpProviderDescriptionKeyMap = {
+  '302ai': 'settings.mcp.sync.providerDescriptions.302ai',
+  bailian: 'settings.mcp.sync.providerDescriptions.bailian',
+  lanyun: 'settings.mcp.sync.providerDescriptions.lanyun',
+  mcprouter: 'settings.mcp.sync.providerDescriptions.mcprouter',
+  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope',
+  tokenflux: 'settings.mcp.sync.providerDescriptions.tokenflux'
+} as const
+
+export const getMcpProviderDescriptionLabel = (key: string): string => {
+  return getLabel(mcpProviderDescriptionKeyMap, key)
+}
+
 const miniappsStatusKeyMap = {
   visible: 'settings.miniapps.visible',
   disabled: 'settings.miniapps.disabled'

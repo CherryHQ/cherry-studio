@@ -5,9 +5,11 @@ import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeVie
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const { node, updateAttributes } = props
+  const { t } = useTranslation()
   const [languageOptions, setLanguageOptions] = useState<string[]>(DEFAULT_LANGUAGES)
 
   // Detect language from node attrs or fallback
@@ -66,7 +68,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
           options={languageOptions.map((lang) => ({ value: lang, label: lang }))}
           style={{ minWidth: 90 }}
         />
-        <Tooltip content="Copy">
+        <Tooltip content={t('common.copy')}>
           <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleCopy}>
             <CopyOutlined />
           </Button>

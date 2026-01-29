@@ -8,7 +8,7 @@ const AddButton = ({ children, className, ...props }) => {
       {...props}
       onClick={props.onClick}
       className={cn(
-        'h-9 w-[calc(var(--assistants-width)-20px)] justify-start rounded-lg bg-transparent px-3 text-[13px] text-[var(--color-text-2)] hover:bg-[var(--color-list-item)]',
+        'h-9 w-[calc(var(--assistants-width)-20px)] justify-start rounded-lg bg-transparent px-3 text-(--color-text-2) text-[13px] hover:bg-(--color-list-item)',
         className
       )}>
       <PlusIcon size={16} className="shrink-0" />

@@ -1,34 +1,42 @@
 import { Flex } from '@cherrystudio/ui'
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Collapse, ConfigProvider, Dropdown, Modal, Progress, Tabs } from 'antd'
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  CirclePlay,
-  CircleX,
-  Maximize,
-  PauseCircle,
-  ShieldCheck,
-  TriangleAlert,
-  X
-} from 'lucide-react'
+import { Collapse, ConfigProvider, Progress } from 'antd'
+import { Check, ChevronRight, ShieldCheck } from 'lucide-react'
+import { parse as parsePartialJson } from 'partial-json'
 import type { FC } from 'react'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { useMcpToolApproval } from './hooks/useMcpToolApproval'
+import {
+  getEffectiveStatus,
+  SkeletonSpan,
+  ToolStatusIndicator,
+  TruncatedIndicator
+} from './MessageAgentTools/GenericTools'
+import {
+  ArgKey,
+  ArgsSection,
+  ArgsSectionTitle,
+  ArgsTable,
+  ArgValue,
+  formatArgValue,
+  ResponseSection
+} from './shared/ArgsTable'
+import { truncateOutput } from './shared/truncateOutput'
+import ToolApprovalActionsComponent from './ToolApprovalActions'
 
 interface Props {
   block: ToolMessageBlock
@@ -36,63 +44,25 @@ interface Props {
 
 const logger = loggerService.withContext('MessageTools')
 
-const COUNTDOWN_TIME = 30
-
 const MessageMcpTool: FC<Props> = ({ block }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
-  const [countdown, setCountdown] = useState<number>(COUNTDOWN_TIME)
   const { t } = useTranslation()
   const [messageFont] = usePreference('chat.message.font')
   const [fontSize] = usePreference('chat.message.font_size')
-  const { mcpServers, updateMCPServer } = useMCPServers()
-  const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
 
+  // Use the unified approval hook
+  const approval = useMcpToolApproval(block)
+
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
 
-  const { id, tool, status, response } = toolResponse as MCPToolResponse
+  const { id, tool, status, response, partialArguments } = toolResponse as MCPToolResponse
   const isPending = status === 'pending'
   const isDone = status === 'done'
   const isError = status === 'error'
-
-  const isAutoApproved = useMemo(
-    () =>
-      isToolAutoApproved(
-        tool,
-        mcpServers.find((s) => s.id === tool.serverId)
-      ),
-    [tool, mcpServers]
-  )
-
-  // 增加本地状态来跟踪用户确认
-  const [isConfirmed, setIsConfirmed] = useState(isAutoApproved)
-
-  // 判断不同的UI状态
-  const isWaitingConfirmation = isPending && !isAutoApproved && !isConfirmed
-  const isExecuting = isPending && (isAutoApproved || isConfirmed)
-
-  const timer = useRef<NodeJS.Timeout | null>(null)
-  useEffect(() => {
-    if (!isWaitingConfirmation) return
-
-    if (countdown > 0) {
-      timer.current = setTimeout(() => {
-        logger.debug(`countdown: ${countdown}`)
-        setCountdown((prev) => prev - 1)
-      }, 1000)
-    } else if (countdown === 0) {
-      setIsConfirmed(true)
-      confirmToolAction(id)
-    }
-
-    return () => {
-      if (timer.current) {
-        clearTimeout(timer.current)
-      }
-    }
-  }, [countdown, id, isWaitingConfirmation])
+  const isStreaming = status === 'streaming'
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(
@@ -110,33 +80,16 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
     }
   }, [id])
 
-  const cancelCountdown = () => {
-    if (timer.current) {
-      clearTimeout(timer.current)
+  // Auto-expand when streaming, auto-collapse when done
+  useEffect(() => {
+    if (isStreaming) {
+      // Expand when streaming starts
+      setActiveKeys((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    } else if (isDone || isError) {
+      // Collapse when streaming ends
+      setActiveKeys((prev) => prev.filter((key) => key !== id))
     }
-  }
-
-  const argsString = useMemo(() => {
-    if (toolResponse?.arguments) {
-      return JSON.stringify(toolResponse.arguments, null, 2)
-    }
-    return 'No arguments'
-  }, [toolResponse])
-
-  const resultString = useMemo(() => {
-    try {
-      return JSON.stringify(
-        {
-          params: toolResponse?.arguments,
-          response: toolResponse?.response
-        },
-        null,
-        2
-      )
-    } catch (e) {
-      return 'Invalid Result'
-    }
-  }, [toolResponse])
+  }, [isStreaming, isDone, isError, id])
 
   if (!toolResponse) {
     return null
@@ -153,17 +106,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
     setActiveKeys(Array.isArray(keys) ? keys : [keys])
   }
 
-  const handleConfirmTool = () => {
-    cancelCountdown()
-    setIsConfirmed(true)
-    confirmToolAction(id)
-  }
-
-  const handleCancelTool = () => {
-    cancelCountdown()
-    cancelToolAction(id)
-  }
-
   const handleAbortTool = async () => {
     if (toolResponse?.id) {
       try {
@@ -175,80 +117,13 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         }
       } catch (error) {
         logger.error('Failed to abort tool:', error as Error)
-        window.toast.error(t('message.tools.abort_failed'))
+        window.toast.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
       }
     }
-  }
-
-  const handleAutoApprove = async () => {
-    cancelCountdown()
-
-    if (!tool || !tool.name) {
-      return
-    }
-
-    const server = mcpServers.find((s) => s.id === tool.serverId)
-    if (!server) {
-      return
-    }
-
-    let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
-
-    // Remove tool from disabledAutoApproveTools to enable auto-approve
-    disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== tool.name)
-
-    const updatedServer = {
-      ...server,
-      disabledAutoApproveTools
-    }
-
-    updateMCPServer(updatedServer)
-
-    // Also confirm the current tool
-    setIsConfirmed(true)
-    confirmToolAction(id)
-
-    window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
-  }
-
-  const renderStatusIndicator = (status: string, hasError: boolean) => {
-    let label = ''
-    let icon: React.ReactNode | null = null
-
-    if (status === 'pending') {
-      if (isWaitingConfirmation) {
-        label = t('message.tools.pending', 'Awaiting Approval')
-        icon = <LoadingIcon style={{ marginLeft: 6, color: 'var(--status-color-warning)' }} />
-      } else if (isExecuting) {
-        label = t('message.tools.invoking')
-        icon = <LoadingIcon style={{ marginLeft: 6 }} />
-      }
-    } else if (status === 'cancelled') {
-      label = t('message.tools.cancelled')
-      icon = <X size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-    } else if (status === 'done') {
-      if (hasError) {
-        label = t('message.tools.error')
-        icon = <TriangleAlert size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-      } else {
-        label = t('message.tools.completed')
-        icon = <Check size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-      }
-    } else if (status === 'error') {
-      label = t('message.tools.error')
-      icon = <TriangleAlert size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-    }
-
-    return (
-      <StatusIndicator status={status} hasError={hasError}>
-        {label}
-        {icon}
-      </StatusIndicator>
-    )
   }
 
   // Format tool responses for collapse items
-  const getCollapseItems = () => {
+  const getCollapseItems = (): { key: string; label: React.ReactNode; children: React.ReactNode }[] => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
     const hasError = response?.isError === true
     const result = {
@@ -273,22 +148,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             {progress > 0 ? (
               <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
             ) : (
-              renderStatusIndicator(status, hasError)
+              <ToolStatusIndicator status={getEffectiveStatus(status, approval.isWaiting)} hasError={hasError} />
             )}
-            <Tooltip content={t('common.expand')} delay={500}>
-              <ActionButton
-                className="message-action-button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setExpandedResponse({
-                    content: JSON.stringify(response, null, 2),
-                    title: tool.name
-                  })
-                }}
-                aria-label={t('common.expand')}>
-                <Maximize size={14} />
-              </ActionButton>
-            </Tooltip>
             {!isPending && (
               <Tooltip content={t('common.copy')} delay={500}>
                 <ActionButton
@@ -306,63 +167,23 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
           </ActionButtonsContainer>
         </MessageTitleLabel>
       ),
-      children:
-        (isDone || isError) && result ? (
-          <ToolResponseContainer
-            style={{
-              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-              fontSize
-            }}>
-            <CollapsedContent isExpanded={activeKeys.includes(id)} resultString={resultString} />
-          </ToolResponseContainer>
-        ) : argsString ? (
-          <>
-            <ToolResponseContainer>
-              <CollapsedContent isExpanded={activeKeys.includes(id)} resultString={argsString} />
-            </ToolResponseContainer>
-          </>
-        ) : null
+      children: (
+        <ToolResponseContainer
+          style={{
+            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+            fontSize
+          }}>
+          <ToolResponseContent
+            isExpanded={activeKeys.includes(id)}
+            args={isStreaming ? partialArguments : toolResponse.arguments}
+            isStreaming={!!isStreaming}
+            response={isDone || isError ? toolResponse.response : undefined}
+          />
+        </ToolResponseContainer>
+      )
     })
 
     return items
-  }
-
-  const renderPreview = (content: string) => {
-    if (!content) return null
-
-    try {
-      logger.debug(`renderPreview: ${content}`)
-      const parsedResult = JSON.parse(content)
-      switch (parsedResult.content[0]?.type) {
-        case 'text':
-          try {
-            return (
-              <CollapsedContent
-                isExpanded={true}
-                resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
-              />
-            )
-          } catch (e) {
-            return (
-              <CollapsedContent
-                isExpanded={true}
-                resultString={JSON.stringify(parsedResult.content[0].text, null, 2)}
-              />
-            )
-          }
-
-        default:
-          return <CollapsedContent isExpanded={true} resultString={JSON.stringify(parsedResult, null, 2)} />
-      }
-    } catch (e) {
-      logger.error('failed to render the preview of mcp results:', e as Error)
-      return (
-        <CollapsedContent
-          isExpanded={true}
-          resultString={e instanceof Error ? e.message : JSON.stringify(e, null, 2)}
-        />
-      )
-    }
   }
 
   return (
@@ -392,152 +213,166 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             {isPending && (
               <ActionsBar>
                 <ActionLabel>
-                  {isWaitingConfirmation
+                  {approval.isWaiting
                     ? t('settings.mcp.tools.autoApprove.tooltip.confirm')
                     : t('message.tools.invoking')}
                 </ActionLabel>
 
-                <ActionButtonsGroup>
-                  {isWaitingConfirmation && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        handleCancelTool()
-                      }}>
-                      <CircleX size={15} className="lucide-custom" />
-                      {t('common.cancel')}
-                    </Button>
-                  )}
-                  {isExecuting && toolResponse?.id ? (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="abort-button"
-                      onClick={() => {
-                        handleAbortTool()
-                      }}>
-                      <PauseCircle size={14} className="lucide-custom" />
-                      {t('chat.input.pause')}
-                    </Button>
-                  ) : (
-                    isWaitingConfirmation && (
-                      <StyledDropdownButton
-                        size="small"
-                        type="primary"
-                        icon={<ChevronDown size={14} />}
-                        onClick={() => {
-                          handleConfirmTool()
-                        }}
-                        menu={{
-                          items: [
-                            {
-                              key: 'autoApprove',
-                              label: t('settings.mcp.tools.autoApprove.label'),
-                              onClick: () => {
-                                handleAutoApprove()
-                              }
-                            }
-                          ]
-                        }}>
-                        <CirclePlay size={15} className="lucide-custom" />
-                        <CountdownText>
-                          {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
-                        </CountdownText>
-                      </StyledDropdownButton>
-                    )
-                  )}
-                </ActionButtonsGroup>
+                <ToolApprovalActionsComponent
+                  {...approval}
+                  showAbort={approval.isExecuting && !!toolResponse?.id}
+                  onAbort={handleAbortTool}
+                />
               </ActionsBar>
             )}
           </ToolContentWrapper>
         </ToolContainer>
       </ConfigProvider>
-      <Modal
-        title={expandedResponse?.title}
-        open={!!expandedResponse}
-        onCancel={() => setExpandedResponse(null)}
-        footer={null}
-        width="80%"
-        centered
-        transitionName="animation-move-down"
-        styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
-        {expandedResponse && (
-          <ExpandedResponseContainer
-            style={{
-              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-              fontSize
-            }}>
-            <Tabs
-              tabBarExtraContent={
-                <ActionButton
-                  className="copy-expanded-button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(
-                      typeof expandedResponse.content === 'string'
-                        ? expandedResponse.content
-                        : JSON.stringify(expandedResponse.content, null, 2)
-                    )
-                    window.toast.success(t('message.copied'))
-                  }}
-                  aria-label={t('common.copy')}>
-                  <i className="iconfont icon-copy"></i>
-                </ActionButton>
-              }
-              items={[
-                {
-                  key: 'preview',
-                  label: t('message.tools.preview'),
-                  children: renderPreview(expandedResponse.content)
-                },
-                {
-                  key: 'raw',
-                  label: t('message.tools.raw'),
-                  children: (
-                    <CollapsedContent
-                      isExpanded={true}
-                      resultString={
-                        typeof expandedResponse.content === 'string'
-                          ? expandedResponse.content
-                          : JSON.stringify(expandedResponse.content, null, 2)
-                      }
-                    />
-                  )
-                }
-              ]}
-            />
-          </ExpandedResponseContainer>
-        )}
-      </Modal>
     </>
   )
 }
 
-// New component to handle collapsed content
-const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ isExpanded, resultString }) => {
-  const { highlightCode } = useCodeStyle()
-  const [styledResult, setStyledResult] = useState<string>('')
+/**
+ * Extract preview content from MCP tool response using SDK schema
+ */
+const extractPreviewContent = (response: unknown): string => {
+  if (!response) return ''
 
-  useEffect(() => {
-    if (!isExpanded) {
-      return
+  const result = CallToolResultSchema.safeParse(response)
+  if (result.success) {
+    const contents = result.data.content
+    if (contents.length === 0) return ''
+
+    const textParts: string[] = []
+    for (const content of contents) {
+      switch (content.type) {
+        case 'text':
+          if (content.text) {
+            try {
+              const parsed = JSON.parse(content.text)
+              textParts.push(JSON.stringify(parsed, null, 2))
+            } catch {
+              textParts.push(content.text)
+            }
+          }
+          break
+        case 'image':
+          textParts.push(`[Image: ${content.mimeType ?? 'image/png'}]`)
+          break
+        case 'resource':
+          textParts.push(`[Resource: ${content.resource?.uri ?? 'unknown'}]`)
+          break
+      }
     }
+    return textParts.join('\n\n')
+  }
+
+  // Fallback: return JSON string for unknown format
+  return JSON.stringify(response, null, 2)
+}
+
+// Unified tool response content component
+const ToolResponseContent: FC<{
+  isExpanded: boolean
+  args: string | Record<string, unknown> | Record<string, unknown>[] | undefined
+  isStreaming: boolean
+  response?: unknown
+}> = ({ isExpanded, args, isStreaming, response }) => {
+  const { highlightCode } = useCodeStyle()
+  const [highlightedResponse, setHighlightedResponse] = useState<string>('')
+  const [isTruncated, setIsTruncated] = useState(false)
+  const [originalLength, setOriginalLength] = useState(0)
+
+  // Parse args if it's a string (streaming partial JSON)
+  const parsedArgs = useMemo(() => {
+    if (!args) return null
+    if (typeof args === 'string') {
+      try {
+        return parsePartialJson(args)
+      } catch {
+        return null
+      }
+    }
+    return args
+  }, [args])
+
+  // Extract and highlight response when available
+  useEffect(() => {
+    if (!isExpanded || !response) return
 
     const highlight = async () => {
-      const result = await highlightCode(resultString, 'json')
-      setStyledResult(result)
+      const previewContent = extractPreviewContent(response)
+      const {
+        data: truncatedContent,
+        isTruncated: wasTruncated,
+        originalLength: origLen
+      } = truncateOutput(previewContent)
+      setIsTruncated(wasTruncated)
+      setOriginalLength(origLen)
+      const result = await highlightCode(truncatedContent, 'json')
+      setHighlightedResponse(result)
     }
 
     const timer = setTimeout(highlight, 0)
-
     return () => clearTimeout(timer)
-  }, [isExpanded, resultString, highlightCode])
+  }, [isExpanded, response, highlightCode])
 
-  if (!isExpanded) {
-    return null
+  if (!isExpanded) return null
+
+  // Handle both object and array args - for arrays, show as single entry
+  const getEntries = (): Array<[string, unknown]> => {
+    if (!parsedArgs || typeof parsedArgs !== 'object') return []
+    if (Array.isArray(parsedArgs)) {
+      return [['arguments', parsedArgs]]
+    }
+    return Object.entries(parsedArgs)
+  }
+  const entries = getEntries()
+
+  const renderArgsTable = (): React.ReactNode => {
+    if (entries.length === 0) return null
+    return (
+      <ArgsSection>
+        <ArgsSectionTitle>Arguments</ArgsSectionTitle>
+        <ArgsTable>
+          <tbody>
+            {entries.map(([key, value]) => (
+              <tr key={key}>
+                <ArgKey>{key}</ArgKey>
+                <ArgValue>{formatArgValue(value)}</ArgValue>
+              </tr>
+            ))}
+            {isStreaming && (
+              <tr>
+                <ArgKey>
+                  <SkeletonSpan width="60px" />
+                </ArgKey>
+                <ArgValue>
+                  <SkeletonSpan width="120px" />
+                </ArgValue>
+              </tr>
+            )}
+          </tbody>
+        </ArgsTable>
+      </ArgsSection>
+    )
   }
 
-  return <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
+  return (
+    <div>
+      {/* Arguments Table */}
+      {renderArgsTable()}
+
+      {/* Response */}
+      {response !== undefined && response !== null && highlightedResponse && (
+        <ResponseSection>
+          <ArgsSectionTitle>Response</ArgsSectionTitle>
+          <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
+          {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+        </ResponseSection>
+      )}
+    </div>
+  )
 }
 
 const ToolContentWrapper = styled.div`
@@ -572,22 +407,6 @@ const ActionLabel = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-`
-
-const ActionButtonsGroup = styled.div`
-  display: flex;
-  gap: 10px;
-`
-
-const CountdownText = styled.span`
-  width: 65px;
-  text-align: left;
-`
-
-const StyledDropdownButton = styled(Dropdown.Button)`
-  .ant-btn-group {
-    border-radius: 6px;
-  }
 `
 
 const ExpandIcon = styled(ChevronRight)<{ $isActive?: boolean }>`
@@ -658,31 +477,6 @@ const ToolName = styled(Flex)`
   font-size: 13px;
 `
 
-const StatusIndicator = styled.span<{ status: string; hasError?: boolean }>`
-  color: ${(props) => {
-    switch (props.status) {
-      case 'pending':
-        return 'var(--status-color-warning)'
-      case 'invoking':
-        return 'var(--status-color-invoking)'
-      case 'cancelled':
-        return 'var(--status-color-error)'
-      case 'done':
-        return props.hasError ? 'var(--status-color-error)' : 'var(--status-color-success)'
-      case 'error':
-        return 'var(--status-color-error)'
-      default:
-        return 'var(--color-text)'
-    }
-  }};
-  font-size: 11px;
-  font-weight: ${(props) => (props.status === 'pending' ? '600' : '400')};
-  display: flex;
-  align-items: center;
-  opacity: ${(props) => (props.status === 'pending' ? '1' : '0.85')};
-  padding-left: 12px;
-`
-
 const ActionButtonsContainer = styled.div`
   display: flex;
   gap: 6px;
@@ -738,29 +532,6 @@ const ToolResponseContainer = styled.div`
   max-height: 300px;
   border-top: none;
   position: relative;
-`
-
-const ExpandedResponseContainer = styled.div`
-  background: var(--color-bg-1);
-  border-radius: 8px;
-  padding: 16px;
-  position: relative;
-
-  .copy-expanded-button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: var(--color-bg-2);
-    border-radius: 4px;
-    z-index: 1;
-  }
-
-  pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: var(--color-text);
-  }
 `
 
 export default memo(MessageMcpTool)
