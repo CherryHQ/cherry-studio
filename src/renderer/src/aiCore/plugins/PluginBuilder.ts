@@ -11,6 +11,7 @@ import { getAiSdkProviderId } from '../provider/factory'
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { getReasoningTagName } from '../utils/reasoning'
+import { createAnthropicCachePlugin } from './anthropicCachePlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterGenerateImagePlugin } from './openrouterGenerateImagePlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
@@ -26,7 +27,7 @@ const logger = loggerService.withContext('PluginBuilder')
  * 根据条件构建插件数组
  */
 export function buildPlugins(
-  middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant; topicId?: string; mcpMode?: string }
+  middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant; topicId?: string }
 ): AiPlugin[] {
   const plugins: AiPlugin<any, any>[] = []
 
@@ -54,6 +55,10 @@ export function buildPlugins(
     if (providerType === 'openai' || providerType === 'azure-openai') {
       const tagName = getReasoningTagName(middlewareConfig.model?.id.toLowerCase())
       plugins.push(createReasoningExtractionPlugin({ tagName }))
+    }
+
+    if (providerType === 'anthropic' && middlewareConfig.provider.anthropicCacheControl?.tokenThreshold) {
+      plugins.push(createAnthropicCachePlugin())
     }
   }
 

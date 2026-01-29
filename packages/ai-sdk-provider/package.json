@@ -36,14 +36,14 @@
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": "^3.0.0",
-    "@ai-sdk/google": "^3.0.0",
+    "@ai-sdk/google": "3.0.0",
     "@ai-sdk/openai": "^3.0.0",
     "ai": "^6.0.26"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "2.0.0",
-    "@ai-sdk/provider": "^3.0.0",
-    "@ai-sdk/provider-utils": "^4.0.0"
+    "@ai-sdk/provider": "^3.0.5",
+    "@ai-sdk/provider-utils": "^4.0.10"
   },
   "devDependencies": {
     "tsdown": "^0.13.3",

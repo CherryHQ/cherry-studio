@@ -195,17 +195,12 @@ export async function buildStreamTextParams(
       case 'anthropic':
       case 'azure-anthropic':
       case 'google-vertex-anthropic':
-        tools.web_fetch = (
-          ['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)
-            ? anthropic.tools.webFetch_20250910({
-                maxUses: webSearchConfig.maxResults,
-                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-              })
-            : vertexAnthropic.tools.webFetch_20250910({
-                maxUses: webSearchConfig.maxResults,
-                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-              })
-        ) as ProviderDefinedTool
+        if (['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)) {
+          tools.web_fetch = anthropic.tools.webFetch_20250910({
+            maxUses: webSearchConfig.maxResults,
+            blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+          }) as ProviderDefinedTool
+        }
         break
     }
   }

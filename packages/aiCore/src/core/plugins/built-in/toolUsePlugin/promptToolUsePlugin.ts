@@ -302,7 +302,7 @@ export const createPromptToolUsePlugin = (
       const promptTools: ToolSet = {}
 
       for (const [toolName, tool] of Object.entries(params.tools as ToolSet)) {
-        if (tool.type === 'provider-defined') {
+        if (tool.type === 'provider') {
           // provider 类型的工具保留在 tools 参数中
           providerDefinedTools[toolName] = tool
         } else {
