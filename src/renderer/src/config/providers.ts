@@ -60,6 +60,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import N1NProviderLogo from '@renderer/assets/images/providers/openai.png'
 import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
 import { OpenAIServiceTiers } from '@renderer/types'
 
@@ -709,6 +710,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.mimo,
     isSystem: true,
     enabled: false
+  },
+  n1n: {
+    id: 'n1n',
+    name: 'n1n.ai',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.n1n.ai/v1',
+    anthropicApiHost: 'https://api.n1n.ai/v1',
+    models: SYSTEM_MODELS.n1n,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -778,7 +790,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   sophnet: SophnetProviderLogo,
   gateway: AIGatewayProviderLogo,
   cerebras: CerebrasProviderLogo,
-  mimo: MiMoProviderLogo
+  mimo: MiMoProviderLogo,
+  n1n: N1NProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
