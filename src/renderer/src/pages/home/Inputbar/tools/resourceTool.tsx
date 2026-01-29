@@ -1,19 +1,19 @@
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import type React from 'react'
 
-import ActivityDirectoryButton from './components/ActivityDirectoryButton'
-import ActivityDirectoryQuickPanelManager from './components/ActivityDirectoryQuickPanelManager'
+import ResourceButton from './components/ResourceButton'
+import ResourceQuickPanelManager from './components/ResourceQuickPanelManager'
 
 /**
- * Activity Directory Tool
+ * Resource Tool
  *
- * Allows users to search and select files from the agent's accessible directories.
+ * Allows users to search and select files, agents, and skills.
  * Uses @ trigger (same symbol as MentionModels, but different scope).
  * Only visible in Agent Session (TopicType.Session).
  */
-const activityDirectoryTool = defineTool({
-  key: 'activity_directory',
-  label: (t) => t('chat.input.activity_directory.title'),
+const resourceTool = defineTool({
+  key: 'resource_panel',
+  label: (t) => t('chat.input.resource_panel.title'),
   visibleInScopes: [TopicType.Session],
 
   dependencies: {
@@ -21,7 +21,7 @@ const activityDirectoryTool = defineTool({
     actions: ['onTextChange'] as const
   },
 
-  render: function ActivityDirectoryToolRender(context) {
+  render: function ResourceToolRender(context) {
     const { quickPanel, quickPanelController, actions, session } = context
     const { onTextChange } = actions
 
@@ -34,7 +34,7 @@ const activityDirectoryTool = defineTool({
     }
 
     return (
-      <ActivityDirectoryButton
+      <ResourceButton
         quickPanel={quickPanel}
         quickPanelController={quickPanelController}
         accessiblePaths={accessiblePaths}
@@ -43,9 +43,9 @@ const activityDirectoryTool = defineTool({
     )
   },
 
-  quickPanelManager: ActivityDirectoryQuickPanelManager
+  quickPanelManager: ResourceQuickPanelManager
 })
 
-registerTool(activityDirectoryTool)
+registerTool(resourceTool)
 
-export default activityDirectoryTool
+export default resourceTool
