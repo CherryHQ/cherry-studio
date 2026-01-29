@@ -367,8 +367,4 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
       throw new Error('Failed to download and extract file')
     }
   }
-
-  public checkQuota(): Promise<number> {
-    throw new Error('Method not implemented.')
-  }
 }

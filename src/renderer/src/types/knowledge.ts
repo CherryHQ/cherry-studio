@@ -125,7 +125,6 @@ export interface PreprocessProvider {
   apiHost?: string
   model?: string
   options?: any
-  quota?: number
 }
 
 export type KnowledgeBaseParams = {
