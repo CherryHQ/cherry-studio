@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 // @ts-nocheck
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSelector, createSlice } from '@reduxjs/toolkit'
@@ -26,6 +42,8 @@ const initialState: AssistantsState = {
   presets: [],
   unifiedListOrder: []
 }
+
+const normalizeTopics = (topics: unknown): Topic[] => (Array.isArray(topics) ? topics : [])
 
 const assistantsSlice = createSlice({
   name: 'assistants',
@@ -111,7 +129,7 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: uniqBy([topic, ...assistant.topics], 'id')
+              topics: uniqBy([topic, ...normalizeTopics(assistant.topics)], 'id')
             }
           : assistant
       )
@@ -121,7 +139,7 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: assistant.topics.filter(({ id }) => id !== action.payload.topic.id)
+              topics: normalizeTopics(assistant.topics).filter(({ id }) => id !== action.payload.topic.id)
             }
           : assistant
       )
@@ -133,7 +151,7 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: assistant.topics.map((topic) => {
+              topics: normalizeTopics(assistant.topics).map((topic) => {
                 const _topic = topic.id === newTopic.id ? newTopic : topic
                 _topic.messages = []
                 return _topic
@@ -157,7 +175,7 @@ const assistantsSlice = createSlice({
     removeAllTopics: (state, action: PayloadAction<{ assistantId: string }>) => {
       state.assistants = state.assistants.map((assistant) => {
         if (assistant.id === action.payload.assistantId) {
-          assistant.topics.forEach((topic) => TopicManager.removeTopic(topic.id))
+          normalizeTopics(assistant.topics).forEach((topic) => TopicManager.removeTopic(topic.id))
           return {
             ...assistant,
             topics: [getDefaultTopic(assistant.id)]
@@ -168,7 +186,7 @@ const assistantsSlice = createSlice({
     },
     updateTopicUpdatedAt: (state, action: PayloadAction<{ topicId: string }>) => {
       outer: for (const assistant of state.assistants) {
-        for (const topic of assistant.topics) {
+        for (const topic of normalizeTopics(assistant.topics)) {
           if (topic.id === action.payload.topicId) {
             topic.updatedAt = new Date().toISOString()
             break outer
@@ -252,7 +270,7 @@ export const {
 } = assistantsSlice.actions
 
 export const selectAllTopics = createSelector([(state: RootState) => state.assistants.assistants], (assistants) =>
-  assistants.flatMap((assistant: Assistant) => assistant.topics)
+  assistants.flatMap((assistant: Assistant) => normalizeTopics(assistant.topics))
 )
 
 export const selectTopicsMap = createSelector([selectAllTopics], (topics) => {

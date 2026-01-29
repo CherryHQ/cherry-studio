@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import type { AgentServerError } from '@renderer/types'
 import { AgentServerErrorSchema } from '@renderer/types'
@@ -10,6 +11,7 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkAPICallError } from '@renderer/types/error'
 import type { NoSuchToolError } from 'ai'
+import { AISDKError } from 'ai'
 import { InvalidToolInputError } from 'ai'
 import type { AxiosError } from 'axios'
 import { isAxiosError } from 'axios'
@@ -20,7 +22,7 @@ import { ZodError } from 'zod'
 import { parseJSON } from './json'
 import { safeSerialize } from './serialize'
 
-// const logger = loggerService.withContext('Utils:error')
+const logger = loggerService.withContext('Utils:error')
 
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
   // Handle circular references
@@ -65,11 +67,16 @@ export function formatErrorMessage(error: unknown): string {
   delete detailedError?.stack
   delete detailedError?.request_id
 
-  const formattedJson = JSON.stringify(detailedError, null, 2)
-    .split('\n')
-    .map((line) => `  ${line}`)
-    .join('\n')
-  return detailedError.message ? detailedError.message : `Error Details:\n${formattedJson}`
+  if (detailedError) {
+    const formattedJson = JSON.stringify(detailedError, null, 2)
+      .split('\n')
+      .map((line) => `  ${line}`)
+      .join('\n')
+    return detailedError.message ? detailedError.message : `Error Details:\n${formattedJson}`
+  } else {
+    logger.warn('Get detailed error failed.')
+    return ''
+  }
 }
 
 export function getErrorMessage(error: unknown): string {
@@ -326,4 +333,19 @@ export const formatAxiosError = (error: AxiosError) => {
   const { status, statusText } = error.response
 
   return `${t('common.error')}: ${status} ${statusText}`
+}
+
+/**
+ * Safely serialize an unknown error to SerializedError format.
+ * Used specifically for health check error handling.
+ */
+export function serializeHealthCheckError(error: unknown): SerializedError {
+  if (AISDKError.isInstance(error)) {
+    return serializeError(error)
+  }
+  return {
+    name: null,
+    message: safeToString(error),
+    stack: null
+  }
 }

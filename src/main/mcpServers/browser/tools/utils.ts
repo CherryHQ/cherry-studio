@@ -5,9 +5,10 @@ export function successResponse(text: string) {
   }
 }
 
-export function errorResponse(error: Error) {
+export function errorResponse(error: Error | string) {
+  const message = error instanceof Error ? error.message : error
   return {
-    content: [{ type: 'text', text: error.message }],
+    content: [{ type: 'text', text: message }],
     isError: true
   }
 }

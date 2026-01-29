@@ -32,7 +32,7 @@
     },
     "gitBash": {
       "autoDetected": "Usando Git Bash detectado automaticamente",
-      "autoDiscoveredHint": "[to be translated]:Auto-discovered",
+      "autoDiscoveredHint": "Auto-descoberto",
       "clear": {
         "button": "Limpar caminho personalizado"
       },
@@ -40,7 +40,7 @@
       "error": {
         "description": "O Git Bash é necessário para executar agentes no Windows. O agente não pode funcionar sem ele. Por favor, instale o Git para Windows a partir de",
         "recheck": "Reverificar a Instalação do Git Bash",
-        "required": "[to be translated]:Git Bash path is required on Windows",
+        "required": "O caminho do Git Bash é necessário no Windows",
         "title": "Git Bash Necessário"
       },
       "found": {
@@ -53,9 +53,9 @@
         "invalidPath": "O arquivo selecionado não é um executável válido do Git Bash (bash.exe).",
         "title": "Selecionar executável do Git Bash"
       },
-      "placeholder": "[to be translated]:Select bash.exe path",
+      "placeholder": "Selecione o caminho do bash.exe",
       "success": "Git Bash detectado com sucesso!",
-      "tooltip": "[to be translated]:Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
+      "tooltip": "O Git Bash é necessário para executar agentes no Windows. Instale-o a partir de git-scm.com, caso não esteja disponível."
     },
     "input": {
       "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando"
@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "Sempre permitir esta ferramenta",
         "allowRequest": "Permitir solicitação de ferramenta",
         "denyRequest": "Negar solicitação de ferramenta",
         "hideDetails": "Ocultar detalhes da ferramenta",
@@ -278,6 +279,7 @@
         "showDetails": "Mostrar detalhes da ferramenta"
       },
       "button": {
+        "allowAll": "Sempre Permitir",
         "cancel": "Cancelar",
         "run": "Correr"
       },
@@ -420,6 +422,9 @@
     },
     "delete": {
       "content": "Excluir o assistente removerá todos os tópicos e arquivos sob esse assistente. Tem certeza de que deseja continuar?",
+      "error": {
+        "remain_one": "Não é permitido apagar o último assistente."
+      },
       "title": "Excluir Assistente"
     },
     "edit": {
@@ -541,6 +546,20 @@
         "description": "Servidor MCP ativado por padrão",
         "enableFirst": "Por favor, ative este servidor nas configurações do MCP primeiro",
         "label": "Servidor MCP",
+        "mode": {
+          "auto": {
+            "description": "IA descobre e usa ferramentas automaticamente",
+            "label": "Auto"
+          },
+          "disabled": {
+            "description": "Sem ferramentas MCP",
+            "label": "Desativado"
+          },
+          "manual": {
+            "description": "Selecione servidores MCP específicos",
+            "label": "Manual"
+          }
+        },
         "noServersAvailable": "Nenhum servidor MCP disponível. Adicione um servidor nas configurações",
         "title": "Configurações do MCP"
       },
@@ -649,6 +668,10 @@
       "topic": {
         "title": "Novo Tópico"
       }
+    },
+    "alerts": {
+      "create_session": "Criar uma sessão",
+      "select_agent": "Selecione um agente"
     },
     "artifacts": {
       "button": {
@@ -1183,6 +1206,8 @@
     "cancel": "Cancelar",
     "chat": "Bate-papo",
     "clear": "Limpar",
+    "clear_all": "Limpar Tudo",
+    "click_to_replace": "Clique para substituir",
     "close": "Fechar",
     "collapse": "Recolher",
     "completed": "Concluído",
@@ -1217,9 +1242,15 @@
     "footnote": "Nota de rodapé",
     "footnotes": "Notas de rodapé",
     "fullscreen": "Entrou no modo de tela cheia, pressione F11 para sair",
+    "generate_random_seed": "Gerar semente aleatória",
+    "get_embedding_dimension": "Obter dimensão de incorporação",
     "go_to_settings": "Ir para configurações",
+    "html_preview": "Pré-visualização em HTML",
     "i_know": "Entendi",
     "ignore": "Pular",
+    "image_preview": "Pré-visualização da imagem",
+    "image_url": "URL da imagem",
+    "image_url_or_upload": "Insira o URL da imagem ou carregue o arquivo",
     "inspect": "Verificar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
@@ -1229,6 +1260,7 @@
     "models": "Modelos",
     "more": "Mais",
     "name": "Nome",
+    "next_match": "Próxima partida",
     "no_results": "Nenhum resultado",
     "none": "Nenhum",
     "off": "Desligado",
@@ -1240,13 +1272,17 @@
         "model": "Selecionar modelo"
       }
     },
+    "powered_by": "Desenvolvido por",
     "preview": "Pré-visualização",
+    "previous_match": "Partida anterior",
     "prompt": "Prompt",
     "provider": "Fornecedor",
     "reasoning_content": "Pensamento profundo concluído",
     "refresh": "Atualizar",
     "regenerate": "Regenerar",
+    "remove_image": "Remover imagem",
     "rename": "Renomear",
+    "required_field": "Campo obrigatório",
     "reset": "Redefinir",
     "save": "Salvar",
     "saved": "Guardado",
@@ -1269,13 +1305,28 @@
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
+    "translate_text": "Traduzir texto",
     "unknown": "Desconhecido",
     "unnamed": "Sem nome",
     "unsubscribe": "Cancelar inscrição",
     "update_success": "Atualização bem-sucedida",
     "upload_files": "Carregar arquivo",
+    "upload_image": "Carregar arquivo de imagem",
+    "uploaded_image": "Imagem carregada",
     "warning": "Aviso",
     "you": "Você"
+  },
+  "dialog": {
+    "all_files": "Todos os Arquivos",
+    "html_files": "Arquivos HTML",
+    "open_file": "Abrir Arquivo",
+    "pdf_files": "Arquivos PDF",
+    "png_image": "Imagem PNG",
+    "save_as_html": "Salvar como HTML",
+    "save_as_pdf": "Salvar como PDF",
+    "save_file": "Salvar Arquivo",
+    "select_folder": "Selecionar Pasta",
+    "word_document": "Documento do Word"
   },
   "docs": {
     "title": "Documentação de Ajuda"
@@ -1294,6 +1345,7 @@
     "backup": {
       "file_format": "Formato do arquivo de backup está incorreto"
     },
+    "base64DataTruncated": "Dados da imagem em Base64 truncados, tamanho",
     "boundary": {
       "default": {
         "devtools": "Abrir o painel de depuração",
@@ -1374,6 +1426,8 @@
     "text": "texto",
     "toolInput": "ferramenta de entrada",
     "toolName": "Nome da ferramenta",
+    "truncated": "Dados truncados, tamanho original",
+    "truncatedBadge": "Truncado",
     "unknown": "Erro desconhecido",
     "usage": "dosagem",
     "user_message_not_found": "Não foi possível encontrar a mensagem original do usuário",
@@ -1995,10 +2049,65 @@
       "cancelled": "Cancelado",
       "completed": "Completo",
       "error": "Ocorreu um erro",
+      "groupHeader": "{{count}} chamadas de ferramenta",
       "invoking": "Em execução",
+      "labels": {
+        "bash": "Bash",
+        "edit": "Editar",
+        "exitPlanMode": "ModoPlanoDeSaída",
+        "glob": "Globo",
+        "grep": "Grep",
+        "mcpServerTool": "Ferramenta do Servidor MCP",
+        "multiEdit": "MultiEdit",
+        "notebookEdit": "NotebookEdit",
+        "readFile": "Ler Arquivo",
+        "search": "Pesquisar",
+        "skill": "Habilidade",
+        "task": "Tarefa",
+        "todoWrite": "Fazer Escrever",
+        "tool": "Ferramenta",
+        "webFetch": "Busca na Web",
+        "webSearch": "Pesquisa na Web",
+        "write": "Escreva"
+      },
+      "noData": "Nenhum dado disponível para esta ferramenta",
       "pending": "Pendente",
       "preview": "Pré-visualização",
-      "raw": "Bruto"
+      "raw": "Bruto",
+      "runningCount": "{{count}} ferramentas em execução",
+      "sections": {
+        "command": "Comando",
+        "exitCode": "Código de Saída",
+        "input": "Entrada",
+        "output": "Saída",
+        "prompt": "Prompt",
+        "searchQuery": "Consulta de Pesquisa",
+        "searchResults": "Resultados da Pesquisa",
+        "stderr": "stderr",
+        "stdout": "stdout"
+      },
+      "status": {
+        "done": "Feito",
+        "error": "Erro",
+        "failed": "Falhou",
+        "running": "Correndo",
+        "success": "Sucesso"
+      },
+      "truncated": "Saída truncada (original: {{size}})",
+      "units": {
+        "done_one": "{{count}} Concluído",
+        "done_other": "{{count}} Concluído",
+        "file_one": "{{count}} arquivo",
+        "file_other": "{{count}} arquivos",
+        "item_one": "{{count}} item",
+        "item_other": "{{count}} itens",
+        "line_one": "{{count}} linha",
+        "line_other": "{{count}} linhas",
+        "plan_one": "{{count}} plano",
+        "plan_other": "{{count}} planos",
+        "result_one": "{{count}} resultado",
+        "result_other": "{{count}} resultados"
+      }
     },
     "topic": {
       "added": "Tópico adicionado com sucesso"
@@ -2198,7 +2307,7 @@
     "collapse": "[minimizar]",
     "content_placeholder": "Introduza o conteúdo da nota...",
     "copyContent": "copiar conteúdo",
-    "crossPlatformRestoreWarning": "[to be translated]:Cross-platform configuration restored, but notes directory is empty. Please copy your note files to: {{path}}",
+    "crossPlatformRestoreWarning": "Configuração multiplataforma restaurada, mas o diretório de notas está vazio. Por favor, copie seus arquivos de nota para: {{path}}",
     "delete": "eliminar",
     "delete_confirm": "Tem a certeza de que deseja eliminar este {{type}}?",
     "delete_folder_confirm": "Tem a certeza de que deseja eliminar a pasta \"{{name}}\" e todos os seus conteúdos?",
@@ -2206,14 +2315,18 @@
     "drop_markdown_hint": "Arraste e solte arquivos ou pastas .md aqui para importar",
     "empty": "Ainda não existem notas",
     "expand": "expandir",
+    "exportToWord": "Exportar para Word",
     "export_failed": "Falha ao exportar para a base de conhecimento",
     "export_knowledge": "exportar anotações para a base de conhecimento",
     "export_success": "exportado com sucesso para a base de conhecimento",
+    "export_to_word_failed": "Falha ao exportar para Word",
     "folder": "pasta",
     "new_folder": "Nova pasta",
     "new_note": "Nova nota",
     "no_content_to_copy": "Não há conteúdo para copiar",
+    "no_content_to_export": "Sem conteúdo para exportar",
     "no_file_selected": "Selecione o arquivo a ser enviado",
+    "no_note_selected": "Por favor, selecione uma nota primeiro",
     "no_valid_files": "Nenhum arquivo válido foi carregado",
     "open_folder": "Abrir pasta externa",
     "open_outside": "Abrir externamente",
@@ -2419,6 +2532,39 @@
       }
     },
     "custom_size": "Dimensão personalizada",
+    "dmxapi": {
+      "generating_tip": "Gerando com o modelo oficial, o tempo estimado de espera é de 2 a 5 minutos para obter os melhores resultados. Verifique os logs do backend DMXAPI para saber o custo desta operação.",
+      "style": "Estilo:",
+      "style_types": {
+        "25d_animation": "Animação 2.5D",
+        "3d_cartoon": "Desenho animado 3D",
+        "american_retro": "Retrô Americano",
+        "baroque": "Barroco",
+        "cartoon_illustration": "Ilustração de desenho animado",
+        "chinese_gongbi": "Gongbi Chinês",
+        "clay": "Argila",
+        "cyberpunk": "Ciborgue",
+        "felt": "Sentiu",
+        "flat": "Plano",
+        "fresh_anime": "Anime Fresco",
+        "ghibli": "Ghibli",
+        "japanese_anime": "Anime Japonês",
+        "little_people_book": "Livro de Gente Pequena",
+        "monet_garden": "Jardim Monet",
+        "oil_painting": "Pintura a Óleo",
+        "pixar": "Pixar",
+        "pixel_art": "Arte em Pixel",
+        "poetic_ancient": "Poético Antigo",
+        "psychedelic": "Psicodélico",
+        "sketch": "Esboço",
+        "street_art": "Arte de Rua",
+        "texture": "Textura",
+        "ukiyo_e": "Ukiyo-e",
+        "watercolor": "Aquarela",
+        "wood_carving": "Escultura em Madeira",
+        "yarn_doll": "Boneca de Fios"
+      }
+    },
     "edit": {
       "image_file": "Imagem editada",
       "magic_prompt_option_tip": "Otimização inteligente da palavra-chave de edição",
@@ -2443,6 +2589,7 @@
       "style_type_tip": "Estilo de geração da imagem, aplicável apenas às versões V_2 e superiores",
       "width": "Largura"
     },
+    "generate_failed": "Falha ao gerar imagem",
     "generated_image": "Imagem gerada",
     "go_to_settings": "Ir para configurações",
     "guidance_scale": "Escala de Direção",
@@ -2453,6 +2600,7 @@
     "image_file_required": "Por favor, faça o upload da imagem primeiro",
     "image_file_retry": "Por favor, faça o upload novamente da imagem",
     "image_handle_required": "Por favor, faça o upload da imagem primeiro",
+    "image_mix_failed": "Falha ao misturar imagens",
     "image_placeholder": "Nenhuma imagem disponível no momento",
     "image_retry": "Tentar novamente",
     "image_size_options": {
@@ -2462,6 +2610,7 @@
     "inference_steps_tip": "Número de passos de inferência a serem executados. Quanto mais passos, melhor a qualidade, mas mais demorado",
     "input_image": "Imagem de entrada",
     "input_parameters": "Parâmetros de entrada",
+    "invalid_image_url": "Formato de URL de imagem inválido",
     "learn_more": "Saiba Mais",
     "magic_prompt_option": "Aprimoramento de Prompt",
     "mode": {
@@ -2483,6 +2632,7 @@
     "no_image_generation_model": "Nenhum modelo de geração de imagem disponível no momento. Por favor, adicione um modelo e defina o tipo de endpoint como {{endpoint_type}}",
     "number_images": "Quantidade de Imagens",
     "number_images_tip": "Quantidade de imagens a serem geradas por vez (1-4)",
+    "operation_failed": "Operação falhou, por favor tente novamente mais tarde",
     "paint_course": "Tutorial",
     "per_image": "Por imagem",
     "per_images": "Por imagem",
@@ -2558,6 +2708,26 @@
       "resemblance": "Similaridade",
       "resemblance_tip": "Controla o nível de semelhança entre o resultado ampliado e a imagem original",
       "seed_tip": "Controla a aleatoriedade do resultado de ampliação"
+    },
+    "zhipu": {
+      "custom_size_divisible": "Tamanho personalizado deve ser divisível por 16",
+      "custom_size_hint": "Largura e altura devem estar entre 512px e 2048px, ser divisíveis por 16, e o total de pixels não pode exceder 2^21px.",
+      "custom_size_pixels": "O total de pixels de tamanho personalizado não pode exceder 2.097.152",
+      "custom_size_range": "Tamanho personalizado deve estar entre 512px-2048px",
+      "custom_size_required": "Por favor, defina largura e altura personalizadas",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024 (Padrão)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "Padrão (Padrão)"
+      }
     }
   },
   "plugins": {
@@ -2568,6 +2738,20 @@
     "category": "categoria",
     "commands": "comando",
     "confirm_uninstall": "Tem certeza de que deseja desinstalar {{name}}?",
+    "content_saved": "Conteúdo do plugin salvo com sucesso",
+    "detail": {
+      "allowed_tools": "Ferramentas Permitidas",
+      "author": "Autor",
+      "content": "Conteúdo",
+      "description": "Descrição",
+      "file": "Arquivo",
+      "installed": "Instalado",
+      "metadata": "Metadados",
+      "size": "Tamanho",
+      "source": "Fonte",
+      "tags": "Etiquetas",
+      "tools": "Ferramentas"
+    },
     "install": "Instalação",
     "install_plugins_from_browser": "Navegue pelos plugins disponíveis para começar a usar",
     "installing": "Instalando...",
@@ -2643,7 +2827,7 @@
     "lanyun": "Lanyun Tecnologia",
     "lmstudio": "Estúdio LM",
     "longcat": "Totoro",
-    "mimo": "[to be translated]:Xiaomi MiMo",
+    "mimo": "Xiaomi MiMo",
     "minimax": "Minimax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MôDá",
@@ -2918,6 +3102,11 @@
         "summary": "Resumir",
         "translate": "Traduzir"
       },
+      "prompt": {
+        "explain": "Por favor, explique o seguinte conteúdo.",
+        "refine": "Por favor, otimize ou aprimore o conteúdo fornecido pelo usuário dentro da tag XML <INPUT>, mantendo o significado e a integridade do conteúdo original. Requisitos: sua saída deve estar no mesmo idioma que o entrada do usuário; não inclua nenhuma explicação deste prompt, apenas forneça a resposta diretamente; não inclua tags XML, forneça o conteúdo otimizado diretamente:",
+        "summary": "Resuma o conteúdo a seguir. Requisitos: Responda em {{language}}; não inclua nenhuma explicação deste prompt, apenas forneça a resposta diretamente:"
+      },
       "translate": {
         "smart_translate_tips": "Tradução inteligente: o conteúdo será priorizado para tradução no idioma de destino; se o conteúdo já estiver no idioma de destino, será traduzido para o idioma alternativo"
       },
@@ -3095,6 +3284,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "Visualizar",
+        "title": "Carreiras"
+      },
       "checkUpdate": {
         "available": "Atualizar agora",
         "label": "Verificar atualizações"
@@ -3162,6 +3355,7 @@
         "label": "Dados do aplicativo",
         "migration_title": "Migração de Dados",
         "new_path": "Novo Caminho",
+        "open": "Diretório Aberto",
         "original_path": "Caminho Original",
         "path_change_failed": "Falha ao alterar o diretório de dados",
         "path_changed_without_copy": "O caminho foi alterado com sucesso",
@@ -3232,24 +3426,43 @@
         },
         "content": "Exportar parte dos dados, incluindo registros de conversas e configurações. Observe que o processo de backup pode demorar um pouco; agradecemos sua paciência.",
         "lan": {
-          "auto_close_tip": "Fechando automaticamente em {{seconds}} segundos...",
-          "confirm_close_message": "Transferência de arquivo em andamento. Fechar irá interromper a transferência. Tem certeza de que deseja forçar o fechamento?",
-          "confirm_close_title": "Confirmar Fechamento",
           "connected": "Conectado",
           "connection_failed": "Falha na conexão",
           "content": "Certifique-se de que o computador e o telefone estejam na mesma rede para usar a transferência via LAN. Abra o aplicativo Cherry Studio e escaneie este código QR.",
+          "device_list_title": "Dispositivos de rede local",
+          "discovered_devices": "Dispositivos descobertos",
           "error": {
+            "file_too_large": "Arquivo muito grande, máximo de 500MB suportado",
             "init_failed": "Falha na inicialização",
+            "invalid_file_type": "Apenas arquivos ZIP são suportados",
             "no_file": "Nenhum arquivo selecionado",
             "no_ip": "Incapaz de obter endereço IP",
+            "not_connected": "Por favor, complete primeiro o handshake",
             "send_failed": "Falha ao enviar arquivo"
           },
-          "force_close": "Forçar Fechamento",
-          "generating_qr": "Gerando código QR...",
-          "noZipSelected": "Nenhum arquivo de compressão selecionado",
-          "scan_qr": "Por favor, escaneie o código QR com o seu telefone",
-          "selectZip": "Selecionar arquivo compactado",
-          "sendZip": "Iniciar recuperação de dados",
+          "file_transfer": {
+            "cancelled": "Transferência cancelada",
+            "failed": "Falha na transferência de arquivo: {{message}}",
+            "progress": "Enviando... {{progress}}%",
+            "success": "Arquivo enviado com sucesso"
+          },
+          "handshake": {
+            "button": "Aperto de mão",
+            "failed": "Falha no handshake: {{message}}",
+            "in_progress": "Aperto de mãos...",
+            "success": "Handshake concluído com {{device}}",
+            "test_message_received": "Recebido pong de {{device}}",
+            "test_message_sent": "Enviou payload de teste hello world"
+          },
+          "idle_hint": "Digitalização pausada. Inicie a digitalização para encontrar pares do Cherry Studio na sua rede local.",
+          "ip_addresses": "Endereços IP",
+          "last_seen": "Visto pela última vez às {{time}}",
+          "metadata": "Metadados",
+          "no_connection_warning": "Por favor, abra a Transferência LAN no Cherry Studio mobile",
+          "no_devices": "Ainda não foram encontrados pares de LAN.",
+          "scan_devices": "Escaneie dispositivos",
+          "scanning_hint": "Escaneando sua rede local por pares do Cherry Studio...",
+          "send_file": "Enviar Arquivo",
           "status": {
             "completed": "Transferência concluída",
             "connected": "Conectado",
@@ -3258,9 +3471,11 @@
             "error": "Erro de conexão",
             "initializing": "Inicializando conexão...",
             "preparing": "Preparando transferência...",
-            "sending": "Transferindo {{progress}}%",
-            "waiting_qr_scan": "Por favor, escaneie o código QR para conectar"
+            "sending": "Transferindo {{progress}}%"
           },
+          "status_badge_idle": "Ocioso",
+          "status_badge_scanning": "Digitalização",
+          "stop_scan": "Parar digitalização",
           "title": "transmissão de rede local",
           "transfer_progress": "Progresso da transferência"
         },
@@ -3985,6 +4200,10 @@
       "jsonModeHint": "Edite a representação JSON da configuração do servidor MCP. Certifique-se de que o formato está correto antes de salvar.",
       "jsonSaveError": "Falha ao salvar configuração JSON",
       "jsonSaveSuccess": "Configuração JSON salva com sucesso",
+      "lanyun": {
+        "description": "Plataforma Cloud da Lanyun Technology – Serviço MCP",
+        "name": "Lanyun Technology"
+      },
       "logoUrl": "URL do Logotipo",
       "logs": "Registros",
       "longRunning": "Modo de execução prolongada",
@@ -4081,6 +4300,14 @@
         "getToken": "Obter token de API",
         "getTokenDescription": "Obtenha um token de API pessoal da sua conta",
         "noServersAvailable": "Nenhum servidor MCP disponível",
+        "providerDescriptions": {
+          "302ai": "302.Serviço MCP da Plataforma AI",
+          "bailian": "Alibaba Cloud Bailian Plataforma Serviço MCP",
+          "lanyun": "Plataforma Cloud da Lanyun Technology - Serviço MCP",
+          "mcprouter": "Plataforma de Roteamento MCP Serviço MCP",
+          "modelscope": "Serviço MCP da Plataforma ModelScope",
+          "tokenflux": "Serviço MCP da Plataforma TokenFlux"
+        },
         "selectProvider": "Selecione o provedor:",
         "setToken": "Digite seu token",
         "success": "Servidor MCP sincronizado com sucesso",
@@ -4172,9 +4399,6 @@
       "show_message_outline": "Exibir esboço da mensagem",
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
-    },
-    "mineru": {
-      "api_key": "O MinerU agora oferece uma cota diária gratuita de 500 páginas; você não precisa preencher uma chave."
     },
     "miniapps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
@@ -4433,6 +4657,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "Cache Últimas N Mensagens",
+            "cache_last_n_help": "Armazenar em cache as últimas N mensagens da conversa (excluindo mensagens do sistema)",
+            "cache_system": "Mensagem do Sistema de Cache",
+            "cache_system_help": "Se deve armazenar em cache o prompt do sistema",
+            "token_threshold": "Limite de Token de Cache",
+            "token_threshold_help": "Mensagens que excederem essa contagem de tokens serão armazenadas em cache. Defina como 0 para desativar o cache."
+          },
           "array_content": {
             "help": "O fornecedor suporta que o campo content da mensagem seja do tipo array?",
             "label": "suporta o formato de matriz do conteúdo da mensagem"
@@ -4553,6 +4785,9 @@
         "title": "Excluir Fornecedor"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com (Empresa)",
+        "platform_international": "www.DMXAPI.com (Internacional)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Selecionar Plataforma"
       },
       "docs_check": "Verificar",
@@ -4730,10 +4965,8 @@
         "image_provider": "Provedor de serviços OCR",
         "paddleocr": {
           "aistudio_access_token": "Token de acesso da comunidade AI Studio",
-          "aistudio_url_label": "Comunidade AI Studio",
           "api_url": "URL da API",
-          "serving_doc_url_label": "Documentação do PaddleOCR Serving",
-          "tip": "Você pode consultar a documentação oficial do PaddleOCR para implantar um serviço local ou implantar um serviço na nuvem na Comunidade PaddlePaddle AI Studio. No último caso, forneça o token de acesso da Comunidade AI Studio."
+          "api_url_label": "Obter Token de Acesso e URL da API"
         },
         "system": {
           "win": {
@@ -4746,6 +4979,12 @@
         "title": "Serviço OCR"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "Token de acesso da Comunidade AI Studio",
+          "api_url": "URL da API",
+          "api_url_label": "Obter Token de Acesso e URL da API",
+          "paddleocr_url_label": "Site Oficial do PaddleOCR"
+        },
         "provider": "prestador de serviços de pré-processamento de documentos",
         "provider_placeholder": "Escolha um fornecedor de pré-processamento de documentos",
         "title": "Pré-processamento de documentos",
@@ -4753,6 +4992,12 @@
       },
       "title": "Configurações de Ferramentas",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} requer uma chave de API para funcionar. Você gostaria de configurá-la agora?",
+          "ok": "Configurar",
+          "title": "Chave de API Necessária"
+        },
+        "api_providers": "Provedores de API",
         "apikey": "Chave API",
         "blacklist": "Lista Negra",
         "blacklist_description": "Os resultados dos seguintes sites não aparecerão nos resultados de pesquisa",
@@ -4794,7 +5039,15 @@
         },
         "content_limit": "Limite de comprimento do conteúdo",
         "content_limit_tooltip": "Limita o comprimento do conteúdo dos resultados de pesquisa; o conteúdo excedente será truncado",
+        "default_provider": "Provedor Padrão",
         "free": "Grátis",
+        "is_default": "Padrão",
+        "local_provider": {
+          "hint": "Faça login no site para obter melhores resultados de pesquisa e personalizar suas configurações de busca.",
+          "open_settings": "Abrir Configurações do {{provider}}",
+          "settings": "Configurações de Pesquisa Local"
+        },
+        "local_providers": "Fornecedores Locais",
         "no_provider_selected": "Por favor, selecione um provedor de pesquisa antes de verificar",
         "overwrite": "Substituir busca do provedor",
         "overwrite_tooltip": "Força o uso do provedor de pesquisa em vez do modelo de linguagem grande",
@@ -4805,6 +5058,7 @@
         "search_provider": "Provedor de pesquisa",
         "search_provider_placeholder": "Selecione um provedor de pesquisa",
         "search_with_time": "Pesquisar com data",
+        "set_as_default": "Definir como Padrão",
         "subscribe": "Assinatura de lista negra",
         "subscribe_add": "Adicionar assinatura",
         "subscribe_add_failed": "Falha ao adicionar a fonte de subscrição",
@@ -4892,6 +5146,13 @@
       "show": "Mostrar ícone de bandeja",
       "title": "Tray"
     },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "Alterar o estilo da barra de título requer reiniciar o aplicativo para ter efeito. Deseja reiniciar agora?",
+        "title": "Reinicialização Necessária"
+      },
+      "title": "Usar Barra de Título do Sistema (Linux)"
+    },
     "zoom": {
       "reset": "Redefinir",
       "title": "Escala"
@@ -4969,6 +5230,8 @@
     "detected": {
       "language": "Detecção automática"
     },
+    "detected_source": "Detectado",
+    "detecting": "Detectando...",
     "empty": "O conteúdo de tradução está vazio",
     "error": {
       "chat_qwen_mt": "Modelos Qwen MT não estão disponíveis para uso em conversas. Por favor, vá para a página de tradução.",
@@ -5021,6 +5284,7 @@
       "not_pair": "O idioma de origem é diferente do idioma definido",
       "same": "O idioma de origem e o idioma de destino são iguais"
     },
+    "language_settings": "Configurações de Idioma",
     "menu": {
       "description": "Traduzir o conteúdo da caixa de entrada atual"
     },
@@ -5030,6 +5294,7 @@
     "output": {
       "placeholder": "Tradução"
     },
+    "preferred_target": "Alvo Preferencial",
     "processing": "Traduzindo...",
     "settings": {
       "autoCopy": "Cópia automática após a tradução",

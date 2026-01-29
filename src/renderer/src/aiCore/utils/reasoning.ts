@@ -14,7 +14,6 @@ import {
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
   isGemini3ThinkingTokenModel,
-  isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
@@ -29,10 +28,12 @@ import {
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenHunyuanModel,
+  isSupportedThinkingTokenKimiModel,
   isSupportedThinkingTokenMiMoModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
-  isSupportedThinkingTokenZhipuModel
+  isSupportedThinkingTokenZhipuModel,
+  isSupportNoneReasoningEffortModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
@@ -74,9 +75,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   if (reasoningEffort === 'none') {
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
-      // 'none' is not an available value for effort for now.
-      // I think they should resolve this issue soon, so I'll just go ahead and use this value.
-      if (isGPT51SeriesModel(model) && reasoningEffort === 'none') {
+      if (isSupportNoneReasoningEffortModel(model) && reasoningEffort === 'none') {
         return { reasoning: { effort: 'none' } }
       }
       return { reasoning: { enabled: false, exclude: true } }
@@ -84,10 +83,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
     // providers that use enable_thinking
     if (
-      isSupportEnableThinkingProvider(provider) &&
-      (isSupportedThinkingTokenQwenModel(model) ||
-        isSupportedThinkingTokenHunyuanModel(model) ||
-        (provider.id === SystemProviderIds.dashscope && isDeepSeekHybridInferenceModel(model)))
+      (isSupportEnableThinkingProvider(provider) &&
+        (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))) ||
+      (provider.id === SystemProviderIds.dashscope &&
+        (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
     ) {
       return { enable_thinking: false }
     }
@@ -111,7 +110,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
 
     // use thinking, doubao, zhipu, etc.
-    if (isSupportedThinkingTokenDoubaoModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
+    if (
+      isSupportedThinkingTokenDoubaoModel(model) ||
+      isSupportedThinkingTokenZhipuModel(model) ||
+      isSupportedThinkingTokenKimiModel(model)
+    ) {
       if (provider.id === SystemProviderIds.cerebras) {
         return {
           disable_reasoning: true
@@ -120,8 +123,13 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return { thinking: { type: 'disabled' } }
     }
 
-    // Specially for GPT-5.1. Suppose this is a OpenAI Compatible provider
-    if (isGPT51SeriesModel(model)) {
+    // Deepseek, default behavior is non-thinking
+    if (isDeepSeekHybridInferenceModel(model)) {
+      return {}
+    }
+
+    // GPT 5.1, GPT 5.2, or newer
+    if (isSupportNoneReasoningEffortModel(model)) {
       return {
         reasoningEffort: 'none'
       }
@@ -306,17 +314,23 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
   }
 
+  // https://help.aliyun.com/zh/model-studio/deep-thinking
+  if (provider.id === SystemProviderIds.dashscope) {
+    // For dashscope: Qwen, DeepSeek, and GLM models use enable_thinking to control thinking
+    // No effort, only on/off
+    if (isQwenReasoningModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
+      return {
+        enable_thinking: true,
+        thinking_budget: budgetTokens
+      }
+    }
+  }
+
   // Qwen models, use enable_thinking
   if (isQwenReasoningModel(model)) {
     const thinkConfig = {
       enable_thinking: isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(provider) ? undefined : true,
       thinking_budget: budgetTokens
-    }
-    if (provider.id === SystemProviderIds.dashscope) {
-      return {
-        ...thinkConfig,
-        incremental_output: true
-      }
     }
     return thinkConfig
   }
@@ -410,7 +424,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return { thinking: { type: 'enabled' } }
   }
 
-  if (isSupportedThinkingTokenMiMoModel(model)) {
+  if (isSupportedThinkingTokenMiMoModel(model) || isSupportedThinkingTokenKimiModel(model)) {
     return {
       thinking: { type: 'enabled' }
     }

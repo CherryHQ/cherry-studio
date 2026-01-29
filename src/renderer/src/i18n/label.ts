@@ -286,6 +286,19 @@ export const getMcpTypeLabel = (key: string): string => {
   return getLabel(mcpTypeKeyMap, key)
 }
 
+const mcpProviderDescriptionKeyMap = {
+  '302ai': 'settings.mcp.sync.providerDescriptions.302ai',
+  bailian: 'settings.mcp.sync.providerDescriptions.bailian',
+  lanyun: 'settings.mcp.sync.providerDescriptions.lanyun',
+  mcprouter: 'settings.mcp.sync.providerDescriptions.mcprouter',
+  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope',
+  tokenflux: 'settings.mcp.sync.providerDescriptions.tokenflux'
+} as const
+
+export const getMcpProviderDescriptionLabel = (key: string): string => {
+  return getLabel(mcpProviderDescriptionKeyMap, key)
+}
+
 const miniappsStatusKeyMap = {
   visible: 'settings.miniapps.visible',
   disabled: 'settings.miniapps.disabled'
@@ -332,7 +345,8 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
   [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
   [BuiltinMCPServerNames.didiMCP]: 'settings.mcp.builtinServersDescriptions.didi_mcp',
   [BuiltinMCPServerNames.browser]: 'settings.mcp.builtinServersDescriptions.browser',
-  [BuiltinMCPServerNames.nowledgeMem]: 'settings.mcp.builtinServersDescriptions.nowledge_mem'
+  [BuiltinMCPServerNames.nowledgeMem]: 'settings.mcp.builtinServersDescriptions.nowledge_mem',
+  [BuiltinMCPServerNames.hub]: 'settings.mcp.builtinServersDescriptions.hub'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {

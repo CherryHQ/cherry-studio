@@ -41,7 +41,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
-  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? true)
+  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? false)
 
   const customParametersRef = useRef(customParameters)
 
@@ -168,7 +168,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const onReset = () => {
     setTemperature(DEFAULT_ASSISTANT_SETTINGS.temperature)
-    setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? true)
+    setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? false)
     setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
     setEnableMaxTokens(DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens ?? false)
     setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)
@@ -365,16 +365,24 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </Row>
       <Row align="middle" gutter={24}>
         <Col span={24}>
-          <Slider
-            min={0}
-            max={MAX_CONTEXT_COUNT}
-            onChange={setContextCount}
-            onChangeComplete={onContextCountChange}
-            value={typeof contextCount === 'number' ? contextCount : 0}
-            marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: t('chat.settings.max') }}
-            step={1}
-            tooltip={{ formatter: formatSliderTooltip, open: false }}
-          />
+          <ContextSliderWrapper>
+            <Slider
+              min={0}
+              max={MAX_CONTEXT_COUNT}
+              onChange={setContextCount}
+              onChangeComplete={onContextCountChange}
+              value={typeof contextCount === 'number' ? contextCount : 0}
+              marks={{
+                0: '0',
+                25: '25',
+                50: '50',
+                75: '75',
+                100: <span style={{ position: 'absolute', right: -2 }}>{t('chat.settings.max')}</span>
+              }}
+              step={1}
+              tooltip={{ formatter: formatSliderTooltip, open: false }}
+            />
+          </ContextSliderWrapper>
         </Col>
       </Row>
       <Divider style={{ margin: '10px 0' }} />
@@ -537,6 +545,10 @@ const ModelName = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
   display: inline-block;
+`
+
+const ContextSliderWrapper = styled.div`
+  padding-bottom: 5px;
 `
 
 export default AssistantModelSettings

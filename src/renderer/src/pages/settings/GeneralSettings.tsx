@@ -148,7 +148,8 @@ const GeneralSettings: FC = () => {
     { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
     { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
     { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' }
+    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
+    { value: 'ro-RO', label: 'Română', flag: '🇷🇴' }
   ]
 
   const notificationSettings = useSelector((state: RootState) => state.settings.notification)

@@ -28,6 +28,12 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!config"
+  - "!patches"
+  - "!app-upgrade-config.json"
+  - "!**/node_modules/**/*.cpp"
+  - "!**/node_modules/node-addon-api/**"
+  - "!**/node_modules/prebuild-install/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -90,6 +96,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
+  differentialPackage: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
@@ -105,8 +112,11 @@ mac:
   target:
     - target: dmg
     - target: zip
+dmg:
+  writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
+  executableName: CherryStudio
   target:
     - target: AppImage
     - target: deb
@@ -115,6 +125,7 @@ linux:
   category: Utility
   desktop:
     entry:
+      Name: Cherry Studio
       StartupWMClass: CherryStudio
   mimeTypes:
     - x-scheme-handler/cherrystudio
@@ -134,38 +145,60 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.5 - Filesystem MCP Overhaul & Topic Management
-
-    This release features a completely rewritten filesystem MCP server, new batch topic management, and improved assistant management.
+    Cherry Studio 1.7.14 - New Features & Improvements
 
     ✨ New Features
-    - [MCP] Rewrite filesystem MCP server with improved tool set (glob, ls, grep, read, write, edit, delete)
-    - [Topics] Add topic manage mode for batch delete and move operations with search functionality
-    - [Assistants] Merge import/subscribe popups and add export to assistant management
-    - [Knowledge] Use prompt injection for forced knowledge base search (faster response times)
-    - [Settings] Add tool use mode setting (prompt/function) to default assistant settings
+    - [Notes] Add export to Word document functionality
+    - [Code Tools] Add Kimi CLI support with auto-configuration
+    - [Code Tools] Support custom providers
+    - [Settings] Support viewing detailed error messages when model detection fails
+    - [Topics] Display year in topic timestamps (YYYY/MM/DD format)
+    - [Linux] Add system title bar setting option
+    - [Models] Add Baichuan m3/m3-plus models
+    - [Models] Add Qwen text-embedding models
+
+    🎨 Improvements
+    - [Translate] Simplify translation with single target language selector
+    - [Topics] Unpinned topics now move to top with auto-scroll
+    - [Minapps] Add locale-based filtering support
+    - [i18n] Update Romanian localization
 
     🐛 Bug Fixes
-    - [Model] Correct typo in Gemini 3 Pro Image Preview model name
-    - [Installer] Auto-install VC++ Redistributable without user prompt
-    - [Notes] Fix notes directory validation and default path reset for cross-platform restore
-    - [OAuth] Bind OAuth callback server to localhost (127.0.0.1) for security
+    - [Linux] Fix icon display and deb/rpm installation issues
+    - [Linux] Fix window not coming to front when clicking tray
+    - [Linux] Add Alpine Linux (musl) support
+    - [Code Tools] Fix Windows Terminal issues
+    - [Azure] Fix API preview link for completion mode
+    - [Images] Fix trailing slashes in API URLs for image generation
+    - [OpenRouter] Fix MCP tools support
+    - [Chat] Fix image enhancement model conversation history
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.5 - 文件系统 MCP 重构与话题管理
-
-    本次更新完全重写了文件系统 MCP 服务器，新增批量话题管理功能，并改进了助手管理。
+    Cherry Studio 1.7.14 - 新功能与改进
 
     ✨ 新功能
-    - [MCP] 重写文件系统 MCP 服务器，提供改进的工具集（glob、ls、grep、read、write、edit、delete）
-    - [话题] 新增话题管理模式，支持批量删除和移动操作，带搜索功能
-    - [助手] 合并导入/订阅弹窗，并在助手管理中添加导出功能
-    - [知识库] 使用提示词注入进行强制知识库搜索（响应更快）
-    - [设置] 在默认助手设置中添加工具使用模式设置（prompt/function）
+    - [笔记] 支持导出为 Word 文档
+    - [代码工具] 新增 Kimi CLI 支持，自动配置环境
+    - [代码工具] 支持自定义服务商
+    - [设置] 模型检测失败时可查看详细错误信息
+    - [话题] 时间戳显示年份（YYYY/MM/DD 格式）
+    - [Linux] 新增系统标题栏设置选项
+    - [模型] 新增百川 m3/m3-plus 模型
+    - [模型] 新增通义 Embedding 模型
+
+    🎨 改进
+    - [翻译] 简化翻译操作，使用单一目标语言选择
+    - [话题] 取消置顶的话题移动到顶部并自动滚动
+    - [小程序] 支持按语言筛选小程序
+    - [国际化] 更新罗马尼亚语翻译
 
     🐛 问题修复
-    - [模型] 修正 Gemini 3 Pro Image Preview 模型名称的拼写错误
-    - [安装程序] 自动安装 VC++ 运行库，无需用户确认
-    - [笔记] 修复跨平台恢复场景下的笔记目录验证和默认路径重置逻辑
-    - [OAuth] 将 OAuth 回调服务器绑定到 localhost (127.0.0.1) 以提高安全性
+    - [Linux] 修复图标显示和 deb/rpm 安装问题
+    - [Linux] 修复点击托盘后窗口无法置顶的问题
+    - [Linux] 新增 Alpine Linux (musl) 支持
+    - [代码工具] 修复 Windows 终端问题
+    - [Azure] 修复完成模式下 API 预览链接
+    - [图片生成] 修复 API 地址结尾斜杠问题
+    - [OpenRouter] 修复 MCP 工具支持
+    - [对话] 修复图片增强模型对话历史丢失问题
     <!--LANG:END-->

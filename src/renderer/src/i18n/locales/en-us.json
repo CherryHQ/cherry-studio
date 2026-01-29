@@ -271,6 +271,7 @@
     },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "Always allow this tool",
         "allowRequest": "Allow tool request",
         "denyRequest": "Deny tool request",
         "hideDetails": "Hide tool details",
@@ -278,6 +279,7 @@
         "showDetails": "Show tool details"
       },
       "button": {
+        "allowAll": "Always Allow",
         "cancel": "Cancel",
         "run": "Run"
       },
@@ -420,6 +422,9 @@
     },
     "delete": {
       "content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
+      "error": {
+        "remain_one": "Not allowed to delete the last one assistant"
+      },
       "title": "Delete Assistant"
     },
     "edit": {
@@ -541,6 +546,20 @@
         "description": "Default enabled MCP servers",
         "enableFirst": "Enable this server in MCP settings first",
         "label": "MCP Servers",
+        "mode": {
+          "auto": {
+            "description": "AI discovers and uses tools automatically",
+            "label": "Auto"
+          },
+          "disabled": {
+            "description": "No MCP tools",
+            "label": "Disabled"
+          },
+          "manual": {
+            "description": "Select specific MCP servers",
+            "label": "Manual"
+          }
+        },
         "noServersAvailable": "No MCP servers available. Add servers in settings",
         "title": "MCP Settings"
       },
@@ -649,6 +668,10 @@
       "topic": {
         "title": "New Topic"
       }
+    },
+    "alerts": {
+      "create_session": "Create a session",
+      "select_agent": "Select an agent"
     },
     "artifacts": {
       "button": {
@@ -1183,6 +1206,8 @@
     "cancel": "Cancel",
     "chat": "Chat",
     "clear": "Clear",
+    "clear_all": "Clear All",
+    "click_to_replace": "Click to replace",
     "close": "Close",
     "collapse": "Collapse",
     "completed": "Completed",
@@ -1217,9 +1242,15 @@
     "footnote": "Reference content",
     "footnotes": "References",
     "fullscreen": "Entered fullscreen mode. Press F11 to exit",
+    "generate_random_seed": "Generate random seed",
+    "get_embedding_dimension": "Get embedding dimension",
     "go_to_settings": "Go to settings",
+    "html_preview": "HTML Preview",
     "i_know": "I know",
     "ignore": "Ignore",
+    "image_preview": "Image preview",
+    "image_url": "Image URL",
+    "image_url_or_upload": "Enter image URL or upload file",
     "inspect": "Inspect",
     "invalid_value": "Invalid Value",
     "knowledge_base": "Knowledge Base",
@@ -1229,6 +1260,7 @@
     "models": "Models",
     "more": "More",
     "name": "Name",
+    "next_match": "Next match",
     "no_results": "No results",
     "none": "None",
     "off": "Off",
@@ -1240,13 +1272,17 @@
         "model": "Select a model"
       }
     },
+    "powered_by": "Powered by ",
     "preview": "Preview",
+    "previous_match": "Previous match",
     "prompt": "Prompt",
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
     "refresh": "Refresh",
     "regenerate": "Regenerate",
+    "remove_image": "Remove image",
     "rename": "Rename",
+    "required_field": "Required field",
     "reset": "Reset",
     "save": "Save",
     "saved": "Saved",
@@ -1269,13 +1305,28 @@
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
+    "translate_text": "Translate text",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
     "unsubscribe": "Unsubscribe",
     "update_success": "Update successfully",
     "upload_files": "Upload file",
+    "upload_image": "Upload image file",
+    "uploaded_image": "Uploaded image",
     "warning": "Warning",
     "you": "You"
+  },
+  "dialog": {
+    "all_files": "All Files",
+    "html_files": "HTML Files",
+    "open_file": "Open File",
+    "pdf_files": "PDF Files",
+    "png_image": "PNG Image",
+    "save_as_html": "Save as HTML",
+    "save_as_pdf": "Save as PDF",
+    "save_file": "Save File",
+    "select_folder": "Select Folder",
+    "word_document": "Word Document"
   },
   "docs": {
     "title": "Docs"
@@ -1294,6 +1345,7 @@
     "backup": {
       "file_format": "Backup file format error"
     },
+    "base64DataTruncated": "Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Open debug panel",
@@ -1374,6 +1426,8 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
+    "truncated": "Data truncated, original size",
+    "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
     "usage": "Usage",
     "user_message_not_found": "Cannot find original user message to resend",
@@ -1995,10 +2049,65 @@
       "cancelled": "Cancelled",
       "completed": "Completed",
       "error": "Error occurred",
+      "groupHeader": "{{count}} tool calls",
       "invoking": "Invoking",
+      "labels": {
+        "bash": "Bash",
+        "edit": "Edit",
+        "exitPlanMode": "ExitPlanMode",
+        "glob": "Glob",
+        "grep": "Grep",
+        "mcpServerTool": "MCP Server Tool",
+        "multiEdit": "MultiEdit",
+        "notebookEdit": "NotebookEdit",
+        "readFile": "Read File",
+        "search": "Search",
+        "skill": "Skill",
+        "task": "Task",
+        "todoWrite": "Todo Write",
+        "tool": "Tool",
+        "webFetch": "Web Fetch",
+        "webSearch": "Web Search",
+        "write": "Write"
+      },
+      "noData": "No data available for this tool",
       "pending": "Pending",
       "preview": "Preview",
-      "raw": "Raw"
+      "raw": "Raw",
+      "runningCount": "{{count}} tools running",
+      "sections": {
+        "command": "Command",
+        "exitCode": "Exit Code",
+        "input": "Input",
+        "output": "Output",
+        "prompt": "Prompt",
+        "searchQuery": "Search Query",
+        "searchResults": "Search Results",
+        "stderr": "stderr",
+        "stdout": "stdout"
+      },
+      "status": {
+        "done": "Done",
+        "error": "Error",
+        "failed": "Failed",
+        "running": "Running",
+        "success": "Success"
+      },
+      "truncated": "Output truncated (original: {{size}})",
+      "units": {
+        "done_one": "{{count}} Done",
+        "done_other": "{{count}} Done",
+        "file_one": "{{count}} file",
+        "file_other": "{{count}} files",
+        "item_one": "{{count}} item",
+        "item_other": "{{count}} items",
+        "line_one": "{{count}} line",
+        "line_other": "{{count}} lines",
+        "plan_one": "{{count}} plan",
+        "plan_other": "{{count}} plans",
+        "result_one": "{{count}} result",
+        "result_other": "{{count}} results"
+      }
     },
     "topic": {
       "added": "New topic added"
@@ -2206,14 +2315,18 @@
     "drop_markdown_hint": "Drop .md files or folders here to import",
     "empty": "No notes available yet",
     "expand": "unfold",
+    "exportToWord": "Export to Word",
     "export_failed": "Failed to export to knowledge base",
     "export_knowledge": "Export notes to knowledge base",
     "export_success": "Successfully exported to the knowledge base",
+    "export_to_word_failed": "Failed to export to Word",
     "folder": "folder",
     "new_folder": "New Folder",
     "new_note": "Create a new note",
     "no_content_to_copy": "No content to copy",
+    "no_content_to_export": "No content to export",
     "no_file_selected": "Please select the file to upload",
+    "no_note_selected": "Please select a note first",
     "no_valid_files": "No valid file was uploaded",
     "open_folder": "Open an external folder",
     "open_outside": "Open from external",
@@ -2419,6 +2532,39 @@
       }
     },
     "custom_size": "Custom Size",
+    "dmxapi": {
+      "generating_tip": "Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "style": ", Style: ",
+      "style_types": {
+        "25d_animation": "2.5D Animation",
+        "3d_cartoon": "3D Cartoon",
+        "american_retro": "American Retro",
+        "baroque": "Baroque",
+        "cartoon_illustration": "Cartoon Illustration",
+        "chinese_gongbi": "Chinese Gongbi",
+        "clay": "Clay",
+        "cyberpunk": "Cyberpunk",
+        "felt": "Felt",
+        "flat": "Flat",
+        "fresh_anime": "Fresh Anime",
+        "ghibli": "Ghibli",
+        "japanese_anime": "Japanese Anime",
+        "little_people_book": "Little People Book",
+        "monet_garden": "Monet Garden",
+        "oil_painting": "Oil Painting",
+        "pixar": "Pixar",
+        "pixel_art": "Pixel Art",
+        "poetic_ancient": "Poetic Ancient",
+        "psychedelic": "Psychedelic",
+        "sketch": "Sketch",
+        "street_art": "Street Art",
+        "texture": "Texture",
+        "ukiyo_e": "Ukiyo-e",
+        "watercolor": "Watercolor",
+        "wood_carving": "Wood Carving",
+        "yarn_doll": "Yarn Doll"
+      }
+    },
     "edit": {
       "image_file": "Edited Image",
       "magic_prompt_option_tip": "Intelligently enhances editing prompts",
@@ -2443,6 +2589,7 @@
       "style_type_tip": "Image generation style for V_2 and above",
       "width": "Width"
     },
+    "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
@@ -2453,6 +2600,7 @@
     "image_file_required": "Please upload an image first",
     "image_file_retry": "Please re-upload an image first",
     "image_handle_required": "Please upload an image first.",
+    "image_mix_failed": "Failed to mix images",
     "image_placeholder": "No image available",
     "image_retry": "Retry",
     "image_size_options": {
@@ -2462,6 +2610,7 @@
     "inference_steps_tip": "The number of inference steps to perform. More steps produce higher quality but take longer",
     "input_image": "Input Image",
     "input_parameters": "Input Parameters",
+    "invalid_image_url": "Invalid image URL format",
     "learn_more": "Learn More",
     "magic_prompt_option": "Magic Prompt",
     "mode": {
@@ -2483,6 +2632,7 @@
     "no_image_generation_model": "No available image generation model, please add a model and set the endpoint type to {{endpoint_type}}",
     "number_images": "Number Images",
     "number_images_tip": "Number of images to generate (1-4)",
+    "operation_failed": "Operation failed, please try again later",
     "paint_course": "tutorial",
     "per_image": "per image",
     "per_images": "per images",
@@ -2558,6 +2708,26 @@
       "resemblance": "Similarity",
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
+    },
+    "zhipu": {
+      "custom_size_divisible": "Custom size must be divisible by 16",
+      "custom_size_hint": "Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
+      "custom_size_pixels": "Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_range": "Custom size must be between 512px-2048px",
+      "custom_size_required": "Please set custom width and height",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024 (Default)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "Standard (Default)"
+      }
     }
   },
   "plugins": {
@@ -2568,6 +2738,20 @@
     "category": "Category",
     "commands": "Commands",
     "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
+    "content_saved": "Plugin content saved successfully",
+    "detail": {
+      "allowed_tools": "Allowed Tools",
+      "author": "Author",
+      "content": "Content",
+      "description": "Description",
+      "file": "File",
+      "installed": "Installed",
+      "metadata": "Metadata",
+      "size": "Size",
+      "source": "Source",
+      "tags": "Tags",
+      "tools": "Tools"
+    },
     "install": "Install",
     "install_plugins_from_browser": "Browse available plugins to get started",
     "installing": "Installing...",
@@ -2918,6 +3102,11 @@
         "summary": "Summarize",
         "translate": "Translate"
       },
+      "prompt": {
+        "explain": "Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
+        "refine": "Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
+      },
       "translate": {
         "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
       },
@@ -3095,6 +3284,10 @@
   },
   "settings": {
     "about": {
+      "careers": {
+        "button": "View",
+        "title": "Careers"
+      },
       "checkUpdate": {
         "available": "Update",
         "label": "Check Update"
@@ -3162,6 +3355,7 @@
         "label": "App Data",
         "migration_title": "Data Migration",
         "new_path": "New Path",
+        "open": "Open Directory",
         "original_path": "Original Path",
         "path_change_failed": "Failed to change data directory",
         "path_changed_without_copy": "Path changed successfully",
@@ -3232,24 +3426,43 @@
         },
         "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
         "lan": {
-          "auto_close_tip": "Auto-closing in {{seconds}} seconds...",
-          "confirm_close_message": "File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
-          "confirm_close_title": "Confirm Close",
           "connected": "Connected",
           "connection_failed": "Connection failed",
-          "content": "Please ensure your computer and phone are on the same network for LAN transfer. Open the Cherry Studio App to scan this QR code.",
+          "content": "Please ensure your computer and phone are on the same network for LAN transfer.",
+          "device_list_title": "Local network devices",
+          "discovered_devices": "Discovered devices",
           "error": {
+            "file_too_large": "File too large, maximum 500MB supported",
             "init_failed": "Initialization failed",
+            "invalid_file_type": "Only ZIP files are supported",
             "no_file": "No file selected",
             "no_ip": "Unable to get IP address",
+            "not_connected": "Please complete handshake first",
             "send_failed": "Failed to send file"
           },
-          "force_close": "Force Close",
-          "generating_qr": "Generating QR code...",
-          "noZipSelected": "No compressed file selected",
-          "scan_qr": "Please scan QR code with your phone",
-          "selectZip": "Select a compressed file",
-          "sendZip": "Begin data recovery",
+          "file_transfer": {
+            "cancelled": "Transfer cancelled",
+            "failed": "File transfer failed: {{message}}",
+            "progress": "Sending... {{progress}}%",
+            "success": "File sent successfully"
+          },
+          "handshake": {
+            "button": "Handshake",
+            "failed": "Handshake failed: {{message}}",
+            "in_progress": "Handshaking...",
+            "success": "Handshake completed with {{device}}",
+            "test_message_received": "Received pong from {{device}}",
+            "test_message_sent": "Sent hello world test payload"
+          },
+          "idle_hint": "Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
+          "ip_addresses": "IP addresses",
+          "last_seen": "Last seen at {{time}}",
+          "metadata": "Metadata",
+          "no_connection_warning": "Please open LAN Transfer on Cherry Studio mobile",
+          "no_devices": "No LAN peers found yet",
+          "scan_devices": "Scan devices",
+          "scanning_hint": "Scanning your local network for Cherry Studio peers...",
+          "send_file": "Send File",
           "status": {
             "completed": "Transfer completed",
             "connected": "Connected",
@@ -3258,9 +3471,11 @@
             "error": "Connection error",
             "initializing": "Initializing connection...",
             "preparing": "Preparing transfer...",
-            "sending": "Transferring {{progress}}%",
-            "waiting_qr_scan": "Please scan QR code to connect"
+            "sending": "Transferring {{progress}}%"
           },
+          "status_badge_idle": "Idle",
+          "status_badge_scanning": "Scanning",
+          "stop_scan": "Stop scan",
           "title": "LAN transmission",
           "transfer_progress": "Transfer progress"
         },
@@ -3985,6 +4200,10 @@
       "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
+      "lanyun": {
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "Lanyun Technology"
+      },
       "logoUrl": "Logo URL",
       "logs": "Logs",
       "longRunning": "Long Running Mode",
@@ -4081,6 +4300,14 @@
         "getToken": "Get API Token",
         "getTokenDescription": "Retrieve your personal API token from your account",
         "noServersAvailable": "No MCP servers available",
+        "providerDescriptions": {
+          "302ai": "302.AI Platform MCP Service",
+          "bailian": "Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "MCP Router Platform MCP Service",
+          "modelscope": "ModelScope Platform MCP Service",
+          "tokenflux": "TokenFlux Platform MCP Service"
+        },
         "selectProvider": "Select Provider:",
         "setToken": "Enter Your Token",
         "success": "Sync MCP Servers successful",
@@ -4101,7 +4328,7 @@
       "tagsPlaceholder": "Enter tags",
       "timeout": "Timeout",
       "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
-      "title": "MCP",
+      "title": "MCP Servers",
       "tools": {
         "autoApprove": {
           "label": "Auto Approve",
@@ -4172,9 +4399,6 @@
       "show_message_outline": "Show message outline",
       "title": "Message Settings",
       "use_serif_font": "Use serif font"
-    },
-    "mineru": {
-      "api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key."
     },
     "miniapps": {
       "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
@@ -4433,6 +4657,14 @@
           }
         },
         "options": {
+          "anthropic_cache": {
+            "cache_last_n": "Cache Last N Messages",
+            "cache_last_n_help": "Cache the last N conversation messages (excluding system messages)",
+            "cache_system": "Cache System Message",
+            "cache_system_help": "Whether to cache the system prompt",
+            "token_threshold": "Cache Token Threshold",
+            "token_threshold_help": "Messages exceeding this token count will be cached. Set to 0 to disable caching."
+          },
           "array_content": {
             "help": "Does the provider support the content field of the message being of array type?",
             "label": "Supports array format message content"
@@ -4553,6 +4785,9 @@
         "title": "Delete Provider"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "www.DMXAPI.com (International)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Select the platform"
       },
       "docs_check": "Check",
@@ -4730,10 +4965,8 @@
         "image_provider": "OCR service provider",
         "paddleocr": {
           "aistudio_access_token": "Access token of AI Studio Community",
-          "aistudio_url_label": "AI Studio Community",
           "api_url": "API URL",
-          "serving_doc_url_label": "PaddleOCR Serving Documentation",
-          "tip": "You can refer to the official PaddleOCR documentation to deploy a local service, or deploy a cloud service on the PaddlePaddle AI Studio Community. For the latter case, please provide the access token of the AI Studio Community."
+          "api_url_label": "Obtain Access Token and API URL"
         },
         "system": {
           "win": {
@@ -4746,6 +4979,12 @@
         "title": "OCR service"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "Access token of AI Studio Community",
+          "api_url": "API URL",
+          "api_url_label": "Obtain Access Token and API URL",
+          "paddleocr_url_label": "PaddleOCR Official Website"
+        },
         "provider": "Document Processing Provider",
         "provider_placeholder": "Choose a document processing provider",
         "title": "Document Processing",
@@ -4753,6 +4992,12 @@
       },
       "title": "Other Settings",
       "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} requires an API key to work. Would you like to configure it now?",
+          "ok": "Configure",
+          "title": "API Key Required"
+        },
+        "api_providers": "API Providers",
         "apikey": "API key",
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
@@ -4794,7 +5039,15 @@
         },
         "content_limit": "Content length limit",
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
+        "default_provider": "Default Provider",
         "free": "Free",
+        "is_default": "Default",
+        "local_provider": {
+          "hint": "Log in to the website to get better search results and personalize your search settings.",
+          "open_settings": "Open {{provider}} Settings",
+          "settings": "Local Search Settings"
+        },
+        "local_providers": "Local Providers",
         "no_provider_selected": "Please select a search service provider before checking.",
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",
@@ -4805,6 +5058,7 @@
         "search_provider": "Search service provider",
         "search_provider_placeholder": "Choose a search service provider.",
         "search_with_time": "Search with dates included",
+        "set_as_default": "Set as Default",
         "subscribe": "Blacklist Subscription",
         "subscribe_add": "Add Subscription",
         "subscribe_add_failed": "Failed to add feed source",
@@ -4892,6 +5146,13 @@
       "show": "Show Tray Icon",
       "title": "Tray"
     },
+    "use_system_title_bar": {
+      "confirm": {
+        "content": "Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",
+        "title": "Restart Required"
+      },
+      "title": "Use System Title Bar (Linux)"
+    },
     "zoom": {
       "reset": "Reset",
       "title": "Page Zoom"
@@ -4969,6 +5230,8 @@
     "detected": {
       "language": "Auto Detect"
     },
+    "detected_source": "Detected",
+    "detecting": "Detecting...",
     "empty": "Translation content is empty",
     "error": {
       "chat_qwen_mt": "Qwen MT model cannot be used in chat. Please go to the translation page.",
@@ -5021,6 +5284,7 @@
       "not_pair": "Source language is different from the set language",
       "same": "Source and target languages are the same"
     },
+    "language_settings": "Language Settings",
     "menu": {
       "description": "Translate the content of the current input box"
     },
@@ -5030,6 +5294,7 @@
     "output": {
       "placeholder": "Translation"
     },
+    "preferred_target": "Preferred Target",
     "processing": "Translation in progress...",
     "settings": {
       "autoCopy": "Copy after translation ",

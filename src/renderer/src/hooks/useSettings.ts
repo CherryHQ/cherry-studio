@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { AssistantIconType, SendMessageShortcut, SettingsState } from '@renderer/store/settings'
 import {
@@ -18,6 +34,7 @@ import {
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
+  setUseSystemTitleBar as _setUseSystemTitleBar,
   setWindowStyle
 } from '@renderer/store/settings'
 import type { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
@@ -101,6 +118,10 @@ export function useSettings() {
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
       window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
+    },
+    setUseSystemTitleBar(useSystemTitleBar: boolean) {
+      dispatch(_setUseSystemTitleBar(useSystemTitleBar))
+      window.api.setUseSystemTitleBar(useSystemTitleBar)
     }
   }
 }

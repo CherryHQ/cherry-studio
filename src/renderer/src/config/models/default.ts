@@ -1,12 +1,5 @@
 import type { Model, SystemProviderId } from '@renderer/types'
 
-export const glm45FlashModel: Model = {
-  id: 'glm-4.5-flash',
-  name: 'GLM-4.5-Flash',
-  provider: 'cherryai',
-  group: 'GLM-4.5'
-}
-
 export const qwen38bModel: Model = {
   id: 'Qwen/Qwen3-8B',
   name: 'Qwen3-8B',
@@ -14,16 +7,23 @@ export const qwen38bModel: Model = {
   group: 'Qwen'
 }
 
+export const qwen3Next80BModel: Model = {
+  id: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
+  name: 'Qwen3-Next-80B',
+  provider: 'cherryai',
+  group: 'Qwen'
+}
+
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
   defaultModel: [
     // Default assistant model
-    glm45FlashModel,
+    qwen3Next80BModel,
     // Default topic naming model
     qwen38bModel,
     // Default translation model
-    glm45FlashModel,
+    qwen3Next80BModel,
     // Default quick assistant model
-    glm45FlashModel
+    qwen3Next80BModel
   ],
   cherryin: [],
   vertexai: [],
@@ -618,6 +618,30 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'GLM-4.6'
     },
     {
+      id: 'glm-4.6v',
+      provider: 'zhipu',
+      name: 'GLM-4.6V',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flash',
+      provider: 'zhipu',
+      name: 'GLM-4.6V-Flash',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flashx',
+      provider: 'zhipu',
+      name: 'GLM-4.6V-FlashX',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.7',
+      provider: 'zhipu',
+      name: 'GLM-4.7',
+      group: 'GLM-4.7'
+    },
+    {
       id: 'glm-4.5',
       provider: 'zhipu',
       name: 'GLM-4.5',
@@ -689,6 +713,42 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'baichuan',
       name: 'Baichuan3 Turbo 128k',
       group: 'Baichuan3'
+    },
+    {
+      id: 'Baichuan4-Turbo',
+      provider: 'baichuan',
+      name: 'Baichuan4 Turbo',
+      group: 'Baichuan4'
+    },
+    {
+      id: 'Baichuan4-Air',
+      provider: 'baichuan',
+      name: 'Baichuan4 Air',
+      group: 'Baichuan4'
+    },
+    {
+      id: 'Baichuan-M2',
+      provider: 'baichuan',
+      name: 'Baichuan M2',
+      group: 'Baichuan-M2'
+    },
+    {
+      id: 'Baichuan-M2-Plus',
+      provider: 'baichuan',
+      name: 'Baichuan M2 Plus',
+      group: 'Baichuan-M2'
+    },
+    {
+      id: 'Baichuan-M3',
+      provider: 'baichuan',
+      name: 'Baichuan M3',
+      group: 'Baichuan-M3'
+    },
+    {
+      id: 'Baichuan-M3-Plus',
+      provider: 'baichuan',
+      name: 'Baichuan M3 Plus',
+      group: 'Baichuan-M3'
     }
   ],
   modelscope: [
@@ -729,7 +789,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     { id: 'qwen-flash', name: 'qwen-flash', provider: 'dashscope', group: 'qwen-flash', owned_by: 'system' },
     { id: 'qwen-plus', name: 'qwen-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
     { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
-    { id: 'qwen3-max', name: 'qwen3-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' }
+    { id: 'qwen3-max', name: 'qwen3-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
+    { id: 'text-embedding-v4', name: 'text-embedding-v4', provider: 'dashscope', group: 'qwen-text-embedding' },
+    { id: 'text-embedding-v3', name: 'text-embedding-v3', provider: 'dashscope', group: 'qwen-text-embedding' },
+    { id: 'text-embedding-v2', name: 'text-embedding-v2', provider: 'dashscope', group: 'qwen-text-embedding' },
+    { id: 'text-embedding-v1', name: 'text-embedding-v1', provider: 'dashscope', group: 'qwen-text-embedding' },
+    { id: 'qwen3-rerank', name: 'qwen3-rerank', provider: 'dashscope', group: 'qwen-rerank' }
   ],
   stepfun: [
     {
@@ -747,7 +812,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   doubao: [
     {
-      id: 'doubao-seed-1-8-251215',
+      id: 'doubao-seed-1-8-251228',
       provider: 'doubao',
       name: 'Doubao-Seed-1.8',
       group: 'Doubao-Seed-1.8'
@@ -920,6 +985,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       id: 'MiniMax-M2-Stable',
       provider: 'minimax',
       name: 'MiniMax M2 Stable',
+      group: 'minimax-m2'
+    },
+    {
+      id: 'MiniMax-M2.1',
+      provider: 'minimax',
+      name: 'MiniMax M2.1',
       group: 'minimax-m2'
     }
   ],
