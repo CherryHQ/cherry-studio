@@ -3,25 +3,19 @@ import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setDisabledMinApps, setMinApps, setPinnedMinApps } from '@renderer/store/minapps'
 import { type DetectedRegion, setDetectedRegion } from '@renderer/store/runtime'
-import type { LanguageVarious, MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 /**
  * Data Flow Design:
  *
- * PRINCIPLE: Locale/Region filtering is a VIEW concern, not a DATA concern.
+ * PRINCIPLE: Region filtering is a VIEW concern, not a DATA concern.
  *
- * - Redux stores ALL apps (including locale/region-restricted ones) to preserve user preferences
- * - allMinApps is the template data source containing locale/region definitions
- * - This hook applies locale/region filtering only when READING for UI display
+ * - Redux stores ALL apps (including region-restricted ones) to preserve user preferences
+ * - allMinApps is the template data source containing region definitions
+ * - This hook applies region filtering only when READING for UI display
  * - When WRITING, hidden apps are merged back to prevent data loss
  */
-
-// Check if app should be visible for the given locale
-const isVisibleForLocale = (app: MinAppType, language: LanguageVarious): boolean => {
-  if (!app.locales) return true
-  return app.locales.includes(language)
-}
 
 /**
  * Check if app should be visible for the given region.
@@ -43,20 +37,9 @@ const isVisibleForRegion = (app: MinAppType, region: DetectedRegion): boolean =>
   return app.supportedRegions.includes('Global')
 }
 
-// Filter apps by locale - only show apps that match current language
-const filterByLocale = (apps: MinAppType[], language: LanguageVarious): MinAppType[] => {
-  return apps.filter((app) => isVisibleForLocale(app, language))
-}
-
 // Filter apps by region
 const filterByRegion = (apps: MinAppType[], region: DetectedRegion): MinAppType[] => {
   return apps.filter((app) => isVisibleForRegion(app, region))
-}
-
-// Get locale-hidden apps from allMinApps for the current language
-// This uses allMinApps as source of truth for locale definitions
-const getLocaleHiddenApps = (language: LanguageVarious): MinAppType[] => {
-  return allMinApps.filter((app) => !isVisibleForLocale(app, language))
 }
 
 // Get region-hidden apps from allMinApps for the current region
@@ -89,7 +72,6 @@ const detectUserRegion = async (): Promise<DetectedRegion> => {
 
 export const useMinapps = () => {
   const { enabled, disabled, pinned } = useAppSelector((state: RootState) => state.minapps)
-  const language = useAppSelector((state: RootState) => state.settings.language)
   const minAppRegionSetting = useAppSelector((state: RootState) => state.settings.minAppRegion)
   const detectedRegion = useAppSelector((state: RootState) => state.runtime.detectedRegion)
   const dispatch = useAppDispatch()
@@ -132,29 +114,26 @@ export const useMinapps = () => {
     [mapApps]
   )
 
-  // READ: Get apps filtered by locale and region for UI display
+  // READ: Get apps filtered by region for UI display
   const minapps = useMemo(() => {
     const allApps = getAllApps(enabled, disabled)
     const disabledIds = new Set(disabled.map((app) => app.id))
     const withoutDisabled = allApps.filter((app) => !disabledIds.has(app.id))
-    // Apply region filter first, then locale filter
-    const byRegion = filterByRegion(withoutDisabled, effectiveRegion)
-    return filterByLocale(byRegion, language)
-  }, [enabled, disabled, language, effectiveRegion, getAllApps])
+    return filterByRegion(withoutDisabled, effectiveRegion)
+  }, [enabled, disabled, effectiveRegion, getAllApps])
 
   const disabledApps = useMemo(
-    () => filterByLocale(filterByRegion(mapApps(disabled), effectiveRegion), language),
-    [disabled, language, effectiveRegion, mapApps]
+    () => filterByRegion(mapApps(disabled), effectiveRegion),
+    [disabled, effectiveRegion, mapApps]
   )
   // Pinned apps are always visible regardless of region/language
   // User explicitly pinned apps should not be hidden
   const pinnedApps = useMemo(() => mapApps(pinned), [pinned, mapApps])
 
   // Get hidden apps for preserving user preferences when writing
-  const getHiddenApps = useCallback((language: LanguageVarious, region: DetectedRegion) => {
-    const localeHidden = getLocaleHiddenApps(language)
+  const getHiddenApps = useCallback((region: DetectedRegion) => {
     const regionHidden = getRegionHiddenApps(region)
-    const hiddenIds = new Set([...localeHidden, ...regionHidden].map((app) => app.id))
+    const hiddenIds = new Set(regionHidden.map((app) => app.id))
     return hiddenIds
   }, [])
 
@@ -163,7 +142,7 @@ export const useMinapps = () => {
       const disabledIds = new Set(disabled.map((app) => app.id))
       const withoutDisabled = visibleApps.filter((app) => !disabledIds.has(app.id))
 
-      const hiddenIds = getHiddenApps(language, effectiveRegion)
+      const hiddenIds = getHiddenApps(effectiveRegion)
       const preservedHidden = enabled.filter((app) => hiddenIds.has(app.id) && !disabledIds.has(app.id))
 
       const visibleIds = new Set(withoutDisabled.map((app) => app.id))
@@ -175,13 +154,13 @@ export const useMinapps = () => {
 
       dispatch(setMinApps([...merged, ...missingApps]))
     },
-    [dispatch, enabled, disabled, language, effectiveRegion, getHiddenApps]
+    [dispatch, enabled, disabled, effectiveRegion, getHiddenApps]
   )
 
   // WRITE: Update disabled apps, preserving hidden disabled apps
   const updateDisabledMinapps = useCallback(
     (visibleDisabledApps: MinAppType[]) => {
-      const hiddenIds = getHiddenApps(language, effectiveRegion)
+      const hiddenIds = getHiddenApps(effectiveRegion)
       const preservedHidden = disabled.filter((app) => hiddenIds.has(app.id))
 
       const visibleIds = new Set(visibleDisabledApps.map((app) => app.id))
@@ -189,13 +168,13 @@ export const useMinapps = () => {
 
       dispatch(setDisabledMinApps([...visibleDisabledApps, ...toAppend]))
     },
-    [dispatch, disabled, language, effectiveRegion, getHiddenApps]
+    [dispatch, disabled, effectiveRegion, getHiddenApps]
   )
 
   // WRITE: Update pinned apps, preserving hidden pinned apps
   const updatePinnedMinapps = useCallback(
     (visiblePinnedApps: MinAppType[]) => {
-      const hiddenIds = getHiddenApps(language, effectiveRegion)
+      const hiddenIds = getHiddenApps(effectiveRegion)
       const preservedHidden = pinned.filter((app) => hiddenIds.has(app.id))
 
       const visibleIds = new Set(visiblePinnedApps.map((app) => app.id))
@@ -203,7 +182,7 @@ export const useMinapps = () => {
 
       dispatch(setPinnedMinApps([...visiblePinnedApps, ...toAppend]))
     },
-    [dispatch, pinned, language, effectiveRegion, getHiddenApps]
+    [dispatch, pinned, effectiveRegion, getHiddenApps]
   )
 
   return {
