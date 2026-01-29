@@ -24,11 +24,19 @@ export interface MigratorProgress {
   error?: string
 }
 
+// I18n message with key and interpolation params
+export interface I18nMessage {
+  key: string
+  params?: Record<string, string | number>
+}
+
 // Overall migration progress
 export interface MigrationProgress {
   stage: MigrationStage
   overallProgress: number // 0-100
   currentMessage: string
+  /** Optional i18n key with params for translation in renderer */
+  i18nMessage?: I18nMessage
   migrators: MigratorProgress[]
   error?: string
 }

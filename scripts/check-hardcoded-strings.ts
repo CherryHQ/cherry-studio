@@ -247,6 +247,22 @@ class HardcodedStringDetector {
           if (['title', 'desc', 'text', 'tspan'].includes(tagName)) {
             return
           }
+
+          // Skip native language names in language selectors (SelectItem, Option, etc.)
+          if (['SelectItem', 'Option', 'MenuItem'].includes(tagName)) {
+            const jsxElement = Node.isJsxElement(parent) ? parent.getOpeningElement() : parent
+            const valueAttr = jsxElement.getAttribute('value')
+            if (valueAttr && Node.isJsxAttribute(valueAttr)) {
+              const initializer = valueAttr.getInitializer()
+              if (initializer && Node.isStringLiteral(initializer)) {
+                const value = initializer.getLiteralValue()
+                // Language/locale codes like 'zh-CN', 'en-US', 'ja-JP', etc.
+                if (/^[a-z]{2}(-[A-Z]{2})?$/.test(value)) {
+                  return
+                }
+              }
+            }
+          }
         }
         findings.push(createFinding(node, sourceFile, 'chinese', source, 'JsxText'))
       }
