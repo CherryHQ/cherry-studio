@@ -181,7 +181,7 @@ describe('Claude → AiSDK transform', () => {
       { type: 'finish-step' }
     >
     expect(finishStep.finishReason).toBe('tool-calls')
-    expect(finishStep.usage).toEqual({ inputTokens: 1, outputTokens: 5, totalTokens: 6 })
+    expect(finishStep.usage).toMatchObject({ inputTokens: 1, outputTokens: 5, totalTokens: 6 })
 
     const toolResult = parts.find((part) => part.type === 'tool-result') as Extract<
       (typeof parts)[number],
@@ -408,7 +408,7 @@ describe('Claude → AiSDK transform', () => {
       { type: 'finish-step' }
     >
     expect(finishStep.finishReason).toBe('stop')
-    expect(finishStep.usage).toEqual({ inputTokens: 2, outputTokens: 4, totalTokens: 6 })
+    expect(finishStep.usage).toMatchObject({ inputTokens: 2, outputTokens: 4, totalTokens: 6 })
   })
 
   it('emits fallback text when Claude sends a snapshot instead of deltas', () => {
@@ -490,7 +490,7 @@ describe('Claude → AiSDK transform', () => {
       (typeof parts)[number],
       { type: 'finish-step' }
     >
-    expect(finish.usage).toEqual({ inputTokens: 3, outputTokens: 7, totalTokens: 10 })
+    expect(finish.usage).toMatchObject({ inputTokens: 3, outputTokens: 7, totalTokens: 10 })
     expect(finish.finishReason).toBe('stop')
   })
 })

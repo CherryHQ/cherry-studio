@@ -2,7 +2,8 @@
  * Anthropic Prompt Caching Middleware
  * @see https://ai-sdk.dev/providers/ai-sdk-providers/anthropic#cache-control
  */
-import type { LanguageModelV2Message } from '@ai-sdk/provider'
+import type { LanguageModelV3Message } from '@ai-sdk/provider'
+import { definePlugin } from '@cherrystudio/ai-core/core/plugins'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import type { Provider } from '@renderer/types'
 import type { LanguageModelMiddleware } from 'ai'
@@ -11,7 +12,7 @@ const cacheProviderOptions = {
   anthropic: { cacheControl: { type: 'ephemeral' } }
 }
 
-function estimateContentTokens(content: LanguageModelV2Message['content']): number {
+function estimateContentTokens(content: LanguageModelV3Message['content']): number {
   if (typeof content === 'string') return estimateTextTokens(content)
   if (Array.isArray(content)) {
     return content.reduce((acc, part) => {
@@ -24,9 +25,9 @@ function estimateContentTokens(content: LanguageModelV2Message['content']): numb
   return 0
 }
 
-export function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddleware {
+function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddleware {
   return {
-    middlewareVersion: 'v2',
+    specificationVersion: 'v3',
     transformParams: async ({ params }) => {
       const settings = provider.anthropicCacheControl
       if (!settings?.tokenThreshold || !Array.isArray(params.prompt) || params.prompt.length === 0) {
@@ -40,7 +41,7 @@ export function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddl
       // Cache system message (providerOptions on message object)
       if (cacheSystemMessage) {
         for (let i = 0; i < messages.length; i++) {
-          const msg = messages[i] as LanguageModelV2Message
+          const msg = messages[i] as LanguageModelV3Message
           if (msg.role === 'system' && estimateContentTokens(msg.content) >= tokenThreshold) {
             messages[i] = { ...msg, providerOptions: cacheProviderOptions }
             break
@@ -53,13 +54,13 @@ export function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddl
         const cumsumTokens = [] as Array<number>
         let tokenSum = 0 as number
         for (let i = 0; i < messages.length; i++) {
-          const msg = messages[i] as LanguageModelV2Message
+          const msg = messages[i] as LanguageModelV3Message
           tokenSum += estimateContentTokens(msg.content)
           cumsumTokens.push(tokenSum)
         }
 
         for (let i = messages.length - 1; i >= 0 && cachedCount < cacheLastNMessages; i--) {
-          const msg = messages[i] as LanguageModelV2Message
+          const msg = messages[i] as LanguageModelV3Message
           if (msg.role === 'system' || cumsumTokens[i] < tokenThreshold || msg.content.length === 0) {
             continue
           }
@@ -74,7 +75,7 @@ export function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddl
           messages[i] = {
             ...msg,
             content: newContent
-          } as LanguageModelV2Message
+          } as LanguageModelV3Message
           cachedCount++
         }
       }
@@ -83,3 +84,13 @@ export function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddl
     }
   }
 }
+
+export const createAnthropicCachePlugin = () =>
+  definePlugin({
+    name: 'anthropicCache',
+    enforce: 'pre',
+    configureContext: (context) => {
+      context.middlewares = context.middlewares || []
+      context.middlewares.push(anthropicCacheMiddleware(context.provider))
+    }
+  })
