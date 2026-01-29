@@ -1730,17 +1730,28 @@ export const removeBlocksThunk =
 
       cleanupMultipleBlocks(dispatch, blockIdsToRemove)
 
-      const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-
-      // 2. Update database (in a transaction)
-      await db.transaction('rw', db.topics, db.message_blocks, async () => {
-        // Update the message in the topic
-        await db.topics.update(topicId, { messages: finalMessagesToSave })
-        // Delete the blocks from the database
-        if (blockIdsToRemove.length > 0) {
-          await db.message_blocks.bulkDelete(blockIdsToRemove)
+      // 2. Update database - different path for agent sessions
+      if (isAgentSessionTopicId(topicId)) {
+        const sessionId = extractAgentSessionIdFromTopicId(topicId)
+        for (const blockId of blockIdsToRemove) {
+          await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_RemoveBlock, {
+            sessionId,
+            messageId,
+            blockId
+          })
         }
-      })
+      } else {
+        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+
+        await db.transaction('rw', db.topics, db.message_blocks, async () => {
+          // Update the message in the topic
+          await db.topics.update(topicId, { messages: finalMessagesToSave })
+          // Delete the blocks from the database
+          if (blockIdsToRemove.length > 0) {
+            await db.message_blocks.bulkDelete(blockIdsToRemove)
+          }
+        })
+      }
 
       dispatch(updateTopicUpdatedAt({ topicId }))
 

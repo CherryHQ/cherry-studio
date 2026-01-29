@@ -31,6 +31,7 @@ import styled from 'styled-components'
 import { v4 as uuid } from 'uuid'
 
 import { InputbarCore } from './components/InputbarCore'
+import { PinnedTodoPanel } from './components/PinnedTodoPanel'
 import {
   InputbarToolsProvider,
   useInputbarToolsDispatch,
@@ -484,6 +485,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     [sendMessageShortcut, t]
   )
 
+  const pinnedContent = useMemo(() => <PinnedTodoPanel topicId={sessionTopicId} />, [sessionTopicId])
+
   return (
     <InputbarCore
       scope={TopicType.Session}
@@ -500,6 +503,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       isLoading={canAbort}
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
+      pinnedContent={pinnedContent}
       forceEnableQuickPanelTriggers
     />
   )
