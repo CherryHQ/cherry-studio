@@ -12,6 +12,7 @@ import { getAiSdkProviderId } from '../provider/factory'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { anthropicCacheMiddleware } from './anthropicCacheMiddleware'
 import { noThinkMiddleware } from './noThinkMiddleware'
+import { ollamaReasoningOrderMiddleware } from './ollamaReasoningOrderMiddleware'
 import { openrouterGenerateImageMiddleware } from './openrouterGenerateImageMiddleware'
 import { openrouterReasoningMiddleware } from './openrouterReasoningMiddleware'
 import { qwenThinkingMiddleware } from './qwenThinkingMiddleware'
@@ -201,6 +202,15 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
       // Gemini特定中间件
       break
     case 'aws-bedrock': {
+      break
+    }
+    case 'ollama': {
+      if (config.enableReasoning) {
+        builder.add({
+          name: 'ollama-reasoning-order',
+          middleware: ollamaReasoningOrderMiddleware()
+        })
+      }
       break
     }
     default:
