@@ -6,8 +6,7 @@ import db from '@renderer/databases'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
-import { useAppDispatch, useAppStore } from '@renderer/store'
-import { useAppSelector } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
@@ -35,7 +34,6 @@ const logger = loggerService.withContext('useAppInit')
 export function useAppInit() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const store = useAppStore()
   const {
     proxyUrl,
     proxyBypassRules,
@@ -262,7 +260,7 @@ export function useAppInit() {
     ]
 
     return () => removeListeners.forEach((removeListener) => removeListener())
-  }, [dispatch, store, t])
+  }, [dispatch, t])
 
   useEffect(() => {
     // TODO: init data collection
