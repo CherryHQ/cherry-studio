@@ -48,19 +48,26 @@ function CardHeader({ isPending, currentIndex, totalQuestions, extra }: CardHead
 }
 
 interface NavigationProps {
+  showPrevious?: boolean
   isFirst: boolean
   onPrevious: () => void
   /** The right-side button (Next or Submit) */
   rightButton: ReactNode
 }
 
-function Navigation({ isFirst, onPrevious, rightButton }: NavigationProps) {
+function Navigation({ showPrevious = true, isFirst, onPrevious, rightButton }: NavigationProps) {
   const { t } = useTranslation()
   return (
-    <div className="flex items-center justify-between border-default-200 border-t pt-3">
-      <Button icon={<ChevronLeft size={16} />} disabled={isFirst} onClick={onPrevious} className="flex items-center">
-        {t('agent.askUserQuestion.previous', 'Previous')}
-      </Button>
+    <div
+      className={cn(
+        'flex items-center border-default-200 border-t pt-3',
+        showPrevious ? 'justify-between' : 'justify-end'
+      )}>
+      {showPrevious && (
+        <Button icon={<ChevronLeft size={16} />} disabled={isFirst} onClick={onPrevious} className="flex items-center">
+          {t('agent.askUserQuestion.previous', 'Previous')}
+        </Button>
+      )}
       {rightButton}
     </div>
   )
@@ -450,12 +457,13 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
           <CompletedContent question={currentQuestion} answer={displayAnswers[currentQuestion.question]} />
         )}
 
-        {totalQuestions > 1 && (
-          <Navigation isFirst={isFirstQuestion} onPrevious={handlePrevious} rightButton={renderRightButton()} />
-        )}
-
-        {totalQuestions === 1 && isPending && (
-          <div className="flex justify-end border-default-200 border-t pt-3">{submitButton}</div>
+        {(totalQuestions > 1 || isPending) && (
+          <Navigation
+            showPrevious={totalQuestions > 1}
+            isFirst={isFirstQuestion}
+            onPrevious={handlePrevious}
+            rightButton={totalQuestions === 1 ? submitButton : renderRightButton()}
+          />
         )}
       </div>
     </div>
