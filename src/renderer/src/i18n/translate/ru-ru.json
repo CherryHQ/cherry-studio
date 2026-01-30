@@ -1236,6 +1236,9 @@
       "validation": "Ошибка проверки"
     },
     "expand": "Развернуть",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Неподдерживаемый тип файла {{type}}"
     },
@@ -1892,6 +1895,9 @@
         "model": "Пожалуйста, выберите модель",
         "name": "Пожалуйста, введите название базы знаний"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Не удалось назвать топик",
       "get_embedding_dimensions": "Не удалось получить размерность встраивания",
       "invalid": {
@@ -2017,6 +2023,9 @@
     },
     "searching": "Идет поиск...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Успешный экспорт в Joplin"
       },

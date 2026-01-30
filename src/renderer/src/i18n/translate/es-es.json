@@ -1236,6 +1236,9 @@
       "validation": "Fallo en la verificación"
     },
     "expand": "Expandir",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Tipo de archivo no compatible {{type}}"
     },
@@ -1892,6 +1895,9 @@
         "model": "Seleccione un modelo",
         "name": "Ingrese el nombre de la base de conocimiento"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Error al asignar nombre al tema",
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "invalid": {
@@ -2017,6 +2023,9 @@
     },
     "searching": "Buscando en línea...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Exportado con éxito a Joplin"
       },
