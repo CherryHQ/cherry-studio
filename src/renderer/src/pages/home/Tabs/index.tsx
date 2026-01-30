@@ -59,9 +59,9 @@ const HomeTabs: FC<Props> = ({
   const showTab = position === 'left' && topicPosition === 'left'
 
   const onCreateAssistant = async () => {
-    const assistant = await AddAssistantPopup.show()
-    if (assistant) {
-      setActiveAssistant(assistant)
+    const result = await AddAssistantPopup.show({ showModeSwitch: false })
+    if (result?.type === 'assistant' && result.assistant) {
+      setActiveAssistant(result.assistant)
       dispatch(setActiveAgentId(null))
       dispatch(setActiveTopicOrSessionAction('topic'))
     }
