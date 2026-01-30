@@ -146,10 +146,12 @@ interface PendingContentProps {
   hasCustomInput: boolean
   customInputValue: string
   isAnswered: boolean
-  /** Handler for single-select mode (used when question.multiSelect is false) */
-  onSingleSelect: (label: string) => void
-  /** Handler for multi-select mode (used when question.multiSelect is true) */
-  onMultiSelect: (label: string, checked: boolean) => void
+  /**
+   * Unified handler for option selection.
+   * - Single-select: onSelect(label) - replaces current selection
+   * - Multi-select: onSelect(label, checked) - adds/removes from selection
+   */
+  onSelect: (label: string, checked?: boolean) => void
   onCustomInputChange: (value: string) => void
 }
 
@@ -159,8 +161,7 @@ function PendingContent({
   hasCustomInput,
   customInputValue,
   isAnswered,
-  onSingleSelect,
-  onMultiSelect,
+  onSelect,
   onCustomInputChange
 }: PendingContentProps) {
   const { t } = useTranslation()
@@ -194,20 +195,20 @@ function PendingContent({
                 description={option.description}
                 isSelected={selected.includes(option.label)}
                 control={<Checkbox checked={selected.includes(option.label)} className="mt-0.5" />}
-                onClick={() => onMultiSelect(option.label, !selected.includes(option.label))}
+                onClick={() => onSelect(option.label, !selected.includes(option.label))}
               />
             ))}
             <OptionItem
               label={t('agent.askUserQuestion.other', 'Other')}
               isSelected={hasCustomInput}
               control={<Checkbox checked={hasCustomInput} className="mt-0.5" />}
-              onClick={() => onMultiSelect(OTHER_OPTION_VALUE, !hasCustomInput)}
+              onClick={() => onSelect(OTHER_OPTION_VALUE, !hasCustomInput)}
             />
           </>
         ) : (
           <Radio.Group
             value={hasCustomInput ? OTHER_OPTION_VALUE : selected[0]}
-            onChange={(e) => onSingleSelect(e.target.value)}
+            onChange={(e) => onSelect(e.target.value)}
             className="w-full">
             <div className="space-y-2">
               {question.options.map((option, idx) => (
@@ -217,14 +218,14 @@ function PendingContent({
                   description={option.description}
                   isSelected={selected.includes(option.label)}
                   control={<Radio value={option.label} className="mt-0.5" />}
-                  onClick={() => onSingleSelect(option.label)}
+                  onClick={() => onSelect(option.label)}
                 />
               ))}
               <OptionItem
                 label={t('agent.askUserQuestion.other', 'Other')}
                 isSelected={hasCustomInput}
                 control={<Radio value={OTHER_OPTION_VALUE} className="mt-0.5" />}
-                onClick={() => onSingleSelect(OTHER_OPTION_VALUE)}
+                onClick={() => onSelect(OTHER_OPTION_VALUE)}
               />
             </div>
           </Radio.Group>
@@ -294,30 +295,33 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     })
   }, [questions, selectedAnswers, customInputs, showCustomInput])
 
-  const handleSingleSelect = useCallback((questionText: string, label: string) => {
-    if (label === OTHER_OPTION_VALUE) {
-      setShowCustomInput((prev) => ({ ...prev, [questionText]: true }))
-      setSelectedAnswers((prev) => ({ ...prev, [questionText]: [] }))
-    } else {
-      setShowCustomInput((prev) => ({ ...prev, [questionText]: false }))
-      setSelectedAnswers((prev) => ({ ...prev, [questionText]: [label] }))
-      setCustomInputs((prev) => ({ ...prev, [questionText]: '' }))
-    }
-  }, [])
+  const handleSelect = useCallback(
+    (questionText: string, label: string, checked?: boolean) => {
+      const isMulti = questions.find((q) => q.question === questionText)?.multiSelect
 
-  const handleMultiSelect = useCallback((questionText: string, label: string, checked: boolean) => {
-    if (label === OTHER_OPTION_VALUE) {
-      setShowCustomInput((prev) => ({ ...prev, [questionText]: checked }))
-      if (!checked) setCustomInputs((prev) => ({ ...prev, [questionText]: '' }))
-    } else {
-      setSelectedAnswers((prev) => {
-        const current = prev[questionText] ?? []
-        return checked
-          ? { ...prev, [questionText]: [...current, label] }
-          : { ...prev, [questionText]: current.filter((l) => l !== label) }
-      })
-    }
-  }, [])
+      if (label === OTHER_OPTION_VALUE) {
+        const showOther = checked ?? true
+        setShowCustomInput((prev) => ({ ...prev, [questionText]: showOther }))
+        if (!showOther) setCustomInputs((prev) => ({ ...prev, [questionText]: '' }))
+        if (!isMulti) setSelectedAnswers((prev) => ({ ...prev, [questionText]: [] }))
+        return
+      }
+
+      if (isMulti) {
+        setSelectedAnswers((prev) => {
+          const current = prev[questionText] ?? []
+          return checked
+            ? { ...prev, [questionText]: [...current, label] }
+            : { ...prev, [questionText]: current.filter((l) => l !== label) }
+        })
+      } else {
+        setShowCustomInput((prev) => ({ ...prev, [questionText]: false }))
+        setSelectedAnswers((prev) => ({ ...prev, [questionText]: [label] }))
+        setCustomInputs((prev) => ({ ...prev, [questionText]: '' }))
+      }
+    },
+    [questions]
+  )
 
   const handlePrevious = useCallback(() => {
     if (!isFirstQuestion) setCurrentIndex((prev) => prev - 1)
@@ -400,8 +404,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
             hasCustomInput={showCustomInput[currentQuestion.question] ?? false}
             customInputValue={customInputs[currentQuestion.question] ?? ''}
             isAnswered={isCurrentAnswered}
-            onSingleSelect={(label) => handleSingleSelect(currentQuestion.question, label)}
-            onMultiSelect={(label, checked) => handleMultiSelect(currentQuestion.question, label, checked)}
+            onSelect={(label, checked) => handleSelect(currentQuestion.question, label, checked)}
             onCustomInputChange={(value) => setCustomInputs((prev) => ({ ...prev, [currentQuestion.question]: value }))}
           />
         ) : (
