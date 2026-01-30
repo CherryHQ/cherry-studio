@@ -260,7 +260,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   const isPending = toolResponse.status === 'pending' && !!request
 
   const questionInput: AskUserQuestionToolInput | undefined = isPending
-    ? parseAskUserQuestionToolInput(request?.input)
+    ? parseAskUserQuestionToolInput(request.input)
     : parseAskUserQuestionToolInput(toolResponse.arguments)
 
   const questions = useMemo(() => questionInput?.questions ?? [], [questionInput?.questions])
@@ -334,26 +334,26 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   const handleSubmit = useCallback(async () => {
     if (!request) return
 
-    const answers: Record<string, string> = {}
+    const collectedAnswers: Record<string, string> = {}
     for (const q of questions) {
       const selected = selectedAnswers[q.question] ?? []
       const custom = customInputs[q.question]?.trim()
 
       if (showCustomInput[q.question] && custom) {
-        answers[q.question] = q.multiSelect && selected.length > 0 ? [...selected, custom].join(', ') : custom
+        collectedAnswers[q.question] = q.multiSelect && selected.length > 0 ? [...selected, custom].join(', ') : custom
       } else if (selected.length > 0) {
-        answers[q.question] = selected.join(', ')
+        collectedAnswers[q.question] = selected.join(', ')
       }
     }
 
-    setSubmittedAnswers(answers)
+    setSubmittedAnswers(collectedAnswers)
     dispatch(toolPermissionsActions.submissionSent({ requestId: request.requestId, behavior: 'allow' }))
 
     try {
       const response = await window.api.agentTools.respondToPermission({
         requestId: request.requestId,
         behavior: 'allow' as const,
-        updatedInput: { ...request.input, answers }
+        updatedInput: { ...request.input, answers: collectedAnswers }
       })
 
       if (!response?.success) throw new Error('Response rejected by main process')
@@ -382,6 +382,45 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   }
 
   const answeredCount = Object.keys(displayAnswers).length
+
+  const submitButton = (
+    <Button
+      type="primary"
+      icon={<Send size={16} />}
+      loading={isSubmitting}
+      disabled={!allAnswered || isSubmitting}
+      onClick={handleSubmit}>
+      {t('agent.askUserQuestion.submit', 'Submit')}
+    </Button>
+  )
+
+  function renderRightButton(): ReactNode {
+    if (isPending && isLastQuestion) {
+      return submitButton
+    }
+    if (isPending) {
+      return (
+        <Button
+          type="primary"
+          disabled={!isCurrentAnswered}
+          onClick={handleNext}
+          iconPosition="end"
+          icon={<ChevronRight size={16} />}>
+          {t('agent.askUserQuestion.next', 'Next')}
+        </Button>
+      )
+    }
+    return (
+      <Button
+        disabled={isLastQuestion}
+        onClick={handleNext}
+        className="flex items-center"
+        iconPosition="end"
+        icon={<ChevronRight size={16} />}>
+        {t('agent.askUserQuestion.next', 'Next')}
+      </Button>
+    )
+  }
 
   return (
     <div className="w-full max-w-xl rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
@@ -412,54 +451,11 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
         )}
 
         {totalQuestions > 1 && (
-          <Navigation
-            isFirst={isFirstQuestion}
-            onPrevious={handlePrevious}
-            rightButton={
-              isPending && isLastQuestion ? (
-                <Button
-                  type="primary"
-                  icon={<Send size={16} />}
-                  loading={isSubmitting}
-                  disabled={!allAnswered || isSubmitting}
-                  onClick={handleSubmit}>
-                  {t('agent.askUserQuestion.submit', 'Submit')}
-                </Button>
-              ) : isPending ? (
-                <Button
-                  type="primary"
-                  disabled={!isCurrentAnswered}
-                  onClick={handleNext}
-                  iconPosition="end"
-                  icon={<ChevronRight size={16} />}>
-                  {t('agent.askUserQuestion.next', 'Next')}
-                </Button>
-              ) : (
-                <Button
-                  disabled={isLastQuestion}
-                  onClick={handleNext}
-                  className="flex items-center"
-                  iconPosition="end"
-                  icon={<ChevronRight size={16} />}>
-                  {t('agent.askUserQuestion.next', 'Next')}
-                </Button>
-              )
-            }
-          />
+          <Navigation isFirst={isFirstQuestion} onPrevious={handlePrevious} rightButton={renderRightButton()} />
         )}
 
-        {/* Single question submit button */}
         {totalQuestions === 1 && isPending && (
-          <div className="flex justify-end border-default-200 border-t pt-3">
-            <Button
-              type="primary"
-              icon={<Send size={16} />}
-              loading={isSubmitting}
-              disabled={!allAnswered || isSubmitting}
-              onClick={handleSubmit}>
-              {t('agent.askUserQuestion.submit', 'Submit')}
-            </Button>
-          </div>
+          <div className="flex justify-end border-default-200 border-t pt-3">{submitButton}</div>
         )}
       </div>
     </div>
