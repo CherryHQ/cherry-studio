@@ -158,6 +158,8 @@ export enum IpcChannel {
   KnowledgeBase_Search = 'knowledge-base:search',
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
   KnowledgeBase_Check_Quota = 'knowledge-base:check-quota',
+  KnowledgeBase_IngestRequest = 'knowledge-base:ingest-request',
+  KnowledgeBase_TriggerQueueCheck = 'knowledge-base:trigger-queue-check',
 
   //file
   File_Open = 'file:open',
