@@ -4727,6 +4727,7 @@
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 v1 版本"
         }
       },
+      "balance": "[to be translated]:Balance",
       "basic_auth": {
         "label": "HTTP 认证",
         "password": {
@@ -4802,10 +4803,25 @@
         "title": "模型备注"
       },
       "oauth": {
+        "balance": "余额",
         "button": "使用 {{provider}} 账号登录",
+        "cherryIn": {
+          "description": "使用 OAuth 2.0 登录 CherryIN",
+          "logged_in": "已通过 OAuth 登录",
+          "login_button": "OAuth 登录",
+          "logout_button": "退出登录",
+          "title": "OAuth 登录"
+        },
         "description": "本服务由 <website>{{provider}}</website> 提供",
         "error": "认证失败",
-        "official_website": "官方网站"
+        "logged_in": "已登录",
+        "logout": "退出登录",
+        "logout_confirm": "确定要退出登录吗？",
+        "logout_success": "已成功退出登录",
+        "official_website": "官方网站",
+        "requests": "请求数",
+        "topup": "充值",
+        "usage_title": "用量"
       },
       "openai": {
         "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"

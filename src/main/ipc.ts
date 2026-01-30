@@ -42,6 +42,7 @@ import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
+import CherryINOAuthService from './services/CherryINOAuthService'
 import { codeToolsService } from './services/CodeToolsService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
@@ -840,6 +841,14 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Copilot_GetToken, CopilotService.getToken.bind(CopilotService))
   ipcMain.handle(IpcChannel.Copilot_Logout, CopilotService.logout.bind(CopilotService))
   ipcMain.handle(IpcChannel.Copilot_GetUser, CopilotService.getUser.bind(CopilotService))
+
+  // CherryIN OAuth
+  ipcMain.handle(IpcChannel.CherryIN_SaveToken, CherryINOAuthService.saveToken.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_HasToken, CherryINOAuthService.hasToken.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_GetBalance, CherryINOAuthService.getBalance.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_GetUsage, CherryINOAuthService.getUsage.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_GetUserInfo, CherryINOAuthService.getUserInfo.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_Logout, CherryINOAuthService.logout.bind(CherryINOAuthService))
 
   // Obsidian service
   ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
