@@ -10,14 +10,12 @@ import { useAppDispatch, useAppStore } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
 import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import {
   type ToolPermissionRequestPayload,
   type ToolPermissionResultPayload,
   toolPermissionsActions
 } from '@renderer/store/toolPermissions'
-import { MessageBlockType } from '@renderer/types/newMessage'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
@@ -229,20 +227,6 @@ export function useAppInit() {
         reason: payload.reason
       })
       dispatch(toolPermissionsActions.requestResolved(payload))
-
-      if (payload.behavior === 'allow' && payload.updatedInput && payload.toolCallId) {
-        const state = store.getState()
-        const allBlocks = messageBlocksSelectors.selectAll(state)
-
-        const targetBlock = allBlocks.find((block) => {
-          if (block.type !== MessageBlockType.TOOL) return false
-          return block.metadata?.rawMcpToolResponse?.toolCallId === payload.toolCallId
-        })
-
-        if (!targetBlock) {
-          logger.warn('Target block not found for toolCallId', { toolCallId: payload.toolCallId })
-        }
-      }
 
       if (payload.behavior === 'deny') {
         const message =

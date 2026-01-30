@@ -14,6 +14,17 @@ const logger = loggerService.withContext('ToolCallbacks')
 
 type ToolResponse = MCPToolResponse | NormalToolResponse
 
+/**
+ * Safely converts a value to a plain object if it is one, otherwise returns null.
+ * Used to filter out arrays and non-object values when merging arguments.
+ */
+function toPlainObject(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  return null
+}
+
 interface ToolCallbacksDependencies {
   blockManager: BlockManager
   assistantMsgId: string
@@ -121,21 +132,12 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         const existingBlock = state.messageBlocks.entities[existingBlockId] as ToolMessageBlock | undefined
         const resolvedInput = state.toolPermissions.resolvedInputs[toolResponse.id]
 
-        const existingResponse = existingBlock?.metadata?.rawMcpToolResponse as
-          | MCPToolResponse
-          | NormalToolResponse
-          | undefined
+        const existingResponse = existingBlock?.metadata?.rawMcpToolResponse
         const mergedArguments = Object.assign(
           {},
-          resolvedInput && typeof resolvedInput === 'object' && !Array.isArray(resolvedInput) ? resolvedInput : null,
-          existingResponse?.arguments &&
-            typeof existingResponse.arguments === 'object' &&
-            !Array.isArray(existingResponse.arguments)
-            ? existingResponse.arguments
-            : null,
-          toolResponse.arguments && typeof toolResponse.arguments === 'object' && !Array.isArray(toolResponse.arguments)
-            ? toolResponse.arguments
-            : null
+          toPlainObject(resolvedInput),
+          toPlainObject(existingResponse?.arguments),
+          toPlainObject(toolResponse.arguments)
         )
 
         const mergedToolResponse: MCPToolResponse | NormalToolResponse = {
