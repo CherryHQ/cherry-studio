@@ -10,8 +10,9 @@ import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import type { Span, SpanContext, Tracer } from '@opentelemetry/api'
 import { context as otelContext, trace } from '@opentelemetry/api'
-import { currentSpan } from '@renderer/services/SpanManagerService'
+import { currentEntity, currentSpan } from '@renderer/services/SpanManagerService'
 import { webTraceService } from '@renderer/services/WebTraceService'
+import type { ModelSpanEntity } from '@renderer/trace/types/ModelSpanEntity'
 import type { Assistant } from '@renderer/types'
 import type { WebTraceContext } from '@renderer/types/trace'
 
@@ -34,11 +35,15 @@ class AdapterTracer {
   private traceContext?: WebTraceContext
   private parentSpanContext?: SpanContext
   private cachedSpanContext: SpanContext[] = []
+  private spanEntity: ModelSpanEntity | undefined
 
   constructor(originalTracer: Tracer, traceContext?: WebTraceContext, parentSpanContext?: SpanContext) {
     this.originalTracer = originalTracer
     this.traceContext = traceContext
     this.parentSpanContext = parentSpanContext
+    if (traceContext) {
+      this.spanEntity = currentEntity(traceContext.topicId, traceContext.modelName, traceContext.assistantMsgId)
+    }
 
     logger.debug('AdapterTracer created with parent context info', {
       ...traceContext,
@@ -72,10 +77,12 @@ class AdapterTracer {
           passedSpan.setAttribute('trace.topicId', this.traceContext.topicId)
         }
 
+        this.spanEntity?.addSpan(passedSpan)
         this.parentSpanContext = span.spanContext()
         // 包装span的end方法
         const originalEnd = span.end.bind(span)
         span.end = (endTime?: any) => {
+          this.spanEntity?.removeSpan(span)
           logger.debug('AI SDK span.end() called in startActiveSpan - about to convert span', {
             spanName: name,
             spanId: span.spanContext().spanId,
@@ -152,17 +159,26 @@ class AdapterTracer {
     // 根据参数数量确定调用方式，注入包含mainTraceId的上下文
     if (typeof arg2 === 'function') {
       return this.originalTracer.startActiveSpan(name, {}, createContextWithParent(), (span: Span) => {
-        return wrapFunction(arg2, span)(span)
+        logger.info('startSpan ', span['name'])
+        const ret = wrapFunction(arg2, span)(span)
+        logger.info('endSpan ', span['name'])
+        return ret
       })
     } else if (typeof arg3 === 'function') {
       return this.originalTracer.startActiveSpan(name, arg2, createContextWithParent(), (span: Span) => {
-        return wrapFunction(arg3, span)(span)
+        logger.info('startSpan ', span['name'])
+        const ret = wrapFunction(arg3, span)(span)
+        logger.info('endSpan ', span['name'])
+        return ret
       })
     } else if (typeof arg4 === 'function') {
       // 如果调用方提供了 context，则保留以维护嵌套关系；否则回退到父上下文
       const ctx = arg3 ?? createContextWithParent()
       return this.originalTracer.startActiveSpan(name, arg2, ctx, (span: Span) => {
-        return wrapFunction(arg4, span)(span)
+        logger.info('startSpan ', span['name'])
+        const ret = wrapFunction(arg4, span)(span)
+        logger.info('endSpan ', span['name'])
+        return ret
       })
     } else {
       throw new Error('Invalid arguments for startActiveSpan')
