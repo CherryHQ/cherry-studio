@@ -33,7 +33,10 @@ vi.mock('@renderer/components/Icons', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
-  Check: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />
+  Check: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />,
+  CheckIcon: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />,
+  CircleXIcon: () => <span>error</span>,
+  AlertTriangleIcon: () => <span>alert</span>
 }))
 
 vi.mock('react-i18next', () => ({
@@ -42,9 +45,9 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('antd', () => ({
-  Tooltip: ({ children, title }: any) => (
-    <div data-testid="tooltip" title={title}>
+vi.mock('@cherrystudio/ui', () => ({
+  Tooltip: ({ children, title, content }: any) => (
+    <div data-testid="tooltip" title={content || title}>
       {children}
     </div>
   )

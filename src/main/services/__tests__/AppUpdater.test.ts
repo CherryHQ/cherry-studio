@@ -12,15 +12,11 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../ConfigManager', () => ({
-  configManager: {
-    getLanguage: vi.fn(),
-    getAutoUpdate: vi.fn(() => false),
-    getTestPlan: vi.fn(() => false),
-    getTestChannel: vi.fn(),
-    getClientId: vi.fn(() => 'test-client-id')
-  }
-}))
+// Mock PreferenceService using the existing mock
+vi.mock('@data/PreferenceService', async () => {
+  const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
+  return MockMainPreferenceServiceExport
+})
 
 vi.mock('../WindowService', () => ({
   windowService: {
@@ -36,7 +32,7 @@ vi.mock('@main/utils/ipService', () => ({
   getIpCountry: vi.fn(() => 'US')
 }))
 
-vi.mock('@main/utils/locales', () => ({
+vi.mock('@main/utils/language', () => ({
   locales: {
     en: { translation: { update: {} } },
     'zh-CN': { translation: { update: {} } }
@@ -44,7 +40,8 @@ vi.mock('@main/utils/locales', () => ({
 }))
 
 vi.mock('@main/utils/systemInfo', () => ({
-  generateUserAgent: vi.fn(() => 'test-user-agent')
+  generateUserAgent: vi.fn(() => 'test-user-agent'),
+  getClientId: vi.fn(() => 'test-client-id')
 }))
 
 vi.mock('electron', () => ({
@@ -85,17 +82,26 @@ vi.mock('electron-updater', () => ({
 }))
 
 // Import after mocks
+import { preferenceService } from '@data/PreferenceService'
 import { UpdateMirror } from '@shared/config/constant'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app, net } from 'electron'
 
 import AppUpdater from '../AppUpdater'
-import { configManager } from '../ConfigManager'
+
+// Mock clientId for ConfigManager since it's not migrated yet
+vi.mock('../ConfigManager', () => ({
+  configManager: {
+    getClientId: vi.fn(() => 'test-client-id')
+  }
+}))
 
 describe('AppUpdater', () => {
   let appUpdater: AppUpdater
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockMainPreferenceServiceUtils.resetMocks()
     appUpdater = new AppUpdater()
   })
 
@@ -117,7 +123,7 @@ describe('AppUpdater', () => {
 <!--LANG:END-->`
 
     it('should return Chinese notes for zh-CN users', () => {
-      vi.mocked(configManager.getLanguage).mockReturnValue('zh-CN')
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
 
       const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
 
@@ -127,7 +133,7 @@ describe('AppUpdater', () => {
     })
 
     it('should return Chinese notes for zh-TW users', () => {
-      vi.mocked(configManager.getLanguage).mockReturnValue('zh-TW')
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-TW')
 
       const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
 
@@ -137,7 +143,7 @@ describe('AppUpdater', () => {
     })
 
     it('should return English notes for non-Chinese users', () => {
-      vi.mocked(configManager.getLanguage).mockReturnValue('en-US')
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
 
       const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
 
@@ -147,7 +153,7 @@ describe('AppUpdater', () => {
     })
 
     it('should return English notes for other language users', () => {
-      vi.mocked(configManager.getLanguage).mockReturnValue('ru-RU')
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ru-RU')
 
       const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
 
@@ -165,7 +171,7 @@ describe('AppUpdater', () => {
 
     it('should handle malformed markers', () => {
       const malformedNotes = `<!--LANG:en-->English only`
-      vi.mocked(configManager.getLanguage).mockReturnValue('zh-CN')
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
 
       const result = (appUpdater as any).parseMultiLangReleaseNotes(malformedNotes)
 
@@ -181,12 +187,15 @@ describe('AppUpdater', () => {
     })
 
     it('should handle errors gracefully', () => {
-      // Force an error by mocking configManager to throw
-      vi.mocked(configManager.getLanguage).mockImplementation(() => {
+      // Create a fresh instance for this test to avoid issues with constructor mocking
+      const testAppUpdater = new AppUpdater()
+
+      // Force an error by mocking preferenceService to throw
+      vi.mocked(preferenceService.get).mockImplementationOnce(() => {
         throw new Error('Test error')
       })
 
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
+      const result = (testAppUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
 
       // Should return original notes as fallback
       expect(result).toBe(sampleReleaseNotes)
@@ -213,7 +222,7 @@ describe('AppUpdater', () => {
 
   describe('processReleaseInfo', () => {
     it('should process multi-language release notes in string format', () => {
-      vi.mocked(configManager.getLanguage).mockReturnValue('zh-CN')
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
 
       const releaseInfo = {
         version: '1.0.0',

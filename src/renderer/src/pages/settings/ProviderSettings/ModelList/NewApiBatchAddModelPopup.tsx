@@ -1,3 +1,5 @@
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { isNotSupportTextDeltaModel } from '@renderer/config/models'
@@ -5,7 +7,7 @@ import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import type { FormProps } from 'antd'
-import { Button, Flex, Form, Modal, Select } from 'antd'
+import { Form, Modal, Select } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -76,7 +78,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
         labelAlign="left"
         colon={false}
-        style={{ marginTop: 25 }}
+        className="mt-[25px]"
         onFinish={onFinish}
         initialValues={{
           endpointType: 'openai'
@@ -94,11 +96,9 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
             ))}
           </Select>
         </Form.Item>
-        <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
-          <Flex justify="end" align="center" style={{ position: 'relative' }}>
-            <Button type="primary" htmlType="submit" size="middle">
-              {t('settings.models.add.add_model')}
-            </Button>
+        <Form.Item className="mb-2 text-center">
+          <Flex className="relative items-center justify-end">
+            <Button type="submit">{t('settings.models.add.add_model')}</Button>
           </Flex>
         </Form.Item>
       </Form>

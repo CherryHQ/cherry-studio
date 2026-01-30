@@ -1,8 +1,6 @@
+import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
 import { Menu } from 'electron'
-
-import { locales } from '../utils/locales'
-import { configManager } from './ConfigManager'
 
 class ContextMenu {
   public contextMenu(w: Electron.WebContents) {
@@ -28,8 +26,8 @@ class ContextMenu {
   }
 
   private createInspectMenuItems(w: Electron.WebContents): MenuItemConstructorOptions[] {
-    const locale = locales[configManager.getLanguage()]
-    const { common } = locale.translation
+    const i18n = getI18n()
+    const { common } = i18n.translation
     const template: MenuItemConstructorOptions[] = [
       {
         id: 'inspect',
@@ -45,8 +43,8 @@ class ContextMenu {
   }
 
   private createEditMenuItems(properties: Electron.ContextMenuParams): MenuItemConstructorOptions[] {
-    const locale = locales[configManager.getLanguage()]
-    const { common } = locale.translation
+    const i18n = getI18n()
+    const { common } = i18n.translation
     const hasText = properties.selectionText.trim().length > 0
     const can = (type: string) => properties.editFlags[`can${type}`] && hasText
 

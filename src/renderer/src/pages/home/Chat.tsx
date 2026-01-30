@@ -1,15 +1,16 @@
+import { RowFlex } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
-import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -45,15 +46,18 @@ interface Props {
 const Chat: FC<Props> = (props) => {
   const { assistant, updateTopic } = useAssistant(props.assistant.id)
   const { t } = useTranslation()
-  const { topicPosition, messageStyle, messageNavigation } = useSettings()
+  const [topicPosition] = usePreference('topic.position')
+  const [messageStyle] = usePreference('chat.message.style')
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
+  const [apiServerEnabled] = usePreference('feature.csaas.enabled')
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
-  const { isTopNavbar } = useNavbarPosition()
+  const [isTopNavbar] = usePreference('ui.navbar.position')
   const chatMaxWidth = useChatMaxWidth()
-  const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId, activeSessionIdMap } = chat
+  const [activeAgentId] = useCache('agent.active_id')
+  const [activeTopicOrSession] = useCache('chat.active_view')
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
-  const { apiServer } = useSettings()
   const sessionAgentId = activeTopicOrSession === 'session' ? activeAgentId : null
   const { createDefaultSession } = useCreateDefaultSession(sessionAgentId)
 
@@ -177,7 +181,7 @@ const Chat: FC<Props> = (props) => {
 
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
-      <HStack>
+      <RowFlex>
         <motion.div
           animate={{
             marginRight:
@@ -228,7 +232,7 @@ const Chat: FC<Props> = (props) => {
                 {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
                 {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
                   <>
-                    {!apiServer.enabled ? (
+                    {!apiServerEnabled ? (
                       <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
                     ) : (
                       <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
@@ -268,14 +272,15 @@ const Chat: FC<Props> = (props) => {
             </motion.div>
           )}
         </AnimatePresence>
-      </HStack>
+      </RowFlex>
     </Container>
   )
 }
 
 export const useChatMaxWidth = () => {
   const { showTopics, topicPosition } = useSettings()
-  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
+  const [isLeftNavbar] = usePreference('ui.navbar.position')
+  const [isTopNavbar] = usePreference('ui.navbar.position')
   const { showAssistants } = useShowAssistants()
   const showRightTopics = showTopics && topicPosition === 'right'
   const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''

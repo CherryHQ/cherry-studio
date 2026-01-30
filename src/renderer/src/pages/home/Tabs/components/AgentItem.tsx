@@ -1,5 +1,5 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import { useSettings } from '@renderer/hooks/useSettings'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -23,7 +23,9 @@ interface AgentItemProps {
 
 const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
   const { t } = useTranslation()
-  const { clickAssistantToShowTopic, topicPosition, assistantIconType } = useSettings()
+  const [topicPosition] = usePreference('topic.position')
+  const [clickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
+  const [assistantIconType] = usePreference('assistant.icon_type')
   const [isHovered, setIsHovered] = useState(false)
 
   const handlePress = useCallback(() => {

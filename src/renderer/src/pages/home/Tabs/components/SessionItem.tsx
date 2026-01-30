@@ -1,9 +1,10 @@
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
@@ -14,7 +15,7 @@ import type { AgentSessionEntity, Assistant } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MenuProps } from 'antd'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown } from 'antd'
 import { MenuIcon, Sparkles, XIcon } from 'lucide-react'
 import type { FC } from 'react'
 import React, { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
@@ -33,9 +34,9 @@ interface SessionItemProps {
 
 const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress }) => {
   const { t } = useTranslation()
-  const { chat } = useRuntime()
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const { updateSession } = useUpdateSession(agentId)
-  const activeSessionId = chat.activeSessionIdMap[agentId]
+  const activeSessionId = activeSessionIdMap[agentId]
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const [_targetSession, setTargetSession] = useState<AgentSessionEntity>(session)
@@ -54,9 +55,9 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     return (
       <Tooltip
         placement="bottom"
-        mouseEnterDelay={0.7}
-        mouseLeaveDelay={0}
-        title={
+        delay={700}
+        closeDelay={0}
+        content={
           <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
             {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
           </div>
@@ -103,7 +104,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     }
   }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
 
-  const { topicPosition, setTopicPosition } = useSettings()
+  const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const singlealone = topicPosition === 'right'
 
   const menuItems: MenuProps['items'] = useMemo(

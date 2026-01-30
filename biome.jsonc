@@ -23,7 +23,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/.claude/**", "!**/.vscode/**", "!**/.conductor/**"],
+    "includes": ["**", "!**/.claude/**", "!**/.vscode/**", "!**/.conductor/**", "!v2-refactor-temp/**"],
     "maxSize": 2097152
   },
   "formatter": {
@@ -42,6 +42,7 @@
       "!.github/**",
       "!.husky/**",
       "!.vscode/**",
+      "!.claude/**",
       "!*.yaml",
       "!*.yml",
       "!*.mjs",
@@ -51,7 +52,9 @@
       "!src/main/integration/**",
       "!**/tailwind.css",
       "!**/package.json",
-      "!.zed/**"
+      "!src/renderer/src/routeTree.gen.ts",
+      "!.zed/**",
+      "!v2-refactor-temp/**"
     ],
     "indentStyle": "space",
     "indentWidth": 2,
@@ -81,7 +84,12 @@
   },
   "linter": {
     "enabled": true,
-    "includes": ["!**/tailwind.css", "src/renderer/**/*.{tsx,ts}"],
+    "includes": [
+      "!**/tailwind.css",
+      "!src/renderer/src/routeTree.gen.ts",
+      "!v2-refactor-temp/**",
+      "src/renderer/**/*.{tsx,ts}"
+    ],
     // only enable sorted tailwind css rule. used as formatter instead of linter
     "rules": {
       "nursery": {

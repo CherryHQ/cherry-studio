@@ -207,11 +207,11 @@ export enum UpdateConfigUrl {
   GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
 }
 
-export enum UpgradeChannel {
-  LATEST = 'latest', // 最新稳定版本
-  RC = 'rc', // 公测版本
-  BETA = 'beta' // 预览版本
-}
+// export enum UpgradeChannel {
+//   LATEST = 'latest', // 最新稳定版本
+//   RC = 'rc', // 公测版本
+//   BETA = 'beta' // 预览版本
+// }
 
 export enum UpdateMirror {
   GITHUB = 'github',
