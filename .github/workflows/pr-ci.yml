@@ -59,5 +59,8 @@ jobs:
       - name: i18n Check
         run: pnpm i18n:check
 
+      - name: Hardcoded Strings Check
+        run: pnpm i18n:hardcoded:strict
+
       - name: Test
         run: pnpm test

@@ -1,6 +1,6 @@
 export const ASPECT_RATIOS = [
   {
-    label: 'paintings.aspect_ratios.square',
+    labelKey: 'paintings.aspect_ratios.square',
     options: [
       {
         label: '1:1',
@@ -9,7 +9,7 @@ export const ASPECT_RATIOS = [
     ]
   },
   {
-    label: 'paintings.aspect_ratios.landscape',
+    labelKey: 'paintings.aspect_ratios.landscape',
     options: [
       {
         label: '1:2',
@@ -42,7 +42,7 @@ export const ASPECT_RATIOS = [
     ]
   },
   {
-    label: 'paintings.aspect_ratios.landscape',
+    labelKey: 'paintings.aspect_ratios.landscape',
     options: [
       {
         label: '2:1',
@@ -78,28 +78,28 @@ export const ASPECT_RATIOS = [
 
 export const STYLE_TYPES = [
   {
-    label: 'paintings.style_types.auto',
+    labelKey: 'paintings.style_types.auto',
     value: 'AUTO'
   },
   {
-    label: 'paintings.style_types.general',
+    labelKey: 'paintings.style_types.general',
     value: 'GENERAL'
   },
   {
-    label: 'paintings.style_types.realistic',
+    labelKey: 'paintings.style_types.realistic',
     value: 'REALISTIC'
   },
   {
-    label: 'paintings.style_types.design',
+    labelKey: 'paintings.style_types.design',
     value: 'DESIGN'
   },
   {
-    label: 'paintings.style_types.3d',
+    labelKey: 'paintings.style_types.3d',
     value: 'RENDER_3D',
     onlyV2: true // 仅V2模型支持
   },
   {
-    label: 'paintings.style_types.anime',
+    labelKey: 'paintings.style_types.anime',
     value: 'ANIME',
     onlyV2: true // 仅V2模型支持
   }
@@ -111,39 +111,39 @@ export const V3_STYLE_TYPES = STYLE_TYPES.filter((style) => !style.onlyV2)
 // 新增V3渲染速度选项
 export const RENDERING_SPEED_OPTIONS = [
   {
-    label: 'paintings.rendering_speeds.default',
+    labelKey: 'paintings.rendering_speeds.default',
     value: 'DEFAULT'
   },
   {
-    label: 'paintings.rendering_speeds.turbo',
+    labelKey: 'paintings.rendering_speeds.turbo',
     value: 'TURBO'
   },
   {
-    label: 'paintings.rendering_speeds.quality',
+    labelKey: 'paintings.rendering_speeds.quality',
     value: 'QUALITY'
   }
 ]
 
 export const QUALITY_OPTIONS = [
-  { label: 'paintings.quality_options.auto', value: 'auto' },
-  { label: 'paintings.quality_options.low', value: 'low' },
-  { label: 'paintings.quality_options.medium', value: 'medium' },
-  { label: 'paintings.quality_options.high', value: 'high' }
+  { labelKey: 'paintings.quality_options.auto', value: 'auto' },
+  { labelKey: 'paintings.quality_options.low', value: 'low' },
+  { labelKey: 'paintings.quality_options.medium', value: 'medium' },
+  { labelKey: 'paintings.quality_options.high', value: 'high' }
 ]
 
 export const MODERATION_OPTIONS = [
-  { label: 'paintings.moderation_options.auto', value: 'auto' },
-  { label: 'paintings.moderation_options.low', value: 'low' }
+  { labelKey: 'paintings.moderation_options.auto', value: 'auto' },
+  { labelKey: 'paintings.moderation_options.low', value: 'low' }
 ]
 
 export const BACKGROUND_OPTIONS = [
-  { label: 'paintings.background_options.auto', value: 'auto' },
-  { label: 'paintings.background_options.transparent', value: 'transparent' },
-  { label: 'paintings.background_options.opaque', value: 'opaque' }
+  { labelKey: 'paintings.background_options.auto', value: 'auto' },
+  { labelKey: 'paintings.background_options.transparent', value: 'transparent' },
+  { labelKey: 'paintings.background_options.opaque', value: 'opaque' }
 ]
 
 export const PERSON_GENERATION_OPTIONS = [
-  { label: 'paintings.person_generation_options.allow_all', value: 'ALLOW_ALL' },
-  { label: 'paintings.person_generation_options.allow_adult', value: 'ALLOW_ADULT' },
-  { label: 'paintings.person_generation_options.allow_none', value: 'DONT_ALLOW' }
+  { labelKey: 'paintings.person_generation_options.allow_all', value: 'ALLOW_ALL' },
+  { labelKey: 'paintings.person_generation_options.allow_adult', value: 'ALLOW_ADULT' },
+  { labelKey: 'paintings.person_generation_options.allow_none', value: 'DONT_ALLOW' }
 ]

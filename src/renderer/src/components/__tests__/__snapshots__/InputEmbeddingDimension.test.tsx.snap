@@ -16,7 +16,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
     data-testid="tooltip"
   >
     <button
-      aria-label="Get embedding dimension"
+      aria-label="Get Embedding Dimension"
       data-testid="button"
       role="button"
       type="button"
@@ -51,7 +51,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
     data-testid="tooltip"
   >
     <button
-      aria-label="Get embedding dimension"
+      aria-label="Get Embedding Dimension"
       data-testid="button"
       disabled=""
       role="button"

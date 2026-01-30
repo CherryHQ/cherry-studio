@@ -1,7 +1,7 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { Slider } from 'antd'
@@ -31,9 +31,9 @@ const MiniAppSettings: FC = () => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleResetMinApps = useCallback(() => {
-    setVisibleMiniApps(DEFAULT_MIN_APPS)
+    setVisibleMiniApps(allMinApps)
     setDisabledMiniApps([])
-    updateMinapps(DEFAULT_MIN_APPS)
+    updateMinapps(allMinApps)
     updateDisabledMinapps([])
   }, [updateDisabledMinapps, updateMinapps])
 

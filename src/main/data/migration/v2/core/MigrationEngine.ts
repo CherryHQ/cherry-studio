@@ -21,7 +21,7 @@ import type {
 import { eq, sql } from 'drizzle-orm'
 import fs from 'fs/promises'
 
-import type { BaseMigrator } from '../migrators/BaseMigrator'
+import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
 
 // TODO: Import these tables when they are created in user data schema
@@ -113,8 +113,8 @@ export class MigrationEngine {
         this.updateProgress('migration', this.calculateProgress(i, 0), migrator)
 
         // Set up migrator progress callback
-        migrator.setProgressCallback((progress, message) => {
-          this.updateProgress('migration', this.calculateProgress(i, progress), migrator, message)
+        migrator.setProgressCallback((progress, progressMessage) => {
+          this.updateProgress('migration', this.calculateProgress(i, progress), migrator, progressMessage)
         })
 
         // Phase 1: Prepare (includes dry-run validation)
@@ -153,7 +153,7 @@ export class MigrationEngine {
         })
 
         // Update progress: migrator completed
-        this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator, 'completed')
+        this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator)
       }
 
       // Mark migration completed
@@ -288,7 +288,7 @@ export class MigrationEngine {
     stage: MigrationStage,
     overallProgress: number,
     currentMigrator: BaseMigrator,
-    message?: string
+    progressMessage?: ProgressMessage
   ): void {
     const migratorsProgress = this.migrators.map((m) => ({
       id: m.id,
@@ -296,10 +296,14 @@ export class MigrationEngine {
       status: this.getMigratorStatus(m, currentMigrator)
     }))
 
+    const defaultMessage = `Processing ${currentMigrator.name}...`
+    const defaultI18n = { key: 'migration.progress.processing', params: { name: currentMigrator.name } }
+
     this.progressCallback?.({
       stage,
       overallProgress,
-      currentMessage: message || `正在处理${currentMigrator.name}...`,
+      currentMessage: progressMessage?.message || defaultMessage,
+      i18nMessage: progressMessage?.i18nMessage || defaultI18n,
       migrators: migratorsProgress
     })
   }

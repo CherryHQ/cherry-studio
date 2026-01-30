@@ -84,7 +84,7 @@ vi.mock('@renderer/config/models', () => ({
     defaultModel: []
   },
   isOpenAIModel: vi.fn(() => false),
-  glm45FlashModel: {},
+  qwen3Next80BModel: {},
   qwen38bModel: {}
 }))
 

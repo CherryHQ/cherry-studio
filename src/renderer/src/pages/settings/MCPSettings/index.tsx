@@ -16,7 +16,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { providers } from './providers/config'
+import { getProviderDisplayName, providers } from './providers/config'
 
 const MCPSettings: FC = () => {
   const { t } = useTranslation()
@@ -95,7 +95,7 @@ const MCPSettings: FC = () => {
           {providers.map((provider) => (
             <ListItem
               key={provider.key}
-              title={provider.name}
+              title={getProviderDisplayName(provider, t)}
               active={activeView === provider.key}
               onClick={() => navigate({ to: `/settings/mcp/${provider.key}` })}
               icon={providerIcons[provider.key] || <FolderCog size={16} />}

@@ -235,7 +235,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           if (!response.ok) {
             const errorData = await response.json()
             logger.error('Gemini API Error:', errorData)
-            throw new Error(errorData.error?.message || '生成图像失败')
+            throw new Error(errorData.error?.message || t('paintings.generate_failed'))
           }
 
           const data = await response.json()
@@ -336,7 +336,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             if (!response.ok) {
               const errorData = await response.json()
               logger.error('V3 API错误:', errorData)
-              throw new Error(errorData.error?.message || '生成图像失败')
+              throw new Error(errorData.error?.message || t('paintings.generate_failed'))
             }
 
             const data = await response.json()
@@ -464,7 +464,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           if (!response.ok) {
             const errorData = await response.json()
             logger.error('V3 Remix API错误:', errorData)
-            throw new Error(errorData.error?.message || '图像混合失败')
+            throw new Error(errorData.error?.message || t('paintings.image_mix_failed'))
           }
 
           const data = await response.json()
@@ -534,7 +534,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         if (!response.ok) {
           const errorData = await response.json()
           logger.error('通用API错误:', errorData)
-          throw new Error(errorData.error?.message || '生成图像失败')
+          throw new Error(errorData.error?.message || t('paintings.generate_failed'))
         }
 
         const data = await response.json()
@@ -700,11 +700,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
             : item.options?.map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
 
         return (
@@ -724,11 +724,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
             : item.options?.map((option) => ({
                 ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+                label: option.labelKey ? t(option.labelKey) : option.label
               }))
 
         return (

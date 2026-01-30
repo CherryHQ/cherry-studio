@@ -6,6 +6,8 @@ import Doc2xPreprocessProvider from './Doc2xPreprocessProvider'
 import MineruPreprocessProvider from './MineruPreprocessProvider'
 import MistralPreprocessProvider from './MistralPreprocessProvider'
 import OpenMineruPreprocessProvider from './OpenMineruPreprocessProvider'
+import PaddleocrPreprocessProvider from './PaddleocrPreprocessProvider'
+
 export default class PreprocessProviderFactory {
   static create(provider: PreprocessProvider, userId?: string): BasePreprocessProvider {
     switch (provider.id) {
@@ -17,6 +19,8 @@ export default class PreprocessProviderFactory {
         return new MineruPreprocessProvider(provider, userId)
       case 'open-mineru':
         return new OpenMineruPreprocessProvider(provider, userId)
+      case 'paddleocr':
+        return new PaddleocrPreprocessProvider(provider, userId)
       default:
         return new DefaultPreprocessProvider(provider)
     }

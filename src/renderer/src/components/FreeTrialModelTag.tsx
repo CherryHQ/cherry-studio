@@ -3,6 +3,7 @@ import NavigationService from '@renderer/services/NavigationService'
 import type { Model } from '@renderer/types'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import IndicatorLight from './IndicatorLight'
@@ -15,18 +16,20 @@ interface Props {
 }
 
 export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
+  const { t } = useTranslation()
+
   if (model.provider !== 'cherryai') {
     return null
   }
 
   let providerId
 
-  if (model.id === 'glm-4.5-flash') {
-    providerId = 'zhipu'
+  if (model.id === 'Qwen/Qwen3-8B') {
+    providerId = 'cherryin'
   }
 
-  if (model.id === 'Qwen/Qwen3-8B') {
-    providerId = 'silicon'
+  if (model.id === 'Qwen/Qwen3-Next-80B-A3B-Instruct') {
+    providerId = 'cherryin'
   }
 
   const onSelectProvider = () => {
@@ -57,7 +60,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
   return (
     <Container>
       <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
-      <PoweredBy>Powered by </PoweredBy>
+      <PoweredBy>{t('common.powered_by')}</PoweredBy>
       <LinkText onClick={onSelectProvider}>{getProviderLabel(providerId)}</LinkText>
     </Container>
   )

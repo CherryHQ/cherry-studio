@@ -1,8 +1,9 @@
 import type { CollapseProps } from 'antd'
 import { Card } from 'antd'
-import { CheckCircle, Circle, Clock, ListTodo } from 'lucide-react'
+import { CheckCircle, Circle, Clock } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
+import { ToolHeader } from './GenericTools'
 import type { TodoItem, TodoWriteToolInput as TodoWriteToolInputType } from './types'
 import { AgentToolsType } from './types'
 
@@ -20,12 +21,6 @@ const getStatusConfig = (status: TodoItem['status']) => {
         opacity: 0.9,
         icon: <Clock className="h-4 w-4" strokeWidth={2.5} />
       }
-    case 'pending':
-      return {
-        color: 'var(--color-border)',
-        opacity: 0.4,
-        icon: <Circle className="h-4 w-4" strokeWidth={2.5} />
-      }
     default:
       return {
         color: 'var(--color-border)',
@@ -40,17 +35,19 @@ export function TodoWriteTool({
 }: {
   input?: TodoWriteToolInputType
 }): NonNullable<CollapseProps['items']>[number] {
+  const { t } = useTranslation()
   const todos = Array.isArray(input?.todos) ? input.todos : []
   const doneCount = todos.filter((todo) => todo.status === 'completed').length
 
   return {
     key: AgentToolsType.TodoWrite,
     label: (
-      <ToolTitle
-        icon={<ListTodo className="h-4 w-4" />}
-        label="Todo Write"
-        params={`${doneCount} Done`}
-        stats={`${todos.length} ${todos.length === 1 ? 'item' : 'items'}`}
+      <ToolHeader
+        toolName={AgentToolsType.TodoWrite}
+        params={`${doneCount} ${t('message.tools.status.done')}`}
+        stats={`${todos.length} ${t(todos.length === 1 ? 'message.tools.units.item' : 'message.tools.units.items')}`}
+        variant="collapse-label"
+        showStatus={false}
       />
     ),
     children: (

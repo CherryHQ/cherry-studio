@@ -3,9 +3,14 @@
  * Each migrator handles migration of a specific business domain
  */
 
-import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
+import type { ExecuteResult, I18nMessage, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 
 import type { MigrationContext } from '../core/MigrationContext'
+
+export interface ProgressMessage {
+  message: string
+  i18nMessage?: I18nMessage
+}
 
 export abstract class BaseMigrator {
   // Metadata - must be implemented by subclasses
@@ -15,22 +20,23 @@ export abstract class BaseMigrator {
   abstract readonly order: number // Execution order (lower runs first)
 
   // Progress callback for UI updates
-  protected onProgress?: (progress: number, message: string) => void
+  protected onProgress?: (progress: number, progressMessage: ProgressMessage) => void
 
   /**
    * Set progress callback for reporting progress to UI
    */
-  setProgressCallback(callback: (progress: number, message: string) => void): void {
+  setProgressCallback(callback: (progress: number, progressMessage: ProgressMessage) => void): void {
     this.onProgress = callback
   }
 
   /**
    * Report progress to UI
    * @param progress - Progress percentage (0-100)
-   * @param message - Progress message
+   * @param message - Progress message (fallback text)
+   * @param i18nMessage - Optional i18n key with params for translation
    */
-  protected reportProgress(progress: number, message: string): void {
-    this.onProgress?.(progress, message)
+  protected reportProgress(progress: number, message: string, i18nMessage?: I18nMessage): void {
+    this.onProgress?.(progress, { message, i18nMessage })
   }
 
   /**

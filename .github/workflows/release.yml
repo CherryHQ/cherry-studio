@@ -7,6 +7,16 @@ on:
         description: "Release tag (e.g. v1.0.0)"
         required: true
         default: "v1.0.0"
+      platform:
+        description: "Build platform"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - windows
+          - mac
+          - linux
   push:
     tags:
       - v*.*.*
@@ -20,7 +30,14 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: ${{ fromJSON(
+          github.event_name == 'push' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
+          github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
+          github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
+          github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
+          github.event.inputs.platform == 'mac' && '["macos-latest"]' ||
+          '["macos-latest", "windows-latest", "ubuntu-latest"]'
+          ) }}
       fail-fast: false
 
     steps:

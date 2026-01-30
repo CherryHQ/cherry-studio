@@ -1,14 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('os', () => ({
-  default: {
-    release: vi.fn(() => '10.0.0'),
-    homedir: vi.fn(() => '/home/test')
-  },
-  release: vi.fn(() => '10.0.0'),
-  homedir: vi.fn(() => '/home/test')
-}))
-
 vi.mock('node:fs', () => ({
   default: {
     existsSync: vi.fn(() => false),
@@ -104,8 +95,7 @@ vi.mock('electron', () => {
       return '/mock/unknown'
     }),
     getAppPath: vi.fn(() => '/mock/app'),
-    setPath: vi.fn(),
-    getVersion: vi.fn(() => '1.0.0')
+    setPath: vi.fn()
   }
 
   const nativeTheme = {

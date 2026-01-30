@@ -97,7 +97,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
       if (result.success) {
         setContent(editedContent)
         setIsEditing(false)
-        window.toast?.success('Plugin content saved successfully')
+        window.toast?.success(t('plugins.content_saved'))
       } else {
         window.toast?.error(`Failed to save: ${result.error.type}`)
       }
@@ -177,7 +177,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
         {/* Description */}
         {plugin.description && (
           <div className="mb-4">
-            <h3 className="mb-2 font-semibold text-small">Description</h3>
+            <h3 className="mb-2 font-semibold text-small">{t('plugins.detail.description')}</h3>
             <p className="text-default-600 text-small">{plugin.description}</p>
           </div>
         )}
@@ -185,7 +185,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
         {/* Author */}
         {plugin.author && (
           <div className="mb-4">
-            <h3 className="mb-2 font-semibold text-small">Author</h3>
+            <h3 className="mb-2 font-semibold text-small">{t('plugins.detail.author')}</h3>
             <p className="text-default-600 text-small">{plugin.author}</p>
           </div>
         )}
@@ -193,7 +193,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
         {/* Tools (for agents) */}
         {plugin.tools && plugin.tools.length > 0 && (
           <div className="mb-4">
-            <h3 className="mb-2 font-semibold text-small">Tools</h3>
+            <h3 className="mb-2 font-semibold text-small">{t('plugins.detail.tools')}</h3>
             <div className="flex flex-wrap gap-1">
               {plugin.tools.map((tool) => (
                 <Tag key={tool}>{tool}</Tag>
@@ -205,7 +205,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
         {/* Allowed Tools (for commands) */}
         {plugin.allowed_tools && plugin.allowed_tools.length > 0 && (
           <div className="mb-4">
-            <h3 className="mb-2 font-semibold text-small">Allowed Tools</h3>
+            <h3 className="mb-2 font-semibold text-small">{t('plugins.detail.allowed_tools')}</h3>
             <div className="flex flex-wrap gap-1">
               {plugin.allowed_tools.map((tool) => (
                 <Tag key={tool}>{tool}</Tag>
@@ -217,7 +217,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
         {/* Tags */}
         {plugin.tags && plugin.tags.length > 0 && (
           <div className="mb-4">
-            <h3 className="mb-2 font-semibold text-small">Tags</h3>
+            <h3 className="mb-2 font-semibold text-small">{t('plugins.detail.tags')}</h3>
             <div className="flex flex-wrap gap-1">
               {plugin.tags.map((tag) => (
                 <Tag key={tag}>{tag}</Tag>
@@ -228,23 +228,23 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
 
         {/* Metadata */}
         <div className="mb-4">
-          <h3 className="mb-2 font-semibold text-small">Metadata</h3>
+          <h3 className="mb-2 font-semibold text-small">{t('plugins.detail.metadata')}</h3>
           <div className="space-y-1 text-small">
             <div className="flex justify-between">
-              <span className="text-default-500">File:</span>
+              <span className="text-default-500">{t('plugins.detail.file')}:</span>
               <span className="font-mono text-default-600 text-tiny">{plugin.filename}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-default-500">Size:</span>
+              <span className="text-default-500">{t('plugins.detail.size')}:</span>
               <span className="text-default-600">{(plugin.size / 1024).toFixed(2)} KB</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-default-500">Source:</span>
+              <span className="text-default-500">{t('plugins.detail.source')}:</span>
               <span className="font-mono text-default-600 text-tiny">{plugin.sourcePath}</span>
             </div>
             {plugin.installedAt && (
               <div className="flex justify-between">
-                <span className="text-default-500">Installed:</span>
+                <span className="text-default-500">{t('plugins.detail.installed')}:</span>
                 <span className="text-default-600">{new Date(plugin.installedAt).toLocaleString()}</span>
               </div>
             )}
@@ -254,7 +254,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
         {/* Content */}
         <div className="mb-4">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="font-semibold text-small">Content</h3>
+            <h3 className="font-semibold text-small">{t('plugins.detail.content')}</h3>
             {installed && !contentLoading && !contentError && (
               <div className="flex gap-2">
                 {isEditing ? (

@@ -16,7 +16,7 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
-import type { MCPToolResponse } from '@renderer/types'
+import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -25,6 +25,8 @@ import { createCitationBlock, createToolBlock } from '@renderer/utils/messageUti
 import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('ToolCallbacks')
+
+type ToolResponse = MCPToolResponse | NormalToolResponse
 
 /**
  * Dependencies required for tool callbacks
@@ -46,7 +48,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
   let citationBlockId: string | null = null
 
   return {
-    onToolCallPending: (toolResponse: MCPToolResponse) => {
+    onToolCallPending: (toolResponse: ToolResponse) => {
       logger.debug('onToolCallPending', toolResponse)
 
       if (blockManager.hasInitialPlaceholder) {
@@ -75,7 +77,46 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
       }
     },
 
-    onToolCallComplete: (toolResponse: MCPToolResponse) => {
+    onToolArgumentStreaming: (toolResponse: ToolResponse) => {
+      // Find or create the tool block for streaming updates
+      let existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
+
+      if (!existingBlockId) {
+        // Create a new tool block if one doesn't exist yet
+        if (blockManager.hasInitialPlaceholder) {
+          const changes = {
+            type: MessageBlockType.TOOL,
+            status: MessageBlockStatus.PENDING,
+            toolName: toolResponse.tool.name,
+            metadata: { rawMcpToolResponse: toolResponse }
+          }
+          toolBlockId = blockManager.initialPlaceholderBlockId!
+          blockManager.smartBlockUpdate(toolBlockId, changes, MessageBlockType.TOOL)
+          toolCallIdToBlockIdMap.set(toolResponse.id, toolBlockId)
+          existingBlockId = toolBlockId
+        } else {
+          const toolBlock = createToolBlock(assistantMsgId, toolResponse.id, {
+            toolName: toolResponse.tool.name,
+            status: MessageBlockStatus.PENDING,
+            metadata: { rawMcpToolResponse: toolResponse }
+          })
+          toolBlockId = toolBlock.id
+          blockManager.handleBlockTransition(toolBlock, MessageBlockType.TOOL)
+          toolCallIdToBlockIdMap.set(toolResponse.id, toolBlock.id)
+          existingBlockId = toolBlock.id
+        }
+      }
+
+      // Update the tool block with streaming arguments
+      const changes: Partial<ToolMessageBlock> = {
+        status: MessageBlockStatus.PENDING,
+        metadata: { rawMcpToolResponse: toolResponse }
+      }
+
+      blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL)
+    },
+
+    onToolCallComplete: (toolResponse: ToolResponse) => {
       if (toolResponse?.id) {
         // Use store.dispatch for permission cleanup (outside streaming state scope)
         store.dispatch(toolPermissionsActions.removeByToolCallId({ toolCallId: toolResponse.id }))

@@ -5,6 +5,7 @@
 import { Button } from '@cherrystudio/ui'
 import type { MigrationStage } from '@shared/data/migration/v2/types'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   stage: MigrationStage
@@ -27,15 +28,17 @@ export const ActionButtons: React.FC<Props> = ({
   onRestart,
   isLoading = false
 }) => {
+  const { t } = useTranslation()
+
   switch (stage) {
     case 'introduction':
       return (
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onCancel}>
-            取消
+            {t('migration.buttons.cancel')}
           </Button>
           <Button variant="default" onClick={onProceedToBackup}>
-            下一步
+            {t('migration.buttons.next')}
           </Button>
         </div>
       )
@@ -44,10 +47,10 @@ export const ActionButtons: React.FC<Props> = ({
       return (
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onCancel}>
-            取消
+            {t('migration.buttons.cancel')}
           </Button>
           <Button variant="default" onClick={onConfirmBackup}>
-            已完成备份
+            {t('migration.buttons.backup_completed')}
           </Button>
         </div>
       )
@@ -56,10 +59,10 @@ export const ActionButtons: React.FC<Props> = ({
       return (
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onCancel}>
-            取消
+            {t('migration.buttons.cancel')}
           </Button>
           <Button variant="default" onClick={onStartMigration} loading={isLoading}>
-            开始迁移
+            {t('migration.buttons.start_migration')}
           </Button>
         </div>
       )
@@ -68,7 +71,7 @@ export const ActionButtons: React.FC<Props> = ({
       return (
         <div className="flex justify-end gap-3">
           <Button variant="default" disabled loading>
-            迁移中...
+            {t('migration.buttons.migrating')}
           </Button>
         </div>
       )
@@ -77,7 +80,7 @@ export const ActionButtons: React.FC<Props> = ({
       return (
         <div className="flex justify-end gap-3">
           <Button variant="default" onClick={onRestart} className="bg-green-600 hover:bg-green-700">
-            重启应用
+            {t('migration.buttons.restart')}
           </Button>
         </div>
       )
@@ -86,10 +89,10 @@ export const ActionButtons: React.FC<Props> = ({
       return (
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onCancel}>
-            退出
+            {t('migration.buttons.exit')}
           </Button>
           <Button variant="default" onClick={onRetry}>
-            重试
+            {t('migration.buttons.retry')}
           </Button>
         </div>
       )

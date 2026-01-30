@@ -4,7 +4,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { windowService } from '@main/services/WindowService'
 import { getFileExt, getTempDir } from '@main/utils/file'
-import type { FileMetadata, PreprocessProvider } from '@types'
+import type { FileMetadata, PreprocessProvider, PreprocessReadPdfResult } from '@types'
 import { PDFDocument } from 'pdf-lib'
 
 const logger = loggerService.withContext('BasePreprocessProvider')
@@ -90,7 +90,7 @@ export default abstract class BasePreprocessProvider {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  public async readPdf(buffer: Buffer) {
+  public async readPdf(buffer: Buffer): Promise<PreprocessReadPdfResult> {
     const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true })
     return {
       numPages: pdfDoc.getPageCount()

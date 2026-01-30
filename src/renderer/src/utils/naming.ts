@@ -74,14 +74,19 @@ export const getBaseModelName = (id: string, delimiter: string = '/'): string =>
  * @returns {string} 小写的基础名称
  */
 export const getLowerBaseModelName = (id: string, delimiter: string = '/'): string => {
-  const baseModelName = getBaseModelName(id, delimiter).toLowerCase()
+  let baseModelName = getBaseModelName(id, delimiter).toLowerCase()
+  // Remove suffix
   // for openrouter
   if (baseModelName.endsWith(':free')) {
-    return baseModelName.replace(':free', '')
+    baseModelName = baseModelName.replace(':free', '')
   }
   // for cherryin
   if (baseModelName.endsWith('(free)')) {
-    return baseModelName.replace('(free)', '')
+    baseModelName = baseModelName.replace('(free)', '')
+  }
+  // for ollama
+  if (baseModelName.endsWith(':cloud')) {
+    baseModelName = baseModelName.replace(':cloud', '')
   }
   return baseModelName
 }

@@ -6,6 +6,7 @@ import { convertToBase64 } from '@renderer/utils'
 import { Input, InputNumber, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface DynamicFormRenderProps {
   schemaProperty: any
@@ -22,6 +23,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
   value,
   onChange
 }) => {
+  const { t } = useTranslation()
   const { type, enum: enumValues, description, default: defaultValue, format } = schemaProperty
 
   const handleImageUpload = useCallback(
@@ -66,7 +68,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
             }}
             value={value || defaultValue || ''}
             onChange={(e) => onChange(propertyName, e.target.value)}
-            placeholder="Enter image URL or upload file"
+            placeholder={t('common.image_url_or_upload')}
             prefix={<LinkOutlined style={{ color: '#999' }} />}
           />
           <Upload
@@ -76,7 +78,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
               handleImageUpload(propertyName, file, onChange)
               return false
             }}>
-            <Button title="Upload image file" className="h-8 rounded-l-none">
+            <Button title={t('common.upload_image')} className="h-8 rounded-l-none">
               <UploadOutlined />
             </Button>
           </Upload>
@@ -115,13 +117,13 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'
               }}>
-              {value.startsWith('data:') ? 'Uploaded image' : 'Image URL'}
+              {value.startsWith('data:') ? t('common.uploaded_image') : t('common.image_url')}
             </div>
             <Button
               size="sm"
               variant="destructive"
               onClick={() => onChange(propertyName, '')}
-              title="Remove image"
+              title={t('common.remove_image')}
               className="min-w-0 shrink-0 px-2">
               <CloseOutlined />
             </Button>
@@ -174,7 +176,10 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           min={schemaProperty.minimum}
           max={schemaProperty.maximum}
         />
-        <Button size="sm" onClick={() => onChange(propertyName, generateRandomSeed())} title="Generate random seed">
+        <Button
+          size="sm"
+          onClick={() => onChange(propertyName, generateRandomSeed())}
+          title={t('common.generate_random_seed')}>
           <RedoOutlined />
         </Button>
       </div>

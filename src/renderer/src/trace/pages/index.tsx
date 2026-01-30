@@ -158,7 +158,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
             {showList ? (
               <VStack gap={1} align="start">
                 {spans.length === 0 ? (
-                  <Text>没有找到Trace信息</Text>
+                  <Text>{t('trace.noTraceList')}</Text>
                 ) : (
                   <>
                     <SimpleGrid columns={20} style={{ width: '100%' }} className="floating">

@@ -1,9 +1,13 @@
 import type { CollapseProps } from 'antd'
-import { Popover, Tag } from 'antd'
-import { Terminal } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
-import { ToolTitle } from './GenericTools'
-import type { BashToolInput as BashToolInputType, BashToolOutput as BashToolOutputType } from './types'
+import { truncateOutput } from '../shared/truncateOutput'
+import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
+import {
+  AgentToolsType,
+  type BashToolInput as BashToolInputType,
+  type BashToolOutput as BashToolOutputType
+} from './types'
 
 export function BashTool({
   input,
@@ -12,33 +16,45 @@ export function BashTool({
   input?: BashToolInputType
   output?: BashToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
-  // 如果有输出，计算输出行数
-  const outputLines = output ? output.split('\n').length : 0
-
-  // 处理命令字符串，添加空值检查
-  const command = input?.command ?? ''
-
-  const tagContent = <Tag className="!m-0 max-w-full truncate font-mono">{command}</Tag>
+  const { t } = useTranslation()
+  const command = input?.command
+  const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
     key: 'tool',
     label: (
-      <>
-        <ToolTitle
-          icon={<Terminal className="h-4 w-4" />}
-          label="Bash"
-          params={input?.description}
-          stats={output ? `${outputLines} ${outputLines === 1 ? 'line' : 'lines'}` : undefined}
-        />
-        <div className="mt-1 max-w-full">
-          <Popover
-            content={<div className="max-w-xl whitespace-pre-wrap break-all font-mono text-xs">{command}</div>}
-            trigger="hover">
-            {tagContent}
-          </Popover>
-        </div>
-      </>
+      <ToolHeader
+        toolName={AgentToolsType.Bash}
+        params={<SkeletonValue value={input?.description} width="150px" />}
+        variant="collapse-label"
+        showStatus={false}
+      />
     ),
-    children: <div className="whitespace-pre-line">{output}</div>
+    children: (
+      <div className="flex flex-col gap-3">
+        {/* Command 输入区域 */}
+        {command && (
+          <div>
+            <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.command')}</div>
+            <div className="max-h-40 overflow-y-auto rounded-md bg-muted/50 p-2">
+              <code className="whitespace-pre-wrap break-all font-mono text-xs">{command}</code>
+            </div>
+          </div>
+        )}
+
+        {/* Output 输出区域 */}
+        {truncatedOutput ? (
+          <div>
+            <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.output')}</div>
+            <div className="max-h-60 overflow-y-auto rounded-md bg-muted/30 p-2">
+              <pre className="whitespace-pre-wrap font-mono text-xs">{truncatedOutput}</pre>
+            </div>
+            {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+          </div>
+        ) : (
+          <SkeletonValue value={null} width="100%" fallback={null} />
+        )}
+      </div>
+    )
   }
 }

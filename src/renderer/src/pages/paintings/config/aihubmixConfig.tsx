@@ -29,17 +29,20 @@ export type ConfigItem = {
   tooltip?: string
   options?:
     | Array<{
-        label: string
+        /** i18n key for label (use t() to translate), mutually exclusive with label */
+        labelKey?: string
+        /** Direct display label (no translation needed), mutually exclusive with labelKey */
+        label?: string
         title?: string
         value?: string | number
         icon?: string
         onlyV2?: boolean
-        options?: Array<{ label: string; value: string | number; icon?: string; onlyV2?: boolean }>
+        options?: Array<{ labelKey?: string; label?: string; value: string | number; icon?: string; onlyV2?: boolean }>
       }>
     | ((
         config: ConfigItem,
         painting: Partial<PaintingAction>
-      ) => Array<{ label: string; value: string | number; icon?: string; onlyV2?: boolean }>)
+      ) => Array<{ labelKey?: string; label?: string; value: string | number; icon?: string; onlyV2?: boolean }>)
   min?: number
   max?: number
   step?: number
@@ -160,7 +163,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         key: 'size',
         title: 'paintings.aspect_ratio',
         options: [
-          { label: '自动', value: 'auto' },
+          { labelKey: 'paintings.image_size_options.auto', value: 'auto' },
           { label: '1:1', value: '1024x1024' },
           { label: '3:2', value: '1536x1024' },
           { label: '2:3', value: '1024x1536' }

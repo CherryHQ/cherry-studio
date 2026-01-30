@@ -32,7 +32,7 @@ vi.mock('@main/utils/ipService', () => ({
   getIpCountry: vi.fn(() => 'US')
 }))
 
-vi.mock('@main/utils/locales', () => ({
+vi.mock('@main/utils/language', () => ({
   locales: {
     en: { translation: { update: {} } },
     'zh-CN': { translation: { update: {} } }
