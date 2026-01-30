@@ -77,7 +77,7 @@ const InputEmbeddingDimension = ({
       <Tooltip title={t('knowledge.dimensions_auto_set')}>
         <Button
           role="button"
-          aria-label="Get embedding dimension"
+          aria-label={t('common.get_embedding_dimension')}
           disabled={disabled || loading}
           onClick={handleFetchDimension}
           icon={<RefreshIcon size={16} className={loading ? 'animation-rotate' : ''} />}

@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useActivityDirectoryPanel')
 const MAX_FILE_RESULTS = 500
+const MAX_SEARCH_RESULTS = 20
 const areFileListsEqual = (prev: string[], next: string[]) => {
   if (prev === next) return true
   if (prev.length !== next.length) return false
@@ -193,11 +194,11 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
           try {
             const files = await window.api.file.listDirectory(dirPath, {
               recursive: true,
-              maxDepth: 4,
+              maxDepth: 10,
               includeHidden: false,
               includeFiles: true,
               includeDirectories: true,
-              maxEntries: MAX_FILE_RESULTS,
+              maxEntries: MAX_SEARCH_RESULTS,
               searchPattern: searchPattern || '.'
             })
 

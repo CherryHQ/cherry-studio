@@ -34,6 +34,7 @@ import {
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
+  setUseSystemTitleBar as _setUseSystemTitleBar,
   setWindowStyle
 } from '@renderer/store/settings'
 import type { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
@@ -117,6 +118,10 @@ export function useSettings() {
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
       window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
+    },
+    setUseSystemTitleBar(useSystemTitleBar: boolean) {
+      dispatch(_setUseSystemTitleBar(useSystemTitleBar))
+      window.api.setUseSystemTitleBar(useSystemTitleBar)
     }
   }
 }

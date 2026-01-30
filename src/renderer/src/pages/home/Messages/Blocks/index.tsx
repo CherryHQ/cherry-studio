@@ -3,7 +3,7 @@ import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { isMainTextBlock, isMessageProcessing, isVideoBlock } from '@renderer/utils/messageUtils/is'
+import { isMainTextBlock, isMessageProcessing, isToolBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
@@ -18,6 +18,7 @@ import MainTextBlock from './MainTextBlock'
 import PlaceholderBlock from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import ToolBlock from './ToolBlock'
+import ToolBlockGroup from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
 import VideoBlock from './VideoBlock'
 
@@ -94,6 +95,14 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
       } else {
         acc.push([currentBlock])
       }
+    } else if (currentBlock.type === MessageBlockType.TOOL) {
+      // 对于TOOL类型，按连续分组
+      const prevGroup = acc[acc.length - 1]
+      if (Array.isArray(prevGroup) && prevGroup[0].type === MessageBlockType.TOOL) {
+        prevGroup.push(currentBlock)
+      } else {
+        acc.push([currentBlock])
+      }
     } else {
       acc.push(currentBlock)
     }
@@ -145,6 +154,29 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             return (
               <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
                 <VideoBlock key={firstVideoBlock.id} block={firstVideoBlock} />
+              </AnimatedBlockWrapper>
+            )
+          } else if (block[0].type === MessageBlockType.TOOL) {
+            // 对于连续的TOOL，使用分组显示
+            if (block.length === 1) {
+              // 单个工具调用，直接渲染
+              if (!isToolBlock(block[0])) {
+                logger.warn('Expected tool block but got different type', block[0])
+                return null
+              }
+              return (
+                <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+                  <ToolBlock key={block[0].id} block={block[0]} />
+                </AnimatedBlockWrapper>
+              )
+            }
+            // 多个工具调用，使用分组组件
+            const toolBlocks = block.filter(isToolBlock)
+            // Use first block ID as stable key to prevent remounting when new blocks are added
+            const stableGroupKey = `tool-group-${toolBlocks[0].id}`
+            return (
+              <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={message.status.includes('ing')}>
+                <ToolBlockGroup blocks={toolBlocks} />
               </AnimatedBlockWrapper>
             )
           }

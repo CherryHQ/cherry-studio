@@ -48,6 +48,7 @@ export enum IpcChannel {
 
   App_QuoteToMain = 'app:quote-to-main',
   App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
+  App_SetUseSystemTitleBar = 'app:set-use-system-title-bar',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -364,6 +365,7 @@ export enum IpcChannel {
   OCR_ListProviders = 'ocr:list-providers',
 
   // OVMS
+  Ovms_IsSupported = 'ovms:is-supported',
   Ovms_AddModel = 'ovms:add-model',
   Ovms_StopAddModel = 'ovms:stop-addmodel',
   Ovms_GetModels = 'ovms:get-models',
