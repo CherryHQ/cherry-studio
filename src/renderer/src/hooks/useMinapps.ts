@@ -2,8 +2,8 @@ import { allMinApps } from '@renderer/config/minapps'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setDisabledMinApps, setMinApps, setPinnedMinApps } from '@renderer/store/minapps'
-import { type DetectedRegion, setDetectedRegion } from '@renderer/store/runtime'
-import type { MinAppType } from '@renderer/types'
+import { setDetectedRegion } from '@renderer/store/runtime'
+import type { MinAppType, SupportedRegion } from '@renderer/types'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 /**
@@ -25,7 +25,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
  * 2. Global users: only show apps with supportedRegions including 'Global'
  *    (apps without supportedRegions field are treated as CN-only)
  */
-const isVisibleForRegion = (app: MinAppType, region: DetectedRegion): boolean => {
+const isVisibleForRegion = (app: MinAppType, region: SupportedRegion): boolean => {
   // CN users see everything
   if (region === 'CN') return true
 
@@ -38,20 +38,20 @@ const isVisibleForRegion = (app: MinAppType, region: DetectedRegion): boolean =>
 }
 
 // Filter apps by region
-const filterByRegion = (apps: MinAppType[], region: DetectedRegion): MinAppType[] => {
+const filterByRegion = (apps: MinAppType[], region: SupportedRegion): MinAppType[] => {
   return apps.filter((app) => isVisibleForRegion(app, region))
 }
 
 // Get region-hidden apps from allMinApps for the current region
-const getRegionHiddenApps = (region: DetectedRegion): MinAppType[] => {
+const getRegionHiddenApps = (region: SupportedRegion): MinAppType[] => {
   return allMinApps.filter((app) => !isVisibleForRegion(app, region))
 }
 
 // Module-level promise to ensure only one IP detection request is made
-let regionDetectionPromise: Promise<DetectedRegion> | null = null
+let regionDetectionPromise: Promise<SupportedRegion> | null = null
 
 // Detect user region via IPC call to main process (cached at module level)
-const detectUserRegion = async (): Promise<DetectedRegion> => {
+const detectUserRegion = async (): Promise<SupportedRegion> => {
   // Return existing promise if detection is already in progress
   if (regionDetectionPromise) {
     return regionDetectionPromise
@@ -80,7 +80,7 @@ export const useMinapps = () => {
   const hasInitiatedDetection = useRef(false)
 
   // Compute effective region: use cached detection result or manual setting
-  const effectiveRegion: DetectedRegion =
+  const effectiveRegion: SupportedRegion =
     minAppRegionSetting === 'auto' ? (detectedRegion ?? 'CN') : minAppRegionSetting
 
   // Only detect region once globally when in 'auto' mode and not yet detected
@@ -131,7 +131,7 @@ export const useMinapps = () => {
   const pinnedApps = useMemo(() => mapApps(pinned), [pinned, mapApps])
 
   // Get hidden apps for preserving user preferences when writing
-  const getHiddenApps = useCallback((region: DetectedRegion) => {
+  const getHiddenApps = useCallback((region: SupportedRegion) => {
     const regionHidden = getRegionHiddenApps(region)
     const hiddenIds = new Set(regionHidden.map((app) => app.id))
     return hiddenIds
