@@ -323,6 +323,7 @@
     "js-base64": "3.7.7",
     "js-yaml": "4.1.0",
     "json-schema": "0.4.0",
+    "jsonc-parser": "^3.3.1",
     "katex": "0.16.22",
     "ky": "1.8.1",
     "linguist-languages": "^8.1.0",
