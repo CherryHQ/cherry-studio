@@ -47,39 +47,21 @@ function CardHeader({ isPending, currentIndex, totalQuestions, extra }: CardHead
   )
 }
 
-/**
- * Navigation component props for question navigation
- * @note When `rightButton` is provided, `nextDisabled`, `isLast`, and `onNext` are ignored
- * as the custom button replaces the default next button behavior.
- */
 interface NavigationProps {
   isFirst: boolean
-  isLast: boolean
   onPrevious: () => void
-  onNext: () => void
-  /** Disable the next button (ignored when rightButton is provided) */
-  nextDisabled?: boolean
-  /** Custom right button to replace the default next button */
-  rightButton?: ReactNode
+  /** The right-side button (Next or Submit) */
+  rightButton: ReactNode
 }
 
-function Navigation({ isFirst, isLast, onPrevious, onNext, nextDisabled, rightButton }: NavigationProps) {
+function Navigation({ isFirst, onPrevious, rightButton }: NavigationProps) {
   const { t } = useTranslation()
   return (
     <div className="flex items-center justify-between border-default-200 border-t pt-3">
       <Button icon={<ChevronLeft size={16} />} disabled={isFirst} onClick={onPrevious} className="flex items-center">
         {t('agent.askUserQuestion.previous', 'Previous')}
       </Button>
-      {rightButton ?? (
-        <Button
-          disabled={isLast || nextDisabled}
-          onClick={onNext}
-          className="flex items-center"
-          iconPosition="end"
-          icon={<ChevronRight size={16} />}>
-          {t('agent.askUserQuestion.next', 'Next')}
-        </Button>
-      )}
+      {rightButton}
     </div>
   )
 }
@@ -414,10 +396,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
         {totalQuestions > 1 && (
           <Navigation
             isFirst={isFirstQuestion}
-            isLast={isLastQuestion}
             onPrevious={handlePrevious}
-            onNext={handleNext}
-            nextDisabled={isPending && !isCurrentAnswered}
             rightButton={
               isPending && isLastQuestion ? (
                 <Button
@@ -437,7 +416,16 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
                   icon={<ChevronRight size={16} />}>
                   {t('agent.askUserQuestion.next', 'Next')}
                 </Button>
-              ) : undefined
+              ) : (
+                <Button
+                  disabled={isLastQuestion}
+                  onClick={handleNext}
+                  className="flex items-center"
+                  iconPosition="end"
+                  icon={<ChevronRight size={16} />}>
+                  {t('agent.askUserQuestion.next', 'Next')}
+                </Button>
+              )
             }
           />
         )}
