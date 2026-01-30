@@ -4939,9 +4939,11 @@
         "error": "认证失败",
         "logged_in": "已登录",
         "logout": "退出登录",
+        "logout_confirm": "确定要退出登录吗？",
         "logout_success": "已成功退出登录",
         "official_website": "官方网站",
         "requests": "请求数",
+        "topup": "充值",
         "usage_title": "用量"
       },
       "openai": {

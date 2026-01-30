@@ -1,13 +1,14 @@
 import { loggerService } from '@logger'
 import CherryINProviderLogo from '@renderer/assets/images/providers/cherryin.png'
-import { VStack } from '@renderer/components/Layout'
+import { HStack } from '@renderer/components/Layout'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
-import { Button, Progress, Skeleton } from 'antd'
+import type { MenuProps } from 'antd'
+import { Button, Dropdown, Skeleton } from 'antd'
 import { isEmpty } from 'lodash'
-import { LogIn, LogOut, RefreshCw } from 'lucide-react'
+import { ChevronDown, CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -17,6 +18,17 @@ const logger = loggerService.withContext('CherryINOAuth')
 
 const OAUTH_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
+const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
+
+/**
+ * Generate avatar initials from a name (first 2 characters)
+ */
+export const getAvatarInitials = (name: string): string => {
+  if (!name) return '??'
+  const trimmed = name.trim()
+  if (trimmed.length <= 2) return trimmed.toUpperCase()
+  return trimmed.slice(0, 2).toUpperCase()
+}
 
 interface UserInfo {
   id: number
@@ -28,11 +40,6 @@ interface UserInfo {
 
 interface BalanceInfo {
   balance: number
-}
-
-interface UsageInfo {
-  requestCount: number
-  usedPercent: number
 }
 
 interface CherryINOAuthProps {
@@ -49,29 +56,22 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
-  const [usageInfo, setUsageInfo] = useState<UsageInfo | null>(null)
 
   const hasApiKey = !isEmpty(provider.apiKey)
 
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
     try {
-      const [balance, usage] = await Promise.all([
-        window.api.cherryin.getBalance(CHERRYIN_OAUTH_SERVER),
-        window.api.cherryin.getUsage(CHERRYIN_OAUTH_SERVER)
-      ])
+      const balance = await window.api.cherryin.getBalance(CHERRYIN_OAUTH_SERVER)
       setBalanceInfo(balance)
-      setUsageInfo(usage)
     } catch (error) {
-      logger.warn('Failed to fetch data:', error as Error)
+      logger.warn('Failed to fetch balance:', error as Error)
       setBalanceInfo(null)
-      setUsageInfo(null)
     } finally {
       setIsLoadingData(false)
     }
   }, [])
 
-  // Fetch user info and data when logged in
   useEffect(() => {
     if (hasApiKey) {
       window.api.cherryin
@@ -88,14 +88,12 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     } else {
       setUserInfo(null)
       setBalanceInfo(null)
-      setUsageInfo(null)
     }
   }, [hasApiKey, fetchData])
 
   const handleOAuthLogin = useCallback(async () => {
     setIsAuthenticating(true)
 
-    // Set a timeout to reset authenticating state (auto-cleanup on unmount via useTimer)
     setTimeoutTimer(
       'oauth-timeout',
       () => {
@@ -128,104 +126,86 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     setIsLoggingOut(true)
 
     try {
-      // Revoke token on server and delete local token
       await window.api.cherryin.logout(CHERRYIN_OAUTH_SERVER)
-      // Clear API key
       updateProvider({ apiKey: '' })
       setUserInfo(null)
       setBalanceInfo(null)
-      setUsageInfo(null)
       window.toast.success(t('settings.provider.oauth.logout_success'))
     } catch (error) {
       logger.error('Logout error:', error as Error)
-      // Still clear local API key even if server revoke fails
       updateProvider({ apiKey: '' })
       setUserInfo(null)
       setBalanceInfo(null)
-      setUsageInfo(null)
       window.toast.warning(t('settings.provider.oauth.logout_success'))
     } finally {
       setIsLoggingOut(false)
     }
   }, [updateProvider, t])
 
+  const handleTopup = useCallback(() => {
+    window.open(CHERRYIN_TOPUP_URL, '_blank')
+  }, [])
+
   const providerWebsite = PROVIDER_URLS[provider.id]?.websites.official
+
+  const dropdownItems: MenuProps['items'] = [
+    {
+      key: 'logout',
+      label: t('settings.provider.oauth.logout'),
+      icon: <LogOut size={14} />,
+      danger: true,
+      disabled: isLoggingOut,
+      onClick: handleLogout
+    }
+  ]
 
   return (
     <Container>
-      <TopSection>
-        <LeftSection>
-          <ProviderLogo src={CherryINProviderLogo} />
-          {!hasApiKey ? (
-            <Button
-              type="primary"
-              shape="round"
-              icon={<LogIn size={16} />}
-              onClick={handleOAuthLogin}
-              loading={isAuthenticating}>
-              {t('settings.provider.oauth.button', { provider: 'CherryIN' })}
-            </Button>
-          ) : (
-            <VStack gap={8} alignItems="center">
-              {userInfo && (
-                <UserInfoContainer>
-                  <UserName>{userInfo.displayName || userInfo.username}</UserName>
-                  <UserEmail>{userInfo.email}</UserEmail>
-                </UserInfoContainer>
+      {hasApiKey && userInfo && (
+        <DropdownCorner>
+          <Dropdown menu={{ items: dropdownItems }} trigger={['click']} placement="bottomRight">
+            <UserDropdownTrigger>
+              <UserAvatar>{getAvatarInitials(userInfo.displayName || userInfo.username)}</UserAvatar>
+              <UserName>{userInfo.displayName || userInfo.username}</UserName>
+              <ChevronDown size={14} />
+            </UserDropdownTrigger>
+          </Dropdown>
+        </DropdownCorner>
+      )}
+      <ProviderLogo src={CherryINProviderLogo} />
+      {!hasApiKey ? (
+        <Button
+          type="primary"
+          shape="round"
+          icon={<LogIn size={16} />}
+          onClick={handleOAuthLogin}
+          loading={isAuthenticating}>
+          {t('settings.provider.oauth.button', { provider: 'CherryIN' })}
+        </Button>
+      ) : (
+        <>
+          <HStack gap={16} alignItems="center">
+            <BalanceSection>
+              <BalanceLabel>
+                {t('settings.provider.oauth.balance')}
+                <RefreshButton onClick={fetchData} disabled={isLoadingData}>
+                  <RefreshCw size={12} className={isLoadingData ? 'spinning' : ''} />
+                </RefreshButton>
+              </BalanceLabel>
+              {isLoadingData && !balanceInfo ? (
+                <SkeletonWrapper>
+                  <Skeleton.Button active block size="small" style={{ height: 28 }} />
+                </SkeletonWrapper>
+              ) : (
+                <BalanceValue>${balanceInfo?.balance.toFixed(2) ?? '--'}</BalanceValue>
               )}
-              <Button shape="round" icon={<LogOut size={16} />} onClick={handleLogout} loading={isLoggingOut} danger>
-                {t('settings.provider.oauth.logout')}
-              </Button>
-            </VStack>
-          )}
-        </LeftSection>
-        {hasApiKey && (
-          <UsageContainer>
-            <UsageHeader>
-              <UsageTitle>{t('settings.provider.oauth.usage_title')}</UsageTitle>
-              <RefreshButton onClick={fetchData} disabled={isLoadingData}>
-                <RefreshCw size={14} className={isLoadingData ? 'spinning' : ''} />
-              </RefreshButton>
-            </UsageHeader>
-            {isLoadingData && !usageInfo ? (
-              <SkeletonWrapper>
-                <Skeleton.Button active block size="small" style={{ height: 8 }} />
-              </SkeletonWrapper>
-            ) : (
-              <Progress
-                percent={Math.min(usageInfo?.usedPercent ?? 0, 100)}
-                size="small"
-                strokeColor={{
-                  '0%': 'var(--color-primary)',
-                  '100%': (usageInfo?.usedPercent ?? 0) > 80 ? 'var(--color-error)' : 'var(--color-primary)'
-                }}
-              />
-            )}
-            <UsageDetails>
-              <UsageItem>
-                <UsageLabel>{t('settings.provider.oauth.balance')}</UsageLabel>
-                {isLoadingData && !balanceInfo ? (
-                  <SkeletonWrapper style={{ width: 50 }}>
-                    <Skeleton.Button active block size="small" style={{ height: 18 }} />
-                  </SkeletonWrapper>
-                ) : (
-                  <UsageValue>${balanceInfo?.balance.toFixed(2) ?? '--'}</UsageValue>
-                )}
-              </UsageItem>
-              <UsageItem>
-                <UsageLabel>{t('settings.provider.oauth.requests')}</UsageLabel>
-                {isLoadingData && !usageInfo ? (
-                  <SkeletonWrapper style={{ width: 40 }}>
-                    <Skeleton.Button active block size="small" style={{ height: 18 }} />
-                  </SkeletonWrapper>
-                ) : (
-                  <UsageValue>{usageInfo?.requestCount.toLocaleString() ?? '--'}</UsageValue>
-                )}
-              </UsageItem>
-            </UsageDetails>
-          </UsageContainer>
-        )}
-      </TopSection>
+            </BalanceSection>
+            <Button type="primary" shape="round" icon={<CreditCard size={16} />} onClick={handleTopup}>
+              {t('settings.provider.oauth.topup')}
+            </Button>
+          </HStack>
+        </>
+      )}
       <Description>
         <Trans
           i18nKey="settings.provider.oauth.description"
@@ -242,6 +222,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
 }
 
 const Container = styled.div`
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -250,19 +231,49 @@ const Container = styled.div`
   padding: 20px;
 `
 
-const TopSection = styled.div`
+const DropdownCorner = styled.div`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+`
+
+const UserDropdownTrigger = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 8px 4px 4px;
+  border-radius: 20px;
+  transition: all 0.2s;
+  color: var(--color-text-2);
+
+  &:hover {
+    background: var(--color-background-soft);
+  }
+`
+
+const UserAvatar = styled.div`
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 30px;
-  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
 `
 
-const LeftSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
+const UserName = styled.span`
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-1);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 const ProviderLogo = styled.img`
@@ -271,48 +282,31 @@ const ProviderLogo = styled.img`
   border-radius: 50%;
 `
 
-const UserInfoContainer = styled.div`
+const BalanceSection = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 `
 
-const UserName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-1);
-`
-
-const UserEmail = styled.span`
+const BalanceLabel = styled.span`
   font-size: 12px;
   color: var(--color-text-3);
-`
-
-const UsageContainer = styled.div`
-  width: 220px;
-  padding: 12px;
-  background: var(--color-background-soft);
-  border-radius: 8px;
-`
-
-const UsageHeader = styled.div`
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 6px;
 `
 
-const UsageTitle = styled.span`
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--color-text-2);
+const BalanceValue = styled.span`
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text-1);
 `
 
 const RefreshButton = styled.button`
   background: none;
   border: none;
-  padding: 4px;
+  padding: 2px;
   cursor: pointer;
   color: var(--color-text-3);
   display: flex;
@@ -323,7 +317,6 @@ const RefreshButton = styled.button`
 
   &:hover {
     color: var(--color-text-1);
-    background: var(--color-background-mute);
   }
 
   &:disabled {
@@ -345,33 +338,6 @@ const RefreshButton = styled.button`
   }
 `
 
-const UsageDetails = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-top: 8px;
-  gap: 12px;
-`
-
-const UsageItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-`
-
-const UsageLabel = styled.span`
-  font-size: 11px;
-  color: var(--color-text-3);
-`
-
-const UsageValue = styled.span`
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text-1);
-`
-
 const Description = styled.div`
   font-size: 11px;
   color: var(--color-text-2);
@@ -386,7 +352,7 @@ const OfficialWebsite = styled.a`
 `
 
 const SkeletonWrapper = styled.div`
-  width: 100%;
+  width: 80px;
   .ant-skeleton-button {
     min-width: 0 !important;
     width: 100% !important;

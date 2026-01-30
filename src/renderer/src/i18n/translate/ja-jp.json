@@ -4939,9 +4939,11 @@
         "error": "認証失敗",
         "logged_in": "[to be translated]:Logged in",
         "logout": "[to be translated]:Logout",
+        "logout_confirm": "[to be translated]:Are you sure you want to logout?",
         "logout_success": "[to be translated]:Successfully logged out",
         "official_website": "公式サイト",
         "requests": "[to be translated]:Requests",
+        "topup": "[to be translated]:Top Up",
         "usage_title": "[to be translated]:Usage"
       },
       "openai": {
