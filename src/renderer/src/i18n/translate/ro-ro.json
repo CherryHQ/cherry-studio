@@ -4850,6 +4850,7 @@
           "tip": "Versiunea API a Azure OpenAI, dacă dorești să folosești API-ul de Răspuns, te rugăm să introduci versiunea v1"
         }
       },
+      "balance": "[to be translated]:Balance",
       "basic_auth": {
         "label": "Autentificare HTTP",
         "password": {
@@ -4925,20 +4926,23 @@
         "title": "Note model"
       },
       "oauth": {
+        "balance": "[to be translated]:Balance",
         "button": "Conectare cu {{provider}}",
         "cherryIn": {
-          "client_id_placeholder": "[to be translated]:OAuth Client ID",
           "description": "[to be translated]:Login with your self-hosted New-API server using OAuth 2.0 (PKCE)",
           "logged_in": "[to be translated]:Logged in via OAuth",
           "login_button": "[to be translated]:Login with OAuth",
           "logout_button": "[to be translated]:Logout",
-          "missing_config": "[to be translated]:Please enter OAuth server URL and Client ID",
-          "server_url_placeholder": "[to be translated]:OAuth Server URL (e.g., https://your-domain)",
           "title": "[to be translated]:OAuth Login"
         },
         "description": "Acest serviciu este furnizat de <website>{{provider}}</website>",
         "error": "Autentificare eșuată",
-        "official_website": "Site oficial"
+        "logged_in": "[to be translated]:Logged in",
+        "logout": "[to be translated]:Logout",
+        "logout_success": "[to be translated]:Successfully logged out",
+        "official_website": "Site oficial",
+        "requests": "[to be translated]:Requests",
+        "usage_title": "[to be translated]:Usage"
       },
       "openai": {
         "alert": "Furnizorul OpenAI nu mai acceptă metodele vechi de apelare. Dacă folosești un API terț, te rugăm să creezi un furnizor de servicii nou."

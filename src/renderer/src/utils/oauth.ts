@@ -195,14 +195,15 @@ export const oauthWithAiOnly = async (setKey) => {
 
 export interface NewApiOAuthConfig {
   oauthServer: string
-  clientId: string
-  apiHost: string // New-API server host for fetching API keys
+  clientId?: string
+  apiHost?: string
   redirectUri?: string
   scopes?: string
 }
 
 const DEFAULT_REDIRECT_URI = 'cherrystudio://oauth/callback'
-const DEFAULT_SCOPES = 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
+const DEFAULT_CHERRYIN_SCOPES = 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
+const DEFUALT_CHERRYIN_CLIENT_ID = '2a348c87-bae1-4756-a62f-b2e97200fd6d'
 
 /**
  * Generate a cryptographically random string for PKCE code_verifier
@@ -237,8 +238,14 @@ async function generateCodeChallenge(codeVerifier: string): Promise<string> {
   return base64UrlEncode(hash)
 }
 
+// Resolved config with all required fields filled in
+type ResolvedNewApiOAuthConfig = Required<Omit<NewApiOAuthConfig, 'scopes'>> & Pick<NewApiOAuthConfig, 'scopes'>
+
 // Store pending OAuth flows in memory (keyed by state parameter)
-const pendingOAuthFlows = new Map<string, { codeVerifier: string; config: NewApiOAuthConfig; timestamp: number }>()
+const pendingOAuthFlows = new Map<
+  string,
+  { codeVerifier: string; config: ResolvedNewApiOAuthConfig; timestamp: number }
+>()
 
 // Clean up expired flows (older than 10 minutes)
 function cleanupExpiredFlows(): void {
@@ -251,15 +258,27 @@ function cleanupExpiredFlows(): void {
 }
 
 /**
- * OAuth 2.0 with PKCE for New-API (with Ory Hydra)
  * Uses Authorization Code flow with S256 code challenge method
  * @param setKey - Callback to set the API key
  * @param config - OAuth configuration (oauthServer, clientId, redirectUri, scopes)
  */
-export const oauthWithNewApi = async (setKey: (key: string) => void, config: NewApiOAuthConfig): Promise<string> => {
+export const oauthWithCherryIn = async (setKey: (key: string) => void, config: NewApiOAuthConfig): Promise<string> => {
   cleanupExpiredFlows()
 
-  const { oauthServer, clientId, redirectUri = DEFAULT_REDIRECT_URI, scopes = DEFAULT_SCOPES } = config
+  const oauthServer = config.oauthServer
+  const clientId = config.clientId ?? DEFUALT_CHERRYIN_CLIENT_ID
+  const apiHost = config.apiHost ?? oauthServer
+  const scopes = config.scopes ?? DEFAULT_CHERRYIN_SCOPES
+  const redirectUri = config.redirectUri ?? DEFAULT_REDIRECT_URI
+
+  // Create resolved config with all defaults applied
+  const resolvedConfig: ResolvedNewApiOAuthConfig = {
+    oauthServer,
+    clientId,
+    apiHost,
+    redirectUri,
+    scopes
+  }
 
   // Generate PKCE parameters
   const codeVerifier = generateRandomString(64) // 43-128 chars per RFC 7636
@@ -267,7 +286,7 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
   const state = generateRandomString(32)
 
   // Store verifier and config for later use (keyed by state for CSRF protection)
-  pendingOAuthFlows.set(state, { codeVerifier, config, timestamp: Date.now() })
+  pendingOAuthFlows.set(state, { codeVerifier, config: resolvedConfig, timestamp: Date.now() })
 
   // Build authorization URL
   const authUrl = new URL(`${oauthServer}/oauth2/auth`)
@@ -279,7 +298,7 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
   authUrl.searchParams.set('code_challenge', codeChallenge)
   authUrl.searchParams.set('code_challenge_method', 'S256')
 
-  logger.debug('[NewApi OAuth] Opening authorization URL')
+  logger.debug('Opening authorization URL')
 
   // Open in popup window
   window.open(
@@ -308,7 +327,7 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
         // Handle OAuth errors
         if (error) {
           const errorDesc = params.get('error_description') || error
-          logger.error(`[NewApi OAuth] Error: ${errorDesc}`)
+          logger.error(`Error: ${errorDesc}`)
           reject(new Error(`OAuth error: ${errorDesc}`))
           cleanup()
           return
@@ -324,14 +343,14 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
         // This handles the case where multiple login attempts create multiple listeners
         if (!returnedState || !pendingOAuthFlows.has(returnedState)) {
           // This callback might be for a different OAuth flow, ignore it
-          logger.debug('[NewApi OAuth] State not found in pending flows, ignoring callback')
+          logger.debug('State not found in pending flows, ignoring callback')
           return
         }
 
         // Only process if this is OUR state (the one we registered)
         if (returnedState !== state) {
           // This callback is for a different OAuth flow started by another click
-          logger.debug('[NewApi OAuth] State belongs to different flow, ignoring')
+          logger.debug('State belongs to different flow, ignoring')
           return
         }
 
@@ -346,7 +365,7 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
 
         const { codeVerifier: storedVerifier, config: storedConfig } = flowData
 
-        logger.debug('[NewApi OAuth] Exchanging code for token')
+        logger.debug('Exchanging code for token')
 
         // Exchange authorization code for access token
         const tokenUrl = `${storedConfig.oauthServer}/oauth2/token`
@@ -366,7 +385,7 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
 
         if (!tokenResponse.ok) {
           const errorText = await tokenResponse.text()
-          logger.error(`[NewApi OAuth] Token exchange failed: ${tokenResponse.status} ${errorText}`)
+          logger.error(`Token exchange failed: ${tokenResponse.status} ${errorText}`)
           throw new Error(`Failed to exchange code for token: ${tokenResponse.status}`)
         }
 
@@ -379,7 +398,16 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
           return
         }
 
-        logger.debug('[NewApi OAuth] Successfully obtained access token, fetching API keys')
+        // Save access token for later use (balance, logout, etc.)
+        try {
+          await window.api.cherryin.saveToken(accessToken)
+          logger.debug('[CherryIN OAuth] Access token saved successfully')
+        } catch (saveError) {
+          logger.warn('[CherryIN OAuth] Failed to save access token:', saveError as Error)
+          // Continue anyway - the API key will still work
+        }
+
+        logger.debug('[CherryIN OAuth] Successfully obtained access token, fetching API keys')
 
         // Fetch API keys using the access token
         const apiKeysUrl = `${storedConfig.apiHost}/api/v1/oauth/tokens`
@@ -392,7 +420,7 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
 
         if (!apiKeysResponse.ok) {
           const errorText = await apiKeysResponse.text()
-          logger.error(`[NewApi OAuth] Failed to fetch API keys: ${apiKeysResponse.status} ${errorText}`)
+          logger.error(`Failed to fetch API keys: ${apiKeysResponse.status} ${errorText}`)
           throw new Error(`Failed to fetch API keys: ${apiKeysResponse.status}`)
         }
 
@@ -410,12 +438,12 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
         } else if (apiKeysData.data && Array.isArray(apiKeysData.data)) {
           apiKeys = apiKeysData.data.map(extractKey).filter(Boolean).join(',')
         } else {
-          logger.error('[NewApi OAuth] Unexpected API keys response format:', apiKeysData)
+          logger.error('Unexpected API keys response format:', apiKeysData)
           throw new Error('Unexpected API keys response format')
         }
 
         if (apiKeys) {
-          logger.debug('[NewApi OAuth] Successfully obtained API keys')
+          logger.debug('Successfully obtained API keys')
           setKey(apiKeys)
           resolve(apiKeys)
         } else {
@@ -424,7 +452,7 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
 
         cleanup()
       } catch (error) {
-        logger.error('[NewApi OAuth] Error processing callback:', error as Error)
+        logger.error('Error processing callback:', error as Error)
         reject(error)
         cleanup()
       }
@@ -442,7 +470,7 @@ export const oauthWithNewApi = async (setKey: (key: string) => void, config: New
     // Timeout after 10 minutes
     timeoutId = setTimeout(
       () => {
-        logger.warn('[NewApi OAuth] Flow timed out')
+        logger.warn('Flow timed out')
         cleanup()
         reject(new Error('OAuth flow timed out'))
       },

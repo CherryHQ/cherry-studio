@@ -4850,6 +4850,7 @@
           "tip": "Versão da API do Azure OpenAI. Se desejar usar a API de Resposta, insira a versão de v1"
         }
       },
+      "balance": "[to be translated]:Balance",
       "basic_auth": {
         "label": "Autenticação HTTP",
         "password": {
@@ -4925,20 +4926,23 @@
         "title": "Observação do Modelo"
       },
       "oauth": {
+        "balance": "[to be translated]:Balance",
         "button": "Entrar com a conta {{provider}}",
         "cherryIn": {
-          "client_id_placeholder": "[to be translated]:OAuth Client ID",
           "description": "[to be translated]:Login with your self-hosted New-API server using OAuth 2.0 (PKCE)",
           "logged_in": "[to be translated]:Logged in via OAuth",
           "login_button": "[to be translated]:Login with OAuth",
           "logout_button": "[to be translated]:Logout",
-          "missing_config": "[to be translated]:Please enter OAuth server URL and Client ID",
-          "server_url_placeholder": "[to be translated]:OAuth Server URL (e.g., https://your-domain)",
           "title": "[to be translated]:OAuth Login"
         },
         "description": "Este serviço é fornecido por <website>{{provider}}</website>",
         "error": "Falha na autenticação",
-        "official_website": "Site Oficial"
+        "logged_in": "[to be translated]:Logged in",
+        "logout": "[to be translated]:Logout",
+        "logout_success": "[to be translated]:Successfully logged out",
+        "official_website": "Site Oficial",
+        "requests": "[to be translated]:Requests",
+        "usage_title": "[to be translated]:Usage"
       },
       "openai": {
         "alert": "O provedor OpenAI não suporta mais o método antigo de chamada. Se estiver usando uma API de terceiros, crie um novo provedor"

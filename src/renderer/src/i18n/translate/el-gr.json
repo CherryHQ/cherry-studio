@@ -4850,6 +4850,7 @@
           "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια v1 έκδοσης"
         }
       },
+      "balance": "[to be translated]:Balance",
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
         "password": {
@@ -4925,20 +4926,23 @@
         "title": "Σχόλιο Μοντέλου"
       },
       "oauth": {
+        "balance": "[to be translated]:Balance",
         "button": "Σύνδεση με λογαριασμό {{provider}}",
         "cherryIn": {
-          "client_id_placeholder": "[to be translated]:OAuth Client ID",
           "description": "[to be translated]:Login with your self-hosted New-API server using OAuth 2.0 (PKCE)",
           "logged_in": "[to be translated]:Logged in via OAuth",
           "login_button": "[to be translated]:Login with OAuth",
           "logout_button": "[to be translated]:Logout",
-          "missing_config": "[to be translated]:Please enter OAuth server URL and Client ID",
-          "server_url_placeholder": "[to be translated]:OAuth Server URL (e.g., https://your-domain)",
           "title": "[to be translated]:OAuth Login"
         },
         "description": "Η υπηρεσία παρέχεται από την ιστοσελίδα {{provider}}",
         "error": "Αποτυχία πιστοποίησης",
-        "official_website": "Επίσημη ιστοσελίδα"
+        "logged_in": "[to be translated]:Logged in",
+        "logout": "[to be translated]:Logout",
+        "logout_success": "[to be translated]:Successfully logged out",
+        "official_website": "Επίσημη ιστοσελίδα",
+        "requests": "[to be translated]:Requests",
+        "usage_title": "[to be translated]:Usage"
       },
       "openai": {
         "alert": "Ο πάροχος OpenAI δεν υποστηρίζει πλέον την παλιά μέθοδο κλήσης, παρακαλώ δημιουργήστε έναν νέο πάροχο API αν χρησιμοποιείτε τρίτους"
