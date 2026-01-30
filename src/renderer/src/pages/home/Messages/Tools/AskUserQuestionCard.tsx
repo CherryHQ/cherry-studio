@@ -223,7 +223,7 @@ function PendingContent({
               <OptionItem
                 label={t('agent.askUserQuestion.other', 'Other')}
                 isSelected={hasCustomInput}
-                control={<Radio value="__other__" className="mt-0.5" />}
+                control={<Radio value={OTHER_OPTION_VALUE} className="mt-0.5" />}
                 onClick={() => onSingleSelect(OTHER_OPTION_VALUE)}
               />
             </div>
