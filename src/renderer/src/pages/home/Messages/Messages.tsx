@@ -67,7 +67,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const messages = useTopicMessages(topic.id)
-  const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
+  const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch, resendMessage } =
+    useMessageOperations(topic)
   const { setTimeoutTimer } = useTimer()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
@@ -233,7 +234,17 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
             window.toast.error(t('code_block.edit.save.failed.label'))
           }
         }
-      )
+      ),
+      EventEmitter.on(EVENT_NAMES.RESEND_MESSAGE, async (messageId: string) => {
+        const message = messagesRef.current.find((m: Message) => m.id === messageId)
+        if (message && message.role === 'user') {
+          try {
+            await resendMessage(message, assistant)
+          } catch (error) {
+            logger.error('Failed to resend message:', error as Error)
+          }
+        }
+      })
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
@@ -279,6 +290,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
     if (lastUserMessage) {
       EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
+    }
+  })
+
+  useShortcut('resend_last_user_message', () => {
+    const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
+    if (lastUserMessage) {
+      EventEmitter.emit(EVENT_NAMES.RESEND_MESSAGE, lastUserMessage.id)
     }
   })
 
