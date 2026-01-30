@@ -184,22 +184,18 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
         </Button>
       ) : (
         <>
-          <HStack gap={16} alignItems="center">
-            <BalanceSection>
-              <BalanceLabel>
-                {t('settings.provider.oauth.balance')}
-                <RefreshButton onClick={fetchData} disabled={isLoadingData}>
-                  <RefreshCw size={12} className={isLoadingData ? 'spinning' : ''} />
-                </RefreshButton>
-              </BalanceLabel>
+          <HStack gap={12} alignItems="center">
+            <BalanceCapsule onClick={fetchData} disabled={isLoadingData}>
+              <BalanceLabel>{t('settings.provider.oauth.balance')}</BalanceLabel>
               {isLoadingData && !balanceInfo ? (
-                <SkeletonWrapper>
-                  <Skeleton.Button active block size="small" style={{ height: 28 }} />
-                </SkeletonWrapper>
+                <Skeleton.Input active size="small" style={{ width: 50, height: 16, minWidth: 50 }} />
               ) : (
-                <BalanceValue>${balanceInfo?.balance.toFixed(2) ?? '--'}</BalanceValue>
+                <BalanceValue>
+                  ${balanceInfo?.balance.toFixed(2) ?? '--'}
+                  <RefreshCw size={12} className={isLoadingData ? 'spinning' : ''} />
+                </BalanceValue>
               )}
-            </BalanceSection>
+            </BalanceCapsule>
             <Button type="primary" shape="round" icon={<CreditCard size={16} />} onClick={handleTopup}>
               {t('settings.provider.oauth.topup')}
             </Button>
@@ -282,46 +278,19 @@ const ProviderLogo = styled.img`
   border-radius: 50%;
 `
 
-const BalanceSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-`
-
-const BalanceLabel = styled.span`
-  font-size: 12px;
-  color: var(--color-text-3);
+const BalanceCapsule = styled.button`
   display: flex;
   align-items: center;
-  gap: 6px;
-`
-
-const BalanceValue = styled.span`
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--color-text-1);
-`
-
-const RefreshButton = styled.button`
-  background: none;
+  gap: 8px;
+  padding: 0;
+  height: 32px;
   border: none;
-  padding: 2px;
+  background: transparent;
   cursor: pointer;
-  color: var(--color-text-3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
-
-  &:hover {
-    color: var(--color-text-1);
-  }
 
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.5;
+    opacity: 0.7;
   }
 
   .spinning {
@@ -338,6 +307,20 @@ const RefreshButton = styled.button`
   }
 `
 
+const BalanceLabel = styled.span`
+  font-size: 13px;
+  color: var(--color-text-3);
+`
+
+const BalanceValue = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-1);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`
+
 const Description = styled.div`
   font-size: 11px;
   color: var(--color-text-2);
@@ -349,14 +332,6 @@ const Description = styled.div`
 const OfficialWebsite = styled.a`
   text-decoration: none;
   color: var(--color-text-2);
-`
-
-const SkeletonWrapper = styled.div`
-  width: 80px;
-  .ant-skeleton-button {
-    min-width: 0 !important;
-    width: 100% !important;
-  }
 `
 
 export default CherryINOAuth

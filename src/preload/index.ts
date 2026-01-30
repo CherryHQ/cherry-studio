@@ -441,7 +441,8 @@ const api = {
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
   cherryin: {
-    saveToken: (token: string) => ipcRenderer.invoke(IpcChannel.CherryIN_SaveToken, token),
+    saveToken: (accessToken: string, refreshToken?: string) =>
+      ipcRenderer.invoke(IpcChannel.CherryIN_SaveToken, accessToken, refreshToken),
     hasToken: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.CherryIN_HasToken),
     getBalance: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_GetBalance, apiHost),
     getUsage: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_GetUsage, apiHost),

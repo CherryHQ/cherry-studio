@@ -391,6 +391,7 @@ export const oauthWithCherryIn = async (setKey: (key: string) => void, config: N
 
         const tokenData = await tokenResponse.json()
         const accessToken = tokenData.access_token
+        const refreshToken = tokenData.refresh_token
 
         if (!accessToken) {
           reject(new Error('No access token received'))
@@ -398,12 +399,12 @@ export const oauthWithCherryIn = async (setKey: (key: string) => void, config: N
           return
         }
 
-        // Save access token for later use (balance, logout, etc.)
+        // Save tokens for later use (balance, logout, refresh, etc.)
         try {
-          await window.api.cherryin.saveToken(accessToken)
-          logger.debug('[CherryIN OAuth] Access token saved successfully')
+          await window.api.cherryin.saveToken(accessToken, refreshToken)
+          logger.debug('[CherryIN OAuth] Tokens saved successfully')
         } catch (saveError) {
-          logger.warn('[CherryIN OAuth] Failed to save access token:', saveError as Error)
+          logger.warn('[CherryIN OAuth] Failed to save tokens:', saveError as Error)
           // Continue anyway - the API key will still work
         }
 
