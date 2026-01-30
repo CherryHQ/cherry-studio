@@ -7,23 +7,13 @@ import { WebSearchSource } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createCitationBlock, createToolBlock } from '@renderer/utils/messageUtils/create'
+import { isPlainObject } from 'lodash'
 
 import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('ToolCallbacks')
 
 type ToolResponse = MCPToolResponse | NormalToolResponse
-
-/**
- * Safely converts a value to a plain object if it is one, otherwise returns null.
- * Used to filter out arrays and non-object values when merging arguments.
- */
-function toPlainObject(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>
-  }
-  return null
-}
 
 interface ToolCallbacksDependencies {
   blockManager: BlockManager
@@ -135,9 +125,9 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         const existingResponse = existingBlock?.metadata?.rawMcpToolResponse
         const mergedArguments = Object.assign(
           {},
-          toPlainObject(resolvedInput),
-          toPlainObject(existingResponse?.arguments),
-          toPlainObject(toolResponse.arguments)
+          isPlainObject(resolvedInput) ? resolvedInput : null,
+          isPlainObject(existingResponse?.arguments) ? existingResponse?.arguments : null,
+          isPlainObject(toolResponse.arguments) ? toolResponse.arguments : null
         )
 
         const mergedToolResponse: MCPToolResponse | NormalToolResponse = {

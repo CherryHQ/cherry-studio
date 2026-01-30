@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
+import { cn } from '@renderer/utils'
 import { Button, Checkbox, Input, Radio, Tag } from 'antd'
 import { CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -15,6 +16,9 @@ import {
 } from './MessageAgentTools/types'
 
 const logger = loggerService.withContext('AskUserQuestionCard')
+
+/** Special value used to indicate "Other" option with custom input */
+const OTHER_OPTION_VALUE = '__other__'
 
 // ==================== Sub Components ====================
 
@@ -30,7 +34,7 @@ function CardHeader({ isPending, currentIndex, totalQuestions, extra }: CardHead
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <HelpCircle className={`h-5 w-5 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
+        <HelpCircle className={cn('h-5 w-5 text-green-500', isPending && 'text-blue-500')} />
         <span className="font-semibold text-default-700">
           {t('agent.askUserQuestion.title', 'Questions from Agent')}
         </span>
@@ -43,12 +47,19 @@ function CardHeader({ isPending, currentIndex, totalQuestions, extra }: CardHead
   )
 }
 
+/**
+ * Navigation component props for question navigation
+ * @note When `rightButton` is provided, `nextDisabled`, `isLast`, and `onNext` are ignored
+ * as the custom button replaces the default next button behavior.
+ */
 interface NavigationProps {
   isFirst: boolean
   isLast: boolean
   onPrevious: () => void
   onNext: () => void
+  /** Disable the next button (ignored when rightButton is provided) */
   nextDisabled?: boolean
+  /** Custom right button to replace the default next button */
   rightButton?: ReactNode
 }
 
@@ -77,6 +88,7 @@ interface OptionItemProps {
   label: string
   description?: string
   isSelected: boolean
+  /** The form control element (Radio or Checkbox) to render */
   control: ReactNode
   onClick?: () => void
 }
@@ -134,7 +146,9 @@ interface PendingContentProps {
   hasCustomInput: boolean
   customInputValue: string
   isAnswered: boolean
+  /** Handler for single-select mode (used when question.multiSelect is false) */
   onSingleSelect: (label: string) => void
+  /** Handler for multi-select mode (used when question.multiSelect is true) */
   onMultiSelect: (label: string, checked: boolean) => void
   onCustomInputChange: (value: string) => void
 }
@@ -187,12 +201,12 @@ function PendingContent({
               label={t('agent.askUserQuestion.other', 'Other')}
               isSelected={hasCustomInput}
               control={<Checkbox checked={hasCustomInput} className="mt-0.5" />}
-              onClick={() => onMultiSelect('__other__', !hasCustomInput)}
+              onClick={() => onMultiSelect(OTHER_OPTION_VALUE, !hasCustomInput)}
             />
           </>
         ) : (
           <Radio.Group
-            value={hasCustomInput ? '__other__' : selected[0]}
+            value={hasCustomInput ? OTHER_OPTION_VALUE : selected[0]}
             onChange={(e) => onSingleSelect(e.target.value)}
             className="w-full">
             <div className="space-y-2">
@@ -210,7 +224,7 @@ function PendingContent({
                 label={t('agent.askUserQuestion.other', 'Other')}
                 isSelected={hasCustomInput}
                 control={<Radio value="__other__" className="mt-0.5" />}
-                onClick={() => onSingleSelect('__other__')}
+                onClick={() => onSingleSelect(OTHER_OPTION_VALUE)}
               />
             </div>
           </Radio.Group>
@@ -281,7 +295,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   }, [questions, selectedAnswers, customInputs, showCustomInput])
 
   const handleSingleSelect = useCallback((questionText: string, label: string) => {
-    if (label === '__other__') {
+    if (label === OTHER_OPTION_VALUE) {
       setShowCustomInput((prev) => ({ ...prev, [questionText]: true }))
       setSelectedAnswers((prev) => ({ ...prev, [questionText]: [] }))
     } else {
@@ -292,7 +306,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   }, [])
 
   const handleMultiSelect = useCallback((questionText: string, label: string, checked: boolean) => {
-    if (label === '__other__') {
+    if (label === OTHER_OPTION_VALUE) {
       setShowCustomInput((prev) => ({ ...prev, [questionText]: checked }))
       if (!checked) setCustomInputs((prev) => ({ ...prev, [questionText]: '' }))
     } else {

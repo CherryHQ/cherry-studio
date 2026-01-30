@@ -21,7 +21,7 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AgentMessageDataSource } from './AgentMessageDataSource'
 import { DexieMessageDataSource } from './DexieMessageDataSource'
 import type { MessageDataSource } from './types'
-import { isAgentSessionTopicId } from './types'
+import { buildAgentSessionTopicId, isAgentSessionTopicId } from './types'
 
 const logger = loggerService.withContext('DbService')
 
@@ -78,8 +78,7 @@ class DbService implements MessageDataSource {
 
     const agentInfo = this.agentSource.getStreamingCacheInfo(messageId)
     if (agentInfo) {
-      const topicId = `agent-session:${agentInfo.sessionId}`
-      return topicId
+      return buildAgentSessionTopicId(agentInfo.sessionId)
     }
 
     return undefined
@@ -95,7 +94,7 @@ class DbService implements MessageDataSource {
     blocks: MessageBlock[]
   }> {
     const source = this.getDataSource(topicId)
-    return await source.fetchMessages(topicId, forceReload)
+    return source.fetchMessages(topicId, forceReload)
   }
 
   // ============ Write Operations ============
@@ -196,9 +195,11 @@ class DbService implements MessageDataSource {
 
     if (!existingBlock) {
       logger.warn(`Block ${blockId} not found in state, defaulting to Dexie`)
+      // updateSingleBlock is optional in MessageDataSource interface
       if (this.dexieSource.updateSingleBlock) {
         return this.dexieSource.updateSingleBlock(blockId, updates)
       }
+      // Fallback: construct partial block for updateBlocks (type assertion needed as we only have partial data)
       return this.dexieSource.updateBlocks([{ ...updates, id: blockId } as MessageBlock])
     }
 
@@ -209,10 +210,11 @@ class DbService implements MessageDataSource {
     }
 
     // Default to Dexie for regular blocks
+    // updateSingleBlock is optional in MessageDataSource interface
     if (this.dexieSource.updateSingleBlock) {
       return this.dexieSource.updateSingleBlock(blockId, updates)
     }
-    // Fallback to updateBlocks with single item
+    // Fallback: construct partial block for updateBlocks (type assertion needed as we only have partial data)
     return this.dexieSource.updateBlocks([{ ...updates, id: blockId } as MessageBlock])
   }
 
