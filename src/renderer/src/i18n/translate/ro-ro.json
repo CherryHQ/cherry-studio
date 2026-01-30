@@ -1236,6 +1236,9 @@
       "validation": "Validarea a eșuat"
     },
     "expand": "Extinde",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Tip de fișier neacceptat {{type}}"
     },
@@ -1892,6 +1895,9 @@
         "model": "Te rugăm să selectezi mai întâi un model",
         "name": "Te rugăm să introduci numele bazei de cunoștințe"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
       "invalid": {
@@ -2017,6 +2023,9 @@
     },
     "searching": "Se caută...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Exportat cu succes în Joplin"
       },

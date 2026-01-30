@@ -1236,6 +1236,9 @@
       "validation": "验证失败"
     },
     "expand": "展开",
+    "export": {
+      "excel": "导出为 Excel"
+    },
     "file": {
       "not_supported": "不支持的文件类型 {{type}}"
     },
@@ -1892,6 +1895,9 @@
         "model": "请选择一个模型",
         "name": "请输入知识库名称"
       },
+      "excel": {
+        "export": "导出 Excel 失败"
+      },
       "fetchTopicName": "话题命名失败",
       "get_embedding_dimensions": "获取嵌入维度失败",
       "invalid": {
@@ -2017,6 +2023,9 @@
     },
     "searching": "正在搜索...",
     "success": {
+      "excel": {
+        "export": "Excel 导出成功"
+      },
       "joplin": {
         "export": "成功导出到 Joplin"
       },

@@ -1236,6 +1236,9 @@
       "validation": "Verification failed"
     },
     "expand": "Expand",
+    "export": {
+      "excel": "Export to Excel"
+    },
     "file": {
       "not_supported": "Unsupported file type {{type}}"
     },
@@ -1892,6 +1895,9 @@
         "model": "Please select a model first",
         "name": "Please enter the name of the knowledge base"
       },
+      "excel": {
+        "export": "Failed to export Excel"
+      },
       "fetchTopicName": "Failed to name the topic",
       "get_embedding_dimensions": "Failed to get embedding dimensions",
       "invalid": {
@@ -2017,6 +2023,9 @@
     },
     "searching": "Searching...",
     "success": {
+      "excel": {
+        "export": "Excel exported successfully"
+      },
       "joplin": {
         "export": "Successfully exported to Joplin"
       },

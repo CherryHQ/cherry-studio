@@ -33,7 +33,14 @@ vi.mock('@renderer/components/Icons', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
-  Check: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />
+  Check: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />,
+  FileSpreadsheet: ({ size }: { size: number }) => (
+    <div data-testid="excel-icon" style={{ width: size, height: size }} />
+  )
+}))
+
+vi.mock('@renderer/utils/exportExcel', () => ({
+  exportTableToExcel: vi.fn().mockResolvedValue(true)
 }))
 
 vi.mock('react-i18next', () => ({
@@ -123,7 +130,7 @@ describe('Table', () => {
       expect(screen.getByRole('table')).toBeInTheDocument()
       expect(screen.getByText('Cell 1')).toBeInTheDocument()
       expect(screen.getByText('Cell 2')).toBeInTheDocument()
-      expect(screen.getByTestId('tooltip')).toBeInTheDocument()
+      expect(screen.getAllByTestId('tooltip')).toHaveLength(2)
     })
 
     it('should render with table-wrapper and table-toolbar classes', () => {
@@ -136,8 +143,8 @@ describe('Table', () => {
     it('should render copy button with correct tooltip', () => {
       render(<Table {...defaultProps} />)
 
-      const tooltip = screen.getByTestId('tooltip')
-      expect(tooltip).toHaveAttribute('title', 'common.copy')
+      const tooltips = screen.getAllByTestId('tooltip')
+      expect(tooltips[0]).toHaveAttribute('title', 'common.copy')
     })
 
     it('should match snapshot', () => {

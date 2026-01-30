@@ -2,8 +2,9 @@ import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { exportTableToExcel } from '@renderer/utils/exportExcel'
 import { Tooltip } from 'antd'
-import { Check } from 'lucide-react'
+import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,6 +46,20 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
     }
   }, [blockId, node?.position, setCopied, t])
 
+  const handleExportExcel = useCallback(async () => {
+    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
+    if (!tableMarkdown) return
+
+    try {
+      const result = await exportTableToExcel(tableMarkdown)
+      if (result) {
+        window.toast?.success(t('message.success.excel.export'))
+      }
+    } catch (error) {
+      window.toast?.error(`${t('message.error.excel.export')}: ${error}`)
+    }
+  }, [blockId, node?.position, t])
+
   return (
     <TableWrapper className="table-wrapper">
       <table>{children}</table>
@@ -52,6 +67,11 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
           <ToolButton role="button" aria-label={t('common.copy')} onClick={handleCopyTable}>
             {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
+          </ToolButton>
+        </Tooltip>
+        <Tooltip title={t('common.export.excel')} mouseEnterDelay={0.8}>
+          <ToolButton role="button" aria-label={t('common.export.excel')} onClick={handleExportExcel}>
+            <FileSpreadsheet size={14} />
           </ToolButton>
         </Tooltip>
       </ToolbarWrapper>
@@ -111,6 +131,8 @@ const ToolbarWrapper = styled.div`
   top: 8px;
   right: 8px;
   z-index: 10;
+  display: flex;
+  gap: 4px;
 `
 
 const ToolButton = styled.div`

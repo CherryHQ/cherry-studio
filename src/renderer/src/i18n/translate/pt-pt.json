@@ -1236,6 +1236,9 @@
       "validation": "Falha na verificação"
     },
     "expand": "Expandir",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Tipo de arquivo não suportado {{type}}"
     },
@@ -1892,6 +1895,9 @@
         "model": "Selecione um modelo",
         "name": "Insira o nome da base de conhecimento"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Falha ao nomear o tópico",
       "get_embedding_dimensions": "Falha ao obter dimensões de incorporação",
       "invalid": {
@@ -2017,6 +2023,9 @@
     },
     "searching": "Pesquisando na internet...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Exportado com sucesso para Joplin"
       },
