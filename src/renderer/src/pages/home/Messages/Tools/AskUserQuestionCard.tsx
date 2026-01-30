@@ -93,6 +93,62 @@ function OptionItem({ label, description, isSelected, control, onClick }: Option
   )
 }
 
+interface OptionsListProps {
+  options: Array<{ label: string; description?: string }>
+  selected: string[]
+  hasCustomInput: boolean
+  multiSelect?: boolean
+  onSelect: (label: string, checked?: boolean) => void
+  otherLabel: string
+}
+
+function OptionsList({ options, selected, hasCustomInput, multiSelect, onSelect, otherLabel }: OptionsListProps) {
+  const renderOptionItem = (option: { label: string; description?: string }, isOther = false) => {
+    const label = isOther ? otherLabel : option.label
+    const value = isOther ? OTHER_OPTION_VALUE : option.label
+    const isSelected = isOther ? hasCustomInput : selected.includes(option.label)
+
+    return (
+      <OptionItem
+        key={value}
+        label={label}
+        description={isOther ? undefined : option.description}
+        isSelected={isSelected}
+        control={
+          multiSelect ? (
+            <Checkbox checked={isSelected} className="mt-0.5" />
+          ) : (
+            <Radio value={value} className="mt-0.5" />
+          )
+        }
+        onClick={() => onSelect(value, multiSelect ? !isSelected : undefined)}
+      />
+    )
+  }
+
+  const optionItems = (
+    <>
+      {options.map((option) => renderOptionItem(option))}
+      {renderOptionItem({ label: '' }, true)}
+    </>
+  )
+
+  return (
+    <div className="max-h-64 space-y-2 overflow-y-auto">
+      {multiSelect ? (
+        optionItems
+      ) : (
+        <Radio.Group
+          value={hasCustomInput ? OTHER_OPTION_VALUE : selected[0]}
+          onChange={(e) => onSelect(e.target.value)}
+          className="w-full">
+          <div className="space-y-2">{optionItems}</div>
+        </Radio.Group>
+      )}
+    </div>
+  )
+}
+
 // ==================== Completed Mode Content ====================
 
 interface CompletedContentProps {
@@ -167,63 +223,25 @@ function PendingContent({
       <div className="font-medium text-default-700 text-sm">{question.question}</div>
 
       {/* Options */}
-      <div className="max-h-64 space-y-2 overflow-y-auto">
-        {question.multiSelect ? (
-          <>
-            {question.options.map((option, idx) => (
-              <OptionItem
-                key={idx}
-                label={option.label}
-                description={option.description}
-                isSelected={selected.includes(option.label)}
-                control={<Checkbox checked={selected.includes(option.label)} className="mt-0.5" />}
-                onClick={() => onSelect(option.label, !selected.includes(option.label))}
-              />
-            ))}
-            <OptionItem
-              label={t('agent.askUserQuestion.other', 'Other')}
-              isSelected={hasCustomInput}
-              control={<Checkbox checked={hasCustomInput} className="mt-0.5" />}
-              onClick={() => onSelect(OTHER_OPTION_VALUE, !hasCustomInput)}
-            />
-          </>
-        ) : (
-          <Radio.Group
-            value={hasCustomInput ? OTHER_OPTION_VALUE : selected[0]}
-            onChange={(e) => onSelect(e.target.value)}
-            className="w-full">
-            <div className="space-y-2">
-              {question.options.map((option, idx) => (
-                <OptionItem
-                  key={idx}
-                  label={option.label}
-                  description={option.description}
-                  isSelected={selected.includes(option.label)}
-                  control={<Radio value={option.label} className="mt-0.5" />}
-                  onClick={() => onSelect(option.label)}
-                />
-              ))}
-              <OptionItem
-                label={t('agent.askUserQuestion.other', 'Other')}
-                isSelected={hasCustomInput}
-                control={<Radio value={OTHER_OPTION_VALUE} className="mt-0.5" />}
-                onClick={() => onSelect(OTHER_OPTION_VALUE)}
-              />
-            </div>
-          </Radio.Group>
-        )}
+      <OptionsList
+        options={question.options}
+        selected={selected}
+        hasCustomInput={hasCustomInput}
+        multiSelect={question.multiSelect}
+        onSelect={onSelect}
+        otherLabel={t('agent.askUserQuestion.other', 'Other')}
+      />
 
-        {/* Custom input field */}
-        {hasCustomInput && (
-          <Input
-            className="mt-2"
-            placeholder={t('agent.askUserQuestion.customPlaceholder', 'Enter your answer...')}
-            value={customInputValue}
-            onChange={(e) => onCustomInputChange(e.target.value)}
-            autoFocus
-          />
-        )}
-      </div>
+      {/* Custom input field */}
+      {hasCustomInput && (
+        <Input
+          className="mt-2"
+          placeholder={t('agent.askUserQuestion.customPlaceholder', 'Enter your answer...')}
+          value={customInputValue}
+          onChange={(e) => onCustomInputChange(e.target.value)}
+          autoFocus
+        />
+      )}
     </div>
   )
 }
