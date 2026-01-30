@@ -7,6 +7,8 @@ export interface StartSpanParams {
   tag?: string
   parentSpanId?: string
   modelName?: string
+  modelRoot?: boolean
+  assistantMsgId?: string
 }
 
 export interface EndSpanParams {
@@ -16,19 +18,24 @@ export interface EndSpanParams {
   error?: Error
   span?: Span
   modelEnded?: boolean
+  assistantMsgId?: string
 }
 
 export class ModelSpanEntity {
   private modelName?: string
   private spans: Span[] = []
   private root?: Span
+  private assistantMsgId?: string
 
-  constructor(modelName?: string) {
+  constructor(modelName?: string, assistantMsgId?: string) {
+    this.assistantMsgId = assistantMsgId
     this.modelName = modelName
   }
 
-  getCurrentSpan(modelName?: string): Span | undefined {
-    if (modelName !== this.modelName) return undefined
+  getCurrentSpan(modelName?: string, assistantMsgId?: string): Span | undefined {
+    if (!this.isCurrent(modelName, assistantMsgId)) {
+      return undefined
+    }
     return this.spans.length > 0 ? this.spans[this.spans.length - 1] : undefined
   }
 
@@ -76,5 +83,9 @@ export class ModelSpanEntity {
     this.spans.forEach((span) => {
       span.recordException(error, Date.now())
     })
+  }
+
+  isCurrent(modelName?: string, assistantMsgId?: string): boolean {
+    return this.modelName === modelName && this.assistantMsgId === assistantMsgId
   }
 }
