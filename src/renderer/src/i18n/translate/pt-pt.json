@@ -4442,6 +4442,13 @@
       "open_link_external": {
         "title": "Abrir link em nova janela do navegador"
       },
+      "region": {
+        "auto": "Detecção automática",
+        "cn": "China",
+        "description": "Detecção automática da sua região ou seleção manual",
+        "global": "global",
+        "title": "Região do aplicativo mini programa"
+      },
       "reset_tooltip": "Redefinir para os valores padrão",
       "sidebar_description": "Defina se os mini aplicativos ativos serão exibidos na barra lateral",
       "sidebar_title": "Exibição de Mini Aplicativos Ativos na Barra Lateral",
