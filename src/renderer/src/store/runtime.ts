@@ -17,7 +17,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
-import type { MinAppType, SupportedRegion, Topic, WebSearchStatus } from '@renderer/types'
+import type { MinAppRegion, MinAppType, Topic, WebSearchStatus } from '@renderer/types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 export interface ChatState {
@@ -53,8 +53,6 @@ export interface UpdateState {
   ignore: boolean
 }
 
-export type DetectedRegion = SupportedRegion
-
 export interface RuntimeState {
   avatar: string
   generating: boolean
@@ -76,7 +74,7 @@ export interface RuntimeState {
   chat: ChatState
   websearch: WebSearchState
   /** Detected region from IP lookup (not persisted, re-detected on each app start) */
-  detectedRegion: DetectedRegion | null
+  detectedRegion: MinAppRegion | null
 }
 
 export interface ExportState {
@@ -211,7 +209,7 @@ const runtimeSlice = createSlice({
       const { id, value } = action.payload
       state.chat.sessionWaiting[id] = value
     },
-    setDetectedRegion: (state, action: PayloadAction<DetectedRegion | null>) => {
+    setDetectedRegion: (state, action: PayloadAction<MinAppRegion | null>) => {
       state.detectedRegion = action.payload
     }
   }

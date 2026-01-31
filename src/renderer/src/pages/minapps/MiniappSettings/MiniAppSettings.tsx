@@ -12,6 +12,7 @@ import {
   setMinappsOpenLinkExternal,
   setShowOpenedMinappsInSidebar
 } from '@renderer/store/settings'
+import type { MinAppRegionFilter } from '@renderer/types'
 import { Button, Flex, message, Slider, Switch, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -29,11 +30,11 @@ const RegionSelector: FC = () => {
   const dispatch = useAppDispatch()
   const minAppRegion = useAppSelector((state: RootState) => state.settings.minAppRegion)
 
-  const onMinAppRegionChange = (value: 'auto' | 'CN' | 'Global') => {
+  const onMinAppRegionChange = (value: MinAppRegionFilter) => {
     dispatch(setMinAppRegion(value))
   }
 
-  const minAppRegionOptions: { value: 'auto' | 'CN' | 'Global'; label: string }[] = [
+  const minAppRegionOptions: { value: MinAppRegionFilter; label: string }[] = [
     { value: 'auto', label: t('settings.miniapps.region.auto') },
     { value: 'CN', label: t('settings.miniapps.region.cn') },
     { value: 'Global', label: t('settings.miniapps.region.global') }
