@@ -3,6 +3,7 @@ export { Avatar, AvatarGroup, type AvatarProps, EmojiAvatar } from './primitives
 export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
 export { default as CopyButton } from './primitives/copyButton'
 export { default as CustomTag } from './primitives/customTag'
+export { Divider, type DividerProps } from './primitives/divider'
 export { default as DividerWithText } from './primitives/dividerWithText'
 export { default as EmojiIcon } from './primitives/emojiIcon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/ErrorBoundary'
@@ -15,13 +16,9 @@ export { Tooltip, type TooltipProps } from './primitives/tooltip'
 // Composite Components
 export { ConfirmDialog, type ConfirmDialogProps } from './composites/ConfirmDialog'
 export { default as Ellipsis } from './composites/Ellipsis'
-export { default as ExpandableText } from './composites/ExpandableText'
 export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/Flex'
 export { default as HorizontalScrollContainer } from './composites/HorizontalScrollContainer'
-export { default as ListItem } from './composites/ListItem'
-export { default as MaxContextCount } from './composites/MaxContextCount'
 export { default as Scrollbar } from './composites/Scrollbar'
-export { default as ThinkingEffect } from './composites/ThinkingEffect'
 
 // Icon Components
 
@@ -39,8 +36,6 @@ export {
   getCmThemeByName,
   getCmThemeNames
 } from './composites/CodeEditor'
-// CollapsibleSearchBar
-export { default as CollapsibleSearchBar } from './composites/CollapsibleSearchBar'
 // DraggableList
 export { DraggableList, useDraggableReorder } from './composites/DraggableList'
 // EditableNumber

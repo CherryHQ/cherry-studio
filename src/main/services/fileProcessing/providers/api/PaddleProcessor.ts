@@ -106,7 +106,8 @@ export class PaddleProcessor extends BaseTextExtractor {
 
     // Prepare headers
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Client-Platform': 'cherry-studio'
     }
 
     if (apiKey) {
