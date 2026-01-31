@@ -481,7 +481,7 @@ export type MinAppType = {
   /** Locale codes where this app should be visible (e.g., ['zh-CN', 'zh-TW']) */
   locales?: LanguageVarious[]
   /** Regions where this app is available. If includes 'Global', shown to international users. */
-  supportedRegions?: SupportedRegion[]
+  supportedRegions?: MinAppRegion[]
   logo?: string
   url: string
   // FIXME: It should be `bordered`
@@ -493,7 +493,9 @@ export type MinAppType = {
 }
 
 /** Region types for miniapps visibility */
-export type SupportedRegion = 'CN' | 'Global'
+export type MinAppRegion = 'CN' | 'Global'
+
+export type MinAppRegionFilter = 'auto' | MinAppRegion
 
 export enum ThemeMode {
   light = 'light',

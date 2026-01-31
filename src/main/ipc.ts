@@ -303,7 +303,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // Get IP Country
   ipcMain.handle(IpcChannel.App_GetIpCountry, async () => {
-    return await getIpCountry()
+    return getIpCountry()
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
