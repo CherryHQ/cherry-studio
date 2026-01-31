@@ -195,12 +195,7 @@ class DbService implements MessageDataSource {
 
     if (!existingBlock) {
       logger.warn(`Block ${blockId} not found in state, defaulting to Dexie`)
-      // updateSingleBlock is optional in MessageDataSource interface
-      if (this.dexieSource.updateSingleBlock) {
-        return this.dexieSource.updateSingleBlock(blockId, updates)
-      }
-      // Fallback: construct partial block for updateBlocks (type assertion needed as we only have partial data)
-      return this.dexieSource.updateBlocks([{ ...updates, id: blockId } as MessageBlock])
+      return this.dexieSource.updateSingleBlock(blockId, updates)
     }
 
     const topicId = this.resolveMessageTopicId(existingBlock.messageId)
@@ -210,39 +205,22 @@ class DbService implements MessageDataSource {
     }
 
     // Default to Dexie for regular blocks
-    // updateSingleBlock is optional in MessageDataSource interface
-    if (this.dexieSource.updateSingleBlock) {
-      return this.dexieSource.updateSingleBlock(blockId, updates)
-    }
-    // Fallback: construct partial block for updateBlocks (type assertion needed as we only have partial data)
-    return this.dexieSource.updateBlocks([{ ...updates, id: blockId } as MessageBlock])
+    return this.dexieSource.updateSingleBlock(blockId, updates)
   }
 
   async bulkAddBlocks(blocks: MessageBlock[]): Promise<void> {
     // For bulk add operations, default to Dexie since agent blocks use persistExchange
-    if (this.dexieSource.bulkAddBlocks) {
-      return this.dexieSource.bulkAddBlocks(blocks)
-    }
-    // Fallback to updateBlocks
-    return this.dexieSource.updateBlocks(blocks)
+    return this.dexieSource.bulkAddBlocks(blocks)
   }
 
   async updateFileCount(fileId: string, delta: number, deleteIfZero: boolean = false): Promise<void> {
     // File operations only apply to Dexie source
-    if (this.dexieSource.updateFileCount) {
-      return this.dexieSource.updateFileCount(fileId, delta, deleteIfZero)
-    }
-    // No-op if not supported
-    logger.warn(`updateFileCount not supported for file ${fileId}`)
+    return this.dexieSource.updateFileCount(fileId, delta, deleteIfZero)
   }
 
   async updateFileCounts(files: Array<{ id: string; delta: number; deleteIfZero?: boolean }>): Promise<void> {
     // File operations only apply to Dexie source
-    if (this.dexieSource.updateFileCounts) {
-      return this.dexieSource.updateFileCounts(files)
-    }
-    // No-op if not supported
-    logger.warn(`updateFileCounts not supported`)
+    return this.dexieSource.updateFileCounts(files)
   }
 
   // ============ Utility Methods ============
