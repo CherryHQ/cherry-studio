@@ -1,114 +1,32 @@
-import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+/**
+ * WebSearch Provider Static Metadata
+ *
+ * This file re-exports from webSearch.ts for backward compatibility.
+ * New code should import directly from webSearch.ts.
+ */
 
-type WebSearchProviderConfig = {
-  websites: {
-    official: string
-    apiKey?: string
-  }
-}
+// Re-export from webSearch.ts (primary location)
+export {
+  getProviderWebsites,
+  WEB_SEARCH_PROVIDER_WEBSITES,
+  type WebSearchProviderWebsites
+} from './webSearch'
 
-export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchProviderConfig> = {
-  zhipu: {
-    websites: {
-      official: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
-      apiKey: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
-    }
-  },
-  tavily: {
-    websites: {
-      official: 'https://tavily.com',
-      apiKey: 'https://app.tavily.com/home'
-    }
-  },
-  searxng: {
-    websites: {
-      official: 'https://docs.searxng.org'
-    }
-  },
-  exa: {
-    websites: {
-      official: 'https://exa.ai',
-      apiKey: 'https://dashboard.exa.ai/api-keys'
-    }
-  },
-  'exa-mcp': {
-    websites: {
-      official: 'https://exa.ai'
-    }
-  },
-  bocha: {
-    websites: {
-      official: 'https://bochaai.com',
-      apiKey: 'https://open.bochaai.com/overview'
-    }
-  },
-  'local-google': {
-    websites: {
-      official: 'https://www.google.com'
-    }
-  },
-  'local-bing': {
-    websites: {
-      official: 'https://www.bing.com'
-    }
-  },
-  'local-baidu': {
-    websites: {
-      official: 'https://www.baidu.com'
-    }
-  }
-}
+// =============================================================================
+// Legacy exports for backward compatibility
+// TODO: Remove after Redux store migration is complete
+// =============================================================================
 
-export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
-  {
-    id: 'zhipu',
-    name: 'Zhipu',
-    apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search',
-    apiKey: ''
-  },
-  {
-    id: 'tavily',
-    name: 'Tavily',
-    apiHost: 'https://api.tavily.com',
-    apiKey: ''
-  },
-  {
-    id: 'searxng',
-    name: 'Searxng',
-    apiHost: '',
-    basicAuthUsername: '',
-    basicAuthPassword: ''
-  },
-  {
-    id: 'exa',
-    name: 'Exa',
-    apiHost: 'https://api.exa.ai',
-    apiKey: ''
-  },
-  {
-    id: 'exa-mcp',
-    name: 'ExaMCP',
-    apiHost: 'https://mcp.exa.ai/mcp'
-  },
-  {
-    id: 'bocha',
-    name: 'Bocha',
-    apiHost: 'https://api.bochaai.com',
-    apiKey: ''
-  },
-  {
-    id: 'local-google',
-    name: 'Google',
-    url: 'https://www.google.com/search?q=%s'
-  },
-  {
-    id: 'local-bing',
-    name: 'Bing',
-    url: 'https://cn.bing.com/search?q=%s&ensearch=1'
-  },
-  {
-    id: 'local-baidu',
-    name: 'Baidu',
-    url: 'https://www.baidu.com/s?wd=%s'
-  }
-] as const
+import type { LegacyWebSearchProvider } from '@renderer/types'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+
+/**
+ * @deprecated Use PRESETS_WEB_SEARCH_PROVIDERS from '@shared/data/presets/web-search-providers' instead
+ */
+export const WEB_SEARCH_PROVIDERS: LegacyWebSearchProvider[] = PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => ({
+  id: preset.id,
+  name: preset.name,
+  type: preset.type,
+  usingBrowser: preset.usingBrowser,
+  apiHost: preset.defaultApiHost
+}))

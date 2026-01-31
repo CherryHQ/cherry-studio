@@ -55,7 +55,7 @@ import {
   getReasoningEffort,
   getXAIReasoningParams
 } from './reasoning'
-import { getWebSearchParams } from './websearch'
+import { getWebSearchParams } from './webSearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
 

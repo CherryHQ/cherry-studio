@@ -168,10 +168,6 @@ vi.mock('@renderer/store/translate', () => ({
   default: (state = { translate: {} }) => state
 }))
 
-vi.mock('@renderer/store/websearch', () => ({
-  default: (state = { websearch: {} }) => state
-}))
-
 vi.mock('@renderer/store/migrate', () => ({
   default: vi.fn().mockResolvedValue(undefined)
 }))

@@ -13,7 +13,6 @@ import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { addAssistant } from '@renderer/store/assistants'
 import type {
   Assistant,
   AssistantPreset,
@@ -263,6 +262,7 @@ export function getAssistantById(id: string) {
 }
 
 export async function createAssistantFromAgent(agent: AssistantPreset) {
+  const { addAssistant } = await import('@renderer/store/assistants')
   const assistantId = uuid()
   const topic = getDefaultTopic(assistantId)
 
