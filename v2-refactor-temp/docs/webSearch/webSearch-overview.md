@@ -92,7 +92,7 @@
 | `chat.web_search.compression.method` | `WebSearchCompressionMethod` | `none` | 压缩方式 |
 | `chat.web_search.compression.cutoff_limit` | number \| null | null | 截断限制 |
 | `chat.web_search.compression.cutoff_unit` | `WebSearchCompressionCutoffUnit` | `char` | 截断单位 |
-| `chat.web_search.compression.rag_document_count` | number | 1 | RAG 文档数量 |
+| `chat.web_search.compression.rag_document_count` | number | 5 | RAG 文档数量 |
 | `chat.web_search.compression.rag_embedding_model_id` | string \| null | null | Embedding 模型 ID |
 | `chat.web_search.compression.rag_embedding_provider_id` | string \| null | null | Embedding 提供商 ID |
 | `chat.web_search.compression.rag_embedding_dimensions` | number \| null | null | Embedding 维度 |
@@ -119,7 +119,7 @@ src/renderer/src/
 │   └─ useWebSearch.ts              # 搜索 hooks（providers/settings）
 ├─ services/
 │   └─ WebSearchService.ts          # 搜索服务
-├─ providers/WebSearchProvider/     # Provider 实现
+├─ services/webSearch/providers/    # Provider 实现
 └─ pages/settings/WebSearchSettings/
     ├─ BasicSettings.tsx            # 基础设置 (usePreference)
     ├─ BlacklistSettings.tsx        # 排除域名 (usePreference)

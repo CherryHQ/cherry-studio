@@ -7,7 +7,7 @@ WebSearch Settings UI 迁移分为四个阶段：
 1. **第一阶段**: 数据层迁移 (Redux → Preference API) ✅ 已完成
 2. **第二阶段**: UI 组件库迁移 (antd → CherryUI + Tailwind) ✅ 已完成
 3. **第三阶段**: Setting 组件迁移 (styled-components → Tailwind) ✅ 已完成
-4. **第四阶段**: SOLID 架构重构 ⏳ 待开始
+4. **第四阶段**: SOLID 架构重构 ✅ 已完成
 
 **迁移范围**：
 - 保留功能：使用新 hooks
@@ -21,10 +21,10 @@ WebSearch Settings UI 迁移分为四个阶段：
 |--------|------|--------|
 | `providers` 列表 | 保留 | `useWebSearchProviders()` |
 | 单个 provider 读写 | 保留 | `useWebSearchProvider(id)` |
-| `searchWithTime` | 保留 | `useWebSearchSettings().setSearchWithTime` |
-| `maxResults` | 保留 | `useWebSearchSettings().setMaxResults` |
-| `excludeDomains` | 保留 | `useWebSearchSettings().setExcludeDomains` |
-| `compression` | 保留 | `useWebSearchCompression()` / `useWebSearchSettings()` |
+| `searchWithTime` | 保留 | `useBasicWebSearchSettings().setSearchWithTime` |
+| `maxResults` | 保留 | `useBasicWebSearchSettings().setMaxResults` |
+| `excludeDomains` | 保留 | `useBasicWebSearchSettings().setExcludeDomains` |
+| `compression` | 保留 | `useCompressionMethod()` / `useCutoffCompression()` / `useRagCompression()` |
 | `defaultProvider` | 废弃 | 移除 UI |
 | `subscribeSources` | 废弃 | 移除 UI |
 
@@ -70,14 +70,14 @@ WebSearch Settings UI 迁移分为四个阶段：
 
 | 修改项 | 说明 |
 |--------|------|
-| import 修改 | `useWebSearchSettings` 改为从 `@renderer/hooks/useWebSearch` 导入 |
+| import 修改 | `useWebSearchSettings` 改为从 `@renderer/hooks/useWebSearch` 导入（`useBasicWebSearchSettings`, `useCompressionMethod`） |
 | 移除 import | `useDefaultWebSearchProvider`, `useWebSearchProviders`, Redux imports, logo imports |
 | 移除函数 | `getProviderLogo`, `updateSelectedWebSearchProvider`, `sortedProviders`, `renderProviderLabel` |
 | 移除调用 | `useDefaultWebSearchProvider()`, `useWebSearchProviders()`, `dispatch` |
 | 移除 UI | 整个 "Search Provider" SettingGroup（默认 provider 选择器） |
 | dispatch 修改 | `dispatch(setSearchWithTime(checked))` → `setSearchWithTime(checked)` |
 | dispatch 修改 | `dispatch(setMaxResult(value))` → `setMaxResults(value)` |
-| 状态来源 | `compressionMethod` 来自 `useWebSearchSettings` |
+| 状态来源 | `compressionMethod` 来自 `useCompressionMethod` |
 
 **Slider 组件迁移** (antd → @cherrystudio/ui):
 
@@ -102,7 +102,7 @@ WebSearch Settings UI 迁移分为四个阶段：
 
 | 修改项 | 说明 |
 |--------|------|
-| import 修改 | `useWebSearchSettings` 改为从 `@renderer/hooks/useWebSearch` 导入 |
+| import 修改 | `useWebSearchSettings` 改为从 `@renderer/hooks/useWebSearch` 导入（`useBasicWebSearchSettings`） |
 | 移除 import | `useBlacklist`, `useAppDispatch`, `useAppSelector`, Redux actions, `Table`, `AddSubscribePopup`, `loggerService`, `useTimer` |
 | 移除类型 | `TableRowSelection`, `DataType`, `TableProps` |
 | 移除常量 | `columns`, `logger` |
@@ -110,7 +110,7 @@ WebSearch Settings UI 迁移分为四个阶段：
 | 移除函数 | `onSelectChange`, `rowSelection`, `updateSubscribe`, `handleAddSubscribe`, `handleDeleteSubscribe` |
 | 移除 useEffect | 订阅源相关 useEffect |
 | 移除 UI | 整个订阅源 SettingGroup（Table + 添加/更新/删除按钮） |
-| hooks 修改 | `useAppSelector(state => state.websearch.excludeDomains)` → `useWebSearchSettings().excludeDomains` |
+| hooks 修改 | `useAppSelector(state => state.websearch.excludeDomains)` → `useBasicWebSearchSettings().excludeDomains` |
 | dispatch 修改 | `dispatch(setExcludeDomains(...))` → `setExcludeDomains(...)` |
 
 **TextArea 组件迁移** (antd → @cherrystudio/ui):
@@ -164,10 +164,10 @@ WebSearch Settings UI 迁移分为四个阶段：
 | 组件 | 旧导入 | 新导入 |
 |------|-------|--------|
 | index.tsx | `useDefaultWebSearchProvider`, `useWebSearchProviders` | `useWebSearchProviders` |
-| BasicSettings.tsx | `useDefaultWebSearchProvider`, `useWebSearchProviders`, `useWebSearchSettings` + Redux | `useWebSearchSettings` |
-| BlacklistSettings.tsx | `useBlacklist` + Redux | `useWebSearchSettings` |
+| BasicSettings.tsx | `useDefaultWebSearchProvider`, `useWebSearchProviders`, `useWebSearchSettings` + Redux | `useBasicWebSearchSettings` |
+| BlacklistSettings.tsx | `useBlacklist` + Redux | `useBasicWebSearchSettings` |
 | WebSearchProviderSetting.tsx | `useDefaultWebSearchProvider`, `useWebSearchProvider` | `useWebSearchProvider` |
-| CompressionSettings/RagSettings.tsx | `useWebSearchSettings` | `useWebSearchSettings` |
+| CompressionSettings/RagSettings.tsx | `useWebSearchSettings` | `useRagCompression` |
 | ApiKeyListPopup/list.tsx | `useWebSearchProvider` | `useWebSearchProvider` |
 
 > 所有组件现统一从 `@renderer/hooks/useWebSearch` 导入。
@@ -741,9 +741,11 @@ export const SettingsTitle = ({ children, className }: Props) => (
 
 ---
 
-# 第四阶段：SOLID 架构重构 ⏳ 待开始
+# 第四阶段：SOLID 架构重构 ✅ 已完成
 
 ## 概述
+
+该阶段已完成并落地，相关拆分 hooks 与工具函数已在现有代码中使用。
 
 基于 SOLID 原则对 WebSearchSettings 模块进行架构重构，解决以下核心问题：
 
