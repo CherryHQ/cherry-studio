@@ -3,6 +3,8 @@ import { useDefaultProcessors, useFileProcessors } from '@renderer/hooks/useFile
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ScenarioSection from './ScenarioSection'
+
 const GeneralSettings: FC = () => {
   const { t } = useTranslation()
   const { processors: documentProcessors } = useFileProcessors({ feature: 'markdown_conversion' })
@@ -27,14 +29,13 @@ const GeneralSettings: FC = () => {
   return (
     <div className="flex w-full flex-col gap-1">
       {/* Knowledge Base Document Processing */}
-      <div className="flex flex-col gap-2 px-4 py-2">
-        <div className="font-medium text-sm">{t('settings.file_processing.scenario.knowledge_base.title')}</div>
-        <p className="mb-2 text-muted-foreground text-xs">
-          {t('settings.file_processing.scenario.knowledge_base.description')}
-        </p>
-        <div className="border-border border-b" />
-
-        <div className="mt-2 flex flex-row items-center justify-between">
+      <ScenarioSection.Root
+        title={t('settings.file_processing.scenario.knowledge_base.title')}
+        description={t('settings.file_processing.scenario.knowledge_base.description')}>
+        <ScenarioSection.Title />
+        <ScenarioSection.Description />
+        <ScenarioSection.Divider />
+        <ScenarioSection.Row>
           <div className="text-sm">{t('settings.file_processing.default_service')}</div>
           <Select
             value={defaultMarkdownConversionProcessor || '__none__'}
@@ -52,20 +53,19 @@ const GeneralSettings: FC = () => {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
+        </ScenarioSection.Row>
+      </ScenarioSection.Root>
 
       <div className="border-border border-b" />
 
       {/* Chat Image Understanding */}
-      <div className="flex flex-col gap-2 px-4 py-2">
-        <div className="font-medium text-sm">{t('settings.file_processing.scenario.chat_image.title')}</div>
-        <p className="mb-2 text-muted-foreground text-xs">
-          {t('settings.file_processing.scenario.chat_image.description')}
-        </p>
-        <div className="border-border border-b" />
-
-        <div className="mt-2 flex flex-row items-center justify-between">
+      <ScenarioSection.Root
+        title={t('settings.file_processing.scenario.chat_image.title')}
+        description={t('settings.file_processing.scenario.chat_image.description')}>
+        <ScenarioSection.Title />
+        <ScenarioSection.Description />
+        <ScenarioSection.Divider />
+        <ScenarioSection.Row>
           <div className="text-sm">{t('settings.file_processing.default_service')}</div>
           <Select
             value={defaultTextExtractionProcessor || '__none__'}
@@ -83,8 +83,8 @@ const GeneralSettings: FC = () => {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
+        </ScenarioSection.Row>
+      </ScenarioSection.Root>
 
       <div className="border-border border-b" />
     </div>

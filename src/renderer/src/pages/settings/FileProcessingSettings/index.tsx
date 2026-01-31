@@ -1,4 +1,3 @@
-import { DividerWithText } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useDefaultProcessors, useFileProcessors } from '@renderer/hooks/useFileProcessors'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
@@ -7,6 +6,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProcessorListItem from './components/ProcessorListItem'
+import SidebarSection from './components/SidebarSection'
 
 const FileProcessingSettings: FC = () => {
   const { t } = useTranslation()
@@ -52,32 +52,42 @@ const FileProcessingSettings: FC = () => {
         </div>
 
         {/* Document processors */}
-        <DividerWithText text={t('settings.file_processing.document_processors')} />
-        <div className="flex flex-col gap-1">
-          {documentProcessors.map((processor) => (
-            <ProcessorListItem
-              key={processor.id}
-              processor={processor}
-              isActive={activeView === processor.id}
-              isDefault={defaultMarkdownConversionProcessor === processor.id}
-              isDocument={true}
-            />
-          ))}
-        </div>
+        <SidebarSection.Root title={t('settings.file_processing.document_processors')}>
+          <SidebarSection.Title />
+          <SidebarSection.List>
+            {documentProcessors.map((processor) => (
+              <ProcessorListItem.Root
+                key={processor.id}
+                processor={processor}
+                activeId={activeView}
+                defaultId={defaultMarkdownConversionProcessor}
+                kind="document">
+                <ProcessorListItem.Icon />
+                <ProcessorListItem.Label />
+                <ProcessorListItem.Badge />
+              </ProcessorListItem.Root>
+            ))}
+          </SidebarSection.List>
+        </SidebarSection.Root>
 
         {/* Image processors */}
-        <DividerWithText text={t('settings.file_processing.image_processors')} />
-        <div className="flex flex-col gap-1">
-          {imageProcessors.map((processor) => (
-            <ProcessorListItem
-              key={processor.id}
-              processor={processor}
-              isActive={activeView === processor.id}
-              isDefault={defaultTextExtractionProcessor === processor.id}
-              isDocument={false}
-            />
-          ))}
-        </div>
+        <SidebarSection.Root title={t('settings.file_processing.image_processors')}>
+          <SidebarSection.Title />
+          <SidebarSection.List>
+            {imageProcessors.map((processor) => (
+              <ProcessorListItem.Root
+                key={processor.id}
+                processor={processor}
+                activeId={activeView}
+                defaultId={defaultTextExtractionProcessor}
+                kind="image">
+                <ProcessorListItem.Icon />
+                <ProcessorListItem.Label />
+                <ProcessorListItem.Badge />
+              </ProcessorListItem.Root>
+            ))}
+          </SidebarSection.List>
+        </SidebarSection.Root>
       </div>
 
       {/* Right column: Content area */}

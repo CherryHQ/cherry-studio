@@ -12,10 +12,11 @@ import { isMac, isWin } from '@renderer/config/constant'
 import { FILE_PROCESSOR_CONFIG, TESSERACT_LANG_MAP } from '@renderer/config/fileProcessing'
 import { useFileProcessor } from '@renderer/hooks/useFileProcessors'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import ProcessorSettingsLayout from '../ProcessorSettingsLayout'
 
 interface BuiltinProcessorSettingsProps {
   processorId: string
@@ -144,20 +145,12 @@ const BuiltinProcessorSettings: FC<BuiltinProcessorSettingsProps> = ({ processor
   }
 
   return (
-    <div className="flex w-full flex-col gap-1">
-      <div className="flex items-center gap-2 px-4 py-2">
-        {t(`settings.file_processing.processor.${processor.id}.name`)}
-        {FILE_PROCESSOR_CONFIG[processor.id]?.websites.official && (
-          <ExternalLink
-            size={14}
-            className="cursor-pointer text-muted-foreground hover:text-foreground"
-            onClick={() => window.open(FILE_PROCESSOR_CONFIG[processor.id]?.websites.official, '_blank')}
-          />
-        )}
-      </div>
-      <div className="border-border border-b" />
-      {renderProcessorSettings()}
-    </div>
+    <ProcessorSettingsLayout.Root
+      title={t(`settings.file_processing.processor.${processor.id}.name`)}
+      officialUrl={FILE_PROCESSOR_CONFIG[processor.id]?.websites.official}>
+      <ProcessorSettingsLayout.Header />
+      <ProcessorSettingsLayout.Content>{renderProcessorSettings()}</ProcessorSettingsLayout.Content>
+    </ProcessorSettingsLayout.Root>
   )
 }
 
