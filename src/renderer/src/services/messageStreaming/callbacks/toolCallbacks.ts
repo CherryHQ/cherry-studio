@@ -1,11 +1,13 @@
 import { loggerService } from '@logger'
 import type { AppDispatch } from '@renderer/store'
+import store from '@renderer/store'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createCitationBlock, createToolBlock } from '@renderer/utils/messageUtils/create'
+import { isPlainObject } from 'lodash'
 
 import type { BlockManager } from '../BlockManager'
 
@@ -116,10 +118,28 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             ? MessageBlockStatus.SUCCESS
             : MessageBlockStatus.ERROR
 
+        const state = store.getState()
+        const existingBlock = state.messageBlocks.entities[existingBlockId] as ToolMessageBlock | undefined
+        const resolvedInput = state.toolPermissions.resolvedInputs[toolResponse.id]
+
+        const existingResponse = existingBlock?.metadata?.rawMcpToolResponse
+        const mergedArguments = Object.assign(
+          {},
+          isPlainObject(resolvedInput) ? resolvedInput : null,
+          isPlainObject(existingResponse?.arguments) ? existingResponse?.arguments : null,
+          isPlainObject(toolResponse.arguments) ? toolResponse.arguments : null
+        )
+
+        const mergedToolResponse: MCPToolResponse | NormalToolResponse = {
+          ...(existingResponse ?? toolResponse),
+          ...toolResponse,
+          arguments: mergedArguments
+        }
+
         const changes: Partial<ToolMessageBlock> = {
           content: toolResponse.response,
           status: finalStatus,
-          metadata: { rawMcpToolResponse: toolResponse }
+          metadata: { rawMcpToolResponse: mergedToolResponse }
         }
 
         if (finalStatus === MessageBlockStatus.ERROR) {

@@ -10,6 +10,7 @@ import { useMemo } from 'react'
 export * from './types'
 
 // 导入所有渲染器
+import { AskUserQuestionCard } from '../AskUserQuestionCard'
 import ToolPermissionRequestCard from '../ToolPermissionRequestCard'
 import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
@@ -144,6 +145,11 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
       return undefined
     }
   }, [partialArguments])
+
+  // AskUserQuestion uses a unified card for both pending and completed states
+  if (tool?.name === AgentToolsType.AskUserQuestion) {
+    return <AskUserQuestionCard toolResponse={toolResponse} />
+  }
 
   const effectiveStatus = getEffectiveStatus(status, !!pendingPermission)
 
