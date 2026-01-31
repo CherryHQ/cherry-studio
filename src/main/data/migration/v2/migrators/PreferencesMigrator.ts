@@ -187,7 +187,10 @@ export class PreferencesMigrator extends BaseMigrator {
 
           // Report progress
           const progress = Math.round(((i + batch.length) / insertValues.length) * 100)
-          this.reportProgress(progress, `已迁移 ${i + batch.length}/${insertValues.length} 条配置`)
+          this.reportProgress(progress, `Migrated ${i + batch.length}/${insertValues.length} preferences`, {
+            key: 'migration.progress.migrated_preferences',
+            params: { processed: i + batch.length, total: insertValues.length }
+          })
         }
       })
 

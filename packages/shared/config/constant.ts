@@ -233,7 +233,8 @@ export enum codeTools {
   geminiCli = 'gemini-cli',
   openaiCodex = 'openai-codex',
   iFlowCli = 'iflow-cli',
-  githubCopilotCli = 'github-copilot-cli'
+  githubCopilotCli = 'github-copilot-cli',
+  kimiCli = 'kimi-cli'
 }
 
 export enum terminalApps {

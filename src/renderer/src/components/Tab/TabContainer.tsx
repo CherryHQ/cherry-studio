@@ -1,10 +1,11 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Sortable, useDndReorder } from '@cherrystudio/ui'
 import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import { isMac } from '@renderer/config/constant'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { isLinux, isMac } from '@renderer/config/constant'
+import { allMinApps } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -57,7 +58,7 @@ const getTabIcon = (
   // Check if it's a minapp tab (format: apps:appId)
   if (tabId.startsWith('apps:')) {
     const appId = tabId.replace('apps:', '')
-    let app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+    let app = [...allMinApps, ...minapps].find((app) => app.id === appId)
 
     // If not found in permanent apps, search in temporary apps cache
     // The cache stores apps opened via openSmartMinapp() for top navbar mode
@@ -122,8 +123,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
+  // const { useSystemTitleBar } = useSettings()
+  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
   const { t } = useTranslation()
-
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
     const segments = path.split('/')
@@ -138,7 +140,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     // Check if it's a minapp tab
     if (tabId.startsWith('apps:')) {
       const appId = tabId.replace('apps:', '')
-      let app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+      let app = [...allMinApps, ...minapps].find((app) => app.id === appId)
 
       // If not found in permanent apps, search in temporary apps cache
       // This ensures temporary MinApps display proper titles while being used
@@ -268,7 +270,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
             <PlusOutlined />
           </AddTabButton>
         </HorizontalScrollContainer>
-        <RightButtonsContainer>
+        <RightButtonsContainer style={{ paddingRight: isLinux && useSystemTitleBar ? '12px' : undefined }}>
           <Tooltip
             placement="bottom"
             content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}

@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2025-11-29T03:45:07.227Z
+ * Generated at: 2026-01-23T10:31:39.499Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -501,6 +501,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'enableQuickPanelTriggers',
       targetKey: 'chat.input.quick_panel.triggers_enabled'
+    },
+    {
+      originalKey: 'useSystemTitleBar',
+      targetKey: 'app.use_system_title_bar'
     },
     {
       originalKey: 'exportMenuOptions.image',

@@ -22,30 +22,29 @@ enum PlatformType {
   OVERSEA = 'https://ssvip.DMXAPI.com'
 }
 
-// FIXME: always Chinese. take consider of i18n
-const PlatformOptions = [
-  {
-    label: 'www.DMXAPI.cn 人民币站',
-    value: PlatformType.OFFICIAL,
-    apiKeyWebsite: 'https://www.dmxapi.cn/register?aff=bwwY'
-  },
-  {
-    label: 'www.DMXAPI.com 国际站',
-    value: PlatformType.INTERNATIONAL,
-    apiKeyWebsite: 'https://www.dmxapi.com/register'
-  },
-  {
-    label: 'ssvip.DMXAPI.com 生产级商用站',
-    value: PlatformType.OVERSEA,
-    apiKeyWebsite: 'https://ssvip.dmxapi.com/register'
-  }
-]
-
 const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
   const { provider, updateProvider } = useProvider(providerId)
   const { theme } = useTheme()
 
   const { t } = useTranslation()
+
+  const PlatformOptions = [
+    {
+      label: t('settings.provider.dmxapi.platform_official'),
+      value: PlatformType.OFFICIAL,
+      apiKeyWebsite: 'https://www.dmxapi.cn/register?aff=bwwY'
+    },
+    {
+      label: t('settings.provider.dmxapi.platform_international'),
+      value: PlatformType.INTERNATIONAL,
+      apiKeyWebsite: 'https://www.dmxapi.com/register'
+    },
+    {
+      label: t('settings.provider.dmxapi.platform_enterprise'),
+      value: PlatformType.OVERSEA,
+      apiKeyWebsite: 'https://ssvip.dmxapi.com/register'
+    }
+  ]
 
   // 获取当前选中的平台，如果没有设置则默认为官方平台
   const getCurrentPlatform = (): PlatformType => {
@@ -93,7 +92,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
               <span>
                 {option.label}{' '}
                 <a href={option.apiKeyWebsite} target="_blank" rel="noopener noreferrer">
-                  (获得 API密钥)
+                  ({t('settings.provider.get_api_key')})
                 </a>
               </span>
             )

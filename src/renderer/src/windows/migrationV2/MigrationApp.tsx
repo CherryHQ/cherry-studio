@@ -95,6 +95,14 @@ const MigrationApp: React.FC = () => {
     }
   }
 
+  // Translate progress message using i18n if available
+  const getProgressMessage = () => {
+    if (progress.i18nMessage) {
+      return t(progress.i18nMessage.key, progress.i18nMessage.params)
+    }
+    return progress.currentMessage
+  }
+
   const getCurrentStepIcon = () => {
     switch (progress.stage) {
       case 'introduction':
@@ -275,7 +283,7 @@ const MigrationApp: React.FC = () => {
               <div style={{ width: '100%', maxWidth: '600px', margin: '0 auto' }}>
                 <InfoCard>
                   <InfoTitle>{t('migration.migration.title')}</InfoTitle>
-                  <InfoDescription>{progress.currentMessage}</InfoDescription>
+                  <InfoDescription>{getProgressMessage()}</InfoDescription>
                 </InfoCard>
                 <ProgressContainer>
                   <Progress

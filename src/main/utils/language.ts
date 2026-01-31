@@ -47,3 +47,20 @@ export const getI18n = (): Record<string, any> => {
   const language = getAppLanguage()
   return locales[language]
 }
+
+/**
+ * Get translation by key path (e.g., 'dialog.save_file')
+ * This is a simplified version for main process, similar to i18next's t() function
+ */
+export const t = (key: string): string => {
+  const locale = getI18n()
+  const keys = key.split('.')
+  let result: any = locale.translation
+  for (const k of keys) {
+    result = result?.[k]
+    if (result === undefined) {
+      return key
+    }
+  }
+  return typeof result === 'string' ? result : key
+}

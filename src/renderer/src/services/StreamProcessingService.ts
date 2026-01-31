@@ -1,5 +1,11 @@
 import { loggerService } from '@logger'
-import type { ExternalToolResult, GenerateImageResponse, MCPToolResponse, WebSearchResponse } from '@renderer/types'
+import type {
+  ExternalToolResult,
+  GenerateImageResponse,
+  MCPToolResponse,
+  NormalToolResponse,
+  WebSearchResponse
+} from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Response } from '@renderer/types/newMessage'
@@ -23,9 +29,11 @@ export interface StreamProcessorCallbacks {
   onThinkingChunk?: (text: string, thinking_millsec?: number) => void
   onThinkingComplete?: (text: string, thinking_millsec?: number) => void
   // A tool call response chunk (from MCP)
-  onToolCallPending?: (toolResponse: MCPToolResponse) => void
-  onToolCallInProgress?: (toolResponse: MCPToolResponse) => void
-  onToolCallComplete?: (toolResponse: MCPToolResponse) => void
+  onToolCallPending?: (toolResponse: MCPToolResponse | NormalToolResponse) => void
+  onToolCallInProgress?: (toolResponse: MCPToolResponse | NormalToolResponse) => void
+  onToolCallComplete?: (toolResponse: MCPToolResponse | NormalToolResponse) => void
+  // Tool argument streaming (partial arguments during streaming)
+  onToolArgumentStreaming?: (toolResponse: MCPToolResponse | NormalToolResponse) => void
   // External tool call in progress
   onExternalToolInProgress?: () => void
   // Citation data received (e.g., from Internet and  Knowledge Base)
@@ -106,6 +114,12 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         case ChunkType.MCP_TOOL_COMPLETE: {
           if (callbacks.onToolCallComplete && data.responses.length > 0) {
             data.responses.forEach((toolResp) => callbacks.onToolCallComplete!(toolResp))
+          }
+          break
+        }
+        case ChunkType.MCP_TOOL_STREAMING: {
+          if (callbacks.onToolArgumentStreaming) {
+            data.responses.forEach((toolResp) => callbacks.onToolArgumentStreaming!(toolResp))
           }
           break
         }

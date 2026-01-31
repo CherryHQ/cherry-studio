@@ -1,9 +1,6 @@
 import styled from 'styled-components'
 
 export const WindowControlsContainer = styled.div`
-  position: fixed;
-  top: 0;
-  right: 0;
   display: flex;
   align-items: center;
   height: var(--navbar-height);
