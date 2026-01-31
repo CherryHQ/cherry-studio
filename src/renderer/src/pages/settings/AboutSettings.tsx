@@ -80,7 +80,7 @@ const AboutSettings: FC = () => {
   }
 
   const showEnterprise = async () => {
-    onOpenWebsite('https://cherry-ai.com/enterprise')
+    onOpenWebsite('https://enterprise.cherry-ai.com')
   }
 
   const showReleases = async () => {
