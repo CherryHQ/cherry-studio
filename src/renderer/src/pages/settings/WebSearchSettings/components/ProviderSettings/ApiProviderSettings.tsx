@@ -148,6 +148,7 @@ const ApiProviderSettings: FC<Props> = ({ provider, updateProvider }) => {
             </FieldLabel>
             <FieldContent>
               <Input
+                className="rounded-2xs"
                 value={basicAuthUsername}
                 placeholder={t('settings.provider.basic_auth.user_name.tip')}
                 onChange={(e) => setBasicAuthUsername(e.target.value)}
@@ -166,7 +167,7 @@ const ApiProviderSettings: FC<Props> = ({ provider, updateProvider }) => {
                     placeholder={t('settings.provider.basic_auth.password.tip')}
                     onChange={(e) => setBasicAuthPassword(e.target.value)}
                     onBlur={() => handleFieldBlur('basicAuthPassword', basicAuthPassword)}
-                    className="pr-10"
+                    className="rounded-2xs pr-10"
                   />
                   <Button
                     variant="ghost"
