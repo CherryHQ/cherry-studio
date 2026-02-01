@@ -88,7 +88,8 @@
     "swagger-jsdoc": "6.2.8",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "xxhash-wasm": "^1.1.0"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -242,6 +243,7 @@
     "@types/unist": "3.0.3",
     "@types/uuid": "^10.0.0",
     "@types/word-extractor": "^1",
+    "@types/yauzl": "^2.10.3",
     "@typescript/native-preview": "7.0.0-dev.20250915.1",
     "@uiw/codemirror-extensions-langs": "^4.25.1",
     "@uiw/codemirror-themes-all": "^4.25.1",
