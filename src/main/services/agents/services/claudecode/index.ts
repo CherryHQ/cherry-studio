@@ -126,6 +126,8 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const env = {
       ...loginShellEnvWithoutProxies,
+      // prevent claude agent sdk using bedrock api
+      CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
       // ANTHROPIC_API_KEY: apiConfig.apiKey,
       // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
