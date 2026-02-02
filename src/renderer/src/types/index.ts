@@ -478,8 +478,6 @@ export type MinAppType = {
   name: string
   /** i18n key for translatable names */
   nameKey?: string
-  /** Locale codes where this app should be visible (e.g., ['zh-CN', 'zh-TW']) */
-  locales?: LanguageVarious[]
   /** Regions where this app is available. If includes 'Global', shown to international users. */
   supportedRegions?: MinAppRegion[]
   logo?: string
