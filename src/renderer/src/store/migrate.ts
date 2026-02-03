@@ -3203,7 +3203,7 @@ const migrateConfig = {
       logger.error('migrate 140 error', error as Error)
       return state
     }
-  },
+  }
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer
