@@ -103,23 +103,28 @@ const buildCacheKey = (prefix: string, params: Record<string, unknown>): string 
   return `marketplace:${prefix}:${JSON.stringify(sorted)}`
 }
 
-const parsePluginsResponse = (payload: unknown) => {
-  const parsed = pluginsResponseSchema.safeParse(payload)
-  if (!parsed.success) {
-    logger.error('Marketplace plugins response parse failed', parsed.error)
-    return { items: [], total: 0 }
+/**
+ * Create a response parser for marketplace API responses
+ */
+function createResponseParser<TItem>(
+  schema: z.ZodObject<z.ZodRawShape>,
+  itemsKey: string,
+  logContext: string
+): (payload: unknown) => { items: TItem[]; total: number } {
+  return (payload: unknown) => {
+    const parsed = schema.safeParse(payload)
+    if (!parsed.success) {
+      logger.error(`Marketplace ${logContext} response parse failed`, parsed.error)
+      return { items: [], total: 0 }
+    }
+    const data = parsed.data as Record<string, unknown>
+    return { items: (data[itemsKey] ?? []) as TItem[], total: (data.total as number) ?? 0 }
   }
-  return { items: parsed.data.plugins, total: parsed.data.total ?? 0 }
 }
 
-const parseSkillsResponse = (payload: unknown) => {
-  const parsed = skillsResponseSchema.safeParse(payload)
-  if (!parsed.success) {
-    logger.error('Marketplace skills response parse failed', parsed.error)
-    return { items: [], total: 0 }
-  }
-  return { items: parsed.data.skills, total: parsed.data.total ?? 0 }
-}
+const parsePluginsResponse = createResponseParser<MarketplacePlugin>(pluginsResponseSchema, 'plugins', 'plugins')
+
+const parseSkillsResponse = createResponseParser<MarketplaceSkill>(skillsResponseSchema, 'skills', 'skills')
 
 const pendingRequests = new Map<string, Promise<MarketplacePage<MarketplacePlugin | MarketplaceSkill>>>()
 

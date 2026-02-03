@@ -36,19 +36,27 @@ export class PluginCacheStore {
     return await this.rebuild(workdir)
   }
 
-  async upsert(workdir: string, plugin: InstalledPlugin): Promise<void> {
+  /**
+   * Ensure cache data exists, rebuilding from filesystem if necessary
+   */
+  private async ensureCacheData(workdir: string): Promise<{ cacheData: CachedPluginsData; claudePath: string }> {
     const claudePath = this.deps.getClaudeBasePath(workdir)
-    let cacheData = await this.readCacheFile(claudePath)
-    let plugins = cacheData?.plugins
+    const existingCache = await this.readCacheFile(claudePath)
 
-    if (!plugins) {
-      plugins = await this.rebuild(workdir)
-      cacheData = {
-        version: 1,
-        lastUpdated: Date.now(),
-        plugins
-      }
+    if (existingCache) {
+      return { cacheData: existingCache, claudePath }
     }
+
+    const plugins = await this.rebuild(workdir)
+    return {
+      cacheData: { version: 1, lastUpdated: Date.now(), plugins },
+      claudePath
+    }
+  }
+
+  async upsert(workdir: string, plugin: InstalledPlugin): Promise<void> {
+    const { cacheData, claudePath } = await this.ensureCacheData(workdir)
+    const plugins = cacheData.plugins
 
     const updatedPlugin: InstalledPlugin = {
       ...plugin,
@@ -66,7 +74,7 @@ export class PluginCacheStore {
     }
 
     const data: CachedPluginsData = {
-      version: cacheData?.version ?? 1,
+      version: cacheData.version,
       lastUpdated: Date.now(),
       plugins
     }
@@ -76,23 +84,11 @@ export class PluginCacheStore {
   }
 
   async remove(workdir: string, filename: string, type: PluginType): Promise<void> {
-    const claudePath = this.deps.getClaudeBasePath(workdir)
-    let cacheData = await this.readCacheFile(claudePath)
-    let plugins = cacheData?.plugins
-
-    if (!plugins) {
-      plugins = await this.rebuild(workdir)
-      cacheData = {
-        version: 1,
-        lastUpdated: Date.now(),
-        plugins
-      }
-    }
-
-    const filtered = plugins.filter((p) => !(p.filename === filename && p.type === type))
+    const { cacheData, claudePath } = await this.ensureCacheData(workdir)
+    const filtered = cacheData.plugins.filter((p) => !(p.filename === filename && p.type === type))
 
     const data: CachedPluginsData = {
-      version: cacheData?.version ?? 1,
+      version: cacheData.version,
       lastUpdated: Date.now(),
       plugins: filtered
     }

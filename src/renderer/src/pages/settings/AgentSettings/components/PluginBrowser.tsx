@@ -93,12 +93,10 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
   const isInitialError = fetchError && entries.length === 0 && !isLoading
   const isLoadMoreError = fetchError && entries.length > 0 && !isLoadingMore
 
-  const displayedEntries = useMemo(() => entries, [entries])
-
   const rows = useMemo<PluginRow[]>(() => {
     const nextRows: PluginRow[] = []
-    for (let i = 0; i < displayedEntries.length; i += 2) {
-      nextRows.push({ type: 'data', entries: displayedEntries.slice(i, i + 2) })
+    for (let i = 0; i < entries.length; i += 2) {
+      nextRows.push({ type: 'data', entries: entries.slice(i, i + 2) })
     }
     if (isLoadingMore) {
       nextRows.push({ type: 'loader', entries: [] })
@@ -106,7 +104,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
       nextRows.push({ type: 'error', entries: [] })
     }
     return nextRows
-  }, [displayedEntries, isLoadingMore, isLoadMoreError])
+  }, [entries, isLoadingMore, isLoadMoreError])
 
   const pluginTypeTabItems = useMemo(
     () => [
@@ -315,7 +313,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
             {t('common.retry')}
           </AntButton>
         </div>
-      ) : displayedEntries.length === 0 && !isInitialLoading ? (
+      ) : entries.length === 0 && !isInitialLoading ? (
         <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
           <p className="text-default-400">{t('plugins.no_results')}</p>
           <p className="text-default-300 text-small">{t('plugins.try_different_search')}</p>

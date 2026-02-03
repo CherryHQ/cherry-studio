@@ -11,6 +11,15 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('useResourcePanel')
 const MAX_FILE_RESULTS = 500
 const MAX_SEARCH_RESULTS = 20
+
+// Category configuration for icons and translation keys
+const CATEGORY_CONFIG = {
+  files: { Icon: Folder, labelKey: 'chat.input.resource_panel.categories.files' },
+  agents: { Icon: Bot, labelKey: 'chat.input.resource_panel.categories.agents' },
+  skills: { Icon: Zap, labelKey: 'chat.input.resource_panel.categories.skills' }
+} as const
+
+type CategoryKey = keyof typeof CATEGORY_CONFIG
 const areFileListsEqual = (prev: string[], next: string[]) => {
   if (prev === next) return true
   if (prev.length !== next.length) return false
@@ -283,36 +292,16 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   )
 
   /**
-   * Get icon for category
+   * Get icon and label for a category
    */
-  const getCategoryIcon = useCallback((category: string): React.ReactNode => {
-    switch (category) {
-      case 'files':
-        return <Folder size={16} />
-      case 'agents':
-        return <Bot size={16} />
-      case 'skills':
-        return <Zap size={16} />
-      default:
-        return <Folder size={16} />
-    }
-  }, [])
-
-  /**
-   * Get category label translation
-   */
-  const getCategoryLabel = useCallback(
-    (category: string): string => {
-      switch (category) {
-        case 'files':
-          return t('chat.input.resource_panel.categories.files')
-        case 'agents':
-          return t('chat.input.resource_panel.categories.agents')
-        case 'skills':
-          return t('chat.input.resource_panel.categories.skills')
-        default:
-          return category
+  const getCategoryConfig = useCallback(
+    (category: string): { icon: React.ReactNode; label: string } => {
+      const config = CATEGORY_CONFIG[category as CategoryKey]
+      if (config) {
+        const { Icon, labelKey } = config
+        return { icon: <Icon size={16} />, label: t(labelKey) }
       }
+      return { icon: <Folder size={16} />, label: category }
     },
     [t]
   )
@@ -321,14 +310,17 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
    * Create category header item
    */
   const createCategoryHeader = useCallback(
-    (categoryKey: string, count: number): QuickPanelListItem => ({
-      label: getCategoryLabel(categoryKey),
-      description: `(${count})`,
-      icon: getCategoryIcon(categoryKey),
-      disabled: true,
-      action: () => {}
-    }),
-    [getCategoryIcon, getCategoryLabel]
+    (categoryKey: string, count: number): QuickPanelListItem => {
+      const { icon, label } = getCategoryConfig(categoryKey)
+      return {
+        label,
+        description: `(${count})`,
+        icon,
+        disabled: true,
+        action: () => {}
+      }
+    },
+    [getCategoryConfig]
   )
 
   /**

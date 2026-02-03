@@ -96,6 +96,13 @@ interface ComponentInstallResult {
 export class PluginService {
   private static instance: PluginService | null = null
 
+  // Plugin type to directory name mapping
+  private static readonly PLUGIN_TYPE_DIRECTORIES: Record<PluginType, 'agents' | 'commands' | 'skills'> = {
+    agent: 'agents',
+    command: 'commands',
+    skill: 'skills'
+  }
+
   // ZIP extraction limits (protection against zip bombs)
   private readonly MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
   private readonly MAX_FILES_COUNT = 1000
@@ -408,20 +415,9 @@ export class PluginService {
    * e.g., https://github.com/owner/repo/tree/main/path -> https://github.com/owner/repo
    */
   private extractBaseRepoUrl(url: string): string {
-    // Match GitHub tree URLs: https://github.com/owner/repo/tree/branch/path
-    const treeMatch = url.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/tree\//)
-    if (treeMatch) {
-      return treeMatch[1]
-    }
-
-    // Match GitHub blob URLs: https://github.com/owner/repo/blob/branch/path
-    const blobMatch = url.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/blob\//)
-    if (blobMatch) {
-      return blobMatch[1]
-    }
-
-    // Already a base URL or other format, return as-is
-    return url
+    // Match GitHub tree/blob URLs: https://github.com/owner/repo/{tree|blob}/branch/path
+    const match = url.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/(?:tree|blob)\//)
+    return match?.[1] ?? url
   }
 
   private async resolveSkillDirectory(
@@ -465,39 +461,45 @@ export class PluginService {
     const gitCommand = findExecutable('git') ?? 'git'
     const branch = await this.resolveDefaultBranch(gitCommand, repoUrl)
     if (branch) {
-      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
+      await this.executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
       return
     }
 
     try {
-      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
+      await this.executeCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
     } catch (error: unknown) {
       logger.warn('Default clone failed, retrying with master branch', {
         repoUrl,
         error: error instanceof Error ? error.message : String(error)
       })
-      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir])
+      await this.executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir])
     }
   }
 
-  private async runCommand(command: string, args: string[]): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
+  /**
+   * Execute a command and optionally capture its output
+   */
+  private executeCommand(command: string, args: string[], options?: { capture?: boolean }): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
       const child = spawn(command, args, { stdio: 'pipe' })
-      let errorOutput = ''
+      let stdout = ''
+      let stderr = ''
+
+      child.stdout?.on('data', (chunk) => {
+        stdout += chunk.toString()
+      })
 
       child.stderr?.on('data', (chunk) => {
-        errorOutput += chunk.toString()
+        stderr += chunk.toString()
       })
 
-      child.on('error', (error) => {
-        reject(error)
-      })
+      child.on('error', reject)
 
       child.on('close', (code) => {
         if (code === 0) {
-          resolve()
+          resolve(options?.capture ? stdout : '')
         } else {
-          reject(new Error(errorOutput || `Command failed with code ${code}`))
+          reject(new Error(stderr || `Command failed with code ${code}`))
         }
       })
     })
@@ -505,7 +507,9 @@ export class PluginService {
 
   private async resolveDefaultBranch(command: string, repoUrl: string): Promise<string | null> {
     try {
-      const output = await this.captureCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'])
+      const output = await this.executeCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'], {
+        capture: true
+      })
       const match = output.match(/ref: refs\/heads\/([^\s]+)/)
       return match?.[1] ?? null
     } catch (error: unknown) {
@@ -515,34 +519,6 @@ export class PluginService {
       })
       return null
     }
-  }
-
-  private async captureCommand(command: string, args: string[]): Promise<string> {
-    return await new Promise<string>((resolve, reject) => {
-      const child = spawn(command, args, { stdio: 'pipe' })
-      let output = ''
-      let errorOutput = ''
-
-      child.stdout?.on('data', (chunk) => {
-        output += chunk.toString()
-      })
-
-      child.stderr?.on('data', (chunk) => {
-        errorOutput += chunk.toString()
-      })
-
-      child.on('error', (error) => {
-        reject(error)
-      })
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve(output)
-        } else {
-          reject(new Error(errorOutput || `Command failed with code ${code}`))
-        }
-      })
-    })
   }
 
   /**
@@ -1501,13 +1477,7 @@ export class PluginService {
    * Resolve plugin type to directory name under .claude
    */
   private getPluginDirectoryName(type: PluginType): 'agents' | 'commands' | 'skills' {
-    if (type === 'agent') {
-      return 'agents'
-    }
-    if (type === 'command') {
-      return 'commands'
-    }
-    return 'skills'
+    return PluginService.PLUGIN_TYPE_DIRECTORIES[type]
   }
 
   /**
