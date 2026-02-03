@@ -4574,9 +4574,9 @@
       "region": {
         "auto": "Automatische Erkennung",
         "cn": "China",
-        "description": "Automatische Erkennung Ihres Standorts oder manuelle Auswahl",
+        "description": "Nach Region gefilterte Mini-Programme werden nicht unterstützt",
         "global": "global",
-        "title": "Region des Mini-Programms"
+        "title": "Bereichsfilterung für Mini-Programme"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
       "sidebar_description": "Festlegen ob Seitenleiste aktive Mini-Apps anzeigt",

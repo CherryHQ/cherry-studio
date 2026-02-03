@@ -4574,9 +4574,9 @@
       "region": {
         "auto": "Detectare automată",
         "cn": "China",
-        "description": "Detectare automată a regiunii dvs. sau selectare manuală",
-        "global": "Global",
-        "title": "Regiunea aplicației miniaturi"
+        "description": "Filtrarea aplicațiilor mini care nu sunt acceptate în funcție de regiunea în care vă aflați",
+        "global": "global",
+        "title": "Filtru zonă aplicație miniatură"
       },
       "reset_tooltip": "Resetează la implicit",
       "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",

@@ -4574,9 +4574,9 @@
       "region": {
         "auto": "Auto detect",
         "cn": "China",
-        "description": "Automatically detect your region, or select manually",
-        "global": "global",
-        "title": "Mini Program Region"
+        "description": "Filtering unsupported mini-programs based on the region",
+        "global": "Global",
+        "title": "Mini Program filter"
       },
       "reset_tooltip": "Reset to default",
       "sidebar_description": "Show active mini apps in the sidebar",

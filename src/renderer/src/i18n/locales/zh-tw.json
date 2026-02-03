@@ -4574,9 +4574,9 @@
       "region": {
         "auto": "自動檢測",
         "cn": "中國",
-        "description": "自動偵測您的地區，或手動選擇",
+        "description": "根據所在地區篩選不支援的小程式",
         "global": "全球",
-        "title": "小程序地區"
+        "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
       "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
