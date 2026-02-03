@@ -275,9 +275,10 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   }, [isPending, request?.input, toolResponse.arguments])
 
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({})
-  const [customInputs, setCustomInputs] = useState<Record<string, string>>({})
-  const [showCustomInput, setShowCustomInput] = useState<Record<string, boolean>>({})
+  // Use question index as key to avoid collision when questions have identical text
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string[]>>({})
+  const [customInputs, setCustomInputs] = useState<Record<number, string>>({})
+  const [showCustomInput, setShowCustomInput] = useState<Record<number, boolean>>({})
   const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, string>>({})
 
   const displayAnswers = Object.keys(answers).length > 0 ? answers : submittedAnswers
@@ -290,42 +291,42 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
 
   const isCurrentAnswered = useMemo(() => {
     if (!currentQuestion) return false
-    const selected = selectedAnswers[currentQuestion.question] ?? []
-    const custom = customInputs[currentQuestion.question]?.trim()
-    return selected.length > 0 || (showCustomInput[currentQuestion.question] && !!custom)
-  }, [currentQuestion, selectedAnswers, customInputs, showCustomInput])
+    const selected = selectedAnswers[currentIndex] ?? []
+    const custom = customInputs[currentIndex]?.trim()
+    return selected.length > 0 || (showCustomInput[currentIndex] && !!custom)
+  }, [currentQuestion, currentIndex, selectedAnswers, customInputs, showCustomInput])
 
   const allAnswered = useMemo(() => {
-    return questions.every((q) => {
-      const selected = selectedAnswers[q.question] ?? []
-      const custom = customInputs[q.question]?.trim()
-      return selected.length > 0 || (showCustomInput[q.question] && custom)
+    return questions.every((_, idx) => {
+      const selected = selectedAnswers[idx] ?? []
+      const custom = customInputs[idx]?.trim()
+      return selected.length > 0 || (showCustomInput[idx] && custom)
     })
   }, [questions, selectedAnswers, customInputs, showCustomInput])
 
   const handleSelect = useCallback(
-    (questionText: string, label: string, checked?: boolean) => {
-      const isMulti = questions.find((q) => q.question === questionText)?.multiSelect
+    (questionIndex: number, label: string, checked?: boolean) => {
+      const isMulti = questions[questionIndex]?.multiSelect
 
       if (label === OTHER_OPTION_VALUE) {
         const showOther = checked ?? true
-        setShowCustomInput((prev) => ({ ...prev, [questionText]: showOther }))
-        if (!showOther) setCustomInputs((prev) => ({ ...prev, [questionText]: '' }))
-        if (!isMulti) setSelectedAnswers((prev) => ({ ...prev, [questionText]: [] }))
+        setShowCustomInput((prev) => ({ ...prev, [questionIndex]: showOther }))
+        if (!showOther) setCustomInputs((prev) => ({ ...prev, [questionIndex]: '' }))
+        if (!isMulti) setSelectedAnswers((prev) => ({ ...prev, [questionIndex]: [] }))
         return
       }
 
       if (isMulti) {
         setSelectedAnswers((prev) => {
-          const current = prev[questionText] ?? []
+          const current = prev[questionIndex] ?? []
           return checked
-            ? { ...prev, [questionText]: [...current, label] }
-            : { ...prev, [questionText]: current.filter((l) => l !== label) }
+            ? { ...prev, [questionIndex]: [...current, label] }
+            : { ...prev, [questionIndex]: current.filter((l) => l !== label) }
         })
       } else {
-        setShowCustomInput((prev) => ({ ...prev, [questionText]: false }))
-        setSelectedAnswers((prev) => ({ ...prev, [questionText]: [label] }))
-        setCustomInputs((prev) => ({ ...prev, [questionText]: '' }))
+        setShowCustomInput((prev) => ({ ...prev, [questionIndex]: false }))
+        setSelectedAnswers((prev) => ({ ...prev, [questionIndex]: [label] }))
+        setCustomInputs((prev) => ({ ...prev, [questionIndex]: '' }))
       }
     },
     [questions]
@@ -343,16 +344,16 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     if (!request) return
 
     const collectedAnswers: Record<string, string> = {}
-    for (const q of questions) {
-      const selected = selectedAnswers[q.question] ?? []
-      const custom = customInputs[q.question]?.trim()
+    questions.forEach((q, idx) => {
+      const selected = selectedAnswers[idx] ?? []
+      const custom = customInputs[idx]?.trim()
 
-      if (showCustomInput[q.question] && custom) {
+      if (showCustomInput[idx] && custom) {
         collectedAnswers[q.question] = q.multiSelect && selected.length > 0 ? [...selected, custom].join(', ') : custom
       } else if (selected.length > 0) {
         collectedAnswers[q.question] = selected.join(', ')
       }
-    }
+    })
 
     setSubmittedAnswers(collectedAnswers)
     dispatch(toolPermissionsActions.submissionSent({ requestId: request.requestId, behavior: 'allow' }))
@@ -448,12 +449,12 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
         {isPending ? (
           <PendingContent
             question={currentQuestion}
-            selected={selectedAnswers[currentQuestion.question] ?? []}
-            hasCustomInput={showCustomInput[currentQuestion.question] ?? false}
-            customInputValue={customInputs[currentQuestion.question] ?? ''}
+            selected={selectedAnswers[currentIndex] ?? []}
+            hasCustomInput={showCustomInput[currentIndex] ?? false}
+            customInputValue={customInputs[currentIndex] ?? ''}
             isAnswered={isCurrentAnswered}
-            onSelect={(label, checked) => handleSelect(currentQuestion.question, label, checked)}
-            onCustomInputChange={(value) => setCustomInputs((prev) => ({ ...prev, [currentQuestion.question]: value }))}
+            onSelect={(label, checked) => handleSelect(currentIndex, label, checked)}
+            onCustomInputChange={(value) => setCustomInputs((prev) => ({ ...prev, [currentIndex]: value }))}
           />
         ) : (
           <CompletedContent question={currentQuestion} answer={displayAnswers[currentQuestion.question]} />

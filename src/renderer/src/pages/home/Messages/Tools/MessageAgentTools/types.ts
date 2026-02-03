@@ -354,17 +354,11 @@ export const AskUserQuestionToolInputSchema = z.object({
   answers: AskUserQuestionAnswerSchema.optional()
 })
 
-export const AskUserQuestionToolOutputSchema = z.object({
-  /** User answers collected by the permission component */
-  answers: AskUserQuestionAnswerSchema.optional()
-})
-
 // 从 Zod schema 推断类型
 export type AskUserQuestionOption = z.infer<typeof AskUserQuestionOptionSchema>
 export type AskUserQuestionItem = z.infer<typeof AskUserQuestionItemSchema>
 export type AskUserQuestionToolInput = z.infer<typeof AskUserQuestionToolInputSchema>
 export type AskUserQuestionAnswer = z.infer<typeof AskUserQuestionAnswerSchema>
-export type AskUserQuestionToolOutput = z.infer<typeof AskUserQuestionToolOutputSchema>
 
 /**
  * Safely parse AskUserQuestionToolInput from unknown data.
@@ -372,15 +366,6 @@ export type AskUserQuestionToolOutput = z.infer<typeof AskUserQuestionToolOutput
  */
 export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
   const result = AskUserQuestionToolInputSchema.safeParse(value)
-  return result.success ? result.data : undefined
-}
-
-/**
- * Safely parse AskUserQuestionToolOutput from unknown data.
- * Returns undefined if the data doesn't match the expected structure.
- */
-export function parseAskUserQuestionToolOutput(value: unknown): AskUserQuestionToolOutput | undefined {
-  const result = AskUserQuestionToolOutputSchema.safeParse(value)
   return result.success ? result.data : undefined
 }
 
@@ -445,7 +430,6 @@ export type ToolOutput =
   | BashOutputToolOutput
   | NotebookEditToolOutput
   | ExitPlanModeToolOutput
-  | AskUserQuestionToolOutput
 // 工具渲染器接口
 export interface ToolRenderer {
   render: (props: { input: ToolInput; output?: ToolOutput }) => React.ReactElement
