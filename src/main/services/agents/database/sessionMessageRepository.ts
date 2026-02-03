@@ -7,7 +7,7 @@ import type {
   AgentPersistedMessage,
   AgentSessionMessageEntity
 } from '@types'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import type { InsertSessionMessageRow, SessionMessageRow } from './schema'
@@ -83,26 +83,20 @@ class AgentMessageRepository extends BaseService {
     messageId: string
   ): Promise<SessionMessageRow | null> {
     const database = await this.getDatabase()
-    const candidateRows: SessionMessageRow[] = await database
+    // Use SQLite json_extract to query by messageId directly, avoiding loading all messages
+    const rows = await database
       .select()
       .from(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.session_id, sessionId), eq(sessionMessagesTable.role, role)))
-      .orderBy(asc(sessionMessagesTable.created_at))
+      .where(
+        and(
+          eq(sessionMessagesTable.session_id, sessionId),
+          eq(sessionMessagesTable.role, role),
+          sql`json_extract(${sessionMessagesTable.content}, '$.message.id') = ${messageId}`
+        )
+      )
+      .limit(1)
 
-    for (const row of candidateRows) {
-      if (!row?.content) continue
-
-      try {
-        const parsed = JSON.parse(row.content) as AgentPersistedMessage | undefined
-        if (parsed?.message?.id === messageId) {
-          return row
-        }
-      } catch (error) {
-        logger.warn('Failed to parse session message content JSON during lookup', error as Error)
-      }
-    }
-
-    return null
+    return rows[0] ?? null
   }
 
   private async upsertMessage(
@@ -239,85 +233,88 @@ class AgentMessageRepository extends BaseService {
 
     try {
       const database = await this.getDatabase()
+      // Use SQLite json_extract to query by messageId directly, avoiding loading all messages
       const rows = await database
         .select()
         .from(sessionMessagesTable)
-        .where(eq(sessionMessagesTable.session_id, sessionId))
-        .orderBy(asc(sessionMessagesTable.created_at))
+        .where(
+          and(
+            eq(sessionMessagesTable.session_id, sessionId),
+            sql`json_extract(${sessionMessagesTable.content}, '$.message.id') = ${messageId}`
+          )
+        )
+        .limit(1)
 
-      for (const row of rows) {
-        if (!row?.content) continue
-
-        try {
-          const parsed = JSON.parse(row.content) as AgentPersistedMessage | undefined
-          if (parsed?.message?.id !== messageId) continue
-
-          const blockIdsToRemove = new Set(blockIds)
-          const foundBlockIds = new Set<string>()
-
-          // Remove blockIds from message.blocks array and track found IDs
-          if (parsed.message.blocks) {
-            const originalLength = parsed.message.blocks.length
-            parsed.message.blocks = parsed.message.blocks.filter((id) => {
-              if (blockIdsToRemove.has(id)) {
-                foundBlockIds.add(id)
-                return false
-              }
-              return true
-            })
-            if (parsed.message.blocks.length !== originalLength) {
-              // Some blocks were removed from message.blocks
-            }
-          }
-
-          // Remove actual block data from blocks array and track found IDs
-          if (parsed.blocks) {
-            const originalLength = parsed.blocks.length
-            parsed.blocks = parsed.blocks.filter((block) => {
-              if (blockIdsToRemove.has(block.id)) {
-                foundBlockIds.add(block.id)
-                return false
-              }
-              return true
-            })
-            if (parsed.blocks.length !== originalLength) {
-              // Some blocks were removed from blocks array
-            }
-          }
-
-          result.removedCount = foundBlockIds.size
-          result.failedIds = blockIds.filter((id) => !foundBlockIds.has(id))
-
-          if (foundBlockIds.size === 0) {
-            logger.warn(`No blocks found to remove from message ${messageId}`, { blockIds })
-            result.failedIds = blockIds
-            return result
-          }
-
-          const serializedPayload = JSON.stringify(parsed)
-
-          await database
-            .update(sessionMessagesTable)
-            .set({
-              content: serializedPayload,
-              updated_at: new Date().toISOString()
-            })
-            .where(eq(sessionMessagesTable.id, row.id))
-
-          logger.info(`Removed ${result.removedCount} blocks from message ${messageId}`, {
-            blockIds,
-            failedIds: result.failedIds
-          })
-          result.success = true
-          return result
-        } catch (error) {
-          logger.warn('Failed to parse session message content during bulk block removal', error as Error)
-        }
+      const row = rows[0]
+      if (!row?.content) {
+        logger.warn(`Message ${messageId} not found in session ${sessionId}`)
+        result.failedIds = blockIds
+        return result
       }
 
-      logger.warn(`Message ${messageId} not found in session ${sessionId}`)
-      result.failedIds = blockIds
-      return result
+      try {
+        const parsed = JSON.parse(row.content) as AgentPersistedMessage | undefined
+        if (!parsed?.message) {
+          logger.warn(`Invalid message content for ${messageId}`)
+          result.failedIds = blockIds
+          return result
+        }
+
+        const blockIdsToRemove = new Set(blockIds)
+        const foundBlockIds = new Set<string>()
+
+        // Remove blockIds from message.blocks array and track found IDs
+        if (parsed.message.blocks) {
+          parsed.message.blocks = parsed.message.blocks.filter((id) => {
+            if (blockIdsToRemove.has(id)) {
+              foundBlockIds.add(id)
+              return false
+            }
+            return true
+          })
+        }
+
+        // Remove actual block data from blocks array and track found IDs
+        if (parsed.blocks) {
+          parsed.blocks = parsed.blocks.filter((block) => {
+            if (blockIdsToRemove.has(block.id)) {
+              foundBlockIds.add(block.id)
+              return false
+            }
+            return true
+          })
+        }
+
+        result.removedCount = foundBlockIds.size
+        result.failedIds = blockIds.filter((id) => !foundBlockIds.has(id))
+
+        if (foundBlockIds.size === 0) {
+          logger.warn(`No blocks found to remove from message ${messageId}`, { blockIds })
+          result.failedIds = blockIds
+          return result
+        }
+
+        const serializedPayload = JSON.stringify(parsed)
+
+        await database
+          .update(sessionMessagesTable)
+          .set({
+            content: serializedPayload,
+            updated_at: new Date().toISOString()
+          })
+          .where(eq(sessionMessagesTable.id, row.id))
+
+        logger.info(`Removed ${result.removedCount} blocks from message ${messageId}`, {
+          blockIds,
+          failedIds: result.failedIds
+        })
+        result.success = true
+        return result
+      } catch (error) {
+        logger.warn('Failed to parse session message content during bulk block removal', error as Error)
+        result.failedIds = blockIds
+        return result
+      }
     } catch (error) {
       logger.error('Failed to remove blocks from message', error as Error)
       throw error
