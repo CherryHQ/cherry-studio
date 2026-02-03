@@ -2462,7 +2462,7 @@
       "health": "健康状态",
       "port": "端口",
       "restart": "重启",
-      "start": "启动网关",
+      "start": "启动",
       "status": "状态",
       "stop": "停止",
       "title": "网关控制",

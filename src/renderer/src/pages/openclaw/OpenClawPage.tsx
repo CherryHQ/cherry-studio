@@ -233,7 +233,7 @@ const OpenClawPage: FC = () => {
             <Button
               key="docs"
               icon={<ExternalLink size={16} />}
-              onClick={() => window.open('https://github.com/nicepkg/openclaw', '_blank')}>
+              onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
               {t('openclaw.quick_actions.view_docs')}
             </Button>,
             <Button key="refresh" onClick={checkInstallation} disabled={isInstalling}>
@@ -351,7 +351,7 @@ const OpenClawPage: FC = () => {
               </Button>
               <Button
                 icon={<ExternalLink size={16} />}
-                onClick={() => window.open('https://github.com/nicepkg/openclaw', '_blank')}>
+                onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
                 {t('openclaw.quick_actions.view_docs')}
               </Button>
             </Space>

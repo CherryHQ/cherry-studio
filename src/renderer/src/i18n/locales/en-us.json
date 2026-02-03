@@ -2462,7 +2462,7 @@
       "health": "Health",
       "port": "Port",
       "restart": "Restart",
-      "start": "Start Gateway",
+      "start": "Start",
       "status": "Status",
       "stop": "Stop",
       "title": "Gateway Control",
