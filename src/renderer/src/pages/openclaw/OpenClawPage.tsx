@@ -11,8 +11,9 @@ import {
   setLastHealthCheck,
   setSelectedModelUniqId
 } from '@renderer/store/openclaw'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Alert, Avatar, Button, Result, Space, Spin, Tag } from 'antd'
-import { Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
+import { Download, ExternalLink, Play, RefreshCw, Square, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,13 +28,22 @@ const OpenClawPage: FC = () => {
 
   const { gatewayStatus, gatewayPort, selectedModelUniqId, lastHealthCheck } = useAppSelector((state) => state.openclaw)
 
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isCheckingInstall, setIsCheckingInstall] = useState(true)
-  const [isInstalled, setIsInstalled] = useState(false)
+  const [isInstalled, setIsInstalled] = useState<boolean | null>(null) // null = unknown, checking in background
   const [installPath, setInstallPath] = useState<string | null>(null)
-  const [isInstalling, setIsInstalling] = useState(false)
   const [installError, setInstallError] = useState<string | null>(null)
+
+  // Separate loading states for each action
+  const [isInstalling, setIsInstalling] = useState(false)
+  const [isUninstalling, setIsUninstalling] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
+  const [isRestarting, setIsRestarting] = useState(false)
+
+  // Install progress logs
+  const [installLogs, setInstallLogs] = useState<Array<{ message: string; type: 'info' | 'warn' | 'error' }>>([])
+  const [showLogs, setShowLogs] = useState(false)
+  const [uninstallSuccess, setUninstallSuccess] = useState(false)
 
   // Filter enabled providers with API keys
   const availableProviders = providers.filter((p) => p.enabled && p.apiKey)
@@ -59,26 +69,26 @@ const OpenClawPage: FC = () => {
   const selectedModel = selectedModelInfo?.model ?? null
 
   const checkInstallation = useCallback(async () => {
-    setIsCheckingInstall(true)
     try {
       const result = await window.api.openclaw.checkInstalled()
       setIsInstalled(result.installed)
+      setShowLogs(false)
       setInstallPath(result.path)
     } catch (err) {
       logger.debug('Failed to check installation', err as Error)
       setIsInstalled(false)
     } finally {
-      setIsCheckingInstall(false)
     }
   }, [])
 
   const handleInstall = useCallback(async () => {
     setIsInstalling(true)
     setInstallError(null)
+    setInstallLogs([])
+    setShowLogs(true)
     try {
       const result = await window.api.openclaw.install()
       if (result.success) {
-        // Re-check installation after successful install
         await checkInstallation()
       } else {
         setInstallError(result.message)
@@ -90,6 +100,36 @@ const OpenClawPage: FC = () => {
       setIsInstalling(false)
     }
   }, [checkInstallation])
+
+  const handleUninstall = useCallback(async () => {
+    setIsUninstalling(true)
+    setUninstallSuccess(false)
+    setInstallError(null)
+    setInstallLogs([])
+    setShowLogs(true)
+    try {
+      const result = await window.api.openclaw.uninstall()
+      if (result.success) {
+        setUninstallSuccess(true)
+      } else {
+        setInstallError(result.message)
+        setIsUninstalling(false)
+      }
+    } catch (err) {
+      logger.error('Failed to uninstall OpenClaw', err as Error)
+      setInstallError(err instanceof Error ? err.message : String(err))
+      setIsUninstalling(false)
+    }
+  }, [])
+
+  const handleUninstallComplete = useCallback(() => {
+    setShowLogs(false)
+    setIsUninstalling(false)
+    if (uninstallSuccess) {
+      setIsInstalled(false)
+      setUninstallSuccess(false)
+    }
+  }, [uninstallSuccess])
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -113,6 +153,17 @@ const OpenClawPage: FC = () => {
     checkInstallation()
   }, [checkInstallation])
 
+  // Listen for install progress events
+  useEffect(() => {
+    const cleanup = window.electron.ipcRenderer.on(
+      IpcChannel.OpenClaw_InstallProgress,
+      (_, data: { message: string; type: 'info' | 'warn' | 'error' }) => {
+        setInstallLogs((prev) => [...prev, data])
+      }
+    )
+    return cleanup
+  }, [])
+
   useEffect(() => {
     if (!isInstalled) return
 
@@ -121,13 +172,15 @@ const OpenClawPage: FC = () => {
       fetchHealth()
     }
     const interval = setInterval(() => {
+      // Also check if openclaw is still installed (handles external uninstall)
+      checkInstallation()
       fetchStatus()
       if (gatewayStatus === 'running') {
         fetchHealth()
       }
     }, 5000)
     return () => clearInterval(interval)
-  }, [fetchStatus, fetchHealth, gatewayStatus, isInstalled])
+  }, [fetchStatus, fetchHealth, checkInstallation, gatewayStatus, isInstalled])
 
   const handleModelSelect = (modelUniqId: string) => {
     dispatch(setSelectedModelUniqId(modelUniqId))
@@ -139,7 +192,7 @@ const OpenClawPage: FC = () => {
       return
     }
 
-    setIsLoading(true)
+    setIsStarting(true)
     setError(null)
 
     try {
@@ -161,12 +214,12 @@ const OpenClawPage: FC = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setIsLoading(false)
+      setIsStarting(false)
     }
   }
 
   const handleStopGateway = async () => {
-    setIsLoading(true)
+    setIsStopping(true)
     try {
       const result = await window.api.openclaw.stopGateway()
       if (result.success) {
@@ -177,12 +230,12 @@ const OpenClawPage: FC = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setIsLoading(false)
+      setIsStopping(false)
     }
   }
 
   const handleRestartGateway = async () => {
-    setIsLoading(true)
+    setIsRestarting(true)
     try {
       const result = await window.api.openclaw.restartGateway()
       if (result.success) {
@@ -193,7 +246,7 @@ const OpenClawPage: FC = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setIsLoading(false)
+      setIsRestarting(false)
     }
   }
 
@@ -221,25 +274,24 @@ const OpenClawPage: FC = () => {
           icon={<Avatar src={OpenClawLogo} size={64} shape="square" style={{ borderRadius: 12 }} />}
           title={t('openclaw.not_installed.title')}
           subTitle={t('openclaw.not_installed.description')}
-          extra={[
-            <Button
-              key="install"
-              type="primary"
-              icon={<Download size={16} />}
-              onClick={handleInstall}
-              loading={isInstalling}>
-              {t('openclaw.not_installed.install_button')}
-            </Button>,
-            <Button
-              key="docs"
-              icon={<ExternalLink size={16} />}
-              onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
-              {t('openclaw.quick_actions.view_docs')}
-            </Button>,
-            <Button key="refresh" onClick={checkInstallation} disabled={isInstalling}>
-              {t('openclaw.not_installed.refresh')}
-            </Button>
-          ]}
+          extra={
+            <Space>
+              <Button
+                type="primary"
+                icon={<Download size={16} />}
+                disabled={isInstalling}
+                onClick={handleInstall}
+                loading={isInstalling}>
+                {t('openclaw.not_installed.install_button')}
+              </Button>
+              <Button
+                icon={<ExternalLink size={16} />}
+                disabled={isInstalling}
+                onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
+                {t('openclaw.quick_actions.view_docs')}
+              </Button>
+            </Space>
+          }
         />
         {installError && (
           <Alert
@@ -250,23 +302,24 @@ const OpenClawPage: FC = () => {
             style={{ marginBottom: 16 }}
           />
         )}
-        <SettingsPanel>
-          <SettingsItem>
-            <div className="settings-label">{t('openclaw.not_installed.install_guide_title')}</div>
-          </SettingsItem>
-          <SettingsItem>
-            <div className="settings-label">{t('openclaw.not_installed.macos_linux_title')}</div>
-            <CodeBlock>curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard</CodeBlock>
-          </SettingsItem>
-          <SettingsItem>
-            <div className="settings-label">{t('openclaw.not_installed.windows_title')}</div>
-            <CodeBlock>iwr -useb https://openclaw.ai/install.ps1 | iex; openclaw --no-onboard</CodeBlock>
-          </SettingsItem>
-          <SettingsItem>
-            <div className="settings-label">{t('openclaw.not_installed.step2_title')}</div>
-            <div style={{ fontSize: 12, color: 'var(--color-text-3)' }}>{t('openclaw.not_installed.step2_hint')}</div>
-          </SettingsItem>
-        </SettingsPanel>
+
+        {showLogs && installLogs.length > 0 && (
+          <LogContainer>
+            <div className="log-header">
+              <span>{t('openclaw.install_progress')}</span>
+              <Button size="small" type="text" onClick={() => setShowLogs(false)}>
+                {t('common.close')}
+              </Button>
+            </div>
+            <div className="log-content">
+              {installLogs.map((log, index) => (
+                <div key={index} className={`log-line log-${log.type}`}>
+                  {log.message}
+                </div>
+              ))}
+            </div>
+          </LogContainer>
+        )}
       </MainContent>
     </ContentContainer>
   )
@@ -354,17 +407,43 @@ const OpenClawPage: FC = () => {
                 onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
                 {t('openclaw.quick_actions.view_docs')}
               </Button>
+              <Button
+                icon={<Trash2 size={16} />}
+                onClick={handleUninstall}
+                loading={isUninstalling}
+                disabled={isUninstalling || gatewayStatus === 'running'}
+                danger>
+                {t('openclaw.quick_actions.uninstall')}
+              </Button>
             </Space>
           </SettingsItem>
         </SettingsPanel>
+
+        {showLogs && installLogs.length > 0 && (
+          <LogContainer>
+            <div className="log-header">
+              <span>{t('openclaw.install_progress')}</span>
+              <Button size="small" type="text" onClick={() => setShowLogs(false)}>
+                {t('common.close')}
+              </Button>
+            </div>
+            <div className="log-content">
+              {installLogs.map((log, index) => (
+                <div key={index} className={`log-line log-${log.type}`}>
+                  {log.message}
+                </div>
+              ))}
+            </div>
+          </LogContainer>
+        )}
 
         {gatewayStatus === 'stopped' ? (
           <Button
             type="primary"
             icon={<Play size={16} />}
             onClick={handleStartGateway}
-            loading={isLoading}
-            disabled={!selectedProvider || !selectedModel}
+            loading={isStarting}
+            disabled={!selectedProvider || !selectedModel || isStarting}
             size="large"
             block>
             {t('openclaw.gateway.start')}
@@ -374,7 +453,8 @@ const OpenClawPage: FC = () => {
             <Button
               icon={<Square size={16} />}
               onClick={handleStopGateway}
-              loading={isLoading}
+              loading={isStopping}
+              disabled={isStopping || isRestarting}
               danger
               size="large"
               style={{ flex: 1 }}>
@@ -383,7 +463,8 @@ const OpenClawPage: FC = () => {
             <Button
               icon={<RefreshCw size={16} />}
               onClick={handleRestartGateway}
-              loading={isLoading}
+              loading={isRestarting}
+              disabled={isStopping || isRestarting}
               size="large"
               style={{ flex: 1 }}>
               {t('openclaw.gateway.restart')}
@@ -394,13 +475,61 @@ const OpenClawPage: FC = () => {
     </ContentContainer>
   )
 
+  // Render uninstalling page - only show logs
+  const renderUninstallingContent = () => (
+    <ContentContainer id="content-container">
+      <MainContent>
+        <TitleWrapper>
+          <Avatar src={OpenClawLogo} size={48} shape="square" style={{ borderRadius: 10 }} />
+          <TitleContent>
+            <Title>{t(uninstallSuccess ? 'openclaw.uninstalled.title' : 'openclaw.uninstalling.title')}</Title>
+            <Description>
+              {t(uninstallSuccess ? 'openclaw.uninstalled.description' : 'openclaw.uninstalling.description')}
+            </Description>
+          </TitleContent>
+        </TitleWrapper>
+
+        {installError && (
+          <InstallAlert>
+            <Alert
+              message={installError}
+              type="error"
+              closable
+              onClose={() => setInstallError(null)}
+              style={{ borderRadius: 'var(--list-item-border-radius)' }}
+            />
+          </InstallAlert>
+        )}
+
+        <LogContainer $expanded>
+          <div className="log-header">
+            <span>{t('openclaw.uninstall_progress')}</span>
+          </div>
+          <div className="log-content">
+            {installLogs.map((log, index) => (
+              <div key={index} className={`log-line log-${log.type}`}>
+                {log.message}
+              </div>
+            ))}
+          </div>
+        </LogContainer>
+
+        <Button disabled={!uninstallSuccess} type="primary" onClick={handleUninstallComplete} block size="large">
+          {t('common.close')}
+        </Button>
+      </MainContent>
+    </ContentContainer>
+  )
+
   return (
     <Container>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('openclaw.title')}</NavbarCenter>
       </Navbar>
 
-      {isCheckingInstall ? (
+      {isUninstalling ? (
+        renderUninstallingContent()
+      ) : isInstalled === null ? (
         <LoadingContainer id="content-container">
           <Spin size="large" />
           <div style={{ marginTop: 16, color: 'var(--color-text-3)' }}>{t('openclaw.checking_installation')}</div>
@@ -480,21 +609,55 @@ const InstallAlert = styled.div`
   margin-bottom: 24px;
 `
 
+const LogContainer = styled.div<{ $expanded?: boolean }>`
+  margin-bottom: 24px;
+  background: var(--color-background-soft);
+  border-radius: var(--list-item-border-radius);
+  overflow: hidden;
+
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--color-background-mute);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .log-content {
+    height: ${({ $expanded }) => ($expanded ? '300px' : '150px')};
+    overflow-y: auto;
+    padding: 8px 12px;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .log-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .log-info {
+    color: var(--color-text-2);
+  }
+
+  .log-warn {
+    color: var(--color-warning);
+  }
+
+  .log-error {
+    color: var(--color-error);
+  }
+`
+
 const LoadingContainer = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-`
-
-const CodeBlock = styled.pre`
-  background: var(--color-background-soft);
-  padding: 12px;
-  border-radius: 6px;
-  overflow-x: auto;
-  font-family: monospace;
-  font-size: 13px;
 `
 
 export default OpenClawPage

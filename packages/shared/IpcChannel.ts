@@ -400,6 +400,8 @@ export enum IpcChannel {
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',
   OpenClaw_Install = 'openclaw:install',
+  OpenClaw_Uninstall = 'openclaw:uninstall',
+  OpenClaw_InstallProgress = 'openclaw:install-progress',
   OpenClaw_StartGateway = 'openclaw:start-gateway',
   OpenClaw_StopGateway = 'openclaw:stop-gateway',
   OpenClaw_RestartGateway = 'openclaw:restart-gateway',

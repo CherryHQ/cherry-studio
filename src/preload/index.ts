@@ -653,6 +653,7 @@ const api = {
     checkInstalled: (): Promise<{ installed: boolean; path: string | null }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
     install: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
+    uninstall: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
     startGateway: (port?: number): Promise<{ success: boolean; message: string }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_StartGateway, port),
     stopGateway: (): Promise<{ success: boolean; message: string }> =>

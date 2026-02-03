@@ -7,10 +7,13 @@ import { isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
 import { findCommandInShellEnv } from '@main/utils/process'
 import getShellEnv from '@main/utils/shell-env'
+import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType } from '@types'
 import { type ChildProcess, spawn } from 'child_process'
 import { shell } from 'electron'
+
+import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('OpenClawService')
 const NPM_MIRROR_CN = 'https://registry.npmmirror.com'
@@ -109,6 +112,7 @@ class OpenClawService {
   constructor() {
     this.checkInstalled = this.checkInstalled.bind(this)
     this.install = this.install.bind(this)
+    this.uninstall = this.uninstall.bind(this)
     this.startGateway = this.startGateway.bind(this)
     this.stopGateway = this.stopGateway.bind(this)
     this.restartGateway = this.restartGateway.bind(this)
@@ -131,6 +135,14 @@ class OpenClawService {
   }
 
   /**
+   * Send install progress to renderer
+   */
+  private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
+    const win = windowService.getMainWindow()
+    win?.webContents.send(IpcChannel.OpenClaw_InstallProgress, { message, type })
+  }
+
+  /**
    * Install OpenClaw using npm with China mirror acceleration
    */
   public async install(): Promise<{ success: boolean; message: string }> {
@@ -141,7 +153,7 @@ class OpenClawService {
     const npmCommand = `npm install -g openclaw@latest ${registryArg}`.trim()
 
     logger.info(`Installing OpenClaw with command: ${npmCommand}`)
-    logger.info(`User in China: ${inChina}`)
+    this.sendInstallProgress(`Running: ${npmCommand}`)
 
     return new Promise((resolve) => {
       try {
@@ -162,25 +174,38 @@ class OpenClawService {
         let stderr = ''
 
         installProcess.stdout?.on('data', (data) => {
-          logger.info('OpenClaw install stdout:', data.toString())
+          const msg = data.toString().trim()
+          if (msg) {
+            logger.info('OpenClaw install stdout:', msg)
+            this.sendInstallProgress(msg)
+          }
         })
 
         installProcess.stderr?.on('data', (data) => {
+          const msg = data.toString().trim()
           stderr += data.toString()
-          logger.warn('OpenClaw install stderr:', data.toString())
+          if (msg) {
+            // npm warnings are not fatal errors
+            const isWarning = msg.includes('npm warn') || msg.includes('ExperimentalWarning')
+            logger.warn('OpenClaw install stderr:', msg)
+            this.sendInstallProgress(msg, isWarning ? 'warn' : 'info')
+          }
         })
 
         installProcess.on('error', (error) => {
           logger.error('OpenClaw install error:', error)
+          this.sendInstallProgress(error.message, 'error')
           resolve({ success: false, message: error.message })
         })
 
         installProcess.on('exit', (code) => {
           if (code === 0) {
             logger.info('OpenClaw installed successfully')
+            this.sendInstallProgress('OpenClaw installed successfully!')
             resolve({ success: true, message: 'OpenClaw installed successfully' })
           } else {
             logger.error(`OpenClaw install failed with code ${code}`)
+            this.sendInstallProgress(`Installation failed with exit code ${code}`, 'error')
             resolve({
               success: false,
               message: stderr || `Installation failed with exit code ${code}`
@@ -190,6 +215,84 @@ class OpenClawService {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error('Failed to start OpenClaw installation:', error as Error)
+        this.sendInstallProgress(errorMessage, 'error')
+        resolve({ success: false, message: errorMessage })
+      }
+    })
+  }
+
+  /**
+   * Uninstall OpenClaw using npm
+   */
+  public async uninstall(): Promise<{ success: boolean; message: string }> {
+    // First stop the gateway if running
+    if (this.gatewayStatus === 'running') {
+      await this.stopGateway()
+    }
+
+    const npmCommand = 'npm uninstall -g openclaw'
+    logger.info(`Uninstalling OpenClaw with command: ${npmCommand}`)
+    this.sendInstallProgress(`Running: ${npmCommand}`)
+
+    return new Promise((resolve) => {
+      try {
+        let uninstallProcess: ChildProcess
+
+        if (isWin) {
+          uninstallProcess = spawn('cmd.exe', ['/c', npmCommand], {
+            stdio: 'pipe',
+            env: { ...process.env }
+          })
+        } else {
+          uninstallProcess = spawn('/bin/bash', ['-c', npmCommand], {
+            stdio: 'pipe',
+            env: { ...process.env }
+          })
+        }
+
+        let stderr = ''
+
+        uninstallProcess.stdout?.on('data', (data) => {
+          const msg = data.toString().trim()
+          if (msg) {
+            logger.info('OpenClaw uninstall stdout:', msg)
+            this.sendInstallProgress(msg)
+          }
+        })
+
+        uninstallProcess.stderr?.on('data', (data) => {
+          const msg = data.toString().trim()
+          stderr += data.toString()
+          if (msg) {
+            logger.warn('OpenClaw uninstall stderr:', msg)
+            this.sendInstallProgress(msg, 'warn')
+          }
+        })
+
+        uninstallProcess.on('error', (error) => {
+          logger.error('OpenClaw uninstall error:', error)
+          this.sendInstallProgress(error.message, 'error')
+          resolve({ success: false, message: error.message })
+        })
+
+        uninstallProcess.on('exit', (code) => {
+          if (code === 0) {
+            logger.info('OpenClaw uninstalled successfully')
+            this.sendInstallProgress('OpenClaw uninstalled successfully!')
+            resolve({ success: true, message: 'OpenClaw uninstalled successfully' })
+          } else {
+            logger.error(`OpenClaw uninstall failed with code ${code}`)
+            this.sendInstallProgress(`Uninstallation failed with exit code ${code}`, 'error')
+            resolve({
+              success: false,
+              message: stderr || `Uninstallation failed with exit code ${code}`
+            })
+          }
+        })
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error('Failed to start OpenClaw uninstallation:', error as Error)
+        this.sendInstallProgress(errorMessage, 'error')
         resolve({ success: false, message: errorMessage })
       }
     })
@@ -505,7 +608,6 @@ class OpenClawService {
     const shellEnv = await getShellEnv()
     const binaryPath = await findCommandInShellEnv('openclaw', shellEnv)
     if (binaryPath) {
-      logger.info('Found OpenClaw in PATH: ' + binaryPath)
       return binaryPath
     }
 

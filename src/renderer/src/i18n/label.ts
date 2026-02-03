@@ -147,7 +147,8 @@ const titleKeyMap = {
   notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
-  translate: 'title.translate'
+  translate: 'title.translate',
+  openclaw: 'openclaw.title'
 } as const
 
 export const getTitleLabel = (key: string): string => {

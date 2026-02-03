@@ -2468,6 +2468,7 @@
       "title": "网关控制",
       "version": "版本"
     },
+    "install_progress": "安装进度",
     "installed_at": "OpenClaw 安装路径：{{path}}",
     "model_config": {
       "auth_token": "认证令牌",
@@ -2495,6 +2496,7 @@
     "quick_actions": {
       "open_dashboard": "打开控制面板",
       "title": "快捷操作",
+      "uninstall": "卸载",
       "view_docs": "查看文档"
     },
     "status": {
@@ -2503,7 +2505,16 @@
       "starting": "启动中",
       "stopped": "已停止"
     },
-    "title": "OpenClaw"
+    "title": "OpenClaw",
+    "uninstall_progress": "卸载进度",
+    "uninstalled": {
+      "description": "OpenClaw 已成功卸载。",
+      "title": "卸载完成"
+    },
+    "uninstalling": {
+      "description": "正在卸载 OpenClaw，请稍候...",
+      "title": "正在卸载 OpenClaw"
+    }
   },
   "ovms": {
     "action": {
@@ -5203,7 +5214,7 @@
     "mcp-servers": "MCP 服务器",
     "memories": "记忆",
     "notes": "笔记",
-    "openclaw": "[to be translated]:OpenClaw",
+    "openclaw": "OpenClaw",
     "paintings": "绘画",
     "settings": "设置",
     "store": "助手库",

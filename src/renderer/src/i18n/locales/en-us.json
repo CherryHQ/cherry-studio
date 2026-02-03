@@ -2468,6 +2468,7 @@
       "title": "Gateway Control",
       "version": "Version"
     },
+    "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at: {{path}}",
     "model_config": {
       "auth_token": "Auth Token",
@@ -2495,6 +2496,7 @@
     "quick_actions": {
       "open_dashboard": "Open Dashboard",
       "title": "Quick Actions",
+      "uninstall": "Uninstall",
       "view_docs": "View Documentation"
     },
     "status": {
@@ -2503,7 +2505,16 @@
       "starting": "Starting",
       "stopped": "Stopped"
     },
-    "title": "OpenClaw"
+    "title": "OpenClaw",
+    "uninstall_progress": "Uninstall Progress",
+    "uninstalled": {
+      "description": "OpenClaw has been successfully uninstalled.",
+      "title": "Uninstall Complete"
+    },
+    "uninstalling": {
+      "description": "Please wait while OpenClaw is being uninstalled...",
+      "title": "Uninstalling OpenClaw"
+    }
   },
   "ovms": {
     "action": {

@@ -1151,6 +1151,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // OpenClaw
   ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)
   ipcMain.handle(IpcChannel.OpenClaw_Install, openClawService.install)
+  ipcMain.handle(IpcChannel.OpenClaw_Uninstall, openClawService.uninstall)
   ipcMain.handle(IpcChannel.OpenClaw_StartGateway, openClawService.startGateway)
   ipcMain.handle(IpcChannel.OpenClaw_StopGateway, openClawService.stopGateway)
   ipcMain.handle(IpcChannel.OpenClaw_RestartGateway, openClawService.restartGateway)

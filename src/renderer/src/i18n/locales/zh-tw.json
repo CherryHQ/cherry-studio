@@ -2468,6 +2468,7 @@
       "title": "閘道控制",
       "version": "版本"
     },
+    "install_progress": "[to be translated]:Install Progress",
     "installed_at": "OpenClaw 安裝路徑：{{path}}",
     "model_config": {
       "auth_token": "認證令牌",
@@ -2495,6 +2496,7 @@
     "quick_actions": {
       "open_dashboard": "開啟控制面板",
       "title": "快捷操作",
+      "uninstall": "[to be translated]:Uninstall",
       "view_docs": "檢視文件"
     },
     "status": {
@@ -2503,7 +2505,11 @@
       "starting": "啟動中",
       "stopped": "已停止"
     },
-    "title": "OpenClaw"
+    "title": "OpenClaw",
+    "uninstalling": {
+      "description": "[to be translated]:Please wait while OpenClaw is being uninstalled...",
+      "title": "[to be translated]:Uninstalling OpenClaw"
+    }
   },
   "ovms": {
     "action": {
