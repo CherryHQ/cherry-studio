@@ -1709,7 +1709,7 @@ export const removeBlocksThunk =
   (topicId: string, messageId: string, blockIdsToRemove: string[]) =>
   async (dispatch: AppDispatch, getState: () => RootState): Promise<void> => {
     if (!blockIdsToRemove.length) {
-      logger.warn('[removeBlocksFromMessageThunk] No block IDs provided to remove.')
+      logger.warn(' No block IDs provided to remove.')
       return
     }
 
@@ -1718,7 +1718,7 @@ export const removeBlocksThunk =
       const message = state.messages.entities[messageId]
 
       if (!message) {
-        logger.error(`[removeBlocksFromMessageThunk] Message ${messageId} not found in state.`)
+        logger.error(`Message ${messageId} not found in state.`)
         return
       }
       const blockIdsToRemoveSet = new Set(blockIdsToRemove)
@@ -1733,22 +1733,14 @@ export const removeBlocksThunk =
       // 2. Update database - different path for agent sessions
       if (isAgentSessionTopicId(topicId)) {
         const sessionId = extractAgentSessionIdFromTopicId(topicId)
-
         try {
-          const result = await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_RemoveBlocks, {
+          await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_BulkRemoveBlocks, {
             sessionId,
             messageId,
             blockIds: blockIdsToRemove
           })
-
-          if (result.failedIds?.length > 0) {
-            logger.warn(
-              `[removeBlocksFromMessageThunk] ${result.failedIds.length} of ${blockIdsToRemove.length} blocks failed to remove:`,
-              result.failedIds
-            )
-          }
         } catch (ipcError) {
-          logger.error(`[removeBlocksFromMessageThunk] Failed to remove blocks via IPC:`, ipcError as Error)
+          logger.error(`Failed to remove blocks via IPC:`, ipcError as Error)
         }
       } else {
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
@@ -1767,7 +1759,7 @@ export const removeBlocksThunk =
 
       return
     } catch (error) {
-      logger.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error as Error)
+      logger.error(`Failed to remove blocks from message ${messageId}:`, error as Error)
       throw error
     }
   }

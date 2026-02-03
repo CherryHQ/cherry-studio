@@ -12,10 +12,7 @@ import { useActiveTodos } from '../hooks/useActiveTodos'
 
 const { Text } = Typography
 
-/**
- * Get the status icon for a todo item
- */
-function getTodoStatusIcon(status: TodoItem['status']) {
+const TodoStatusIcon: FC<{ status: TodoItem['status'] }> = ({ status }) => {
   switch (status) {
     case 'completed':
       return <CheckCircle size={14} className="text-green-500" />
@@ -35,21 +32,13 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const activeTodoInfo = useActiveTodos(topicId)
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
 
   const handleClose = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
       if (activeTodoInfo) {
-        // Group by messageId for batch deletion
-        const blocksByMessage = new Map<string, string[]>()
-        for (const { blockId, messageId } of activeTodoInfo.allTodoWriteBlocks) {
-          const blocks = blocksByMessage.get(messageId) || []
-          blocks.push(blockId)
-          blocksByMessage.set(messageId, blocks)
-        }
-        // Delete all TodoWrite blocks
-        for (const [messageId, blockIds] of blocksByMessage) {
+        for (const [messageId, blockIds] of Object.entries(activeTodoInfo.blockIdsByMessage)) {
           dispatch(removeBlocksThunk(topicId, messageId, blockIds))
         }
       }
@@ -61,15 +50,24 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
     return null
   }
 
-  const { todos, completedCount, totalCount } = activeTodoInfo
+  const { todos, activeTodo, completedCount, totalCount } = activeTodoInfo
 
   return (
     <Container>
       <PanelBody>
         <PanelHeader onClick={() => setIsCollapsed(!isCollapsed)}>
           <HeaderLeft>
-            {isCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            <HeaderTitle>{t('agent.todo.panel.title', { completed: completedCount, total: totalCount })}</HeaderTitle>
+            {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            {isCollapsed && activeTodo ? (
+              <>
+                <TodoStatusIcon status={activeTodo.status} />
+                <HeaderTitle>
+                  {activeTodo.status === 'in_progress' ? activeTodo.activeForm : activeTodo.content}
+                </HeaderTitle>
+              </>
+            ) : (
+              <HeaderTitle>{t('agent.todo.panel.title', { completed: completedCount, total: totalCount })}</HeaderTitle>
+            )}
           </HeaderLeft>
           <CloseButton onClick={handleClose}>
             <X size={14} />
@@ -78,7 +76,7 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
         <TodoList $collapsed={isCollapsed}>
           {todos.map((todo, index) => (
             <TodoItemRow key={`${todo.content}-${index}`} $completed={todo.status === 'completed'}>
-              {getTodoStatusIcon(todo.status)}
+              <TodoStatusIcon status={todo.status} />
               <TodoContent $completed={todo.status === 'completed'}>
                 {todo.status === 'in_progress' ? todo.activeForm : todo.content}
               </TodoContent>

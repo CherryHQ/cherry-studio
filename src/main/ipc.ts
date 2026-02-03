@@ -270,13 +270,13 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   )
 
   ipcMain.handle(
-    IpcChannel.AgentMessage_RemoveBlocks,
+    IpcChannel.AgentMessage_BulkRemoveBlocks,
     async (
       _event,
       { sessionId, messageId, blockIds }: { sessionId: string; messageId: string; blockIds: string[] }
-    ): Promise<{ success: boolean; removedCount: number; failedIds: string[] }> => {
+    ) => {
       try {
-        return await agentMessageRepository.removeBlocksFromMessage(sessionId, messageId, blockIds)
+        await agentMessageRepository.removeBlocksFromMessage(sessionId, messageId, blockIds)
       } catch (error) {
         logger.error('Failed to remove blocks from agent session message', error as Error)
         throw error
