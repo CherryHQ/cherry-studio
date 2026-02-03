@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isUserInChina } from '@main/utils/ipService'
+import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType } from '@types'
 import { type ChildProcess, spawn } from 'child_process'
 import { shell } from 'electron'
@@ -63,18 +64,38 @@ export interface OpenClawProviderConfig {
   }>
 }
 
-// Cherry Studio ProviderType -> OpenClaw API type mapping
+/**
+ * Cherry Studio ProviderType -> OpenClaw API type mapping
+ *
+ * OpenClaw only supports two API types:
+ * - 'openai-completions': For OpenAI-compatible chat completions API
+ * - 'anthropic-messages': For Anthropic Messages API format
+ *
+ * Provider compatibility notes:
+ * - OpenAI-compatible: openai, azure-openai, gemini, mistral, ollama, new-api, gateway, etc.
+ * - Anthropic-compatible: anthropic, vertex-anthropic, aws-bedrock (Claude models)
+ * - NOT supported: vertexai (requires project/location in URL)
+ */
 const API_TYPE_MAP: Partial<Record<ProviderType, string>> = {
+  // OpenAI-compatible providers
   openai: 'openai-completions',
   'openai-response': 'openai-completions',
-  anthropic: 'anthropic-messages',
-  gemini: 'google-generative-ai',
   'azure-openai': 'openai-completions',
+  gemini: 'openai-completions', // Uses Google's OpenAI-compatible endpoint
   mistral: 'openai-completions',
   ollama: 'openai-completions',
   'new-api': 'openai-completions',
-  gateway: 'openai-completions'
+  gateway: 'openai-completions',
+
+  // Anthropic-compatible providers
+  anthropic: 'anthropic-messages',
+  'vertex-anthropic': 'anthropic-messages',
+  'aws-bedrock': 'anthropic-messages' // Assumes Claude models; other Bedrock models may not work
 }
+
+// Providers that are NOT compatible with OpenClaw
+// vertexai requires project ID and location in URL which we don't have
+const UNSUPPORTED_PROVIDERS: ProviderType[] = ['vertexai']
 
 class OpenClawService {
   private gatewayProcess: ChildProcess | null = null
@@ -380,6 +401,14 @@ class OpenClawService {
     primaryModel: Model
   ): Promise<{ success: boolean; message: string }> {
     try {
+      // Check if provider is supported by OpenClaw
+      if (UNSUPPORTED_PROVIDERS.includes(provider.type)) {
+        return {
+          success: false,
+          message: `Provider type "${provider.type}" is not supported by OpenClaw. OpenClaw only supports OpenAI-compatible and Anthropic-compatible APIs.`
+        }
+      }
+
       // Ensure config directory exists
       if (!fs.existsSync(OPENCLAW_CONFIG_DIR)) {
         fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
@@ -399,11 +428,15 @@ class OpenClawService {
       // Build provider key
       const providerKey = `cherry-${provider.id}`
 
+      // Determine the API type and select appropriate baseUrl
+      const apiType = API_TYPE_MAP[provider.type] || 'openai-completions'
+      const baseUrl = this.getBaseUrlForApiType(provider, apiType)
+
       // Build OpenClaw provider config
       const openclawProvider: OpenClawProviderConfig = {
-        baseUrl: this.formatBaseUrl(provider.apiHost, provider.type),
+        baseUrl,
         apiKey: provider.apiKey,
-        api: API_TYPE_MAP[provider.type] || 'openai-completions',
+        api: apiType,
         models: provider.models.map((m) => ({
           id: m.id,
           name: m.name,
@@ -547,15 +580,54 @@ class OpenClawService {
   }
 
   /**
-   * Format base URL for OpenClaw
+   * Get the appropriate base URL for the given API type
+   * For anthropic-messages, prefer anthropicApiHost if available
+   * For openai-completions, use apiHost with proper formatting
    */
-  private formatBaseUrl(apiHost: string, type: ProviderType): string {
-    let url = apiHost.replace(/\/$/, '')
-    // Add /v1 suffix for OpenAI-compatible APIs
-    if (!url.endsWith('/v1') && type !== 'anthropic') {
-      url += '/v1'
+  private getBaseUrlForApiType(provider: Provider, apiType: string): string {
+    if (apiType === 'anthropic-messages') {
+      // For Anthropic API type, prefer anthropicApiHost if available
+      const host = provider.anthropicApiHost || provider.apiHost
+      return this.formatAnthropicUrl(host)
     }
-    return url
+    // For OpenAI-compatible API type
+    return this.formatOpenAIUrl(provider.apiHost, provider.type)
+  }
+
+  /**
+   * Format URL for OpenAI-compatible APIs
+   * Provider-specific URL patterns:
+   * - Gemini: {host}/v1beta/openai (OpenAI-compatible endpoint)
+   * - Vercel AI Gateway: {host}/v1 (stored as /v1/ai, needs conversion)
+   * - Others: {host}/v1
+   */
+  private formatOpenAIUrl(apiHost: string, providerType: ProviderType): string {
+    const url = withoutTrailingSlash(apiHost)
+
+    // Gemini: use OpenAI-compatible endpoint
+    // https://ai.google.dev/gemini-api/docs/openai
+    if (providerType === 'gemini' && url.includes('generativelanguage.googleapis.com')) {
+      return `${url}/v1beta/openai`
+    }
+
+    // Vercel AI Gateway: convert /v1/ai to /v1
+    if (providerType === 'gateway' && url.endsWith('/v1/ai')) {
+      return url.replace(/\/v1\/ai$/, '/v1')
+    }
+
+    // Skip if URL already has version (e.g., /v1, /v2, /v3)
+    if (hasAPIVersion(url)) {
+      return url
+    }
+
+    return `${url}/v1`
+  }
+
+  /**
+   * Format URL for Anthropic-compatible APIs (no version suffix needed)
+   */
+  private formatAnthropicUrl(apiHost: string): string {
+    return withoutTrailingSlash(apiHost)
   }
 }
 
