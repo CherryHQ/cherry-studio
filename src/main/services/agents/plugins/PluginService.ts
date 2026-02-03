@@ -41,6 +41,19 @@ import { PluginInstaller } from './PluginInstaller'
 
 const logger = loggerService.withContext('PluginService')
 
+/**
+ * Claude Plugins Registry API base URL.
+ *
+ * This API provides plugin/skill discovery and installation tracking for the
+ * Claude plugins ecosystem. The API endpoints used are:
+ * - GET  /api/resolve/{owner}/{marketplace}/{plugin} - Resolve plugin git URL and metadata
+ * - GET  /api/skills/{owner}/{repo}/{skillName}      - Get skill metadata and source URL
+ * - POST /api/skills/{owner}/{repo}/{skillName}/install - Track skill installation
+ *
+ * @see https://www.val.town/x/kamalnrf/claude-plugins-registry/code/API.md
+ *
+ * TODO: Verify accessibility from China mainland - may need proxy or alternative endpoint
+ */
 const MARKETPLACE_API_BASE_URL = 'https://api.claude-plugins.dev'
 const MARKETPLACE_SOURCE_PREFIX = 'marketplace:'
 
@@ -444,6 +457,25 @@ export class PluginService {
     })
   }
 
+  /**
+   * Report skill installation to the marketplace for usage analytics.
+   *
+   * This is a fire-and-forget telemetry call that increments the install count
+   * for a skill in the marketplace. The request is made asynchronously and
+   * failures are silently logged without affecting the installation flow.
+   *
+   * API: POST /api/skills/{owner}/{repo}/{skillName}/install
+   * - No request body required
+   * - Returns install metrics (total, weekly, monthly counts)
+   * - Auto-indexes unknown skills from GitHub
+   * - Used for popularity tracking and download statistics
+   *
+   * Note: This telemetry is sent automatically when installing skills from the
+   * marketplace. No personally identifiable information is transmitted.
+   *
+   * @see https://www.val.town/x/kamalnrf/claude-plugins-registry/code/API.md
+   * @param identifier - The marketplace skill identifier
+   */
   private async reportSkillInstall(identifier: MarketplaceIdentifier): Promise<void> {
     if (identifier.kind !== 'skill') return
     const url = `${MARKETPLACE_API_BASE_URL}/api/skills/${identifier.owner}/${identifier.repository}/${identifier.name}/install`
