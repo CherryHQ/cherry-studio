@@ -1423,7 +1423,7 @@
     "status": "Code d'état",
     "statusCode": "Code d'état",
     "statusText": "Texte d'état",
-    "stream_paused": "Прервано",
+    "stream_paused": "Interrompu",
     "text": "texte",
     "toolInput": "entrée de l'outil",
     "toolName": "Nom de l'outil",
