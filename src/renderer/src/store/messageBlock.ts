@@ -335,70 +335,30 @@ const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
   todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
 
 /**
- * Select the latest TodoWrite tool block with incomplete todos for a specific topic
- * Used by PinnedTodoPanel to display current task progress above the inputbar
- *
- * Optimized to only depend on the specific topic's messages and their blocks,
- * rather than all blocks in the store, to avoid unnecessary recomputations.
+ * Check if a block is a TodoWrite tool block
  */
-export const selectLatestTodoWriteBlockForTopic = createSelector(
-  [
-    (state: RootState) => state.messages.entities,
-    (state: RootState) => state.messageBlocks.entities,
-    (state: RootState) => state.messages.messageIdsByTopic,
-    (_state: RootState, topicId: string) => topicId
-  ],
-  (messageEntities, blockEntities, messageIdsByTopic, topicId): ToolMessageBlock | undefined => {
-    const topicMessageIds = messageIdsByTopic[topicId]
-    if (!topicMessageIds?.length) return undefined
-
-    // Iterate messages in reverse (newest first)
-    for (let i = topicMessageIds.length - 1; i >= 0; i--) {
-      const messageId = topicMessageIds[i]
-      const message = messageEntities[messageId]
-
-      if (!message?.blocks?.length) continue
-
-      // Check blocks of the message in reverse order (newest first)
-      for (let j = message.blocks.length - 1; j >= 0; j--) {
-        const blockId = message.blocks[j]
-        const block = blockEntities[blockId]
-
-        if (!block || block.type !== MessageBlockType.TOOL) continue
-
-        const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse as NormalToolResponse | undefined
-        if (toolResponse?.tool?.name !== 'TodoWrite') continue
-
-        const todos = (toolResponse.arguments as TodoWriteToolInput | undefined)?.todos ?? []
-        if (hasIncompleteTodos(todos)) {
-          return block as ToolMessageBlock
-        }
-      }
-    }
-
-    return undefined
-  }
-)
+const isTodoWriteBlock = (block: MessageBlock | undefined): block is ToolMessageBlock => {
+  if (!block || block.type !== MessageBlockType.TOOL) return false
+  const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse as NormalToolResponse | undefined
+  return toolResponse?.tool?.name === 'TodoWrite'
+}
 
 /**
- * Select all TodoWrite tool block IDs for a specific topic
- * Used by PinnedTodoPanel to delete all TodoWrite blocks when closing
- *
- * Optimized to only depend on the specific topic's messages and their blocks,
- * rather than all blocks in the store.
+ * Base selector: Get all TodoWrite blocks for a topic
+ * Returns blocks in message order (oldest to newest)
  */
-export const selectAllTodoWriteBlockIdsForTopic = createSelector(
+const selectAllTodoWriteBlocksForTopic = createSelector(
   [
     (state: RootState) => state.messages.entities,
     (state: RootState) => state.messageBlocks.entities,
     (state: RootState) => state.messages.messageIdsByTopic,
     (_state: RootState, topicId: string) => topicId
   ],
-  (messageEntities, blockEntities, messageIdsByTopic, topicId): { blockId: string; messageId: string }[] => {
+  (messageEntities, blockEntities, messageIdsByTopic, topicId): ToolMessageBlock[] => {
     const topicMessageIds = messageIdsByTopic[topicId]
     if (!topicMessageIds?.length) return []
 
-    const result: { blockId: string; messageId: string }[] = []
+    const result: ToolMessageBlock[] = []
 
     for (const messageId of topicMessageIds) {
       const message = messageEntities[messageId]
@@ -406,16 +366,47 @@ export const selectAllTodoWriteBlockIdsForTopic = createSelector(
 
       for (const blockId of message.blocks) {
         const block = blockEntities[blockId]
-        if (!block || block.type !== MessageBlockType.TOOL) continue
-
-        const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse as NormalToolResponse | undefined
-        if (toolResponse?.tool?.name === 'TodoWrite') {
-          result.push({ blockId: block.id, messageId: block.messageId })
+        if (isTodoWriteBlock(block)) {
+          result.push(block)
         }
       }
     }
 
     return result
+  }
+)
+
+/**
+ * Select the latest TodoWrite tool block with incomplete todos for a specific topic
+ * Used by PinnedTodoPanel to display current task progress above the inputbar
+ */
+export const selectLatestTodoWriteBlockForTopic = createSelector(
+  [selectAllTodoWriteBlocksForTopic],
+  (todoWriteBlocks): ToolMessageBlock | undefined => {
+    // Iterate in reverse (newest first) to find the latest with incomplete todos
+    for (let i = todoWriteBlocks.length - 1; i >= 0; i--) {
+      const block = todoWriteBlocks[i]
+      const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
+      const todos = (toolResponse?.arguments as TodoWriteToolInput | undefined)?.todos ?? []
+      if (hasIncompleteTodos(todos)) {
+        return block
+      }
+    }
+    return undefined
+  }
+)
+
+/**
+ * Select all TodoWrite tool block IDs for a specific topic
+ * Used by PinnedTodoPanel to delete all TodoWrite blocks when closing
+ */
+export const selectAllTodoWriteBlockIdsForTopic = createSelector(
+  [selectAllTodoWriteBlocksForTopic],
+  (todoWriteBlocks): { blockId: string; messageId: string }[] => {
+    return todoWriteBlocks.map((block) => ({
+      blockId: block.id,
+      messageId: block.messageId
+    }))
   }
 )
 
