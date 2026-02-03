@@ -9,6 +9,7 @@ import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/stor
 import type { Assistant, Topic } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import { ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { createErrorBlock, createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
@@ -220,14 +221,11 @@ export const processMessages = async (
                 )
               }
               const isErrorTypeAbort = isAbortError(chunk.error)
-              let pauseErrorLanguagePlaceholder = ''
-              if (isErrorTypeAbort) {
-                pauseErrorLanguagePlaceholder = 'pause_placeholder'
-              }
               const serializableError = {
                 name: chunk.error.name,
-                message: pauseErrorLanguagePlaceholder || chunk.error.message || formatErrorMessage(chunk.error),
+                message: chunk.error.message || formatErrorMessage(chunk.error),
                 originalMessage: chunk.error.message,
+                ...(isErrorTypeAbort && { i18nKey: ERROR_I18N_KEY_STREAM_PAUSED }),
                 stack: chunk.error.stack,
                 status: chunk.error.status || chunk.error.code,
                 requestId: chunk.error.request_id

@@ -101,7 +101,7 @@ export async function buildStreamTextParams(
   webSearchPluginConfig?: WebSearchPluginConfig
 }> {
   const { mcpTools, requestOptions = {} } = options
-  const { signal: externalSignal, timeout = defaultTimeout, headers: _headers = {} } = requestOptions
+  const { signal: externalSignal, timeout = defaultTimeout, headers: inputHeaders = {} } = requestOptions
   const timeoutSignal = AbortSignal.timeout(timeout)
   const signals = [timeoutSignal]
   if (externalSignal) {
@@ -220,7 +220,7 @@ export async function buildStreamTextParams(
     }
   }
 
-  let headers = _headers
+  let headers = inputHeaders
 
   if (isAnthropicModel(model) && !isAwsBedrockProvider(provider)) {
     const betaHeaders = addAnthropicHeaders(assistant, model)

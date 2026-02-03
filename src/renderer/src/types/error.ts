@@ -23,6 +23,19 @@ import type {
 import type { ProviderSpecificError } from './provider-specific-error'
 import type { Serializable } from './serialize'
 
+/** i18n key used when a streaming response is paused/aborted by the user. */
+export const ERROR_I18N_KEY_STREAM_PAUSED = 'stream_paused'
+
+/**
+ * Serialized error for storage and rendering.
+ *
+ * Known dynamic properties (accessed via index signature):
+ * - `i18nKey?: string` — When present, `ErrorBlock` uses `error.${i18nKey}` for
+ *   translated display instead of `message`. Set by error handlers (e.g. abort →
+ *   `ERROR_I18N_KEY_STREAM_PAUSED`, auth failure → `'chat.no_api_key'`).
+ *   See: ErrorBlock.tsx, ErrorHandlerMiddleware.ts
+ * - `providerId?: string` — Provider ID for i18n interpolation in error messages.
+ */
 export interface SerializedError {
   name: string | null
   message: string | null
