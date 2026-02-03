@@ -1709,7 +1709,7 @@ export const removeBlocksThunk =
   (topicId: string, messageId: string, blockIdsToRemove: string[]) =>
   async (dispatch: AppDispatch, getState: () => RootState): Promise<void> => {
     if (!blockIdsToRemove.length) {
-      logger.warn(' No block IDs provided to remove.')
+      logger.warn('[removeBlocksThunk] No block IDs provided to remove.')
       return
     }
 
@@ -1718,48 +1718,24 @@ export const removeBlocksThunk =
       const message = state.messages.entities[messageId]
 
       if (!message) {
-        logger.error(`Message ${messageId} not found in state.`)
+        logger.error(`[removeBlocksThunk] Message ${messageId} not found in state.`)
         return
       }
       const blockIdsToRemoveSet = new Set(blockIdsToRemove)
 
       const updatedBlockIds = (message.blocks || []).filter((id) => !blockIdsToRemoveSet.has(id))
 
-      // 1. Update Redux state
+      // 1. Update Redux state (optimistic)
       dispatch(newMessagesActions.updateMessage({ topicId, messageId, updates: { blocks: updatedBlockIds } }))
-
       cleanupMultipleBlocks(dispatch, blockIdsToRemove)
 
-      // 2. Update database - different path for agent sessions
-      if (isAgentSessionTopicId(topicId)) {
-        const sessionId = extractAgentSessionIdFromTopicId(topicId)
-        try {
-          await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_BulkRemoveBlocks, {
-            sessionId,
-            messageId,
-            blockIds: blockIdsToRemove
-          })
-        } catch (ipcError) {
-          logger.error(`Failed to remove blocks via IPC:`, ipcError as Error)
-        }
-      } else {
-        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-
-        await db.transaction('rw', db.topics, db.message_blocks, async () => {
-          // Update the message in the topic
-          await db.topics.update(topicId, { messages: finalMessagesToSave })
-          // Delete the blocks from the database
-          if (blockIdsToRemove.length > 0) {
-            await db.message_blocks.bulkDelete(blockIdsToRemove)
-          }
-        })
-      }
+      // 2. Update database
+      await dbService.updateMessage(topicId, messageId, { blocks: updatedBlockIds })
+      await dbService.deleteBlocks(blockIdsToRemove)
 
       dispatch(updateTopicUpdatedAt({ topicId }))
-
-      return
     } catch (error) {
-      logger.error(`Failed to remove blocks from message ${messageId}:`, error as Error)
+      logger.error(`[removeBlocksThunk] Failed to remove blocks from message ${messageId}:`, error as Error)
       throw error
     }
   }
