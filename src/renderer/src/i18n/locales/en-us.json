@@ -4935,6 +4935,7 @@
           "logout_button": "Logout",
           "title": "OAuth Login"
         },
+        "connect": "Connect {{provider}}",
         "description": "This service is provided by <website>{{provider}}</website>",
         "error": "Authentication failed",
         "logged_in": "Logged in",

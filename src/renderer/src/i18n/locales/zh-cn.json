@@ -4935,6 +4935,7 @@
           "logout_button": "退出登录",
           "title": "OAuth 登录"
         },
+        "connect": "关联 {{provider}} 账号",
         "description": "本服务由 <website>{{provider}}</website> 提供",
         "error": "认证失败",
         "logged_in": "已登录",

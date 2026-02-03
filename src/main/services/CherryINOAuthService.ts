@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { net, safeStorage } from 'electron'
+import { net } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import * as z from 'zod'
@@ -87,7 +87,7 @@ class CherryINOAuthService {
   }
 
   /**
-   * Save OAuth tokens to local files (encrypted)
+   * Save OAuth tokens to local files
    */
   public saveToken = async (
     _: Electron.IpcMainInvokeEvent,
@@ -101,13 +101,11 @@ class CherryINOAuthService {
       }
 
       // Save access token
-      const encryptedToken = safeStorage.encryptString(accessToken)
-      await fs.promises.writeFile(this.tokenFilePath, encryptedToken)
+      await fs.promises.writeFile(this.tokenFilePath, accessToken, 'utf-8')
 
       // Save refresh token if provided
       if (refreshToken) {
-        const encryptedRefreshToken = safeStorage.encryptString(refreshToken)
-        await fs.promises.writeFile(this.refreshTokenFilePath, encryptedRefreshToken)
+        await fs.promises.writeFile(this.refreshTokenFilePath, refreshToken, 'utf-8')
       }
 
       logger.debug('Successfully saved CherryIN OAuth tokens')
@@ -118,15 +116,14 @@ class CherryINOAuthService {
   }
 
   /**
-   * Read OAuth access token from local file (decrypted)
+   * Read OAuth access token from local file
    */
   public getToken = async (): Promise<string | null> => {
     try {
       if (!fs.existsSync(this.tokenFilePath)) {
         return null
       }
-      const encryptedToken = await fs.promises.readFile(this.tokenFilePath)
-      return safeStorage.decryptString(Buffer.from(encryptedToken))
+      return await fs.promises.readFile(this.tokenFilePath, 'utf-8')
     } catch (error) {
       logger.error('Failed to read token:', error as Error)
       return null
@@ -134,15 +131,14 @@ class CherryINOAuthService {
   }
 
   /**
-   * Read OAuth refresh token from local file (decrypted)
+   * Read OAuth refresh token from local file
    */
   private getRefreshToken = async (): Promise<string | null> => {
     try {
       if (!fs.existsSync(this.refreshTokenFilePath)) {
         return null
       }
-      const encryptedToken = await fs.promises.readFile(this.refreshTokenFilePath)
-      return safeStorage.decryptString(Buffer.from(encryptedToken))
+      return await fs.promises.readFile(this.refreshTokenFilePath, 'utf-8')
     } catch (error) {
       logger.error('Failed to read refresh token:', error as Error)
       return null

@@ -4935,6 +4935,7 @@
           "logout_button": "[to be translated]:Logout",
           "title": "[to be translated]:OAuth Login"
         },
+        "connect": "[to be translated]:Connect {{provider}}",
         "description": "Este serviço é fornecido por <website>{{provider}}</website>",
         "error": "Falha na autenticação",
         "logged_in": "[to be translated]:Logged in",

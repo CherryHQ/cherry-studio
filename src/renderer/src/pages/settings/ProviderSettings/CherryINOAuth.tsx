@@ -56,8 +56,11 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
+  const [hasOAuthToken, setHasOAuthToken] = useState<boolean | null>(null)
 
   const hasApiKey = !isEmpty(provider.apiKey)
+  // User is considered logged in via OAuth only if they have both API key and OAuth token
+  const isOAuthLoggedIn = hasApiKey && hasOAuthToken === true
 
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
@@ -72,8 +75,21 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     }
   }, [])
 
+  // Check if OAuth token exists
   useEffect(() => {
-    if (hasApiKey) {
+    window.api.cherryin
+      .hasToken()
+      .then((has) => {
+        setHasOAuthToken(has)
+      })
+      .catch(() => {
+        setHasOAuthToken(false)
+      })
+  }, [])
+
+  useEffect(() => {
+    // Only fetch user info and balance if logged in via OAuth
+    if (isOAuthLoggedIn) {
       window.api.cherryin
         .getUserInfo(CHERRYIN_OAUTH_SERVER)
         .then((info) => {
@@ -89,7 +105,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       setUserInfo(null)
       setBalanceInfo(null)
     }
-  }, [hasApiKey, fetchData])
+  }, [isOAuthLoggedIn, fetchData])
 
   const handleOAuthLogin = useCallback(async () => {
     setIsAuthenticating(true)
@@ -107,6 +123,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       await oauthWithCherryIn(
         (apiKeys: string) => {
           updateProvider({ apiKey: apiKeys })
+          setHasOAuthToken(true)
           window.toast.success(t('auth.get_key_success'))
         },
         {
@@ -128,12 +145,14 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     try {
       await window.api.cherryin.logout(CHERRYIN_OAUTH_SERVER)
       updateProvider({ apiKey: '' })
+      setHasOAuthToken(false)
       setUserInfo(null)
       setBalanceInfo(null)
       window.toast.success(t('settings.provider.oauth.logout_success'))
     } catch (error) {
       logger.error('Logout error:', error as Error)
       updateProvider({ apiKey: '' })
+      setHasOAuthToken(false)
       setUserInfo(null)
       setBalanceInfo(null)
       window.toast.warning(t('settings.provider.oauth.logout_success'))
@@ -159,9 +178,69 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     }
   ]
 
+  // Render logic:
+  // 1. No API key → Show login button
+  // 2. Has API key + OAuth token → Show logged-in UI
+  // 3. Has API key + No OAuth token (legacy manual key) → Show connect button to upgrade to OAuth
+  const renderContent = () => {
+    if (!hasApiKey) {
+      // Case 1: No API key - show login button
+      return (
+        <Button
+          type="primary"
+          shape="round"
+          icon={<LogIn size={16} />}
+          onClick={handleOAuthLogin}
+          loading={isAuthenticating}>
+          {t('settings.provider.oauth.button', { provider: 'CherryIN' })}
+        </Button>
+      )
+    }
+
+    if (hasOAuthToken === null) {
+      // Still checking OAuth token status
+      return <Skeleton.Input active size="small" style={{ width: 120, height: 32 }} />
+    }
+
+    if (!hasOAuthToken) {
+      // Case 3: Has API key but no OAuth token (legacy manual key)
+      // Show button to connect OAuth for better experience
+      return (
+        <Button
+          type="primary"
+          shape="round"
+          icon={<LogIn size={16} />}
+          onClick={handleOAuthLogin}
+          loading={isAuthenticating}>
+          {t('settings.provider.oauth.connect', { provider: 'CherryIN' })}
+        </Button>
+      )
+    }
+
+    // Case 2: Has API key + OAuth token - show full logged-in UI
+    return (
+      <HStack gap={12} alignItems="center">
+        <BalanceCapsule onClick={fetchData} disabled={isLoadingData}>
+          <BalanceLabel>{t('settings.provider.oauth.balance')}</BalanceLabel>
+          {isLoadingData && !balanceInfo ? (
+            <Skeleton.Input active size="small" style={{ width: 50, height: 16, minWidth: 50 }} />
+          ) : (
+            <BalanceValue>
+              ${balanceInfo?.balance.toFixed(2) ?? '--'}
+              <RefreshCw size={12} className={isLoadingData ? 'spinning' : ''} />
+            </BalanceValue>
+          )}
+        </BalanceCapsule>
+        <Button type="primary" shape="round" icon={<CreditCard size={16} />} onClick={handleTopup}>
+          {t('settings.provider.oauth.topup')}
+        </Button>
+      </HStack>
+    )
+  }
+
   return (
     <Container>
-      {hasApiKey && userInfo && (
+      {isOAuthLoggedIn && userInfo && (
         <DropdownCorner>
           <Dropdown menu={{ items: dropdownItems }} trigger={['click']} placement="bottomRight">
             <UserDropdownTrigger>
@@ -173,35 +252,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
         </DropdownCorner>
       )}
       <ProviderLogo src={CherryINProviderLogo} />
-      {!hasApiKey ? (
-        <Button
-          type="primary"
-          shape="round"
-          icon={<LogIn size={16} />}
-          onClick={handleOAuthLogin}
-          loading={isAuthenticating}>
-          {t('settings.provider.oauth.button', { provider: 'CherryIN' })}
-        </Button>
-      ) : (
-        <>
-          <HStack gap={12} alignItems="center">
-            <BalanceCapsule onClick={fetchData} disabled={isLoadingData}>
-              <BalanceLabel>{t('settings.provider.oauth.balance')}</BalanceLabel>
-              {isLoadingData && !balanceInfo ? (
-                <Skeleton.Input active size="small" style={{ width: 50, height: 16, minWidth: 50 }} />
-              ) : (
-                <BalanceValue>
-                  ${balanceInfo?.balance.toFixed(2) ?? '--'}
-                  <RefreshCw size={12} className={isLoadingData ? 'spinning' : ''} />
-                </BalanceValue>
-              )}
-            </BalanceCapsule>
-            <Button type="primary" shape="round" icon={<CreditCard size={16} />} onClick={handleTopup}>
-              {t('settings.provider.oauth.topup')}
-            </Button>
-          </HStack>
-        </>
-      )}
+      {renderContent()}
       <Description>
         <Trans
           i18nKey="settings.provider.oauth.description"

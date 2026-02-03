@@ -4935,6 +4935,7 @@
           "logout_button": "[to be translated]:Logout",
           "title": "[to be translated]:OAuth Login"
         },
+        "connect": "[to be translated]:Connect {{provider}}",
         "description": "Этот сервис предоставляется <website>{{provider}}</website>",
         "error": "Échec de l'authentification",
         "logged_in": "[to be translated]:Logged in",

@@ -4935,6 +4935,7 @@
           "logout_button": "[to be translated]:Logout",
           "title": "[to be translated]:OAuth Login"
         },
+        "connect": "[to be translated]:Connect {{provider}}",
         "description": "Acest serviciu este furnizat de <website>{{provider}}</website>",
         "error": "Autentificare eșuată",
         "logged_in": "[to be translated]:Logged in",

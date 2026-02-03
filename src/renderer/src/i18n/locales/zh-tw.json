@@ -4935,6 +4935,7 @@
           "logout_button": "登出",
           "title": "OAuth 登入"
         },
+        "connect": "關聯 {{provider}} 帳號",
         "description": "本服務由 <website>{{provider}}</website> 提供",
         "error": "認證失敗",
         "logged_in": "已登入",
