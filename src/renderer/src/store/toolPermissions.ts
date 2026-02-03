@@ -105,9 +105,11 @@ const toolPermissionsSlice = createSlice({
       if (entryId) {
         delete state.requests[entryId]
       }
+      delete state.resolvedInputs[toolCallId]
     },
     clearAll: (state) => {
       state.requests = {}
+      state.resolvedInputs = {}
     }
   }
 })

@@ -123,11 +123,12 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         const resolvedInput = state.toolPermissions.resolvedInputs[toolResponse.id]
 
         const existingResponse = existingBlock?.metadata?.rawMcpToolResponse
+        // Merge order: toolResponse.arguments (base) -> existingResponse?.arguments -> resolvedInput (user answers take precedence)
         const mergedArguments = Object.assign(
           {},
-          isPlainObject(resolvedInput) ? resolvedInput : null,
+          isPlainObject(toolResponse.arguments) ? toolResponse.arguments : null,
           isPlainObject(existingResponse?.arguments) ? existingResponse?.arguments : null,
-          isPlainObject(toolResponse.arguments) ? toolResponse.arguments : null
+          isPlainObject(resolvedInput) ? resolvedInput : null
         )
 
         const mergedToolResponse: MCPToolResponse | NormalToolResponse = {

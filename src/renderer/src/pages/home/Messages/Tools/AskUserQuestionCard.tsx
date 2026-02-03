@@ -9,11 +9,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  type AskUserQuestionItem,
-  type AskUserQuestionToolInput,
-  parseAskUserQuestionToolInput
-} from './MessageAgentTools/types'
+import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from './MessageAgentTools/types'
 
 const logger = loggerService.withContext('AskUserQuestionCard')
 
@@ -85,11 +81,13 @@ interface OptionItemProps {
 function OptionItem({ label, description, isSelected, control, onClick }: OptionItemProps) {
   return (
     <div
-      className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 ${
+      className={cn(
+        'flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors',
+        'hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20',
         isSelected
           ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20'
           : 'border-default-200 bg-default-50'
-      }`}
+      )}
       onClick={onClick}>
       {control}
       <div className="min-w-0 flex-1">
@@ -266,12 +264,15 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
 
   const isPending = toolResponse.status === 'pending' && !!request
 
-  const questionInput: AskUserQuestionToolInput | undefined = isPending
-    ? parseAskUserQuestionToolInput(request.input)
-    : parseAskUserQuestionToolInput(toolResponse.arguments)
-
-  const questions = useMemo(() => questionInput?.questions ?? [], [questionInput?.questions])
-  const answers = useMemo(() => questionInput?.answers ?? [], [questionInput?.answers])
+  const { questions, answers } = useMemo(() => {
+    const parsed = isPending
+      ? parseAskUserQuestionToolInput(request.input)
+      : parseAskUserQuestionToolInput(toolResponse.arguments)
+    return {
+      questions: parsed?.questions ?? [],
+      answers: parsed?.answers ?? {}
+    }
+  }, [isPending, request?.input, toolResponse.arguments])
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({})
@@ -372,7 +373,8 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
   }, [dispatch, request, questions, selectedAnswers, customInputs, showCustomInput, t])
 
   // Fallback states
-  if (isPending && (!request || !questionInput || !currentQuestion)) {
+  // Note: when isPending is true, request is guaranteed to be truthy
+  if (isPending && (questions.length === 0 || !currentQuestion)) {
     return (
       <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
         {t('agent.toolPermission.waiting')}
@@ -380,7 +382,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     )
   }
 
-  if (!questionInput || questions.length === 0) {
+  if (questions.length === 0) {
     return (
       <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
         {t('agent.askUserQuestion.noQuestions', 'No questions available')}

@@ -664,28 +664,6 @@ export class AgentMessageDataSource implements MessageDataSource {
       return
     }
 
-    const messageId = existingBlock.messageId
-    let message = state.messages.entities[messageId]
-    let sessionId: string | undefined
-
-    const cached = streamingMessageCache.get(messageId)
-    if (cached) {
-      message = cached.message
-      sessionId = cached.sessionId
-    }
-
-    // If still no message, try to find it from backend
-    if (!message || !sessionId) {
-      const parentMessage = message || state.messages.entities[messageId]
-      if (parentMessage?.topicId) {
-        sessionId = extractSessionId(parentMessage.topicId)
-      }
-    }
-
-    if (!sessionId) {
-      logger.warn(`Unable to determine sessionId for block ${blockId}, falling back to updateBlocks`)
-    }
-
     const mergedBlock = { ...existingBlock, ...updates } as MessageBlock
     await this.updateBlocks([mergedBlock])
   }
