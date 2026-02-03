@@ -37,11 +37,6 @@ import {
 
 const logger = loggerService.withContext('CodeToolsPage')
 
-/**
- * Sanitize provider name for CLI usage
- * - Replace spaces with dashes
- * - Replace other dangerous characters with underscores
- */
 const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
@@ -68,7 +63,12 @@ const CodeToolsPage: FC = () => {
 
   // Get default assistant settings for budget tokens calculation
   const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
-  const { maxTokens, reasoning_effort } = getAssistantSettings(defaultAssistant)
+  const { maxTokens, reasoning_effort } = useMemo(() => {
+    if (!defaultAssistant) {
+      return { maxTokens: undefined, reasoning_effort: undefined }
+    }
+    return getAssistantSettings(defaultAssistant)
+  }, [defaultAssistant])
 
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
@@ -143,12 +143,14 @@ const CodeToolsPage: FC = () => {
             m.supported_endpoint_types?.includes(type as EndpointType)
           )
         }
-        // Check if model belongs to an anthropic type provider (including custom providers)
-        const anthropicProvider = providers.find((p) => p.id === m.provider)
-        if (anthropicProvider?.type === 'anthropic') {
-          return true
-        }
-        return true
+        // Check if model belongs to openai, openai-response, or anthropic type provider
+        const provider = providers.find((p) => p.id === m.provider)
+        return !!(
+          provider?.type === 'anthropic' ||
+          provider?.type === 'openai' ||
+          provider?.type === 'openai-response' ||
+          provider?.type?.includes('openai')
+        )
       }
 
       return true

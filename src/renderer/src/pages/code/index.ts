@@ -220,24 +220,28 @@ export const generateToolEnvironment = ({
       break
 
     case codeTools.openCode:
-      env.OPENCODE_API_KEY = apiKey
-      env.OPENCODE_BASE_URL = formattedBaseUrl
-      env.OPENCODE_MODEL_NAME = model.name
-      // Calculate OpenCode-specific config internally
-      const isReasoning = isReasoningModel(model)
-      const supportsReasoningEffort = isSupportedReasoningEffortModel(model)
-      const budgetTokens = isSupportedThinkingTokenClaudeModel(model)
-        ? getAnthropicThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id)
-        : undefined
-      const providerType = modelProvider.type
-      const providerName = sanitizeProviderName(getFancyProviderName(modelProvider))
-      env.OPENCODE_MODEL_IS_REASONING = String(isReasoning)
-      env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT = String(supportsReasoningEffort)
-      if (budgetTokens !== undefined) {
-        env.OPENCODE_MODEL_BUDGET_TOKENS = String(budgetTokens)
+      // Set environment variable with provider-specific suffix for security
+      {
+        env.OPENCODE_BASE_URL = formattedBaseUrl
+        env.OPENCODE_MODEL_NAME = model.name
+        // Calculate OpenCode-specific config internally
+        const isReasoning = isReasoningModel(model)
+        const supportsReasoningEffort = isSupportedReasoningEffortModel(model)
+        const budgetTokens = isSupportedThinkingTokenClaudeModel(model)
+          ? getAnthropicThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id)
+          : undefined
+        const providerType = modelProvider.type
+        const providerName = sanitizeProviderName(getFancyProviderName(modelProvider))
+        env.OPENCODE_MODEL_IS_REASONING = String(isReasoning)
+        env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT = String(supportsReasoningEffort)
+        if (budgetTokens !== undefined) {
+          env.OPENCODE_MODEL_BUDGET_TOKENS = String(budgetTokens)
+        }
+        env.OPENCODE_PROVIDER_TYPE = providerType
+        env.OPENCODE_PROVIDER_NAME = providerName
+        const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+        env[envVarKey] = apiKey
       }
-      env.OPENCODE_PROVIDER_TYPE = providerType
-      env.OPENCODE_PROVIDER_NAME = providerName
       break
   }
 

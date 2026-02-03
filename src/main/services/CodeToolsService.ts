@@ -34,10 +34,10 @@ const NON_FUNCTIONAL_KEYS = ['$schema']
  * Parse JSON with comments (JSONC) support
  * Uses jsonc-parser library for safe parsing without code execution
  */
-function parseJSONC(content: string): Record<string, any> | null {
+export function parseJSONC(content: string): Record<string, any> | null {
   try {
     const result = jsoncParse(content, undefined, {
-      allowTrailingComma: false,
+      allowTrailingComma: true,
       disallowComments: false
     })
     return result && typeof result === 'object' ? result : null
@@ -49,7 +49,7 @@ function parseJSONC(content: string): Record<string, any> | null {
 /**
  * Get functional keys from a config object (excluding non-functional keys like $schema)
  */
-function getFunctionalKeys(obj: Record<string, any>): string[] {
+export function getFunctionalKeys(obj: Record<string, any>): string[] {
   return Object.keys(obj).filter((key) => !NON_FUNCTIONAL_KEYS.includes(key))
 }
 
@@ -57,7 +57,7 @@ function getFunctionalKeys(obj: Record<string, any>): string[] {
  * Sanitize environment variables for safe logging
  * Redacts values of sensitive keys to prevent credential leakage
  */
-function sanitizeEnvForLogging(env: Record<string, string>): Record<string, string> {
+export function sanitizeEnvForLogging(env: Record<string, string>): Record<string, string> {
   const sanitized: Record<string, string> = {}
   for (const [key, value] of Object.entries(env)) {
     const isSensitive = SENSITIVE_ENV_KEYS.some((k) => key.toUpperCase().includes(k))
@@ -174,7 +174,6 @@ class CodeToolsService {
   private async generateOpenCodeConfig(
     directory: string,
     model: { id: string; name: string },
-    apiKey: string,
     baseUrl: string,
     isReasoning: boolean,
     supportsReasoningEffort: boolean,
@@ -258,11 +257,12 @@ class CodeToolsService {
     }
     this.openCodeConfigBackups.set(configPath, backupContent)
 
-    // Build CherryStudio provider config
+    // config with env variable Build CherryStudio provider reference for security
+    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
     const cherryProviderConfig = {
       npm: npmPackage,
       name: dynamicProviderName,
-      options: { apiKey, baseURL: baseUrl },
+      options: { apiKey: `{env:${envVarKey}}`, baseURL: baseUrl },
       models: { [model.id]: modelConfig }
     }
 
@@ -968,7 +968,6 @@ class CodeToolsService {
 
     // Special handling for OpenCode: generate config file and add --model flag
     if (cliTool === codeTools.openCode) {
-      const apiKey = env.OPENCODE_API_KEY
       const baseUrl = env.OPENCODE_BASE_URL
       const modelId = _model
       const modelName = env.OPENCODE_MODEL_NAME || modelId
@@ -981,7 +980,6 @@ class CodeToolsService {
       const configPath = await this.generateOpenCodeConfig(
         directory,
         { id: modelId, name: modelName },
-        apiKey,
         baseUrl,
         isReasoning,
         supportsReasoningEffort,
