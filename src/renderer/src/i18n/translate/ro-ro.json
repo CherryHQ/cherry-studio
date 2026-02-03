@@ -2452,6 +2452,59 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "[to be translated]:Checking OpenClaw installation...",
+    "description": "[to be translated]:Integrate Cherry Studio providers with OpenClaw Gateway to enable AI coding agents like Claude Code, Qwen-Coder, and more.",
+    "error": {
+      "select_provider_model": "[to be translated]:Please select a provider and model first"
+    },
+    "gateway": {
+      "health": "[to be translated]:Health",
+      "port": "[to be translated]:Port",
+      "restart": "[to be translated]:Restart",
+      "start": "[to be translated]:Start Gateway",
+      "status": "[to be translated]:Status",
+      "stop": "[to be translated]:Stop",
+      "title": "[to be translated]:Gateway Control",
+      "version": "[to be translated]:Version"
+    },
+    "installed_at": "[to be translated]:OpenClaw installed at: {{path}}",
+    "model_config": {
+      "auth_token": "[to be translated]:Auth Token",
+      "auth_token_hint": "[to be translated]:Token for gateway authentication. Leave empty to disable authentication.",
+      "auth_token_placeholder": "[to be translated]:Enter or generate a token",
+      "generate_token": "[to be translated]:Generate",
+      "model": "[to be translated]:Model",
+      "provider": "[to be translated]:Provider",
+      "select_model": "[to be translated]:Select a model",
+      "select_provider": "[to be translated]:Select a provider",
+      "sync_hint": "[to be translated]:Selected provider and model will be synced to OpenClaw config file",
+      "title": "[to be translated]:Model Configuration"
+    },
+    "not_installed": {
+      "description": "[to be translated]:OpenClaw is not installed on your system. Please install it first to use this feature.",
+      "install_button": "[to be translated]:Install OpenClaw",
+      "install_guide_title": "[to be translated]:Installation Guide",
+      "macos_linux_title": "[to be translated]:macOS / Linux",
+      "refresh": "[to be translated]:Refresh",
+      "step2_hint": "[to be translated]:After installation, click the Refresh button above to detect OpenClaw",
+      "step2_title": "[to be translated]:Step 2: Verify installation",
+      "title": "[to be translated]:OpenClaw Not Installed",
+      "windows_title": "[to be translated]:Windows"
+    },
+    "quick_actions": {
+      "open_dashboard": "[to be translated]:Open Dashboard",
+      "title": "[to be translated]:Quick Actions",
+      "view_docs": "[to be translated]:View Documentation"
+    },
+    "status": {
+      "error": "[to be translated]:Error",
+      "running": "[to be translated]:Running",
+      "starting": "[to be translated]:Starting",
+      "stopped": "[to be translated]:Stopped"
+    },
+    "title": "[to be translated]:OpenClaw"
+  },
   "ovms": {
     "action": {
       "install": "Instalează",
@@ -5150,6 +5203,7 @@
     "mcp-servers": "Servere MCP",
     "memories": "Amintiri",
     "notes": "Notițe",
+    "openclaw": "[to be translated]:OpenClaw",
     "paintings": "Imagini",
     "settings": "Setări",
     "store": "Bibliotecă asistenți",
