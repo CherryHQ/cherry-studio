@@ -1413,6 +1413,7 @@
     "requestBody": "请求内容",
     "requestBodyValues": "请求体",
     "requestUrl": "请求路径",
+    "request_timeout": "请求超时",
     "response": "响应",
     "responseBody": "响应内容",
     "responseHeaders": "响应首部",

@@ -9,9 +9,9 @@ import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/stor
 import type { Assistant, Topic } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
+import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
-import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
+import { formatErrorMessage, isAbortError, isTimeoutError } from '@renderer/utils/error'
 import { createErrorBlock, createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { cloneDeep } from 'lodash'
 
@@ -221,11 +221,17 @@ export const processMessages = async (
                 )
               }
               const isErrorTypeAbort = isAbortError(chunk.error)
+              const isErrorTypeTimeout = isTimeoutError(chunk.error)
+              const i18nKey = isErrorTypeAbort
+                ? ERROR_I18N_KEY_STREAM_PAUSED
+                : isErrorTypeTimeout
+                  ? ERROR_I18N_KEY_REQUEST_TIMEOUT
+                  : undefined
               const serializableError = {
                 name: chunk.error.name,
                 message: chunk.error.message || formatErrorMessage(chunk.error),
                 originalMessage: chunk.error.message,
-                ...(isErrorTypeAbort && { i18nKey: ERROR_I18N_KEY_STREAM_PAUSED }),
+                ...(i18nKey && { i18nKey }),
                 stack: chunk.error.stack,
                 status: chunk.error.status || chunk.error.code,
                 requestId: chunk.error.request_id

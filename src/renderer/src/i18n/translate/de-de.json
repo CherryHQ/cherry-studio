@@ -1413,6 +1413,7 @@
     "requestBody": "Anfrage-Inhalt",
     "requestBodyValues": "Anfrage-Body",
     "requestUrl": "Anfrage-URL",
+    "request_timeout": "Anforderung Zeitüberschreitung",
     "response": "Antwort",
     "responseBody": "Antwort-Inhalt",
     "responseHeaders": "Antwort-Header",

@@ -1413,6 +1413,7 @@
     "requestBody": "請求內容",
     "requestBodyValues": "請求本文參數",
     "requestUrl": "請求路徑",
+    "request_timeout": "請求逾時",
     "response": "回應",
     "responseBody": "回應本文",
     "responseHeaders": "回應標頭",

@@ -1413,6 +1413,7 @@
     "requestBody": "Запрашиваемый контент",
     "requestBodyValues": "Тело запроса",
     "requestUrl": "Путь запроса",
+    "request_timeout": "Время ожидания запроса истекло",
     "response": "ответ",
     "responseBody": "Содержание ответа",
     "responseHeaders": "Заголовки ответа",

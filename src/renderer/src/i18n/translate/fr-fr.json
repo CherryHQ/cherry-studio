@@ -1413,6 +1413,7 @@
     "requestBody": "Contenu de la demande",
     "requestBodyValues": "Corps de la requête",
     "requestUrl": "Chemin de la requête",
+    "request_timeout": "Délai d'attente de la requête dépassé",
     "response": "réponse",
     "responseBody": "Contenu de la réponse",
     "responseHeaders": "En-têtes de réponse",

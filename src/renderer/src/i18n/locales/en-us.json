@@ -1413,6 +1413,7 @@
     "requestBody": "Request Body",
     "requestBodyValues": "Request Body Values",
     "requestUrl": "Request URL",
+    "request_timeout": "Request timed out",
     "response": "Response",
     "responseBody": "Response Body",
     "responseHeaders": "Response Header",

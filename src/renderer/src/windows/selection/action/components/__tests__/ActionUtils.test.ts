@@ -52,6 +52,7 @@ vi.mock('@renderer/store/thunk/messageThunk', () => ({
 
 vi.mock('@renderer/utils/error', () => ({
   isAbortError: vi.fn(),
+  isTimeoutError: vi.fn(),
   formatErrorMessage: vi.fn()
 }))
 

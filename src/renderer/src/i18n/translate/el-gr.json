@@ -1413,6 +1413,7 @@
     "requestBody": "Περιεχόμενο αιτήματος",
     "requestBodyValues": "Σώμα αιτήματος",
     "requestUrl": "Μονοπάτι αιτήματος",
+    "request_timeout": "Έληξε το χρονικό όριο του αιτήματος",
     "response": "απάντηση",
     "responseBody": "απάντηση περιεχομένου",
     "responseHeaders": "Επικεφαλίδες απόκρισης",

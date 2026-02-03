@@ -1413,6 +1413,7 @@
     "requestBody": "要求されたコンテンツ",
     "requestBodyValues": "リクエストボディ",
     "requestUrl": "リクエストパス",
+    "request_timeout": "リクエストがタイムアウトしました",
     "response": "応答",
     "responseBody": "レスポンス内容",
     "responseHeaders": "レスポンスヘッダー",
