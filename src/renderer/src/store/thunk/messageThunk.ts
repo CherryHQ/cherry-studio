@@ -47,7 +47,6 @@ import {
 } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
-import { defaultTimeout } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
 import type { TextStreamPart } from 'ai'
@@ -837,9 +836,6 @@ const fetchAndProcessAssistantResponseImpl = async (
         callbacks,
         options: {
           signal: abortController.signal,
-          // TODO: make it configurable
-          // FIXME: temporary solution. It may be too long.
-          timeout: defaultTimeout,
           headers: defaultAppHeaders()
         }
       },

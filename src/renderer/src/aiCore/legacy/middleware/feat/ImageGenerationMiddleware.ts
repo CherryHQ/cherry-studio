@@ -4,7 +4,7 @@ import { isDedicatedImageGenerationModel } from '@renderer/config/models'
 import FileManager from '@renderer/services/FileManager'
 import { ChunkType } from '@renderer/types/chunk'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { defaultTimeout } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import type { BaseApiClient } from '../../clients/BaseApiClient'
 import type { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
@@ -75,7 +75,7 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
 
           const startTime = Date.now()
           let response: OpenAI.Images.ImagesResponse
-          const options = { signal, timeout: defaultTimeout }
+          const options = { signal, timeout: DEFAULT_TIMEOUT }
 
           if (imageFiles.length > 0) {
             const model = assistant.model

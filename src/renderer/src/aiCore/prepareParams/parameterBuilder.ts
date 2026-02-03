@@ -37,7 +37,7 @@ import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
-import { defaultTimeout } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
@@ -101,7 +101,8 @@ export async function buildStreamTextParams(
   webSearchPluginConfig?: WebSearchPluginConfig
 }> {
   const { mcpTools, requestOptions = {} } = options
-  const { signal: externalSignal, timeout = defaultTimeout, headers: inputHeaders = {} } = requestOptions
+  // No caller currently provides a custom timeout; defaultTimeout (10 min) is the fallback.
+  const { signal: externalSignal, timeout = DEFAULT_TIMEOUT, headers: inputHeaders = {} } = requestOptions
   const timeoutSignal = AbortSignal.timeout(timeout)
   const signals = [timeoutSignal]
   if (externalSignal) {

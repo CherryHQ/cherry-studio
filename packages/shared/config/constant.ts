@@ -218,7 +218,7 @@ export enum UpdateMirror {
   GITCODE = 'gitcode'
 }
 
-export const defaultTimeout = 10 * 1000 * 60
+export const DEFAULT_TIMEOUT = 10 * 1000 * 60
 
 export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 
