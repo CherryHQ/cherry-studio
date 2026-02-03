@@ -1,7 +1,7 @@
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { Typography } from 'antd'
-import { CheckCircle, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, Circle, Loader2, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,7 +23,7 @@ function getTodoStatusIcon(status: TodoItem['status']) {
       return <Loader2 size={14} className="animate-spin text-blue-500" />
     case 'pending':
     default:
-      return <Loader2 size={14} className="animate-spin text-gray-400" />
+      return <Circle size={14} className="text-gray-400" />
   }
 }
 

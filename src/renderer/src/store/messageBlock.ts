@@ -18,6 +18,7 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
+import type { TodoItem, TodoWriteToolInput } from '@renderer/pages/home/Messages/Tools/MessageAgentTools/types'
 import type { AISDKWebSearchResult, Citation, NormalToolResponse, WebSearchProviderResponse } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
@@ -327,16 +328,6 @@ export const selectFormattedCitationsByBlockId = createSelector([selectBlockEnti
 
 // --- Active TodoWrite Block Selector ---
 
-interface TodoItem {
-  content: string
-  status: 'pending' | 'in_progress' | 'completed'
-  activeForm: string
-}
-
-interface TodoWriteToolInput {
-  todos: TodoItem[]
-}
-
 /**
  * Check if todos have any incomplete items
  */
@@ -346,29 +337,42 @@ const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
 /**
  * Select the latest TodoWrite tool block with incomplete todos for a specific topic
  * Used by PinnedTodoPanel to display current task progress above the inputbar
+ *
+ * Optimized to only depend on the specific topic's messages and their blocks,
+ * rather than all blocks in the store, to avoid unnecessary recomputations.
  */
 export const selectLatestTodoWriteBlockForTopic = createSelector(
   [
-    messageBlocksSelectors.selectAll,
+    (state: RootState) => state.messages.entities,
+    (state: RootState) => state.messageBlocks.entities,
     (state: RootState) => state.messages.messageIdsByTopic,
     (_state: RootState, topicId: string) => topicId
   ],
-  (allBlocks, messageIdsByTopic, topicId): ToolMessageBlock | undefined => {
+  (messageEntities, blockEntities, messageIdsByTopic, topicId): ToolMessageBlock | undefined => {
     const topicMessageIds = messageIdsByTopic[topicId]
     if (!topicMessageIds?.length) return undefined
 
-    const topicMessageIdSet = new Set(topicMessageIds)
+    // Iterate messages in reverse (newest first)
+    for (let i = topicMessageIds.length - 1; i >= 0; i--) {
+      const messageId = topicMessageIds[i]
+      const message = messageEntities[messageId]
 
-    for (let i = allBlocks.length - 1; i >= 0; i--) {
-      const block = allBlocks[i]
-      if (block.type !== MessageBlockType.TOOL || !topicMessageIdSet.has(block.messageId)) continue
+      if (!message?.blocks?.length) continue
 
-      const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
-      if (toolResponse?.tool?.name !== 'TodoWrite') continue
+      // Check blocks of the message in reverse order (newest first)
+      for (let j = message.blocks.length - 1; j >= 0; j--) {
+        const blockId = message.blocks[j]
+        const block = blockEntities[blockId]
 
-      const todos = (toolResponse.arguments as TodoWriteToolInput | undefined)?.todos ?? []
-      if (hasIncompleteTodos(todos)) {
-        return block as ToolMessageBlock
+        if (!block || block.type !== MessageBlockType.TOOL) continue
+
+        const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse as NormalToolResponse | undefined
+        if (toolResponse?.tool?.name !== 'TodoWrite') continue
+
+        const todos = (toolResponse.arguments as TodoWriteToolInput | undefined)?.todos ?? []
+        if (hasIncompleteTodos(todos)) {
+          return block as ToolMessageBlock
+        }
       }
     }
 
@@ -379,27 +383,38 @@ export const selectLatestTodoWriteBlockForTopic = createSelector(
 /**
  * Select all TodoWrite tool block IDs for a specific topic
  * Used by PinnedTodoPanel to delete all TodoWrite blocks when closing
+ *
+ * Optimized to only depend on the specific topic's messages and their blocks,
+ * rather than all blocks in the store.
  */
 export const selectAllTodoWriteBlockIdsForTopic = createSelector(
   [
-    messageBlocksSelectors.selectAll,
+    (state: RootState) => state.messages.entities,
+    (state: RootState) => state.messageBlocks.entities,
     (state: RootState) => state.messages.messageIdsByTopic,
     (_state: RootState, topicId: string) => topicId
   ],
-  (allBlocks, messageIdsByTopic, topicId): { blockId: string; messageId: string }[] => {
+  (messageEntities, blockEntities, messageIdsByTopic, topicId): { blockId: string; messageId: string }[] => {
     const topicMessageIds = messageIdsByTopic[topicId]
     if (!topicMessageIds?.length) return []
 
-    const topicMessageIdSet = new Set(topicMessageIds)
     const result: { blockId: string; messageId: string }[] = []
 
-    for (const block of allBlocks) {
-      if (block.type !== MessageBlockType.TOOL || !topicMessageIdSet.has(block.messageId)) continue
-      const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse | undefined
-      if (toolResponse?.tool?.name === 'TodoWrite') {
-        result.push({ blockId: block.id, messageId: block.messageId })
+    for (const messageId of topicMessageIds) {
+      const message = messageEntities[messageId]
+      if (!message?.blocks?.length) continue
+
+      for (const blockId of message.blocks) {
+        const block = blockEntities[blockId]
+        if (!block || block.type !== MessageBlockType.TOOL) continue
+
+        const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse as NormalToolResponse | undefined
+        if (toolResponse?.tool?.name === 'TodoWrite') {
+          result.push({ blockId: block.id, messageId: block.messageId })
+        }
       }
     }
+
     return result
   }
 )
