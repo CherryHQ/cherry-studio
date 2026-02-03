@@ -79,7 +79,8 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
       ...app,
       type: 'Custom',
       logo: app.logo && app.logo !== '' ? app.logo : ApplicationLogo,
-      addTime: app.addTime || now
+      addTime: app.addTime || now,
+      supportedRegions: ['CN', 'Global'] // Custom mini apps should always be visible for all regions
     }))
   } catch (error) {
     logger.error('Failed to load custom mini apps:', error as Error)
